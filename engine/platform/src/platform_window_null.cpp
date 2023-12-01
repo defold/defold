@@ -106,4 +106,13 @@ namespace dmPlatform
     {
         return window->m_DeviceStates[(int) state];
     }
+
+    int32_t TriggerCloseCallback(HWindow window)
+    {
+        if (window->m_CreateParams.m_CloseCallback)
+        {
+            return window->m_CreateParams.m_CloseCallback(window->m_CreateParams.m_CloseCallbackUserData);
+        }
+        return 0;
+    }
 }

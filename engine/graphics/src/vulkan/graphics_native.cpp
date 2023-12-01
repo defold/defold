@@ -93,62 +93,42 @@ namespace dmGraphics
     {
     }
 
-    void NativeBeginFrame(HContext context)
+    void NativeBeginFrame(HContext _context)
     {
-    }
+        VulkanContext* context = (VulkanContext*) _context;
+        uint32_t window_width = dmPlatform::GetWindowWidth(context->m_Window);
+        uint32_t window_height = dmPlatform::GetWindowHeight(context->m_Window);
 
-    static void VulkanOnWindowResize(void* user_data, uint32_t width, uint32_t height)
-    {
-        g_VulkanContext->m_WindowWidth  = (uint32_t)width;
-        g_VulkanContext->m_WindowHeight = (uint32_t)height;
-
-        SwapChainChanged(g_VulkanContext, &g_VulkanContext->m_WindowWidth, &g_VulkanContext->m_WindowHeight, 0, 0);
-
-        if (g_VulkanContext->m_WindowResizeCallback != 0x0)
+        if (window_width != context->m_WindowWidth || window_height != context->m_WindowHeight)
         {
-            g_VulkanContext->m_WindowResizeCallback(user_data, (uint32_t)width, (uint32_t)height);
+            g_VulkanContext->m_WindowWidth  = (uint32_t) window_width;
+            g_VulkanContext->m_WindowHeight = (uint32_t) window_height;
+
+            SwapChainChanged(g_VulkanContext, &g_VulkanContext->m_WindowWidth, &g_VulkanContext->m_WindowHeight, 0, 0);
         }
     }
 
-    dmPlatform::PlatformResult VulkanOpenWindow(HContext _context, dmPlatform::WindowParams* params)
+    bool NativeInitializeContext(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_WindowSurface == VK_NULL_HANDLE);
 
-        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        if (!InitializeVulkan(context))
         {
-            return dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
+            return false;
         }
 
-        context->m_WindowResizeCallback            = params->m_ResizeCallback;
-        params->m_GraphicsApi                      = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
-        params->m_ResizeCallback                   = VulkanOnWindowResize;
-        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(context->m_Window, *params);
-
-        if (platform_result != dmPlatform::PLATFORM_RESULT_OK)
-        {
-            return platform_result;
-        }
-
-        if (!InitializeVulkan(context, params))
-        {
-            return dmPlatform::PLATFORM_RESULT_WINDOW_OPEN_ERROR;
-        }
-
-        context->m_WindowOpened        = 1;
-        context->m_Width               = params->m_Width;
-        context->m_Height              = params->m_Height;
         context->m_WindowWidth         = context->m_SwapChain->m_ImageExtent.width;
         context->m_WindowHeight        = context->m_SwapChain->m_ImageExtent.height;
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;
 
-        return dmPlatform::PLATFORM_RESULT_OK;
+        return true;
     }
 
     void VulkanCloseWindow(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        if (context->m_WindowOpened)
+        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
@@ -161,8 +141,6 @@ namespace dmGraphics
             vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
 
             DestroyInstance(&context->m_Instance);
-
-            context->m_WindowOpened = 0;
 
             if (context->m_DynamicOffsetBuffer)
             {
@@ -205,7 +183,7 @@ namespace dmGraphics
     {
         VulkanContext* context = (VulkanContext*) _context;
 
-        if (context->m_WindowOpened)
+        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             context->m_Width  = width;
             context->m_Height = height;
@@ -219,11 +197,12 @@ namespace dmGraphics
         }
     }
 
-    void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height)
+    void VulkanResizeWindow(HContext _context, uint32_t width, uint32_t height)
     {
-        if (((VulkanContext*) context)->m_WindowOpened)
+        VulkanContext* context = (VulkanContext*) _context;
+        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
-            VulkanSetWindowSize(context, width, height);
+            VulkanSetWindowSize(_context, width, height);
         }
     }
 

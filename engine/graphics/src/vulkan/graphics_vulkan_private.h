@@ -448,7 +448,6 @@ namespace dmGraphics
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 1;
         uint32_t                        m_NumFramesInFlight    : 2;
-        uint32_t                        m_WindowOpened         : 1;
         uint32_t                        m_VerifyGraphicsCalls  : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
@@ -524,8 +523,7 @@ namespace dmGraphics
     void     DestroySwapChain(VkDevice vk_device, SwapChain* swapChain);
     void     GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
 
-    // called from OpenWindow
-    bool InitializeVulkan(HContext context, const dmPlatform::WindowParams* params);
+    bool InitializeVulkan(HContext context);
     void InitializeVulkanTexture(VulkanTexture* t);
 
     void OnWindowResize(int width, int height);
@@ -551,8 +549,8 @@ namespace dmGraphics
     bool         NativeInit(const struct ContextParams& params);
     void         NativeExit();
     void         NativeBeginFrame(HContext context);
+    bool         NativeInitializeContext(HContext context);
 
-    dmPlatform::PlatformResult VulkanOpenWindow(HContext context, dmPlatform::WindowParams* params);
     void                       VulkanCloseWindow(HContext context);
     void                       VulkanDestroyResources(HContext context);
     uint32_t                   VulkanGetDisplayDpi(HContext context);

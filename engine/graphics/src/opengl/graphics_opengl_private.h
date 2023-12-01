@@ -103,6 +103,7 @@ namespace dmGraphics
         uint32_t                m_PackedDepthStencilSupport        : 1;
         uint32_t                m_VerifyGraphicsCalls              : 1;
         uint32_t                m_RenderDocSupport                 : 1;
+        uint32_t                m_PrintDeviceInfo                  : 1;
         uint32_t                m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3
         uint32_t                m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
     };

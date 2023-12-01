@@ -27,13 +27,13 @@ namespace dmGraphics
 
     struct GraphicsAdapter
     {
-        GraphicsAdapter(const char* adapter_name)
-        : m_AdapterName(adapter_name) {}
+        GraphicsAdapter(AdapterFamily family)
+        : m_Family(family) {}
 
         struct GraphicsAdapter*            m_Next;
         GraphicsAdapterRegisterFunctionsCb m_RegisterCb;
         GraphicsAdapterIsSupportedCb       m_IsSupportedCb;
-        const char*                        m_AdapterName;
+        AdapterFamily                      m_Family;
         int8_t                             m_Priority;
     };
 
@@ -55,10 +55,8 @@ namespace dmGraphics
 
     typedef HContext (*NewContextFn)(const ContextParams& params);
     typedef void (*DeleteContextFn)(HContext context);
-    typedef bool (*InitializeFn)();
     typedef void (*FinalizeFn)();
     typedef void (*AppBootstrapFn)(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
-    typedef dmPlatform::PlatformResult (*OpenWindowFn)(HContext context, dmPlatform::WindowParams *params);
     typedef void (*CloseWindowFn)(HContext context);
     typedef dmPlatform::HWindow (*GetWindowFn)(HContext context);
     typedef uint32_t (*GetDisplayDpiFn)(HContext context);
@@ -179,9 +177,7 @@ namespace dmGraphics
     {
         NewContextFn m_NewContext;
         DeleteContextFn m_DeleteContext;
-        InitializeFn m_Initialize;
         FinalizeFn m_Finalize;
-        OpenWindowFn m_OpenWindow;
         CloseWindowFn m_CloseWindow;
         GetWindowFn m_GetWindow;
         GetDisplayDpiFn m_GetDisplayDpi;
@@ -304,9 +300,7 @@ namespace dmGraphics
     #define DM_REGISTER_GRAPHICS_FUNCTION_TABLE(tbl, adapter_name) \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewContext); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteContext); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Initialize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Finalize); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, OpenWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CloseWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDisplayDpi); \

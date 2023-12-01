@@ -44,16 +44,15 @@ namespace dmGraphics
         g_adapter_list           = adapter;
     }
 
-    static bool SelectAdapterByName(const char* adapter_name)
+    static bool SelectAdapterByFamily(AdapterFamily family)
     {
-        if (adapter_name != 0)
+        if (family != ADAPTER_FAMILY_NONE)
         {
             GraphicsAdapter* next = g_adapter_list;
 
             while(next)
             {
-                assert(next->m_AdapterName != 0);
-                if (dmStrCaseCmp(next->m_AdapterName, adapter_name) == 0 && next->m_IsSupportedCb())
+                if (next->m_Family == family && next->m_IsSupportedCb())
                 {
                     g_functions = next->m_RegisterCb();
                     g_adapter   = next;
@@ -91,7 +90,37 @@ namespace dmGraphics
         return true;
     }
 
+    AdapterFamily GetAdapterFamily(const char* adapter_name)
+    {
+        if (adapter_name == 0)
+            return ADAPTER_FAMILY_NONE;
+        if (dmStrCaseCmp("null", adapter_name) == 0)
+            return ADAPTER_FAMILY_NULL;
+        if (dmStrCaseCmp("opengl", adapter_name) == 0)
+            return ADAPTER_FAMILY_OPENGL;
+        if (dmStrCaseCmp("vulkan", adapter_name) == 0)
+            return ADAPTER_FAMILY_VULKAN;
+        if (dmStrCaseCmp("vendor", adapter_name) == 0)
+            return ADAPTER_FAMILY_VENDOR;
+        assert(0 && "Adapter type not supported?");
+        return ADAPTER_FAMILY_NONE;
+    }
+
     #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
+
+    const char* GetAdapterFamilyLiteral(AdapterFamily family)
+    {
+        switch(family)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
+            default:break;
+        }
+        return "<unknown dmGraphics::AdapterFamily>";
+    }
 
     const char* GetTextureTypeLiteral(TextureType texture_type)
     {
@@ -819,14 +848,14 @@ namespace dmGraphics
         g_functions.m_DeleteContext(context);
     }
 
-    bool Initialize(const char* adapter_name_str)
+    bool InstallAdapter(AdapterFamily family)
     {
         if (g_adapter)
         {
             return true;
         }
 
-        bool result = SelectAdapterByName(adapter_name_str);
+        bool result = SelectAdapterByFamily(family);
 
         if (!result)
         {
@@ -835,17 +864,21 @@ namespace dmGraphics
 
         if (result)
         {
-            result = g_functions.m_Initialize();
-        }
-
-        if (result)
-        {
-            dmLogInfo("Initialised graphics device '%s'", g_adapter->m_AdapterName);
+            dmLogInfo("Installed graphics device '%s'", GetAdapterFamilyLiteral(g_adapter->m_Family));
             return true;
         }
 
-        dmLogError("Could not initialize graphics. No graphics adapter was found.");
+        dmLogError("Could not install a graphics adapter. No compatible adapter was found.");
         return false;
+    }
+
+    AdapterFamily GetInstalledAdapterFamily()
+    {
+        if (g_adapter)
+        {
+            return g_adapter->m_Family;
+        }
+        return ADAPTER_FAMILY_NONE;
     }
 
     void Finalize()
@@ -889,11 +922,6 @@ namespace dmGraphics
         dmPlatform::SetSwapInterval(g_functions.m_GetWindow(context), swap_interval);
     }
     ///////////////////////////////////////////////////
-
-    dmPlatform::PlatformResult OpenWindow(HContext context, dmPlatform::WindowParams *params)
-    {
-        return g_functions.m_OpenWindow(context, params);
-    }
     void CloseWindow(HContext context)
     {
         g_functions.m_CloseWindow(context);

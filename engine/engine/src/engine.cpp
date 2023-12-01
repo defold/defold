@@ -221,6 +221,7 @@ namespace dmEngine
 
     Engine::Engine(dmEngineService::HEngineService engine_service)
     : m_Config(0)
+    , m_Window(0)
     , m_Alive(true)
     , m_MainCollection(0)
     , m_LastReloadMTime(0)
@@ -343,7 +344,8 @@ namespace dmEngine
             }
         }
 
-        if (engine->m_Factory) {
+        if (engine->m_Factory)
+        {
             dmResource::DeleteFactory(engine->m_Factory);
         }
 
@@ -351,6 +353,12 @@ namespace dmEngine
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
             dmGraphics::DeleteContext(engine->m_GraphicsContext);
+        }
+
+        if (engine->m_Window)
+        {
+            dmPlatform::CloseWindow(engine->m_Window);
+            dmPlatform::DeleteWindow(engine->m_Window);
         }
 
         if (engine->m_SystemSocket)
@@ -531,6 +539,20 @@ namespace dmEngine
             ctx.m_BufferSize = buffersize;
             dmScript::GetLuaTraceback(dmScript::GetLuaState(engine->m_SharedScriptContext), "Sln", GetLuaStackTraceCbk, &ctx);
         }
+    }
+
+    static dmPlatform::PlatformGraphicsApi AdapterFamilyToGraphicsAPI(dmGraphics::AdapterFamily family)
+    {
+        switch(family)
+        {
+            case dmGraphics::ADAPTER_FAMILY_NULL:   return dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+            case dmGraphics::ADAPTER_FAMILY_OPENGL: return dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+            case dmGraphics::ADAPTER_FAMILY_VULKAN: return dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+            case dmGraphics::ADAPTER_FAMILY_VENDOR: return dmPlatform::PLATFORM_GRAPHICS_API_VENDOR;
+            default:break;
+        }
+        assert(0);
+        return (dmPlatform::PlatformGraphicsApi) -1;
     }
 
     /*
@@ -794,25 +816,6 @@ namespace dmEngine
         // This scope is mainly here to make sure the "Main" scope is created first
         DM_PROFILE("Init");
 
-        dmGraphics::ContextParams graphics_context_params;
-        graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
-        graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
-        graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
-        graphics_context_params.m_RenderDocSupport        = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
-
-        graphics_context_params.m_UseValidationLayers = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
-        graphics_context_params.m_GraphicsMemorySize = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
-
-        engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
-        if (engine->m_GraphicsContext == 0x0)
-        {
-            dmLogFatal("Unable to create the graphics context.");
-            return false;
-        }
-
-        engine->m_Width = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
-        engine->m_Height = dmConfigFile::GetInt(engine->m_Config, "display.height", 640);
-
         float clear_color_red = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_red", 0.0);
         float clear_color_green = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_green", 0.0);
         float clear_color_blue = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_blue", 0.0);
@@ -823,28 +826,53 @@ namespace dmEngine
                              | (((uint32_t)(clear_color_alpha * 255.0) & 0x000000ff) << 24);
         engine->m_ClearColor = clear_color;
 
-        dmPlatform::WindowParams window_params = {};
-        window_params.m_ResizeCallback = OnWindowResize;
-        window_params.m_ResizeCallbackUserData = engine;
-        window_params.m_CloseCallback = OnWindowClose;
-        window_params.m_CloseCallbackUserData = engine;
-        window_params.m_FocusCallback = OnWindowFocus;
-        window_params.m_FocusCallbackUserData = engine;
-        window_params.m_IconifyCallback = OnWindowIconify;
-        window_params.m_IconifyCallbackUserData = engine;
-        window_params.m_Width = engine->m_Width;
-        window_params.m_Height = engine->m_Height;
-        window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
-        window_params.m_Title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
-        window_params.m_Fullscreen = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
-        window_params.m_PrintDeviceInfo = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
-        window_params.m_HighDPI = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
-        window_params.m_BackgroundColor = clear_color;
+        // Platform
+        engine->m_Width = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
+        engine->m_Height = dmConfigFile::GetInt(engine->m_Config, "display.height", 640);
 
-        dmPlatform::PlatformResult platform_res = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
-        if (platform_res != dmPlatform::PLATFORM_RESULT_OK)
+        dmPlatform::WindowParams window_params  = {};
+        window_params.m_ResizeCallback          = OnWindowResize;
+        window_params.m_ResizeCallbackUserData  = engine;
+        window_params.m_CloseCallback           = OnWindowClose;
+        window_params.m_CloseCallbackUserData   = engine;
+        window_params.m_FocusCallback           = OnWindowFocus;
+        window_params.m_FocusCallbackUserData   = engine;
+        window_params.m_IconifyCallback         = OnWindowIconify;
+        window_params.m_IconifyCallbackUserData = engine;
+        window_params.m_Width                   = engine->m_Width;
+        window_params.m_Height                  = engine->m_Height;
+        window_params.m_Samples                 = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
+        window_params.m_Title                   = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
+        window_params.m_Fullscreen              = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
+        window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
+        window_params.m_BackgroundColor         = clear_color;
+        window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
+
+        engine->m_Window = dmPlatform::NewWindow();
+
+        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(engine->m_Window, window_params);
+        if (platform_result != dmPlatform::PLATFORM_RESULT_OK)
         {
-            dmLogFatal("Could not open window (%d).", platform_res);
+            dmLogFatal("Could not open window (%d).", platform_result);
+            return false;
+        }
+
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
+        graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
+        graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
+        graphics_context_params.m_RenderDocSupport        = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
+        graphics_context_params.m_UseValidationLayers     = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
+        graphics_context_params.m_GraphicsMemorySize      = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
+        graphics_context_params.m_Window                  = engine->m_Window;
+        graphics_context_params.m_Width                   = engine->m_Width;
+        graphics_context_params.m_Height                  = engine->m_Height;
+        graphics_context_params.m_PrintDeviceInfo         = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
+
+        engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+        if (engine->m_GraphicsContext == 0x0)
+        {
+            dmLogFatal("Unable to create the graphics context.");
             return false;
         }
 
@@ -2062,9 +2090,9 @@ const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])
 
 dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 {
-    const char* arg_adapter_type = ParseArgOneOperand("--graphics-adapter", argc, argv);
+    const char* arg_adapter_name = ParseArgOneOperand("--graphics-adapter", argc, argv);
 
-    if (!dmGraphics::Initialize(arg_adapter_type))
+    if (!dmGraphics::InstallAdapter(dmGraphics::GetAdapterFamily(arg_adapter_name)))
     {
         return 0;
     }

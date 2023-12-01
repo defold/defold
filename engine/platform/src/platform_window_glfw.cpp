@@ -346,6 +346,15 @@ namespace dmPlatform
         {
             return glfwGetWindowRefreshRate();
         }
+        else if (state == WINDOW_STATE_SAMPLE_COUNT)
+        {
+            return window->m_CreateParams.m_Samples;
+        }
+        else if (state == WINDOW_STATE_HIGH_DPI)
+        {
+            return window->m_CreateParams.m_HighDPI;
+        }
+
         return window->m_WindowOpened ? glfwGetWindowParam(WindowStateToGLFW(state)) : 0;
     }
 

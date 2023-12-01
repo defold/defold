@@ -43,6 +43,7 @@ namespace dmPlatform
         PLATFORM_GRAPHICS_API_NULL   = 0,
         PLATFORM_GRAPHICS_API_OPENGL = 1,
         PLATFORM_GRAPHICS_API_VULKAN = 2,
+        PLATFORM_GRAPHICS_API_VENDOR = 3,
     };
 
     enum DeviceState
@@ -78,6 +79,8 @@ namespace dmPlatform
         WINDOW_STATE_STEREO             = 17,
         WINDOW_STATE_WINDOW_NO_RESIZE   = 18,
         WINDOW_STATE_FSAA_SAMPLES       = 19,
+        WINDOW_STATE_SAMPLE_COUNT       = 20,
+        WINDOW_STATE_HIGH_DPI           = 21,
     };
 
     struct WindowParams
@@ -130,6 +133,9 @@ namespace dmPlatform
     void           DeleteWindow(HWindow window);
     PlatformResult OpenWindow(HWindow window, const WindowParams& params);
     void           CloseWindow(HWindow window);
+
+    void           AddOnResizeCallback(HWindow window, WindowResizeCallback cb, void* user_data);
+
     uint32_t       GetWindowWidth(HWindow window);
     uint32_t       GetWindowHeight(HWindow window);
     uint32_t       GetWindowState(HWindow window, WindowState state);
@@ -151,6 +157,9 @@ namespace dmPlatform
     void           SetKeyboardDeviceChangedCallback(HWindow window, WindowDeviceChangedCallback cb, void* user_data);
     void           IconifyWindow(HWindow window);
     void           PollEvents(HWindow window);
+
+    // For tests
+    int32_t TriggerCloseCallback(HWindow window);
 };
 
 #endif // DM_PLATFORM_WINDOW_H

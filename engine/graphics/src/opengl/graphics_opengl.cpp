@@ -351,7 +351,7 @@ static void LogFrameBufferError(GLenum status)
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static int8_t          g_null_adapter_priority = 1;
-    static GraphicsAdapter g_opengl_adapter("opengl");
+    static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGL);
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, g_null_adapter_priority);
 
@@ -364,6 +364,7 @@ static void LogFrameBufferError(GLenum status)
     dmIndexPool16 g_TextureParamsAsyncArrayIndices;
     dmArray<HTexture> g_PostDeleteTexturesArray;
     static void PostDeleteTextures(bool);
+    static bool OpenGLInitialize(HContext context);
 
     extern GLenum TEXTURE_UNIT_NAMES[32];
 
@@ -400,8 +401,15 @@ static void LogFrameBufferError(GLenum status)
         m_ModificationVersion     = 1;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
         m_RenderDocSupport        = params.m_RenderDocSupport;
+        m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        m_Width                   = params.m_Width;
+        m_Height                  = params.m_Height;
+        m_Window                  = params.m_Window;
+
+        assert(dmPlatform::GetWindowState(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+
         // Formats supported on all platforms
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
@@ -512,8 +520,13 @@ static void LogFrameBufferError(GLenum status)
         {
             g_Context               = new OpenGLContext(params);
             g_Context->m_AsyncMutex = dmMutex::New();
-            g_Context->m_Window     = dmPlatform::NewWindow();
-            return (HContext) g_Context;
+
+            if (OpenGLInitialize(g_Context))
+            {
+                return (HContext) g_Context;
+            }
+
+            DeleteContext(g_Context);
         }
         return 0x0;
     }
@@ -527,21 +540,14 @@ static void LogFrameBufferError(GLenum status)
             {
                 dmMutex::Delete(g_Context->m_AsyncMutex);
             }
-            dmPlatform::DeleteWindow(g_Context->m_Window);
             delete context;
             g_Context = 0x0;
         }
     }
 
-    static bool OpenGLInitialize()
-    {
-        // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
-        return (glfwInit() == GL_TRUE);
-    }
-
     static bool OpenGLIsSupported()
     {
-        return OpenGLInitialize();
+        return (glfwInit() == GL_TRUE);
     }
 
     static void OpenGLFinalize()
@@ -739,25 +745,10 @@ static void LogFrameBufferError(GLenum status)
     #undef PRINT_FEATURE_IF_SUPPORTED
     }
 
-    static dmPlatform::PlatformResult OpenGLOpenWindow(HContext _context, dmPlatform::WindowParams *params)
+    static bool OpenGLInitialize(HContext _context)
     {
         assert(_context);
-        assert(params);
-
         OpenGLContext* context = (OpenGLContext*) _context;
-
-        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
-        {
-            return dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
-        }
-
-        params->m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
-        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(context->m_Window, *params);
-
-        if (platform_result != dmPlatform::PLATFORM_RESULT_OK)
-        {
-            return platform_result;
-        }
 
 #if defined (_WIN32)
     #define GET_PROC_ADDRESS(function, name, type)\
@@ -773,7 +764,7 @@ static void LogFrameBufferError(GLenum status)
         if (function == 0x0)\
         {\
             dmLogError("Could not find gl function '%s'.", name);\
-            return dmPlatform::PLATFORM_RESULT_WINDOW_OPEN_ERROR;\
+            return false;\
         }
 
         GET_PROC_ADDRESS(glGenProgramsARB, "glGenPrograms", PFNGLGENPROGRAMARBPROC);
@@ -843,8 +834,6 @@ static void LogFrameBufferError(GLenum status)
     #undef GET_PROC_ADDRESS
 #endif
 
-        context->m_Width          = params->m_Width;
-        context->m_Height         = params->m_Height;
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
         context->m_PipelineState  = GetDefaultPipelineState();
 
@@ -912,7 +901,7 @@ static void LogFrameBufferError(GLenum status)
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
 
-        if (params->m_PrintDeviceInfo)
+        if (context->m_PrintDeviceInfo)
         {
             dmLogInfo("Device: OpenGL");
             dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
@@ -1194,7 +1183,7 @@ static void LogFrameBufferError(GLenum status)
         CLEAR_GL_ERROR;
 #endif
 
-        if (params->m_PrintDeviceInfo)
+        if (context->m_PrintDeviceInfo)
         {
             OpenGLPrintDeviceInfo(context);
         }
@@ -1217,7 +1206,7 @@ static void LogFrameBufferError(GLenum status)
         }
 #endif
 
-        return dmPlatform::PLATFORM_RESULT_OK;
+        return true;
     }
 
     static dmPlatform::HWindow OpenGLGetWindow(HContext _context)
@@ -1235,8 +1224,6 @@ static void LogFrameBufferError(GLenum status)
         {
             JobQueueFinalize();
             PostDeleteTextures(true);
-
-            dmPlatform::CloseWindow(context->m_Window);
 
             context->m_Width = 0;
             context->m_Height = 0;

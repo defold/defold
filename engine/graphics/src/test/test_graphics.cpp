@@ -44,9 +44,9 @@ protected:
         bool m_ShouldClose;
     };
 
+    dmPlatform::HWindow m_Window;
     dmGraphics::HContext m_Context;
     dmGraphics::NullContext* m_NullContext;
-    dmPlatform::PlatformResult m_WindowResult;
     ResizeData m_ResizeData;
     CloseData m_CloseData;
 
@@ -65,9 +65,7 @@ protected:
 
     virtual void SetUp()
     {
-        dmGraphics::Initialize();
-        m_Context = dmGraphics::NewContext(dmGraphics::ContextParams());
-        m_NullContext = (dmGraphics::NullContext*) m_Context;
+        dmGraphics::InstallAdapter();
 
         dmPlatform::WindowParams params;
         params.m_ResizeCallback = OnWindowResize;
@@ -79,7 +77,16 @@ protected:
         params.m_Height = HEIGHT;
         params.m_Fullscreen = false;
         params.m_PrintDeviceInfo = false;
-        m_WindowResult = dmGraphics::OpenWindow(m_Context, &params);
+
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, params);
+
+        dmGraphics::ContextParams context_params = dmGraphics::ContextParams();
+        context_params.m_Window = m_Window;
+
+        m_Context = dmGraphics::NewContext(context_params);
+        m_NullContext = (dmGraphics::NullContext*) m_Context;
+
         m_ResizeData.m_Width = 0;
         m_ResizeData.m_Height = 0;
     }
@@ -94,7 +101,6 @@ protected:
 TEST_F(dmGraphicsTest, NewDeleteContext)
 {
     ASSERT_NE((void*)0, m_Context);
-    ASSERT_EQ(dmPlatform::PLATFORM_RESULT_OK, m_WindowResult);
 }
 
 TEST_F(dmGraphicsTest, DoubleNewContext)
@@ -103,35 +109,10 @@ TEST_F(dmGraphicsTest, DoubleNewContext)
     ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::NewContext(dmGraphics::ContextParams()));
 }
 
-TEST_F(dmGraphicsTest, DoubleOpenWindow)
-{
-    dmPlatform::WindowParams params;
-    params.m_Title = APP_TITLE;
-    params.m_Width = WIDTH;
-    params.m_Height = HEIGHT;
-    params.m_Fullscreen = false;
-    params.m_PrintDeviceInfo = false;
-    ASSERT_EQ(dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED, dmGraphics::OpenWindow(m_Context, &params));
-}
-
 TEST_F(dmGraphicsTest, CloseWindow)
 {
     dmGraphics::CloseWindow(m_Context);
     dmGraphics::CloseWindow(m_Context);
-}
-
-TEST_F(dmGraphicsTest, CloseOpenWindow)
-{
-    dmGraphics::CloseWindow(m_Context);
-    dmPlatform::WindowParams params;
-    params.m_Title = APP_TITLE;
-    params.m_Width = WIDTH;
-    params.m_Height = HEIGHT;
-    params.m_Fullscreen = false;
-    params.m_PrintDeviceInfo = true;
-    dmLogSetLevel(LOG_SEVERITY_INFO);
-    ASSERT_EQ(dmPlatform::PLATFORM_RESULT_OK, dmGraphics::OpenWindow(m_Context, &params));
-    dmLogSetLevel(LOG_SEVERITY_WARNING);
 }
 
 TEST_F(dmGraphicsTest, TestWindowState)

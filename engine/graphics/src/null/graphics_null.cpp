@@ -54,15 +54,12 @@ namespace dmGraphics
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable();
     static bool                         NullIsSupported();
     static const int8_t    g_null_adapter_priority = 2;
-    static GraphicsAdapter g_null_adapter("null");
+    static GraphicsAdapter g_null_adapter(ADAPTER_FAMILY_NULL);
     static NullContext*    g_NullContext = 0x0;
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, g_null_adapter_priority);
 
-    static bool NullInitialize()
-    {
-        return true;
-    }
+    static bool NullInitialize(HContext context);
 
     static void NullFinalize()
     {
@@ -74,6 +71,13 @@ namespace dmGraphics
         memset(this, 0, sizeof(*this));
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        m_Width                   = params.m_Width;
+        m_Height                  = params.m_Height;
+        m_Window                  = params.m_Window;
+        m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
+
+        assert(dmPlatform::GetWindowState(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
@@ -89,14 +93,13 @@ namespace dmGraphics
         {
             g_NullContext = new NullContext(params);
 
-            g_NullContext->m_Window = dmPlatform::NewWindow();
+            if (NullInitialize(g_NullContext)){
+                return g_NullContext;
+            }
 
-            return g_NullContext;
+            DeleteContext(g_NullContext);
         }
-        else
-        {
-            return 0x0;
-        }
+        return 0x0;
     }
 
     static bool NullIsSupported()
@@ -116,46 +119,28 @@ namespace dmGraphics
         }
     }
 
-    static dmPlatform::PlatformResult NullOpenWindow(HContext _context, dmPlatform::WindowParams* params)
+    static bool NullInitialize(HContext _context)
     {
         assert(_context);
-        assert(params);
 
         NullContext* context = (NullContext*) _context;
-
-        if (dmPlatform::GetWindowState(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
-        {
-            return dmPlatform::PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
-        }
-
-        params->m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
-        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(context->m_Window, *params);
-
-        if (platform_result != dmPlatform::PLATFORM_RESULT_OK)
-        {
-            return platform_result;
-        }
-
-        context->m_CloseCallback = params->m_CloseCallback;
-        context->m_CloseCallbackUserData = params->m_CloseCallbackUserData;
-        context->m_Width = params->m_Width;
-        context->m_Height = params->m_Height;
         uint32_t buffer_size = 4 * dmPlatform::GetWindowWidth(context->m_Window) * dmPlatform::GetWindowHeight(context->m_Window);
-        context->m_MainFrameBuffer.m_ColorBuffer[0] = new char[buffer_size];
-        context->m_MainFrameBuffer.m_ColorBufferSize[0] = buffer_size;
-        context->m_MainFrameBuffer.m_DepthBuffer = new char[buffer_size];
-        context->m_MainFrameBuffer.m_StencilBuffer = new char[buffer_size];
-        context->m_MainFrameBuffer.m_DepthBufferSize = buffer_size;
-        context->m_MainFrameBuffer.m_StencilBufferSize = buffer_size;
-        context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
-        context->m_Program = 0x0;
-        context->m_PipelineState = GetDefaultPipelineState();
 
-        if (params->m_PrintDeviceInfo)
+        context->m_MainFrameBuffer.m_ColorBuffer[0]     = new char[buffer_size];
+        context->m_MainFrameBuffer.m_ColorBufferSize[0] = buffer_size;
+        context->m_MainFrameBuffer.m_DepthBuffer        = new char[buffer_size];
+        context->m_MainFrameBuffer.m_StencilBuffer      = new char[buffer_size];
+        context->m_MainFrameBuffer.m_DepthBufferSize    = buffer_size;
+        context->m_MainFrameBuffer.m_StencilBufferSize  = buffer_size;
+        context->m_CurrentFrameBuffer                   = &context->m_MainFrameBuffer;
+        context->m_Program                              = 0x0;
+        context->m_PipelineState                        = GetDefaultPipelineState();
+
+        if (context->m_PrintDeviceInfo)
         {
             dmLogInfo("Device: null");
         }
-        return dmPlatform::PLATFORM_RESULT_OK;
+        return true;
     }
 
     static void NullCloseWindow(HContext _context)
@@ -319,7 +304,7 @@ namespace dmGraphics
         // Mimick glfw
         if (context->m_RequestWindowClose)
         {
-            if (context->m_CloseCallback != 0x0 && context->m_CloseCallback(context->m_CloseCallbackUserData))
+            if (dmPlatform::TriggerCloseCallback(context->m_Window))
             {
                 CloseWindow(context);
             }

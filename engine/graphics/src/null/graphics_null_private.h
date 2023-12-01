@@ -94,8 +94,6 @@ namespace dmGraphics
         NullContext(const ContextParams& params);
 
         dmPlatform::HWindow                m_Window;
-        WindowCloseCallback                m_CloseCallback;
-        void*                              m_CloseCallbackUserData;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         VertexStreamBuffer                 m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         dmVMath::Vector4                   m_ProgramRegisters[MAX_REGISTER_COUNT];
@@ -112,6 +110,7 @@ namespace dmGraphics
         uint32_t                           m_TextureFormatSupport;
         // Only use for testing
         uint32_t                           m_RequestWindowClose : 1;
+        uint32_t                           m_PrintDeviceInfo    : 1;
     };
 }
 

@@ -79,6 +79,15 @@ namespace dmGraphics
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
     static const HUniformLocation INVALID_UNIFORM_LOCATION        = ~0ull;
 
+    enum AdapterFamily
+    {
+        ADAPTER_FAMILY_NONE   = -1,
+        ADAPTER_FAMILY_NULL   = 1,
+        ADAPTER_FAMILY_OPENGL = 2,
+        ADAPTER_FAMILY_VULKAN = 3,
+        ADAPTER_FAMILY_VENDOR = 4,
+    };
+
     enum AssetType
     {
         ASSET_TYPE_NONE          = 0,
@@ -275,13 +284,17 @@ namespace dmGraphics
     {
         ContextParams();
 
-        TextureFilter m_DefaultTextureMinFilter;
-        TextureFilter m_DefaultTextureMagFilter;
-        uint32_t      m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
-        uint8_t       m_VerifyGraphicsCalls : 1;
-        uint8_t       m_RenderDocSupport : 1;           // Vulkan only
-        uint8_t       m_UseValidationLayers : 1;        // Vulkan only
-        uint8_t       : 5;
+        dmPlatform::HWindow m_Window;
+        TextureFilter       m_DefaultTextureMinFilter;
+        TextureFilter       m_DefaultTextureMagFilter;
+        uint32_t            m_Width;
+        uint32_t            m_Height;
+        uint32_t            m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
+        uint8_t             m_VerifyGraphicsCalls : 1;
+        uint8_t             m_PrintDeviceInfo : 1;
+        uint8_t             m_RenderDocSupport : 1;           // Vulkan only
+        uint8_t             m_UseValidationLayers : 1;        // Vulkan only
+        uint8_t             : 4;
     };
 
     struct PipelineState
@@ -335,11 +348,13 @@ namespace dmGraphics
     void DeleteContext(HContext context);
 
     /**
-     * Initialize graphics system
-     * @params adapter_type_str String identifier for which adapter to use (vulkan/opengl/null)
+     * Install a graphics adapter
+     * @params family AdapterFamily identifier for which adapter to use (vulkan/opengl/null/vendor)
      * @return True if a graphics backend could be created, false otherwise.
      */
-    bool Initialize(const char* adapter_type_str = 0);
+    bool InstallAdapter(AdapterFamily family = ADAPTER_FAMILY_NONE);
+    AdapterFamily GetAdapterFamily(const char* adapter_name);
+    AdapterFamily GetInstalledAdapterFamily();
 
     /**
      * Finalize graphics system
@@ -357,14 +372,6 @@ namespace dmGraphics
      * @return The window refresh rate, 0 if refresh rate could not be read.
      */
     uint32_t GetWindowRefreshRate(HContext context);
-
-    /**
-     * Open a window
-     * @param context Graphics context handle
-     * @param params Window parameters
-     * @return The result of the operation
-     */
-    dmPlatform::PlatformResult OpenWindow(HContext context, dmPlatform::WindowParams *params);
 
     /**
      * Get the window handle from the graphics context
