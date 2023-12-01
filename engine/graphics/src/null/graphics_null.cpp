@@ -113,7 +113,6 @@ namespace dmGraphics
         if (g_NullContext)
         {
             NullContext* context = (NullContext*) _context;
-            dmPlatform::DeleteWindow(context->m_Window);
             delete (NullContext*) context;
             g_NullContext = 0x0;
         }

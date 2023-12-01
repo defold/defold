@@ -36,6 +36,7 @@ using namespace dmVMath;
 class dmRenderTest : public jc_test_base_class
 {
 protected:
+    dmPlatform::HWindow m_Window;
     dmRender::HRenderContext m_Context;
     dmGraphics::HContext m_GraphicsContext;
     dmScript::HContext m_ScriptContext;
@@ -44,7 +45,18 @@ protected:
     virtual void SetUp()
     {
         dmGraphics::InstallAdapter();
-        m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
+
+        dmPlatform::WindowParams win_params = {};
+        win_params.m_Width = 20;
+        win_params.m_Height = 10;
+
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, win_params);
+
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_Window = m_Window;
+
+        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         dmRender::RenderContextParams params;
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         params.m_MaxRenderTargets = 1;
@@ -82,6 +94,9 @@ protected:
         dmRender::DeleteFontMap(m_SystemFontMap);
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmScript::DeleteContext(m_ScriptContext);
+
+        dmPlatform::CloseWindow(m_Window);
+        dmPlatform::DeleteWindow(m_Window);
     }
 };
 
