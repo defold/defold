@@ -93,6 +93,7 @@ protected:
     dmResource::HFactory m_Factory;
     dmConfigFile::HConfig m_Config;
 
+    dmPlatform::HWindow m_Window;
     dmScript::HContext m_ScriptContext;
     dmGraphics::HContext m_GraphicsContext;
     dmRender::HRenderContext m_RenderContext;
@@ -430,7 +431,16 @@ void GamesysTest<T>::SetUp()
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
     dmGraphics::InstallAdapter();
-    m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
+
+    dmPlatform::WindowParams win_params = {};
+
+    m_Window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(m_Window, win_params);
+
+    dmGraphics::ContextParams graphics_context_params;
+    graphics_context_params.m_Window = m_Window;
+
+    m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
     dmRender::RenderContextParams render_params;
     render_params.m_MaxRenderTypes = 10;
     render_params.m_MaxInstances = 1000;
@@ -537,6 +547,8 @@ void GamesysTest<T>::TearDown()
     dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
+    dmPlatform::CloseWindow(m_Window);
+    dmPlatform::DeleteWindow(m_Window);
     dmScript::Finalize(m_ScriptContext);
     dmScript::DeleteContext(m_ScriptContext);
     dmResource::DeleteFactory(m_Factory);

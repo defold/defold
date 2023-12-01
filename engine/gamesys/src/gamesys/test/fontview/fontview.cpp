@@ -131,7 +131,7 @@ namespace dmFontView
             window_params.m_Height          = 540;
             window_params.m_Title           = "FontView";
 
-            dmPlatform::OpenWindow(m_Window, window_params);
+            dmPlatform::OpenWindow(context->m_Window, window_params);
 
             context->m_ScreenWidth = window_params.m_Width;
             context->m_ScreenHeight = window_params.m_Height;
