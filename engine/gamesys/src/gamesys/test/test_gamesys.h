@@ -429,7 +429,7 @@ void GamesysTest<T>::SetUp()
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
-    dmGraphics::Initialize();
+    dmGraphics::InstallAdapter();
     m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
     dmRender::RenderContextParams render_params;
     render_params.m_MaxRenderTypes = 10;

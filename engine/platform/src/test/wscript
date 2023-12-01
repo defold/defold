@@ -7,7 +7,7 @@ def build(bld):
     bld.program(features = 'cxx cprogram test',
                 includes = ['../../src'],
                 source = 'test_platform.cpp',
-                use = 'TESTMAIN DLIB PROFILE_NULL PLATFORM_NULL',
+                use = 'TESTMAIN DLIB PROFILE_NULL platform_null',
                 target = 'test_platform')
 
     bld.program(features = 'cxx cprogram test skip_test',

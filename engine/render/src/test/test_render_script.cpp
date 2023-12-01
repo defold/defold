@@ -51,6 +51,7 @@ namespace
 class dmRenderScriptTest : public jc_test_base_class
 {
 protected:
+    dmPlatform::HWindow m_Window;
     dmScript::HContext m_ScriptContext;
     dmRender::HRenderContext m_Context;
     dmGraphics::HContext m_GraphicsContext;
@@ -63,8 +64,19 @@ protected:
     {
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
-        dmGraphics::Initialize();
-        m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
+        dmGraphics::InstallAdapter();
+
+        dmPlatform::WindowParams win_params = {};
+        win_params.m_Width = 20;
+        win_params.m_Height = 10;
+
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, win_params);
+
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_Window = m_Window;
+
+        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         dmRender::FontMapParams font_map_params;
         font_map_params.m_CacheWidth = 128;
         font_map_params.m_CacheHeight = 128;
@@ -97,11 +109,6 @@ protected:
 
         m_FontMaterial = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
         dmRender::SetFontMapMaterial(m_SystemFontMap, m_FontMaterial);
-
-        dmPlatform::WindowParams win_params;
-        win_params.m_Width = 20;
-        win_params.m_Height = 10;
-        dmGraphics::OpenWindow(m_GraphicsContext, &win_params);
     }
 
     virtual void TearDown()
@@ -114,6 +121,9 @@ protected:
         dmRender::DeleteRenderContext(m_Context, 0);
         dmRender::DeleteFontMap(m_SystemFontMap);
         dmGraphics::DeleteContext(m_GraphicsContext);
+        dmPlatform::CloseWindow(m_Window);
+        dmPlatform::DeleteWindow(m_Window);
+
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
     }

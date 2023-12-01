@@ -95,28 +95,27 @@ int main(int argc, char *argv[])
     if (argc > 1)
         filename = argv[1];
 
+    dmGraphics::InstallAdapter();
+
+    dmPlatform::WindowParams window_params = {};
+    window_params.m_Width = 32;
+    window_params.m_Height = 32;
+    window_params.m_Title = "gdc";
+    window_params.m_PrintDeviceInfo = false;
+    dmPlatform::HWindow window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(window, window_params);
+
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-    graphics_context_params.m_VerifyGraphicsCalls = false;
-    dmGraphics::Initialize();
+    graphics_context_params.m_Window                  = window;
+
     dmGraphics::HContext graphics_context = dmGraphics::NewContext(graphics_context_params);
     if (graphics_context == 0x0)
     {
         dmLogFatal("Unable to create the graphics context.");
         return 1;
     }
-
-    dmPlatform::WindowParams window_params;
-    memset(&window_params, 0, sizeof(window_params));
-    window_params.m_Width = 32;
-    window_params.m_Height = 32;
-    window_params.m_Samples = 0;
-    window_params.m_Title = "gdc";
-    window_params.m_Fullscreen = 0;
-    window_params.m_PrintDeviceInfo = false;
-    window_params.m_HighDPI = 0;
-    (void)dmGraphics::OpenWindow(graphics_context, &window_params);
 
     g_HidContext = dmHID::NewContext(dmHID::NewContextParams());
     dmHID::Init(g_HidContext);

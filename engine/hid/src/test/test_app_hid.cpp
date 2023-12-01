@@ -119,6 +119,7 @@ static void AppDestroy(void* _ctx)
 
 struct EngineCtx
 {
+    dmPlatform::HWindow m_Window;
     dmHID::HContext m_HidContext;
     dmHID::GamepadPacket m_OldPackets[dmHID::MAX_GAMEPAD_COUNT];
 } g_EngineCtx;
@@ -128,6 +129,9 @@ static void EngineDestroy(void* _engine)
     EngineCtx* engine = (EngineCtx*)_engine;
     dmHID::Final(engine->m_HidContext);
     dmHID::DeleteContext(engine->m_HidContext);
+
+    dmPlatform::CloseWindow(engine->m_Window);
+    dmPlatform::DeleteWindow(engine->m_Window);
 }
 
 static void* EngineCreate(int argc, char** argv)
@@ -135,28 +139,27 @@ static void* EngineCreate(int argc, char** argv)
     EngineCtx* engine = (EngineCtx*)&g_EngineCtx;
     memset(engine, 0, sizeof(EngineCtx));
 
+    engine->m_Window = dmPlatform::NewWindow();
+
+    dmPlatform::WindowParams window_params = {};
+    window_params.m_Width  = 32;
+    window_params.m_Height = 32;
+    window_params.m_Title  = "hid_test_app";
+    (void)dmPlatform::OpenWindow(engine->m_Window, window_params);
+
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_VerifyGraphicsCalls = false;
-    dmGraphics::Initialize();
+    graphics_context_params.m_Window = engine->m_Window;
+
+    dmGraphics::InstallAdapter();
     dmGraphics::HContext graphics_context = dmGraphics::NewContext(graphics_context_params);
     if (graphics_context == 0x0)
     {
         dmLogFatal("Unable to create the graphics context.");
         return 0;
     }
-
-    dmPlatform::WindowParams window_params;
-    memset(&window_params, 0, sizeof(window_params));
-    window_params.m_Width           = 32;
-    window_params.m_Height          = 32;
-    window_params.m_Samples         = 0;
-    window_params.m_Title           = "hid_test_app";
-    window_params.m_Fullscreen      = 0;
-    window_params.m_PrintDeviceInfo = false;
-    window_params.m_HighDPI         = 0;
-    (void)dmGraphics::OpenWindow(graphics_context, &window_params);
 
     dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
 
@@ -171,7 +174,7 @@ static void* EngineCreate(int argc, char** argv)
     }
 
     dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, GamepadConnectivityCallback, 0);
-    dmHID::SetWindow(engine->m_HidContext, dmGraphics::GetWindow(graphics_context));
+    dmHID::SetWindow(engine->m_HidContext, engine->m_Window);
 
     bool hid_result = dmHID::Init(engine->m_HidContext);
     if (!hid_result)

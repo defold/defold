@@ -43,7 +43,7 @@ protected:
 
     virtual void SetUp()
     {
-        dmGraphics::Initialize();
+        dmGraphics::InstallAdapter();
         m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
         dmRender::RenderContextParams params;
         m_ScriptContext = dmScript::NewContext(0, 0, true);

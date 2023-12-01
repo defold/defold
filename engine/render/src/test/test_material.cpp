@@ -40,7 +40,7 @@ public:
 
     virtual void SetUp()
     {
-        dmGraphics::Initialize();
+        dmGraphics::InstallAdapter();
         m_GraphicsContext        = dmGraphics::NewContext(dmGraphics::ContextParams());
         m_Params.m_ScriptContext = dmScript::NewContext(0, 0, true);
         m_Params.m_MaxCharacters = 256;
