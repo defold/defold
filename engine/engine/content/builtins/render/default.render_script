@@ -122,10 +122,10 @@ end
 local function create_state()
     local state = {}
     local color = vmath.vector4(0, 0, 0, 0)
-    color.x = sys.get_config_int("render.clear_color_red", 0)
-    color.y = sys.get_config_int("render.clear_color_green", 0)
-    color.z = sys.get_config_int("render.clear_color_blue", 0)
-    color.w = sys.get_config_int("render.clear_color_alpha", 0)
+    color.x = sys.get_config_number("render.clear_color_red", 0)
+    color.y = sys.get_config_number("render.clear_color_green", 0)
+    color.z = sys.get_config_number("render.clear_color_blue", 0)
+    color.w = sys.get_config_number("render.clear_color_alpha", 0)
     state.clear_buffers = {
         [render.BUFFER_COLOR_BIT] = color,
         [render.BUFFER_DEPTH_BIT] = 1,

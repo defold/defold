@@ -271,7 +271,6 @@ namespace dmGraphics
         VkShaderModule                 m_Module;
         dmArray<ShaderResourceBinding> m_Uniforms;
         dmArray<ShaderResourceBinding> m_Inputs;
-        uint32_t                       m_UniformDataSizeAligned;
         uint16_t                       m_UniformBufferCount;
         uint16_t                       m_TextureSamplerCount;
         uint16_t                       m_TotalUniformCount;
@@ -295,17 +294,38 @@ namespace dmGraphics
             uint8_t               m_DescriptorSetLayoutsCount;
         };
 
+        struct ProgramResourceBinding
+        {
+            ShaderResourceBinding* m_Res;
+            uint32_t               m_DataOffset;
+
+            union
+            {
+                uint16_t m_DynamicOffsetIndex;
+                uint16_t m_TextureUnit;
+            };
+        };
+
         uint64_t                        m_Hash;
-        uint32_t*                       m_UniformDataOffsets;
         uint8_t*                        m_UniformData;
         VulkanHandle                    m_Handle;
+        ProgramResourceBinding          m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
         ShaderModule*                   m_ComputeModule;
+
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
         ShaderDesc::Language            m_Language;
 
-        uint8_t*                        m_DescriptorSetIndex;
+        uint32_t                        m_UniformDataSizeAligned;
+        uint16_t                        m_UniformBufferCount;
+        uint16_t                        m_TextureSamplerCount;
+        uint16_t                        m_TotalUniformCount;
+        uint16_t                        m_TotalResourcesCount;
+
+        uint8_t                         m_MaxSet;
+        uint8_t                         m_MaxBinding;
         uint8_t                         m_Destroyed : 1;
 
         const VulkanResourceType GetType();
@@ -370,33 +390,25 @@ namespace dmGraphics
     {
         VulkanContext(const ContextParams& params, const VkInstance vk_instance);
 
-        HTexture                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
+        dmPlatform::HWindow                m_Window;
+        dmPlatform::WindowResizeCallback   m_WindowResizeCallback;
+        HTexture                           m_TextureUnits[DM_MAX_TEXTURE_UNITS];
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
-        PipelineCache                   m_PipelineCache;
-        PipelineState                   m_PipelineState;
-        SwapChain*                      m_SwapChain;
-        SwapChainCapabilities           m_SwapChainCapabilities;
-        PhysicalDevice                  m_PhysicalDevice;
-        LogicalDevice                   m_LogicalDevice;
-        FrameResource                   m_FrameResources[DM_MAX_FRAMES_IN_FLIGHT];
-        VkInstance                      m_Instance;
-        VkSurfaceKHR                    m_WindowSurface;
-        dmArray<TextureSampler>         m_TextureSamplers;
-        uint32_t*                       m_DynamicOffsetBuffer;
-        uint16_t                        m_DynamicOffsetBufferSize;
-
+        PipelineCache                      m_PipelineCache;
+        PipelineState                      m_PipelineState;
+        SwapChain*                         m_SwapChain;
+        SwapChainCapabilities              m_SwapChainCapabilities;
+        PhysicalDevice                     m_PhysicalDevice;
+        LogicalDevice                      m_LogicalDevice;
+        FrameResource                      m_FrameResources[DM_MAX_FRAMES_IN_FLIGHT];
+        VkInstance                         m_Instance;
+        VkSurfaceKHR                       m_WindowSurface;
+        dmArray<TextureSampler>            m_TextureSamplers;
+        uint32_t*                          m_DynamicOffsetBuffer;
+        uint16_t                           m_DynamicOffsetBufferSize;
 
         VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT m_FragmentShaderInterlockFeatures;
 
-        // Window callbacks
-        WindowResizeCallback            m_WindowResizeCallback;
-        void*                           m_WindowResizeCallbackUserData;
-        WindowCloseCallback             m_WindowCloseCallback;
-        void*                           m_WindowCloseCallbackUserData;
-        WindowFocusCallback             m_WindowFocusCallback;
-        void*                           m_WindowFocusCallbackUserData;
-        WindowIconifyCallback           m_WindowIconifyCallback;
-        void*                           m_WindowIconifyCallbackUserData;
         // Main device rendering constructs
         dmArray<VkFramebuffer>          m_MainFrameBuffers;
         dmArray<VkCommandBuffer>        m_MainCommandBuffers;
@@ -436,7 +448,6 @@ namespace dmGraphics
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 1;
         uint32_t                        m_NumFramesInFlight    : 2;
-        uint32_t                        m_WindowOpened         : 1;
         uint32_t                        m_VerifyGraphicsCalls  : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
@@ -512,8 +523,7 @@ namespace dmGraphics
     void     DestroySwapChain(VkDevice vk_device, SwapChain* swapChain);
     void     GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
 
-    // called from OpenWindow
-    bool InitializeVulkan(HContext context, const WindowParams* params);
+    bool InitializeVulkan(HContext context);
     void InitializeVulkanTexture(VulkanTexture* t);
 
     void OnWindowResize(int width, int height);
@@ -539,22 +549,22 @@ namespace dmGraphics
     bool         NativeInit(const struct ContextParams& params);
     void         NativeExit();
     void         NativeBeginFrame(HContext context);
+    bool         NativeInitializeContext(HContext context);
 
-    WindowResult VulkanOpenWindow(HContext context, WindowParams* params);
-    void         VulkanCloseWindow(HContext context);
-    void         VulkanDestroyResources(HContext context);
-    uint32_t     VulkanGetDisplayDpi(HContext context);
-    uint32_t     VulkanGetWidth(HContext context);
-    uint32_t     VulkanGetHeight(HContext context);
-    uint32_t     VulkanGetWindowWidth(HContext context);
-    uint32_t     VulkanGetWindowHeight(HContext context);
-    float        VulkanGetDisplayScaleFactor(HContext context);
-    uint32_t     VulkanGetWindowRefreshRate(HContext context);
-    void         VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
-    void         VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
-    void         VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
-    void         VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height);
-    void         VulkanIconifyWindow(HContext context);
-    uint32_t     VulkanGetWindowState(HContext context, WindowState state);
+    void                       VulkanCloseWindow(HContext context);
+    void                       VulkanDestroyResources(HContext context);
+    uint32_t                   VulkanGetDisplayDpi(HContext context);
+    uint32_t                   VulkanGetWidth(HContext context);
+    uint32_t                   VulkanGetHeight(HContext context);
+    uint32_t                   VulkanGetWindowWidth(HContext context);
+    uint32_t                   VulkanGetWindowHeight(HContext context);
+    float                      VulkanGetDisplayScaleFactor(HContext context);
+    void                       VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void                       VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
+    void                       VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void                       VulkanGetNativeWindowSize(HContext context, uint32_t* width, uint32_t* height);
+    void                       VulkanIconifyWindow(HContext context);
+    uint32_t                   VulkanGetWindowStateParam(HContext context, dmPlatform::WindowState state);
+    dmPlatform::HWindow        VulkanGetWindow(HContext context);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__

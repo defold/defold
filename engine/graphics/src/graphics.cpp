@@ -44,16 +44,15 @@ namespace dmGraphics
         g_adapter_list           = adapter;
     }
 
-    static bool SelectAdapterByName(const char* adapter_name)
+    static bool SelectAdapterByFamily(AdapterFamily family)
     {
-        if (adapter_name != 0)
+        if (family != ADAPTER_FAMILY_NONE)
         {
             GraphicsAdapter* next = g_adapter_list;
 
             while(next)
             {
-                assert(next->m_AdapterName != 0);
-                if (dmStrCaseCmp(next->m_AdapterName, adapter_name) == 0 && next->m_IsSupportedCb())
+                if (next->m_Family == family && next->m_IsSupportedCb())
                 {
                     g_functions = next->m_RegisterCb();
                     g_adapter   = next;
@@ -91,7 +90,37 @@ namespace dmGraphics
         return true;
     }
 
+    AdapterFamily GetAdapterFamily(const char* adapter_name)
+    {
+        if (adapter_name == 0)
+            return ADAPTER_FAMILY_NONE;
+        if (dmStrCaseCmp("null", adapter_name) == 0)
+            return ADAPTER_FAMILY_NULL;
+        if (dmStrCaseCmp("opengl", adapter_name) == 0)
+            return ADAPTER_FAMILY_OPENGL;
+        if (dmStrCaseCmp("vulkan", adapter_name) == 0)
+            return ADAPTER_FAMILY_VULKAN;
+        if (dmStrCaseCmp("vendor", adapter_name) == 0)
+            return ADAPTER_FAMILY_VENDOR;
+        assert(0 && "Adapter type not supported?");
+        return ADAPTER_FAMILY_NONE;
+    }
+
     #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
+
+    const char* GetAdapterFamilyLiteral(AdapterFamily family)
+    {
+        switch(family)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
+            default:break;
+        }
+        return "<unknown dmGraphics::AdapterFamily>";
+    }
 
     const char* GetTextureTypeLiteral(TextureType texture_type)
     {
@@ -215,22 +244,6 @@ namespace dmGraphics
     }
 
     #undef SHADERDESC_ENUM_TO_STR_CASE
-
-    WindowParams::WindowParams()
-    : m_ResizeCallback(0x0)
-    , m_ResizeCallbackUserData(0x0)
-    , m_CloseCallback(0x0)
-    , m_CloseCallbackUserData(0x0)
-    , m_Width(640)
-    , m_Height(480)
-    , m_Samples(1)
-    , m_Title("Dynamo App")
-    , m_Fullscreen(false)
-    , m_PrintDeviceInfo(false)
-    , m_HighDPI(false)
-    {
-
-    }
 
     ContextParams::ContextParams()
     : m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
@@ -388,7 +401,7 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_UVEC2:   return 16;
             case ShaderDesc::SHADER_TYPE_UVEC3:   return 36;
             case ShaderDesc::SHADER_TYPE_UVEC4:   return 64;
-            default: return 0;
+            default: break;
         }
         return 0;
     }
@@ -858,14 +871,14 @@ namespace dmGraphics
         g_functions.m_DeleteContext(context);
     }
 
-    bool Initialize(const char* adapter_name_str)
+    bool InstallAdapter(AdapterFamily family)
     {
         if (g_adapter)
         {
             return true;
         }
 
-        bool result = SelectAdapterByName(adapter_name_str);
+        bool result = SelectAdapterByFamily(family);
 
         if (!result)
         {
@@ -874,42 +887,67 @@ namespace dmGraphics
 
         if (result)
         {
-            result = g_functions.m_Initialize();
-        }
-
-        if (result)
-        {
-            dmLogInfo("Initialised graphics device '%s'", g_adapter->m_AdapterName);
+            dmLogInfo("Installed graphics device '%s'", GetAdapterFamilyLiteral(g_adapter->m_Family));
             return true;
         }
 
-        dmLogError("Could not initialize graphics. No graphics adapter was found.");
+        dmLogError("Could not install a graphics adapter. No compatible adapter was found.");
         return false;
+    }
+
+    AdapterFamily GetInstalledAdapterFamily()
+    {
+        if (g_adapter)
+        {
+            return g_adapter->m_Family;
+        }
+        return ADAPTER_FAMILY_NONE;
     }
 
     void Finalize()
     {
         g_functions.m_Finalize();
     }
+
+    ///////////////////////////////////////////////////
+    ////// PLATFORM / WINDOWS SPECIFIC FUNCTIONS //////
+
+    dmPlatform::HWindow GetWindow(HContext context)
+    {
+        return g_functions.m_GetWindow(context);
+    }
     uint32_t GetWindowRefreshRate(HContext context)
     {
-        return g_functions.m_GetWindowRefreshRate(context);
+        return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), dmPlatform::WINDOW_STATE_REFRESH_RATE);
     }
-    WindowResult OpenWindow(HContext context, WindowParams *params)
+    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state)
     {
-        return g_functions.m_OpenWindow(context, params);
+        return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), state);
     }
-    void CloseWindow(HContext context)
+    uint32_t GetWindowWidth(HContext context)
     {
-        g_functions.m_CloseWindow(context);
+        return dmPlatform::GetWindowWidth(g_functions.m_GetWindow(context));
+    }
+    uint32_t GetWindowHeight(HContext context)
+    {
+        return dmPlatform::GetWindowHeight(g_functions.m_GetWindow(context));
+    }
+    float GetDisplayScaleFactor(HContext context)
+    {
+        return dmPlatform::GetDisplayScaleFactor(g_functions.m_GetWindow(context));
     }
     void IconifyWindow(HContext context)
     {
-        g_functions.m_IconifyWindow(context);
+        dmPlatform::IconifyWindow(g_functions.m_GetWindow(context));
     }
-    uint32_t GetWindowState(HContext context, WindowState state)
+    void SetSwapInterval(HContext context, uint32_t swap_interval)
     {
-        return g_functions.m_GetWindowState(context, state);
+        dmPlatform::SetSwapInterval(g_functions.m_GetWindow(context), swap_interval);
+    }
+    ///////////////////////////////////////////////////
+    void CloseWindow(HContext context)
+    {
+        g_functions.m_CloseWindow(context);
     }
     uint32_t GetDisplayDpi(HContext context)
     {
@@ -922,18 +960,6 @@ namespace dmGraphics
     uint32_t GetHeight(HContext context)
     {
         return g_functions.m_GetHeight(context);
-    }
-    uint32_t GetWindowWidth(HContext context)
-    {
-        return g_functions.m_GetWindowWidth(context);
-    }
-    uint32_t GetWindowHeight(HContext context)
-    {
-        return g_functions.m_GetWindowHeight(context);
-    }
-    float GetDisplayScaleFactor(HContext context)
-    {
-        return g_functions.m_GetDisplayScaleFactor(context);
     }
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
@@ -954,10 +980,6 @@ namespace dmGraphics
     void Flip(HContext context)
     {
         g_functions.m_Flip(context);
-    }
-    void SetSwapInterval(HContext context, uint32_t swap_interval)
-    {
-        g_functions.m_SetSwapInterval(context, swap_interval);
     }
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
@@ -1042,6 +1064,10 @@ namespace dmGraphics
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
     {
         return g_functions.m_GetVertexDeclarationStride(vertex_declaration);
+    }
+    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash)
+    {
+        return g_functions.m_GetVertexStreamOffset(vertex_declaration, name_hash);
     }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
