@@ -16,6 +16,8 @@ def build(bld):
                     target   = 'platform_null',
                     source   = bld.path.ant_glob(['platform_window_null.cpp']))
 
+    bld.add_group()
+
     bld.install_files('${PREFIX}/include/platform', 'platform_window.h')
 
     if not waflib.Options.options.skip_build_tests:
