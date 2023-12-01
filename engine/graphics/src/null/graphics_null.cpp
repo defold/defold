@@ -179,14 +179,16 @@ namespace dmGraphics
         return 0;
     }
 
-    static uint32_t NullGetWidth(HContext context)
+    static uint32_t NullGetWidth(HContext _context)
     {
-        return ((NullContext*) context)->m_Width;
+        NullContext* context = (NullContext*) _context;
+        return context->m_Width;
     }
 
-    static uint32_t NullGetHeight(HContext context)
+    static uint32_t NullGetHeight(HContext _context)
     {
-        return ((NullContext*) context)->m_Height;
+        NullContext* context = (NullContext*) _context;
+        return context->m_Height;
     }
 
     static void NullSetWindowSize(HContext _context, uint32_t width, uint32_t height)

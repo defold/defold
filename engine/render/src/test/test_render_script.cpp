@@ -74,6 +74,8 @@ protected:
         dmPlatform::OpenWindow(m_Window, win_params);
 
         dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_Width = 20;
+        graphics_context_params.m_Height = 10;
         graphics_context_params.m_Window = m_Window;
 
         m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);

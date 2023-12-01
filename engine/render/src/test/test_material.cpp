@@ -34,6 +34,7 @@ namespace dmGraphics
 class dmRenderMaterialTest : public jc_test_base_class
 {
 public:
+    dmPlatform::HWindow           m_Window;
     dmGraphics::HContext          m_GraphicsContext;
     dmRender::HRenderContext      m_RenderContext;
     dmRender::RenderContextParams m_Params;
@@ -41,7 +42,18 @@ public:
     virtual void SetUp()
     {
         dmGraphics::InstallAdapter();
-        m_GraphicsContext        = dmGraphics::NewContext(dmGraphics::ContextParams());
+
+        dmPlatform::WindowParams win_params = {};
+        win_params.m_Width = 20;
+        win_params.m_Height = 10;
+
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, win_params);
+
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_Window = m_Window;
+
+        m_GraphicsContext        = dmGraphics::NewContext(graphics_context_params);
         m_Params.m_ScriptContext = dmScript::NewContext(0, 0, true);
         m_Params.m_MaxCharacters = 256;
         m_RenderContext          = dmRender::NewRenderContext(m_GraphicsContext, m_Params);
@@ -50,6 +62,8 @@ public:
     {
         dmRender::DeleteRenderContext(m_RenderContext, 0);
         dmGraphics::DeleteContext(m_GraphicsContext);
+        dmPlatform::CloseWindow(m_Window);
+        dmPlatform::DeleteWindow(m_Window);
         dmScript::DeleteContext(m_Params.m_ScriptContext);
     }
 };
