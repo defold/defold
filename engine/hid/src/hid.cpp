@@ -52,6 +52,11 @@ namespace dmHID
         context->m_GamepadConnectivityUserdata = callback_ctx;
     }
 
+    void SetWindow(HContext context, dmPlatform::HWindow window)
+    {
+        context->m_Window = window;
+    }
+
     void DeleteContext(HContext context)
     {
         delete context;
@@ -170,7 +175,8 @@ namespace dmHID
         }
     }
 
-    void AddKeyboardChar(HContext context, int chr) {
+    void AddKeyboardChar(HContext context, int chr)
+    {
         if (context) {
             char buf[5];
             uint32_t n = dmUtf8::ToUtf8((uint16_t) chr, buf);
@@ -197,7 +203,8 @@ namespace dmHID
         }
     }
 
-    void SetMarkedText(HContext context, char* text) {
+    void SetMarkedText(HContext context, char* text)
+    {
         if (context) {
             MarkedTextPacket* p = &context->m_MarkedTextPacket;
             p->m_HasText = 1;
@@ -205,7 +212,8 @@ namespace dmHID
         }
     }
 
-    void SetGamepadConnectivity(HContext context, int gamepad, bool connected) {
+    void SetGamepadConnectivity(HContext context, int gamepad, bool connected)
+    {
         assert(context);
 
         GamepadPacket* p = &context->m_Gamepads[gamepad].m_Packet;
