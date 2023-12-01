@@ -339,7 +339,7 @@ namespace dmPlatform
         return -1;
     }
 
-    uint32_t GetWindowState(HWindow window, WindowState state)
+    uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
         // JG: Not sure this is needed, or if it's already supported via the glfwGetWindowParam fn
         if (state == WINDOW_STATE_REFRESH_RATE)

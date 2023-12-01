@@ -138,7 +138,7 @@ namespace dmPlatform
 
     uint32_t       GetWindowWidth(HWindow window);
     uint32_t       GetWindowHeight(HWindow window);
-    uint32_t       GetWindowState(HWindow window, WindowState state);
+    uint32_t       GetWindowStateParam(HWindow window, WindowState state);
     float          GetDisplayScaleFactor(HWindow window);
 
     int32_t        GetKey(HWindow window, int32_t code);

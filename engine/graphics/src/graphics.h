@@ -398,7 +398,7 @@ namespace dmGraphics
      * @param state Aspect of the window state to query for
      * @return State of the supplied aspect. If no window is opened, 0 is always returned.
      */
-    uint32_t GetWindowState(HContext context, dmPlatform::WindowState state);
+    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state);
 
     /**
      * Returns the specified dpi of default monitor.

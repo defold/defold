@@ -58,7 +58,7 @@ namespace dmPlatform
         return window->m_WindowHeight;
     }
 
-    uint32_t GetWindowState(HWindow window, WindowState state)
+    uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
         if (state == WINDOW_STATE_OPENED)
         {

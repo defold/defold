@@ -102,9 +102,9 @@ TEST_F(dmPlatformTest, CloseOpenWindow)
 
 TEST_F(dmPlatformTest, TestWindowState)
 {
-    ASSERT_TRUE(dmPlatform::GetWindowState(m_Window, dmPlatform::WINDOW_STATE_OPENED) ? true : false);
+    ASSERT_TRUE(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED) ? true : false);
     dmPlatform::CloseWindow(m_Window);
-    ASSERT_FALSE(dmPlatform::GetWindowState(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+    ASSERT_FALSE(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
 }
 
 TEST_F(dmPlatformTest, TestWindowSize)

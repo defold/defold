@@ -1474,7 +1474,7 @@ bail:
     {
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
-        if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
+        if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
         {
             if (!engine->m_WasIconified)
             {
@@ -1521,7 +1521,7 @@ bail:
                     dmHID::Update(engine->m_HidContext);
                 }
                 if (!engine->m_RunWhileIconified) {
-                    if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
+                    if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
                     {
                         // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
                         // might have entered background at this point and OpenGL calls are not permitted and will
@@ -1560,7 +1560,7 @@ bail:
                     esc_pressed = dmHID::GetKey(&keybdata, dmHID::KEY_ESC);
                 }
 
-                if (esc_pressed || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_OPENED))
+                if (esc_pressed || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_OPENED))
                 {
                     engine->m_Alive = false;
                     return;
@@ -1595,7 +1595,7 @@ bail:
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
 
                 // Don't render while iconified
-                if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
+                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
                 {
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
@@ -1674,7 +1674,7 @@ bail:
             // We do it here at the end of the frame (before swap buffers/flip)
             // in case any extension wants to render just before the Flip().
             // Don't do this while iconified
-            if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
+            if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
             {
                 dmExtension::Params ext_params;
                 ext_params.m_ConfigFile = engine->m_Config;

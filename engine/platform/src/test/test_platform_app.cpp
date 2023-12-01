@@ -61,12 +61,12 @@ struct AppCtx
 
 struct EngineCtx
 {
-	dmPlatform::HWindow  m_Window;
-    int      			 m_WasCreated;
-    int      			 m_WasRun;
-    int      			 m_WasDestroyed;
-    int      			 m_WasResultCalled;
-    uint64_t 			 m_TimeStart;
+    dmPlatform::HWindow  m_Window;
+    int                  m_WasCreated;
+    int                  m_WasRun;
+    int                  m_WasDestroyed;
+    int                  m_WasResultCalled;
+    uint64_t             m_TimeStart;
 } g_EngineCtx;
 
 // From engine_loop.cpp
@@ -140,10 +140,10 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_TimeStart = dmTime::GetTime();
 
     dmPlatform::WindowParams params = {};
-    params.m_Width  				= 512;
-    params.m_Height 				= 512;
+    params.m_Width                  = 512;
+    params.m_Height                 = 512;
     params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
-    params.m_Title            	    = "Test app";
+    params.m_Title                  = "Test app";
 
     engine->m_Window = dmPlatform::NewWindow();
 
