@@ -49,6 +49,10 @@
   (vec3 normal)
   (vec2 texcoord0))
 
+(vtx/defvertex vtx-pos-tex
+  (vec3 position)
+  (vec2 texcoord0))
+
 (shader/defshader shader-ver-pos-nrm-tex
   (attribute vec4 position)
   (attribute vec3 normal)
@@ -204,7 +208,7 @@
                     world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))
 
                     material-attribute-infos (vertex-space-fixup (:material-attribute-infos user-data))
-                    shader-bound-attributes (graphics/shader-bound-attributes gl shader material-attribute-infos [:position :texcoord0 :normal]) ; todo: normal stream?
+                    shader-bound-attributes (graphics/shader-bound-attributes gl shader material-attribute-infos [:position :texcoord0 :normal])
                     vertex-description (graphics/make-vertex-description shader-bound-attributes)
                     vertex-attribute-bytes (:vertex-attribute-bytes user-data)]
               mesh meshes
@@ -237,7 +241,7 @@
           (gl/bind gl t render-args)
           (shader/set-samplers-by-name id-shader gl name (:texture-units t)))
         (doseq [mesh meshes
-                :let [vb (request-vb! gl node-id mesh world-matrix :vertex-space-world nil nil)
+                :let [vb (request-vb! gl node-id mesh world-matrix :vertex-space-world vtx-pos-tex nil)
                       vertex-binding (vtx/use-with [node-id ::mesh-selection] vb id-shader)]]
           (gl/with-gl-bindings gl render-args [vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))

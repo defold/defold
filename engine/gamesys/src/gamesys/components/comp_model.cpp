@@ -805,8 +805,8 @@ namespace dmGameSystem
                     SetupMeshAttributeRenderData(render_context,
                         ro.m_Material,
                         render_item,
-                        component->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Data,
-                        component->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Count,
+                        component->m_Resource->m_Materials[material_index].m_Attributes,
+                        component->m_Resource->m_Materials[material_index].m_AttributeCount,
                         attribute_rd);
                 }
 

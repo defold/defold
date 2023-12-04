@@ -67,6 +67,9 @@ namespace dmGameSystem
         const char*             m_Name;
         MaterialResource*       m_Material;
 
+        dmGraphics::VertexAttribute* m_Attributes;
+        uint32_t m_AttributeCount;
+
         MaterialTextureInfo*    m_Textures;
         uint32_t                m_TexturesCount;
     };
