@@ -32,41 +32,6 @@ components {
     z: 0.0
     w: 1.0
   }
-  properties {
-    id: "boolean"
-    value: "true"
-    type: PROPERTY_TYPE_BOOLEAN
-  }
-  properties {
-    id: "number"
-    value: "1.0"
-    type: PROPERTY_TYPE_NUMBER
-  }
-  properties {
-    id: "vector3"
-    value: "0.1, 0.2, 0.3"
-    type: PROPERTY_TYPE_VECTOR3
-  }
-  properties {
-    id: "vector4"
-    value: "0.1, 0.2, 0.3, 0.4"
-    type: PROPERTY_TYPE_VECTOR4
-  }
-  properties {
-    id: "quat"
-    value: "8.772E-4, 0.0017476, 0.0026165, 0.9999947"
-    type: PROPERTY_TYPE_QUAT
-  }
-  properties {
-    id: "url"
-    value: "#referenced_script"
-    type: PROPERTY_TYPE_URL
-  }
-  properties {
-    id: "texture"
-    value: "/referenced/images/red.png"
-    type: PROPERTY_TYPE_HASH
-  }
 }
 embedded_components {
   id: "embedded_sprite"

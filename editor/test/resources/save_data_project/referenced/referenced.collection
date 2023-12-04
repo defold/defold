@@ -1,7 +1,7 @@
 name: "referenced"
 instances {
   id: "referenced_go"
-  prototype: "/checked.go"
+  prototype: "/referenced/referenced.go"
   position {
     x: 0.1
     y: 0.2
@@ -12,19 +12,6 @@ instances {
     y: 0.0017476063
     z: 0.0026164628
     w: 0.99999464
-  }
-  component_properties {
-    id: "referenced_script"
-    properties {
-      id: "number"
-      value: "2.0"
-      type: PROPERTY_TYPE_NUMBER
-    }
-    properties {
-      id: "texture"
-      value: "/referenced/images/green.png"
-      type: PROPERTY_TYPE_HASH
-    }
   }
   scale3 {
     x: 1.1

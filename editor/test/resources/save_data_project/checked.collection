@@ -1,7 +1,7 @@
 name: "test"
 instances {
   id: "referenced_go"
-  prototype: "/checked.go"
+  prototype: "/referenced/referenced.go"
   children: "collection_embedded_child_go"
   position {
     x: 0.1
@@ -17,13 +17,38 @@ instances {
   component_properties {
     id: "referenced_script"
     properties {
+      id: "boolean"
+      value: "true"
+      type: PROPERTY_TYPE_BOOLEAN
+    }
+    properties {
       id: "number"
-      value: "2.0"
+      value: "1.0"
       type: PROPERTY_TYPE_NUMBER
     }
     properties {
+      id: "vector3"
+      value: "0.1, 0.2, 0.3"
+      type: PROPERTY_TYPE_VECTOR3
+    }
+    properties {
+      id: "vector4"
+      value: "0.1, 0.2, 0.3, 0.4"
+      type: PROPERTY_TYPE_VECTOR4
+    }
+    properties {
+      id: "quat"
+      value: "8.772E-4, 0.0017476, 0.0026165, 0.9999947"
+      type: PROPERTY_TYPE_QUAT
+    }
+    properties {
+      id: "url"
+      value: "#referenced_script"
+      type: PROPERTY_TYPE_URL
+    }
+    properties {
       id: "texture"
-      value: "/referenced/images/green.png"
+      value: "/referenced/images/red.png"
       type: PROPERTY_TYPE_HASH
     }
   }
@@ -52,13 +77,38 @@ collection_instances {
     properties {
       id: "referenced_script"
       properties {
+        id: "boolean"
+        value: "true"
+        type: PROPERTY_TYPE_BOOLEAN
+      }
+      properties {
         id: "number"
-        value: "3.0"
+        value: "1.0"
         type: PROPERTY_TYPE_NUMBER
       }
       properties {
+        id: "vector3"
+        value: "0.1, 0.2, 0.3"
+        type: PROPERTY_TYPE_VECTOR3
+      }
+      properties {
+        id: "vector4"
+        value: "0.1, 0.2, 0.3, 0.4"
+        type: PROPERTY_TYPE_VECTOR4
+      }
+      properties {
+        id: "quat"
+        value: "8.772E-4, 0.0017476, 0.0026165, 0.9999947"
+        type: PROPERTY_TYPE_QUAT
+      }
+      properties {
+        id: "url"
+        value: "#referenced_script"
+        type: PROPERTY_TYPE_URL
+      }
+      properties {
         id: "texture"
-        value: "/referenced/images/blue.png"
+        value: "/referenced/images/red.png"
         type: PROPERTY_TYPE_HASH
       }
     }
@@ -110,9 +160,34 @@ embedded_instances {
   "    w: 1.0\n"
   "  }\n"
   "  properties {\n"
+  "    id: \"boolean\"\n"
+  "    value: \"true\"\n"
+  "    type: PROPERTY_TYPE_BOOLEAN\n"
+  "  }\n"
+  "  properties {\n"
   "    id: \"number\"\n"
   "    value: \"1.0\"\n"
   "    type: PROPERTY_TYPE_NUMBER\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"vector3\"\n"
+  "    value: \"0.1, 0.2, 0.3\"\n"
+  "    type: PROPERTY_TYPE_VECTOR3\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"vector4\"\n"
+  "    value: \"0.1, 0.2, 0.3, 0.4\"\n"
+  "    type: PROPERTY_TYPE_VECTOR4\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"quat\"\n"
+  "    value: \"8.772E-4, 0.0017476, 0.0026165, 0.9999947\"\n"
+  "    type: PROPERTY_TYPE_QUAT\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"url\"\n"
+  "    value: \"#referenced_script\"\n"
+  "    type: PROPERTY_TYPE_URL\n"
   "  }\n"
   "  properties {\n"
   "    id: \"texture\"\n"

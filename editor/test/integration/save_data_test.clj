@@ -98,11 +98,14 @@
 (def ^:private pb-enum-ignored-values
   "This structure is used in conjunction with `pb-type-field-names` above to
   exclude certain enum values from consideration when determining coverage."
-  {'dmPhysicsDDF.CollisionShape.Type
-   {"[TYPE_HULL]" :unimplemented}
+  {'dmGameObjectDDF.PropertyType
+   {"[PROPERTY_TYPE_MATRIX4]" :unimplemented}
 
    'dmGuiDDF.NodeDesc.Type
-   {"[TYPE_SPINE]" :deprecated}}) ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
+   {"[TYPE_SPINE]" :deprecated} ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
+
+   'dmPhysicsDDF.CollisionShape.Type
+   {"[TYPE_HULL]" :unimplemented}})
 
 (def ^:private pb-ignored-fields
   "This structure is used to exclude certain fields in protobuf-based file
@@ -144,6 +147,10 @@
    {:default
     {"scale" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
+   ['dmGameObjectDDF.PropertyDesc "[PROPERTY_TYPE_NUMBER]"]
+   {:default
+    {"type" :allowed-default}}
+
    'dmGameObjectDDF.PrototypeDesc
    {:default
     {"property_resources" :runtime-only}}
@@ -176,7 +183,7 @@
     {"binary_values" :runtime-only
      "name_hash" :runtime-only}
 
-    [["particlefx" "emitters" "attributes"]
+    [["particlefx" "emitters" "[*]" "attributes"]
      ["sprite" "attributes"]]
     {"coordinate_space" :unused
      "data_type" :unused
@@ -209,7 +216,7 @@
      "text_tracking" :unused
      "type" :allowed-default}
 
-    [["gui" "layouts" "nodes"]]
+    [["gui" "layouts" "nodes" "[*]"]]
     {"id" :non-overridable
      "parent" :non-overridable
      "template_node_child" :unused}}
@@ -241,16 +248,10 @@
      "texture" :unused
      "type" :non-overridable}
 
-    [["gui" "layouts" "nodes"]]
-    {"clipping_inverted" :allowed-default
-     "clipping_mode" :allowed-default
-     "clipping_visible" :allowed-default
-     "enabled" :allowed-default
-     "id" :non-overridable
-     "inherit_alpha" :allowed-default
+    [["gui" "layouts" "nodes" "[*]"]]
+    {"id" :non-overridable
      "parent" :non-overridable
-     "template_node_child" :unused
-     "visible" :allowed-default}}
+     "template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_PARTICLEFX]"]
    {:default
@@ -285,13 +286,10 @@
      "texture" :unused
      "type" :non-overridable}
 
-    [["gui" "layouts" "nodes"]]
-    {"enabled" :allowed-default
-     "id" :non-overridable
-     "inherit_alpha" :allowed-default
+    [["gui" "layouts" "nodes" "[*]"]]
+    {"id" :non-overridable
      "parent" :non-overridable
-     "template_node_child" :unused
-     "visible" :allowed-default}}
+     "template_node_child" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_PIE]"]
    {:default
@@ -315,7 +313,7 @@
      "text_tracking" :unused
      "type" :non-overridable}
 
-    [["gui" "layouts" "nodes"]]
+    [["gui" "layouts" "nodes" "[*]"]]
     {"id" :non-overridable
      "parent" :non-overridable
      "template_node_child" :unused}}
@@ -360,10 +358,8 @@
      "xanchor" :unused
      "yanchor" :unused}
 
-    [["gui" "layouts" "nodes"]]
-    {"enabled" :allowed-default
-     "id" :non-overridable
-     "inherit_alpha" :allowed-default
+    [["gui" "layouts" "nodes" "[*]"]]
+    {"id" :non-overridable
      "parent" :non-overridable
      "template_node_child" :unused}}
 
@@ -389,14 +385,10 @@
      "texture" :unused
      "type" :non-overridable}
 
-    [["gui" "layouts" "nodes"]]
-    {"enabled" :allowed-default
-     "id" :non-overridable
-     "inherit_alpha" :allowed-default
-     "line_break" :allowed-default
+    [["gui" "layouts" "nodes" "[*]"]]
+    {"id" :non-overridable
      "parent" :non-overridable
-     "template_node_child" :unused
-     "visible" :allowed-default}}
+     "template_node_child" :unused}}
 
    'dmGuiDDF.SceneDesc
    {:default
@@ -429,25 +421,40 @@
      ["sprite" "size"]]
     {"w" :padding}
 
-    [["gui" "nodes" "color"]
-     ["gui" "nodes" "outline"]
-     ["gui" "nodes" "position"]
-     ["gui" "nodes" "rotation"]
-     ["gui" "nodes" "scale"]
-     ["gui" "nodes" "size"]
-     ["gui" "nodes" "shadow"]
-     ["gui" "layouts" "nodes" "color"]
-     ["gui" "layouts" "nodes" "outline"]
-     ["gui" "layouts" "nodes" "position"]
-     ["gui" "layouts" "nodes" "rotation"]
-     ["gui" "layouts" "nodes" "scale"]
-     ["gui" "layouts" "nodes" "size"]
-     ["gui" "layouts" "nodes" "shadow"]]
+    [["gui" "nodes" "[*]" "color"]
+     ["gui" "nodes" "[*]" "outline"]
+     ["gui" "nodes" "[*]" "position"]
+     ["gui" "nodes" "[*]" "rotation"]
+     ["gui" "nodes" "[*]" "scale"]
+     ["gui" "nodes" "[*]" "size"]
+     ["gui" "nodes" "[*]" "shadow"]
+     ["gui" "layouts" "nodes" "[*]" "color"]
+     ["gui" "layouts" "nodes" "[*]" "outline"]
+     ["gui" "layouts" "nodes" "[*]" "position"]
+     ["gui" "layouts" "nodes" "[*]" "rotation"]
+     ["gui" "layouts" "nodes" "[*]" "scale"]
+     ["gui" "layouts" "nodes" "[*]" "size"]
+     ["gui" "layouts" "nodes" "[*]" "shadow"]]
     {"w" :non-editable}}
 
    'dmModelDDF.ModelDesc
    {:default
     {"materials" :unimplemented}} ; Multiple materials not supported yet.
+
+   ['dmParticleDDF.Emitter "[EMITTER_TYPE_CIRCLE]"]
+   {:default
+    {"type" :allowed-default}}
+
+   ['dmParticleDDF.Modifier "[MODIFIER_TYPE_ACCELERATION]"]
+   {:default
+    {"type" :allowed-default}}
+
+   'dmParticleDDF.Modifier.Property
+   {[["particlefx" "modifiers" "[MODIFIER_TYPE_ACCELERATION]" "properties"]
+     ["particlefx" "modifiers" "[MODIFIER_TYPE_DRAG]" "properties"]
+     ["particlefx" "emitters" "[*]" "modifiers" "[MODIFIER_TYPE_ACCELERATION]" "properties"]
+     ["particlefx" "emitters" "[*]" "modifiers" "[MODIFIER_TYPE_DRAG]" "properties"]]
+    {"key" :allowed-default}}
 
    'dmPhysicsDDF.CollisionShape.Shape
    {:default
@@ -474,8 +481,21 @@
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))
 
+(defn- pb-path-matches-filter-path? [pb-path pb-filter-path]
+  (s/assert ::pb-path pb-path)
+  (s/assert ::pb-filter-path pb-filter-path)
+  (and (== (count pb-path)
+           (count pb-filter-path))
+       (every? true?
+               (map (fn [pb-path-token pb-filter-path-token]
+                      (or (= "[*]" pb-filter-path-token) ; TODO(save-data-test): Proper wildcard matching.
+                          (= pb-path-token pb-filter-path-token)))
+                    pb-path
+                    pb-filter-path))))
+
 (defn- pb-field-ignore-reasons [pb-desc type-token pb-path]
-  {:pre [(or (nil? type-token) (s/valid? ::pb-type-token type-token))]}
+  (s/assert (s/nilable ::pb-type-token) type-token)
+  (s/assert ::pb-path pb-path)
   (let [pb-desc-key (pb-descriptor-key pb-desc)
 
         pb-filter->pb-field->ignore-reason
@@ -486,10 +506,13 @@
             (get pb-ignored-fields pb-desc-key)
             (get pb-ignored-fields [pb-desc-key type-token])))
 
-        matched (filterv (fn [[pb-filter]]
-                           (and (not= :default pb-filter)
-                                (some #(= pb-path %) pb-filter)))
-                         pb-filter->pb-field->ignore-reason)]
+        matched
+        (filterv (fn [[pb-filter]]
+                   (and (not= :default pb-filter)
+                        (some #(pb-path-matches-filter-path? pb-path %)
+                              pb-filter)))
+                 pb-filter->pb-field->ignore-reason)]
+
     (case (count matched)
       0 (:default pb-filter->pb-field->ignore-reason {})
       1 (into (:default pb-filter->pb-field->ignore-reason {})
@@ -527,7 +550,9 @@
 (s/def ::pb-path-token ::pb-identifier)
 (s/def ::pb-path (s/cat :ext ::resource-type-ext :field-path (s/* ::pb-path-token)))
 (s/def ::pb-path-token->ignore-reason (s/map-of ::pb-path-token ::ignore-reason))
-(s/def ::pb-filter (s/or :default #{:default} :paths (s/coll-of ::pb-path :kind vector?)))
+(s/def ::pb-filter-path-token (s/or :identifier ::pb-identifier :wildcard #{"[*]"})) ; TODO(save-data-test): Implement wildcards properly.
+(s/def ::pb-filter-path (s/cat :ext ::resource-type-ext :field-filter-path (s/* ::pb-filter-path-token)))
+(s/def ::pb-filter (s/or :default #{:default} :filter-paths (s/coll-of ::pb-filter-path :kind vector?)))
 (s/def ::pb-filter->pb-path-token->ignore-reason (s/map-of ::pb-filter ::pb-path-token->ignore-reason))
 (s/def ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason (s/map-of ::pb-ignore-key ::pb-filter->pb-path-token->ignore-reason))
 
@@ -748,6 +773,9 @@
 (def ^:private pb-enum-desc-empty-frequencies (memoize pb-enum-desc-empty-frequencies-raw))
 
 (defn- pb-field-has-single-valid-value? [^Descriptors$FieldDescriptor field-desc]
+  ;; For protobuf fields that have a single valid value, we don't enforce the
+  ;; rule that every field needs to have a non-default value somewhere.
+  ;; We have some enum types that have only a single valid value.
   (and (pb-enum-field? field-desc)
        (-> field-desc
            (.getEnumType)
@@ -775,9 +803,9 @@
     0))
 
 (defn- pb-descriptor-expected-fields-raw [^Descriptors$Descriptor pb-desc type-token pb-path included-ignore-reasons]
-  {:pre [(or (nil? type-token) (s/valid? ::pb-type-token type-token))
-         (s/valid? ::pb-path pb-path)
-         (s/valid? ::ignore-reason-set included-ignore-reasons)]}
+  (s/assert (s/nilable ::pb-type-token) type-token)
+  (s/assert ::pb-path pb-path)
+  (s/assert ::ignore-reason-set included-ignore-reasons)
   (let [pb-field->ignore-reason (pb-field-ignore-reasons pb-desc type-token pb-path)
         ignored-field? (fn [^Descriptors$FieldDescriptor field-desc]
                          (let [field-name (.getName field-desc)
@@ -791,13 +819,18 @@
 (def ^:private pb-descriptor-expected-fields (memoize pb-descriptor-expected-fields-raw))
 
 (defn- pb-nested-field-frequencies [^Message pb pb-path count-field-value?]
-  {:pre [(s/valid? ::pb-path pb-path)]}
+  (s/assert ::pb-path pb-path)
   (let [pb-desc (.getDescriptorForType pb)
         pb-desc-key (pb-descriptor-key pb-desc)
         type-field-name (pb-type-field-names pb-desc-key)
         type-field-desc (some->> type-field-name (.findFieldByName pb-desc))
         type-field-value (some->> type-field-desc (.getField pb))
         type-token (some->> type-field-value pb-type-token)
+
+        typed-pb-path
+        (if type-token
+          (conj pb-path type-token)
+          pb-path)
 
         field-frequencies
         (into (sorted-map)
@@ -807,7 +840,7 @@
                             field-frequency
                             (cond
                               (pb-message-field? field-desc)
-                              (let [pb-path (conj pb-path field-name)]
+                              (let [pb-path (conj typed-pb-path field-name)]
                                 (if (.isRepeated field-desc)
                                   (transduce
                                     (map #(pb-nested-field-frequencies % pb-path count-field-value?))
@@ -834,7 +867,7 @@
                                   (pos? (count field-frequency)))
                           (pair field-name
                                 field-frequency)))))
-              (pb-descriptor-expected-fields pb-desc type-token pb-path #{:non-editable :non-overridable}))]
+              (pb-descriptor-expected-fields pb-desc type-token typed-pb-path #{:non-editable :non-overridable}))]
 
     (if (nil? type-field-desc)
       field-frequencies
@@ -999,15 +1032,20 @@
           template-node-pbs)))
 
 (defn- pb-nested-field-differences [^Message original-pb ^Message altered-pb pb-path]
-  {:pre [(s/valid? ::pb-path pb-path)
-         (identical? (.getDescriptorForType original-pb)
+  {:pre [(identical? (.getDescriptorForType original-pb)
                      (.getDescriptorForType altered-pb))]}
+  (s/assert ::pb-path pb-path)
   (let [pb-desc (.getDescriptorForType original-pb)
         pb-desc-key (pb-descriptor-key pb-desc)
         type-field-name (pb-type-field-names pb-desc-key)
         type-field-desc (some->> type-field-name (.findFieldByName pb-desc))
         type-field-value (some->> type-field-desc (.getField original-pb))
         type-token (some->> type-field-value pb-type-token)
+
+        typed-pb-path
+        (if type-token
+          (conj pb-path type-token)
+          pb-path)
 
         diff-field
         (fn diff-field [^Descriptors$FieldDescriptor field-desc]
@@ -1019,7 +1057,7 @@
                     :count-mismatch
                     (mapv (if (pb-message-field? field-desc)
                             ;; Repeated message field.
-                            (let [pb-path (conj pb-path (.getName field-desc))]
+                            (let [pb-path (conj typed-pb-path (.getName field-desc))]
                               #(pb-nested-field-differences %1 %2 pb-path))
                             ;; Repeated primitive field.
                             #(if (= %1 %2) 0 1))
@@ -1032,14 +1070,14 @@
                                   (.getField altered-pb field-desc))]
                     (if (pb-message-field? field-desc)
                       ;; Non-repeated message field.
-                      (let [pb-path (conj pb-path (.getName field-desc))]
+                      (let [pb-path (conj typed-pb-path (.getName field-desc))]
                         (pb-nested-field-differences a-value b-value pb-path))
                       ;; Non-repeated primitive-field.
                       (if (= a-value b-value) 0 1))))))]
 
     (into (sorted-map)
           (map diff-field)
-          (pb-descriptor-expected-fields pb-desc type-token pb-path #{}))))
+          (pb-descriptor-expected-fields pb-desc type-token typed-pb-path #{}))))
 
 (defn- non-overridden-gui-node-field-paths [workspace diff-pb-path gui-resource->override-infos]
   (let [gui-resources (checked-resources workspace #(= "gui" (:ext %)))
