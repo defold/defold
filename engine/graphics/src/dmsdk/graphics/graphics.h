@@ -215,6 +215,8 @@ namespace dmGraphics
         TEXTURE_FORMAT_RG32F                = 29,
         // Internal formats (not exposed via script APIs)
         TEXTURE_FORMAT_RGBA32UI             = 30,
+        TEXTURE_FORMAT_BGRA8U               = 31,
+        TEXTURE_FORMAT_R32UI                = 32,
 
         TEXTURE_FORMAT_COUNT
     };
@@ -310,6 +312,7 @@ namespace dmGraphics
         BUFFER_USAGE_STREAM_DRAW  = 0,
         BUFFER_USAGE_DYNAMIC_DRAW = 1,
         BUFFER_USAGE_STATIC_DRAW  = 2,
+        BUFFER_USAGE_TRANSFER     = 4,
     };
 
     /*#

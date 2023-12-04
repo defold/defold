@@ -278,6 +278,11 @@ namespace dmRender
         return render_context->m_ViewProj;
     }
 
+    const Matrix4& GetViewMatrix(HRenderContext render_context)
+    {
+        return render_context->m_View;
+    }
+
     void SetViewMatrix(HRenderContext render_context, const Matrix4& view)
     {
         render_context->m_View = view;

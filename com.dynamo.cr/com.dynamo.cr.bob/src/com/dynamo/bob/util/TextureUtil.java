@@ -306,6 +306,7 @@ public class TextureUtil {
         return ATLAS_FILE_TYPES;
     }
 
+    // Used by extensions
     public static void registerAtlasFileType(String srcSuffix) {
         ATLAS_FILE_TYPES.put(srcSuffix, ATLAS_FILE_TYPES.get(".atlas"));
     }

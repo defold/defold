@@ -1137,6 +1137,18 @@ namespace dmGui
      * @return current scene, or 0
      */
     HScene GetSceneFromLua(lua_State* L);
+
+    // Used only in engine_service.cpp for resource profiling
+    typedef bool (*FDynamicTextturesIterator)(dmhash_t gui_res_id, dmhash_t name_hash, uint32_t size, void* user_ctx);
+    /**
+     * Iterates over all dynamic textures in GUI component, and invokes the callback function with the dyn. texture information
+     * @param gui_res_id The GUI component resource id
+     * @param scene      The scene we get dynamic textures information from
+     * @param callback   The callback function which is invoked for each dynamic texture.
+                         It should return true if the iteration should continue, and false otherwise.
+     * @param user_ctx   The user defined context which is passed along with each callback
+     */
+    void IterateDynamicTextures(dmhash_t gui_res_id, HScene scene, FDynamicTextturesIterator callback, void* user_ctx);
 }
 
 #endif

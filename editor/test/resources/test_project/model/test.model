@@ -1,3 +1,12 @@
 mesh: "/mesh/test_collada_dae.dae"
-material: "/model/model.material"
-textures: "/mesh/test_m.png"
+skeleton: ""
+animations: ""
+default_animation: ""
+materials {
+  name: "default"
+  material: "/model/model.material"
+  textures {
+    sampler: "diffuse"
+    texture: "/mesh/test_m.png"
+  }
+}

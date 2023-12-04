@@ -465,7 +465,7 @@ int main(int argc, char **argv)
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     dmHashEnableReverseHash(true);
-    dmGraphics::Initialize();
+    dmGraphics::InstallAdapter();
 
     int ret = jc_test_run_all();
     dmProfile::Finalize();

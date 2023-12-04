@@ -55,6 +55,7 @@
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
 #include <particle/particle.h>
+#include <platform/platform_window.h>
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
 
@@ -220,6 +221,7 @@ namespace dmEngine
 
     Engine::Engine(dmEngineService::HEngineService engine_service)
     : m_Config(0)
+    , m_Window(0)
     , m_Alive(true)
     , m_MainCollection(0)
     , m_LastReloadMTime(0)
@@ -342,7 +344,8 @@ namespace dmEngine
             }
         }
 
-        if (engine->m_Factory) {
+        if (engine->m_Factory)
+        {
             dmResource::DeleteFactory(engine->m_Factory);
         }
 
@@ -350,6 +353,12 @@ namespace dmEngine
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
             dmGraphics::DeleteContext(engine->m_GraphicsContext);
+        }
+
+        if (engine->m_Window)
+        {
+            dmPlatform::CloseWindow(engine->m_Window);
+            dmPlatform::DeleteWindow(engine->m_Window);
         }
 
         if (engine->m_SystemSocket)
@@ -532,6 +541,20 @@ namespace dmEngine
         }
     }
 
+    static dmPlatform::PlatformGraphicsApi AdapterFamilyToGraphicsAPI(dmGraphics::AdapterFamily family)
+    {
+        switch(family)
+        {
+            case dmGraphics::ADAPTER_FAMILY_NULL:   return dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+            case dmGraphics::ADAPTER_FAMILY_OPENGL: return dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+            case dmGraphics::ADAPTER_FAMILY_VULKAN: return dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+            case dmGraphics::ADAPTER_FAMILY_VENDOR: return dmPlatform::PLATFORM_GRAPHICS_API_VENDOR;
+            default:break;
+        }
+        assert(0);
+        return (dmPlatform::PlatformGraphicsApi) -1;
+    }
+
     /*
      The game.projectc is located using the following scheme:
 
@@ -710,14 +733,10 @@ namespace dmEngine
 
         dmBuffer::NewContext();
 
-
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
 
         // Accelerometer
         int32_t use_accelerometer = dmConfigFile::GetInt(engine->m_Config, "input.use_accelerometer", 1);
-        if (use_accelerometer) {
-            dmHID::EnableAccelerometer(); // Creates and enables the accelerometer
-        }
         new_hid_params.m_IgnoreAcceleration = use_accelerometer ? 0 : 1;
 
 #if defined(__EMSCRIPTEN__)
@@ -731,6 +750,11 @@ namespace dmEngine
         }
 #endif
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
+
+        if (use_accelerometer)
+        {
+            dmHID::EnableAccelerometer(engine->m_HidContext); // Creates and enables the accelerometer
+        }
 
         dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
@@ -792,25 +816,6 @@ namespace dmEngine
         // This scope is mainly here to make sure the "Main" scope is created first
         DM_PROFILE("Init");
 
-        dmGraphics::ContextParams graphics_context_params;
-        graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
-        graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
-        graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
-        graphics_context_params.m_RenderDocSupport        = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
-
-        graphics_context_params.m_UseValidationLayers = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
-        graphics_context_params.m_GraphicsMemorySize = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
-
-        engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
-        if (engine->m_GraphicsContext == 0x0)
-        {
-            dmLogFatal("Unable to create the graphics context.");
-            return false;
-        }
-
-        engine->m_Width = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
-        engine->m_Height = dmConfigFile::GetInt(engine->m_Config, "display.height", 640);
-
         float clear_color_red = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_red", 0.0);
         float clear_color_green = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_green", 0.0);
         float clear_color_blue = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_blue", 0.0);
@@ -821,28 +826,53 @@ namespace dmEngine
                              | (((uint32_t)(clear_color_alpha * 255.0) & 0x000000ff) << 24);
         engine->m_ClearColor = clear_color;
 
-        dmGraphics::WindowParams window_params;
-        window_params.m_ResizeCallback = OnWindowResize;
-        window_params.m_ResizeCallbackUserData = engine;
-        window_params.m_CloseCallback = OnWindowClose;
-        window_params.m_CloseCallbackUserData = engine;
-        window_params.m_FocusCallback = OnWindowFocus;
-        window_params.m_FocusCallbackUserData = engine;
-        window_params.m_IconifyCallback = OnWindowIconify;
-        window_params.m_IconifyCallbackUserData = engine;
-        window_params.m_Width = engine->m_Width;
-        window_params.m_Height = engine->m_Height;
-        window_params.m_Samples = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
-        window_params.m_Title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
-        window_params.m_Fullscreen = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
-        window_params.m_PrintDeviceInfo = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
-        window_params.m_HighDPI = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
-        window_params.m_BackgroundColor = clear_color;
+        // Platform
+        engine->m_Width = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
+        engine->m_Height = dmConfigFile::GetInt(engine->m_Config, "display.height", 640);
 
-        dmGraphics::WindowResult window_result = dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
-        if (window_result != dmGraphics::WINDOW_RESULT_OK)
+        dmPlatform::WindowParams window_params  = {};
+        window_params.m_ResizeCallback          = OnWindowResize;
+        window_params.m_ResizeCallbackUserData  = engine;
+        window_params.m_CloseCallback           = OnWindowClose;
+        window_params.m_CloseCallbackUserData   = engine;
+        window_params.m_FocusCallback           = OnWindowFocus;
+        window_params.m_FocusCallbackUserData   = engine;
+        window_params.m_IconifyCallback         = OnWindowIconify;
+        window_params.m_IconifyCallbackUserData = engine;
+        window_params.m_Width                   = engine->m_Width;
+        window_params.m_Height                  = engine->m_Height;
+        window_params.m_Samples                 = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
+        window_params.m_Title                   = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
+        window_params.m_Fullscreen              = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
+        window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
+        window_params.m_BackgroundColor         = clear_color;
+        window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
+
+        engine->m_Window = dmPlatform::NewWindow();
+
+        dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(engine->m_Window, window_params);
+        if (platform_result != dmPlatform::PLATFORM_RESULT_OK)
         {
-            dmLogFatal("Could not open window (%d).", window_result);
+            dmLogFatal("Could not open window (%d).", platform_result);
+            return false;
+        }
+
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
+        graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
+        graphics_context_params.m_VerifyGraphicsCalls     = verify_graphics_calls;
+        graphics_context_params.m_RenderDocSupport        = renderdoc_support || dmConfigFile::GetInt(engine->m_Config, "graphics.use_renderdoc", 0) != 0;
+        graphics_context_params.m_UseValidationLayers     = use_validation_layers || dmConfigFile::GetInt(engine->m_Config, "graphics.use_validationlayers", 0) != 0;
+        graphics_context_params.m_GraphicsMemorySize      = dmConfigFile::GetInt(engine->m_Config, "graphics.memory_size", 0) * 1024*1024; // MB -> bytes
+        graphics_context_params.m_Window                  = engine->m_Window;
+        graphics_context_params.m_Width                   = engine->m_Width;
+        graphics_context_params.m_Height                  = engine->m_Height;
+        graphics_context_params.m_PrintDeviceInfo         = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
+
+        engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+        if (engine->m_GraphicsContext == 0x0)
+        {
+            dmLogFatal("Unable to create the graphics context.");
             return false;
         }
 
@@ -992,6 +1022,9 @@ namespace dmEngine
         engine->m_InputContext = dmInput::NewContext(input_params);
 
         dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, dmInput::GamepadConnectivityCallback, engine->m_InputContext);
+
+        // JG: Q - Can we create the graphics context before HID and pass in the context to the Hid insteaD?
+        dmHID::SetWindow(engine->m_HidContext, dmGraphics::GetWindow(engine->m_GraphicsContext));
 
         // Any connected devices are registered here.
         dmHID::Init(engine->m_HidContext);
@@ -1346,6 +1379,7 @@ bail:
     {
         Engine* engine = (Engine*)user_data;
         int32_t window_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
+        window_height -= 1; // mouse position uses [0; size - 1] instead of [1, size]
         dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
         dmGameObject::InputAction input_action;
         input_action.m_ActionId = action_id;
@@ -1440,7 +1474,7 @@ bail:
     {
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
-        if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+        if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
         {
             if (!engine->m_WasIconified)
             {
@@ -1487,7 +1521,7 @@ bail:
                     dmHID::Update(engine->m_HidContext);
                 }
                 if (!engine->m_RunWhileIconified) {
-                    if (dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+                    if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
                     {
                         // NOTE: This is a bit ugly but os event are polled in dmHID::Update and an iOS application
                         // might have entered background at this point and OpenGL calls are not permitted and will
@@ -1526,7 +1560,7 @@ bail:
                     esc_pressed = dmHID::GetKey(&keybdata, dmHID::KEY_ESC);
                 }
 
-                if (esc_pressed || !dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_OPENED))
+                if (esc_pressed || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_OPENED))
                 {
                     engine->m_Alive = false;
                     return;
@@ -1561,7 +1595,7 @@ bail:
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
 
                 // Don't render while iconified
-                if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
                 {
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
@@ -1640,7 +1674,7 @@ bail:
             // We do it here at the end of the frame (before swap buffers/flip)
             // in case any extension wants to render just before the Flip().
             // Don't do this while iconified
-            if (!dmGraphics::GetWindowState(engine->m_GraphicsContext, dmGraphics::WINDOW_STATE_ICONIFIED))
+            if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
             {
                 dmExtension::Params ext_params;
                 ext_params.m_ConfigFile = engine->m_Config;
@@ -2056,9 +2090,9 @@ const char* ParseArgOneOperand(const char* arg_str, int argc, char *argv[])
 
 dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 {
-    const char* arg_adapter_type = ParseArgOneOperand("--graphics-adapter", argc, argv);
+    const char* arg_adapter_name = ParseArgOneOperand("--graphics-adapter", argc, argv);
 
-    if (!dmGraphics::Initialize(arg_adapter_type))
+    if (!dmGraphics::InstallAdapter(dmGraphics::GetAdapterFamily(arg_adapter_name)))
     {
         return 0;
     }

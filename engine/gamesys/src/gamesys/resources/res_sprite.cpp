@@ -31,20 +31,38 @@ namespace dmGameSystem
             resource->m_DDF->m_BlendMode = dmGameSystemDDF::SpriteDesc::BLEND_MODE_ADD;
 
 
-        uint32_t num_textures = resource->m_DDF->m_Textures.m_Count;
-        resource->m_NumTextures = num_textures;
-        resource->m_Textures = (SpriteTexture*)malloc(num_textures * sizeof(SpriteTexture));
-        memset(resource->m_Textures, 0, num_textures * sizeof(SpriteTexture));
-
         dmResource::Result fr = dmResource::RESULT_OK;
-        for (uint32_t i = 0; i < num_textures; ++i)
+
+        uint32_t num_textures = resource->m_DDF->m_Textures.m_Count;
+        if (num_textures)
         {
-            fr = dmResource::Get(factory, resource->m_DDF->m_Textures[i].m_Texture, (void**)&resource->m_Textures[i].m_TextureSet);
+            resource->m_NumTextures = num_textures;
+            resource->m_Textures = (SpriteTexture*)malloc(num_textures * sizeof(SpriteTexture));
+            memset(resource->m_Textures, 0, num_textures * sizeof(SpriteTexture));
+
+            dmResource::Result fr = dmResource::RESULT_OK;
+            for (uint32_t i = 0; i < num_textures; ++i)
+            {
+                fr = dmResource::Get(factory, resource->m_DDF->m_Textures[i].m_Texture, (void**)&resource->m_Textures[i].m_TextureSet);
+                if (fr != dmResource::RESULT_OK)
+                {
+                    return fr;
+                }
+                resource->m_Textures[i].m_SamplerNameHash = dmHashString64(resource->m_DDF->m_Textures[i].m_Sampler);
+            }
+        }
+        else { // Fallback until the editor outputs the same format
+            num_textures = 1;
+            resource->m_NumTextures = 1;
+
+            resource->m_Textures = (SpriteTexture*)malloc(num_textures * sizeof(SpriteTexture));
+            memset(resource->m_Textures, 0, num_textures * sizeof(SpriteTexture));
+            dmResource::Result fr = dmResource::Get(factory, resource->m_DDF->m_TileSet, (void**)&resource->m_Textures[0].m_TextureSet);
             if (fr != dmResource::RESULT_OK)
             {
                 return fr;
             }
-            resource->m_Textures[i].m_SamplerNameHash = dmHashString64(resource->m_DDF->m_Textures[i].m_Sampler);
+            resource->m_Textures[0].m_SamplerNameHash = dmHashString64("");
         }
 
         fr = dmResource::Get(factory, resource->m_DDF->m_Material, (void**)&resource->m_Material);

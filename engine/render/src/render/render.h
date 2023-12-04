@@ -128,6 +128,7 @@ namespace dmRender
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 
     const dmVMath::Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
+    const dmVMath::Matrix4& GetViewMatrix(HRenderContext render_context);
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 

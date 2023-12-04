@@ -97,9 +97,9 @@ If it's already installed, configure its path in the Preferences' Tools pane." {
 
 (defn launch!
   "Perform an application launch and block until the launch is done
-
+  
   Returns nil on success, throws exception on failure
-
+  
   Args:
     adb-path    path to adb command, can be obtained with [[get-adb-path]]
     device      device to install on, can be obtained with [[list-devices!]]
@@ -108,14 +108,11 @@ If it's already installed, configure its path in the Preferences' Tools pane." {
                 closed after use"
   [adb-path device package out]
   {:pre [(string? (:id device))]}
-  ;; Using monkey is a convenient way to launch an Android app using only its
-  ;; package name. See also: https://stackoverflow.com/a/25398877
   (let [process (process/start! {:err :stdout}
                                 adb-path
                                 "-s" (:id device)
-                                "shell" "monkey"
-                                "-p" package
-                                "-c" "android.intent.category.LAUNCHER" "1")]
+                                "shell" "am" "start"
+                                "-n" (str package "/com.dynamo.android.DefoldActivity"))]
     (process/pipe! (process/out process) out)
     (when-not (zero? (process/await-exit-code process))
       (throw (ex-info "Failed to launch the app" {:adb adb-path :device device :app package})))))

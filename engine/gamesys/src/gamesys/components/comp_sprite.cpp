@@ -698,6 +698,8 @@ namespace dmGameSystem
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
                 {
                     uint32_t unit = num_texcoords++;
+                    if (unit >= num_textures)
+                        unit = 0;
                     memcpy(write_ptr, uvs[unit].Begin()+vertex_index*2, info->m_ValueByteSize);
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
