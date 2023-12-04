@@ -230,6 +230,53 @@
           (and (<= (.row start) (.row cursor))
                (>= (.row end) (.row cursor))))))
 
+(defn- cursor-before-or-same?
+  "Returns true iff a's position <= b's position"
+  [^Cursor a ^Cursor b]
+  (not (pos? (compare-cursor-position a b))))
+
+(defn- cursor-before?
+  "Returns true iff a's position < b's position"
+  [^Cursor a ^Cursor b]
+  (neg? (compare-cursor-position a b)))
+
+(defn cursor-range-differences
+  "Returns 0, 1 or 2 cursor ranges that denote a difference of 2 cursor ranges
+
+  Possible results are:
+    0 ranges    if A is fully within B
+    1 range     if A overlaps with B
+    2 ranges    if B is fully within A"
+  ^CursorRange [^CursorRange a ^CursorRange b]
+  (let [a-start (cursor-range-start a)
+        a-end (cursor-range-end a)
+        b-start (cursor-range-start b)
+        b-end (cursor-range-end b)]
+    (cond
+      ;; no intersection
+      (or (cursor-before-or-same? b-end a-start)
+          (cursor-before-or-same? a-end b-start))
+      [a]
+
+      ;; A within B
+      (and (cursor-before-or-same? b-start a-start)
+           (cursor-before-or-same? a-end b-end))
+      []
+
+      ;; B within A
+      (and (cursor-before? a-start b-start)
+           (cursor-before? b-end a-end))
+      [(->CursorRange a-start b-start)
+       (->CursorRange b-end a-end)]
+
+      ;; intersection, B before A
+      (cursor-before? b-end a-end)
+      [(->CursorRange b-end a-end)]
+
+      ;; intersection, A before B
+      :else
+      [(->CursorRange a-start b-start)])))
+
 (defn- cursor-range-midpoint-follows? [^CursorRange cursor-range ^Cursor cursor]
   (let [start (cursor-range-start cursor-range)
         end (cursor-range-end cursor-range)

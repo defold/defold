@@ -162,7 +162,7 @@
                [ns-path (code-completion/make name
                                               :type type
                                               :display-string (make-display-string el)
-                                              :insert-snippet (make-snippet el)
+                                              :insert (make-snippet el)
                                               :doc (make-markdown-doc raw-name base-url el))])))
       docs)))
 
@@ -254,12 +254,12 @@
                            name
                            :type :function
                            :display-string (str name "(" (string/join ", " params) ")")
-                           :insert-snippet (str name
-                                                "("
-                                                (->> params
-                                                     (map-indexed #(format "${%s:%s}" (inc %1) %2))
-                                                     (string/join ", "))
-                                                ")"))])))
+                           :insert (str name
+                                        "("
+                                        (->> params
+                                             (map-indexed #(format "${%s:%s}" (inc %1) %2))
+                                             (string/join ", "))
+                                        ")"))])))
        functions)]))
 
 (defn- make-ast-completions [local-completion-info required-completion-infos]

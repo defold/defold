@@ -22,6 +22,7 @@
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.stack-pane :as fx.stack-pane]
+            [cljfx.fx.svg-path :as fx.svg-path]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as mutator]
@@ -72,7 +73,7 @@
            [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.control Button CheckBox Tab TextField]
-           [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
+           [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyCombination KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
            [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
            [javafx.scene.paint Color LinearGradient Paint]
            [javafx.scene.shape Rectangle]
@@ -108,12 +109,6 @@
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype ResizeReference (s/enum :bottom :top))
 (g/deftype VisibleWhitespace (s/enum :all :none :rogue))
-(g/deftype CompletionState {:enabled s/Bool
-                            (s/optional-key :showing) s/Bool
-                            (s/optional-key :completions) [s/Any]
-                            (s/optional-key :selected-index) s/Any
-                            (s/optional-key :show-doc) s/Bool
-                            (s/optional-key :project) s/Int})
 
 (defn- boolean->visible-whitespace [visible?]
   (if visible? :all :rogue))
@@ -879,16 +874,21 @@
 (g/defnk produce-completion-context
   "Returns a map of completion-related information
 
-  The map includes following keys:
-    :context          required, a string indicating a context in which the
-                      completions should be requested, e.g. for a string
-                      \"socket.d\" before cursor the context would be \"socket\"
-    :query            required, a string used for filtering completions, e.g.
-                      for a string \"socket.d\" before cursor the query would
-                      be \"d\"
-    :cursor-ranges    required, replacement ranges that should be used when
-                      accepting the suggestion
-    :trigger          optional trigger character string, e.g. \".\""
+  The map includes following keys (all required):
+    :context           a string indicating a context in which the built-in
+                       completions should be requested, e.g. for string
+                       \"socket.d\" before cursor the context will be \"socket\"
+    :query             a string used for filtering completions, e.g. for string
+                       \"socket.d\" before cursor the query will be \"d\"
+    :cursor-ranges     replacement ranges that should be used when
+                       accepting the suggestion
+    :request-cursor    a cursor identifying the place where the LSP completions
+                       should be requested
+    :insert-cursor     a cursor identifying the place where the LSP completions
+                       are supposed to be inserted, used for validating if
+                       complete LSP completion list should be refreshed
+    :trigger           single-character trigger string before cursor (\"\\n\" on
+                       the start of the line, even it's the first one)"
   [lines cursor-ranges]
   {:pre [(pos? (count cursor-ranges))]}
   (let [results (mapv (fn [^CursorRange cursor-range]
@@ -904,14 +904,19 @@
                               context (if last-dot (subs prefix 0 last-dot) "")
                               query (if last-dot (subs prefix (inc ^long last-dot)) prefix)
                               replacement-range (update cursor-range affected-cursor update :col - (count query))]
-                          [replacement-range context query (if last-dot "." nil)]))
-                      cursor-ranges)]
-    (let [[_ context query trigger] (first results)]
-      (cond-> {:context context
-               :query query
-               :cursor-ranges (mapv first results)}
-              trigger
-              (assoc :trigger trigger)))))
+                          [replacement-range context query]))
+                      cursor-ranges)
+        cursor (data/adjust-cursor lines (data/cursor-range-start (first cursor-ranges)))
+        col (.-col cursor)]
+    (let [[replacement-range context query] (first results)]
+      {:context context
+       :query query
+       :cursor-ranges (mapv first results)
+       :request-cursor cursor
+       :insert-cursor (data/cursor-range-start replacement-range)
+       :trigger (if (zero? col)
+                  "\n"
+                  (str (.charAt ^String (lines (.-row cursor)) (dec col))))})))
 
 (g/defnk produce-visible-completion-ranges [lines layout completion-context]
   (data/visible-cursor-ranges lines layout (:cursor-ranges completion-context)))
@@ -931,11 +936,11 @@
               region))
           (get tab-trigger-regions-by-scope-id (:id scope-region)))))
 
-(g/defnk produce-suggested-completions [tab-trigger-scope-regions
-                                        tab-trigger-regions-by-scope-id
-                                        cursor-ranges
-                                        completions
-                                        completion-context]
+(g/defnk produce-suggested-completions [completions completion-context]
+  (get completions (:context completion-context) []))
+
+(g/defnk produce-suggested-choices
+  [tab-trigger-scope-regions tab-trigger-regions-by-scope-id cursor-ranges]
   (let [choices-colls (into []
                             (comp
                               (map data/CursorRange->Cursor)
@@ -943,15 +948,54 @@
                                              tab-trigger-scope-regions
                                              tab-trigger-regions-by-scope-id))
                               (keep :choices))
-                            cursor-ranges)
-        unfiltered-completions (if (pos? (count choices-colls))
-                                 (into [] (comp cat (map code-completion/make)) choices-colls)
-                                 (get completions (:context completion-context)))]
-    (vec (popup/fuzzy-option-filter-fn
-           :name
-           :display-string
-           (:query completion-context)
-           unfiltered-completions))))
+                            cursor-ranges)]
+    (when (pos? (count choices-colls))
+      (into []
+            (comp
+              cat
+              (map code-completion/make))
+            choices-colls))))
+
+(g/defnk produce-completions-selected-index
+  "Return a valid completions selected index or nil
+
+  If completions are not empty, the result is guaranteed to be in the
+  completion index range, otherwise the result is nil"
+  [completions-selected-index completions-combined]
+  (cond
+    completions-selected-index
+    (let [max-index (dec (count completions-combined))]
+      (when-not (neg? max-index)
+        (max 0 (min ^long completions-selected-index max-index))))
+
+    (pos? (count completions-combined))
+    0))
+
+(g/defnk produce-completions-selection [completions-selected-index completions-combined]
+  (when completions-selected-index
+    (completions-combined completions-selected-index)))
+
+(defn- completion-identifier [{:keys [display-string type]}]
+  (pair
+    (case type
+      :message :message
+      :property :property
+      :event :event
+      :snippet :snippet
+      :text)
+    display-string))
+
+(g/defnk produce-completions-combined [completions-built-in completions-lsp completion-context]
+  (->> [completions-built-in
+        (eduction
+          (map-indexed #(vary-meta %2 assoc ::index %1))
+          (:items completions-lsp))]
+       (into [] (comp cat (util/distinct-by completion-identifier)))
+       (popup/fuzzy-option-filter-fn :name :display-string (:query completion-context))
+       vec))
+
+(g/defnk produce-completions-combined-ids [completions-combined]
+  (mapv completion-identifier completions-combined))
 
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
@@ -982,6 +1026,9 @@
                                                                                :top scroll-y))]
                      (when (not= scroll-y new-scroll-y)
                        (g/set-property self :scroll-y new-scroll-y))))))
+  (property completion-trigger-characters g/Any (default #{}) (dynamic visible (g/constantly false)))
+  (output completion-trigger-characters g/Any :cached (g/fnk [completion-trigger-characters grammar]
+                                                        (into completion-trigger-characters (:completion-trigger-characters grammar))))
   (property diagnostics r/Regions (default []) (dynamic visible (g/constantly false)))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
@@ -992,7 +1039,6 @@
   (property resize-reference ResizeReference (default :top) (dynamic visible (g/constantly false)))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
-  (property completion-state CompletionState (default {:enabled false}) (dynamic visible (g/constantly false)))
   (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
   (property highlighted-find-term g/Str (default "") (dynamic visible (g/constantly false)))
   (property hovered-element HoveredElement (dynamic visible (g/constantly false)))
@@ -1000,6 +1046,21 @@
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
   (property focus-state FocusState (default :not-focused) (dynamic visible (g/constantly false)))
+
+  (property completions-enabled g/Bool (default false) (dynamic visible (g/constantly false)))
+  (property completions-showing g/Bool (default false) (dynamic visible (g/constantly false)))
+  (property completions-doc g/Bool (default false) (dynamic visible (g/constantly false)))
+  (property completions-shortcut-text g/Any (dynamic visible (g/constantly false)))
+  (property completions-insert-cursor g/Any (dynamic visible (g/constantly false)))
+  (property completions-built-in g/Any (default []) (dynamic visible (g/constantly false)))
+  (property completions-lsp g/Any)
+  (property completions-selected-index g/Any (dynamic visible (g/constantly false)))
+  (property completions-previous-combined-ids g/Any (dynamic visible (g/constantly false)))
+  (output completions-selected-index g/Any :cached produce-completions-selected-index) ;; either in completions index range or nil
+  (output completions-selection g/Any produce-completions-selection)
+  (output completions-combined g/Any :cached produce-completions-combined)
+  (output completions-combined-ids g/Any :cached produce-completions-combined-ids)
+  (input project g/NodeID) ;; used for completions doc popup, e.g. for opening defold:// URIs
 
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default (g/constantly default-font-size)))
@@ -1018,7 +1079,8 @@
 
   (output completion-context g/Any :cached produce-completion-context)
   (output visible-completion-ranges g/Any :cached produce-visible-completion-ranges)
-  (output suggested-completions g/Any :cached produce-suggested-completions)
+  (output suggested-completions g/Any produce-suggested-completions)
+  (output suggested-choices g/Any :cached produce-suggested-choices)
   ;; We cache the lines in the view instead of the resource node, since the
   ;; resource node will read directly from disk unless edits have been made.
   (output lines r/Lines :cached (gu/passthrough lines))
@@ -1167,55 +1229,173 @@
   ^Point2D [^Canvas canvas width height ^Point2D cursor-bottom]
   (Utils/pointRelativeTo canvas width height HPos/CENTER VPos/CENTER (.getX cursor-bottom) (.getY cursor-bottom) true))
 
-(defn- show-suggestions!
-  ([view-node toggle-doc-if-open]
-   (g/with-auto-evaluation-context evaluation-context
-     (show-suggestions! view-node toggle-doc-if-open evaluation-context)))
-  ([view-node toggle-doc-if-open evaluation-context]
-   (let [new-completions (get-property view-node :suggested-completions evaluation-context)
-         lines (get-property view-node :lines evaluation-context)
-         cursor-ranges (get-property view-node :cursor-ranges evaluation-context)
-         frame-cursor-props (-> {:lines lines
-                                 :cursor-ranges cursor-ranges}
-                                (data/frame-cursor
-                                  (get-property view-node :layout evaluation-context))
-                                (dissoc :lines :cursor-ranges))]
-     (when (pos? (count frame-cursor-props))
-       (set-properties! view-node nil frame-cursor-props))
-     (g/update-property! view-node :completion-state
-                         (fn [{:keys [showing completions] :as completion-state}]
-                           (-> completion-state
-                               (assoc :showing true
-                                      :completions new-completions)
-                               (cond-> (not= new-completions completions)
-                                       (assoc :selected-index nil)
+(defn- resolve-selected-completion! [view-node]
+  (g/with-auto-evaluation-context evaluation-context
+    (when (and (get-property view-node :completions-showing evaluation-context)
+               (get-property view-node :completions-doc evaluation-context))
+      (when-let [completion (get-property view-node :completions-selection evaluation-context)]
+        (when-let [index (::index (meta completion))]
+          (when-not (::resolved (meta completion))
+            (let [resource-node (get-property view-node :resource-node evaluation-context)
+                  lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
+              (lsp/resolve-completion!
+                lsp completion
+                (fn [resolved-completion]
+                  (ui/run-later
+                    (g/with-auto-evaluation-context evaluation-context
+                      (when-let [completions-lsp (get-property view-node :completions-lsp evaluation-context)]
+                        (when (= completion (get (:items completions-lsp) index))
+                          (set-properties!
+                            view-node nil
+                            {:completions-lsp
+                             (update completions-lsp :items assoc index
+                                     (vary-meta resolved-completion assoc ::resolved true))}))))))))))))))
 
-                                       (and showing toggle-doc-if-open)
-                                       (update :show-doc not))))))))
+(defn- refresh-completion-selected-index! [view-node]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [old (get-property view-node :completions-previous-combined-ids evaluation-context)
+          new (get-property view-node :completions-combined-ids evaluation-context)]
+      (when-not (= old new)
+        (set-properties! view-node nil
+                         {:completions-previous-combined-ids new
+                          :completions-selected-index nil})
+        (resolve-selected-completion! view-node)))))
+
+(defn- on-lsp-completions [view-node insert-cursor request-cursor completions]
+  (ui/run-later
+    (g/with-auto-evaluation-context evaluation-context
+      (when (and (get-property view-node :completions-showing evaluation-context)
+                 (= insert-cursor (get-property view-node :completions-insert-cursor evaluation-context)))
+        (set-properties! view-node nil
+                         {:completions-lsp (assoc completions :request-cursor request-cursor)})
+        (refresh-completion-selected-index! view-node)))))
+
+(defn- show-suggestions! [view-node & {:keys [explicit typed] :or {explicit false}}]
+  ;; Some notes about LSP completion requests and completeness:
+  ;; LSP completion responses can signal if the results they respond with are
+  ;; complete or not. If results are not complete, further typing for this
+  ;; completion context should request completions again. If the results are
+  ;; complete, we don't need to request completions in this context, since no
+  ;; new results can appear. This is done to make completions calculation and
+  ;; transfer from the language server process to the language client process
+  ;; faster.
+  ;; We need to store the cursor position that corresponds to LSP completion
+  ;; results to determine if we should request completions again or not:
+  ;; - if we continued typing after we got a complete response (i.e. we narrow
+  ;;   down the completion list), then we don't request completions again. In
+  ;;   this scenario, our cursor that could request the completions is located
+  ;;   after the request cursor we used to get the complete responses
+  ;; - if instead of typing we start deleting characters, we need to request
+  ;;   completions again as soon as we move the cursor before the cursor that
+  ;;   responded with complete results, since results for less narrow completion
+  ;;   query might be incomplete
+  ;; This behavior is supported with :request-cursor.
+  ;; Additionally, some typing might change the completion context altogether.
+  ;; For example, typing "." after "math" always requires a completion request,
+  ;; since now we complete need completions in the context of the `math` table.
+  ;; So, in addition to :request-cursor, we also keep track of :insert-cursor,
+  ;; which is a cursor that identifies the completion context as a place where
+  ;; we want to insert the completions.
+  (g/with-auto-evaluation-context evaluation-context
+    (let [showing (get-property view-node :completions-showing evaluation-context)]
+      ;; short circuit: toggle doc popup
+      (if (and explicit showing)
+        (do (set-properties! view-node nil {:completions-doc (not (get-property view-node :completions-doc evaluation-context))})
+            (resolve-selected-completion! view-node))
+        (let [{:keys [request-cursor insert-cursor]} (get-property view-node :completion-context evaluation-context)
+              completions-insert-cursor (get-property view-node :completions-insert-cursor evaluation-context)
+              completions-lsp (get-property view-node :completions-lsp evaluation-context)
+              new-properties
+              ;; perform a completion request?
+              (if (or (and explicit (not showing))
+                      (and (not explicit)
+                           (or
+                             ;; refresh both built-in and lsp:
+                             (not showing)
+                             (not= insert-cursor completions-insert-cursor)
+                             ;; refresh lsp:
+                             (not completions-lsp)
+                             (not (:complete completions-lsp))
+                             (neg? (compare request-cursor (:request-cursor completions-lsp))))))
+                (if-let [choices (get-property view-node :suggested-choices evaluation-context)]
+                  ;; if there are choices, we use them as completion items
+                  {:completions-showing true
+                   :completions-insert-cursor insert-cursor
+                   :completions-built-in choices
+                   :completions-lsp {:items [] :complete true :request-cursor request-cursor}}
+                  ;; we have no choices, either refresh everything or only LSP
+                  (let [resource-node (get-property view-node :resource-node evaluation-context)
+                        resource (g/node-value resource-node :resource evaluation-context)
+                        lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+                        context (cond
+                                  typed
+                                  {:trigger-kind :trigger-character
+                                   :trigger-character ({"\r" "\n"} typed typed)}
+
+                                  (and completions-lsp
+                                       (not (:complete completions-lsp)))
+                                  {:trigger-kind :trigger-for-incomplete-completions}
+
+                                  :else
+                                  {:trigger-kind :invoked})]
+                    (lsp/request-completions!
+                      lsp resource request-cursor context
+                      #(on-lsp-completions view-node insert-cursor request-cursor %))
+                    (cond->
+                      {:completions-showing true
+                       :completions-insert-cursor insert-cursor
+                       :completions-lsp {:items [] :complete false :request-cursor request-cursor}}
+                      (not= insert-cursor completions-insert-cursor)
+                      (assoc :completions-built-in (get-property view-node :suggested-completions evaluation-context)))))
+                ;; view already open, completions present: only filter/reset index
+                {})]
+          (set-properties!
+            view-node
+            nil
+            (-> new-properties
+                ;; lines and cursor-ranges are needed to frame the cursor
+                (assoc :lines (get-property view-node :lines evaluation-context)
+                       :cursor-ranges (get-property view-node :cursor-ranges evaluation-context))
+                (data/frame-cursor (get-property view-node :layout evaluation-context))
+                (dissoc :lines :cursor-ranges)))
+          (refresh-completion-selected-index! view-node))))))
 
 (defn- implies-completions?
   ([view-node]
    (g/with-auto-evaluation-context evaluation-context
      (implies-completions? view-node evaluation-context)))
   ([view-node evaluation-context]
-   (let [{:keys [query trigger]} (get-property view-node :completion-context evaluation-context)]
-     (or (some? trigger) (pos? (count query))))))
+   (let [{:keys [trigger]} (get-property view-node :completion-context evaluation-context)
+         trigger-characters (get-property view-node :completion-trigger-characters evaluation-context)]
+     (boolean (and (not (contains? #{"\n" "\t" " "} trigger))
+                   (or (re-matches #"[a-zA-Z_]" trigger)
+                       (contains? trigger-characters trigger)))))))
 
 (defn- hide-suggestions! [view-node]
-  (g/update-property! view-node :completion-state assoc :showing false :selected-index nil))
+  (set-properties! view-node nil
+                   {:completions-showing false
+                    :completions-selected-index nil
+                    :completions-built-in []
+                    :completions-insert-cursor nil
+                    :completions-lsp nil
+                    :completions-previous-combined-ids nil}))
 
 (defn- suggestions-shown? [view-node]
-  (let [{:keys [enabled showing]} (get-property view-node :completion-state)]
-    (and enabled showing)))
+  (g/with-auto-evaluation-context evaluation-context
+    (and (get-property view-node :completions-enabled evaluation-context)
+         (get-property view-node :completions-showing evaluation-context))))
 
 (defn- suggestions-visible? [view-node]
-  (let [{:keys [enabled showing completions]} (get-property view-node :completion-state)]
-    (and enabled showing (pos? (count completions)))))
+  (g/with-auto-evaluation-context evaluation-context
+    (and (get-property view-node :completions-enabled evaluation-context)
+         (get-property view-node :completions-showing evaluation-context)
+         (pos? (count (get-property view-node :completions-combined evaluation-context))))))
 
 (defn- selected-suggestion [view-node]
-  (let [{:keys [enabled showing completions selected-index]} (get-property view-node :completion-state)]
-    (when (and enabled showing (pos? (count completions)))
-      (get completions (or selected-index 0)))))
+  (g/with-auto-evaluation-context evaluation-context
+    (when (and (get-property view-node :completions-enabled evaluation-context)
+               (get-property view-node :completions-showing evaluation-context))
+      (get-property view-node :completions-selection evaluation-context))))
 
 (defn- in-tab-trigger? [view-node]
   (let [tab-trigger-scope-regions (get-property view-node :tab-trigger-scope-regions)]
@@ -1325,8 +1505,10 @@
          lines (get-property view-node :lines)
          regions (get-property view-node :regions)
          layout (get-property view-node :layout)
-         replacement-cursor-ranges (:cursor-ranges (get-property view-node :completion-context))
-         {:keys [insert-string exit-ranges tab-triggers]} insertion
+         explicit-cursor-range (:cursor-range insertion)
+         implied-cursor-ranges (:cursor-ranges (get-property view-node :completion-context))
+         replacement-cursor-ranges (if explicit-cursor-range [explicit-cursor-range] implied-cursor-ranges)
+         {:keys [insert-string exit-ranges tab-triggers additional-edits]} insertion
          replacement-lines (split-lines insert-string)
          replacement-line-counts (mapv count replacement-lines)
          insert-string-index->replacement-lines-cursor
@@ -1392,7 +1574,37 @@
                                 :tab-trigger-scope (contains? tab-scope-ids (:id region))
                                 (:tab-trigger-word :tab-trigger-exit) (contains? tab-scope-ids (:scope-id region))
                                 false))
-         props (data/replace-typed-chars indent-level-pattern indent-string grammar lines regions layout splices)]
+         all-splices (if (or additional-edits explicit-cursor-range)
+                       (let [;; Add additional text edits. Per LSP specification,
+                             ;; these text edit must not overlap with neither the
+                             ;; main edit nor themselves, we will trust the language
+                             ;; servers for now
+                             splices (if additional-edits
+                                       (into splices (map (juxt :cursor-range (comp split-lines :value))) additional-edits)
+                                       splices)
+                             ;; if the insertion specifies an explicit cursor range,
+                             ;; we want to clear the part of the original replacement
+                             ;; range that does not overlap with all the other splices
+                             ;; since it's considered a left-over query for the
+                             ;; completion popup
+                             clear-cursor-ranges (when explicit-cursor-range
+                                                   (let [clear-cursor-range (first implied-cursor-ranges)]
+                                                     (reduce
+                                                       (fn [acc [other-cursor-range]]
+                                                         (into []
+                                                               (mapcat #(data/cursor-range-differences % other-cursor-range))
+                                                               acc))
+                                                       [clear-cursor-range]
+                                                       splices)))
+                             splices (if clear-cursor-ranges
+                                       (into splices
+                                             (map (fn [clear-cursor-range]
+                                                    [clear-cursor-range [""]]))
+                                             clear-cursor-ranges)
+                                       splices)]
+                         (vec (sort-by first splices)))
+                       splices)
+         props (data/replace-typed-chars indent-level-pattern indent-string grammar lines regions layout all-splices)]
      (when (some? props)
        (hide-suggestions! view-node)
        (let [cursor-ranges (:cursor-ranges props)
@@ -1446,20 +1658,87 @@
                            (when-not index (.scrollTo view 0))))
                        fx.lifecycle/scalar)}))
 
+(def ^:private ^:const completion-type-icon-size 12.0)
+(def ^:private ^:const completion-icon-text-spacing 4.0)
+
+;; Completion icons by Microsoft (CC BY 4.0)
+;; https://github.com/microsoft/vscode-icons
+(defn- completion-type-icon [{:keys [type]}]
+  (let [width-multiplier (case type
+                           :event 10
+                           :unit 12
+                           :file 14
+                           16)
+        height-multiplier (case type
+                            :message 12
+                            :text 10
+                            :field 15
+                            :variable 11
+                            (:method :function :constructor) 17
+                            (:value :enum) 13
+                            :enum-member 13
+                            :constant 12
+                            :folder 13
+                            :struct 13
+                            :type-parameter 10
+                            16)]
+    {:fx/type fx.region/lifecycle
+     :style {:-fx-background-color :-df-text-dark}
+     :max-width (* completion-type-icon-size (double (/ width-multiplier 16)))
+     :max-height (* completion-type-icon-size (double (/ height-multiplier 16)))
+     :shape {:fx/type fx.svg-path/lifecycle
+             :content (case type
+                        ;; defold-specific
+                        :message "M1 3.5L1.5 3H14.5L15 3.5V3.769V12.5L14.5 13H1.5L1 12.5V3.769V3.5ZM2 4.53482V12H14V4.53597L8.31 8.9H7.7L2 4.53482ZM13.03 4H2.97L8 7.869L13.03 4Z"
+                        ;; shared with vscode
+                        :text "M7.22313 10.933C7.54888 11.1254 7.92188 11.2231 8.30013 11.215C8.63802 11.2218 8.97279 11.1492 9.27746 11.003C9.58213 10.8567 9.84817 10.6409 10.0541 10.373C10.5094 9.76519 10.7404 9.01867 10.7081 8.25998C10.7414 7.58622 10.5376 6.9221 10.1321 6.38298C9.93599 6.14161 9.68601 5.94957 9.40225 5.82228C9.11848 5.69498 8.80883 5.63597 8.49813 5.64997C8.07546 5.64699 7.66018 5.76085 7.29813 5.97898C7.18328 6.04807 7.07515 6.12775 6.97513 6.21698V3.47498H5.98413V11.1H6.97913V10.756C7.0554 10.8217 7.13702 10.8809 7.22313 10.933ZM7.85005 6.70006C8.03622 6.62105 8.23832 6.58677 8.44013 6.59998C8.61281 6.59452 8.78429 6.63054 8.94018 6.70501C9.09608 6.77948 9.23185 6.89023 9.33613 7.02798C9.59277 7.39053 9.71865 7.82951 9.69313 8.27297C9.71996 8.79748 9.57993 9.31701 9.29313 9.75698C9.18846 9.91527 9.04571 10.0447 8.87797 10.1335C8.71023 10.2223 8.52289 10.2675 8.33313 10.265C8.14958 10.2732 7.96654 10.24 7.79758 10.1678C7.62862 10.0956 7.47809 9.98628 7.35713 9.84797C7.10176 9.55957 6.96525 9.18506 6.97513 8.79998V8.19998C6.96324 7.78332 7.10287 7.3765 7.36813 7.05498C7.49883 6.90064 7.66388 6.77908 7.85005 6.70006ZM3.28926 5.67499C2.97035 5.67933 2.65412 5.734 2.35226 5.83699C2.06442 5.92293 1.79372 6.05828 1.55226 6.23699L1.45226 6.31399V7.51399L1.87526 7.15499C2.24603 6.80478 2.73158 6.60146 3.24126 6.58299C3.36617 6.57164 3.49194 6.59147 3.60731 6.64068C3.72267 6.6899 3.82402 6.76697 3.90226 6.86499C4.05245 7.0971 4.13264 7.36754 4.13326 7.64399L2.90026 7.82499C2.39459 7.87781 1.9155 8.07772 1.52226 8.39999C1.36721 8.55181 1.24363 8.73271 1.15859 8.93235C1.07355 9.13199 1.02873 9.34644 1.02668 9.56343C1.02464 9.78042 1.06542 9.99568 1.14668 10.1969C1.22795 10.3981 1.3481 10.5813 1.50026 10.736C1.66895 10.8904 1.86647 11.01 2.08149 11.0879C2.29651 11.1659 2.5248 11.2005 2.75326 11.19C3.14725 11.1931 3.53302 11.0774 3.86026 10.858C3.96178 10.7897 4.05744 10.7131 4.14626 10.629V11.073H5.08726V7.71499C5.12161 7.17422 4.95454 6.63988 4.61826 6.21499C4.45004 6.03285 4.24373 5.89003 4.01402 5.7967C3.78431 5.70336 3.53686 5.66181 3.28926 5.67499ZM4.14626 8.71599C4.16588 9.13435 4.02616 9.54459 3.75526 9.864C3.63714 10.0005 3.49023 10.1092 3.3251 10.1821C3.15998 10.2551 2.98073 10.2906 2.80026 10.286C2.69073 10.2945 2.5806 10.2812 2.47624 10.2469C2.37187 10.2125 2.27536 10.1579 2.19226 10.086C2.06104 9.93455 1.9888 9.74088 1.9888 9.54049C1.9888 9.34011 2.06104 9.14644 2.19226 8.99499C2.47347 8.82131 2.79258 8.71837 3.12226 8.69499L4.14226 8.54699L4.14626 8.71599ZM12.459 11.0325C12.7663 11.1638 13.0985 11.2261 13.4324 11.215C13.9273 11.227 14.4156 11.1006 14.8424 10.85L14.9654 10.775L14.9784 10.768V9.61504L14.5324 9.93504C14.2163 10.1592 13.8359 10.2747 13.4484 10.264C13.2499 10.2719 13.0522 10.2342 12.8705 10.1538C12.6889 10.0733 12.5281 9.95232 12.4004 9.80004C12.1146 9.42453 11.9728 8.95911 12.0004 8.48804C11.9739 7.98732 12.1355 7.49475 12.4534 7.10704C12.5936 6.94105 12.7698 6.80914 12.9685 6.7213C13.1672 6.63346 13.3833 6.592 13.6004 6.60004C13.9441 6.59844 14.281 6.69525 14.5714 6.87904L15.0004 7.14404V5.97004L14.8314 5.89704C14.4628 5.73432 14.0644 5.6502 13.6614 5.65004C13.3001 5.63991 12.9409 5.70762 12.608 5.84859C12.2752 5.98956 11.9766 6.20048 11.7324 6.46704C11.2263 7.02683 10.9584 7.76186 10.9854 8.51604C10.9569 9.22346 11.1958 9.91569 11.6544 10.455C11.8772 10.704 12.1518 10.9012 12.459 11.0325Z"
+                        (:method :function :constructor) "M13.5103 4L8.51025 1H7.51025L2.51025 4L2.02026 4.85999V10.86L2.51025 11.71L7.51025 14.71H8.51025L13.5103 11.71L14.0002 10.86V4.85999L13.5103 4ZM7.51025 13.5601L3.01025 10.86V5.69995L7.51025 8.15002V13.5601ZM3.27026 4.69995L8.01025 1.85999L12.7502 4.69995L8.01025 7.29004L3.27026 4.69995ZM13.0103 10.86L8.51025 13.5601V8.15002L13.0103 5.69995V10.86Z"
+                        :field "M14.4502 4.5L9.4502 2H8.55029L1.55029 5.5L1.00024 6.39001V10.89L1.55029 11.79L6.55029 14.29H7.4502L14.4502 10.79L15.0002 9.89001V5.39001L14.4502 4.5ZM6.4502 13.14L1.9502 10.89V7.17004L6.4502 9.17004V13.14ZM6.9502 8.33997L2.29028 6.22998L8.9502 2.89001L13.6202 5.22998L6.9502 8.33997ZM13.9502 9.89001L7.4502 13.14V9.20996L13.9502 6.20996V9.89001Z"
+                        :variable "M2.00024 5H4.00024V4H1.50024L1.00024 4.5V12.5L1.50024 13H4.00024V12H2.00024V5ZM14.5002 4H12.0002V5H14.0002V12H12.0002V13H14.5002L15.0002 12.5V4.5L14.5002 4ZM11.7603 6.56995L12.0002 7V9.51001L11.7002 9.95996L7.2002 11.96H6.74023L4.24023 10.46L4.00024 10.03V7.53003L4.30029 7.06995L8.80029 5.06995H9.26025L11.7603 6.56995ZM5.00024 9.70996L6.50024 10.61V9.28003L5.00024 8.38V9.70996ZM5.5802 7.56006L7.03027 8.43005L10.4203 6.93005L8.97021 6.06006L5.5802 7.56006ZM7.53027 10.73L11.0303 9.17004V7.77002L7.53027 9.31995V10.73Z"
+                        :class "M11.3403 9.70998H12.0503L14.7202 7.04005V6.32997L13.3803 5.00001H12.6803L10.8603 6.81007H5.86024V5.56007L7.72023 3.70997V3L5.72022 1H5.00025L1.00024 5.00001V5.70997L3.00025 7.70998H3.71027L4.85023 6.56007V12.35L5.35023 12.85H10.0003V13.37L11.3303 14.71H12.0402L14.7103 12.0401V11.33L13.3703 10H12.6703L10.8103 11.85H5.81025V7.84999H10.0003V8.32997L11.3403 9.70998ZM13.0303 6.06007L13.6602 6.68995L11.6602 8.68996L11.0303 8.06007L13.0303 6.06007ZM13.0303 11.0601L13.6602 11.69L11.6602 13.69L11.0303 13.0601L13.0303 11.0601ZM3.35022 6.65004L2.06024 5.34998L5.35023 2.06006L6.65028 3.34998L3.35022 6.65004Z"
+                        :interface ""
+                        :module "M6.00024 2.98361V2.97184V2H5.91107C5.59767 2 5.29431 2.06161 5.00152 2.18473C4.70842 2.30798 4.44967 2.48474 4.22602 2.71498C4.00336 2.94422 3.83816 3.19498 3.73306 3.46766L3.73257 3.46898C3.63406 3.7352 3.56839 4.01201 3.53557 4.29917L3.53543 4.30053C3.50702 4.5805 3.49894 4.86844 3.51108 5.16428C3.52297 5.45379 3.52891 5.74329 3.52891 6.03279C3.52891 6.23556 3.48999 6.42594 3.41225 6.60507L3.41185 6.60601C3.33712 6.78296 3.23447 6.93866 3.10341 7.07359C2.97669 7.20405 2.8249 7.31055 2.64696 7.3925C2.47084 7.46954 2.28522 7.5082 2.08942 7.5082H2.00024V7.6V8.4V8.4918H2.08942C2.2849 8.4918 2.47026 8.53238 2.64625 8.61334L2.64766 8.61396C2.82482 8.69157 2.97602 8.79762 3.10245 8.93161L3.10436 8.93352C3.23452 9.0637 3.33684 9.21871 3.41153 9.39942L3.41225 9.40108C3.49011 9.58047 3.52891 9.76883 3.52891 9.96721C3.52891 10.2567 3.52297 10.5462 3.51108 10.8357C3.49894 11.1316 3.50701 11.4215 3.5354 11.7055L3.5356 11.7072C3.56844 11.9903 3.63412 12.265 3.73256 12.531L3.73307 12.5323C3.83817 12.805 4.00336 13.0558 4.22602 13.285C4.44967 13.5153 4.70842 13.692 5.00152 13.8153C5.29431 13.9384 5.59767 14 5.91107 14H6.00024V13.2V13.0164H5.91107C5.71119 13.0164 5.52371 12.9777 5.34787 12.9008C5.17421 12.8191 5.02218 12.7126 4.89111 12.5818C4.76411 12.4469 4.66128 12.2911 4.58247 12.1137C4.50862 11.9346 4.47158 11.744 4.47158 11.541C4.47158 11.3127 4.47554 11.0885 4.48346 10.8686C4.49149 10.6411 4.49151 10.4195 4.48349 10.2039C4.47938 9.98246 4.46109 9.76883 4.42847 9.56312C4.39537 9.35024 4.33946 9.14757 4.26063 8.95536C4.18115 8.76157 4.07282 8.57746 3.9364 8.40298C3.8237 8.25881 3.68563 8.12462 3.52307 8C3.68563 7.87538 3.8237 7.74119 3.9364 7.59702C4.07282 7.42254 4.18115 7.23843 4.26063 7.04464C4.33938 6.85263 4.39537 6.65175 4.4285 6.44285C4.46107 6.2333 4.47938 6.01973 4.48349 5.80219C4.49151 5.58262 4.4915 5.36105 4.48345 5.13749C4.47554 4.9134 4.47158 4.68725 4.47158 4.45902C4.47158 4.26019 4.50857 4.07152 4.58263 3.89205C4.6616 3.71034 4.76445 3.55475 4.8911 3.42437C5.02218 3.28942 5.17485 3.18275 5.34826 3.10513C5.52404 3.02427 5.71138 2.98361 5.91107 2.98361H6.00024ZM10.0002 13.0164V13.0282V14H10.0894C10.4028 14 10.7062 13.9384 10.999 13.8153C11.2921 13.692 11.5508 13.5153 11.7745 13.285C11.9971 13.0558 12.1623 12.805 12.2674 12.5323L12.2679 12.531C12.3664 12.2648 12.4321 11.988 12.4649 11.7008L12.4651 11.6995C12.4935 11.4195 12.5015 11.1316 12.4894 10.8357C12.4775 10.5462 12.4716 10.2567 12.4716 9.96721C12.4716 9.76444 12.5105 9.57406 12.5882 9.39493L12.5886 9.39399C12.6634 9.21704 12.766 9.06134 12.8971 8.92642C13.0238 8.79595 13.1756 8.68945 13.3535 8.6075C13.5296 8.53046 13.7153 8.4918 13.9111 8.4918H14.0002V8.4V7.6V7.5082H13.9111C13.7156 7.5082 13.5302 7.46762 13.3542 7.38666L13.3528 7.38604C13.1757 7.30844 13.0245 7.20238 12.898 7.06839L12.8961 7.06648C12.766 6.9363 12.6637 6.78129 12.589 6.60058L12.5882 6.59892C12.5104 6.41953 12.4716 6.23117 12.4716 6.03279C12.4716 5.74329 12.4775 5.45379 12.4894 5.16428C12.5015 4.86842 12.4935 4.57848 12.4651 4.29454L12.4649 4.29285C12.4321 4.00971 12.3664 3.73502 12.2679 3.46897L12.2674 3.46766C12.1623 3.19499 11.9971 2.94422 11.7745 2.71498C11.5508 2.48474 11.2921 2.30798 10.999 2.18473C10.7062 2.06161 10.4028 2 10.0894 2H10.0002V2.8V2.98361H10.0894C10.2893 2.98361 10.4768 3.0223 10.6526 3.09917C10.8263 3.18092 10.9783 3.28736 11.1094 3.41823C11.2364 3.55305 11.3392 3.70889 11.418 3.88628C11.4919 4.0654 11.5289 4.25596 11.5289 4.45902C11.5289 4.68727 11.5249 4.91145 11.517 5.13142C11.509 5.35894 11.509 5.58049 11.517 5.79605C11.5211 6.01754 11.5394 6.23117 11.572 6.43688C11.6051 6.64976 11.661 6.85243 11.7399 7.04464C11.8193 7.23843 11.9277 7.42254 12.0641 7.59702C12.1768 7.74119 12.3149 7.87538 12.4774 8C12.3149 8.12462 12.1768 8.25881 12.0641 8.40298C11.9277 8.57746 11.8193 8.76157 11.7399 8.95536C11.6611 9.14737 11.6051 9.34825 11.572 9.55715C11.5394 9.7667 11.5211 9.98027 11.517 10.1978C11.509 10.4174 11.509 10.6389 11.517 10.8625C11.5249 11.0866 11.5289 11.3128 11.5289 11.541C11.5289 11.7398 11.4919 11.9285 11.4179 12.1079C11.3389 12.2897 11.236 12.4452 11.1094 12.5756C10.9783 12.7106 10.8256 12.8173 10.6522 12.8949C10.4764 12.9757 10.2891 13.0164 10.0894 13.0164H10.0002Z"
+                        :property "M2.80747 14.9754C2.57144 14.9721 2.33851 14.9211 2.12271 14.8254C1.90692 14.7297 1.71273 14.5913 1.55183 14.4186C1.23875 14.1334 1.04458 13.7408 1.00799 13.3189C0.966469 12.8828 1.09293 12.4473 1.36158 12.1013C2.56804 10.8289 4.94755 8.4494 6.67836 6.75479C6.31007 5.75887 6.32729 4.66127 6.72661 3.67739C7.05499 2.85876 7.63893 2.16805 8.39153 1.70807C8.98195 1.31706 9.66055 1.07944 10.3659 1.01673C11.0713 0.954022 11.7812 1.06819 12.4313 1.34892L13.0485 1.6162L10.1827 4.56738L11.4374 5.82582L14.3811 2.94887L14.6484 3.56788C14.8738 4.08976 14.9933 4.65119 14.9999 5.21961C15.0066 5.78802 14.9004 6.35211 14.6874 6.87915C14.4763 7.40029 14.1626 7.87368 13.7649 8.27122C13.5396 8.49169 13.2907 8.68653 13.0225 8.85218C12.4676 9.22275 11.8327 9.45636 11.1699 9.5338C10.5071 9.61124 9.83546 9.5303 9.21007 9.29764C8.11219 10.4113 5.37167 13.1704 3.89143 14.5522C3.5945 14.8219 3.20856 14.9726 2.80747 14.9754ZM10.7451 1.92802C10.0873 1.92637 9.44383 2.12018 8.89639 2.48485C8.68289 2.6152 8.48461 2.76897 8.30522 2.9433C7.82813 3.42423 7.5095 4.03953 7.39206 4.70669C7.27462 5.37385 7.36398 6.06098 7.64816 6.67591L7.78366 6.97288L7.55072 7.20025C5.81249 8.89672 3.28171 11.4201 2.06504 12.7045C1.9567 12.8658 1.91037 13.0608 1.93459 13.2535C1.95881 13.4463 2.05195 13.6238 2.19682 13.7532C2.28029 13.8462 2.38201 13.9211 2.49565 13.9731C2.59581 14.0184 2.70408 14.043 2.81397 14.0455C2.98089 14.0413 3.14068 13.977 3.26407 13.8646C4.83711 12.3964 7.87646 9.32641 8.76832 8.42435L8.99754 8.19326L9.29266 8.32783C9.80642 8.56732 10.3734 8.66985 10.9385 8.62545C11.5036 8.58106 12.0476 8.39125 12.5176 8.07447C12.7316 7.9426 12.9299 7.78694 13.1088 7.61045C13.4186 7.30153 13.6634 6.93374 13.8288 6.52874C13.9943 6.12375 14.077 5.68974 14.0721 5.25228C14.0722 5.03662 14.0507 4.82148 14.0081 4.61007L11.4309 7.12508L8.87968 4.57759L11.3947 1.98834C11.1807 1.94674 10.9631 1.92653 10.7451 1.92802Z"
+                        :unit "M4.00024 1L3.00024 2V14L4.00024 15H12.0002L13.0002 14V2L12.0002 1H4.00024ZM4.00024 3V2H12.0002V14H4.00024V13H6.00024V12H4.00024V10H8.00024V9H4.00024V7H6.00024V6H4.00024V4H8.00024V3H4.00024Z"
+                        (:value :enum) "M14.0002 2H8.00024L7.00024 3V6H8.00024V3H14.0002V8H10.0002V9H14.0002L15.0002 8V3L14.0002 2ZM9.00024 6H13.0002V7H9.41024L9.00024 6.59V6ZM7.00024 7H2.00024L1.00024 8V13L2.00024 14H8.00024L9.00024 13V8L8.00024 7H7.00024ZM8.00024 13H2.00024V8H8.00024V9V13ZM3.00024 9H7.00024V10H3.00024V9ZM3.00024 11H7.00024V12H3.00024V11ZM9.00024 4H13.0002V5H9.00024V4Z"
+                        :snippet "M2.50024 1L2.00024 1.5V13H3.00024V2H14.0002V13H15.0002V1.5L14.5002 1H2.50024ZM2.00024 15V14H3.00024V15H2.00024ZM5.00024 14.0001H4.00024V15.0001H5.00024V14.0001ZM6.00024 14.0001H7.00024V15.0001H6.00024V14.0001ZM9.00024 14.0001H8.00024V15.0001H9.00024V14.0001ZM10.0002 14.0001H11.0002V15.0001H10.0002V14.0001ZM15.0002 15.0001V14.0001H14.0002V15.0001H15.0002ZM12.0002 14.0001H13.0002V15.0001H12.0002V14.0001Z"
+                        :color "M8.00024 1.00305C6.14373 1.00305 4.36323 1.74059 3.05048 3.05334C1.73772 4.3661 1.00024 6.14654 1.00024 8.00305V8.43311C1.09024 9.94311 2.91024 10.2231 4.00024 9.13306C4.35673 8.81625 4.82078 8.64759 5.29749 8.66162C5.77419 8.67565 6.22753 8.87127 6.56476 9.2085C6.90199 9.54572 7.0976 9.99912 7.11163 10.4758C7.12567 10.9525 6.95707 11.4166 6.64026 11.7731C5.54026 12.9331 5.85025 14.843 7.44025 14.973H8.04022C9.89674 14.973 11.6772 14.2356 12.99 12.9229C14.3027 11.6101 15.0402 9.82954 15.0402 7.97302C15.0402 6.11651 14.3027 4.33607 12.99 3.02332C11.6772 1.71056 9.89674 0.973022 8.04022 0.973022L8.00024 1.00305ZM8.00024 14.0031H7.48022C7.34775 13.9989 7.22072 13.9495 7.12024 13.863C7.04076 13.7807 6.98839 13.6761 6.97021 13.5631C6.93834 13.3682 6.95353 13.1684 7.0144 12.9806C7.07528 12.7927 7.18013 12.6222 7.32025 12.483C7.84072 11.9474 8.1319 11.2299 8.1319 10.483C8.1319 9.73615 7.84072 9.0187 7.32025 8.48303C7.05373 8.21635 6.73723 8.00481 6.38892 7.86047C6.0406 7.71614 5.66726 7.64185 5.29022 7.64185C4.91318 7.64185 4.53984 7.71614 4.19153 7.86047C3.84321 8.00481 3.52678 8.21635 3.26025 8.48303C3.15093 8.61081 3.01113 8.709 2.85382 8.76843C2.69651 8.82786 2.52673 8.84657 2.36023 8.823C2.27617 8.80694 2.19927 8.76498 2.14026 8.703C2.07155 8.6224 2.0358 8.5189 2.04022 8.41309V8.04309C2.04022 6.8564 2.39216 5.69629 3.05145 4.70959C3.71074 3.7229 4.64778 2.95388 5.74414 2.49976C6.8405 2.04563 8.04693 1.92681 9.21082 2.15833C10.3747 2.38984 11.4438 2.9613 12.2829 3.80042C13.122 4.63953 13.6934 5.70867 13.9249 6.87256C14.1564 8.03644 14.0376 9.24275 13.5835 10.3391C13.1294 11.4355 12.3604 12.3726 11.3737 13.0319C10.387 13.6911 9.22691 14.0431 8.04022 14.0431L8.00024 14.0031ZM9.00024 3.99683C9.00024 4.54911 8.55253 4.99683 8.00024 4.99683C7.44796 4.99683 7.00024 4.54911 7.00024 3.99683C7.00024 3.44454 7.44796 2.99683 8.00024 2.99683C8.55253 2.99683 9.00024 3.44454 9.00024 3.99683ZM12.0002 11.0037C12.0002 11.5559 11.5525 12.0037 11.0002 12.0037C10.448 12.0037 10.0002 11.5559 10.0002 11.0037C10.0002 10.4514 10.448 10.0037 11.0002 10.0037C11.5525 10.0037 12.0002 10.4514 12.0002 11.0037ZM5.00024 6.00415C5.55253 6.00415 6.00024 5.55644 6.00024 5.00415C6.00024 4.45187 5.55253 4.00415 5.00024 4.00415C4.44796 4.00415 4.00024 4.45187 4.00024 5.00415C4.00024 5.55644 4.44796 6.00415 5.00024 6.00415ZM12.0002 5.00415C12.0002 5.55644 11.5525 6.00415 11.0002 6.00415C10.448 6.00415 10.0002 5.55644 10.0002 5.00415C10.0002 4.45187 10.448 4.00415 11.0002 4.00415C11.5525 4.00415 12.0002 4.45187 12.0002 5.00415ZM13.0003 7.99939C13.0003 8.55167 12.5526 8.99939 12.0003 8.99939C11.448 8.99939 11.0003 8.55167 11.0003 7.99939C11.0003 7.4471 11.448 6.99939 12.0003 6.99939C12.5526 6.99939 13.0003 7.4471 13.0003 7.99939Z"
+                        :file "M13.8502 4.44L10.5702 1.14L10.2202 1H2.50024L2.00024 1.5V14.5L2.50024 15H13.5002L14.0002 14.5V4.8L13.8502 4.44ZM13.0002 5H10.0002V2L13.0002 5ZM3.00024 14V2H9.00024V5.5L9.50024 6H13.0002V14H3.00024Z"
+                        :reference "M11.1055 4.5613L7.67529 7.98827L6.54097 6.86834L8.61123 4.78848H3.81155C3.17507 4.78848 2.56466 5.04132 2.11461 5.49138C1.66455 5.94144 1.41171 6.55184 1.41171 7.18832C1.41171 7.8248 1.66455 8.43521 2.11461 8.88527C2.56466 9.33532 3.17507 9.58816 3.81155 9.58816H4.70109V11.1881H3.82115C2.79234 11.142 1.82094 10.7009 1.1092 9.95661C0.397467 9.21231 0.000244141 8.22216 0.000244141 7.19232C0.000244141 6.16249 0.397467 5.17234 1.1092 4.42803C1.82094 3.68373 2.79234 3.24263 3.82115 3.19659H8.62083L6.54097 1.13112L7.67529 0L11.1055 3.43177V4.5613ZM16.6203 24H7.02094L6.22099 23.2V10.4121L7.02094 9.61215H16.6203L17.4202 10.4121V23.2L16.6203 24ZM7.82089 22.4001H15.8204V11.212H7.82089V22.4001ZM13.4205 1.6015H23.0199L23.8198 2.40145V15.1878L23.0199 15.9877H19.0201V14.3878H22.2199V3.20139H14.2205V7.98828H12.6206V2.40145L13.4205 1.6015ZM14.2205 12.7879H9.42078V14.3878H14.2205V12.7879ZM9.42078 15.9877H14.2205V17.5876H9.42078V15.9877ZM14.2205 19.1875H9.42078V20.7874H14.2205V19.1875ZM15.8203 4.78848H20.62V6.38838H15.8203V4.78848ZM20.62 11.188H19.0201V12.7879H20.62V11.188ZM17.2827 8.01228V7.98828H20.62V9.58817H18.8585L17.2827 8.01228Z"
+                        :folder "M14.5002 3H7.71021L6.86023 2.15002L6.51025 2H1.51025L1.01025 2.5V6.5V13.5L1.51025 14H14.5103L15.0103 13.5V9V3.5L14.5002 3ZM13.9902 11.49V13H1.99023V11.49V7.48999V7H6.48022L6.8302 6.84998L7.69019 5.98999H14.0002V7.48999L13.9902 11.49ZM13.9902 5H7.49023L7.14026 5.15002L6.28027 6.01001H2.00024V3.01001H6.29028L7.14026 3.85999L7.50024 4.01001H14.0002L13.9902 5Z"
+                        :enum-member "M7.00024 3L8.00024 2H14.0002L15.0002 3V8L14.0002 9H10.0002V8H14.0002V3H8.00024V6H7.00024V3ZM9.00024 9V8L8.00024 7H7.00024H2.00024L1.00024 8V13L2.00024 14H8.00024L9.00024 13V9ZM8.00024 8V9V13H2.00024V8H7.00024H8.00024ZM9.41446 7L9.00024 6.58579V6H13.0002V7H9.41446ZM9.00024 4H13.0002V5H9.00024V4ZM7.00024 10H3.00024V11H7.00024V10Z"
+                        :constant "M4.00024 6H12.0002V7H4.00024V6ZM12.0002 9H4.00024V10H12.0002V9Z M1.00024 4L2.00024 3H14.0002L15.0002 4V12L14.0002 13H2.00024L1.00024 12V4ZM2.00024 4V12H14.0002V4H2.00024Z"
+                        :struct "M2.00024 2L1.00024 3V6L2.00024 7H14.0002L15.0002 6V3L14.0002 2H2.00024ZM2.00024 3H3.00024H13.0002H14.0002V4V5V6H13.0002H3.00024H2.00024V5V4V3ZM1.00024 10L2.00024 9H5.00024L6.00024 10V13L5.00024 14H2.00024L1.00024 13V10ZM3.00024 10H2.00024V11V12V13H3.00024H4.00024H5.00024V12V11V10H4.00024H3.00024ZM10.0002 10L11.0002 9H14.0002L15.0002 10V13L14.0002 14H11.0002L10.0002 13V10ZM12.0002 10H11.0002V11V12V13H12.0002H13.0002H14.0002V12V11V10H13.0002H12.0002Z"
+                        :event "M7.41379 1.55996L8.31177 1H11.6059L12.4243 2.57465L10.2358 6H12.0176L12.7365 7.69512L5.61967 15L4.01699 13.837L6.11967 10H4.89822L4.00024 8.55996L7.41379 1.55996ZM7.78058 9L4.90078 14.3049L12.0176 7H8.31177L11.6059 2H8.31177L4.89822 9H7.78058Z"
+                        :operator "M2.87313 1.10023C3.20793 1.23579 3.4757 1.498 3.61826 1.82988C3.69056 1.99959 3.72699 2.18242 3.72526 2.36688C3.72642 2.54999 3.69 2.7314 3.61826 2.89988C3.51324 3.14567 3.33807 3.35503 3.11466 3.50177C2.89126 3.64851 2.62955 3.72612 2.36226 3.72488C2.17948 3.72592 1.99842 3.68951 1.83026 3.61788C1.58322 3.51406 1.37252 3.33932 1.22478 3.11575C1.07704 2.89219 0.99891 2.62984 1.00026 2.36188C0.999374 2.17921 1.03543 1.99825 1.10626 1.82988C1.24362 1.50314 1.50353 1.24323 1.83026 1.10588C2.16357 0.966692 2.53834 0.964661 2.87313 1.10023ZM2.57526 2.86488C2.70564 2.80913 2.80951 2.70526 2.86526 2.57488C2.89314 2.50838 2.90742 2.43698 2.90726 2.36488C2.90838 2.2654 2.88239 2.1675 2.8321 2.08167C2.7818 1.99584 2.70909 1.92531 2.62176 1.87767C2.53443 1.83002 2.43577 1.80705 2.33638 1.81121C2.23698 1.81537 2.1406 1.8465 2.05755 1.90128C1.97451 1.95606 1.90794 2.03241 1.865 2.12215C1.82205 2.21188 1.80434 2.31161 1.81376 2.41065C1.82319 2.50968 1.85939 2.60428 1.9185 2.6843C1.9776 2.76433 2.05738 2.82675 2.14926 2.86488C2.28574 2.92089 2.43878 2.92089 2.57526 2.86488ZM6.43019 1.1095L1.10992 6.42977L1.79581 7.11567L7.11608 1.7954L6.43019 1.1095ZM11.5002 8.99999H12.5002V11.5H15.0002V12.5H12.5002V15H11.5002V12.5H9.00024V11.5H11.5002V8.99999ZM5.76801 9.52509L6.47512 10.2322L4.70735 12L6.47512 13.7677L5.76801 14.4748L4.00024 12.7071L2.23248 14.4748L1.52537 13.7677L3.29314 12L1.52537 10.2322L2.23248 9.52509L4.00024 11.2929L5.76801 9.52509ZM7.11826 5.32988C7.01466 5.08268 6.83997 4.87183 6.61636 4.72406C6.39275 4.57629 6.13028 4.49826 5.86226 4.49988C5.6796 4.49899 5.49864 4.53505 5.33026 4.60588C5.00353 4.74323 4.74362 5.00314 4.60626 5.32988C4.53612 5.49478 4.49922 5.67191 4.49766 5.8511C4.4961 6.0303 4.52992 6.20804 4.59718 6.37414C4.66443 6.54024 4.76381 6.69143 4.88961 6.81906C5.0154 6.94669 5.16515 7.04823 5.33026 7.11788C5.49892 7.18848 5.67993 7.22484 5.86276 7.22484C6.0456 7.22484 6.22661 7.18848 6.39526 7.11788C6.64225 7.01388 6.85295 6.83913 7.00082 6.61563C7.1487 6.39213 7.22713 6.12987 7.22626 5.86188C7.22679 5.67905 7.19005 5.49803 7.11826 5.32988ZM6.36526 6.07488C6.3379 6.13937 6.29854 6.19808 6.24926 6.24788C6.19932 6.29724 6.14066 6.33691 6.07626 6.36488C6.00878 6.39297 5.93635 6.40725 5.86326 6.40688C5.79015 6.40744 5.71769 6.39315 5.65026 6.36488C5.58565 6.33729 5.52693 6.29757 5.47726 6.24788C5.42715 6.19856 5.38738 6.13975 5.36026 6.07488C5.30425 5.9384 5.30425 5.78536 5.36026 5.64888C5.41561 5.51846 5.51965 5.41477 5.65026 5.35988C5.71761 5.33126 5.79008 5.31663 5.86326 5.31688C5.93642 5.31685 6.00884 5.33147 6.07626 5.35988C6.14062 5.38749 6.19928 5.42682 6.24926 5.47588C6.2981 5.52603 6.33741 5.58465 6.36526 5.64888C6.39364 5.7163 6.40827 5.78872 6.40827 5.86188C6.40827 5.93503 6.39364 6.00745 6.36526 6.07488ZM14.0002 3H10.0002V4H14.0002V3Z"
+                        :type-parameter "M11.0003 6H10.0003V5.5C10.0003 5.22386 9.7764 5 9.50026 5H8.47926V10.5C8.47926 10.7761 8.70312 11 8.97926 11H9.47926V12H6.47926V11H6.97926C7.2554 11 7.47926 10.7761 7.47926 10.5V5H6.50026C6.22412 5 6.00026 5.22386 6.00026 5.5V6H5.00026V4H11.0003V6ZM13.9145 8.0481L12.4522 6.58581L13.1593 5.87871L14.9751 7.69454V8.40165L13.2074 10.1694L12.5003 9.46231L13.9145 8.0481ZM3.54835 9.4623L2.08605 8.00002L3.50026 6.58581L2.79316 5.8787L1.02539 7.64647V8.35357L2.84124 10.1694L3.54835 9.4623Z"
+                        :keyword "M15.0002 4H10.0002V3H15.0002V4ZM14.0002 7H12.0002V8H14.0002V7ZM10.0002 7H1.00024V8H10.0002V7ZM12.0002 13H1.00024V14H12.0002V13ZM7.00024 10H1.00024V11H7.00024V10ZM15.0002 10H10.0002V11H15.0002V10ZM8.00024 2V5H1.00024V2H8.00024ZM7.00024 3H2.00024V4H7.00024V3Z")}}))
+
 (defn- completion-list-cell-view [completion]
   (if completion
     (let [text (:display-string completion)
           matching-indices (fuzzy-choices/matching-indices completion)]
-      {:graphic (fuzzy-choices/make-matched-text-flow-cljfx text matching-indices)
+      {:graphic {:fx/type fx.h-box/lifecycle
+                 :alignment :center-left
+                 :spacing completion-icon-text-spacing
+                 :children [{:fx/type fx.stack-pane/lifecycle
+                             :min-width completion-type-icon-size
+                             :max-width completion-type-icon-size
+                             :children [{:fx/type completion-type-icon
+                                         :type (:type completion)}]}
+                            (fuzzy-choices/make-matched-text-flow-cljfx
+                              text matching-indices
+                              :deprecated (contains? (:tags completion) :deprecated))]}
        :on-mouse-clicked {:event :accept :completion completion}})
     {}))
 
 (defn- completion-popup-view
-  [{:keys [completion-state canvas-repaint-info font font-name font-size
-           visible-completion-ranges query screen-bounds]}]
-  (let [{:keys [showing completions selected-index show-doc project]} completion-state
-        item-count (count completions)]
-    (if (or (not showing) (zero? item-count))
+  [{:keys [canvas-repaint-info font font-name font-size
+           visible-completion-ranges query screen-bounds completions-showing
+           completions-doc project completions-combined completions-selected-index
+           completions-shortcut-text]}]
+  (let [item-count (count completions-combined)]
+    (if (or (not completions-showing) (zero? item-count))
       {:fx/type fxui/ext-value :value nil}
       (let [{:keys [^Canvas canvas ^LayoutInfo layout lines]} canvas-repaint-info
             ^Point2D cursor-bottom (or (and (pos? (count visible-completion-ranges))
@@ -1470,6 +1749,7 @@
             ^double cell-height (data/line-height glyph-metrics)
             max-visible-completions-count 10
             text (doto (Text.) (.setFont font))
+            hint-height (if completions-shortcut-text 15 0)
             min-completions-height (* (min 3 item-count) cell-height)
             min-completions-width 150.0
             [^Point2D anchor ^Rectangle2D screen-bounds]
@@ -1480,7 +1760,7 @@
                                       (min (- (.getMaxX bounds) min-completions-width))
                                       (max (.getMinX bounds)))
                                   (-> (.getY anchor)
-                                      (min (- (.getMaxY bounds) min-completions-height))
+                                      (min (- (.getMaxY bounds) min-completions-height hint-height))
                                       (max (.getMinY bounds))))
                                 bounds)))
                        (partial min-key #(.distance anchor ^Point2D (key %)))
@@ -1488,7 +1768,7 @@
                        screen-bounds)
             max-completions-width (min 700.0 (- (.getMaxX screen-bounds) (.getX anchor)))
             max-completions-height (min (* cell-height max-visible-completions-count)
-                                        (-> (- (.getMaxY screen-bounds) (.getY anchor))
+                                        (-> (- (.getMaxY screen-bounds) (.getY anchor) hint-height)
                                             (/ cell-height)
                                             Math/floor
                                             (* cell-height)))
@@ -1498,45 +1778,65 @@
                                               (doto (.setText (:display-string %)))
                                               .getLayoutBounds
                                               .getWidth))
-                                    completions)
+                                    completions-combined)
             ^double max-display-string-width (reduce max 0.0 display-string-widths)
             completions-width (-> (+ 12.0                      ;; paddings
                                      (if (< max-visible-completions-count item-count)
                                        10.0                    ;; scroll bar
                                        0.0)
                                      ;; clamp
-                                     (max min-completions-width max-display-string-width))
+                                     (max min-completions-width
+                                          (+ completion-type-icon-size
+                                             completion-icon-text-spacing
+                                             max-display-string-width)))
                                   (min max-completions-width))
-            refresh-key [query completions]
-            selected-completion (completions (or selected-index 0))]
+            refresh-key [query completions-combined]
+            selected-completion (completions-combined completions-selected-index)]
         {:fx/type fx/ext-let-refs
-         :refs {:content {:fx/type fx.stack-pane/lifecycle
-                          :style-class "flat-list-container"
-                          :stylesheets [(str (io/resource "editor.css"))]
-                          :children
-                          [{:fx/type ext-with-list-view-props
-                            :props {:selected-index [refresh-key selected-index]}
-                            :desc
-                            {:fx/type ext-with-list-view-props
-                             :props {:items [refresh-key completions]}
-                             :desc
-                             {:fx/type fx.ext.list-view/with-selection-props
-                              :props {:on-selected-index-changed {:event :select}}
-                              :desc
-                              {:fx/type fx.list-view/lifecycle
-                               :style {:-fx-font-family (str \" font-name \") :-fx-font-size font-size}
-                               :id "fuzzy-choices-list-view"
-                               :style-class "flat-list-view"
-                               :fixed-cell-size cell-height
-                               :event-filter {:event :completion-list-view-event-filter}
-                               :min-width completions-width
-                               :pref-width completions-width
-                               :max-width completions-width
-                               :min-height min-completions-height
-                               :pref-height (* cell-height item-count)
-                               :max-height (min (* cell-height max-visible-completions-count) max-completions-height)
-                               :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                              :describe completion-list-cell-view}}}}}]}}
+         :refs
+         {:content
+          {:fx/type fx.stack-pane/lifecycle
+           :style-class "flat-list-container"
+           :stylesheets [(str (io/resource "editor.css"))]
+           :children
+           [{:fx/type fx.region/lifecycle
+             :style-class "completion-popup-background"}
+            {:fx/type fx.v-box/lifecycle
+             :children
+             (cond->
+               [{:fx/type ext-with-list-view-props
+                 :props {:selected-index [refresh-key completions-selected-index]}
+                 :desc
+                 {:fx/type ext-with-list-view-props
+                  :props {:items [refresh-key completions-combined]}
+                  :desc
+                  {:fx/type fx.ext.list-view/with-selection-props
+                   :props {:on-selected-index-changed {:event :select}}
+                   :desc
+                   {:fx/type fx.list-view/lifecycle
+                    :style {:-fx-font-family (str \" font-name \") :-fx-font-size font-size}
+                    :id "fuzzy-choices-list-view"
+                    :style-class ["flat-list-view" "completion-popup-list-view"]
+                    :fixed-cell-size cell-height
+                    :event-filter {:event :completion-list-view-event-filter}
+                    :min-width completions-width
+                    :pref-width completions-width
+                    :max-width completions-width
+                    :min-height min-completions-height
+                    :pref-height (* cell-height item-count)
+                    :max-height (min (* cell-height max-visible-completions-count) max-completions-height)
+                    :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                   :describe completion-list-cell-view}}}}}]
+               completions-shortcut-text
+               (conj {:fx/type fx.label/lifecycle
+                      :style-class "completion-popup-hint"
+                      :pref-height hint-height
+                      :min-height hint-height
+                      :max-height hint-height
+                      :pref-width completions-width
+                      :max-width completions-width
+                      :min-width completions-width
+                      :text (str completions-shortcut-text ": Toggle doc popup")}))}]}}
          :desc
          {:fx/type fx/ext-many
           :desc
@@ -1546,13 +1846,13 @@
               :anchor-x (- (.getX anchor) 12.0)
               :anchor-y (- (.getY anchor) 4.0)
               :anchor-location :window-top-left
-              :showing showing
+              :showing completions-showing
               :auto-fix false
               :auto-hide true
               :on-auto-hide {:event :auto-hide}
               :hide-on-escape false
               :content [{:fx/type fx/ext-get-ref :ref :content}]}]
-            show-doc
+            completions-doc
             (conj
               (let [pref-doc-width 350.0
                     doc-max-height (- (.getMaxY screen-bounds) (.getY anchor))
@@ -1565,9 +1865,15 @@
                     doc-width (if align-right
                                 (min pref-doc-width right-space)
                                 (min pref-doc-width left-space))
-                    {:keys [detail doc type]} selected-completion
-                    small-string (when-let [small-text (or detail (some-> type name (string/replace "-" " ")))]
-                                   (format "<small>%s</small>" small-text))
+                    {:keys [detail doc type tags]} selected-completion
+                    deprecated (contains? tags :deprecated)
+                    small-text (or detail (some-> type name (string/replace "-" " ")))
+                    small-string (when (or deprecated small-text)
+                                   (format "<small>%s</small>"
+                                           (cond
+                                             (and small-text deprecated) (str small-text " (deprecated)")
+                                             small-text small-text
+                                             deprecated "deprecated")))
                     doc-string (when doc
                                  (case (:type doc)
                                    :markdown (:value doc)
@@ -1632,12 +1938,9 @@
             (.consume e)))))
 
     :select
-    (g/update-property! view-node :completion-state
-                        (fn [{:keys [completions] :as completion-state}]
-                          (let [max-index (dec (count completions))]
-                            (if (neg? max-index)
-                              completion-state
-                              (assoc completion-state :selected-index (min ^long (:fx/event e) max-index))))))
+    (do
+      (set-properties! view-node nil {:completions-selected-index (:fx/event e)})
+      (resolve-selected-completion! view-node))
     :accept
     (accept-suggestion! view-node (code-completion/insertion (:completion e)))))
 
@@ -1689,7 +1992,7 @@
     (if (and single-character-backspace
              (suggestions-shown? view-node)
              (implies-completions? view-node))
-      (show-suggestions! view-node false)
+      (show-suggestions! view-node)
       (hide-suggestions! view-node))))
 
 (defn toggle-comment! [view-node]
@@ -1757,7 +2060,7 @@
   (run [view-node] (shift-tab! view-node)))
 
 (handler/defhandler :proposals :code-view
-  (run [view-node] (show-suggestions! view-node true)))
+  (run [view-node] (show-suggestions! view-node :explicit true)))
 
 ;; -----------------------------------------------------------------------------
 
@@ -1817,7 +2120,7 @@
                                              (get-property view-node :layout)
                                              typed))
         (if (and show-suggestions (implies-completions? view-node))
-          (show-suggestions! view-node false)
+          (show-suggestions! view-node :typed typed)
           (hide-suggestions! view-node))))))
 
 (defn handle-key-pressed! [view-node ^KeyEvent event]
@@ -2740,12 +3043,15 @@
         prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
         existing-completion-popup-renderer (g/user-data view-node :completion-popup-renderer)
 
-        [resource-node canvas-repaint-info cursor-repaint-info completion-state]
+        [resource-node
+         canvas-repaint-info
+         cursor-repaint-info
+         completions-enabled]
         (g/with-auto-evaluation-context evaluation-context
           [(g/node-value view-node :resource-node evaluation-context)
            (g/node-value view-node :canvas-repaint-info evaluation-context)
            (g/node-value view-node :cursor-repaint-info evaluation-context)
-           (g/node-value view-node :completion-state evaluation-context)])]
+           (g/node-value view-node :completions-enabled evaluation-context)])]
 
     ;; Repaint canvas if needed.
     (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
@@ -2762,7 +3068,7 @@
         (g/user-data! resource-node :syntax-info syntax-info)
         (repaint-canvas! canvas-repaint-info syntax-info)))
 
-    (when (:enabled completion-state)
+    (when completions-enabled
       (let [renderer (or existing-completion-popup-renderer
                          (g/user-data!
                            view-node
@@ -2775,7 +3081,12 @@
                              :opts {:fx.opt/map-event-handler #(handle-completion-popup-event view-node %)})))
             ^Canvas canvas (:canvas canvas-repaint-info)]
         (g/with-auto-evaluation-context evaluation-context
-          (renderer {:completion-state completion-state
+          (renderer {:completions-combined (g/node-value view-node :completions-combined evaluation-context)
+                     :completions-selected-index (g/node-value view-node :completions-selected-index evaluation-context)
+                     :completions-showing (g/node-value view-node :completions-showing evaluation-context)
+                     :completions-doc (g/node-value view-node :completions-doc evaluation-context)
+                     :completions-shortcut-text (g/node-value view-node :completions-shortcut-text evaluation-context)
+                     :project (g/node-value view-node :project evaluation-context)
                      :canvas-repaint-info canvas-repaint-info
                      :visible-completion-ranges (g/node-value view-node :visible-completion-ranges evaluation-context)
                      :query (:query (g/node-value view-node :completion-context evaluation-context))
@@ -3190,26 +3501,38 @@
         canvas-pane (Pane. (into-array Node [canvas]))
         undo-grouping-info (pair :navigation (gensym))
         lsp (lsp/get-node-lsp resource-node)
-        view-node (setup-view! resource-node
-                               (g/make-node! graph CodeEditorView
-                                             :canvas canvas
-                                             :color-scheme code-color-scheme
-                                             :font-size (.getValue font-size-property)
-                                             :font-name  (.getValue font-name-property)
-                                             :grammar grammar
-                                             :gutter-view (->CodeEditorGutterView)
-                                             :highlighted-find-term (.getValue highlighted-find-term-property)
-                                             :line-height-factor 1.2
-                                             :completion-state {:enabled true
-                                                                :showing false
-                                                                :show-doc false
-                                                                :project project}
-                                             :undo-grouping-info undo-grouping-info
-                                             :visible-indentation-guides? (.getValue visible-indentation-guides-property)
-                                             :visible-minimap? (.getValue visible-minimap-property)
-                                             :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property)))
-                               app-view
-                               lsp)
+        completions-shortcut-text (transduce
+                                    (comp
+                                      (mapcat val)
+                                      (filter #(= :proposals (:command %)))
+                                      (map #(.getDisplayText ^KeyCombination (:key-combo %))))
+                                    util/first-rf
+                                    (g/node-value app-view :keymap))
+        view-node
+        (setup-view!
+          resource-node
+          (-> (g/make-nodes graph
+                [view [CodeEditorView
+                       :canvas canvas
+                       :color-scheme code-color-scheme
+                       :font-size (.getValue font-size-property)
+                       :font-name (.getValue font-name-property)
+                       :grammar grammar
+                       :gutter-view (->CodeEditorGutterView)
+                       :highlighted-find-term (.getValue highlighted-find-term-property)
+                       :line-height-factor 1.2
+                       :completions-shortcut-text completions-shortcut-text
+                       :completions-enabled true
+                       :undo-grouping-info undo-grouping-info
+                       :visible-indentation-guides? (.getValue visible-indentation-guides-property)
+                       :visible-minimap? (.getValue visible-minimap-property)
+                       :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property))]]
+                (g/connect project :_node-id view :project))
+              g/transact
+              g/tx-nodes-added
+              first)
+          app-view
+          lsp)
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
