@@ -391,6 +391,7 @@
 (g/defnk produce-model-properties [_node-id _declared-properties material-binding-infos mesh-material-ids]
   (let [model-node-id _node-id
         mesh-material-names (if (g/error-value? mesh-material-ids) #{} (set mesh-material-ids))
+        material-binding-infos (if (g/error-value? material-binding-infos) #{} material-binding-infos)
         proto-material-name->material-binding-info (into {} (map (juxt :name identity)) material-binding-infos)
         proto-material-names (into #{} (map :name) material-binding-infos)
         all-material-names (set/union mesh-material-names proto-material-names)
