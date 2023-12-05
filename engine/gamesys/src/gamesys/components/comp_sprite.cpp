@@ -707,8 +707,11 @@ namespace dmGameSystem
                     uint32_t unit = num_page_indices++;
                     float page_index = (float) page_indices[unit];
 
-                    assert(info->m_Attribute->m_DataType == dmGraphics::VertexAttribute::TYPE_FLOAT &&
-                        "Data conversion is not yet supported for vertex attributes.");
+                    if (info->m_Attribute->m_DataType != dmGraphics::VertexAttribute::TYPE_FLOAT)
+                    {
+                        dmLogOnceError("Unsupported data type for attribute %s, Data conversion is not yet supported for vertex attributes.",
+                            info->m_Attribute->m_Name);
+                    }
 
                     memcpy(write_ptr, &page_index, info->m_ValueByteSize);
                 } break;
