@@ -705,7 +705,12 @@ namespace dmGameSystem
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
                 {
                     uint32_t unit = num_page_indices++;
-                    memcpy(write_ptr, &page_indices[unit], info->m_ValueByteSize);
+                    float page_index = (float) page_indices[unit];
+
+                    assert(info->m_Attribute->m_DataType == dmGraphics::VertexAttribute::TYPE_FLOAT &&
+                        "Data conversion is not yet supported for vertex attributes.");
+
+                    memcpy(write_ptr, &page_index, info->m_ValueByteSize);
                 } break;
                 default:
                 {
