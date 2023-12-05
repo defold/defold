@@ -433,18 +433,101 @@ emitters {
     z: 1.3
   }
   attributes {
-    name: "color0"
+    name: "normalized_byte"
     double_values {
       v: 1.0
       v: 1.0
       v: 0.0
-      v: 1.0
     }
   }
   attributes {
-    name: "id"
+    name: "normalized_unsigned_byte"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_float"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "byte"
     long_values {
-      v: 12345
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_byte"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "short"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_short"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "int"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_int"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "float"
+    double_values {
+      v: 2.0
     }
   }
 }
@@ -883,18 +966,101 @@ emitters {
     z: 1.3
   }
   attributes {
-    name: "color0"
+    name: "normalized_byte"
     double_values {
       v: 1.0
       v: 1.0
       v: 0.0
-      v: 1.0
     }
   }
   attributes {
-    name: "id"
+    name: "normalized_unsigned_byte"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_float"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "byte"
     long_values {
-      v: 12345
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_byte"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "short"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_short"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "int"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_int"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "float"
+    double_values {
+      v: 2.0
     }
   }
 }
@@ -1333,18 +1499,101 @@ emitters {
     z: 1.3
   }
   attributes {
-    name: "color0"
+    name: "normalized_byte"
     double_values {
       v: 1.0
       v: 1.0
       v: 0.0
-      v: 1.0
     }
   }
   attributes {
-    name: "id"
+    name: "normalized_unsigned_byte"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_float"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "byte"
     long_values {
-      v: 12345
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_byte"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "short"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_short"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "int"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_int"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "float"
+    double_values {
+      v: 2.0
     }
   }
 }
@@ -1783,18 +2032,101 @@ emitters {
     z: 1.3
   }
   attributes {
-    name: "color0"
+    name: "normalized_byte"
     double_values {
       v: 1.0
       v: 1.0
       v: 0.0
-      v: 1.0
     }
   }
   attributes {
-    name: "id"
+    name: "normalized_unsigned_byte"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_float"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "byte"
     long_values {
-      v: 12345
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_byte"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "short"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_short"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "int"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_int"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "float"
+    double_values {
+      v: 2.0
     }
   }
 }
@@ -2233,18 +2565,101 @@ emitters {
     z: 1.3
   }
   attributes {
-    name: "color0"
+    name: "normalized_byte"
     double_values {
       v: 1.0
       v: 1.0
       v: 0.0
-      v: 1.0
     }
   }
   attributes {
-    name: "id"
+    name: "normalized_unsigned_byte"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_short"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_unsigned_int"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "normalized_float"
+    double_values {
+      v: 1.0
+      v: 1.0
+      v: 0.0
+    }
+  }
+  attributes {
+    name: "byte"
     long_values {
-      v: 12345
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_byte"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "short"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_short"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "int"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "unsigned_int"
+    long_values {
+      v: 2
+    }
+  }
+  attributes {
+    name: "float"
+    double_values {
+      v: 2.0
     }
   }
 }

@@ -87,7 +87,7 @@
   {'dmBufferDDF.StreamDesc "value_type"
    'dmGameObjectDDF.PropertyDesc "type"
    'dmGameSystemDDF.LightDesc "type"
-   #_#_ 'dmGraphics.VertexAttribute "data_type" ; This is a union-style protobuf type, but it is kind of annoying to override every variant everywhere. Simple field presence goes a long way.
+   'dmGraphics.VertexAttribute "data_type"
    'dmGuiDDF.NodeDesc "type"
    'dmInputDDF.GamepadMapEntry "type"
    'dmParticleDDF.Emitter "type"
@@ -120,7 +120,54 @@
   Finally, the context ignore rules are associated with a protobuf type
   identifier. This is the full name of the protobuf message as a symbol, or such
   a symbol wrapped in a vector alongside a bracketed string of the value of the
-  field name associated with that symbol in the `pb-type-field-names` map."
+  field name associated with that symbol in the `pb-type-field-names` map.
+
+  When determining if a field should be ignored, we first match the protobuf
+  type without taking its type field into account. We then merge that with the
+  ignore rules for the protobuf type field value specialization, if present.
+
+  Finally, the field rules from the :default section is merged with the pb-path
+  specialization field rules.
+
+  Let's have a closer look at an example:
+
+  ;; When we see a VertexAttribute anywhere, we know that the binary_values and
+  ;; name_hash fields are only used in the compiled data for the engine runtime,
+  ;; so we should not expect these fields to be set in the project files.
+  'dmGraphics.VertexAttribute
+   {:default ; This applies to all VertexAttributes.
+    {\"binary_values\" :runtime-only
+     \"name_hash\" :runtime-only}
+
+    ;; When we see a VertexAttribute among the attributes list of an emitter
+    ;; inside a .particlefx file, or below the attributes list in a .sprite,
+    ;; we should not expect values for coordinate_space, data_type, and so on.
+    ;; This is because the VertexAttribute protobuf type is used both to declare
+    ;; attributes inside .material files and override their values in various
+    ;; component files such as .sprite and .particlefx. Note that the ignored
+    ;; fields from the :default section also applies, unless overwritten here.
+    [[\"particlefx\" \"emitters\" \"[*]\" \"attributes\"]
+     [\"sprite\" \"attributes\"]]
+    {\"coordinate_space\" :unused
+     \"data_type\" :unused
+     \"element_count\" :unused
+     \"normalize\" :unused
+     \"semantic_type\" :unused}}
+
+   ;; At another location within this file, we declare the data_type field to
+   ;; determine the subtype of dmGraphics.VertexAttribute. And here we declare
+   ;; specialized ignore rules for the case where the data_type is TYPE_FLOAT.
+   ;; In this case, we don't want to enforce the rule that the data_type field
+   ;; must be set to a non-default value, because TYPE_FLOAT is the default.
+   ;; We also declare that we should not expect to see any long_values, because
+   ;; floating-point values are instead stored in the double_values fields.
+   ;; As above, these specialized ignore rules are merged with any other
+   ;; matching ignore rules.
+   ['dmGraphics.VertexAttribute \"[TYPE_FLOAT]\"]
+   {:default
+    {\"data_type\" :allowed-default
+     \"long_values\" :unused}}"
+
   {'dmGameObjectDDF.CollectionDesc
    {:default
     {"component_types" :runtime-only
@@ -191,6 +238,21 @@
      "normalize" :unused
      "semantic_type" :unused}}
 
+   ['dmGraphics.VertexAttribute "[TYPE_FLOAT]"]
+   {:default
+    {"data_type" :allowed-default
+     "long_values" :unused}}
+
+   'dmGuiDDF.NodeDesc
+   {:default
+    {"overridden_fields" :non-editable
+     "type" :non-overridable}
+
+    [["gui" "layouts" "nodes"]]
+    {"id" :non-overridable
+     "parent" :non-overridable
+     "template_node_child" :unused}}
+
    ['dmGuiDDF.NodeDesc "[TYPE_BOX]"]
    {:default
     {"custom_type" :unused
@@ -200,7 +262,6 @@
      "outerBounds" :unused
      "outline" :unused
      "outline_alpha" :unused
-     "overridden_fields" :non-editable
      "particlefx" :unused
      "perimeterVertices" :unused
      "pieFillAngle" :unused
@@ -214,12 +275,7 @@
      "text" :unused
      "text_leading" :unused
      "text_tracking" :unused
-     "type" :allowed-default}
-
-    [["gui" "layouts" "nodes" "[*]"]]
-    {"id" :non-overridable
-     "parent" :non-overridable
-     "template_node_child" :unused}}
+     "type" :allowed-default}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
@@ -230,7 +286,6 @@
      "outerBounds" :unused
      "outline" :unused
      "outline_alpha" :unused
-     "overridden_fields" :non-editable
      "particlefx" :unused
      "perimeterVertices" :unused
      "pieFillAngle" :unused
@@ -245,13 +300,7 @@
      "text" :unused
      "text_leading" :unused
      "text_tracking" :unused
-     "texture" :unused
-     "type" :non-overridable}
-
-    [["gui" "layouts" "nodes" "[*]"]]
-    {"id" :non-overridable
-     "parent" :non-overridable
-     "template_node_child" :unused}}
+     "texture" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_PARTICLEFX]"]
    {:default
@@ -266,7 +315,6 @@
      "outerBounds" :unused
      "outline" :unused
      "outline_alpha" :unused
-     "overridden_fields" :non-editable
      "perimeterVertices" :unused
      "pieFillAngle" :unused
      "pivot" :unused
@@ -283,13 +331,7 @@
      "text" :unused
      "text_leading" :unused
      "text_tracking" :unused
-     "texture" :unused
-     "type" :non-overridable}
-
-    [["gui" "layouts" "nodes" "[*]"]]
-    {"id" :non-overridable
-     "parent" :non-overridable
-     "template_node_child" :unused}}
+     "texture" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_PIE]"]
    {:default
@@ -298,7 +340,6 @@
      "line_break" :unused
      "outline" :unused
      "outline_alpha" :unused
-     "overridden_fields" :non-editable
      "particlefx" :unused
      "shadow" :unused
      "shadow_alpha" :unused
@@ -310,13 +351,7 @@
      "template" :unused
      "text" :unused
      "text_leading" :unused
-     "text_tracking" :unused
-     "type" :non-overridable}
-
-    [["gui" "layouts" "nodes" "[*]"]]
-    {"id" :non-overridable
-     "parent" :non-overridable
-     "template_node_child" :unused}}
+     "text_tracking" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEMPLATE]"]
    {:default
@@ -334,7 +369,6 @@
      "outerBounds" :unused
      "outline" :unused
      "outline_alpha" :unused
-     "overridden_fields" :non-editable
      "particlefx" :unused
      "perimeterVertices" :unused
      "pieFillAngle" :unused
@@ -353,15 +387,9 @@
      "text_leading" :unused
      "text_tracking" :unused
      "texture" :unused
-     "type" :non-overridable
      "visible" :unused
      "xanchor" :unused
-     "yanchor" :unused}
-
-    [["gui" "layouts" "nodes" "[*]"]]
-    {"id" :non-overridable
-     "parent" :non-overridable
-     "template_node_child" :unused}}
+     "yanchor" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEXT]"]
    {:default
@@ -371,7 +399,6 @@
      "custom_type" :unused
      "innerRadius" :unused
      "outerBounds" :unused
-     "overridden_fields" :non-editable
      "particlefx" :unused
      "perimeterVertices" :unused
      "pieFillAngle" :unused
@@ -382,13 +409,7 @@
      "spine_scene" :unused
      "spine_skin" :unused
      "template" :unused
-     "texture" :unused
-     "type" :non-overridable}
-
-    [["gui" "layouts" "nodes" "[*]"]]
-    {"id" :non-overridable
-     "parent" :non-overridable
-     "template_node_child" :unused}}
+     "texture" :unused}}
 
    'dmGuiDDF.SceneDesc
    {:default
@@ -488,17 +509,16 @@
            (count pb-filter-path))
        (every? true?
                (map (fn [pb-path-token pb-filter-path-token]
-                      (or (= "[*]" pb-filter-path-token) ; TODO(save-data-test): Proper wildcard matching.
+                      (or (= "[*]" pb-filter-path-token) ; TODO: Implement wildcards properly.
                           (= pb-path-token pb-filter-path-token)))
                     pb-path
                     pb-filter-path))))
 
-(defn- pb-field-ignore-reasons [pb-desc type-token pb-path]
+(defn- pb-field-ignore-reasons [pb-desc-key type-token pb-path]
+  (s/assert ::pb-desc-key pb-desc-key)
   (s/assert (s/nilable ::pb-type-token) type-token)
   (s/assert ::pb-path pb-path)
-  (let [pb-desc-key (pb-descriptor-key pb-desc)
-
-        pb-filter->pb-field->ignore-reason
+  (let [pb-filter->pb-field->ignore-reason
         (if (nil? type-token)
           (get pb-ignored-fields pb-desc-key)
           (merge-with
@@ -527,6 +547,9 @@
 (defn- setting-valid-path-token? [str]
   (re-matches #"^[a-z][a-z0-9_]*$" str))
 
+(defn- pb-valid-desc-key-symbol? [sym]
+  (re-matches #"^[_a-z][_a-zA-Z0-9]+(\.[_a-zA-Z0-9]+)+$" (name sym)))
+
 (defn- pb-valid-field-name? [str]
   (re-matches #"^[A-Za-z][A-Za-z0-9_]*$" str))
 
@@ -543,6 +566,7 @@
 (s/def ::setting->ignore-reason (s/map-of ::setting-path ::ignore-reason))
 (s/def ::ext->setting->ignore-reason (s/map-of ::resource-type-ext ::setting->ignore-reason))
 
+(s/def ::pb-desc-key (s/and symbol? pb-valid-desc-key-symbol?))
 (s/def ::pb-field-name (s/and string? pb-valid-field-name?))
 (s/def ::pb-type-token (s/and string? pb-valid-type-token?))
 (s/def ::pb-identifier (s/or :field ::pb-field-name :type ::pb-type-token))
@@ -550,7 +574,7 @@
 (s/def ::pb-path-token ::pb-identifier)
 (s/def ::pb-path (s/cat :ext ::resource-type-ext :field-path (s/* ::pb-path-token)))
 (s/def ::pb-path-token->ignore-reason (s/map-of ::pb-path-token ::ignore-reason))
-(s/def ::pb-filter-path-token (s/or :identifier ::pb-identifier :wildcard #{"[*]"})) ; TODO(save-data-test): Implement wildcards properly.
+(s/def ::pb-filter-path-token (s/or :identifier ::pb-identifier :wildcard #{"[*]"})) ; TODO: Implement wildcards properly.
 (s/def ::pb-filter-path (s/cat :ext ::resource-type-ext :field-filter-path (s/* ::pb-filter-path-token)))
 (s/def ::pb-filter (s/or :default #{:default} :filter-paths (s/coll-of ::pb-filter-path :kind vector?)))
 (s/def ::pb-filter->pb-path-token->ignore-reason (s/map-of ::pb-filter ::pb-path-token->ignore-reason))
@@ -802,27 +826,37 @@
     :else
     0))
 
-(defn- pb-descriptor-expected-fields-raw [^Descriptors$Descriptor pb-desc type-token pb-path included-ignore-reasons]
+(defn- pb-descriptor-expected-fields-raw [^Descriptors$Descriptor pb-desc type-token pb-path disregarded-ignore-reasons]
   (s/assert (s/nilable ::pb-type-token) type-token)
   (s/assert ::pb-path pb-path)
-  (s/assert ::ignore-reason-set included-ignore-reasons)
-  (let [pb-field->ignore-reason (pb-field-ignore-reasons pb-desc type-token pb-path)
+  (s/assert ::ignore-reason-set disregarded-ignore-reasons)
+  (let [pb-desc-key (pb-descriptor-key pb-desc)
+        pb-field->ignore-reason (pb-field-ignore-reasons pb-desc-key type-token pb-path)
         ignored-field? (fn [^Descriptors$FieldDescriptor field-desc]
                          (let [field-name (.getName field-desc)
                                ignore-reason (get pb-field->ignore-reason field-name)]
                            (and (some? ignore-reason)
-                                (not (contains? included-ignore-reasons ignore-reason)))))]
+                                (not (contains? disregarded-ignore-reasons ignore-reason)))))]
     (into []
           (remove ignored-field?)
           (.getFields pb-desc))))
 
 (def ^:private pb-descriptor-expected-fields (memoize pb-descriptor-expected-fields-raw))
 
+(defn- pb-type-field-name [pb-desc-key pb-path]
+  (s/assert ::pb-desc-key pb-desc-key)
+  (s/assert ::pb-path pb-path)
+  (when-let [type-field-name (pb-type-field-names pb-desc-key)]
+    (let [pb-field->ignore-reason (pb-field-ignore-reasons pb-desc-key nil pb-path)
+          ignore-reason (get pb-field->ignore-reason type-field-name)]
+      (when (not= :unused ignore-reason)
+        type-field-name))))
+
 (defn- pb-nested-field-frequencies [^Message pb pb-path count-field-value?]
   (s/assert ::pb-path pb-path)
   (let [pb-desc (.getDescriptorForType pb)
         pb-desc-key (pb-descriptor-key pb-desc)
-        type-field-name (pb-type-field-names pb-desc-key)
+        type-field-name (pb-type-field-name pb-desc-key pb-path)
         type-field-desc (some->> type-field-name (.findFieldByName pb-desc))
         type-field-value (some->> type-field-desc (.getField pb))
         type-token (some->> type-field-value pb-type-token)
@@ -867,7 +901,7 @@
                                   (pos? (count field-frequency)))
                           (pair field-name
                                 field-frequency)))))
-              (pb-descriptor-expected-fields pb-desc type-token typed-pb-path #{:non-editable :non-overridable}))]
+              (pb-descriptor-expected-fields pb-desc type-token pb-path #{:non-editable :non-overridable}))]
 
     (if (nil? type-field-desc)
       field-frequencies
@@ -1037,7 +1071,7 @@
   (s/assert ::pb-path pb-path)
   (let [pb-desc (.getDescriptorForType original-pb)
         pb-desc-key (pb-descriptor-key pb-desc)
-        type-field-name (pb-type-field-names pb-desc-key)
+        type-field-name (pb-type-field-name pb-desc-key pb-path)
         type-field-desc (some->> type-field-name (.findFieldByName pb-desc))
         type-field-value (some->> type-field-desc (.getField original-pb))
         type-token (some->> type-field-value pb-type-token)
@@ -1077,7 +1111,7 @@
 
     (into (sorted-map)
           (map diff-field)
-          (pb-descriptor-expected-fields pb-desc type-token typed-pb-path #{}))))
+          (pb-descriptor-expected-fields pb-desc type-token pb-path #{}))))
 
 (defn- non-overridden-gui-node-field-paths [workspace diff-pb-path gui-resource->override-infos]
   (let [gui-resources (checked-resources workspace #(= "gui" (:ext %)))
