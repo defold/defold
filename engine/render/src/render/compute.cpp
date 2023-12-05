@@ -29,6 +29,7 @@ namespace dmRender
         }
 
         ComputeProgram* program        = new ComputeProgram();
+        program->m_RenderContext       = render_context;
         program->m_Shader              = shader;
         program->m_Program             = dmGraphics::NewProgram(render_context->m_GraphicsContext, shader);
         uint32_t total_constants_count = dmGraphics::GetUniformCount(program->m_Program);
@@ -64,5 +65,20 @@ namespace dmRender
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::DeleteProgram(graphics_context, program->m_Program);
         delete program;
+    }
+
+    HRenderContext GetProgramRenderContext(HComputeProgram program)
+    {
+        return program->m_RenderContext;
+    }
+
+    uint64_t GetProgramUserData(HComputeProgram program)
+    {
+        return program->m_UserData;
+    }
+
+    void SetProgramUserData(HComputeProgram program, uint64_t user_data)
+    {
+        program->m_UserData = user_data;
     }
 }

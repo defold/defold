@@ -3920,6 +3920,8 @@ TEST_F(ShaderTest, ComputeResource)
 
     ASSERT_STREQ("texture_out", buffer);
     ASSERT_EQ(1, dmGraphics::GetUniformLocation(graphics_compute_program, "texture_out"));
+
+    dmResource::Release(m_Factory, (void*) compute_program_res);
 }
 #endif
 

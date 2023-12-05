@@ -863,11 +863,24 @@ namespace dmGraphics
         ((NullContext*) context)->m_Program = 0x0;
     }
 
-    static bool NullReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool NullReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         (void) context;
         (void) program;
 
+        return true;
+    }
+
+    static bool NullReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
+    {
+        (void) context;
+        (void) program;
+        return true;
+    }
+
+    static bool NullReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    {
+        (void)prog;
         return true;
     }
 

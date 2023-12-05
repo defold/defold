@@ -2020,7 +2020,7 @@ static void LogFrameBufferError(GLenum status)
         return success;
     }
 
-    static bool OpenGLReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool OpenGLReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         if (!TryLinkProgram(vert_program, frag_program))
         {
@@ -2033,6 +2033,18 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 
         BuildAttributes(program_ptr);
+        return true;
+    }
+
+    static bool OpenGLReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
+    {
+        assert(0);
+        return false;
+    }
+
+    static bool OpenGLReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    {
+        (void)prog;
         return true;
     }
 

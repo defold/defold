@@ -61,13 +61,38 @@ namespace dmGameSystem
 
     dmResource::Result ResComputeShaderDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        // TODO
+        dmGraphics::HComputeProgram resource = (dmGraphics::HComputeProgram) params.m_Resource->m_Resource;
+        dmGraphics::DeleteComputeProgram(resource);
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResComputeShaderRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        // TODO
-    	return dmResource::RESULT_OK;
+        dmGraphics::HComputeProgram resource = (dmGraphics::HComputeProgram) params.m_Resource->m_Resource;
+        if (resource == 0)
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        dmGraphics::ShaderDesc* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &ddf);
+        if (e != dmDDF::RESULT_OK)
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        dmResource::Result res = dmResource::RESULT_OK;
+        dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram((dmGraphics::HContext) params.m_Context, ddf);
+        if (shader == 0x0)
+        {
+            res = dmResource::RESULT_FORMAT_ERROR;
+        }
+        else if(!dmGraphics::ReloadComputeProgram(resource, shader))
+        {
+            res = dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        dmDDF::FreeMessage(ddf);
+        return res;
     }
 }

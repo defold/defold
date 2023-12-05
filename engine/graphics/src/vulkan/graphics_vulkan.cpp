@@ -2751,12 +2751,25 @@ bail:
         g_VulkanContext->m_CurrentProgram = 0;
     }
 
-    static bool VulkanReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool VulkanReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         Program* program_ptr = (Program*) program;
         DestroyProgram(context, program_ptr);
         CreateGraphicsProgram((VulkanContext*) context, program_ptr, (ShaderModule*) vert_program, (ShaderModule*) frag_program);
         return true;
+    }
+
+    static bool VulkanReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
+    {
+        Program* program_ptr = (Program*) program;
+        DestroyProgram(context, program_ptr);
+        CreateComputeProgram((VulkanContext*) context, program_ptr, (ShaderModule*) compute_program);
+        return true;
+    }
+
+    static bool VulkanReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    {
+        return ReloadShader((ShaderModule*) prog, ddf);
     }
 
     static uint32_t VulkanGetAttributeCount(HProgram prog)

@@ -1131,7 +1131,15 @@ namespace dmGraphics
     }
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
-        return g_functions.m_ReloadProgram(context, program, vert_program, frag_program);
+        return g_functions.m_ReloadProgramGraphics(context, program, vert_program, frag_program);
+    }
+    bool ReloadProgram(HContext context, HProgram program, HComputeProgram compute_program)
+    {
+        return g_functions.m_ReloadProgramCompute(context, program, compute_program);
+    }
+    bool ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    {
+        return g_functions.m_ReloadComputeProgram(prog, ddf);
     }
     uint32_t GetAttributeCount(HProgram prog)
     {

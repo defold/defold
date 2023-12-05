@@ -104,7 +104,9 @@ namespace dmGraphics
     typedef ShaderDesc::Language (*GetProgramLanguageFn)(HProgram program);
     typedef void (*EnableProgramFn)(HContext context, HProgram program);
     typedef void (*DisableProgramFn)(HContext context);
-    typedef bool (*ReloadProgramFn)(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    typedef bool (*ReloadProgramGraphicsFn)(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    typedef bool (*ReloadComputeProgramFn)(HComputeProgram prog, ShaderDesc::Shader* ddf);
+    typedef bool (*ReloadProgramComputeFn)(HContext context, HProgram program, HComputeProgram compute_program);
     typedef uint32_t (*GetAttributeCountFn)(HProgram prog);
     typedef void (*GetAttributeFn)(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     typedef uint32_t (*GetUniformNameFn)(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
@@ -224,7 +226,9 @@ namespace dmGraphics
         GetShaderProgramLanguageFn m_GetShaderProgramLanguage;
         EnableProgramFn m_EnableProgram;
         DisableProgramFn m_DisableProgram;
-        ReloadProgramFn m_ReloadProgram;
+        ReloadProgramGraphicsFn m_ReloadProgramGraphics;
+        ReloadComputeProgramFn m_ReloadComputeProgram;
+        ReloadProgramComputeFn m_ReloadProgramCompute;
         GetAttributeCountFn m_GetAttributeCount;
         GetAttributeFn m_GetAttribute;
         GetUniformNameFn m_GetUniformName;
@@ -346,7 +350,9 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetShaderProgramLanguage); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableProgram); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgramGraphics); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgramCompute); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadComputeProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttributeCount); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttribute); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformName); \

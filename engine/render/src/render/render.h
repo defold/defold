@@ -220,8 +220,11 @@ namespace dmRender
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeProgram shader);
     void                            DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program);
+    HRenderContext                  GetProgramRenderContext(HComputeProgram program);
     dmGraphics::HComputeProgram     GetComputeProgramShader(HComputeProgram program);
     dmGraphics::HProgram            GetComputeProgram(HComputeProgram program);
+    uint64_t                        GetProgramUserData(HComputeProgram program);
+    void                            SetProgramUserData(HComputeProgram program, uint64_t user_data);
 
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.

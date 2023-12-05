@@ -15,6 +15,8 @@
 #ifndef RENDERINTERNAL_H
 #define RENDERINTERNAL_H
 
+#include <string.h> // For memset
+
 #include <dmsdk/dlib/vmath.h>
 
 #include <dlib/array.h>
@@ -73,14 +75,9 @@ namespace dmRender
     struct Material
     {
         Material()
-        : m_RenderContext(0)
-        , m_Program(0)
-        , m_VertexProgram(0)
-        , m_FragmentProgram(0)
-        , m_UserData1(0) // used for hot reloading. stores shader name
-        , m_UserData2(0) // used for hot reloading. stores shader name
-        , m_VertexSpace(dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
         {
+            memset(this, 0, sizeof(*this));
+            m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
         }
 
         dmRender::HRenderContext                m_RenderContext;
@@ -94,18 +91,20 @@ namespace dmRender
         dmArray<uint8_t>                        m_MaterialAttributeValues;
         dmArray<RenderConstant>                 m_Constants;
         dmArray<Sampler>                        m_Samplers;
-        uint32_t                                m_TagListKey;      // the key to use with GetMaterialTagList()
-        uint64_t                                m_UserData1;
-        uint64_t                                m_UserData2;
+        uint32_t                                m_TagListKey; // the key to use with GetMaterialTagList()
+        uint64_t                                m_UserData1;  // used for hot reloading. stores shader name
+        uint64_t                                m_UserData2;  // --||–-
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
     };
 
     struct ComputeProgram
     {
+        dmRender::HRenderContext                    m_RenderContext;
         dmGraphics::HComputeProgram                 m_Shader;
         dmGraphics::HProgram                        m_Program;
         dmArray<RenderConstant>                     m_Constants;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
+        uint64_t                                    m_UserData;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered
