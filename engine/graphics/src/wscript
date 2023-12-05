@@ -48,10 +48,16 @@ def build(bld):
     obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
 
     if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+
+        opengl_defines = []
+        if platform_supports_feature(bld.env.PLATFORM, 'compute', {}):
+            opengl_defines = ['DM_HAVE_PLATFORM_COMPUTE_SUPPORT']
+
         obj = bld.stlib(features        = 'cxx',
                         includes        = ['.', 'opengl'] + proto_cpp_includes,
                         source          = bld.path.ant_glob(['*.cpp', 'opengl/*.cpp']) + proto_cpp_source,
                         use             = 'DDF DLIB',
+                        defines         = opengl_defines,
                         target          = 'graphics')
 
         if 'web' in bld.env.PLATFORM:

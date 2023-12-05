@@ -605,11 +605,10 @@ static void LogFrameBufferError(GLenum status)
         {
             case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
-            case CONTEXT_FEATURE_COMPUTE_SHADER:         return false; // TODO!
+            case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
         }
         return false;
     }
-
 
     static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext context)
     {
@@ -1183,6 +1182,11 @@ static void LogFrameBufferError(GLenum status)
         CLEAR_GL_ERROR;
 #endif
 
+    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+        // Check for support here..
+        context->m_ComputeSupport = 1;
+    #endif
+
         if (context->m_PrintDeviceInfo)
         {
             OpenGLPrintDeviceInfo(context);
@@ -1736,6 +1740,11 @@ static void LogFrameBufferError(GLenum status)
         return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf);
     }
 
+    static HComputeProgram OpenGLNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf)
+    {
+        return (HVertexProgram) CreateShader(GL_VERTEX_SHADER, ddf);
+    }
+
     static void BuildAttributes(OpenGLProgram* program_ptr)
     {
         GLint num_attributes;
@@ -1774,23 +1783,61 @@ static void LogFrameBufferError(GLenum status)
         context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
     }
 
-    static HComputeProgram OpenGLNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static bool LinkProgram(GLuint program)
     {
-        assert(0 && "Not implemented!");
-        return 0;
+        glLinkProgram(program);
+
+        GLint status;
+        glGetProgramiv(program, GL_LINK_STATUS, &status);
+
+        if (status == 0)
+        {
+#ifndef NDEBUG
+            GLint logLength;
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+            if (logLength > 0)
+            {
+                GLchar *log = (GLchar*) malloc(logLength);
+                glGetProgramInfoLog(program, logLength, &logLength, log);
+                dmLogWarning("%s\n", log);
+                free(log);
+            }
+#endif
+            return false;
+        }
+        return true;
     }
 
     static HProgram OpenGLNewProgramFromCompute(HContext context, HComputeProgram compute_program)
     {
-        assert(0 && "Not implemented!");
-        return 0;
+        IncreaseModificationVersion((OpenGLContext*) context);
+
+        OpenGLComputeProgram* program = new OpenGLComputeProgram();
+
+        (void) context;
+        GLuint p = glCreateProgram();
+        CHECK_GL_ERROR;
+
+        OpenGLShader* compute_shader = (OpenGLShader*) compute_program;
+        GLuint compute_shader_id     = compute_shader->m_Id;
+
+        glAttachShader(p, compute_shader_id);
+        CHECK_GL_ERROR;
+
+        if (!LinkProgram(p))
+        {
+            delete program;
+            glDeleteProgram(p);
+            CHECK_GL_ERROR;
+            return 0;
+        }
+
+        program->m_Id       = p;
+        program->m_Language = compute_shader->m_Language;
+        return (HProgram) program;
     }
 
-    static void OpenGLDeleteComputeProgram(HComputeProgram prog)
-    {
-        assert(0 && "Not implemented!");
-    }
-
+    // TODO: Rename to graphicsprogram instead of newprogram
     static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         IncreaseModificationVersion((OpenGLContext*) context);
@@ -1824,25 +1871,9 @@ static void LogFrameBufferError(GLenum status)
         }
 #endif
 
-        glLinkProgram(p);
-
-        GLint status;
-        glGetProgramiv(p, GL_LINK_STATUS, &status);
-        if (status == 0)
+        if (!LinkProgram(p))
         {
-#ifndef NDEBUG
-            GLint logLength;
-            glGetProgramiv(p, GL_INFO_LOG_LENGTH, &logLength);
-            if (logLength > 0)
-            {
-                GLchar *log = (GLchar *)malloc(logLength);
-                glGetProgramInfoLog(p, logLength, &logLength, log);
-                dmLogWarning("%s\n", log);
-                free(log);
-            }
-#endif
             delete program;
-
             glDeleteProgram(p);
             CHECK_GL_ERROR;
             return 0;
@@ -1951,12 +1982,17 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteVertexProgram(HVertexProgram program)
     {
-        OpenGLDeleteShader(((OpenGLShader*) program));
+        OpenGLDeleteShader((OpenGLShader*) program);
     }
 
     static void OpenGLDeleteFragmentProgram(HFragmentProgram program)
     {
-        OpenGLDeleteShader(((OpenGLShader*) program));
+        OpenGLDeleteShader((OpenGLShader*) program);
+    }
+
+    static void OpenGLDeleteComputeProgram(HComputeProgram program)
+    {
+        OpenGLDeleteShader((OpenGLShader*) program);
     }
 
     static ShaderDesc::Language OpenGLGetProgramLanguage(HProgram program)

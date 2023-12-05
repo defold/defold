@@ -227,8 +227,6 @@ namespace dmGraphics
         EnableProgramFn m_EnableProgram;
         DisableProgramFn m_DisableProgram;
         ReloadProgramGraphicsFn m_ReloadProgramGraphics;
-        ReloadComputeProgramFn m_ReloadComputeProgram;
-        ReloadProgramComputeFn m_ReloadProgramCompute;
         GetAttributeCountFn m_GetAttributeCount;
         GetAttributeFn m_GetAttribute;
         GetUniformNameFn m_GetUniformName;
@@ -287,6 +285,10 @@ namespace dmGraphics
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
+
+        // Compute
+        ReloadComputeProgramFn  m_ReloadComputeProgram;
+        ReloadProgramComputeFn  m_ReloadProgramCompute;
         NewComputeProgramFn     m_NewComputeProgram;
         NewProgramFromComputeFn m_NewProgramFromCompute;
         DeleteComputeProgramFn  m_DeleteComputeProgram;
