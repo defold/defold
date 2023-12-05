@@ -1831,6 +1831,7 @@ static void LogFrameBufferError(GLenum status)
         glGetProgramiv(p, GL_LINK_STATUS, &status);
         if (status == 0)
         {
+            dmLogError("Unable to link program.");
 #ifndef NDEBUG
             GLint logLength;
             glGetProgramiv(p, GL_INFO_LOG_LENGTH, &logLength);
@@ -1838,7 +1839,7 @@ static void LogFrameBufferError(GLenum status)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
                 glGetProgramInfoLog(p, logLength, &logLength, log);
-                dmLogWarning("%s\n", log);
+                dmLogError("%s", log);
                 free(log);
             }
 #endif
