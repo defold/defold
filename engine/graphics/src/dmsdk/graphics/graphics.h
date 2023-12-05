@@ -396,6 +396,7 @@ namespace dmGraphics
         TYPE_FLOAT_VEC3       = 13,
         TYPE_FLOAT_MAT2       = 14,
         TYPE_FLOAT_MAT3       = 15,
+        TYPE_IMAGE_2D         = 16,
     };
 
     /*#

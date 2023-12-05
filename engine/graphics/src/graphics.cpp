@@ -376,7 +376,10 @@ namespace dmGraphics
         {
             return 4 * 4 * 4;
         }
-        else if (type == TYPE_SAMPLER_2D || type == TYPE_SAMPLER_CUBE || type == TYPE_SAMPLER_2D_ARRAY)
+        else if (type == TYPE_SAMPLER_2D ||
+                 type == TYPE_SAMPLER_CUBE ||
+                 type == TYPE_SAMPLER_2D_ARRAY ||
+                 type == TYPE_IMAGE_2D)
         {
             return 0;
         }
@@ -444,6 +447,7 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
+            case ShaderDesc::SHADER_TYPE_IMAGE2D:         return TYPE_IMAGE_2D;
             default: break;
         }
 

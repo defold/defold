@@ -3906,7 +3906,7 @@ TEST_F(ShaderTest, ComputeResource)
     dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program_res);
     dmGraphics::HProgram graphics_compute_program       = dmRender::GetComputeProgram(compute_program_res);
 
-    ASSERT_EQ(1, dmGraphics::GetUniformCount(graphics_compute_program));
+    ASSERT_EQ(2, dmGraphics::GetUniformCount(graphics_compute_program));
 
     char buffer[128] = {};
     dmGraphics::Type type;
@@ -3915,6 +3915,11 @@ TEST_F(ShaderTest, ComputeResource)
 
     ASSERT_STREQ("color", buffer);
     ASSERT_EQ(0, dmGraphics::GetUniformLocation(graphics_compute_program, "color"));
+
+    dmGraphics::GetUniformName(graphics_compute_program, 1, buffer, 128, &type, &size);
+
+    ASSERT_STREQ("texture_out", buffer);
+    ASSERT_EQ(1, dmGraphics::GetUniformLocation(graphics_compute_program, "texture_out"));
 }
 #endif
 
