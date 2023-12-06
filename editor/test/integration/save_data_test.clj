@@ -60,7 +60,7 @@
     :non-overridable ; The field is expected to be read and written to the file, but cannot be overridden from its base value by the user.
     :padding         ; The field is only present in the protobuf declaration to ensure consecutive values are byte-aligned to a desired boundary in the compiled binaries for the runtime.
     :runtime-only    ; The field is only present in the compiled binaries for the runtime.
-    :unimplemented   ; The field was added to support a new feature in the runtime, but is not yet fully implemented in the editor. This will eventually lead to a file format change, deprecated fields, and a test that covers the migration.
+    :unimplemented   ; The field was added to support a new feature in the runtime, but is not yet fully implemented in the editor. We don't need to load it, as it cannot be in the project files yet. This will eventually lead to a file format change, deprecated fields, and a test that covers the migration.
     :unused})        ; The field is not expected to have a value in either the project files or the compiled binaries for the runtime. Typically used with union-style protobuf types such as dmGuiDDF.NodeDesc, where the expected fields are dictated by the value of the "type" field.
 
 (def ^:private settings-ignored-fields
@@ -99,13 +99,13 @@
   "This structure is used in conjunction with `pb-type-field-names` above to
   exclude certain enum values from consideration when determining coverage."
   {'dmGameObjectDDF.PropertyType
-   {"[PROPERTY_TYPE_MATRIX4]" :unimplemented}
+   {"[PROPERTY_TYPE_MATRIX4]" :unimplemented} ; There's currently no way to edit matrix script properties. But they can be declared and used at runtime.
 
    'dmGuiDDF.NodeDesc.Type
    {"[TYPE_SPINE]" :deprecated} ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
 
    'dmPhysicsDDF.CollisionShape.Type
-   {"[TYPE_HULL]" :unimplemented}})
+   {"[TYPE_HULL]" :runtime-only}}) ; If the .collisionobject file specifies a .convexshape for its collision_shape, it gets embedded as a TYPE_HULL in the compiled binary. We don't have any way of creating these from the editor yet.
 
 (def ^:private pb-ignored-fields
   "This structure is used to exclude certain fields in protobuf-based file
@@ -245,7 +245,7 @@
 
    'dmGuiDDF.NodeDesc
    {:default
-    {"overridden_fields" :non-editable
+    {"overridden_fields" :non-editable ; Not editable, but used to determine which fields are overridden when loading.
      "type" :non-overridable}
 
     [["gui" "layouts" "nodes"]]
@@ -294,7 +294,7 @@
      "size" :unused
      "size_mode" :non-editable
      "slice9" :unused
-     "spine_node_child" :deprecated ; TODO(save-data-test): What was this?
+     "spine_node_child" :deprecated ; This was a legacy setting in our own Spine implementation. The Spine/Rive extensions now create GUI bones themselves.
      "template" :unused
      "template_node_child" :unused
      "text" :unused
@@ -360,7 +360,7 @@
      "clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
-     "color" :non-editable
+     "color" :non-editable ; Annoyingly, we need to write a white color to the file because Bob will read it and write it to the binaries when bundling.
      "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -424,10 +424,6 @@
    {:default
     {"hat_mask" :unused
      "mod" :unused}}
-
-   ['dmInputDDF.GamepadMapEntry "[GAMEPAD_TYPE_HAT]"]
-   {:default
-    {"hat_mask" :unimplemented}}
 
    'dmMath.Point3
    {:default
@@ -789,9 +785,11 @@
   (let [type-token->ignore-reason (get pb-enum-ignored-values (pb-descriptor-key enum-desc))]
     (into (sorted-map)
           (keep (fn [enum-value-desc]
-                  (let [type-token (pb-type-token enum-value-desc)]
-                    (when-not (contains? type-token->ignore-reason type-token)
-                      (pair type-token 0)))))
+                  (let [type-token (pb-type-token enum-value-desc)
+                        ignore-reason (get type-token->ignore-reason type-token)]
+                    (case ignore-reason
+                      (nil :allowed-default :non-editable :non-overridable) (pair type-token 0)
+                      nil))))
           (pb-enum-desc-usable-values enum-desc))))
 
 (def ^:private pb-enum-desc-empty-frequencies (memoize pb-enum-desc-empty-frequencies-raw))
@@ -849,8 +847,9 @@
   (when-let [type-field-name (pb-type-field-names pb-desc-key)]
     (let [pb-field->ignore-reason (pb-field-ignore-reasons pb-desc-key nil pb-path)
           ignore-reason (get pb-field->ignore-reason type-field-name)]
-      (when (not= :unused ignore-reason)
-        type-field-name))))
+      (case ignore-reason
+        (nil :allowed-default :non-editable :non-overridable) type-field-name
+        nil))))
 
 (defn- pb-nested-field-frequencies [^Message pb pb-path count-field-value?]
   (s/assert ::pb-path pb-path)
@@ -939,11 +938,20 @@
 (defmethod nested-field-frequencies :settings [resource]
   (let [resource-type (resource/resource-type resource)
         resource-type-ext (:ext resource-type)
-        ignore-reason-by-setting-path (get settings-ignored-fields resource-type-ext {})
-        ignored-setting-path? #(contains? ignore-reason-by-setting-path %)
         meta-settings (-> resource-type :test-info :meta-settings)
-        settings (with-open [reader (io/reader resource)]
-                   (settings-core/parse-settings reader))]
+        ignore-reason-by-setting-path (get settings-ignored-fields resource-type-ext {})
+
+        ignored-setting-path?
+        (fn ignored-setting-path? [setting-path]
+          (let [ignore-reason (get ignore-reason-by-setting-path setting-path)]
+            (case ignore-reason
+              (nil :allowed-default :non-editable :non-overridable) false
+              true)))
+
+        settings
+        (with-open [reader (io/reader resource)]
+          (settings-core/parse-settings reader))]
+
     (transduce
       (comp cat
             (map :path)

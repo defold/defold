@@ -185,6 +185,7 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
+    hat_mask: 1
   }
   map {
     input: GAMEPAD_LSTICK_RIGHT
@@ -193,6 +194,7 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
+    hat_mask: 2
   }
   map {
     input: GAMEPAD_LSTICK_DOWN
@@ -201,6 +203,7 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
+    hat_mask: 4
   }
   map {
     input: GAMEPAD_LPAD_UP
@@ -212,5 +215,6 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
+    hat_mask: 8
   }
 }
