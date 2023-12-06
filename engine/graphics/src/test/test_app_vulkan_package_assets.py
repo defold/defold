@@ -20,7 +20,7 @@ def get_file_contents(file_path):
 		buf.append(hex(s))
 	return buf
 
-def get_buffer_str(buffer_name, file_path, profile):
+def to_spirv(buffer_name, file_path, profile):
 
 	dynamo_home = os.environ['DYNAMO_HOME']
 
@@ -35,11 +35,20 @@ def get_buffer_str(buffer_name, file_path, profile):
 
 	out_path = file_path + '.spv'
 
-	subprocess.call([exe, '-fshader-stage='+profile, '-w', '-o', out_path, file_path])
+	subprocess.call([exe,
+		'-fshader-stage='+profile,
+		'-fauto-bind-uniforms',
+		'-fauto-map-locations',
+		'-w', '-o', out_path, file_path])
 
 	buf = get_file_contents(out_path)
 	output = "const unsigned char %s[] = {%s};" % (buffer_name, ",".join(buf))
 
+	return output
+
+def to_glsl(buffer_name, file_path):
+	buf = get_file_contents(file_path)
+	output = "const unsigned char %s[] = {%s};" % (buffer_name, ",".join(buf))
 	return output
 
 def write_header(header_path, assets):
@@ -52,5 +61,9 @@ def write_header(header_path, assets):
 if __name__ == '__main__':
 	write_header(
 		"test_app_vulkan_assets.h",
-		[get_buffer_str("vertex_program", "test_app_vulkan.vs", "vert"),
-		 get_buffer_str("fragment_program", "test_app_vulkan.fs", "frag")])
+		[to_glsl("glsl_vertex_program", "test_app_vulkan.vs"),
+		 to_glsl("glsl_fragment_program", "test_app_vulkan.fs"),
+		 to_glsl("glsl_compute_program", "test_app_graphics.compute"),
+		 to_spirv("spirv_vertex_program", "test_app_vulkan.vs", "vert"),
+		 to_spirv("spirv_fragment_program", "test_app_vulkan.fs", "frag"),
+		 to_spirv("spirv_compute_program", "test_app_graphics.compute", "compute")])
