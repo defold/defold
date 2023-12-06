@@ -1186,7 +1186,12 @@ static void LogFrameBufferError(GLenum status)
         int32_t version_major = 0, version_minor = 0;
         glGetIntegerv(GL_MAJOR_VERSION, &version_major);
         glGetIntegerv(GL_MINOR_VERSION, &version_minor);
-        context->m_ComputeSupport = version_major >= 4 && version_minor >= 3;
+
+        #if defined(GL_ES_VERSION_3_0) || defined(GL_ES_VERSION_2_0)
+            context->m_ComputeSupport = version_major >= 3 && version_minor >= 1;
+        #else
+            context->m_ComputeSupport = version_major >= 4 && version_minor >= 3;
+        #endif
     #endif
 
         if (context->m_PrintDeviceInfo)
@@ -1742,7 +1747,7 @@ static void LogFrameBufferError(GLenum status)
         return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf);
     }
 
-    static HComputeProgram OpenGLNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         return (HVertexProgram) CreateShader(GL_VERTEX_SHADER, ddf);
     }

@@ -377,6 +377,7 @@ namespace dmGraphics
      * @member TYPE_FLOAT_VEC3
      * @member TYPE_FLOAT_MAT2
      * @member TYPE_FLOAT_MAT3
+     * @member TYPE_IMAGE_2D
      */
     enum Type
     {
