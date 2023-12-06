@@ -1743,7 +1743,7 @@ static void LogFrameBufferError(GLenum status)
 
     static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        return (HVertexProgram) CreateShader(DMGRAPHICS_COMPUTE_SHADER, ddf);
+        return (HVertexProgram) CreateShader(DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf);
     }
 
     static void BuildAttributes(OpenGLProgram* program_ptr)
