@@ -834,7 +834,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
-        context->m_PipelineState  = GetDefaultPipelineState();
+        context->m_PipelineState  = GetDefaultPipelineState(); 
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
         context->m_IsShaderLanguageGles = 1;
@@ -1183,8 +1183,10 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-        // Check for support here..
-        context->m_ComputeSupport = 1;
+        int32_t version_major = 0, version_minor = 0;
+        glGetIntegerv(GL_MAJOR_VERSION, &version_major);
+        glGetIntegerv(GL_MINOR_VERSION, &version_minor);
+        context->m_ComputeSupport = version_major >= 4 && version_minor >= 3;
     #endif
 
         if (context->m_PrintDeviceInfo)
