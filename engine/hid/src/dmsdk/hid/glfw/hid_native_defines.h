@@ -18,7 +18,7 @@
 // NOTE! This include is for internal use only!
 // Do not rely on the fact that this file is here at all!
 // We only use it to get the correct constant values
-#include <dmsdk/graphics/glfw/glfw.h>
+#include  <glfw/glfw.h>
 
 #define HID_NATIVE_MAX_GAMEPAD_COUNT GLFW_JOYSTICK_LAST + 1
 #define HID_NATIVE_MAX_KEYBOARD_COUNT 1

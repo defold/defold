@@ -19,7 +19,7 @@
 #include <dlib/condition_variable.h>
 #include <dlib/array.h>
 
-#include <dmsdk/graphics/glfw/glfw.h>
+#include  <glfw/glfw.h>
 
 #include "job_queue.h"
 

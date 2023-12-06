@@ -67,8 +67,8 @@ def build(bld):
         return
 
     bld.recurse('lib')
-    bld.install_files('${PREFIX}/sdk/include/dmsdk/graphics/glfw', 'include/GL/glfw.h')
-    bld.install_files('${PREFIX}/include/graphics/glfw', 'include/GL/glfw_native.h')
+    bld.install_files('${PREFIX}/include/glfw', 'include/GL/glfw.h')
+    bld.install_files('${PREFIX}/include/glfw', 'include/GL/glfw_native.h')
 
     if 'android' in bld.env['PLATFORM']:
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME];
@@ -98,7 +98,12 @@ def package(self):
     cwd = '../../packages'
     target = "glfw-%s-%s.tar.gz" % (VERSION, self.options.platform)
 
-    dirs = ['include', 'lib', 'sdk', 'share']
+    dirs = []
+    dirs_search = ['include', 'lib', 'sdk', 'share']
+
+    for x in dirs_search:
+        if os.path.exists(os.path.join(cwd, x)):
+            dirs.append(x)
 
     args = ['tar', 'zcvf', target] + dirs
 
@@ -107,4 +112,3 @@ def package(self):
 
     for x in dirs:
         shutil.rmtree("%s/%s" % (cwd, x))
-

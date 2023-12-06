@@ -43,8 +43,8 @@
 #include <Carbon/Carbon.h>
 #endif
 
-#include <dmsdk/graphics/glfw/glfw.h>
-#include <graphics/glfw/glfw_native.h>
+#include  <glfw/glfw.h>
+#include  <glfw/glfw_native.h>
 
 #if defined(__linux__) && !defined(ANDROID)
     #include <GL/glext.h>

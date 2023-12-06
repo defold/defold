@@ -16,7 +16,7 @@
 
 #include "platform_window.h"
 
-#include <dmsdk/graphics/glfw/glfw.h>
+#include  <glfw/glfw.h>
 
 #include <dlib/platform.h>
 #include <dlib/log.h>

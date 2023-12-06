@@ -16,7 +16,7 @@
 #include "sound.h"
 #include "sound_private.h"
 
-#include <dmsdk/graphics/glfw/glfw.h>
+#include  <glfw/glfw.h>
 
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
