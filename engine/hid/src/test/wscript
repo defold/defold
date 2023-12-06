@@ -39,7 +39,9 @@ def build(bld):
 
     exported_symbols = [graphics_lib_symbols]
 
-    web_libs = ['library_glfw.js', 'library_sys.js']
+    glfw_js = '../../../ext/lib/%s/js/library_glfw.js' % bld.env.PLATFORM
+
+    web_libs = [glfw_js, 'library_sys.js']
 
     bld.program(features = 'cxx test skip_test',
         includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
