@@ -3,9 +3,9 @@
 import sys, subprocess, os, platform
 
 HEADER_TEMPLATE = """
-#ifndef DM_TEST_APP_VULKAN_ASSETS
-#define DM_TEST_APP_VULKAN_ASSETS
-namespace vulkan_assets
+#ifndef DM_TEST_APP_GRAPHICS_ASSETS
+#define DM_TEST_APP_GRAPHICS_ASSETS
+namespace graphics_assets
 {
 %s
 }
@@ -60,10 +60,10 @@ def write_header(header_path, assets):
 
 if __name__ == '__main__':
 	write_header(
-		"test_app_vulkan_assets.h",
-		[to_glsl("glsl_vertex_program", "test_app_vulkan.vs"),
-		 to_glsl("glsl_fragment_program", "test_app_vulkan.fs"),
+		"test_app_graphics_assets.h",
+		[to_glsl("glsl_vertex_program", "test_app_graphics.vs"),
+		 to_glsl("glsl_fragment_program", "test_app_graphics.fs"),
 		 to_glsl("glsl_compute_program", "test_app_graphics.compute"),
-		 to_spirv("spirv_vertex_program", "test_app_vulkan.vs", "vert"),
-		 to_spirv("spirv_fragment_program", "test_app_vulkan.fs", "frag"),
+		 to_spirv("spirv_vertex_program", "test_app_graphics.vs", "vert"),
+		 to_spirv("spirv_fragment_program", "test_app_graphics.fs", "frag"),
 		 to_spirv("spirv_compute_program", "test_app_graphics.compute", "compute")])

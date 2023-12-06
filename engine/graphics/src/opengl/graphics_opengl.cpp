@@ -835,7 +835,7 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
-        context->m_PipelineState  = GetDefaultPipelineState(); 
+        context->m_PipelineState  = GetDefaultPipelineState();
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
         context->m_IsShaderLanguageGles = 1;
