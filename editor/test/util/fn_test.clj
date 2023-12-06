@@ -230,6 +230,3 @@
   (testing "Strings are interned"
     (is (identical? (name `defined-function) (name (fn/declared-symbol defined-function))))
     (is (identical? (namespace `defined-function) (namespace (fn/declared-symbol defined-function))))))
-
-swap!
-(fn/declared-symbol int)
