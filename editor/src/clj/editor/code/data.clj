@@ -1159,8 +1159,14 @@
     (assert (vector? cursor-ranges))
     (merge props (scroll-to-any-cursor (update-layout-from-props layout props) lines cursor-ranges))))
 
-(defn- ensure-syntax-info [syntax-info ^long end-row lines grammar]
-  (let [valid-count (count syntax-info)]
+(defn ensure-syntax-info
+  "ensure syntax info is calculated up to end-row
+
+  Important: end-row is 1-indexed. If you want syntax for the first line of the
+  document, you need to provide 1 instead of 0!"
+  [syntax-info ^long end-row lines grammar]
+  (let [valid-count (count syntax-info)
+        end-row (min (count lines) end-row)]
     (if (<= end-row valid-count)
       syntax-info
       (loop [syntax-info' (transient syntax-info)
@@ -1174,10 +1180,11 @@
                    contexts))
           (persistent! syntax-info'))))))
 
-(defn highlight-visible-syntax [lines syntax-info ^LayoutInfo layout grammar]
-  (let [start-row (.dropped-line-count layout)
-        end-row (min (count lines) (+ start-row (.drawn-line-count layout)))]
-    (ensure-syntax-info syntax-info end-row lines grammar)))
+(defn last-visible-row
+  "Returns 1-indexed row number of the last visible row"
+  [^LayoutInfo layout]
+  (let [start-row (.dropped-line-count layout)]
+    (+ start-row (.drawn-line-count layout))))
 
 (defn invalidate-syntax-info [syntax-info ^long invalidated-row ^long line-count]
   (into [] (subvec syntax-info 0 (min invalidated-row line-count (count syntax-info)))))

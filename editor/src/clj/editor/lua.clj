@@ -166,9 +166,6 @@
                                               :doc (make-markdown-doc raw-name base-url el))])))
       docs)))
 
-(def helper-keywords #{"assert" "collectgarbage" "dofile" "error" "getfenv" "getmetatable" "ipairs" "loadfile" "loadstring" "module" "next" "pairs" "pcall"
-                       "print" "rawequal" "rawget" "rawset" "require" "select" "setfenv" "setmetatable" "tonumber" "tostring" "type" "unpack" "xpcall"})
-
 (def logic-keywords #{"and" "or" "not"})
 
 (def self-keyword #{"self"})
@@ -182,8 +179,7 @@
 (def lua-constants #{"nil" "false" "true"})
 
 (def all-keywords
-  (set/union helper-keywords
-             logic-keywords
+  (set/union logic-keywords
              self-keyword
              control-flow-keywords
              defold-keywords))

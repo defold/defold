@@ -33,7 +33,7 @@
             [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :refer [split-lines]]
+            [editor.code.util :refer [split-lines find-insert-index]]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
@@ -1360,16 +1360,59 @@
                 (dissoc :lines :cursor-ranges)))
           (refresh-completion-selected-index! view-node))))))
 
+(defn get-valid-syntax-info
+  "Get syntax info valid up till target
+
+  Args:
+    resource-node          resource node
+    canvas-repaint-info    canvas repaint info
+    target                 either:
+                             long        1-indexed row
+                             :visible    last visible row"
+  [resource-node canvas-repaint-info target]
+  (let [{:keys [grammar layout lines]} canvas-repaint-info
+        syntax-info
+        (vary-meta
+          (if (nil? grammar)
+            []
+            (let [target-row (if (= :visible target) (data/last-visible-row layout) target)]
+              (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
+                (let [invalidated-syntax-info
+                      (if-some [invalidated-row (invalidated-row (:invalidated-rows (meta prev-syntax-info))
+                                                                 (:invalidated-rows canvas-repaint-info))]
+                        (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
+                        prev-syntax-info)]
+                  (data/ensure-syntax-info invalidated-syntax-info target-row lines grammar))
+                (data/ensure-syntax-info [] target-row lines grammar))))
+          assoc :invalidated-rows (:invalidated-rows canvas-repaint-info))]
+    (g/user-data! resource-node :syntax-info syntax-info)
+    syntax-info))
+
+(defn- syntax-scope-before-cursor [view-node ^Cursor cursor evaluation-context]
+  (let [row (.-row cursor)
+        syntax-info (get-valid-syntax-info (get-property view-node :resource-node evaluation-context)
+                                           (get-property view-node :canvas-repaint-info evaluation-context)
+                                           (inc row))
+        col-before-cursor (dec (.-col cursor))
+        fallback (:scope-name (get-property view-node :grammar evaluation-context) "source")]
+    (if-let [runs (second (get syntax-info row))]
+      (let [result-index (dec (find-insert-index runs [col-before-cursor] #(compare (%1 0) (%2 0))))]
+        (or (second (get runs result-index)) fallback))
+      fallback)))
+
 (defn- implies-completions?
   ([view-node]
    (g/with-auto-evaluation-context evaluation-context
      (implies-completions? view-node evaluation-context)))
   ([view-node evaluation-context]
-   (let [{:keys [trigger]} (get-property view-node :completion-context evaluation-context)
+   (let [{:keys [trigger request-cursor]} (get-property view-node :completion-context evaluation-context)
          trigger-characters (get-property view-node :completion-trigger-characters evaluation-context)]
      (boolean (and (not (contains? #{"\n" "\t" " "} trigger))
                    (or (re-matches #"[a-zA-Z_]" trigger)
-                       (contains? trigger-characters trigger)))))))
+                       (contains? trigger-characters trigger))
+                   (not (string/starts-with?
+                          (syntax-scope-before-cursor view-node request-cursor evaluation-context)
+                          "punctuation.definition.string.end")))))))
 
 (defn- hide-suggestions! [view-node]
   (set-properties! view-node nil
@@ -3056,17 +3099,7 @@
     ;; Repaint canvas if needed.
     (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
       (g/user-data! view-node :canvas-repaint-info canvas-repaint-info)
-      (let [{:keys [grammar layout lines]} canvas-repaint-info
-            syntax-info (if (nil? grammar)
-                          []
-                          (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
-                            (let [invalidated-syntax-info (if-some [invalidated-row (invalidated-row (:invalidated-rows prev-canvas-repaint-info) (:invalidated-rows canvas-repaint-info))]
-                                                            (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
-                                                            prev-syntax-info)]
-                              (data/highlight-visible-syntax lines invalidated-syntax-info layout grammar))
-                            (data/highlight-visible-syntax lines [] layout grammar)))]
-        (g/user-data! resource-node :syntax-info syntax-info)
-        (repaint-canvas! canvas-repaint-info syntax-info)))
+      (repaint-canvas! canvas-repaint-info (get-valid-syntax-info resource-node canvas-repaint-info :visible)))
 
     (when completions-enabled
       (let [renderer (or existing-completion-popup-renderer
