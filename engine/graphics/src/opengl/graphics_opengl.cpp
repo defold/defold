@@ -250,6 +250,8 @@ static void LogGLError(GLint err, const char* fnname, int line)
 
 #endif
 
+static bool OpenGLIsTextureFormatSupported(HContext context, TextureFormat format);
+
 static void OpenGLClearGLError()
 {
     GLint err = glGetError();
@@ -1083,6 +1085,33 @@ static void LogFrameBufferError(GLenum status)
                 }
             }
             delete[] pCompressedFormats;
+        }
+
+        // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
+        // see https://github.com/defold/defold/issues/8030
+        if (OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4x4)) {
+            bool compressedTexImageSupported = true;
+            {
+                unsigned char fakeZeroBuffer[] = {
+                    0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
+                    0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01,
+                    0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
+                    0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01
+                };
+                GLuint texture;
+                glGenTextures(1, &texture);
+                glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+                DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, 4, 4, 2, 0, 32, &fakeZeroBuffer);
+                GLint err = glGetError();
+                if (err != 0) 
+                {
+                     compressedTexImageSupported = false;
+                }
+                glDeleteTextures(1, &texture);
+            }
+            if (!compressedTexImageSupported) {
+                context->m_TextureFormatSupport &= ~(1 << TEXTURE_FORMAT_RGBA_ASTC_4x4);
+            }
         }
 
 
