@@ -41,6 +41,7 @@
 #include <win32/glut.h>
 
 #include "win32/glext.h"
+#include "win32/glcorearb.h"
 
 #elif defined (ANDROID)
 #define GL_GLEXT_PROTOTYPES

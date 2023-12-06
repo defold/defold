@@ -54,7 +54,7 @@ def build(bld):
             opengl_defines = ['DM_HAVE_PLATFORM_COMPUTE_SUPPORT']
 
         obj = bld.stlib(features        = 'cxx',
-                        includes        = ['.', 'opengl'] + proto_cpp_includes,
+                        includes        = ['.', 'opengl', 'opengl/win32'] + proto_cpp_includes,
                         source          = bld.path.ant_glob(['*.cpp', 'opengl/*.cpp']) + proto_cpp_source,
                         use             = 'DDF DLIB',
                         defines         = opengl_defines,

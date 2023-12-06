@@ -741,6 +741,7 @@ static void LogFrameBufferError(GLenum status)
             dmLogInfo("  %s", #feature);
         PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_TEXTURE_ARRAY);
+        PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_COMPUTE_SHADER);
     #undef PRINT_FEATURE_IF_SUPPORTED
     }
 
@@ -899,14 +900,6 @@ static void LogFrameBufferError(GLenum status)
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_lose_context");
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
-
-        if (context->m_PrintDeviceInfo)
-        {
-            dmLogInfo("Device: OpenGL");
-            dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
-            dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
-            dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
-        }
 
 #if defined(DM_PLATFORM_MACOS)
         ProcessSerialNumber psn;
@@ -1749,7 +1742,7 @@ static void LogFrameBufferError(GLenum status)
 
     static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
     {
-        return (HVertexProgram) CreateShader(GL_VERTEX_SHADER, ddf);
+        return (HVertexProgram) CreateShader(GL_COMPUTE_SHADER, ddf);
     }
 
     static void BuildAttributes(OpenGLProgram* program_ptr)
