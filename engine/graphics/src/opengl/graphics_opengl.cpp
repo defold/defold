@@ -1087,9 +1087,11 @@ static void LogFrameBufferError(GLenum status)
             delete[] pCompressedFormats;
         }
 
+
+#if defined (__EMSCRIPTEN__)
         // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
         // see https://github.com/defold/defold/issues/8030
-        if (OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4x4)) {
+        if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4x4)) {
             bool compressedTexImageSupported = true;
             {
                 unsigned char fakeZeroBuffer[] = {
@@ -1113,9 +1115,7 @@ static void LogFrameBufferError(GLenum status)
                 context->m_TextureFormatSupport &= ~(1 << TEXTURE_FORMAT_RGBA_ASTC_4x4);
             }
         }
-
-
-#if defined (__EMSCRIPTEN__)
+        
         // webgl GL_DEPTH_STENCIL_ATTACHMENT for stenciling and GL_DEPTH_COMPONENT16 for depth only by specifications, even though it reports 24-bit depth and no packed depth stencil extensions.
         context->m_PackedDepthStencilSupport = 1;
         context->m_DepthBufferBits = 16;
