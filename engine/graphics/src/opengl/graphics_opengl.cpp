@@ -1699,6 +1699,7 @@ static void LogFrameBufferError(GLenum status)
         glGetShaderiv(shader_id, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
+            dmLogError("Unable to compile %s shader.", type == GL_VERTEX_SHADER ? "vertex" : "fragment");
 #ifndef NDEBUG
             GLint logLength;
             glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &logLength);
@@ -1706,7 +1707,7 @@ static void LogFrameBufferError(GLenum status)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
                 glGetShaderInfoLog(shader_id, logLength, &logLength, log);
-                dmLogError("%s\n", log);
+                dmLogError("%s", log);
                 free(log);
             }
 #endif
@@ -1792,6 +1793,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (status == 0)
         {
+            dmLogError("Unable to link program.");
 #ifndef NDEBUG
             GLint logLength;
             glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
@@ -1910,13 +1912,14 @@ static void LogFrameBufferError(GLenum status)
         glGetShaderiv(prog, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
+            dmLogError("Unable to compile shader.");
             GLint logLength;
             glGetShaderiv(prog, GL_INFO_LOG_LENGTH, &logLength);
             if (logLength > 0)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
                 glGetShaderInfoLog(prog, logLength, &logLength, log);
-                dmLogError("%s\n", log);
+                dmLogError("%s", log);
                 free(log);
             }
             CHECK_GL_ERROR;
@@ -2040,13 +2043,14 @@ static void LogFrameBufferError(GLenum status)
         glGetProgramiv(tmp_program, GL_LINK_STATUS, &status);
         if (status == 0)
         {
+            dmLogError("Unable to link program.");
             GLint logLength;
             glGetProgramiv(tmp_program, GL_INFO_LOG_LENGTH, &logLength);
             if (logLength > 0)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
                 glGetProgramInfoLog(tmp_program, logLength, &logLength, log);
-                dmLogError("%s\n", log);
+                dmLogError("%s", log);
                 free(log);
             }
             success = false;
