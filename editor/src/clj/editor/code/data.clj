@@ -230,6 +230,53 @@
           (and (<= (.row start) (.row cursor))
                (>= (.row end) (.row cursor))))))
 
+(defn- cursor-before-or-same?
+  "Returns true iff a's position <= b's position"
+  [^Cursor a ^Cursor b]
+  (not (pos? (compare-cursor-position a b))))
+
+(defn- cursor-before?
+  "Returns true iff a's position < b's position"
+  [^Cursor a ^Cursor b]
+  (neg? (compare-cursor-position a b)))
+
+(defn cursor-range-differences
+  "Returns 0, 1 or 2 cursor ranges that denote a difference of 2 cursor ranges
+
+  Possible results are:
+    0 ranges    if A is fully within B
+    1 range     if A overlaps with B
+    2 ranges    if B is fully within A"
+  ^CursorRange [^CursorRange a ^CursorRange b]
+  (let [a-start (cursor-range-start a)
+        a-end (cursor-range-end a)
+        b-start (cursor-range-start b)
+        b-end (cursor-range-end b)]
+    (cond
+      ;; no intersection
+      (or (cursor-before-or-same? b-end a-start)
+          (cursor-before-or-same? a-end b-start))
+      [a]
+
+      ;; A within B
+      (and (cursor-before-or-same? b-start a-start)
+           (cursor-before-or-same? a-end b-end))
+      []
+
+      ;; B within A
+      (and (cursor-before? a-start b-start)
+           (cursor-before? b-end a-end))
+      [(->CursorRange a-start b-start)
+       (->CursorRange b-end a-end)]
+
+      ;; intersection, B before A
+      (cursor-before? b-end a-end)
+      [(->CursorRange b-end a-end)]
+
+      ;; intersection, A before B
+      :else
+      [(->CursorRange a-start b-start)])))
+
 (defn- cursor-range-midpoint-follows? [^CursorRange cursor-range ^Cursor cursor]
   (let [start (cursor-range-start cursor-range)
         end (cursor-range-end cursor-range)
@@ -1112,8 +1159,14 @@
     (assert (vector? cursor-ranges))
     (merge props (scroll-to-any-cursor (update-layout-from-props layout props) lines cursor-ranges))))
 
-(defn- ensure-syntax-info [syntax-info ^long end-row lines grammar]
-  (let [valid-count (count syntax-info)]
+(defn ensure-syntax-info
+  "ensure syntax info is calculated up to end-row
+
+  Important: end-row is 1-indexed. If you want syntax for the first line of the
+  document, you need to provide 1 instead of 0!"
+  [syntax-info ^long end-row lines grammar]
+  (let [valid-count (count syntax-info)
+        end-row (min (count lines) end-row)]
     (if (<= end-row valid-count)
       syntax-info
       (loop [syntax-info' (transient syntax-info)
@@ -1127,10 +1180,11 @@
                    contexts))
           (persistent! syntax-info'))))))
 
-(defn highlight-visible-syntax [lines syntax-info ^LayoutInfo layout grammar]
-  (let [start-row (.dropped-line-count layout)
-        end-row (min (count lines) (+ start-row (.drawn-line-count layout)))]
-    (ensure-syntax-info syntax-info end-row lines grammar)))
+(defn last-visible-row
+  "Returns 1-indexed row number of the last visible row"
+  [^LayoutInfo layout]
+  (let [start-row (.dropped-line-count layout)]
+    (+ start-row (.drawn-line-count layout))))
 
 (defn invalidate-syntax-info [syntax-info ^long invalidated-row ^long line-count]
   (into [] (subvec syntax-info 0 (min invalidated-row line-count (count syntax-info)))))

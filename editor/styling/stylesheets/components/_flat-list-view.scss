@@ -52,6 +52,10 @@
         }
     }
 }
+TextFlow.deprecated > Text {
+  -fx-strikethrough: true;
+  -fx-opacity: 0.75;
+}
 .flat-list-container {
   -fx-border-color: -df-background-lighter;
 }
