@@ -87,13 +87,14 @@ namespace dmGameSystem
     {
         union
         {
-            float m_Box[3];
+            float m_BoxDimensions[3];
             float m_Capsule[2];
-            float m_Sphere;
+            float m_SphereDiameter;
         };
         dmPhysicsDDF::CollisionShape::Type m_Type;
     };
 
+    bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out);
     bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
     bool SetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
 }

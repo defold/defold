@@ -1695,6 +1695,21 @@ namespace dmGameSystem
         dimension2d[2] = 1.0f;
     }
 
+    bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out)
+    {
+        CollisionComponent* component = (CollisionComponent*) _component;
+        uint32_t shape_count = component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes.m_Count;
+        for (int i = 0; i < shape_count; ++i)
+        {
+            if (component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes[i].m_NameHash == shape_name_hash)
+            {
+                *index_out = component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes[i].m_Index;
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info)
     {
         CollisionWorld* world         = (CollisionWorld*)_world;
@@ -1710,7 +1725,32 @@ namespace dmGameSystem
 
         if (world->m_3D)
         {
+            dmPhysics::HCollisionShape3D* shape_buffer = new dmPhysics::HCollisionShape3D[shape_count];
+            uint32_t res = dmPhysics::GetCollisionShapes3D(component->m_Object3D, shape_buffer, shape_count);
+            assert(res == shape_count);
 
+            dmPhysics::HCollisionShape3D shape3d = shape_buffer[shape_ix];
+
+            switch(shape_info->m_Type)
+            {
+                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
+                {
+                    float sphere_radius;
+                    dmPhysics::GetCollisionShapeRadius3D(shape3d, &sphere_radius);
+                    shape_info->m_SphereDiameter = sphere_radius * 2.0f;
+                } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
+                {
+                    float half_extents[3];
+                    dmPhysics::GetCollisionShapeHalfBoxExtents3D(shape3d, half_extents);
+                    shape_info->m_BoxDimensions[0] = half_extents[0] * 2.0f;
+                    shape_info->m_BoxDimensions[1] = half_extents[1] * 2.0f;
+                    shape_info->m_BoxDimensions[2] = half_extents[2] * 2.0f;
+                } break;
+                default: assert(0);
+            }
+
+            delete [] shape_buffer;
         }
         else
         {
@@ -1723,16 +1763,16 @@ namespace dmGameSystem
             switch(shape_info->m_Type)
             {
                 case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
-                    {
-                        dmPhysics::GetCollisionShapeRadius2D(shape2d, &shape_info->m_Sphere);
-                    } break;
+                {
+                    dmPhysics::GetCollisionShapeRadius2D(shape2d, &shape_info->m_SphereDiameter);
+                } break;
                 case dmPhysicsDDF::CollisionShape::TYPE_BOX:
-                    {
-                        float* vertices;
-                        uint32_t vertex_count;
-                        dmPhysics::GetCollisionShapePolygonVertices2D(shape2d, &vertices, &vertex_count);
-                        CalculateBoxDimensions2D(vertices, vertex_count, shape_info->m_Box);
-                    } break;
+                {
+                    float* vertices;
+                    uint32_t vertex_count;
+                    dmPhysics::GetCollisionShapePolygonVertices2D(shape2d, &vertices, &vertex_count);
+                    CalculateBoxDimensions2D(vertices, vertex_count, shape_info->m_BoxDimensions);
+                } break;
                 default: assert(0);
             }
 
@@ -1754,7 +1794,35 @@ namespace dmGameSystem
 
         if (world->m_3D)
         {
+            dmPhysics::HCollisionShape3D* shape_buffer = new dmPhysics::HCollisionShape3D[shape_count];
+            uint32_t res = dmPhysics::GetCollisionShapes3D(component->m_Object3D, shape_buffer, shape_count);
+            assert(res == shape_count);
 
+            dmPhysics::HCollisionShape3D shape3d = shape_buffer[shape_ix];
+
+            switch(shape_info->m_Type)
+            {
+                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
+                {
+                    dmPhysics::SetCollisionShapeRadius3D(shape3d, shape_info->m_SphereDiameter * 0.5f);
+                } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
+                {
+                    dmPhysics::HCollisionShape3D new_shape = dmPhysics::NewBoxShape3D(dmPhysics::GetContext3D(world->m_World3D),
+                        dmVMath::Vector3(shape_info->m_BoxDimensions[0] * 0.5f,
+                                         shape_info->m_BoxDimensions[1] * 0.5f,
+                                         shape_info->m_BoxDimensions[2] * 0.5f));
+
+                    // Can we use
+                    dmPhysics::ReplaceShape3D(dmPhysics::GetContext3D(world->m_World3D), shape3d, new_shape);
+                    dmPhysics::ReplaceShape3D(component->m_Object3D, shape3d, new_shape);
+
+                    dmPhysics::DeleteCollisionShape3D(shape3d);
+                } break;
+                default: assert(0);
+            }
+
+            delete [] shape_buffer;
         }
         else
         {
@@ -1767,14 +1835,14 @@ namespace dmGameSystem
             switch(shape_info->m_Type)
             {
                 case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
-                    {
-                        dmPhysics::SetCollisionShapeRadius2D(shape2d, shape_info->m_Sphere);
-                        dmPhysics::SynchronizeObject2D(component->m_Object2D);
-                    } break;
+                {
+                    dmPhysics::SetCollisionShapeRadius2D(shape2d, shape_info->m_SphereDiameter);
+                    dmPhysics::SynchronizeObject2D(component->m_Object2D);
+                } break;
                 case dmPhysicsDDF::CollisionShape::TYPE_BOX:
-                    {
-                        dmPhysics::SetCollisionShapeBoxDimensions2D(shape2d, shape_info->m_Box[0], shape_info->m_Box[1]);
-                    } break;
+                {
+                    dmPhysics::SetCollisionShapeBoxDimensions2D(shape2d, shape_info->m_BoxDimensions[0], shape_info->m_BoxDimensions[1]);
+                } break;
                 default: assert(0);
             }
 

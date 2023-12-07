@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1218,7 +1218,7 @@ namespace dmPhysics
         b2Body* body = ((b2Body*)collision_object);
         body->SetBullet(value);
     }
-        
+
     void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
 		while (fixture) {
@@ -1229,9 +1229,9 @@ namespace dmPhysics
 				fixture->SetFilterData(filter, 0);
 			}
 			fixture = fixture->GetNext();	// NOTE: No guard condition in loop. Assumes proper state of Box2D fixture list.
-		}		
+		}
 	}
-	
+
 	uint16_t GetGroup2D(HCollisionObject2D collision_object) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
 		if (fixture) {
@@ -1239,10 +1239,10 @@ namespace dmPhysics
 				b2Filter filter = fixture->GetFilterData(0);
 				return filter.categoryBits;
 			}
-		}	
+		}
 		return 0;
 	}
-	
+
 	// updates a specific group bit of a collision object's current mask
 	void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
@@ -1257,9 +1257,9 @@ namespace dmPhysics
 				fixture->SetFilterData(filter, 0);
 			}
 			fixture = fixture->GetNext();
-		}			
+		}
 	}
-	
+
 	bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
 		if (fixture) {
@@ -1267,10 +1267,10 @@ namespace dmPhysics
 				b2Filter filter = fixture->GetFilterData(0);
 				return !!(filter.maskBits & groupbit);
 			}
-		}	
-		return false;		
+		}
+		return false;
 	}
-	
+
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())

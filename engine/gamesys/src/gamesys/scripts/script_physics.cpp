@@ -1266,7 +1266,8 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        int shape_ix                         = luaL_checkinteger(L, 2) - 1;
+        dmhash_t shape_name_hash = dmScript::CheckHashOrString(L, 2);
+        uint32_t shape_ix;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
         if (shape_ix < 0)
@@ -1280,6 +1281,11 @@ namespace dmGameSystem
 
         dmGameSystem::ShapeInfo shape_info = {};
 
+        if (!dmGameSystem::GetShapeIndex(comp, shape_name_hash, &shape_ix))
+        {
+            return luaL_error(L, "No shape with name '%s' found", dmHashReverseSafe64(shape_name_hash));
+        }
+
         luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushvalue(L, 3);
 
@@ -1290,16 +1296,16 @@ namespace dmGameSystem
 
             if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_SPHERE)
             {
-                lua_getfield(L, -1, "radius");
-                shape_info.m_Sphere = luaL_checknumber(L, -1);
+                lua_getfield(L, -1, "diameter");
+                shape_info.m_SphereDiameter = luaL_checknumber(L, -1);
                 lua_pop(L, 1);
             }
             else if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_BOX)
             {
-                assert(sizeof(shape_info.m_Box) <= sizeof(dmVMath::Vector3));
+                assert(sizeof(shape_info.m_BoxDimensions) <= sizeof(dmVMath::Vector3));
                 lua_getfield(L, -1, "dimensions");
                 dmVMath::Vector3* box_dimensions = dmScript::CheckVector3(L, -1);
-                memcpy(shape_info.m_Box, &box_dimensions[0], sizeof(shape_info.m_Box));
+                memcpy(shape_info.m_BoxDimensions, &box_dimensions[0], sizeof(shape_info.m_BoxDimensions));
                 lua_pop(L, 1);
             }
             else
@@ -1322,17 +1328,18 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        int shape_ix                         = luaL_checkinteger(L, 2) - 1;
+        dmhash_t shape_name_hash = dmScript::CheckHashOrString(L, -1);
+        uint32_t shape_ix;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
-
-        if (shape_ix < 0)
-        {
-            return luaL_error(L, "Negative indices not supported (%d)", shape_ix);
-        }
 
         void* comp       = 0x0;
         void* comp_world = 0x0;
         GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!dmGameSystem::GetShapeIndex(comp, shape_name_hash, &shape_ix))
+        {
+            return luaL_error(L, "No shape with name '%s' found", dmHashReverseSafe64(shape_name_hash));
+        }
 
         dmGameSystem::ShapeInfo shape_info = {};
         if (!dmGameSystem::GetShape(comp_world, comp, shape_ix, &shape_info))
@@ -1348,11 +1355,11 @@ namespace dmGameSystem
         switch(shape_info.m_Type)
         {
             case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
-                lua_pushnumber(L, shape_info.m_Sphere);
-                lua_setfield(L, -2, "radius");
+                lua_pushnumber(L, shape_info.m_SphereDiameter);
+                lua_setfield(L, -2, "diameter");
                 break;
             case dmPhysicsDDF::CollisionShape::TYPE_BOX:
-                dmScript::PushVector3(L, dmVMath::Vector3(shape_info.m_Box[0], shape_info.m_Box[1], shape_info.m_Box[2]));
+                dmScript::PushVector3(L, dmVMath::Vector3(shape_info.m_BoxDimensions[0], shape_info.m_BoxDimensions[1], shape_info.m_BoxDimensions[2]));
                 lua_setfield(L, -2, "dimensions");
                 break;
         }
