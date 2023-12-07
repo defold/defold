@@ -101,6 +101,9 @@ namespace dmGameSystem
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources)
     {
+        memset(resources->m_Textures, 0, sizeof(resources->m_Textures));
+        memset(resources->m_SamplerNames, 0, sizeof(resources->m_SamplerNames));
+
         dmResource::Result factory_e;
         factory_e = dmResource::Get(factory, ddf->m_VertexProgram, (void**) &resources->m_VertexProgram);
         if ( factory_e != dmResource::RESULT_OK)
@@ -115,9 +118,6 @@ namespace dmGameSystem
             ReleaseResources(factory, resources);
             return factory_e;
         }
-
-        memset(resources->m_Textures, 0, sizeof(resources->m_Textures));
-        memset(resources->m_SamplerNames, 0, sizeof(resources->m_SamplerNames));
 
         // Later, in the render.cpp, we do a mapping between the sampler's location and the texture unit.
         // We assume that the textures[8] are always sorted in the sampler appearance.
@@ -237,13 +237,14 @@ namespace dmGameSystem
         }
 
         // Now we need to sort the textures based on sampler appearance
-        memset(resource->m_Textures, 0, sizeof(resource->m_Textures));
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             uint32_t unit = dmRender::GetMaterialSamplerUnit(material, resources->m_SamplerNames[i]);
             if (unit == 0xFFFFFFFF)
                 continue;
             resource->m_Textures[unit] = resources->m_Textures[i];
+            resource->m_SamplerNames[unit] = resources->m_SamplerNames[i];
+            resource->m_NumTextures++;
         }
     }
 
@@ -277,6 +278,8 @@ namespace dmGameSystem
             dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, material);
 
             MaterialResource* resource = new MaterialResource;
+            memset(resource, 0, sizeof(MaterialResource));
+
             resource->m_Material = material;
             SetMaterial(params.m_Filename, resource, &resources, ddf);
 

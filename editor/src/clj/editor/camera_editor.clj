@@ -226,7 +226,7 @@
   (loop [renderables renderables
          vbuf (->color-vtx (* renderable-count camera-preview-mesh-vertices-count))]
     (if-let [renderable (first renderables)]
-      (let [color (if (:selected renderable) colors/selected-outline-color colors/outline-color)
+      (let [color (colors/renderable-outline-color renderable)
             cr (get color 0)
             cg (get color 1)
             cb (get color 2)

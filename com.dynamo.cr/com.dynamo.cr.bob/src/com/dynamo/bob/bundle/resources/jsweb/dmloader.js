@@ -132,7 +132,10 @@ var EngineLoader = {
             async function fetchWithProgress(path) {
                 const response = await fetch(path);
                 // May be incorrect if compressed
-                const contentLength = response.headers.get("Content-Length");
+                var contentLength = response.headers.get("Content-Length");
+                if (!contentLength){
+                    contentLength = EngineLoader.wasm_size;
+                }
                 const total = parseInt(contentLength, 10);
 
                 let bytesLoaded = 0;
@@ -479,7 +482,7 @@ var Progress = {
 
     updateProgress: function(percentage) {
         if (Progress.bar) {
-            Progress.bar.style.width = percentage + "%";
+            Progress.bar.style.width = Math.min(percentage, 100) + "%";
         }
         Progress.notifyListeners(percentage);
     },

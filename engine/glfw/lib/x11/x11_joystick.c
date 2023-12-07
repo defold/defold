@@ -79,6 +79,8 @@ struct
 #define JSIOCGBUTTONS  _IOR('j', 0x12, char)  /* get number of buttons (u8) */
 #define JSIOCGNAME(len) _IOC(_IOC_READ, 'j', 0x13, len) /* get identifier string */
 
+static int _glfwJoyConnected[ GLFW_JOYSTICK_LAST + 1 ];
+
 #endif // _GLFW_USE_LINUX_JOYSTICKS
 
 
@@ -172,6 +174,7 @@ int _glfwInitJoysticks( void )
     {
         _glfwJoy[ i ].Present = GL_FALSE;
         _glfwJoy[ i ].InputId = -1;
+        _glfwJoyConnected[ i ] = 0;
     }
 
 #ifdef _GLFW_USE_LINUX_JOYSTICKS
@@ -240,6 +243,7 @@ static inline int _glfwTerminateJoystick(int ix)
         free( _glfwJoy[ ix ].Button );
         _glfwJoy[ ix ].Present = GL_FALSE;
         _glfwJoy[ ix ].InputId = -1;
+        _glfwJoyConnected[ ix ] = 0;
         return 1;
     }
 
@@ -296,6 +300,15 @@ static void pollJoystickEvents( void )
             // Read all queued events (non-blocking)
             while( read(_glfwJoy[i].fd, &e, sizeof(struct js_event)) > 0 )
             {
+                if (_glfwJoyConnected[ i ] == 0)
+                {
+                    _glfwJoyConnected[ i ] = 1;
+                    if (_glfwWin.gamepadCallback)
+                    {
+                        _glfwWin.gamepadCallback(_glfwJoy[ i ].InputId, 1);
+                    }
+                }
+
                 // We don't care if it's an init event or not
                 e.type &= ~JS_EVENT_INIT;
 
@@ -395,7 +408,6 @@ void _glfwUpdateConnectionState(void)
                 }
 
                 int init_res = _glfwInitJoystick(deviceIndex, id, deviceFd, 0);
-
                 if (deviceIndex != -1 && deviceFd && init_res)
                 {
                     _glfwWin.gamepadCallback(id, 1);

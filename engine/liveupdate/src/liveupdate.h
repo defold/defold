@@ -48,6 +48,7 @@ namespace dmLiveUpdate
         RESULT_FORMAT_ERROR              = -9,
         RESULT_IO_ERROR                  = -10,
         RESULT_INVAL                     = -11,
+        RESULT_NOT_INITIALIZED           = -12,
         RESULT_UNKNOWN                   = -1000,
     };
 
@@ -72,6 +73,7 @@ namespace dmLiveUpdate
 
     // The new api
     Result AddMountAsync(const char* name, const char* uri, int priority, void (*callback)(const char*, const char*, int, void*), void* cbk_ctx);
+    Result RemoveMountSync(const char* name);
 };
 
 #endif // DM_LIVEUPDATE_H

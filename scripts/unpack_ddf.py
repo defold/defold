@@ -36,6 +36,9 @@ import graphics.graphics_ddf_pb2
 import resource.liveupdate_ddf_pb2
 import rig.rig_ddf_pb2
 import render.material_ddf_pb2
+import render.font_ddf_pb2
+import particle.particle_ddf_pb2
+import gamesys.sprite_ddf_pb2
 
 BUILDERS = {}
 BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
@@ -47,13 +50,18 @@ BUILDERS['.skeletonc']      = rig.rig_ddf_pb2.Skeleton
 BUILDERS['.dmanifest']      = resource.liveupdate_ddf_pb2.ManifestFile
 BUILDERS['.vpc']            = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.fpc']            = graphics.graphics_ddf_pb2.ShaderDesc
+BUILDERS['.computec']       = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.goc']            = gameobject.gameobject_ddf_pb2.PrototypeDesc
 BUILDERS['.collectionc']    = gameobject.gameobject_ddf_pb2.CollectionDesc
 BUILDERS['.luac']           = gameobject.lua_ddf_pb2.LuaModule
 BUILDERS['.materialc']      = render.material_ddf_pb2.MaterialDesc
-
+BUILDERS['.fontc']          = render.font_ddf_pb2.FontMap
+BUILDERS['.glyph_bankc']    = render.font_ddf_pb2.GlyphBank
+BUILDERS['.particlefxc']    = particle.particle_ddf_pb2.ParticleFX
+BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
 
 proto_type_to_string_map = {}
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BOOL]    = 'TYPE_BOOL'
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BYTES]   = 'TYPE_BYTES'
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_DOUBLE]  = 'TYPE_DOUBLE'
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_ENUM]    = 'TYPE_ENUM'
@@ -88,8 +96,8 @@ def get_descriptor_type(descriptor):
 
 def print_descriptor_default(descriptor, data):
     if descriptor.type == descriptor.TYPE_ENUM:
-        enum_name = descriptor.enum_type.values[data].name
-        print(descriptor.name, ":", enum_name, get_descriptor_type(descriptor))
+        e = descriptor.enum_type.values_by_number.get(data)
+        print(descriptor.name, ":", e.name, get_descriptor_type(descriptor))
     else:
         print(descriptor.name, ":", data, get_descriptor_type(descriptor))
 
@@ -212,4 +220,3 @@ if __name__ == "__main__":
 
         printer = PRINTERS.get(ext, print_message)
         printer(obj)
-

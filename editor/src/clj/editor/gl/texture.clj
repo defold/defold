@@ -29,6 +29,12 @@
 (set! *warn-on-reflection* true)
 
 (def
+  ^{:doc "Special constant used as the page-count for non-paged textures.
+          A texture can be paged, but only have one page. A value of zero means
+          it is not a paged texture. Built as TYPE_2D, not TYPE_2D_ARRAY."}
+  ^:const ^:long non-paged-page-count 0)
+
+(def
   ^{:doc "This map translates Clojure keywords into OpenGL constants.
           You can use the keywords in texture parameter maps."}
   texture-params
@@ -289,6 +295,16 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
       ::white
       (-> (image-util/blank-image 1 1)
           (image-util/flood 1.0 1.0 1.0))
+      (assoc default-image-texture-params
+        :min-filter GL2/GL_NEAREST
+        :mag-filter GL2/GL_NEAREST))))
+
+(defonce black-pixel
+  (delay
+    (image-texture
+      ::black
+      (-> (image-util/blank-image 1 1)
+          (image-util/flood 0.0 0.0 0.0))
       (assoc default-image-texture-params
         :min-filter GL2/GL_NEAREST
         :mag-filter GL2/GL_NEAREST))))

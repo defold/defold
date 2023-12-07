@@ -278,6 +278,11 @@ namespace dmRender
         return render_context->m_ViewProj;
     }
 
+    const Matrix4& GetViewMatrix(HRenderContext render_context)
+    {
+        return render_context->m_View;
+    }
+
     void SetViewMatrix(HRenderContext render_context, const Matrix4& view)
     {
         render_context->m_View = view;
@@ -667,7 +672,7 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const dmVMath::Matrix4* frustum_matrix)
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options)
     {
         DM_PROFILE("DrawRenderList");
 
@@ -682,16 +687,16 @@ namespace dmRender
             SortRenderList(context);
         }
 
-        dmhash_t frustum_hash = frustum_matrix ? dmHashBuffer64((const void*)frustum_matrix, 16*sizeof(float)) : 0;
+        dmhash_t frustum_hash = frustum_hash = frustum_options ? dmHashBuffer64((const void*)&frustum_options->m_Matrix, 16*sizeof(float)) : 0;
         if (context->m_FrustumHash != frustum_hash)
         {
             // We use this to avoid calling the culling functions more than once in a row
             context->m_FrustumHash = frustum_hash;
 
-            if (frustum_matrix)
+            if (frustum_options)
             {
                 dmIntersection::Frustum frustum;
-                dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, frustum);
+                dmIntersection::CreateFrustumFromMatrix(frustum_options->m_Matrix, true, (int)frustum_options->m_NumPlanes, frustum);
                 FrustumCulling(context, frustum);
             }
             else
@@ -897,12 +902,12 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    Result DrawDebug3d(HRenderContext context, const dmVMath::Matrix4* frustum_matrix)
+    Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options)
     {
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_matrix);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options);
     }
 
     Result DrawDebug2d(HRenderContext context) // Deprecated

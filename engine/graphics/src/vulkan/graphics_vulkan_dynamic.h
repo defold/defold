@@ -25,6 +25,7 @@ extern PFN_vkEnumerateDeviceExtensionProperties vkEnumerateDeviceExtensionProper
 extern PFN_vkEnumerateDeviceLayerProperties vkEnumerateDeviceLayerProperties;
 extern PFN_vkGetPhysicalDeviceFormatProperties vkGetPhysicalDeviceFormatProperties;
 extern PFN_vkGetPhysicalDeviceFeatures vkGetPhysicalDeviceFeatures;
+extern PFN_vkGetPhysicalDeviceFeatures2 vkGetPhysicalDeviceFeatures2;
 extern PFN_vkGetPhysicalDeviceQueueFamilyProperties vkGetPhysicalDeviceQueueFamilyProperties;
 extern PFN_vkGetPhysicalDeviceMemoryProperties vkGetPhysicalDeviceMemoryProperties;
 extern PFN_vkEnumerateInstanceExtensionProperties vkEnumerateInstanceExtensionProperties;
@@ -47,6 +48,7 @@ extern PFN_vkCmdCopyBufferToImage vkCmdCopyBufferToImage;
 extern PFN_vkCmdCopyImage vkCmdCopyImage;
 extern PFN_vkCmdBlitImage vkCmdBlitImage;
 extern PFN_vkCmdClearAttachments vkCmdClearAttachments;
+extern PFN_vkCmdClearColorImage vkCmdClearColorImage;
 extern PFN_vkCreateSampler vkCreateSampler;
 extern PFN_vkDestroySampler vkDestroySampler;
 extern PFN_vkDestroyImage vkDestroyImage;
@@ -117,6 +119,7 @@ extern PFN_vkCmdBeginQuery vkCmdBeginQuery;
 extern PFN_vkCmdEndQuery vkCmdEndQuery;
 extern PFN_vkCmdResetQueryPool vkCmdResetQueryPool;
 extern PFN_vkCmdCopyQueryPoolResults vkCmdCopyQueryPoolResults;
+extern PFN_vkResetDescriptorPool vkResetDescriptorPool;
 
 extern PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR;
 extern PFN_vkDestroySurfaceKHR vkDestroySurfaceKHR;

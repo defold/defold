@@ -98,11 +98,6 @@ function package_xcode() {
         do
            EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
         done
-    else
-        for f in ${_name}/usr/bin/swift*
-        do
-            EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
-        done
     fi
 
     EXTRA_ARGS="--exclude=${_name}/usr/lib/swift/watchos ${EXTRA_ARGS}"

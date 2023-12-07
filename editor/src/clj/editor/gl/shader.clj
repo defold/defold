@@ -507,6 +507,23 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
 (defn is-using-array-samplers? [shader-lifecycle]
   (pos? (count (:array-sampler-name->uniform-names shader-lifecycle))))
 
+(defn page-count-mismatch-error-message-raw [is-paged-material texture-page-count material-max-page-count image-property-name]
+  (when (and (some? texture-page-count)
+             (some? material-max-page-count))
+    (cond
+      (and is-paged-material
+           (zero? texture-page-count))
+      (str "The Material expects a paged Atlas, but the selected " image-property-name " is not paged")
+
+      (and (not is-paged-material)
+           (pos? texture-page-count))
+      (str "The Material does not support paged Atlases, but the selected " image-property-name " is paged")
+
+      (< material-max-page-count texture-page-count)
+      (str "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected " image-property-name))))
+
+(def page-count-mismatch-error-message (memoize page-count-mismatch-error-message-raw))
+
 (defn- gl-uniform-type->uniform-type [^long gl-uniform-type]
   (condp = gl-uniform-type
     GL2/GL_FLOAT :float

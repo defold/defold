@@ -46,7 +46,7 @@
       (when-let [child-outline (util/first-where #(= (first labels) (:label %)) (:children node-outline))]
         (recur (next labels) child-outline)))))
 
-(def ^:private error-item-open-info-without-opts (comp pop build-errors-view/error-item-open-info))
+(def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
 (deftest build-errors-test
   (test-util/with-loaded-project project-path

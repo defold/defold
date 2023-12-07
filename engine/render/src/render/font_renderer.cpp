@@ -1138,7 +1138,7 @@ namespace dmRender
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
             TextEntry* te = ((TextEntry*) entry->m_UserData);
 
-            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, te->m_FrustumCullingCenter, te->m_FrustumCullingRadiusSq, true);
+            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, te->m_FrustumCullingCenter, te->m_FrustumCullingRadiusSq);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }

@@ -308,7 +308,7 @@
                 item)))
           items)))
 
-(def ^:private error-item-open-info-without-opts (comp pop build-errors-view/error-item-open-info))
+(def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
 (deftest edit-script-resource-properties-test
   (with-clean-system

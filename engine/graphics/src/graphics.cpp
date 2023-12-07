@@ -44,16 +44,15 @@ namespace dmGraphics
         g_adapter_list           = adapter;
     }
 
-    static bool SelectAdapterByName(const char* adapter_name)
+    static bool SelectAdapterByFamily(AdapterFamily family)
     {
-        if (adapter_name != 0)
+        if (family != ADAPTER_FAMILY_NONE)
         {
             GraphicsAdapter* next = g_adapter_list;
 
             while(next)
             {
-                assert(next->m_AdapterName != 0);
-                if (dmStrCaseCmp(next->m_AdapterName, adapter_name) == 0 && next->m_IsSupportedCb())
+                if (next->m_Family == family && next->m_IsSupportedCb())
                 {
                     g_functions = next->m_RegisterCb();
                     g_adapter   = next;
@@ -91,7 +90,37 @@ namespace dmGraphics
         return true;
     }
 
+    AdapterFamily GetAdapterFamily(const char* adapter_name)
+    {
+        if (adapter_name == 0)
+            return ADAPTER_FAMILY_NONE;
+        if (dmStrCaseCmp("null", adapter_name) == 0)
+            return ADAPTER_FAMILY_NULL;
+        if (dmStrCaseCmp("opengl", adapter_name) == 0)
+            return ADAPTER_FAMILY_OPENGL;
+        if (dmStrCaseCmp("vulkan", adapter_name) == 0)
+            return ADAPTER_FAMILY_VULKAN;
+        if (dmStrCaseCmp("vendor", adapter_name) == 0)
+            return ADAPTER_FAMILY_VENDOR;
+        assert(0 && "Adapter type not supported?");
+        return ADAPTER_FAMILY_NONE;
+    }
+
     #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
+
+    const char* GetAdapterFamilyLiteral(AdapterFamily family)
+    {
+        switch(family)
+        {
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
+            default:break;
+        }
+        return "<unknown dmGraphics::AdapterFamily>";
+    }
 
     const char* GetTextureTypeLiteral(TextureType texture_type)
     {
@@ -189,6 +218,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG16F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R32F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA32UI);
             default:break;
         }
         return "<unknown dmGraphics::TextureFormat>";
@@ -196,21 +226,24 @@ namespace dmGraphics
 
     #undef GRAPHICS_ENUM_TO_STR_CASE
 
-    WindowParams::WindowParams()
-    : m_ResizeCallback(0x0)
-    , m_ResizeCallbackUserData(0x0)
-    , m_CloseCallback(0x0)
-    , m_CloseCallbackUserData(0x0)
-    , m_Width(640)
-    , m_Height(480)
-    , m_Samples(1)
-    , m_Title("Dynamo App")
-    , m_Fullscreen(false)
-    , m_PrintDeviceInfo(false)
-    , m_HighDPI(false)
-    {
+    #define SHADERDESC_ENUM_TO_STR_CASE(x) case ShaderDesc::x: return #x;
 
+    const char* GetShaderProgramLanguageLiteral(ShaderDesc::Language language)
+    {
+        switch(language)
+        {
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM120);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM140);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM100);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM300);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_SPIRV);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_PSSL);
+            default:break;
+        }
+        return "<unknown ShaderDesc::Language>";
     }
+
+    #undef SHADERDESC_ENUM_TO_STR_CASE
 
     ContextParams::ContextParams()
     : m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
@@ -251,9 +284,8 @@ namespace dmGraphics
 
     ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc)
     {
-        ShaderDesc::Language language = GetShaderProgramLanguage(context);
         assert(shader_desc);
-
+        ShaderDesc::Language language = GetShaderProgramLanguage(context);
         ShaderDesc::Shader* selected_shader = 0x0;
 
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
@@ -275,7 +307,19 @@ namespace dmGraphics
                 }
             }
         }
-        assert(selected_shader);
+
+        if (selected_shader == 0)
+        {
+            const char* error_hint = "";
+            if (language == ShaderDesc::LANGUAGE_SPIRV)
+            {
+                error_hint = "Has the project been built with spir-v output enabled?";
+            }
+
+            dmLogError("Unable to get a valid shader with shader language \"%s\" from a ShaderDesc for this context. %s",
+                GetShaderProgramLanguageLiteral(language), error_hint);
+        }
+
         return selected_shader;
     }
 
@@ -338,6 +382,27 @@ namespace dmGraphics
         }
 
         assert(0 && "Invalid/unsupported type");
+        return 0;
+    }
+
+    uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
+    {
+        switch(type)
+        {
+            case ShaderDesc::SHADER_TYPE_INT:     return 4;
+            case ShaderDesc::SHADER_TYPE_UINT:    return 4;
+            case ShaderDesc::SHADER_TYPE_FLOAT:   return 4;
+            case ShaderDesc::SHADER_TYPE_VEC2:    return 8;
+            case ShaderDesc::SHADER_TYPE_VEC3:    return 12;
+            case ShaderDesc::SHADER_TYPE_VEC4:    return 16;
+            case ShaderDesc::SHADER_TYPE_MAT2:    return 16;
+            case ShaderDesc::SHADER_TYPE_MAT3:    return 36;
+            case ShaderDesc::SHADER_TYPE_MAT4:    return 64;
+            case ShaderDesc::SHADER_TYPE_UVEC2:   return 16;
+            case ShaderDesc::SHADER_TYPE_UVEC3:   return 36;
+            case ShaderDesc::SHADER_TYPE_UVEC4:   return 64;
+            default: break;
+        }
         return 0;
     }
 
@@ -472,6 +537,9 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RG16F:              return 32;
         case TEXTURE_FORMAT_R32F:               return 32;
         case TEXTURE_FORMAT_RG32F:              return 64;
+        case TEXTURE_FORMAT_RGBA32UI:           return 128;
+        case TEXTURE_FORMAT_BGRA8U:             return 32;
+        case TEXTURE_FORMAT_R32UI:              return 32;
         default:
             assert(false && "Unknown texture format");
             return TEXTURE_FORMAT_COUNT;
@@ -511,11 +579,15 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_INT:             return TYPE_INT;
             case ShaderDesc::SHADER_TYPE_UINT:            return TYPE_UNSIGNED_INT;
             case ShaderDesc::SHADER_TYPE_FLOAT:           return TYPE_FLOAT;
+            case ShaderDesc::SHADER_TYPE_VEC2:            return TYPE_FLOAT_VEC2;
+            case ShaderDesc::SHADER_TYPE_VEC3:            return TYPE_FLOAT_VEC3;
             case ShaderDesc::SHADER_TYPE_VEC4:            return TYPE_FLOAT_VEC4;
+            case ShaderDesc::SHADER_TYPE_MAT2:            return TYPE_FLOAT_MAT2;
+            case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
             case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
-            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             default: break;
         }
 
@@ -556,6 +628,7 @@ namespace dmGraphics
         switch(format)
         {
             case dmGraphics::TEXTURE_FORMAT_RGBA:
+            case dmGraphics::TEXTURE_FORMAT_RGBA32UI:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
             case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
@@ -737,19 +810,52 @@ namespace dmGraphics
         }
     }
 
+    // TODO, comment from the PR (#4544):
+    //   "These frequent lookups could be improved by sorting on the key beforehand,
+    //   and during lookup, do a lower_bound, to find the item (or not).
+    //   E.g see: engine/render/src/render/material.cpp#L446"
+    bool GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out)
+    {
+        assert(uniforms.Size() < UNIFORM_LOCATION_MAX);
+        for (uint32_t i = 0; i < uniforms.Size(); ++i)
+        {
+            if (uniforms[i].m_NameHash == name_hash)
+            {
+                *index_out = i;
+                *index_member_out = 0;
+                return true;
+            }
+            else
+            {
+                assert(uniforms[i].m_BlockMembers.Size() < UNIFORM_LOCATION_MAX);
+                for (uint32_t j = 0; j < uniforms[i].m_BlockMembers.Size(); ++j)
+                {
+                    if (uniforms[i].m_BlockMembers[j].m_NameHash == name_hash)
+                    {
+                        *index_out = i;
+                        *index_member_out = j;
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
     void DeleteContext(HContext context)
     {
         g_functions.m_DeleteContext(context);
     }
 
-    bool Initialize(const char* adapter_name_str)
+    bool InstallAdapter(AdapterFamily family)
     {
         if (g_adapter)
         {
             return true;
         }
 
-        bool result = SelectAdapterByName(adapter_name_str);
+        bool result = SelectAdapterByFamily(family);
 
         if (!result)
         {
@@ -758,42 +864,67 @@ namespace dmGraphics
 
         if (result)
         {
-            result = g_functions.m_Initialize();
-        }
-
-        if (result)
-        {
-            dmLogInfo("Initialised graphics device '%s'", g_adapter->m_AdapterName);
+            dmLogInfo("Installed graphics device '%s'", GetAdapterFamilyLiteral(g_adapter->m_Family));
             return true;
         }
 
-        dmLogError("Could not initialize graphics. No graphics adapter was found.");
+        dmLogError("Could not install a graphics adapter. No compatible adapter was found.");
         return false;
+    }
+
+    AdapterFamily GetInstalledAdapterFamily()
+    {
+        if (g_adapter)
+        {
+            return g_adapter->m_Family;
+        }
+        return ADAPTER_FAMILY_NONE;
     }
 
     void Finalize()
     {
         g_functions.m_Finalize();
     }
+
+    ///////////////////////////////////////////////////
+    ////// PLATFORM / WINDOWS SPECIFIC FUNCTIONS //////
+
+    dmPlatform::HWindow GetWindow(HContext context)
+    {
+        return g_functions.m_GetWindow(context);
+    }
     uint32_t GetWindowRefreshRate(HContext context)
     {
-        return g_functions.m_GetWindowRefreshRate(context);
+        return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), dmPlatform::WINDOW_STATE_REFRESH_RATE);
     }
-    WindowResult OpenWindow(HContext context, WindowParams *params)
+    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state)
     {
-        return g_functions.m_OpenWindow(context, params);
+        return dmPlatform::GetWindowStateParam(g_functions.m_GetWindow(context), state);
     }
-    void CloseWindow(HContext context)
+    uint32_t GetWindowWidth(HContext context)
     {
-        g_functions.m_CloseWindow(context);
+        return dmPlatform::GetWindowWidth(g_functions.m_GetWindow(context));
+    }
+    uint32_t GetWindowHeight(HContext context)
+    {
+        return dmPlatform::GetWindowHeight(g_functions.m_GetWindow(context));
+    }
+    float GetDisplayScaleFactor(HContext context)
+    {
+        return dmPlatform::GetDisplayScaleFactor(g_functions.m_GetWindow(context));
     }
     void IconifyWindow(HContext context)
     {
-        g_functions.m_IconifyWindow(context);
+        dmPlatform::IconifyWindow(g_functions.m_GetWindow(context));
     }
-    uint32_t GetWindowState(HContext context, WindowState state)
+    void SetSwapInterval(HContext context, uint32_t swap_interval)
     {
-        return g_functions.m_GetWindowState(context, state);
+        dmPlatform::SetSwapInterval(g_functions.m_GetWindow(context), swap_interval);
+    }
+    ///////////////////////////////////////////////////
+    void CloseWindow(HContext context)
+    {
+        g_functions.m_CloseWindow(context);
     }
     uint32_t GetDisplayDpi(HContext context)
     {
@@ -806,18 +937,6 @@ namespace dmGraphics
     uint32_t GetHeight(HContext context)
     {
         return g_functions.m_GetHeight(context);
-    }
-    uint32_t GetWindowWidth(HContext context)
-    {
-        return g_functions.m_GetWindowWidth(context);
-    }
-    uint32_t GetWindowHeight(HContext context)
-    {
-        return g_functions.m_GetWindowHeight(context);
-    }
-    float GetDisplayScaleFactor(HContext context)
-    {
-        return g_functions.m_GetDisplayScaleFactor(context);
     }
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
@@ -838,10 +957,6 @@ namespace dmGraphics
     void Flip(HContext context)
     {
         g_functions.m_Flip(context);
-    }
-    void SetSwapInterval(HContext context, uint32_t swap_interval)
-    {
-        g_functions.m_SetSwapInterval(context, swap_interval);
     }
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
@@ -927,6 +1042,10 @@ namespace dmGraphics
     {
         return g_functions.m_GetVertexDeclarationStride(vertex_declaration);
     }
+    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash)
+    {
+        return g_functions.m_GetVertexStreamOffset(vertex_declaration, name_hash);
+    }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         g_functions.m_DrawElements(context, prim_type, first, count, type, index_buffer);
@@ -967,6 +1086,10 @@ namespace dmGraphics
     {
         g_functions.m_DeleteFragmentProgram(prog);
     }
+    ShaderDesc::Language GetProgramLanguage(HProgram program)
+    {
+        return g_functions.m_GetProgramLanguage(program);
+    }
     ShaderDesc::Language GetShaderProgramLanguage(HContext context)
     {
         return g_functions.m_GetShaderProgramLanguage(context);
@@ -999,19 +1122,19 @@ namespace dmGraphics
     {
         return g_functions.m_GetUniformCount(prog);
     }
-    int32_t  GetUniformLocation(HProgram prog, const char* name)
+    HUniformLocation GetUniformLocation(HProgram prog, const char* name)
     {
         return g_functions.m_GetUniformLocation(prog, name);
     }
-    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
-        g_functions.m_SetConstantV4(context, data, count, base_register);
+        g_functions.m_SetConstantV4(context, data, count, base_location);
     }
-    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register)
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
-        g_functions.m_SetConstantM4(context, data, count, base_register);
+        g_functions.m_SetConstantM4(context, data, count, base_location);
     }
-    void SetSampler(HContext context, int32_t location, int32_t unit)
+    void SetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
         g_functions.m_SetSampler(context, location, unit);
     }
@@ -1216,6 +1339,36 @@ namespace dmGraphics
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
+    HComputeProgram NewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    {
+        return g_functions.m_NewComputeProgram(context, ddf);
+    }
+    HProgram NewProgram(HContext context, HComputeProgram compute_program)
+    {
+        return g_functions.m_NewProgramFromCompute(context, compute_program);
+    }
+    void DeleteComputeProgram(HComputeProgram prog)
+    {
+        return g_functions.m_DeleteComputeProgram(prog);
+    }
+#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
+    {
+        return g_functions.m_MapVertexBuffer(context, buffer, access);
+    }
+    bool UnmapVertexBuffer(HContext context, HVertexBuffer buffer)
+    {
+        return g_functions.m_UnmapVertexBuffer(context, buffer);
+    }
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
+    {
+        return g_functions.m_MapIndexBuffer(context, buffer, access);
+    }
+    bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
+    {
+        return g_functions.m_UnmapIndexBuffer(context, buffer);
+    }
+#endif
 
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)

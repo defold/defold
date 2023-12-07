@@ -19,33 +19,31 @@
 #include <dlib/mutex.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
+#include <platform/platform_window.h>
 
 namespace dmGraphics
 {
-    struct OpenGLTexture
-    {
-        TextureType m_Type;
-        GLuint*     m_TextureIds;
-        uint32_t    m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
-        uint16_t    m_NumTextureIds;
-        uint16_t    m_Width;
-        uint16_t    m_Height;
-        uint16_t    m_Depth;
-        uint16_t    m_OriginalWidth;
-        uint16_t    m_OriginalHeight;
-        uint16_t    m_MipMapCount;
-
-        // data state per mip-map (mipX = bitX). 0=ok, 1=pending
-        volatile uint16_t    m_DataState;
-
-        TextureParams m_Params;
-    };
-
     enum AttachmentType
     {
         ATTACHMENT_TYPE_UNUSED  = 0,
         ATTACHMENT_TYPE_BUFFER  = 1,
         ATTACHMENT_TYPE_TEXTURE = 2,
+    };
+
+    struct OpenGLTexture
+    {
+        TextureType       m_Type;
+        GLuint*           m_TextureIds;
+        uint32_t          m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
+        uint16_t          m_NumTextureIds;
+        uint16_t          m_Width;
+        uint16_t          m_Height;
+        uint16_t          m_Depth;
+        uint16_t          m_OriginalWidth;
+        uint16_t          m_OriginalHeight;
+        uint16_t          m_MipMapCount;
+        volatile uint16_t m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
+        TextureParams     m_Params;
     };
 
     struct OpenGLRenderTargetAttachment
@@ -76,25 +74,15 @@ namespace dmGraphics
 
         // Async queue data and synchronization objects
         dmMutex::HMutex         m_AsyncMutex;
+        dmPlatform::HWindow     m_Window;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 
-        WindowResizeCallback    m_WindowResizeCallback;
-        void*                   m_WindowResizeCallbackUserData;
-        WindowCloseCallback     m_WindowCloseCallback;
-        void*                   m_WindowCloseCallbackUserData;
-        WindowFocusCallback     m_WindowFocusCallback;
-        void*                   m_WindowFocusCallbackUserData;
-        WindowIconifyCallback   m_WindowIconifyCallback;
-        void*                   m_WindowIconifyCallbackUserData;
         PipelineState           m_PipelineState;
         uint32_t                m_Width;
         uint32_t                m_Height;
-        uint32_t                m_WindowWidth;
-        uint32_t                m_WindowHeight;
-        uint32_t                m_Dpi;
         uint32_t                m_MaxTextureSize;
         TextureFilter           m_DefaultTextureMinFilter;
         TextureFilter           m_DefaultTextureMagFilter;
@@ -113,29 +101,11 @@ namespace dmGraphics
         uint32_t                m_MultiTargetRenderingSupport      : 1;
         uint32_t                m_FrameBufferInvalidateAttachments : 1;
         uint32_t                m_PackedDepthStencilSupport        : 1;
-        uint32_t                m_WindowOpened                     : 1;
         uint32_t                m_VerifyGraphicsCalls              : 1;
         uint32_t                m_RenderDocSupport                 : 1;
+        uint32_t                m_PrintDeviceInfo                  : 1;
         uint32_t                m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3
         uint32_t                m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
-    };
-
-    struct Texture
-    {
-        TextureType m_Type;
-        GLuint*     m_TextureIds;
-        uint32_t    m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
-        uint16_t    m_NumTextureIds;
-        uint16_t    m_Width;
-        uint16_t    m_Height;
-        uint16_t    m_OriginalWidth;
-        uint16_t    m_OriginalHeight;
-        uint16_t    m_MipMapCount;
-
-        // data state per mip-map (mipX = bitX). 0=ok, 1=pending
-        volatile uint16_t    m_DataState;
-
-        TextureParams m_Params;
     };
 
     // JG: dmsdk/graphics.h defines this as a struct ptr so don't want to rename it yet..
@@ -161,7 +131,8 @@ namespace dmGraphics
 
     struct OpenGLShader
     {
-        GLuint m_Id;
+        GLuint               m_Id;
+        ShaderDesc::Language m_Language;
     };
 
     struct OpenglVertexAttribute
@@ -175,6 +146,7 @@ namespace dmGraphics
     struct OpenGLProgram
     {
         GLuint                         m_Id;
+        ShaderDesc::Language           m_Language;
         dmArray<OpenglVertexAttribute> m_Attributes;
     };
 }

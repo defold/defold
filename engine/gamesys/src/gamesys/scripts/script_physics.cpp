@@ -379,7 +379,7 @@ namespace dmGameSystem
      * `all`
      * : [type:boolean] Set to `true` to return all ray cast hits. If `false`, it will only return the closest hit.
      *
-     * @return result [type:table] It returns a list. If missed it returns nil. See `ray_cast_response` for details on the returned values.
+     * @return result [type:table|nil] It returns a list. If missed it returns `nil`. See `ray_cast_response` for details on the returned values.
      * @examples
      *
      * How to perform a ray cast synchronously:
@@ -738,7 +738,7 @@ namespace dmGameSystem
      * @name physics.get_joint_properties
      * @param collisionobject [type:string|hash|url] collision object where the joint exist
      * @param joint_id [type:string|hash] id of the joint
-     * @return [type:table] properties table. See the joint types for what fields are available, the only field available for all types is:
+     * @return properties [type:table] properties table. See the joint types for what fields are available, the only field available for all types is:
      *
      * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
      *
@@ -994,7 +994,7 @@ namespace dmGameSystem
      * Note: For 2D physics the z component will always be zero.
      *
      * @name physics.get_gravity
-     * @return [type:vector3] gravity vector of collection
+     * @return gravity [type:vector3] gravity vector of collection
      * @examples
      *
      * ```lua
@@ -1170,7 +1170,7 @@ namespace dmGameSystem
      *
      * @name physics.get_group
      * @param url [type:string|hash|url] the collision object to return the group of.
-     * @return [type:hash] hash value of the group.
+     * @return group [type:hash] hash value of the group.
      * ```lua
      * local function check_is_enemy()
      *     local group = physics.get_group("#collisionobject")
@@ -1234,7 +1234,7 @@ namespace dmGameSystem
      * @name physics.get_maskbit
      * @param url [type:string|hash|url] the collision object to check the mask of.
      * @param group [type:string] the name of the group to check for.
-     * @return [type:boolean] boolean value of the maskbit. 'true' if present, 'false' otherwise.
+     * @return maskbit [type:boolean] boolean value of the maskbit. 'true' if present, 'false' otherwise.
      * ```lua
      * local function is_invincible()
      *     -- check if the collisionobject would collide with the "bullet" group

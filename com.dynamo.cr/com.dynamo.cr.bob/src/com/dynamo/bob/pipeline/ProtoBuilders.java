@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -53,6 +53,7 @@ import com.dynamo.gamesys.proto.Physics.CollisionShape.Type;
 import com.dynamo.gamesys.proto.Physics.CollisionShape;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
+import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Tile.TileGrid;
 import com.dynamo.gamesys.proto.AtlasProto.Atlas;
@@ -107,6 +108,16 @@ public class ProtoBuilders {
         return materialBuilder;
     }
 
+    private static VertexAttribute GetAttributeByName(List<VertexAttribute> attributes, String attributeName)
+    {
+        for (VertexAttribute attr : attributes) {
+            if (attr.getName().equals(attributeName)) {
+                return attr;
+            }
+        }
+        return null;
+    }
+
     // TODO: Should we move this to a build resource?
     static Set<String> materialAtlasCompatabilityCache = new HashSet<String>();
 
@@ -158,17 +169,6 @@ public class ProtoBuilders {
         @Override
         protected CollectionProxyDesc.Builder transform(Task<Void> task, IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "collection", messageBuilder.getCollection());
-
-            if (messageBuilder.getExclude()) {
-            	if (project.getBuildDirectory() != null && resource.output() != null && resource.output().getPath() != null) {
-            		if (resource.output().getPath().startsWith(project.getBuildDirectory())) {
-            			String excludePath = resource.output().getPath().substring(project.getBuildDirectory().length());
-            			excludePath = BuilderUtil.replaceExt(excludePath, ".collectionproxy", ".collectionproxyc");
-            			this.project.excludeCollectionProxy(excludePath);
-            		}
-            	}
-            }
-
             return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
         }
     }
@@ -289,8 +289,29 @@ public class ProtoBuilders {
 
     @ProtoParams(srcClass = SpriteDesc.class, messageClass = SpriteDesc.class)
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
-    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder> 
-{
+    public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder>
+    {
+        List<String> getImageResources(SpriteDesc.Builder builder) {
+            List<String> textures = new ArrayList<>();
+
+            for (SpriteTexture texture : builder.getTexturesList()) {
+                String t = texture.getTexture();
+                if (!t.isEmpty())
+                {
+                    textures.add(t);
+                }
+            }
+
+            // Deprecated
+            if (textures.isEmpty()) {
+                String t = builder.getTileSet();
+                if (!t.isEmpty()) {
+                    textures.add(t);
+                }
+            }
+            return textures;
+        }
+
         @Override
         public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
 
@@ -302,16 +323,6 @@ public class ProtoBuilders {
             SpriteDesc.Builder spriteBuilder = SpriteDesc.newBuilder();
             ProtoUtil.merge(input, spriteBuilder);
 
-            // The tileset must be specified
-            String tileSet = spriteBuilder.getTileSet();
-            if (tileSet.isEmpty())
-            {
-                throw new CompileExceptionError(input, 0, "A tileset must be assigned.");
-            }
-
-            IResource tileSetOuput = project.getResource(tileSet).changeExt(getTextureSetExt(tileSet));
-            task.addInput(tileSetOuput);
-
             // Material input is optional in the protobuf description
             String material = spriteBuilder.getMaterial();
             if (!material.isEmpty())
@@ -320,31 +331,56 @@ public class ProtoBuilders {
                 task.addInput(materialOutput);
             }
 
-            return task.build();
-        }
+            List<String> images = getImageResources(spriteBuilder);
 
-        private VertexAttribute FindMaterialAttribute(List<VertexAttribute> materialAttributes, String attributeName)
-        {
-            for (VertexAttribute attr : materialAttributes) {
-                if (attr.getName().equals(attributeName)) {
-                    return attr;
-                }
+            if (images.isEmpty())
+            {
+                throw new CompileExceptionError(input, 0, "An atlas or tileset must be assigned.");
             }
-            return null;
+
+            for (String atlas : images) {
+                IResource atlasOutput = project.getResource(atlas).changeExt(getTextureSetExt(atlas));
+                task.addInput(atlasOutput);
+            }
+
+            return task.build();
         }
 
         @Override
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
-            BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
+
+            if (messageBuilder.hasTileSet()) {
+                String texture = messageBuilder.getTileSet();
+
+                SpriteTexture.Builder textureBuilder = SpriteTexture.newBuilder();
+                textureBuilder.setTexture(texture);
+                textureBuilder.setSampler("");
+                messageBuilder.clearTextures();
+                messageBuilder.addTextures(textureBuilder.build());
+                messageBuilder.clearTileSet();
+            }
 
             MaterialDesc.Builder materialBuilder = getMaterialBuilderFromResource(this.project.getResource(messageBuilder.getMaterial()));
 
             validateMaterialAtlasCompatability(this.project, resource, messageBuilder.getMaterial(), materialBuilder, messageBuilder.getTileSet());
 
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "t.texturesetc"));
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "t.texturesetc"));
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "a.texturesetc"));
+            List<SpriteTexture> textures = new ArrayList<>();
+            for (SpriteTexture texture : messageBuilder.getTexturesList()) {
+                SpriteTexture.Builder textureBuilder = SpriteTexture.newBuilder();
+                textureBuilder.mergeFrom(texture);
+
+                BuilderUtil.checkResource(this.project, resource, "tile source", textureBuilder.getTexture());
+
+                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "tileset", "t.texturesetc"));
+                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "tilesource", "t.texturesetc"));
+                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "atlas", "a.texturesetc"));
+
+                textures.add(textureBuilder.build());
+            }
+            messageBuilder.clearTextures();
+            messageBuilder.addAllTextures(textures);
+
             messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
 
             if (materialBuilder != null) {
@@ -353,7 +389,7 @@ public class ProtoBuilders {
 
                 for (int i=0; i < messageBuilder.getAttributesCount(); i++) {
                     VertexAttribute spriteAttribute = messageBuilder.getAttributes(i);
-                    VertexAttribute materialAttribute = FindMaterialAttribute(materialAttributes, spriteAttribute.getName());
+                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, spriteAttribute.getName());
 
                     if (materialAttribute != null) {
                         spriteAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(spriteAttribute, materialAttribute));
@@ -456,6 +492,22 @@ public class ProtoBuilders {
                     mb.setRotation(MathUtil.vecmathToDDF(r));
                     emitterBuilder.addModifiers(mb.build());
                 }
+
+                List<VertexAttribute> materialAttributes        = materialBuilder.getAttributesList();
+                List<VertexAttribute> emitterAttributeOverrides = new ArrayList<VertexAttribute>();
+
+                for (int j=0; j < emitterBuilder.getAttributesCount(); j++) {
+                    VertexAttribute emitterAttribute  = emitterBuilder.getAttributes(j);
+                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, emitterAttribute.getName());
+
+                    if (materialAttribute != null) {
+                        emitterAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(emitterAttribute, materialAttribute));
+                    }
+                }
+
+                emitterBuilder.clearAttributes();
+                emitterBuilder.addAllAttributes(emitterAttributeOverrides);
+
                 messageBuilder.setEmitters(i, emitterBuilder.build());
             }
             messageBuilder.clearModifiers();

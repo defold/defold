@@ -35,6 +35,7 @@ import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.gamesys.proto.Tile.Playback;
+import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
 
 public class TextureSetGeneratorTest {
 
@@ -112,7 +113,7 @@ public class TextureSetGeneratorTest {
                               newImage(16, 16));
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");
-        List<Integer> hullSizes = Arrays.asList(6, 6, 6, 6);
+        List<SpriteTrimmingMode> imageTrimModes = Arrays.asList(SpriteTrimmingMode.SPRITE_TRIM_MODE_6, SpriteTrimmingMode.SPRITE_TRIM_MODE_6, SpriteTrimmingMode.SPRITE_TRIM_MODE_6, SpriteTrimmingMode.SPRITE_TRIM_MODE_6);
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
         animations.add(newAnim("anim1", Arrays.asList("1", "2", "3")));
@@ -120,7 +121,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, hullSizes, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
+        TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage image = result.images.get(0);
         assertThat(image.getWidth(), is(32));
@@ -137,7 +138,7 @@ public class TextureSetGeneratorTest {
                 newImage(16, 16));
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");
-        List<Integer> hullSizes = Arrays.asList(0, 0, 0, 0);
+        List<SpriteTrimmingMode> imageTrimModes = Arrays.asList(SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF);
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
         animations.add(newAnim("anim1", Arrays.asList("1", "2", "3")));
@@ -145,7 +146,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, hullSizes, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
+        TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
         BufferedImage image = result.images.get(0);
         assertThat(image.getWidth(), is(32));
         assertThat(image.getHeight(), is(32));
@@ -165,7 +166,7 @@ public class TextureSetGeneratorTest {
             newImage(16, 16));
 
         List<String> ids = Arrays.asList("1", "2");
-        List<Integer> hullSizes = Arrays.asList(0, 0);
+        List<SpriteTrimmingMode> imageTrimModes = Arrays.asList(SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF);
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
         animations.add(newAnim("anim1", Arrays.asList("1")));
@@ -174,7 +175,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, hullSizes, ids, iterator, 0, 0, 0, true, false, null, 16, 16);
+        TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, ids, iterator, 0, 0, 0, true, false, null, 16, 16);
         BufferedImage image0 = result.images.get(0);
         BufferedImage image1 = result.images.get(1);
         assertThat(image0.getWidth(), is(16));
@@ -197,7 +198,7 @@ public class TextureSetGeneratorTest {
                 newImage(11, 11));
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");
-        List<Integer> hullSizes = Arrays.asList(0, 0, 0, 0);
+        List<SpriteTrimmingMode> imageTrimModes = Arrays.asList(SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF);
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
         animations.add(newAnim("anim1", Arrays.asList("1", "2", "3")));
@@ -205,7 +206,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, hullSizes, ids, iterator, 5, 0, 0, true, false, null, 0, 0);
+        TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, ids, iterator, 5, 0, 0, true, false, null, 0, 0);
         BufferedImage image = result.images.get(0);
         assertThat(image.getWidth(), is(32));
         assertThat(image.getHeight(), is(32));
@@ -223,7 +224,7 @@ public class TextureSetGeneratorTest {
         List<BufferedImage> images = Arrays.asList(newImage(64,32), newImage(64,32), newImage(32,64), newImage(32,64));
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");
-        List<Integer> hullSizes = Arrays.asList(0, 0, 0, 0);
+        List<SpriteTrimmingMode> imageTrimModes = Arrays.asList(SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF);
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
         animations.add(newAnim("anim1", Arrays.asList("1","2")));
@@ -231,7 +232,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, hullSizes, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
+        TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
 
         TextureSet textureSet = result.builder.setTexture("").build();
 
@@ -247,14 +248,14 @@ public class TextureSetGeneratorTest {
                 newImage(16, 16));
 
         List<String> ids = Arrays.asList("1", "2", "3", "4");
-        List<Integer> hullSizes = Arrays.asList(0, 0, 0, 0);
+        List<SpriteTrimmingMode> imageTrimModes = Arrays.asList(SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF);
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
         animations.add(newAnim("anim1", Arrays.asList("1", "2", "3")));
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, hullSizes, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
+        TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
 
         TextureSet textureSet = result.builder.setTexture("").build();
         assertUVTransform(0.0f, 1.0f, 0.5f, -0.5f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 0));

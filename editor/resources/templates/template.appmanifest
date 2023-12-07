@@ -41,6 +41,14 @@ platforms:
       libs: []
       linkFlags: []
       jetifier: true
+  arm64-osx:
+    context:
+      excludeLibs: []
+      excludeSymbols: []
+      symbols: []
+      libs: []
+      frameworks: []
+      linkFlags: []
   x86_64-osx:
     context:
       excludeLibs: []

@@ -278,11 +278,6 @@ namespace dmGui
         context->m_DisplayProfiles = display_profiles;
     }
 
-    void SetDefaultFont(HContext context, void* font)
-    {
-        context->m_DefaultFont = font;
-    }
-
     void SetSceneAdjustReference(HScene scene, AdjustReference adjust_reference)
     {
         scene->m_AdjustReference = adjust_reference;
@@ -1147,6 +1142,20 @@ namespace dmGui
                     node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
                     // Do not break here. Texture may be used multiple times.
                 }
+            }
+        }
+    }
+
+    void IterateDynamicTextures(dmhash_t gui_res_id, HScene scene, FDynamicTextturesIterator callback, void* user_ctx)
+    {
+        dmHashTable64<DynamicTexture>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
+        while(dynamic_textures_iter.Next())
+        {
+            const DynamicTexture texture = dynamic_textures_iter.GetValue();
+            uint32_t size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type);
+            bool result = callback(gui_res_id, dynamic_textures_iter.GetKey(), size, user_ctx);
+            if (!result) {
+                break;
             }
         }
     }

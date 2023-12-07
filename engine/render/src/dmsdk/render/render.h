@@ -275,6 +275,32 @@ namespace dmRender
     };
 
     /*#
+     * Frustum planes to use in a frustum
+     * @enum
+     * @name FrustumPlanes
+     * @member FRUSTUM_PLANES_SIDES
+     * @member FRUSTUM_PLANES_ALL
+     */
+    enum FrustumPlanes
+    {
+        FRUSTUM_PLANES_SIDES = 4,
+        FRUSTUM_PLANES_ALL   = 6
+    };
+
+    /*#
+     * Frustum options used when setting up a draw call
+     * @struct
+     * @name FrustumOptions
+     * @member m_FrustumMatrix [type: matrix4] the frustum matrix
+     * @member m_SkipNearFarPlanes [type: bool] should the frustum culling use the near and far planes
+     */
+    struct FrustumOptions
+    {
+        dmVMath::Matrix4 m_Matrix;
+        FrustumPlanes    m_NumPlanes;
+    };
+
+    /*#
      * Visibility dispatch function callback.
      * @struct
      * @name RenderListVisibilityParams
@@ -440,15 +466,15 @@ namespace dmRender
      * @param constant [type: dmRender::HConstant] The shader constant
      * @return location [type: int32_t] the location
     */
-    int32_t GetConstantLocation(HConstant constant);
+    dmGraphics::HUniformLocation GetConstantLocation(HConstant constant);
 
     /*#
      * Sets the shader program constant location
      * @name SetConstantLocation
      * @param constant [type: dmRender::HConstant] The shader constant
-     * @param location [type: int32_t] the location
+     * @param location [type: dmGraphics::HUniformLocation] the location
     */
-    void SetConstantLocation(HConstant constant, int32_t location);
+    void SetConstantLocation(HConstant constant, dmGraphics::HUniformLocation location);
 
     /*#
      * Gets the type of the constant

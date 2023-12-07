@@ -39,7 +39,7 @@ public enum Platform {
     Arm64Android("arm64",   true,   "android", new String[] {".so"}, "lib", "lib", ".so", new String[] {"android", "arm64-android"}, PlatformArchitectures.Android, "arm64-android"),
     JsWeb(       "js",      true,   "web",     new String[] {".js"}, "", "lib", "", new String[] {"web", "js-web"}, PlatformArchitectures.Web, "js-web"),
     WasmWeb(     "wasm",    true,   "web",     new String[] {".js", ".wasm"}, "", "lib", "", new String[] {"web", "wasm-web"}, PlatformArchitectures.Web, "wasm-web"),
-    Arm64NX64(   "arm64",   true,   "nx64",    new String[] {".nso"}, "", "", "", new String[] {"nx64", "arm64-nx64"}, PlatformArchitectures.NX64, "arm64-nx64"),
+    Arm64NX64(   "arm64",   true,   "nx64",    new String[] {".nss"}, "", "", "", new String[] {"nx64", "arm64-nx64"}, PlatformArchitectures.NX64, "arm64-nx64"),
     X86_64PS4(   "x86_64",  true,   "ps4",     new String[] {".elf"}, "", "", "", new String[] {"ps4", "x86_64-ps4"}, PlatformArchitectures.PS4, "x86_64-ps4"),
     X86_64PS5(   "x86_64",  true,   "ps5",     new String[] {".elf"}, "", "", "", new String[] {"ps5", "x86_64-ps5"}, PlatformArchitectures.PS5, "x86_64-ps5");
 

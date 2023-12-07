@@ -36,6 +36,7 @@ using namespace dmVMath;
 class dmRenderTest : public jc_test_base_class
 {
 protected:
+    dmPlatform::HWindow m_Window;
     dmRender::HRenderContext m_Context;
     dmGraphics::HContext m_GraphicsContext;
     dmScript::HContext m_ScriptContext;
@@ -43,8 +44,19 @@ protected:
 
     virtual void SetUp()
     {
-        dmGraphics::Initialize();
-        m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
+        dmGraphics::InstallAdapter();
+
+        dmPlatform::WindowParams win_params = {};
+        win_params.m_Width = 20;
+        win_params.m_Height = 10;
+
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, win_params);
+
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_Window = m_Window;
+
+        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         dmRender::RenderContextParams params;
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         params.m_MaxRenderTargets = 1;
@@ -82,6 +94,9 @@ protected:
         dmRender::DeleteFontMap(m_SystemFontMap);
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmScript::DeleteContext(m_ScriptContext);
+
+        dmPlatform::CloseWindow(m_Window);
+        dmPlatform::DeleteWindow(m_Window);
     }
 };
 
@@ -500,7 +515,7 @@ static void TestDrawVisibility(dmRender::RenderListVisibilityParams const &param
     for (uint32_t i = 0; i < params.m_NumEntries; ++i)
     {
         dmRender::RenderListEntry* entry = &params.m_Entries[i];
-        bool intersect = dmIntersection::TestFrustumPoint(*params.m_Frustum, entry->m_WorldPosition, true);
+        bool intersect = dmIntersection::TestFrustumPoint(*params.m_Frustum, entry->m_WorldPosition);
         entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
     }
 }
@@ -571,7 +586,17 @@ TEST_F(dmRenderTest, TestRenderListCulling)
         dmRender::RenderListSubmit(m_Context, out, out + n);
         dmRender::RenderListEnd(m_Context);
 
-        dmRender::DrawRenderList(m_Context, 0, 0, frustum_matrices[c]);
+        if (frustum_matrices[c])
+        {
+            dmRender::FrustumOptions frustum_options;
+            frustum_options.m_Matrix = *frustum_matrices[c];
+            frustum_options.m_NumPlanes = dmRender::FRUSTUM_PLANES_SIDES;
+            dmRender::DrawRenderList(m_Context, 0, 0, &frustum_options);
+        }
+        else
+        {
+            dmRender::DrawRenderList(m_Context, 0, 0, 0);
+        }
 
         ASSERT_EQ(ctx.m_BeginCalls, 2);
         ASSERT_GT(ctx.m_BatchCalls, 2);

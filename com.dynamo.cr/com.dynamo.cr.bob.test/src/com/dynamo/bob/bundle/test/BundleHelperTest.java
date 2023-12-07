@@ -293,6 +293,7 @@ public class BundleHelperTest {
         assertFalse(BundleHelper.isValidAndroidPackageName("cöm.föö"));
     }
 
+    @Test
     public void testValidBundleIdentifier() {
         // two or more segments
         assertTrue(BundleHelper.isValidAppleBundleIdentifier("a.b"));

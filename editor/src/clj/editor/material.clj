@@ -138,12 +138,12 @@
                          (format "'%s' attribute uses normalize with float data type"
                                  name)))]))
 
-(g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count project-settings resource vertex-program vertex-shader-source-info]
+(g/defnk produce-build-targets [_node-id attribute-infos base-pb-msg fragment-program fragment-shader-source-info max-page-count resource vertex-program vertex-shader-source-info]
   (or (g/flatten-errors
         (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
         (prop-resource-error _node-id :fragment-program fragment-program "Fragment Program" "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
-      (let [compile-spirv (get project-settings ["shader" "output_spirv"] false)
+      (let [compile-spirv true
             vertex-shader-build-target (code.shader/make-shader-build-target vertex-shader-source-info compile-spirv max-page-count)
             fragment-shader-build-target (code.shader/make-shader-build-target fragment-shader-source-info compile-spirv max-page-count)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
@@ -470,6 +470,28 @@
                       :error (g/->error _node-id :attributes :fatal nil error-message)))))
         attributes))
 
+(defmulti handle-sampler-names-changed
+  (fn [evaluation-context target-node old-name-index new-name-index sampler-renames sampler-deletions]
+    (let [basis (:basis evaluation-context)]
+      (g/node-type-kw basis target-node))))
+
+(defmethod handle-sampler-names-changed :default [_ _ _ _ _ _])
+
+(defn- notify-sampler-names-targets-setter [evaluation-context self label old-value new-value]
+  (let [old-names (mapv :name old-value)
+        new-names (mapv :name new-value)]
+    (when-not (= old-names new-names)
+      (let [old-name-index (util/name-index old-names identity)
+            new-name-index (util/name-index new-names identity)
+            renames (util/detect-renames old-name-index new-name-index)
+            deletions (util/detect-deletions old-name-index new-name-index)]
+        (into []
+              (comp
+                (map first)
+                (distinct)
+                (mapcat #(handle-sampler-names-changed evaluation-context % old-name-index new-name-index renames deletions)))
+              (g/targets-of (:basis evaluation-context) self label))))))
+
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
 
@@ -495,7 +517,10 @@
   (property attributes g/Any (dynamic visible (g/constantly false)))
   (property vertex-constants g/Any (dynamic visible (g/constantly false)))
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
-  (property samplers g/Any (dynamic visible (g/constantly false)))
+  (property samplers g/Any
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self old-value new-value]
+                   (notify-sampler-names-targets-setter evaluation-context self :samplers old-value new-value))))
   (property tags g/Any (dynamic visible (g/constantly false)))
   (property vertex-space g/Keyword (dynamic visible (g/constantly false)))
 
@@ -505,7 +530,6 @@
   (input vertex-shader-source-info g/Any)
   (input fragment-resource resource/Resource)
   (input fragment-shader-source-info g/Any)
-  (input project-settings g/Any)
 
   (output base-pb-msg g/Any produce-base-pb-msg)
 
@@ -520,7 +544,6 @@
 
 (defn load-material [project self resource pb]
   (concat
-    (g/connect project :settings self :project-settings)
     (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
     (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
     (g/set-property self :vertex-constants (hack-downgrade-constants (:vertex-constants pb)))

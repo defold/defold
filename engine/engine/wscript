@@ -24,6 +24,30 @@ def options(opt):
     opt.load('waf_dynamo')
     opt.load('waf_ddf')
 
+def create_engine_version(self):
+    engine_version = """
+namespace dmEngineVersion
+{
+    static const char* PLATFORM = "%(platform)s";
+    static const char* VERSION = "%(version)s";
+    static const char* VERSION_SHA1 = "%(sha1)s";
+}
+"""
+    full = self.outputs[0].abspath()
+
+    try:
+        os.mkdir(os.path.dirname(full))
+    except:
+        pass
+    full = os.path.normpath(full)
+
+    sha1 = self.env['ENGINE_SHA1']
+    platform = self.env['ENGINE_PLATFORM']
+    version = self.env['ENGINE_VERSION']
+    with open(full, 'w') as f:
+        f.write(engine_version % {"version": version, "sha1": sha1, "platform": platform})
+
+
 def configure(conf):
     conf.load('waf_dynamo')
     conf.load('java')
@@ -34,29 +58,6 @@ def configure(conf):
         build_util = create_build_utility(conf.env)
     except BuildUtilityException as ex:
         conf.fatal(ex.msg)
-
-    engine_version = """
-namespace dmEngineVersion
-{
-    static const char* PLATFORM = "%(platform)s";
-    static const char* VERSION = "%(version)s";
-    static const char* VERSION_SHA1 = "%(sha1)s";
-}
-"""
-
-    engine_version_node = conf.path.make_node('%s/engine_version.h' % blddir)
-    full = engine_version_node.abspath()
-
-    try:
-        os.mkdir(os.path.dirname(full))
-    except:
-        pass
-    full = os.path.normpath(full)
-    with open('../../VERSION', 'r') as f:
-        version = f.readline().strip()
-    sha1 = build_util.git_sha1()
-    with open(full, 'w') as f:
-        f.write(engine_version % {"version": version, "sha1": sha1, "platform": build_util.get_target_platform()})
 
     waf_graphics.configure(conf)
     waf_ddf.configure(conf)
@@ -78,9 +79,8 @@ namespace dmEngineVersion
         if waflib.Options.options.with_vulkan and architecture == 'x86_64':
             conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
 
-            # Link with vulkan.dylib if the env is set (see graphics/vulkan/README.md) for more information
-            validation = int(os.environ.get('DM_VULKAN_VALIDATION','0'))
-            conf.env.append_value('LINKFLAGS', ['-l', validation and 'vulkan' or 'MoltenVK'])
+            # Link with vulkan.dylib if the flag has been set (see graphics/vulkan/README.md) for more information
+            conf.env.append_value('LINKFLAGS', ['-l', waflib.Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'])
 
             # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std
             conf.env.append_value('LINKFLAGS', ['-l', 'c++'])
@@ -116,6 +116,8 @@ namespace dmEngineVersion
     conf.env['STLIB_DMGLFW'] = 'dmglfw'
     conf.env['STLIB_GUI'] = 'gui'
     conf.env['STLIB_PARTICLE'] = 'particle'
+    conf.env['STLIB_PLATFORM'] = 'platform'
+    conf.env['STLIB_PLATFORM_NULL'] = 'platform_null'
     conf.env['STLIB_RIG'] = 'rig'
     conf.env['STLIB_SOUND'] = sound_lib
     conf.env['STLIB_SOUND_NULL'] = 'sound_null'
@@ -125,6 +127,7 @@ namespace dmEngineVersion
     conf.env['STLIB_HID_NULL'] = 'hid_null'
     conf.env['STLIB_INPUT'] = 'input'
     conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
+    conf.env['STLIB_PLATFORM_NULL'] = 'platform_null'
 
     if operating_sys != "macos":
         conf.env['STLIB_UNWIND'] = 'unwind'
@@ -165,17 +168,23 @@ def build(bld):
     sys.path.insert(0, os.path.abspath('build/proto/engine'))
     sys.path.insert(0, os.path.abspath('proto/engine'))
 
-    bld.recurse('content')
-    bld.add_group()
-    bld.recurse('src')
-
-    bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0O755)
-
     build_util = None
     try:
         build_util = create_build_utility(bld.env)
     except BuildUtilityException as ex:
-        conf.fatal(ex.msg)
+        bld.fatal(ex.msg)
+
+    bld.recurse('content')
+
+    b = bld(rule = create_engine_version, target = 'engine_version.h', always = True)
+    b.env['ENGINE_SHA1'] = build_util.git_sha1()
+    b.env['ENGINE_PLATFORM'] = build_util.get_target_platform()
+    b.env['ENGINE_VERSION'] = build_util.get_defold_version()
+
+    bld.add_group()
+    bld.recurse('src')
+
+    bld.install_files('${PREFIX}/bin', 'scripts/dmengine_memprofile.sh', chmod=0O755)
 
     if build_util.get_target_os() in ['web', 'macos', 'ios']:
         srcPath = os.path.join('build', 'src')

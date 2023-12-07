@@ -31,10 +31,9 @@
 
 (set! *warn-on-reflection* true)
 
-;; TODO: Restore this to main after 1.4.8 has been released.
-(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/refs/tags/2.10.6.zip")
+(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/main.zip")
 
-(def ^:private error-item-open-info-without-opts (comp pop build-errors-view/error-item-open-info))
+(def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
 (defn- save-data-content-by-proj-path [project]
   (into {}

@@ -1440,7 +1440,7 @@ TEST_P(dmSoundMixerTest, Mixer)
         r = dmSound::Update();
         if (!GetParam().m_UseThread)
             ASSERT_EQ(dmSound::RESULT_OK, r);
-
+        dmTime::Sleep(1);
     } while (dmSound::IsPlaying(instance1) || dmSound::IsPlaying(instance2));
 
     r = dmSound::DeleteSoundInstance(instance1);

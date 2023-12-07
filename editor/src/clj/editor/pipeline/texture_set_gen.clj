@@ -23,7 +23,7 @@
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
            [com.dynamo.bob.util TextureUtil]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet$Builder]
-           [com.dynamo.gamesys.proto Tile$ConvexHull Tile$Playback TextureSetProto$SpriteGeometry]
+           [com.dynamo.gamesys.proto Tile$ConvexHull Tile$Playback Tile$SpriteTrimmingMode TextureSetProto$SpriteGeometry]
            [editor.types Image]
            [java.awt.image BufferedImage]))
 
@@ -79,15 +79,9 @@
             (TextureSetGenerator/layoutImages layout inner-padding extrude-borders id->image))
           (.-layouts layout-result))))
 
-(defn- sprite-trim-mode->hull-vertex-count
-  ^long [sprite-trim-mode]
-  (case sprite-trim-mode
-    :sprite-trim-mode-off 0
-    :sprite-trim-mode-4 4
-    :sprite-trim-mode-5 5
-    :sprite-trim-mode-6 6
-    :sprite-trim-mode-7 7
-    :sprite-trim-mode-8 8))
+(defn- sprite-trim-mode->enum
+  [sprite-trim-mode]
+  (protobuf/val->pb-enum Tile$SpriteTrimmingMode sprite-trim-mode))
 
 (defn- texture-set-layout-rect
   ^TextureSetLayout$Rect [{:keys [path width height]}]
@@ -109,6 +103,10 @@
   (-> (TextureSetProto$SpriteGeometry/newBuilder rect-sprite-geometry-template)
       (.setWidth width)
       (.setHeight height)
+      (.setCenterX 0)
+      (.setCenterY 0)
+      (.setRotated false)
+      (.setTrimMode Tile$SpriteTrimmingMode/SPRITE_TRIM_MODE_OFF)
       (.build)))
 
 (defn- make-image-sprite-geometry
@@ -123,8 +121,7 @@
       (let [buffered-image (resource-io/with-error-translation resource error-node-id :image
                              (image-util/read-image resource))]
         (g/precluding-errors buffered-image
-          (let [hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
-            (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count)))))))
+          (TextureSetGenerator/buildConvexHull buffered-image (sprite-trim-mode->enum sprite-trim-mode)))))))
 
 (defn atlas->texture-set-data
   [animations images margin inner-padding extrude-borders max-page-size]
@@ -256,10 +253,10 @@
                           (reset! anims-atom animations)
                           (reset! anim-indices-atom [])))
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
-        hull-vertex-count (sprite-trim-mode->hull-vertex-count (:sprite-trim-mode tile-source-attributes))
+        sprite-trim-mode (sprite-trim-mode->enum (:sprite-trim-mode tile-source-attributes))
         sprite-geometries (map (fn [^TextureSetLayout$Rect image-rect]
                                  (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
-                                   (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count)))
+                                   (TextureSetGenerator/buildConvexHull sub-image sprite-trim-mode)))
                                image-rects)
         use-geometries (if (not= :sprite-trim-mode-off (:sprite-trim-mode tile-source-attributes)) 1 0)
         result (TextureSetGenerator/calculateLayout

@@ -187,15 +187,18 @@ public class IOSBundler implements IBundler {
     private static final String SYMBOL_EXE_RELATIVE_PATH = String.format("Contents/Resources/DWARF/dmengine");
 
     public static List<File> getSymbolDirsFromArchitectures(File buildDir, List<Platform> architectures) {
+        final String[] prefixes = {"", "src" + File.separator};
         List<File> symbolDirectories = new ArrayList<File>();
         for (Platform architecture : architectures) {
 
             File platformDir = new File(buildDir, architecture.getExtenderPair());
-            File symbolsDir = new File(platformDir, "dmengine.dSYM");
-            if (symbolsDir.exists()) {
-                File symbols = new File(symbolsDir, SYMBOL_EXE_RELATIVE_PATH);
-                if (symbols.exists()) {
-                    symbolDirectories.add(symbolsDir);
+            for (String prefix: prefixes) {
+                File symbolsDir = new File(platformDir, prefix + "dmengine.dSYM");
+                if (symbolsDir.exists()) {
+                    File symbols = new File(symbolsDir, SYMBOL_EXE_RELATIVE_PATH);
+                    if (symbols.exists()) {
+                        symbolDirectories.add(symbolsDir);
+                    }
                 }
             }
         }
@@ -368,7 +371,7 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if (BundleHelper.isArchiveExcluded(project)) {
+        if (BundleHelper.isArchiveIncluded(project)) {
             // Copy archive and game.projectc
             for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
                 FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
