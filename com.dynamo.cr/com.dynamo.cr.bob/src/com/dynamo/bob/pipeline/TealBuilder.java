@@ -80,7 +80,7 @@ public class TealBuilder extends Builder<Void> {
 
     public IResource transpile(IResource input, boolean checkInput) throws IOException, CompileExceptionError {
         if (checkInput) {
-            check(input)
+            check(input);
         }
         return transpile(input);
     }
