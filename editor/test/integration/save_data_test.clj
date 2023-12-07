@@ -577,26 +577,26 @@
 (s/def ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason (s/map-of ::pb-ignore-key ::pb-filter->pb-path-token->ignore-reason))
 
 (deftest settings-ignored-paths-declaration-test
-  "This test is intended to verify that the structure we use to ignore certain
-  setting file paths is valid. If it fails, check the `settings-ignored-fields`
-  declaration at the top of this file."
+  ;; This test is intended to verify that the structure we use to ignore certain
+  ;; setting file paths is valid. If it fails, check the structure of the
+  ;; `settings-ignored-fields` declaration at the top of this file.
   (is (s/valid? ::ext->setting->ignore-reason settings-ignored-fields)
       (s/explain-str ::ext->setting->ignore-reason settings-ignored-fields)))
 
 (deftest pb-ignored-fields-declaration-test
-  "This test is intended to verify that the structure we use to ignore certain
-  protobuf fields is valid. If it fails, check the `pb-ignored-fields`
-  declaration at the top of this file."
+  ;; This test is intended to verify that the structure we use to ignore certain
+  ;; protobuf fields is valid. If it fails, check the structure of the
+  ;; `pb-ignored-fields` declaration at the top of this file.
   (is (s/valid? ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)
       (s/explain-str ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)))
 
 (deftest silent-migrations-test
-  "This test is intended to verify that certain silent data migrations are
-  performed correctly. A silent migration typically involves a :sanitize-fn to
-  silently convert the read data structure into the updated save data structure.
-  This ensures the file will not be saved in the updated format until the user
-  changes something significant in the file. More involved migrations might be
-  covered by tests elsewhere."
+  ;; This test is intended to verify that certain silent data migrations are
+  ;; performed correctly. A silent migration typically involves a :sanitize-fn
+  ;; to silently convert the read data structure into the updated save data
+  ;; structure. This ensures the file will not be saved in the updated format
+  ;; until the user changes something significant in the file. More involved
+  ;; migrations might be covered by tests elsewhere.
   (test-util/with-loaded-project project-path
     (testing "collection"
       (let [uniform-scale-collection (test-util/resource-node project "/silently_migrated/uniform_scale.collection")
@@ -680,12 +680,12 @@
   (list-message message (map #(str \. %) resource-exts)))
 
 (deftest all-resource-types-covered-test
-  "This test is intended to verify that every editable resource type has one or
-  more files at root-level in the save data test project. If you've registered a
-  new editable resource type with the workspace, you need to add a file for it
-  in the save data test project. You will also need to ensure non-default values
-  are assigned to all properties, which is enforced by `all-fields-covered-test`
-  below."
+  ;; This test is intended to verify that every editable resource type has one
+  ;; or more files at root-level in the save data test project. If you've
+  ;; registered a new editable resource type with the workspace, you need to add
+  ;; a file for it in the save data test project. You will also need to ensure
+  ;; non-default values are assigned to all properties, which is enforced by
+  ;; `all-fields-covered-test` below.
   (test-util/with-loaded-project project-path
     (let [editable-resource-exts
           (into (sorted-set)
@@ -707,14 +707,14 @@
             non-covered-resource-exts)))))
 
 (deftest editable-resource-types-have-valid-test-info
-  "This test is intended to verify that every resource type registered with the
-  workspace has a valid :test-info map associated with it. The high-level
-  functions such as `resource-node/register-ddf-resource-type` will add this
-  automatically, but if you register a resource type using the low-level
-  `workspace/register-resource-type` function, you'll need to specify :test-info
-  as a map of {:type [keyword]} and additional keys dependent on the :type. The
-  tests need this information to be able to check that every property has a
-  non-default value in the save data project."
+  ;; This test is intended to verify that every resource type registered with
+  ;; the workspace has a valid :test-info map associated with it. The high-level
+  ;; functions such as `resource-node/register-ddf-resource-type` will add this
+  ;; automatically, but if you register a resource type using the low-level
+  ;; `workspace/register-resource-type` function, you'll need to specify
+  ;; :test-info as a map of {:type [keyword]} and additional keys dependent on
+  ;; the :type. The tests need this information to be able to check that every
+  ;; property has a non-default value in the save data project.
   (test-util/with-loaded-project project-path
     (let [problematic-resource-exts-by-issue-message
           (-> (util/group-into
@@ -979,12 +979,13 @@
                              value-path)))))))
 
 (deftest all-fields-covered-test
-  "This test is intended to verify that every property across all editable files
-  has a non-default value in the save data test project, so we can be sure all
-  properties are read and saved property by the editor. If you add fields to the
-  protobuf messages used by the editor, you must either add a field ignore rule
-  to the `pb-ignored-fields` map at the top of this file, or set the field to a
-  non-default value in a root-level file in the save data test project."
+  ;; This test is intended to verify that every property across all editable
+  ;; files has a non-default value in the save data test project, so we can be
+  ;; sure all properties are read and saved property by the editor. If you add
+  ;; fields to the protobuf messages used by the editor, you must either add a
+  ;; field ignore rule to the `pb-ignored-fields` map at the top of this file,
+  ;; or set the field to a non-default value in a root-level file in the save
+  ;; data test project.
   (test-util/with-loaded-project project-path
     (let [uncovered-value-paths-by-ext
           (->> (checked-resources workspace)
@@ -1143,13 +1144,13 @@
                      (map #(string/join " -> " (key %))))))))
 
 (deftest all-gui-layout-node-fields-overridden-test
-  "This test is intended to verify that every field in dmGuiDDF.NodeDesc is
-  being overridden by a layout in one of the root-level files in the save data
-  test project. If you add a field to the NodeDesc protobuf message,
-  you'll either need to add a layout override for it (we suggest you add it to
-  the Landscape layout in `checked01.gui`, which hosts the majority of the
-  layout overrides), or add a field ignore rule to the `pb-ignored-fields` map
-  at the top of this file."
+  ;; This test is intended to verify that every field in dmGuiDDF.NodeDesc is
+  ;; being overridden by a layout in one of the root-level files in the save
+  ;; data test project. If you add a field to the NodeDesc protobuf message,
+  ;; you'll either need to add a layout override for it (we suggest you add it
+  ;; to the Landscape layout in `checked01.gui`, which hosts the majority of the
+  ;; layout overrides), or add a field ignore rule to the `pb-ignored-fields`
+  ;; map at the top of this file.
   (test-util/with-loaded-project project-path
     (let [gui-resource->layout-override-infos
           (fn gui-resource->layout-override-infos [resource]
@@ -1187,12 +1188,13 @@
             non-layout-overridden-gui-node-field-paths)))))
 
 (deftest all-gui-template-node-fields-overridden-test
-  "This test is intended to verify that every field in dmGuiDDF.NodeDesc is
-  being overridden from a template node in one of the root-level files in the
-  save data test project. If you add a field to the NodeDesc protobuf message,
-  you'll either need to add a template override for it (we suggest you add it to
-  `checked02.gui`, which hosts the majority of the template overrides), or add a
-  field ignore rule to the `pb-ignored-fields` map at the top of this file."
+  ;; This test is intended to verify that every field in dmGuiDDF.NodeDesc is
+  ;; being overridden from a template node in one of the root-level files in the
+  ;; save data test project. If you add a field to the NodeDesc protobuf
+  ;; message, you'll either need to add a template override for it (we suggest
+  ;; you add it to `checked02.gui`, which hosts the majority of the template
+  ;; overrides), or add a field ignore rule to the `pb-ignored-fields` map at
+  ;; the top of this file.
   (test-util/with-loaded-project project-path
     (let [proj-path->resource #(test-util/resource workspace %)
           resource->gui-scene-pb (memoize #(protobuf/read-pb Gui$SceneDesc %))
@@ -1305,34 +1307,35 @@
       (check-save-data-disk-equivalence! save-data))))
 
 (deftest save-value-is-equivalent-to-source-value-test
-  "This test is intended to verify that the saved data contains all the same
-  information as the read data. These tests bypass the dirty check in order to
-  verify that the information saved is equivalent to the data loaded. Failures
-  might signal that we've forgotten to read data from the file, or somehow we're
-  not writing all properties to disk."
+  ;; This test is intended to verify that the saved data contains all the same
+  ;; information as the read data. These tests bypass the dirty check in order
+  ;; to verify that the information saved is equivalent to the data loaded.
+  ;; Failures might signal that we've forgotten to read data from the file, or
+  ;; somehow we're not writing all properties to disk.
   (testing "Saved data should be equivalent to read data."
     (check-project-save-data-disk-equivalence! project/all-save-data)))
 
 (deftest no-unsaved-changes-after-load-test
-  "This test is intended to verify that changes to the file formats do not cause
-  undue changes to existing content in game projects. For example, adding fields
-  to component protobuf definitions may cause the default values to be written
-  to every instance of those components embedded in collection or game object
-  files, because the embedded components are written as a string literal.
-
-  If this test fails, you need to ensure the loaded data is migrated to the new
-  format by adding a :sanitize-fn when registering your resource type (Example:
-  `collision_object.clj`). Non-embedded components do not have this issue as
-  long as your added protobuf field has a default value. But more drastic file
-  format changes have happened in the past, and you can find other examples of
-  :sanitize-fn usage in non-component resource types."
+  ;; This test is intended to verify that changes to the file formats do not
+  ;; cause undue changes to existing content in game projects. For example,
+  ;; adding fields to component protobuf definitions may cause the default
+  ;; values to be written to every instance of those components embedded in
+  ;; collection or game object files, because the embedded components are
+  ;; written as a string literal.
+  ;;
+  ;; If this test fails, you need to ensure the loaded data is migrated to the
+  ;; new format by adding a :sanitize-fn when registering your resource type
+  ;; (Example: `collision_object.clj`). Non-embedded components do not have this
+  ;; issue as long as your added protobuf field has a default value. But more
+  ;; drastic file format changes have happened in the past, and you can find
+  ;; other examples of :sanitize-fn usage in non-component resource types.
   (testing "The project should not have unsaved changes immediately after loading."
     (check-project-save-data-disk-equivalence! project/dirty-save-data)))
 
 (deftest no-unsaved-changes-after-save-test
-  "This test is intended to verify that we track unsaved changes properly. If
-  any other tests in this module are failing as well, you should address them
-  first."
+  ;; This test is intended to verify that we track unsaved changes properly. If
+  ;; any other tests in this module are failing as well, you should address them
+  ;; first.
   (test-util/with-scratch-project project-path
     (clear-cached-save-data!)
     (let [checked-resources (checked-resources workspace)
