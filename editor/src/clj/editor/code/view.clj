@@ -1361,29 +1361,26 @@
           (refresh-completion-selected-index! view-node))))))
 
 (defn get-valid-syntax-info
-  "Get syntax info valid up till target
+  "Get syntax info valid up till target row (1-indexed)
 
   Args:
     resource-node          resource node
     canvas-repaint-info    canvas repaint info
-    target                 either:
-                             long        1-indexed row
-                             :visible    last visible row"
-  [resource-node canvas-repaint-info target]
-  (let [{:keys [grammar layout lines]} canvas-repaint-info
+    target-row             1-indexed row in the document"
+  [resource-node canvas-repaint-info target-row]
+  (let [{:keys [grammar lines]} canvas-repaint-info
         syntax-info
         (vary-meta
           (if (nil? grammar)
             []
-            (let [target-row (if (= :visible target) (data/last-visible-row layout) target)]
-              (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
-                (let [invalidated-syntax-info
-                      (if-some [invalidated-row (invalidated-row (:invalidated-rows (meta prev-syntax-info))
-                                                                 (:invalidated-rows canvas-repaint-info))]
-                        (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
-                        prev-syntax-info)]
-                  (data/ensure-syntax-info invalidated-syntax-info target-row lines grammar))
-                (data/ensure-syntax-info [] target-row lines grammar))))
+            (if-some [prev-syntax-info (g/user-data resource-node :syntax-info)]
+              (let [invalidated-syntax-info
+                    (if-some [invalidated-row (invalidated-row (:invalidated-rows (meta prev-syntax-info))
+                                                               (:invalidated-rows canvas-repaint-info))]
+                      (data/invalidate-syntax-info prev-syntax-info invalidated-row (count lines))
+                      prev-syntax-info)]
+                (data/ensure-syntax-info invalidated-syntax-info target-row lines grammar))
+              (data/ensure-syntax-info [] target-row lines grammar)))
           assoc :invalidated-rows (:invalidated-rows canvas-repaint-info))]
     (g/user-data! resource-node :syntax-info syntax-info)
     syntax-info))
@@ -3099,7 +3096,8 @@
     ;; Repaint canvas if needed.
     (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
       (g/user-data! view-node :canvas-repaint-info canvas-repaint-info)
-      (repaint-canvas! canvas-repaint-info (get-valid-syntax-info resource-node canvas-repaint-info :visible)))
+      (let [row (data/last-visible-row (:layout canvas-repaint-info))]
+        (repaint-canvas! canvas-repaint-info (get-valid-syntax-info resource-node canvas-repaint-info row))))
 
     (when completions-enabled
       (let [renderer (or existing-completion-popup-renderer
