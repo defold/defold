@@ -247,6 +247,10 @@ ordinary paths."
     :template           classpath or project resource path to a template file
                         for a new resource file creation; defaults to
                         \"templates/template.{ext}\"
+    :test-info          a map of type-specific information about the registered
+                        resource type that is utilized by the automated tests.
+                        Must include a :type field that classifies the method of
+                        registration for the tests.
     :label              label for a resource type when shown in the editor
     :stateless?         whether or not the node stores any state that needs to
                         be reloaded if the resource is modified externally. When
@@ -256,7 +260,7 @@ ordinary paths."
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
+  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template test-info label stateless? auto-connect-save-data?]}]
   (let [editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)
         resource-type {:textual? textual
@@ -272,11 +276,12 @@ ordinary paths."
                        :read-raw-fn (or read-raw-fn read-fn)
                        :sanitize-fn sanitize-fn
                        :icon icon
-                       :view-types (map (partial get-view-type workspace) view-types)
+                       :view-types (mapv (partial get-view-type workspace) view-types)
                        :view-opts view-opts
                        :tags tags
                        :tag-opts tag-opts
                        :template template
+                       :test-info test-info
                        :label label
                        :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)
                        :auto-connect-save-data? (and editable

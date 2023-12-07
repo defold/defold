@@ -1,0 +1,7 @@
+sound: "/referenced/sound.wav"
+looping: 1
+group: "bus"
+gain: 0.8
+pan: 0.2
+speed: 1.1
+loopcount: 2
