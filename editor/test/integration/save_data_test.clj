@@ -217,6 +217,10 @@
    {:default
     {"sample_rate" :deprecated}} ; This was a legacy setting in our own Spine implementation. There is no equivalent in the official Spine runtime.
 
+   'dmGameSystemDDF.SpriteDesc
+   {:default
+    {"textures" :unimplemented}} ; Multiple textures for sprites are not supported yet.
+
    'dmGameSystemDDF.TileLayer
    {:default
     {"id_hash" :runtime-only}}
