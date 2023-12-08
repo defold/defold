@@ -43,6 +43,9 @@
 
 (def collision-object-icon "icons/32/Icons_49-Collision-object.png")
 
+; Shared with editor.atlas - move to graph?
+(g/deftype ^:private NameCounts {s/Str s/Int})
+
 (def shape-type-ui
   {:type-sphere  {:label "Sphere"
                   :icon  "icons/32/Icons_45-Collistionshape-convex-Sphere.png"
@@ -73,35 +76,45 @@
 
 (g/deftype PhysicsType (s/enum "2D" "3D"))
 
+(defn- unique-id-error [node-id id id-counts]
+  (or (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id")
+      (validation/prop-error :fatal node-id :id (partial validation/prop-id-duplicate? id-counts) id)))
+
+(defn- validate-image-id [node-id id id-counts]
+  (when (and (not-empty id) (some? id-counts))
+    (unique-id-error node-id id id-counts)))
+
 (g/defnode Shape
   (inherits outline/OutlineNode)
   (inherits scene/SceneNode)
 
   (input color g/Any)
   (input project-physics-type PhysicsType)
+  (input id-counts NameCounts)
 
   (property shape-type g/Any
             (dynamic visible (g/constantly false)))
   (property node-outline-key g/Str
             (dynamic visible (g/constantly false)))
-  (property name g/Str)
+  (property id g/Str
+            (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output shape-data g/Any :abstract)
   (output scene g/Any :abstract)
 
-  (output shape g/Any (g/fnk [shape-type position rotation name shape-data]
+  (output shape g/Any (g/fnk [shape-type position rotation id shape-data]
                         {:shape-type shape-type
                          :position position
                          :rotation rotation
-                         :name name
+                         :id id
                          :data shape-data}))
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type name node-outline-key]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type id node-outline-key]
                                                      {:node-id _node-id
                                                       :node-outline-key node-outline-key
-                                                      :label (if (empty? name)
+                                                      :label (if (empty? id)
                                                                (shape-type-label shape-type)
-                                                               name)
+                                                               id)
                                                       :icon (shape-type-icon shape-type)})))
 
 (defn unify-scale [renderable]
@@ -321,6 +334,7 @@
     (g/connect shape-node :node-outline          parent     :child-outlines)
     (g/connect shape-node :scene                 parent     :child-scenes)
     (g/connect shape-node :shape                 parent     :shapes)
+    (g/connect parent     :id-counts             shape-node :id-counts)
     (g/connect parent     :collision-group-color shape-node :color)
     (g/connect parent     :project-physics-type  shape-node :project-physics-type)
     (when resolve-node-outline-key?
@@ -349,7 +363,7 @@
                     :type-sphere SphereShape
                     :type-box BoxShape
                     :type-capsule CapsuleShape)
-        node-props (dissoc shape :index :count :name-hash)]
+        node-props (dissoc shape :index :count :id-hash)]
     (g/make-nodes
       graph-id
       [shape-node [node-type node-props]]
@@ -450,15 +464,13 @@
         (update :data into (:data convex-shape))))
     collision-shape))
 
-(def my-atom (atom 0))
-
-(defn- insert-name-hashes [shapes]
+(defn- insert-id-hashes [shapes]
   (mapv (fn [shape]
-          (assoc shape :name-hash (murmur/hash64 (:name shape))))
+          (assoc shape :id-hash (murmur/hash64 (:id shape))))
         shapes))
 
 (g/defnk produce-build-targets
-  [_node-id resource pb-msg collision-shape dep-build-targets mass type project-physics-type shapes]
+  [_node-id resource pb-msg collision-shape dep-build-targets mass type project-physics-type shapes id-counts]
   (let [dep-build-targets (flatten dep-build-targets)
         convex-shape (when (and collision-shape (= "convexshape" (resource/type-ext collision-shape)))
                        (get-in (first dep-build-targets) [:user-data :pb]))
@@ -474,8 +486,7 @@
                              [[:collision-shape collision-shape]])) ; This is a tilemap resource.
         pb-msg (-> pb-msg
                    (update :embedded-collision-shape merge-convex-shape convex-shape)
-                   (update-in [:embedded-collision-shape :shapes] insert-name-hashes))]
-    (reset! my-atom pb-msg)
+                   (update-in [:embedded-collision-shape :shapes] insert-id-hashes))]
     (g/precluding-errors
       [(validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
        (when (= :collision-object-type-dynamic type)
@@ -488,6 +499,10 @@
                        (remove #(contains? (shape-type-physics-types %) project-physics-type))
                        (map #(format "%s shapes are not supported in %s physics" (shape-type-label %) project-physics-type))
                        (map #(g/->error _node-id :shapes :fatal shapes %)))
+                 shapes)
+       (sequence (comp
+                   (map :id)
+                   (map #(validate-image-id _node-id % id-counts)))
                  shapes)]
       [(bt/with-content-hash
          {:node-id _node-id
@@ -559,6 +574,7 @@
                                                       :child-reqs [{:node-type Shape
                                                                     :tx-attach-fn (partial attach-shape-node true)}]}))
 
+  (output id-counts NameCounts :cached (g/fnk [shapes] (frequencies (mapv :id shapes))))
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets)

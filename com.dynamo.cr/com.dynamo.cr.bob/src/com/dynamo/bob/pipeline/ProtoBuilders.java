@@ -225,7 +225,7 @@ public class ProtoBuilders {
 
             for (int i=0; i < embeddedShapesBuilder.getShapesCount(); i++) {
                 CollisionShape.Shape.Builder shapeBuilder = embeddedShapesBuilder.getShapesBuilder(i);
-                shapeBuilder.setNameHash(MurmurHash.hash64(shapeBuilder.getName()));
+                shapeBuilder.setIdHash(MurmurHash.hash64(shapeBuilder.getId()));
             }
 
             messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".convexshape", ".convexshapec"));

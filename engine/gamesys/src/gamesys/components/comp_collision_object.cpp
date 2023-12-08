@@ -1706,7 +1706,7 @@ namespace dmGameSystem
         uint32_t shape_count = component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes.m_Count;
         for (int i = 0; i < shape_count; ++i)
         {
-            if (component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes[i].m_NameHash == shape_name_hash)
+            if (component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes[i].m_IdHash == shape_name_hash)
             {
                 *index_out = i;
                 return true;
@@ -1718,28 +1718,6 @@ namespace dmGameSystem
     static inline uint32_t ToShapeIndex(CollisionComponent* component, uint32_t shape_index)
     {
         return component->m_IndexIndirectionTable ? component->m_IndexIndirectionTable[shape_index] : shape_index;
-    }
-
-    static void PrintComponent(CollisionComponent* component)
-    {
-        static const dmhash_t str1 = dmHashString64("my_sphere");
-        static const dmhash_t str2 = dmHashString64("my_sphere_2");
-
-        uint32_t shape_count = component->m_Resource->m_ShapeCount;
-
-        for (int i = 0; i < shape_count; ++i)
-        {
-            uint32_t index = i;
-
-            if (component->m_IndexIndirectionTable)
-            {
-                index = component->m_IndexIndirectionTable[i];
-            }
-
-            dmLogInfo("Shape %s", dmHashReverseSafe64(component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes[i].m_NameHash));
-            dmLogInfo("  index: %d", index);
-            dmLogInfo("  type: %d", (int) component->m_Resource->m_ShapeTypes[i]);
-        }
     }
 
     bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info)
@@ -1852,6 +1830,9 @@ namespace dmGameSystem
                     dmPhysics::ReplaceShape3D(component->m_Object3D, shape3d, new_shape);
                     dmPhysics::DeleteCollisionShape3D(shape3d);
 
+                    // The direction table is needed for component that has a box shape,
+                    // because it is the only shape that currently needs to alter the shape hierarchy
+                    // of a collision object.
                     if (!component->m_IndexIndirectionTable)
                     {
                         component->m_IndexIndirectionTable = new uint8_t[shape_count];
@@ -1861,6 +1842,8 @@ namespace dmGameSystem
                         }
                     }
 
+                    // When deleting child shapes, bullet swaps the child to delete with the last shape
+                    // in the list (if it's a compound shape), so we need to swap the indices here.
                     uint8_t tmp_index = component->m_IndexIndirectionTable[shape_count - 1];
                     component->m_IndexIndirectionTable[bt_shape_ix]     = tmp_index;
                     component->m_IndexIndirectionTable[shape_count - 1] = bt_shape_ix;

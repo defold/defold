@@ -68,8 +68,8 @@ message CollisionShape
         required dmMath.Quat rotation   = 3;
         required uint32 index           = 4;
         required uint32 count           = 5;
-        optional string name            = 6;
-        optional uint64 name_hash       = 7;
+        optional string id              = 6;
+        optional uint64 id_hash         = 7;
     }
 
     repeated Shape shapes = 1;
