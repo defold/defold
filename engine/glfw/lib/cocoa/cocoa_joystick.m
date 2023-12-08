@@ -121,7 +121,7 @@ static void addJoystickElement( _glfwJoystick* joystick, CFTypeRef refElement )
              && refUsage
              && CFNumberGetValue(refUsage, kCFNumberLongType, &usage)) {
 
-                switch( usagePage ) /* only interested in kHIDPage_GenericDesktop and kHIDPage_Button */
+                switch( usagePage )
                 {
                     case kHIDPage_GenericDesktop:
                     {
