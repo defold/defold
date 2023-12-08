@@ -147,8 +147,21 @@ static void addJoystickElement( _glfwJoystick* joystick, CFTypeRef refElement )
 
                         break;
                     }
+                    case kHIDPage_Simulation:
+                        switch ( usage )
+                        {
+                            case kHIDUsage_Sim_Accelerator:
+                            case kHIDUsage_Sim_Brake:
+                            case kHIDUsage_Sim_Rudder:
+                            case kHIDUsage_Sim_Throttle:
+                                joystick->numAxes++;
+                                elementsArray = joystick->axes;
+                                break;
+                        }
+                        break;
 
                     case kHIDPage_Button:
+                    case kHIDPage_Consumer:
                         joystick->numButtons++;
                         elementsArray = joystick->buttons;
                         break;
