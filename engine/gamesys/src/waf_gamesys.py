@@ -86,6 +86,7 @@ def transform_collisionobject(task, msg):
     import physics_ddf_pb2
     import google.protobuf.text_format
     import ddf.ddf_math_pb2
+    import dlib
     if msg.type != physics_ddf_pb2.COLLISION_OBJECT_TYPE_DYNAMIC:
         msg.mass = 0
 
@@ -103,11 +104,15 @@ def transform_collisionobject(task, msg):
             shape.rotation.w = 1
             shape.index = len(msg.embedded_collision_shape.data)
             shape.count = len(convex_msg.data)
+            shape.name_hash = dlib.dmHashBuffer64(shape.name)
 
             for x in convex_msg.data:
                 msg.embedded_collision_shape.data.append(x)
 
         msg.collision_shape = ''
+
+    for x in msg.embedded_collision_shape.shapes:
+        x.name_hash = dlib.dmHashBuffer64(x.name)
 
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilemapc')

@@ -1288,7 +1288,7 @@ namespace dmPhysics
     {
         btCollisionShape* bt_shape = (btCollisionShape*) shape;
         assert(bt_shape->getShapeType() == BOX_SHAPE_PROXYTYPE);
-        const btVector3& half_extents = ((btBoxShape*) bt_shape)->getHalfExtentsWithoutMargin();
+        const btVector3& half_extents = ((btBoxShape*) bt_shape)->getHalfExtentsWithMargin();
         xyz[0] = half_extents.getX();
         xyz[1] = half_extents.getY();
         xyz[2] = half_extents.getZ();

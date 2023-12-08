@@ -1039,7 +1039,7 @@ namespace dmPhysics
         if (shape->m_type == b2Shape::e_polygon)
         {
             b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
-            polygon_shape->SetAsBox(w * 0.5f, h * 0.5f);
+            polygon_shape->SetAsBox(w, h);
         }
     }
 

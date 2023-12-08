@@ -85,7 +85,6 @@
   (property node-outline-key g/Str
             (dynamic visible (g/constantly false)))
   (property name g/Str)
-
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output shape-data g/Any :abstract)
   (output scene g/Any :abstract)
@@ -97,10 +96,12 @@
                          :name name
                          :data shape-data}))
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type node-outline-key]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type name node-outline-key]
                                                      {:node-id _node-id
                                                       :node-outline-key node-outline-key
-                                                      :label (shape-type-label shape-type)
+                                                      :label (if (empty? name)
+                                                               (shape-type-label shape-type)
+                                                               name)
                                                       :icon (shape-type-icon shape-type)})))
 
 (defn unify-scale [renderable]

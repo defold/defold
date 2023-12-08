@@ -1695,8 +1695,8 @@ namespace dmGameSystem
             max_y = dmMath::Max(max_y, vertices[i+1]);
         }
 
-        dimension2d[0] = max_x - min_x;
-        dimension2d[1] = max_y - min_y;
+        dimension2d[0] = (max_x - min_x) * 0.5f;
+        dimension2d[1] = (max_y - min_y) * 0.5f;
         dimension2d[2] = 1.0f;
     }
 
