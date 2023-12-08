@@ -754,3 +754,9 @@
             (remove #(or (contains? renames %)
                          (contains? new-name-index %))))
           old-name-index)))
+
+(defn first-rf
+  "first as a reducing function"
+  ([] nil)
+  ([acc] acc)
+  ([_ v] (ensure-reduced v)))
