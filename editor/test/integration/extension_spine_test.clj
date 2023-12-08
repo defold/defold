@@ -32,9 +32,7 @@
 
 (set! *warn-on-reflection* true)
 
-;; TODO: Restore to main once we merge in changes from `dev`.
-;; (defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/main.zip")
-(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/refs/tags/2.13.0.zip")
+(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/main.zip")
 
 (def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
