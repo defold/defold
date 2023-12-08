@@ -34,7 +34,8 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
 
@@ -83,15 +84,17 @@
             (dynamic visible (g/constantly false)))
   (property node-outline-key g/Str
             (dynamic visible (g/constantly false)))
+  (property name g/Str)
 
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output shape-data g/Any :abstract)
   (output scene g/Any :abstract)
 
-  (output shape g/Any (g/fnk [shape-type position rotation shape-data]
+  (output shape g/Any (g/fnk [shape-type position rotation name shape-data]
                         {:shape-type shape-type
                          :position position
                          :rotation rotation
+                         :name name
                          :data shape-data}))
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type node-outline-key]
@@ -345,7 +348,7 @@
                     :type-sphere SphereShape
                     :type-box BoxShape
                     :type-capsule CapsuleShape)
-        node-props (dissoc shape :index :count)]
+        node-props (dissoc shape :index :count :name-hash)]
     (g/make-nodes
       graph-id
       [shape-node [node-type node-props]]
@@ -446,6 +449,13 @@
         (update :data into (:data convex-shape))))
     collision-shape))
 
+(def my-atom (atom 0))
+
+(defn- insert-name-hashes [shapes]
+  (mapv (fn [shape]
+          (assoc shape :name-hash (murmur/hash64 (:name shape))))
+        shapes))
+
 (g/defnk produce-build-targets
   [_node-id resource pb-msg collision-shape dep-build-targets mass type project-physics-type shapes]
   (let [dep-build-targets (flatten dep-build-targets)
@@ -461,7 +471,10 @@
                         (map (fn [[label resource]]
                                [label (get deps-by-source resource)])
                              [[:collision-shape collision-shape]])) ; This is a tilemap resource.
-        pb-msg (update pb-msg :embedded-collision-shape merge-convex-shape convex-shape)]
+        pb-msg (-> pb-msg
+                   (update :embedded-collision-shape merge-convex-shape convex-shape)
+                   (update-in [:embedded-collision-shape :shapes] insert-name-hashes))]
+    (reset! my-atom pb-msg)
     (g/precluding-errors
       [(validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
        (when (= :collision-object-type-dynamic type)

@@ -107,6 +107,8 @@ namespace dmGameSystem
         /// Linked list of joints TO this component.
         JointEndPoint* m_JointEndPoints;
 
+        uint8_t* m_IndexIndirectionTable;
+
         uint16_t m_Mask;
         uint16_t m_ComponentIndex;
         // True if the physics is 3D
@@ -456,6 +458,7 @@ namespace dmGameSystem
         component->m_JointEndPoints = 0x0;
         component->m_FlippedX = 0;
         component->m_FlippedY = 0;
+        component->m_IndexIndirectionTable = 0;
 
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
@@ -480,6 +483,8 @@ namespace dmGameSystem
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
+
+        delete[] component->m_IndexIndirectionTable;
 
         // Destroy joint ends
         JointEndPoint* joint_end = component->m_JointEndPoints;
@@ -1703,11 +1708,38 @@ namespace dmGameSystem
         {
             if (component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes[i].m_NameHash == shape_name_hash)
             {
-                *index_out = component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes[i].m_Index;
+                *index_out = i;
                 return true;
             }
         }
         return false;
+    }
+
+    static inline uint32_t ToShapeIndex(CollisionComponent* component, uint32_t shape_index)
+    {
+        return component->m_IndexIndirectionTable ? component->m_IndexIndirectionTable[shape_index] : shape_index;
+    }
+
+    static void PrintComponent(CollisionComponent* component)
+    {
+        static const dmhash_t str1 = dmHashString64("my_sphere");
+        static const dmhash_t str2 = dmHashString64("my_sphere_2");
+
+        uint32_t shape_count = component->m_Resource->m_ShapeCount;
+
+        for (int i = 0; i < shape_count; ++i)
+        {
+            uint32_t index = i;
+
+            if (component->m_IndexIndirectionTable)
+            {
+                index = component->m_IndexIndirectionTable[i];
+            }
+
+            dmLogInfo("Shape %s", dmHashReverseSafe64(component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes[i].m_NameHash));
+            dmLogInfo("  index: %d", index);
+            dmLogInfo("  type: %d", (int) component->m_Resource->m_ShapeTypes[i]);
+        }
     }
 
     bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info)
@@ -1729,7 +1761,7 @@ namespace dmGameSystem
             uint32_t res = dmPhysics::GetCollisionShapes3D(component->m_Object3D, shape_buffer, shape_count);
             assert(res == shape_count);
 
-            dmPhysics::HCollisionShape3D shape3d = shape_buffer[shape_ix];
+            dmPhysics::HCollisionShape3D shape3d = shape_buffer[ToShapeIndex(component, shape_ix)];
 
             switch(shape_info->m_Type)
             {
@@ -1798,7 +1830,9 @@ namespace dmGameSystem
             uint32_t res = dmPhysics::GetCollisionShapes3D(component->m_Object3D, shape_buffer, shape_count);
             assert(res == shape_count);
 
-            dmPhysics::HCollisionShape3D shape3d = shape_buffer[shape_ix];
+            uint32_t bt_shape_ix = ToShapeIndex(component, shape_ix);
+
+            dmPhysics::HCollisionShape3D shape3d = shape_buffer[bt_shape_ix];
 
             switch(shape_info->m_Type)
             {
@@ -1813,11 +1847,24 @@ namespace dmGameSystem
                                          shape_info->m_BoxDimensions[1] * 0.5f,
                                          shape_info->m_BoxDimensions[2] * 0.5f));
 
-                    // Can we use
+                    // TODO: Is there a different way we can do this?
                     dmPhysics::ReplaceShape3D(dmPhysics::GetContext3D(world->m_World3D), shape3d, new_shape);
                     dmPhysics::ReplaceShape3D(component->m_Object3D, shape3d, new_shape);
-
                     dmPhysics::DeleteCollisionShape3D(shape3d);
+
+                    if (!component->m_IndexIndirectionTable)
+                    {
+                        component->m_IndexIndirectionTable = new uint8_t[shape_count];
+                        for (int i = 0; i < shape_count; ++i)
+                        {
+                            component->m_IndexIndirectionTable[i] = i;
+                        }
+                    }
+
+                    uint8_t tmp_index = component->m_IndexIndirectionTable[shape_count - 1];
+                    component->m_IndexIndirectionTable[bt_shape_ix]     = tmp_index;
+                    component->m_IndexIndirectionTable[shape_count - 1] = bt_shape_ix;
+
                 } break;
                 default: assert(0);
             }

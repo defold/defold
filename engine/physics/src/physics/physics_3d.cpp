@@ -820,6 +820,25 @@ namespace dmPhysics
         delete co;
     }
 
+    HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index)
+    {
+        btCollisionShape* shape = GetCollisionObject(collision_object)->getCollisionShape();
+
+        if (shape->isCompound())
+        {
+            btCompoundShape* compound = (btCompoundShape*)shape;
+            if (compound->getNumChildShapes() > index)
+            {
+                return compound->getChildShape(index);
+            }
+        }
+        else if (index == 0)
+        {
+            return shape;
+        }
+        return 0;
+    }
+
     uint32_t GetCollisionShapes3D(HCollisionObject3D collision_object, HCollisionShape3D* out_buffer, uint32_t buffer_size)
     {
         btCollisionShape* shape = GetCollisionObject(collision_object)->getCollisionShape();

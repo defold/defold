@@ -1385,6 +1385,7 @@ namespace dmPhysics
     void FlipV2D(HCollisionObject2D collision_object);
 
     void ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape);
+    HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index);
 
     void GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius);
     void GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz);
