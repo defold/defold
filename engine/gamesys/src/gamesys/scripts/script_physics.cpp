@@ -1262,6 +1262,131 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# get collision shape info
+     * Gets collision shape data from a collision object
+     *
+     * @name physics.get_shape
+     * @param url [type:string|hash|url] the collision object.
+     * @param shape [type:string] the name of the shape to get data for.
+     * @return table [type:table] A table containing meta data about the physics shape
+     *
+     * `type`
+     * : [type:number] The shape type. Supported values:
+     *
+     * - `physics.SHAPE_TYPE_SPHERE`
+     * - `physics.SHAPE_TYPE_BOX`
+     * - `physics.SHAPE_TYPE_CAPSULE` *Only supported for 3D physics*
+     * - `physics.SHAPE_TYPE_HULL`
+     *
+     * The returned table contains different fields depending on which type the shape is.
+     *
+     * If the shape is a sphere:
+     *
+     * `diameter`
+     * : [type:number] the diameter of the sphere shape
+     *
+     * If the shape is a box:
+     *
+     * `dimensions`
+     * : [type:vector3] a `vmath.vector3` of the box dimensions
+     *
+     * If the shape is a capsule:
+     *
+     * `diameter`
+     * : [type:number] the diameter of the capsule poles
+     *
+     * `height`
+     * : [type:number] the height of the capsule
+     *
+     * ```lua
+     * local function get_shape_meta()
+     *     local sphere = physics.get_shape("#collisionobject", "my_sphere_shape")
+     *     -- returns a table with sphere.diameter
+     *     return sphere
+     * end
+     * ```
+     */
+    static int Physics_GetShape(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmhash_t shape_name_hash = dmScript::CheckHashOrString(L, -1);
+        uint32_t shape_ix;
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
+
+        void* comp       = 0x0;
+        void* comp_world = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &comp_world);
+
+        if (!dmGameSystem::GetShapeIndex(comp, shape_name_hash, &shape_ix))
+        {
+            return luaL_error(L, "No shape with name '%s' found", dmHashReverseSafe64(shape_name_hash));
+        }
+
+        dmGameSystem::ShapeInfo shape_info = {};
+        if (!dmGameSystem::GetShape(comp_world, comp, shape_ix, &shape_info))
+        {
+            return luaL_error(L, "Unable to get shape data at index %d.", shape_ix);
+        }
+
+        lua_newtable(L);
+
+        lua_pushinteger(L, (int) shape_info.m_Type);
+        lua_setfield(L, -2, "type");
+
+        switch(shape_info.m_Type)
+        {
+            case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
+                lua_pushnumber(L, shape_info.m_SphereDiameter);
+                lua_setfield(L, -2, "diameter");
+                break;
+            case dmPhysicsDDF::CollisionShape::TYPE_BOX:
+                dmScript::PushVector3(L, dmVMath::Vector3(shape_info.m_BoxDimensions[0], shape_info.m_BoxDimensions[1], shape_info.m_BoxDimensions[2]));
+                lua_setfield(L, -2, "dimensions");
+                break;
+            case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
+                lua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[0]);
+                lua_setfield(L, -2, "diameter");
+                lua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[1]);
+                lua_setfield(L, -2, "height");
+            break;
+        }
+
+        return 1;
+    }
+
+    /*# set collision shape data
+     * Sets collision shape data for a collision object. Please note that updating data in 3D
+     * can be quite costly for box and capsules. Because of the physics engine, the cost
+     * comes from having to recreate the shape objects when certain shapes needs to be updated.
+     *
+     * @name physics.set_shape
+     * @param url [type:string|hash|url] the collision object.
+     * @param shape [type:string] the name of the shape to get data for.
+     * @param table [type:table] the shape data to update the shape with.
+     *
+     * See [ref:physics.get_shape] for a detailed description of each field in the data table.
+     *
+     * ```lua
+     * local function set_shape_data()
+     *     -- set capsule shape data
+     *     local data = {}
+     *     data.diameter = 10
+     *     data.height = 20
+     *     physics.set_shape("#collisionobject", "my_capsule_shape", data)
+     *
+     *     -- set sphere shape data
+     *     data = {}
+     *     data.diameter = 10
+     *     physics.set_shape("#collisionobject", "my_sphere_shape", data)
+     *
+     *     -- set box shape data
+     *     data = {}
+     *     data.dimensions = vmath.vector3(10, 10, 5)
+     *     physics.set_shape("#collisionobject", "my_box_shape", data)
+     * end
+     * ```
+     */
     static int Physics_SetShape(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -1269,11 +1394,6 @@ namespace dmGameSystem
         dmhash_t shape_name_hash = dmScript::CheckHashOrString(L, 2);
         uint32_t shape_ix;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
-
-        if (shape_ix < 0)
-        {
-            return luaL_error(L, "Negative indices not supported (%d)", shape_ix);
-        }
 
         void* comp       = 0x0;
         void* comp_world = 0x0;
@@ -1334,55 +1454,6 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Physics_GetShape(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-
-        dmhash_t shape_name_hash = dmScript::CheckHashOrString(L, -1);
-        uint32_t shape_ix;
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
-
-        void* comp       = 0x0;
-        void* comp_world = 0x0;
-        GetCollisionObject(L, 1, collection, &comp, &comp_world);
-
-        if (!dmGameSystem::GetShapeIndex(comp, shape_name_hash, &shape_ix))
-        {
-            return luaL_error(L, "No shape with name '%s' found", dmHashReverseSafe64(shape_name_hash));
-        }
-
-        dmGameSystem::ShapeInfo shape_info = {};
-        if (!dmGameSystem::GetShape(comp_world, comp, shape_ix, &shape_info))
-        {
-            return luaL_error(L, "Unable to get shape data at index %d.", shape_ix);
-        }
-
-        lua_newtable(L);
-
-        lua_pushinteger(L, (int) shape_info.m_Type);
-        lua_setfield(L, -2, "type");
-
-        switch(shape_info.m_Type)
-        {
-            case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
-                lua_pushnumber(L, shape_info.m_SphereDiameter);
-                lua_setfield(L, -2, "diameter");
-                break;
-            case dmPhysicsDDF::CollisionShape::TYPE_BOX:
-                dmScript::PushVector3(L, dmVMath::Vector3(shape_info.m_BoxDimensions[0], shape_info.m_BoxDimensions[1], shape_info.m_BoxDimensions[2]));
-                lua_setfield(L, -2, "dimensions");
-                break;
-            case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
-                lua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[0]);
-                lua_setfield(L, -2, "diameter");
-                lua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[1]);
-                lua_setfield(L, -2, "height");
-            break;
-        }
-
-        return 1;
-    }
-
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
@@ -1430,6 +1501,17 @@ namespace dmGameSystem
         SETCONSTANT(JOINT_TYPE_WELD)
 
  #undef SETCONSTANT
+
+#define SET_COLLISION_SHAPE_CONSTANT(name, enum_name) \
+    lua_pushnumber(L, (lua_Number) dmPhysicsDDF::CollisionShape::enum_name); \
+    lua_setfield(L, -2, #name);\
+
+        SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_SPHERE,  TYPE_SPHERE)
+        SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_BOX,     TYPE_BOX)
+        SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_CAPSULE, TYPE_CAPSULE)
+        SET_COLLISION_SHAPE_CONSTANT(SHAPE_TYPE_HULL,    TYPE_HULL)
+
+#undef SET_COLLISION_SHAPE_CONSTANT
 
         lua_pop(L, 1);
 
