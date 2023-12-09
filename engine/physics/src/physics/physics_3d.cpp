@@ -1277,6 +1277,15 @@ namespace dmPhysics
         *radius = ((btSphereShape*) bt_shape)->getRadius();
     }
 
+    void GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height)
+    {
+        btCollisionShape* bt_shape = (btCollisionShape*) shape;
+        assert(bt_shape->getShapeType() == CAPSULE_SHAPE_PROXYTYPE);
+        btCapsuleShape* as_capsule = (btCapsuleShape*) bt_shape;
+        *radius                    = as_capsule->getRadius();
+        *half_height               = as_capsule->getHalfHeight();
+    }
+
     void SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius)
     {
         btCollisionShape* bt_shape = (btCollisionShape*) shape;

@@ -1308,6 +1308,16 @@ namespace dmGameSystem
                 memcpy(shape_info.m_BoxDimensions, &box_dimensions[0], sizeof(shape_info.m_BoxDimensions));
                 lua_pop(L, 1);
             }
+            else if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_CAPSULE)
+            {
+                lua_getfield(L, -1, "diameter");
+                shape_info.m_CapsuleDiameterHeight[0] = luaL_checknumber(L, -1);
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "height");
+                shape_info.m_CapsuleDiameterHeight[1] = luaL_checknumber(L, -1);
+                lua_pop(L, 1);
+            }
             else
             {
                 return luaL_error(L, "Unsupported shape type %d", (int) shape_info.m_Type);
@@ -1362,6 +1372,12 @@ namespace dmGameSystem
                 dmScript::PushVector3(L, dmVMath::Vector3(shape_info.m_BoxDimensions[0], shape_info.m_BoxDimensions[1], shape_info.m_BoxDimensions[2]));
                 lua_setfield(L, -2, "dimensions");
                 break;
+            case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
+                lua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[0]);
+                lua_setfield(L, -2, "diameter");
+                lua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[1]);
+                lua_setfield(L, -2, "height");
+            break;
         }
 
         return 1;

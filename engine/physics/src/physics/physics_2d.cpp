@@ -1016,6 +1016,20 @@ namespace dmPhysics
         return i;
     }
 
+    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object, uint32_t shape_index)
+    {
+        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+        uint32_t i = 0;
+        while(i < shape_index && fixture)
+        {
+            if (i == shape_index)
+                return fixture->GetShape();
+            fixture = fixture->GetNext();
+            i++;
+        }
+        return 0;
+    }
+
     void GetCollisionShapeRadius2D(HCollisionShape2D _shape, float* radius)
     {
         b2Shape* shape = (b2Shape*) _shape;

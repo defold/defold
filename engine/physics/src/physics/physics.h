@@ -1389,6 +1389,7 @@ namespace dmPhysics
 
     void GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius);
     void GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz);
+    void GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height);
 
     void SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius);
     void SetCollisionShapeHalfBoxExtents3D(HCollisionShape2D shape, float w, float h, float d);
@@ -1399,6 +1400,7 @@ namespace dmPhysics
     void SetCollisionShapeRadius2D(HCollisionShape2D shape, float radius);
     void SetCollisionShapeBoxDimensions2D(HCollisionShape2D shape, float w, float h);
 
+    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object, uint32_t shape_index);
     void SynchronizeObject2D(HCollisionObject2D collision_object);
 }
 

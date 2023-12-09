@@ -107,7 +107,7 @@ namespace dmGameSystem
         /// Linked list of joints TO this component.
         JointEndPoint* m_JointEndPoints;
 
-        uint8_t* m_IndexIndirectionTable;
+        dmPhysics::HCollisionShape3D* m_ShapeBuffer;
 
         uint16_t m_Mask;
         uint16_t m_ComponentIndex;
@@ -458,7 +458,7 @@ namespace dmGameSystem
         component->m_JointEndPoints = 0x0;
         component->m_FlippedX = 0;
         component->m_FlippedY = 0;
-        component->m_IndexIndirectionTable = 0;
+        component->m_ShapeBuffer = 0;
 
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
@@ -484,7 +484,7 @@ namespace dmGameSystem
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
 
-        delete[] component->m_IndexIndirectionTable;
+        delete[] component->m_ShapeBuffer;
 
         // Destroy joint ends
         JointEndPoint* joint_end = component->m_JointEndPoints;
@@ -1715,9 +1715,11 @@ namespace dmGameSystem
         return false;
     }
 
-    static inline uint32_t ToShapeIndex(CollisionComponent* component, uint32_t shape_index)
+    static inline dmPhysics::HCollisionShape3D GetShape3D(CollisionComponent* component, uint32_t shape_index)
     {
-        return component->m_IndexIndirectionTable ? component->m_IndexIndirectionTable[shape_index] : shape_index;
+        if (component->m_ShapeBuffer)
+            return component->m_ShapeBuffer[shape_index];
+        return dmPhysics::GetCollisionShape3D(component->m_Object3D, shape_index);
     }
 
     bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info)
@@ -1735,11 +1737,7 @@ namespace dmGameSystem
 
         if (world->m_3D)
         {
-            dmPhysics::HCollisionShape3D* shape_buffer = new dmPhysics::HCollisionShape3D[shape_count];
-            uint32_t res = dmPhysics::GetCollisionShapes3D(component->m_Object3D, shape_buffer, shape_count);
-            assert(res == shape_count);
-
-            dmPhysics::HCollisionShape3D shape3d = shape_buffer[ToShapeIndex(component, shape_ix)];
+            dmPhysics::HCollisionShape3D shape3d = GetShape3D(component, shape_ix);
 
             switch(shape_info->m_Type)
             {
@@ -1757,18 +1755,19 @@ namespace dmGameSystem
                     shape_info->m_BoxDimensions[1] = half_extents[1] * 2.0f;
                     shape_info->m_BoxDimensions[2] = half_extents[2] * 2.0f;
                 } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
+                {
+                    float radius, half_height;
+                    dmPhysics::GetCollisionShapeCapsuleRadiusHeight3D(shape3d, &radius, &half_height);
+                    shape_info->m_CapsuleDiameterHeight[0] = radius * 2.0f;
+                    shape_info->m_CapsuleDiameterHeight[1] = half_height * 2.0f;
+                } break;
                 default: assert(0);
             }
-
-            delete [] shape_buffer;
         }
         else
         {
-            dmPhysics::HCollisionShape2D* shape_buffer = new dmPhysics::HCollisionShape2D[shape_count];
-            uint32_t res = dmPhysics::GetCollisionShapes2D(component->m_Object2D, shape_buffer, shape_count);
-            assert(res == shape_count);
-
-            dmPhysics::HCollisionShape2D shape2d = shape_buffer[shape_ix];
+            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(component->m_Object2D, shape_ix);
 
             switch(shape_info->m_Type)
             {
@@ -1785,10 +1784,33 @@ namespace dmGameSystem
                 } break;
                 default: assert(0);
             }
-
-            delete [] shape_buffer;
         }
         return true;
+    }
+
+    static void ReplaceAndDeleteShape3D(dmPhysics::HContext3D context,
+        CollisionComponent* component,
+        dmPhysics::HCollisionShape3D old_shape,
+        dmPhysics::HCollisionShape3D new_shape,
+        uint32_t shape_index)
+    {
+        uint32_t shape_count = component->m_Resource->m_ShapeCount;
+
+        // The direction table is needed for component that has a box shape,
+        // because it is the only shape that currently needs to alter the shape hierarchy
+        // of a collision object.
+        if (!component->m_ShapeBuffer)
+        {
+            component->m_ShapeBuffer = new dmPhysics::HCollisionShape3D[shape_count];
+            uint32_t res = dmPhysics::GetCollisionShapes3D(component->m_Object3D, component->m_ShapeBuffer, shape_count);
+            assert(res == shape_count);
+        }
+
+        dmPhysics::ReplaceShape3D(context, old_shape, new_shape);
+        dmPhysics::ReplaceShape3D(component->m_Object3D, old_shape, new_shape);
+        dmPhysics::DeleteCollisionShape3D(old_shape);
+
+        component->m_ShapeBuffer[shape_index] = new_shape;
     }
 
     bool SetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info)
@@ -1804,13 +1826,7 @@ namespace dmGameSystem
 
         if (world->m_3D)
         {
-            dmPhysics::HCollisionShape3D* shape_buffer = new dmPhysics::HCollisionShape3D[shape_count];
-            uint32_t res = dmPhysics::GetCollisionShapes3D(component->m_Object3D, shape_buffer, shape_count);
-            assert(res == shape_count);
-
-            uint32_t bt_shape_ix = ToShapeIndex(component, shape_ix);
-
-            dmPhysics::HCollisionShape3D shape3d = shape_buffer[bt_shape_ix];
+            dmPhysics::HCollisionShape3D shape3d = GetShape3D(component, shape_ix);
 
             switch(shape_info->m_Type)
             {
@@ -1825,42 +1841,22 @@ namespace dmGameSystem
                                          shape_info->m_BoxDimensions[1] * 0.5f,
                                          shape_info->m_BoxDimensions[2] * 0.5f));
 
-                    // TODO: Is there a different way we can do this?
-                    dmPhysics::ReplaceShape3D(dmPhysics::GetContext3D(world->m_World3D), shape3d, new_shape);
-                    dmPhysics::ReplaceShape3D(component->m_Object3D, shape3d, new_shape);
-                    dmPhysics::DeleteCollisionShape3D(shape3d);
+                    ReplaceAndDeleteShape3D(dmPhysics::GetContext3D(world->m_World3D), component, shape3d, new_shape, shape_ix);
+                } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
+                {
+                    dmPhysics::HCollisionShape3D new_shape = dmPhysics::NewCapsuleShape3D(dmPhysics::GetContext3D(world->m_World3D),
+                        shape_info->m_CapsuleDiameterHeight[0] * 0.5f,
+                        shape_info->m_CapsuleDiameterHeight[1]);
 
-                    // The direction table is needed for component that has a box shape,
-                    // because it is the only shape that currently needs to alter the shape hierarchy
-                    // of a collision object.
-                    if (!component->m_IndexIndirectionTable)
-                    {
-                        component->m_IndexIndirectionTable = new uint8_t[shape_count];
-                        for (int i = 0; i < shape_count; ++i)
-                        {
-                            component->m_IndexIndirectionTable[i] = i;
-                        }
-                    }
-
-                    // When deleting child shapes, bullet swaps the child to delete with the last shape
-                    // in the list (if it's a compound shape), so we need to swap the indices here.
-                    uint8_t tmp_index = component->m_IndexIndirectionTable[shape_count - 1];
-                    component->m_IndexIndirectionTable[bt_shape_ix]     = tmp_index;
-                    component->m_IndexIndirectionTable[shape_count - 1] = bt_shape_ix;
-
+                    ReplaceAndDeleteShape3D(dmPhysics::GetContext3D(world->m_World3D), component, shape3d, new_shape, shape_ix);
                 } break;
                 default: assert(0);
             }
-
-            delete [] shape_buffer;
         }
         else
         {
-            dmPhysics::HCollisionShape2D* shape_buffer = new dmPhysics::HCollisionShape2D[shape_count];
-            uint32_t res = dmPhysics::GetCollisionShapes2D(component->m_Object2D, shape_buffer, shape_count);
-            assert(res == shape_count);
-
-            dmPhysics::HCollisionShape2D shape2d = shape_buffer[shape_ix];
+            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(component->m_Object2D, shape_ix);
 
             switch(shape_info->m_Type)
             {
@@ -1875,8 +1871,6 @@ namespace dmGameSystem
                 } break;
                 default: assert(0);
             }
-
-            delete [] shape_buffer;
         }
 
         return true;

@@ -88,7 +88,7 @@ namespace dmGameSystem
         union
         {
             float m_BoxDimensions[3];
-            float m_Capsule[2];
+            float m_CapsuleDiameterHeight[2];
             float m_SphereDiameter;
         };
         dmPhysicsDDF::CollisionShape::Type m_Type;
