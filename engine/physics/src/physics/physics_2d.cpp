@@ -1020,7 +1020,7 @@ namespace dmPhysics
     {
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         uint32_t i = 0;
-        while(i < shape_index && fixture)
+        while(i <= shape_index && fixture)
         {
             if (i == shape_index)
                 return fixture->GetShape();
