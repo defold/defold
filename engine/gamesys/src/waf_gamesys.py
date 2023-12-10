@@ -111,8 +111,7 @@ def transform_collisionobject(task, msg):
         msg.collision_shape = ''
 
     for x in msg.embedded_collision_shape.shapes:
-        if x.name:
-            x.name_hash = dlib.dmHashBuffer64(x.name)
+        x.id_hash = dlib.dmHashBuffer64(x.id)
 
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilemapc')
