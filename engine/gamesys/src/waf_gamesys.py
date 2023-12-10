@@ -104,7 +104,6 @@ def transform_collisionobject(task, msg):
             shape.rotation.w = 1
             shape.index = len(msg.embedded_collision_shape.data)
             shape.count = len(convex_msg.data)
-            shape.name_hash = dlib.dmHashBuffer64(shape.name)
 
             for x in convex_msg.data:
                 msg.embedded_collision_shape.data.append(x)
@@ -112,7 +111,8 @@ def transform_collisionobject(task, msg):
         msg.collision_shape = ''
 
     for x in msg.embedded_collision_shape.shapes:
-        x.name_hash = dlib.dmHashBuffer64(x.name)
+        if x.name:
+            x.name_hash = dlib.dmHashBuffer64(x.name)
 
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilemapc')
