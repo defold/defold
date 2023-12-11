@@ -135,8 +135,7 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib texc modelc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc".split()
 
-#EXTERNAL_LIBS = "bullet3d".split()
-EXTERNAL_LIBS = "glfw".split()
+EXTERNAL_LIBS = "glfw bullet3d".split()
 
 def get_host_platform():
     return sdk.get_host_platform()
