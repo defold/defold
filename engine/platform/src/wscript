@@ -1,8 +1,6 @@
 #! /usr/bin/env python
 import waflib.Options
 
-from waf_dynamo import dmsdk_add_files
-
 def configure(conf):
     pass
 
@@ -21,8 +19,7 @@ def build(bld):
     bld.add_group()
 
     bld.install_files('${PREFIX}/include/platform', 'platform_window.h')
-
-    dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_constants.h')
 
     if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')

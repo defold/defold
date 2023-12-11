@@ -2,8 +2,7 @@
 #include <string>
 
 #include "platform_window.h"
-
-#include "dmsdk/platform/platform_window.h"
+#include "platform_window_constants.h"
 
 namespace dmPlatform
 {

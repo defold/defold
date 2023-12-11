@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_PLATFORM_WINDOW_H
-#define DMSDK_PLATFORM_WINDOW_H
+#ifndef DM_PLATFORM_WINDOW_CONSTANTS_H
+#define DM_PLATFORM_WINDOW_CONSTANTS_H
 
 namespace dmPlatform
 {
@@ -88,4 +88,4 @@ namespace dmPlatform
     extern const int PLATFORM_MOUSE_BUTTON_8;
 }
 
-#endif // DMSDK_PLATFORM_WINDOW_H
+#endif // DM_PLATFORM_WINDOW_CONSTANTS_H

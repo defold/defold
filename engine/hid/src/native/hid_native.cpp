@@ -231,7 +231,11 @@ namespace dmHID
                 {
                     uint32_t mask = 1;
                     mask <<= i % 32;
-                    int state = dmPlatform::GetKey(context->m_Window, i);
+
+                    Key key       = (Key) i;
+                    int key_value = GetKeyValue(key);
+                    int state     = dmPlatform::GetKey(context->m_Window, key_value);
+
                     if (state == GLFW_PRESS)
                         keyboard->m_Packet.m_Keys[i / 32] |= mask;
                     else
@@ -255,7 +259,10 @@ namespace dmHID
                 {
                     uint32_t mask = 1;
                     mask <<= i % 32;
-                    int state = dmPlatform::GetMouseButton(context->m_Window, i);
+
+                    int button_value = GetMouseButtonValue((MouseButton) i);
+                    int state        = dmPlatform::GetMouseButton(context->m_Window, button_value);
+
                     if (state == GLFW_PRESS)
                         packet.m_Buttons[i / 32] |= mask;
                     else
