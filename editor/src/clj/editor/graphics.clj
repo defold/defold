@@ -339,35 +339,53 @@
             (= attribute-semantic-type :semantic-type-color)
             (assoc :ignore-alpha? (not= 4 attribute-element-count)))))
 
+(defn- attribute-value [attribute-values property-type semantic-type expected-element-count]
+  (if (= g/Num property-type)
+    (first attribute-values)      ; The widget expects a number, not a vector.
+    (resize-doubles attribute-values semantic-type expected-element-count)))
+
 (defn attribute-properties-by-property-key [_node-id material-attribute-infos vertex-attribute-overrides]
-  (keep (fn [attribute-info]
-          (when (editable-attribute-info? attribute-info)
-            (let [attribute-key (:name-key attribute-info)
-                  semantic-type (:semantic-type attribute-info)
-                  material-values (:values attribute-info)
-                  override-values (vertex-attribute-overrides attribute-key)
-                  attribute-values (or override-values material-values)
-                  property-type (attribute-property-type attribute-info)
-                  expected-element-count (attribute-expected-element-count attribute-info)
-                  edit-type (attribute-edit-type attribute-info property-type)
-                  property-key (attribute-key->property-key attribute-key)
-                  label (properties/keyword->name attribute-key)
-                  value (if (= g/Num property-type)
-                          (first attribute-values) ; The widget expects a number, not a vector.
-                          (resize-doubles attribute-values semantic-type expected-element-count))
-                  error (when (some? override-values)
-                          (validate-doubles override-values attribute-info _node-id property-key))
-                  prop {:node-id _node-id
-                        :type property-type
-                        :edit-type edit-type
-                        :label label
-                        :value value
-                        :error error}]
-              ;; Insert the original material values as original-value if there is a vertex override.
-              (if (some? override-values)
-                [property-key (assoc prop :original-value material-values)]
-                [property-key prop]))))
-        material-attribute-infos))
+  (let [name-keys (into #{} (map :name-key) material-attribute-infos)]
+    (concat
+      (keep (fn [attribute-info]
+              (when (editable-attribute-info? attribute-info)
+                (let [attribute-key (:name-key attribute-info)
+                      semantic-type (:semantic-type attribute-info)
+                      material-values (:values attribute-info)
+                      override-values (vertex-attribute-overrides attribute-key)
+                      attribute-values (or override-values material-values)
+                      property-type (attribute-property-type attribute-info)
+                      expected-element-count (attribute-expected-element-count attribute-info)
+                      edit-type (attribute-edit-type attribute-info property-type)
+                      property-key (attribute-key->property-key attribute-key)
+                      label (properties/keyword->name attribute-key)
+                      value (attribute-value attribute-values property-type semantic-type expected-element-count)
+                      error (when (some? override-values)
+                              (validate-doubles override-values attribute-info _node-id property-key))
+                      prop {:node-id _node-id
+                            :type property-type
+                            :edit-type edit-type
+                            :label label
+                            :value value
+                            :error error}]
+                  ;; Insert the original material values as original-value if there is a vertex override.
+                  (if (some? override-values)
+                    [property-key (assoc prop :original-value material-values)]
+                    [property-key prop]))))
+            material-attribute-infos)
+      (for [[name-key values] vertex-attribute-overrides
+            :when (not (name-keys name-key))
+            :let [element-count (if (number? values) 1 (count values))
+                  assumed-attribute-info {:element-count element-count
+                                          :name-key name-key}
+                  property-type (attribute-property-type assumed-attribute-info)]]
+        [(attribute-key->property-key name-key)
+         {:node-id _node-id
+          :value (attribute-value values property-type nil element-count)
+          :label (properties/keyword->name name-key)
+          :type property-type
+          :edit-type (attribute-edit-type assumed-attribute-info property-type)
+          :original-value []}]))))
 
 (defn attribute-bytes-by-attribute-key [_node-id material-attribute-infos vertex-attribute-overrides]
   (let [vertex-attribute-bytes
