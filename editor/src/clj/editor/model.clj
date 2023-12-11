@@ -325,11 +325,23 @@
   (output gpu-textures g/Any :cached produce-gpu-textures)
   (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
   (output material-scene-info g/Any (g/fnk [shader vertex-space gpu-textures name material-attribute-infos vertex-attribute-bytes :as info] info))
-  (output material-binding-info g/Any (g/fnk [_node-id name material material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes ^:try samplers ^:try texture-binding-infos :as info]
-                                        (cond
-                                          (g/error-value? texture-binding-infos) (assoc info :texture-binding-infos [])
-                                          (g/error-value? samplers) (dissoc info :samplers)
-                                          :else (update info :texture-binding-infos detect-and-apply-renames samplers))))
+  (output material-binding-info g/Any (g/fnk [_node-id name
+                                              material
+                                              ^:try material-attribute-infos
+                                              vertex-attribute-overrides
+                                              ^:try vertex-attribute-bytes
+                                              ^:try samplers
+                                              ^:try texture-binding-infos
+                                              :as info]
+                                        (let [info (cond-> info
+                                                           (g/error-value? material-attribute-infos)
+                                                           (assoc :material-attribute-infos [])
+                                                           (g/error-value? vertex-attribute-bytes)
+                                                           (assoc :vertex-attribute-bytes {}))]
+                                          (cond
+                                            (g/error-value? texture-binding-infos) (assoc info :texture-binding-infos [])
+                                            (g/error-value? samplers) (dissoc info :samplers)
+                                            :else (update info :texture-binding-infos detect-and-apply-renames samplers)))))
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
                                                  (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
 
@@ -389,9 +401,9 @@
     (editable? [_] false)))
 
 (g/defnk produce-model-properties [_node-id _declared-properties material-binding-infos mesh-material-ids]
+  (assert (not (g/error-value? material-binding-infos)))
   (let [model-node-id _node-id
         mesh-material-names (if (g/error-value? mesh-material-ids) #{} (set mesh-material-ids))
-        material-binding-infos (if (g/error-value? material-binding-infos) #{} material-binding-infos)
         proto-material-name->material-binding-info (into {} (map (juxt :name identity)) material-binding-infos)
         proto-material-names (into #{} (map :name) material-binding-infos)
         all-material-names (set/union mesh-material-names proto-material-names)
@@ -582,7 +594,7 @@
   (output aabb AABB (gu/passthrough aabb))
   (output _properties g/Properties :cached produce-model-properties))
 
-(defn load-model [_project self resource {:keys [name default-animation mesh skeleton animations materials]}]
+(defn load-model [_project self resource {:keys [name default-animation mesh skeleton animations materials] :as pb}]
   (concat
     (g/set-property self
       :name name
@@ -616,7 +628,8 @@
                                                     (fn [i tex-name]
                                                       {:sampler (str "tex" i)
                                                        :texture tex-name}))
-                                                  textures)}]))))
+                                                  textures)
+                                  :attributes []}]))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
