@@ -31,8 +31,7 @@
 
 namespace dmHID
 {
-    DM_STATIC_ASSERT(MAX_GAMEPAD_COUNT == 16, "Invalid gamepad count");
-    static int GLFW_JOYSTICKS[] =
+    static int GLFW_JOYSTICKS[MAX_GAMEPAD_COUNT] =
     {
         GLFW_JOYSTICK_1,
         GLFW_JOYSTICK_2,
