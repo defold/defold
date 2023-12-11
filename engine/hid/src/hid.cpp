@@ -275,41 +275,202 @@ namespace dmHID
         }
     }
 
+    static int GetKeyValue(Key key)
+    {
+        static const int translation_table[] = {
+            HID_KEY_SPACE,
+            HID_KEY_EXCLAIM,
+            HID_KEY_QUOTEDBL,
+            HID_KEY_HASH,
+            HID_KEY_DOLLAR,
+            HID_KEY_AMPERSAND,
+            HID_KEY_QUOTE,
+            HID_KEY_LPAREN,
+            HID_KEY_RPAREN,
+            HID_KEY_ASTERISK,
+            HID_KEY_PLUS,
+            HID_KEY_COMMA,
+            HID_KEY_MINUS,
+            HID_KEY_PERIOD,
+            HID_KEY_SLASH,
+            HID_KEY_0,
+            HID_KEY_1,
+            HID_KEY_2,
+            HID_KEY_3,
+            HID_KEY_4,
+            HID_KEY_5,
+            HID_KEY_6,
+            HID_KEY_7,
+            HID_KEY_8,
+            HID_KEY_9,
+            HID_KEY_COLON,
+            HID_KEY_SEMICOLON,
+            HID_KEY_LESS,
+            HID_KEY_EQUALS,
+            HID_KEY_GREATER,
+            HID_KEY_QUESTION,
+            HID_KEY_AT,
+            HID_KEY_A,
+            HID_KEY_B,
+            HID_KEY_C,
+            HID_KEY_D,
+            HID_KEY_E,
+            HID_KEY_F,
+            HID_KEY_G,
+            HID_KEY_H,
+            HID_KEY_I,
+            HID_KEY_J,
+            HID_KEY_K,
+            HID_KEY_L,
+            HID_KEY_M,
+            HID_KEY_N,
+            HID_KEY_O,
+            HID_KEY_P,
+            HID_KEY_Q,
+            HID_KEY_R,
+            HID_KEY_S,
+            HID_KEY_T,
+            HID_KEY_U,
+            HID_KEY_V,
+            HID_KEY_W,
+            HID_KEY_X,
+            HID_KEY_Y,
+            HID_KEY_Z,
+            HID_KEY_LBRACKET,
+            HID_KEY_BACKSLASH,
+            HID_KEY_RBRACKET,
+            HID_KEY_CARET,
+            HID_KEY_UNDERSCORE,
+            HID_KEY_BACKQUOTE,
+            HID_KEY_LBRACE,
+            HID_KEY_PIPE,
+            HID_KEY_RBRACE,
+            HID_KEY_TILDE,
+            HID_KEY_ESC,
+            HID_KEY_F1,
+            HID_KEY_F2,
+            HID_KEY_F3,
+            HID_KEY_F4,
+            HID_KEY_F5,
+            HID_KEY_F6,
+            HID_KEY_F7,
+            HID_KEY_F8,
+            HID_KEY_F9,
+            HID_KEY_F10,
+            HID_KEY_F11,
+            HID_KEY_F12,
+            HID_KEY_UP,
+            HID_KEY_DOWN,
+            HID_KEY_LEFT,
+            HID_KEY_RIGHT,
+            HID_KEY_LSHIFT,
+            HID_KEY_RSHIFT,
+            HID_KEY_LCTRL,
+            HID_KEY_RCTRL,
+            HID_KEY_LALT,
+            HID_KEY_RALT,
+            HID_KEY_TAB,
+            HID_KEY_ENTER,
+            HID_KEY_BACKSPACE,
+            HID_KEY_INSERT,
+            HID_KEY_DEL,
+            HID_KEY_PAGEUP,
+            HID_KEY_PAGEDOWN,
+            HID_KEY_HOME,
+            HID_KEY_END,
+            HID_KEY_KP_0,
+            HID_KEY_KP_1,
+            HID_KEY_KP_2,
+            HID_KEY_KP_3,
+            HID_KEY_KP_4,
+            HID_KEY_KP_5,
+            HID_KEY_KP_6,
+            HID_KEY_KP_7,
+            HID_KEY_KP_8,
+            HID_KEY_KP_9,
+            HID_KEY_KP_DIVIDE,
+            HID_KEY_KP_MULTIPLY,
+            HID_KEY_KP_SUBTRACT,
+            HID_KEY_KP_ADD,
+            HID_KEY_KP_DECIMAL,
+            HID_KEY_KP_EQUAL,
+            HID_KEY_KP_ENTER,
+            HID_KEY_KP_NUM_LOCK,
+            HID_KEY_CAPS_LOCK,
+            HID_KEY_SCROLL_LOCK,
+            HID_KEY_PAUSE,
+            HID_KEY_LSUPER,
+            HID_KEY_RSUPER,
+            HID_KEY_MENU,
+            HID_KEY_BACK,
+        };
+
+        assert((int) key < DM_ARRAY_SIZE(translation_table));
+        return translation_table[(int) key];
+    }
+
     bool GetKey(KeyboardPacket* packet, Key key)
     {
+        int key_value = GetKeyValue(key);
+
         if (packet != 0x0)
-            return packet->m_Keys[key / 32] & (1 << (key % 32));
+            return packet->m_Keys[key_value / 32] & (1 << (key_value % 32));
         else
             return false;
     }
 
     void SetKey(HKeyboard keyboard, Key key, bool value)
     {
+        int key_value = GetKeyValue(key);
+
         if (keyboard != 0x0)
         {
             if (value)
-                keyboard->m_Packet.m_Keys[key / 32] |= (1 << (key % 32));
+                keyboard->m_Packet.m_Keys[key_value / 32] |= (1 << (key_value % 32));
             else
-                keyboard->m_Packet.m_Keys[key / 32] &= ~(1 << (key % 32));
+                keyboard->m_Packet.m_Keys[key_value / 32] &= ~(1 << (key_value % 32));
         }
+    }
+
+    static int GetMouseButtonValue(MouseButton button)
+    {
+        static int translation_table[] = {
+            HID_MOUSE_BUTTON_LEFT,
+            HID_MOUSE_BUTTON_MIDDLE,
+            HID_MOUSE_BUTTON_RIGHT,
+            HID_MOUSE_BUTTON_1,
+            HID_MOUSE_BUTTON_2,
+            HID_MOUSE_BUTTON_3,
+            HID_MOUSE_BUTTON_4,
+            HID_MOUSE_BUTTON_5,
+            HID_MOUSE_BUTTON_6,
+            HID_MOUSE_BUTTON_7,
+            HID_MOUSE_BUTTON_8,
+        };
+        assert((int) button < DM_ARRAY_SIZE(translation_table));
+        return translation_table[(int) button];
     }
 
     bool GetMouseButton(MousePacket* packet, MouseButton button)
     {
+        int mouse_button_value = GetMouseButtonValue(button);
+
         if (packet != 0x0)
-            return packet->m_Buttons[button / 32] & (1 << (button % 32));
+            return packet->m_Buttons[mouse_button_value / 32] & (1 << (mouse_button_value % 32));
         else
             return false;
     }
 
     void SetMouseButton(HMouse mouse, MouseButton button, bool value)
     {
+        int mouse_button_value = GetMouseButtonValue(button);
+
         if (mouse != 0x0)
         {
             if (value)
-                mouse->m_Packet.m_Buttons[button / 32] |= (1 << (button % 32));
+                mouse->m_Packet.m_Buttons[mouse_button_value / 32] |= (1 << (mouse_button_value % 32));
             else
-                mouse->m_Packet.m_Buttons[button / 32] &= ~(1 << (button % 32));
+                mouse->m_Packet.m_Buttons[mouse_button_value / 32] &= ~(1 << (mouse_button_value % 32));
         }
     }
 

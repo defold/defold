@@ -17,7 +17,7 @@ def build(bld):
 
     obj = bld.program(features = 'cxx test',
                       includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-                      use      = 'TESTMAIN DLIB PROFILE_NULL DMGLFW SOCKET hid_null',
+                      use      = 'TESTMAIN DLIB PROFILE_NULL DMGLFW SOCKET PLATFORM_NULL hid_null',
                       target   = 'test_hid',
                       source   = 'test_hid.cpp')
 

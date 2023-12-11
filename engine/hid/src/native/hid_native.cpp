@@ -20,6 +20,9 @@
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 
+// TODO: Migrate last bits of glfw from this file
+#include <glfw/glfw.h>
+
 #include <platform/platform_window.h>
 
 #include "hid.h"

@@ -3,6 +3,8 @@
 
 #include "platform_window.h"
 
+#include "dmsdk/platform/platform_window.h"
+
 namespace dmPlatform
 {
     struct Window
@@ -115,4 +117,75 @@ namespace dmPlatform
         }
         return 0;
     }
+
+    const int PLATFORM_JOYSTICK_LAST       = 0;
+    const int PLATFORM_KEY_ESC             = 1;
+    const int PLATFORM_KEY_F1              = 2;
+    const int PLATFORM_KEY_F2              = 3;
+    const int PLATFORM_KEY_F3              = 4;
+    const int PLATFORM_KEY_F4              = 5;
+    const int PLATFORM_KEY_F5              = 6;
+    const int PLATFORM_KEY_F6              = 7;
+    const int PLATFORM_KEY_F7              = 8;
+    const int PLATFORM_KEY_F8              = 9;
+    const int PLATFORM_KEY_F9              = 10;
+    const int PLATFORM_KEY_F10             = 11;
+    const int PLATFORM_KEY_F11             = 12;
+    const int PLATFORM_KEY_F12             = 13;
+    const int PLATFORM_KEY_UP              = 14;
+    const int PLATFORM_KEY_DOWN            = 15;
+    const int PLATFORM_KEY_LEFT            = 16;
+    const int PLATFORM_KEY_RIGHT           = 17;
+    const int PLATFORM_KEY_LSHIFT          = 18;
+    const int PLATFORM_KEY_RSHIFT          = 19;
+    const int PLATFORM_KEY_LCTRL           = 20;
+    const int PLATFORM_KEY_RCTRL           = 21;
+    const int PLATFORM_KEY_LALT            = 22;
+    const int PLATFORM_KEY_RALT            = 23;
+    const int PLATFORM_KEY_TAB             = 24;
+    const int PLATFORM_KEY_ENTER           = 25;
+    const int PLATFORM_KEY_BACKSPACE       = 26;
+    const int PLATFORM_KEY_INSERT          = 27;
+    const int PLATFORM_KEY_DEL             = 28;
+    const int PLATFORM_KEY_PAGEUP          = 29;
+    const int PLATFORM_KEY_PAGEDOWN        = 30;
+    const int PLATFORM_KEY_HOME            = 31;
+    const int PLATFORM_KEY_END             = 32;
+    const int PLATFORM_KEY_KP_0            = 33;
+    const int PLATFORM_KEY_KP_1            = 34;
+    const int PLATFORM_KEY_KP_2            = 35;
+    const int PLATFORM_KEY_KP_3            = 36;
+    const int PLATFORM_KEY_KP_4            = 37;
+    const int PLATFORM_KEY_KP_5            = 38;
+    const int PLATFORM_KEY_KP_6            = 39;
+    const int PLATFORM_KEY_KP_7            = 40;
+    const int PLATFORM_KEY_KP_8            = 41;
+    const int PLATFORM_KEY_KP_9            = 42;
+    const int PLATFORM_KEY_KP_DIVIDE       = 43;
+    const int PLATFORM_KEY_KP_MULTIPLY     = 44;
+    const int PLATFORM_KEY_KP_SUBTRACT     = 45;
+    const int PLATFORM_KEY_KP_ADD          = 46;
+    const int PLATFORM_KEY_KP_DECIMAL      = 47;
+    const int PLATFORM_KEY_KP_EQUAL        = 48;
+    const int PLATFORM_KEY_KP_ENTER        = 49;
+    const int PLATFORM_KEY_KP_NUM_LOCK     = 50;
+    const int PLATFORM_KEY_CAPS_LOCK       = 51;
+    const int PLATFORM_KEY_SCROLL_LOCK     = 52;
+    const int PLATFORM_KEY_PAUSE           = 53;
+    const int PLATFORM_KEY_LSUPER          = 54;
+    const int PLATFORM_KEY_RSUPER          = 55;
+    const int PLATFORM_KEY_MENU            = 56;
+    const int PLATFORM_KEY_BACK            = 57;
+
+    const int PLATFORM_MOUSE_BUTTON_LEFT   = 0;
+    const int PLATFORM_MOUSE_BUTTON_MIDDLE = 1;
+    const int PLATFORM_MOUSE_BUTTON_RIGHT  = 2;
+    const int PLATFORM_MOUSE_BUTTON_1      = 3;
+    const int PLATFORM_MOUSE_BUTTON_2      = 4;
+    const int PLATFORM_MOUSE_BUTTON_3      = 5;
+    const int PLATFORM_MOUSE_BUTTON_4      = 6;
+    const int PLATFORM_MOUSE_BUTTON_5      = 7;
+    const int PLATFORM_MOUSE_BUTTON_6      = 8;
+    const int PLATFORM_MOUSE_BUTTON_7      = 9;
+    const int PLATFORM_MOUSE_BUTTON_8      = 10;
 }

@@ -23,30 +23,33 @@
 #include <dlib/math.h>
 #include <dlib/static_assert.h>
 
+#include <glfw/glfw.h>
+
 #include "hid_private.h"
 
 #include "hid_native_private.h"
 
 namespace dmHID
 {
-    static int GLFW_JOYSTICKS[MAX_GAMEPAD_COUNT] =
+    DM_STATIC_ASSERT(MAX_GAMEPAD_COUNT == 16, "Invalid gamepad count");
+    static int GLFW_JOYSTICKS[] =
     {
-            GLFW_JOYSTICK_1,
-            GLFW_JOYSTICK_2,
-            GLFW_JOYSTICK_3,
-            GLFW_JOYSTICK_4,
-            GLFW_JOYSTICK_5,
-            GLFW_JOYSTICK_6,
-            GLFW_JOYSTICK_7,
-            GLFW_JOYSTICK_8,
-            GLFW_JOYSTICK_9,
-            GLFW_JOYSTICK_10,
-            GLFW_JOYSTICK_11,
-            GLFW_JOYSTICK_12,
-            GLFW_JOYSTICK_13,
-            GLFW_JOYSTICK_14,
-            GLFW_JOYSTICK_15,
-            GLFW_JOYSTICK_16
+        GLFW_JOYSTICK_1,
+        GLFW_JOYSTICK_2,
+        GLFW_JOYSTICK_3,
+        GLFW_JOYSTICK_4,
+        GLFW_JOYSTICK_5,
+        GLFW_JOYSTICK_6,
+        GLFW_JOYSTICK_7,
+        GLFW_JOYSTICK_8,
+        GLFW_JOYSTICK_9,
+        GLFW_JOYSTICK_10,
+        GLFW_JOYSTICK_11,
+        GLFW_JOYSTICK_12,
+        GLFW_JOYSTICK_13,
+        GLFW_JOYSTICK_14,
+        GLFW_JOYSTICK_15,
+        GLFW_JOYSTICK_16
     };
 
     struct GLFWGamepadDevice
