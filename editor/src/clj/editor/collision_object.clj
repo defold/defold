@@ -466,7 +466,11 @@
 
 (defn- insert-id-hashes [shapes]
   (mapv (fn [shape]
-          (assoc shape :id-hash (murmur/hash64 (:id shape))))
+          (let [shape-id (:id shape)
+                shape-id-hash (if (empty? shape-id)
+                                0
+                                (murmur/hash64 shape-id))]
+            (assoc shape :id-hash shape-id-hash)))
         shapes))
 
 (g/defnk produce-build-targets
