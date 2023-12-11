@@ -1,0 +1,246 @@
+[bootstrap]
+main_collection = /checked.collectionc
+render = /checked.renderc
+
+[script]
+shared_state = 1
+
+[display]
+width = 800
+height = 600
+high_dpi = 1
+samples = 2
+fullscreen = 1
+display_profiles = /checked.display_profilesc
+dynamic_orientation = 1
+update_frequency = 30
+swap_interval = 0
+vsync = 0
+display_device_info = 1
+
+[android]
+input_method = HiddenInputField
+app_icon_36x36 = /referenced/images/diamond.png
+app_icon_48x48 = /referenced/images/diamond.png
+app_icon_72x72 = /referenced/images/diamond.png
+app_icon_96x96 = /referenced/images/diamond.png
+app_icon_144x144 = /referenced/images/diamond.png
+app_icon_192x192 = /referenced/images/diamond.png
+push_icon_small = /referenced/images/diamond.png
+push_icon_large = /referenced/images/diamond.png
+push_icon_small_ldpi = /referenced/images/diamond.png
+push_icon_small_mdpi = /referenced/images/diamond.png
+push_icon_small_hdpi = /referenced/images/diamond.png
+push_icon_small_xhdpi = /referenced/images/diamond.png
+push_icon_small_xxhdpi = /referenced/images/diamond.png
+push_icon_small_xxxhdpi = /referenced/images/diamond.png
+push_icon_large_ldpi = /referenced/images/diamond.png
+push_icon_large_mdpi = /referenced/images/diamond.png
+push_icon_large_hdpi = /referenced/images/diamond.png
+push_icon_large_xhdpi = /referenced/images/diamond.png
+push_icon_large_xxhdpi = /referenced/images/diamond.png
+push_icon_large_xxxhdpi = /referenced/images/diamond.png
+push_field_title = push_field_title
+push_field_text = push_field_text
+target_sdk_version = 32
+minimum_sdk_version = 18
+version_code = 2
+package = com.defold.save-data-project
+debuggable = 1
+display_cutout = 1
+immersive_mode = 1
+iap_provider = Amazon
+gcm_sender_id = com.defold.save-data-project
+fcm_application_id = com.defold.save-data-project
+manifest = /builtins/manifests/android/AndroidManifest.xml
+proguard = /builtins/manifests/android/dmengine.pro
+
+[project]
+title = Save Data Project
+version = 1.1
+publisher = Defold Foundation
+developer = Defold Foundation
+write_log = 1
+compress_archive = 1
+custom_resources = /referenced/custom
+bundle_resources = /referenced/bundle
+bundle_exclude_resources = /referenced/bundle/log.txt
+dependencies#0 = https://github.com/defold/extension-spine/archive/main.zip
+
+[input]
+game_binding = /checked.input_bindingc
+repeat_delay = 0.4
+repeat_interval = 0.1
+gamepads = /checked.gamepadsc
+use_accelerometer = 0
+
+[html5]
+heap_size = 128
+htmlfile = /builtins/manifests/web/engine_template.html
+cssfile = /builtins/manifests/web/light_theme.css
+splash_image = /builtins/assets/images/logo/logo_256.png
+archive_location_prefix = archive_prefix
+archive_location_suffix = archive_suffix
+engine_arguments = --verify-graphics-calls=false
+wasm_streaming = 1
+show_fullscreen_button = 0
+show_made_with_defold = 0
+show_console_banner = 0
+scale_mode = no_scale
+
+[ios]
+app_icon_76x76 = /referenced/images/diamond.png
+app_icon_152x152 = /referenced/images/diamond.png
+app_icon_167x167 = /referenced/images/diamond.png
+app_icon_120x120 = /referenced/images/diamond.png
+app_icon_180x180 = /referenced/images/diamond.png
+icons_asset = /referenced/assets-ios.car
+pre_renderered_icons = 1
+launch_screen = /builtins/manifests/ios/LaunchScreen.storyboardc
+bundle_identifier = com.defold.save-data-project
+bundle_name = Save Data Project
+bundle_version = 1.0
+infoplist = /builtins/manifests/ios/Info.plist
+default_language = en
+localizations = en
+entitlements = /referenced/entitlements.plist
+
+[osx]
+default_language = en
+localizations = en
+bundle_identifier = com.defold.save-data-project
+bundle_name = Save Data Project
+bundle_version = 1.0
+infoplist = /builtins/manifests/osx/Info.plist
+app_icon = /referenced/icon-macos.icns
+
+[windows]
+app_icon = /referenced/icon-windows.ico
+
+[collection]
+max_instances = 512
+max_input_stack_entries = 8
+
+[collectionfactory]
+max_count = 64
+
+[collection_proxy]
+max_count = 16
+
+[factory]
+max_count = 64
+
+[gui]
+max_count = 128
+max_particlefx_count = 128
+max_animation_count = 512
+max_particle_count = 512
+
+[label]
+max_count = 32
+subpixels = 0
+
+[mesh]
+max_count = 64
+
+[model]
+max_count = 64
+split_meshes = 1
+
+[particle_fx]
+max_count = 128
+max_emitter_count = 128
+max_particle_count = 2048
+
+[sound]
+use_thread = 0
+gain = 0.9
+max_sound_data = 64
+max_sound_buffers = 16
+max_sound_sources = 32
+max_sound_instances = 128
+max_component_count = 16
+
+[sprite]
+max_count = 256
+subpixels = 0
+
+[tilemap]
+max_count = 32
+max_tile_count = 1024
+
+[engine]
+run_while_iconified = 1
+fixed_update_frequency = 30
+
+[facebook]
+appid = com.defold.save-data-project
+
+[graphics]
+default_texture_min_filter = nearest
+default_texture_mag_filter = nearest
+max_draw_calls = 512
+max_characters = 4096
+max_debug_vertices = 8192
+texture_profiles = /checked.texture_profiles
+verify_graphics_calls = 0
+
+[iap]
+auto_finish_transactions = 0
+
+[network]
+http_timeout = 3.0
+ssl_certificates = /builtins/ca-certificates/cacert.pem
+http_thread_count = 2
+http_cache_enabled = 0
+
+[physics]
+max_collision_object_count = 64
+type = 3D
+use_fixed_timestep = 1
+debug = 1
+debug_alpha = 0.8
+debug_scale = 40.0
+world_count = 5
+gravity_x = 0.001
+gravity_z = 0.001
+gravity_y = -9.0
+scale = 0.9
+allow_dynamic_transforms = 0
+max_collisions = 128
+max_contacts = 256
+contact_impulse_limit = 0.001
+ray_cast_limit_2d = 128
+ray_cast_limit_3d = 256
+trigger_overlap_capacity = 8
+velocity_threshold = 0.9
+max_fixed_timesteps = 3
+
+[profiler]
+track_cpu = 1
+sleep_between_server_updates = 10
+
+[render]
+clear_color_red = 0.0
+clear_color_green = 0.0
+clear_color_blue = 0.0
+clear_color_alpha = 0.0
+
+[resource]
+http_cache = 1
+max_resources = 2048
+uri = http://localhost:1234/save-data-project
+
+[library]
+include_dirs = library
+
+[liveupdate]
+settings = /liveupdate.settings
+
+[native_extension]
+app_manifest = /checked.appmanifest
+
+[game_specific]
+player_name = Player One
+player_health = 120
+

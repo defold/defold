@@ -126,11 +126,12 @@
   (let [src-node (.source-id arc)
         tgt-node (.target-id arc)
         tgt-label (.target-label arc)]
-    (and (or (= :child-outlines tgt-label)
-             (= :source-outline tgt-label))
-         (g/node-instance? basis OutlineNode tgt-node)
-         (not (and (g/node-instance? basis resource/ResourceNode src-node)
-                   (some? (resource/path (g/node-value src-node :resource (g/make-evaluation-context {:basis basis :cache c/null-cache})))))))))
+    (or (= :copied-nodes tgt-label)
+        (and (or (= :child-outlines tgt-label)
+                 (= :source-outline tgt-label))
+             (g/node-instance? basis OutlineNode tgt-node)
+             (not (and (g/node-instance? basis resource/ResourceNode src-node)
+                       (some? (resource/path (g/node-value src-node :resource (g/make-evaluation-context {:basis basis :cache c/null-cache}))))))))))
 
 (defn copy
   ([project src-item-iterators]

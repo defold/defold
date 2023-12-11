@@ -16,6 +16,7 @@
 #include "crash_private.h"
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/dlib.h>
 
 #include <stdio.h>
 #include <ctype.h>
@@ -73,5 +74,9 @@ extern "C" void JSWriteDump(char* json_stacktrace) {
     }
     dmCrash::WriteCrash(dmCrash::g_FilePath, &dmCrash::g_AppState);
 
-    dmCrash::LogCallstack(dmCrash::g_AppState.m_Extra);
+    // It's more convenient to get message as one error for web, so we don't use dmCrash::LogCallstack()
+    bool is_debug_mode = dLib::IsDebugMode();
+    dLib::SetDebugMode(true);
+    dmLogError("CALL STACK:\n%s\nCALL STACK END", dmCrash::g_AppState.m_Extra);
+    dLib::SetDebugMode(is_debug_mode);
 }
