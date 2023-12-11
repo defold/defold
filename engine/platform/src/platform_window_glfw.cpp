@@ -17,7 +17,7 @@
 #include "platform_window.h"
 #include "platform_window_constants.h"
 
-#include  <glfw/glfw.h>
+#include <glfw/glfw.h>
 
 #include <dlib/platform.h>
 #include <dlib/log.h>

@@ -410,7 +410,7 @@ namespace dmHID
         KEY_MENU        = HID_KEY_MENU,
         KEY_BACK        = HID_KEY_BACK,
 
-        MAX_KEY_COUNT   = HID_KEY_MAX,
+        MAX_KEY_COUNT   = KEY_BACK + 1,
     };
 
     /*# mouse button enumeration
@@ -431,17 +431,17 @@ namespace dmHID
      */
     enum MouseButton
     {
-        MOUSE_BUTTON_LEFT      = 0,
-        MOUSE_BUTTON_MIDDLE    = 1,
-        MOUSE_BUTTON_RIGHT     = 2,
-        MOUSE_BUTTON_1         = 3,
-        MOUSE_BUTTON_2         = 4,
-        MOUSE_BUTTON_3         = 5,
-        MOUSE_BUTTON_4         = 6,
-        MOUSE_BUTTON_5         = 7,
-        MOUSE_BUTTON_6         = 8,
-        MOUSE_BUTTON_7         = 9,
-        MOUSE_BUTTON_8         = 10,
+        MOUSE_BUTTON_LEFT      = HID_BUTTON_LEFT,
+        MOUSE_BUTTON_MIDDLE    = HID_BUTTON_MIDDLE,
+        MOUSE_BUTTON_RIGHT     = HID_BUTTON_RIGHT,
+        MOUSE_BUTTON_1         = HID_BUTTON_1,
+        MOUSE_BUTTON_2         = HID_BUTTON_2,
+        MOUSE_BUTTON_3         = HID_BUTTON_3,
+        MOUSE_BUTTON_4         = HID_BUTTON_4,
+        MOUSE_BUTTON_5         = HID_BUTTON_5,
+        MOUSE_BUTTON_6         = HID_BUTTON_6,
+        MOUSE_BUTTON_7         = HID_BUTTON_7,
+        MOUSE_BUTTON_8         = HID_BUTTON_8,
         MAX_MOUSE_BUTTON_COUNT = MOUSE_BUTTON_8 + 1
     };
 

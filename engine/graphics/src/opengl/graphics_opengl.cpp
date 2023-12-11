@@ -43,7 +43,7 @@
 #include <Carbon/Carbon.h>
 #endif
 
-#include  <glfw/glfw.h>
+#include <glfw/glfw.h>
 #include  <glfw/glfw_native.h>
 
 #if defined(__linux__) && !defined(ANDROID)
