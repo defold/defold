@@ -207,6 +207,7 @@ public class TextureSetLayout {
         }
     }
 
+    // Public api!
     public static class Layout {
         private final List<Rect> rectangles;
         private final int width;

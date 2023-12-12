@@ -904,7 +904,7 @@
                            (g/transact
                              (concat
                                (g/operation-sequence op-seq)
-                               (g/operation-label "Add Animation Group")
+                               (g/operation-label "Add Animation")
                                (make-atlas-animation atlas-node default-animation))))]
     (g/transact
       (concat

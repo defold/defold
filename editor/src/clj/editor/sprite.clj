@@ -339,7 +339,7 @@
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
                                       (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image")
                                       (when (nil? anim-data) ; nil from :substitute on input.
-                                        (g/->error _node-id :image :fatal image "the assigned Image has internal errors")))))
+                                        (g/->error _node-id :image :fatal image "the assigned Image has no animations")))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["atlas" "tilesource"]})))
