@@ -1262,6 +1262,22 @@ namespace dmRender
             {
                 render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
             }
+            else if (dmScript::IsHash(L, 1) || lua_isstring(L, 1))
+            {
+                dmhash_t rt_id = dmScript::CheckHashOrString(L, 1);
+                dmGraphics::HRenderTarget* rt_ptr = i->m_RenderTargets.Get(rt_id);
+
+                if (rt_ptr == 0x0)
+                {
+                    char str[128];
+                    char buffer[256];
+                    dmSnPrintf(buffer, sizeof(buffer), "Could not find render target '%s' %llu",
+                        dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long) rt_id); // since lua doesn't support proper format arguments
+                    return luaL_error(L, "%s", buffer);
+                }
+
+                render_target = *rt_ptr;
+            }
             else
             {
                 if(!lua_isnil(L, 1) && luaL_checkint(L, 1) != 0)
@@ -3272,6 +3288,7 @@ bail:
         i->m_RenderContext = render_context;
         i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
         i->m_Materials.SetCapacity(16, 8);
+        i->m_RenderTargets.SetCapacity(16, 8);
 
         lua_pushvalue(L, -1);
         i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
@@ -3339,6 +3356,21 @@ bail:
     void ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance)
     {
         render_script_instance->m_Materials.Clear();
+    }
+
+    void AddRenderScriptInstanceRenderTarget(HRenderScriptInstance render_script_instance, const char* rt_name, dmGraphics::HRenderTarget rt)
+    {
+        if (render_script_instance->m_RenderTargets.Full())
+        {
+            uint32_t new_capacity = 2 * render_script_instance->m_RenderTargets.Capacity();
+            render_script_instance->m_RenderTargets.SetCapacity(2 * new_capacity, new_capacity);
+        }
+        render_script_instance->m_RenderTargets.Put(dmHashString64(rt_name), rt);
+    }
+
+    void ClearRenderScriptInstanceRenderTargets(HRenderScriptInstance render_script_instance)
+    {
+        render_script_instance->m_RenderTargets.Clear();
     }
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)

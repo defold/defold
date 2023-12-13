@@ -33,6 +33,7 @@
 #include "../resources/res_buffer.h"
 #include "../resources/res_texture.h"
 #include "../resources/res_textureset.h"
+#include "../resources/res_render_target.h"
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
@@ -1215,6 +1216,11 @@ static int GetTextureInfo(lua_State* L)
         }
     }
 
+    if (dmGraphics::GetAssetType(texture_handle) != dmGraphics::ASSET_TYPE_TEXTURE)
+    {
+        return luaL_error(L, "Asset handle is not a texture");
+    }
+
     uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
     uint32_t texture_height              = dmGraphics::GetTextureHeight(texture_handle);
     uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
@@ -1240,6 +1246,60 @@ static int GetTextureInfo(lua_State* L)
 
     lua_pushinteger(L, texture_type);
     lua_setfield(L, -2, "type");
+
+    assert((top + 1) == lua_gettop(L));
+    return 1;
+}
+
+static int GetRenderTargetInfo(lua_State* L)
+{
+    int top = lua_gettop(L);
+    dmGraphics::HRenderTarget rt_handle = 0;
+
+    if (lua_isnumber(L, 1))
+    {
+        rt_handle = lua_tonumber(L, 1);
+        if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, rt_handle))
+        {
+            return luaL_error(L, "Render target handle is not valid.");
+        }
+    }
+    else
+    {
+        dmhash_t path_hash      = dmScript::CheckHashOrString(L, 1);
+        TextureResource* rt_res = (TextureResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "render_targetc");
+        rt_handle               = rt_res->m_RenderTarget;
+
+        if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, rt_handle))
+        {
+            return luaL_error(L, "Texture '%s' is not a valid texture handle.", dmHashReverseSafe64(path_hash));
+        }
+    }
+
+    if (dmGraphics::GetAssetType(rt_handle) != dmGraphics::ASSET_TYPE_RENDER_TARGET)
+    {
+        return luaL_error(L, "Asset handle is not a render target");
+    }
+
+    dmGraphics::BufferType color_buffer_flags[] = {
+        dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+        dmGraphics::BUFFER_TYPE_COLOR1_BIT,
+        dmGraphics::BUFFER_TYPE_COLOR2_BIT,
+        dmGraphics::BUFFER_TYPE_COLOR3_BIT,
+    };
+
+    lua_newtable(L);
+
+    for (int i = 0; i < dmGraphics::MAX_ATTACHMENT_COUNT; ++i)
+    {
+        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, color_buffer_flags[i]);
+        if (t)
+        {
+            lua_pushinteger(L, color_buffer_flags[i]);
+            lua_pushnumber(L, t);
+            lua_rawset(L, -3);
+        }
+    }
 
     assert((top + 1) == lua_gettop(L));
     return 1;
@@ -2663,6 +2723,7 @@ static const luaL_reg Module_methods[] =
     {"get_atlas", GetAtlas},
     {"set_texture", SetTexture},
     {"get_texture_info", GetTextureInfo},
+    {"get_render_target_info", GetRenderTargetInfo},
     {"set_sound", SetSound},
     {"get_buffer", GetBuffer},
     {"set_buffer", SetBuffer},

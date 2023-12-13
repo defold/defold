@@ -66,6 +66,7 @@ import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
+import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 
 public class ProtoBuilders {
 
@@ -239,6 +240,10 @@ public class ProtoBuilders {
     @BuilderParams(name="GamepadMaps", inExts=".gamepads", outExt=".gamepadsc")
     public static class GamepadMapsBuilder extends ProtoBuilder<GamepadMaps.Builder> {}
 
+    @ProtoParams(srcClass = RenderTargetDesc.class, messageClass = RenderTargetDesc.class)
+    @BuilderParams(name="RenderTarget", inExts=".render_target", outExt=".render_targetc")
+    public static class RenderTargetDescBuilder extends ProtoBuilder<RenderTargetDesc.Builder> {}
+
     @ProtoParams(srcClass = FactoryDesc.class, messageClass = FactoryDesc.class)
     @BuilderParams(name="Factory", inExts=".factory", outExt=".factoryc")
     public static class FactoryBuilder extends ProtoBuilder<FactoryDesc.Builder> {
@@ -282,6 +287,17 @@ public class ProtoBuilders {
             }
             messageBuilder.clearMaterials();
             messageBuilder.addAllMaterials(newMaterialList);
+
+            List<RenderPrototypeDesc.RenderTargetDesc> newRTList = new ArrayList<RenderPrototypeDesc.RenderTargetDesc>();
+            for (RenderPrototypeDesc.RenderTargetDesc rt : messageBuilder.getRenderTargetsList()) {
+                BuilderUtil.checkResource(this.project, resource, "render_target", rt.getRenderTarget());
+                newRTList.add(RenderPrototypeDesc.RenderTargetDesc.newBuilder()
+                    .mergeFrom(rt)
+                    .setRenderTarget(BuilderUtil.replaceExt(rt.getRenderTarget(), ".render_target", ".render_targetc"))
+                    .build());
+            }
+            messageBuilder.clearRenderTargets();
+            messageBuilder.addAllRenderTargets(newRTList);
 
             return messageBuilder;
         }

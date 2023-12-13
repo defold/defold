@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_render_prototype.h"
+#include "res_texture.h"
 
 #include <render/render_ddf.h>
 
@@ -54,7 +55,10 @@ namespace dmGameSystem
             {
                 dmRender::SetRenderScriptInstanceRenderScript(prototype->m_Instance, prototype->m_Script);
                 dmRender::ClearRenderScriptInstanceMaterials(prototype->m_Instance);
+                dmRender::ClearRenderScriptInstanceRenderTargets(prototype->m_Instance);
             }
+
+            // Materials
             prototype->m_Materials.SetCapacity(prototype_desc->m_Materials.m_Count);
             for (uint32_t i = 0; i < prototype_desc->m_Materials.m_Count; ++i)
             {
@@ -73,6 +77,28 @@ namespace dmGameSystem
                 for (uint32_t i = 0; i < prototype->m_Materials.Size(); ++i)
                 {
                     dmRender::AddRenderScriptInstanceMaterial(prototype->m_Instance, prototype_desc->m_Materials[i].m_Name, prototype->m_Materials[i]->m_Material);
+                }
+            }
+
+            // RenderTargets
+            prototype->m_RenderTargets.SetCapacity(prototype_desc->m_RenderTargets.m_Count);
+            for (uint32_t i = 0; i < prototype_desc->m_RenderTargets.m_Count; ++i)
+            {
+                dmGameSystem::TextureResource* rt;
+                if (dmResource::RESULT_OK == dmResource::Get(factory, prototype_desc->m_RenderTargets[i].m_RenderTarget, (void**)&rt))
+                    prototype->m_RenderTargets.Push(rt);
+                else
+                    break;
+            }
+            if (!prototype->m_RenderTargets.Full())
+            {
+                result = dmResource::RESULT_OUT_OF_RESOURCES;
+            }
+            else
+            {
+                for (uint32_t i = 0; i < prototype->m_RenderTargets.Size(); ++i)
+                {
+                    dmRender::AddRenderScriptInstanceRenderTarget(prototype->m_Instance, prototype_desc->m_RenderTargets[i].m_Name, prototype->m_RenderTargets[i]->m_RenderTarget);
                 }
             }
         }

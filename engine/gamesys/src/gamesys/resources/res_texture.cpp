@@ -33,7 +33,21 @@ namespace dmGameSystem
         uint32_t                  m_DecompressedDataSize[MAX_MIPMAP_COUNT];
     };
 
-    static dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format)
+    dmGraphics::TextureType TextureImageToTextureType(dmGraphics::TextureImage::Type type)
+    {
+    #define CASE_TT(_X, _T) case dmGraphics::TextureImage::_X:    return dmGraphics::TEXTURE_ ## _T
+        switch(type)
+        {
+            CASE_TT(TYPE_2D,       TYPE_2D);
+            CASE_TT(TYPE_2D_ARRAY, TYPE_2D_ARRAY);
+            CASE_TT(TYPE_CUBEMAP,  TYPE_CUBE_MAP);
+            default: assert(0);
+        }
+    #undef CASE_TT
+        return (dmGraphics::TextureType) -1;
+    }
+
+    dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format)
     {
 #define CASE_TF(_X) case dmGraphics::TextureImage::TEXTURE_FORMAT_ ## _X:    return dmGraphics::TEXTURE_FORMAT_ ## _X
         switch (format)
@@ -64,11 +78,10 @@ namespace dmGameSystem
             CASE_TF(RG16F);
             CASE_TF(R32F);
             CASE_TF(RG32F);
-            default:
-                assert(0);
-                return (dmGraphics::TextureFormat)-1;
+            default: assert(0);
 #undef CASE_TF
         }
+        return (dmGraphics::TextureFormat)-1;
     }
 
     bool SynchronizeTexture(dmGraphics::HTexture texture, bool wait)
@@ -141,20 +154,8 @@ namespace dmGameSystem
             if (!texture)
             {
                 dmGraphics::TextureCreationParams creation_params;
-                switch(image_desc->m_DDFImage->m_Type)
-                {
-                    case dmGraphics::TextureImage::TYPE_2D:
-                        creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_2D;
-                        break;
-                    case dmGraphics::TextureImage::TYPE_2D_ARRAY:
-                        creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
-                        break;
-                    case dmGraphics::TextureImage::TYPE_CUBEMAP:
-                        creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
-                        break;
-                    default: assert(0);
-                }
 
+                creation_params.m_Type           = TextureImageToTextureType(image_desc->m_DDFImage->m_Type);
                 creation_params.m_Width          = image->m_Width;
                 creation_params.m_Height         = image->m_Height;
                 creation_params.m_Depth          = image_desc->m_DDFImage->m_Count;
@@ -353,6 +354,7 @@ namespace dmGameSystem
         {
             TextureResource* texture_res = new TextureResource();
             texture_res->m_Texture = texture;
+            texture_res->m_IsTexture = 1;
             params.m_Resource->m_Resource = (void*) texture_res;
         }
         return r;

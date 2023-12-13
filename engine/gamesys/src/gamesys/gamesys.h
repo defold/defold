@@ -53,6 +53,7 @@ namespace dmGameSystem
     extern const char* COLLECTION_FACTORY_MAX_COUNT_KEY;
 
     struct MaterialResource;
+    struct TextureResource;
 
     struct TilemapContext
     {
@@ -109,6 +110,7 @@ namespace dmGameSystem
     struct RenderScriptPrototype
     {
         dmArray<MaterialResource*>      m_Materials;
+        dmArray<TextureResource*>       m_RenderTargets;
         dmhash_t                        m_NameHash;
         dmRender::HRenderScriptInstance m_Instance;
         dmRender::HRenderScript         m_Script;

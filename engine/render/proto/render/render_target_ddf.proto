@@ -1,0 +1,19 @@
+syntax = "proto2";
+package dmRenderDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+import "graphics/graphics_ddf.proto";
+
+option java_package = "com.dynamo.render.proto";
+option java_outer_classname = "RenderTarget";
+
+message RenderTargetDesc
+{
+    optional uint32 width                                            = 1;
+    optional uint32 height                                           = 2;
+    optional uint32 attachment_count                                 = 3 [default = 1];
+    optional dmGraphics.TextureImage.Type attachment_type            = 4 [default = TYPE_2D];
+    optional dmGraphics.TextureImage.TextureFormat attachment_format = 5 [default = TEXTURE_FORMAT_RGBA];
+    optional bool depth_stencil                                      = 6;
+}

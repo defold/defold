@@ -15,8 +15,15 @@ message RenderPrototypeDesc
         required string material = 2 [(resource) = true];
     }
 
+    message RenderTargetDesc
+    {
+        required string name = 1;
+        required string render_target = 2 [(resource) = true];
+    }
+
     required string script = 1 [(resource) = true];
     repeated MaterialDesc materials = 2;
+    repeated RenderTargetDesc render_targets = 3;
 }
 
 /*# Rendering API documentation

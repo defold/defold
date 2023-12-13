@@ -17,6 +17,7 @@
 
 #include <resource/resource.h>
 #include <dmsdk/gamesys/resources/res_texture.h>
+#include <graphics/graphics.h>
 
 namespace dmGameSystem
 {
@@ -35,6 +36,9 @@ namespace dmGameSystem
         void*                  m_TextureImage;
         ResTextureUploadParams m_UploadParams;
     };
+
+    dmGraphics::TextureType TextureImageToTextureType(dmGraphics::TextureImage::Type type);
+    dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format);
 
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params);
 

@@ -42,6 +42,7 @@ namespace dmGameSystem
     EXT_CONSTANTS(TEXTURE, "texturec")
     EXT_CONSTANTS(TEXTURE_SET, "texturesetc")
     EXT_CONSTANTS(TILE_MAP, "tilemapc")
+    EXT_CONSTANTS(RENDER_TARGET, "render_targetc")
 
 #undef EXT_CONSTANTS
 

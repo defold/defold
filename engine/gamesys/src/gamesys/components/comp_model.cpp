@@ -314,9 +314,16 @@ namespace dmGameSystem
         return 0;
     }
 
-    dmGraphics::HTexture GetMaterialTexture(const ModelComponent* component, uint32_t material_index, uint32_t texture_unit)
+    dmGraphics::HTexture GetMaterialTexture(dmGraphics::HContext graphics_context, const ModelComponent* component, uint32_t material_index, uint32_t texture_unit)
     {
         TextureResource* texture = GetTextureResource(component, material_index, texture_unit);
+
+        if (texture && !texture->m_IsTexture)
+        {
+            dmGraphics::HTexture color0 = dmGraphics::GetRenderTargetTexture(texture->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+            return color0;
+        }
+
         return texture ? texture->m_Texture : 0;
     }
 
@@ -656,7 +663,7 @@ namespace dmGameSystem
 
             for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
             {
-                ro.m_Textures[i] = GetMaterialTexture(component, material_index, i);
+                ro.m_Textures[i] = GetMaterialTexture(dmRender::GetGraphicsContext(render_context), component, material_index, i);
             }
 
             if (component->m_RenderConstants) {
@@ -770,7 +777,7 @@ namespace dmGameSystem
 
         for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
-            ro.m_Textures[i] = GetMaterialTexture(component, material_index, i);
+            ro.m_Textures[i] = GetMaterialTexture(dmRender::GetGraphicsContext(render_context), component, material_index, i);
         }
 
         if (component->m_RenderConstants) {
@@ -1256,7 +1263,8 @@ namespace dmGameSystem
         {
             if(params.m_PropertyId == PROP_TEXTURE[i])
             {
-                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_EXT_HASH, (void**)&component->m_Textures[i]);
+                dmhash_t ext_hashes[] = { TEXTURE_EXT_HASH, RENDER_TARGET_EXT_HASH };
+                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, ext_hashes, DM_ARRAY_SIZE(ext_hashes), (void**)&component->m_Textures[i]);
                 component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
                 return res;
             }
