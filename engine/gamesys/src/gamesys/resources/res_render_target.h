@@ -23,14 +23,6 @@
 
 namespace dmGameSystem
 {
-	/*
-	struct RenderTargetResource
-    {
-        dmRenderDDF::RenderTargetDesc* m_DDF;
-        dmGraphics::HRenderTarget m_RenderTarget;
-    };
-    */
-
     dmResource::Result ResRenderTargetPreload(const dmResource::ResourcePreloadParams& params);
 	dmResource::Result ResRenderTargetCreate(const dmResource::ResourceCreateParams& params);
     dmResource::Result ResRenderTargetDestroy(const dmResource::ResourceDestroyParams& params);

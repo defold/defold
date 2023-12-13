@@ -33,9 +33,9 @@ namespace dmGameSystem
         uint32_t                  m_DecompressedDataSize[MAX_MIPMAP_COUNT];
     };
 
+#define CASE_TT(_X, _T) case dmGraphics::TextureImage::_X: return dmGraphics::TEXTURE_ ## _T
     dmGraphics::TextureType TextureImageToTextureType(dmGraphics::TextureImage::Type type)
     {
-    #define CASE_TT(_X, _T) case dmGraphics::TextureImage::_X:    return dmGraphics::TEXTURE_ ## _T
         switch(type)
         {
             CASE_TT(TYPE_2D,       TYPE_2D);
@@ -43,9 +43,9 @@ namespace dmGameSystem
             CASE_TT(TYPE_CUBEMAP,  TYPE_CUBE_MAP);
             default: assert(0);
         }
-    #undef CASE_TT
         return (dmGraphics::TextureType) -1;
     }
+#undef CASE_TT
 
     dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format)
     {

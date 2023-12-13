@@ -23,17 +23,6 @@
 
 namespace dmGameSystem
 {
-    static dmResource::Result AcquireResources(dmResource::HFactory factory, TextureResource* resource, const char* filename)
-    {
-        return dmResource::RESULT_OK;
-    }
-
-    static void ReleaseResources(dmResource::HFactory factory, TextureResource* resource)
-    {
-        // if (resource->m_DDF != 0x0)
-        //     dmDDF::FreeMessage(resource->m_DDF);
-    }
-
     dmResource::Result ResRenderTargetPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmRenderDDF::RenderTargetDesc* RenderTarget;
@@ -120,7 +109,6 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
 
         dmRenderDDF::RenderTargetDesc* ddf = (dmRenderDDF::RenderTargetDesc*) params.m_PreloadData;
-        // dmResource::Result r = AcquireResources(params.m_Factory, rt_resource, params.m_Filename);
 
         uint32_t buffer_type_flags = 0;
         dmGraphics::RenderTargetCreationParams rt_params = {};
@@ -135,17 +123,12 @@ namespace dmGameSystem
             buffer_type_flags,
             rt_params);
 
-        dmResource::SetResource(params.m_Resource, (void*) rt_resource);
+        if (!rt_resource->m_RenderTarget)
+        {
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
 
-        // if (r == dmResource::RESULT_OK)
-        // {
-        //     dmResource::SetResource(params.m_Resource, (void*) rt_resource);
-        // }
-        // else
-        // {
-        //     ReleaseResources(params.m_Factory, rt_resource);
-        //     delete rt_resource;
-        // }
+        dmResource::SetResource(params.m_Resource, (void*) rt_resource);
         return dmResource::RESULT_OK;
     }
 
@@ -153,8 +136,6 @@ namespace dmGameSystem
     {
         TextureResource* rt_resource = (TextureResource*)dmResource::GetResource(params.m_Resource);
         assert(!rt_resource->m_IsTexture);
-
-        ReleaseResources(params.m_Factory, rt_resource);
 
         dmGraphics::DeleteRenderTarget(rt_resource->m_RenderTarget);
 
@@ -164,17 +145,33 @@ namespace dmGameSystem
 
     dmResource::Result ResRenderTargetRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmRenderDDF::RenderTargetDesc* rt;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRenderDDF_RenderTargetDesc_DESCRIPTOR, (void**) &rt);
+        dmRenderDDF::RenderTargetDesc* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRenderDDF_RenderTargetDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        // RenderTargetResource* rt_resource = (RenderTargetResource*)dmResource::GetResource(params.m_Resource);
-        // ReleaseResources(params.m_Factory, rt_resource);
-        // rt_resource->m_DDF = rt;
-        // return AcquireResources(params.m_Factory, rt_resource, params.m_Filename);
+        TextureResource* rt_resource = (TextureResource*) dmResource::GetResource(params.m_Resource);
+
+        uint32_t buffer_type_flags = 0;
+        dmGraphics::RenderTargetCreationParams rt_params = {};
+        GetRenderTargetParams(ddf, buffer_type_flags, rt_params);
+        dmDDF::FreeMessage(ddf);
+
+        if (rt_resource->m_RenderTarget)
+        {
+            dmGraphics::DeleteRenderTarget(rt_resource->m_RenderTarget);
+        }
+
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
+
+        rt_resource->m_IsTexture     = 0;
+        rt_resource->m_RenderTarget  = dmGraphics::NewRenderTarget(
+            dmRender::GetGraphicsContext(render_context),
+            buffer_type_flags,
+            rt_params);
+
         return dmResource::RESULT_OK;
     }
 }

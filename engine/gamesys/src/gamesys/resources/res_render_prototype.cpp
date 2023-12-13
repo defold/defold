@@ -112,6 +112,8 @@ namespace dmGameSystem
             dmResource::Release(factory, prototype->m_Script);
         for (uint32_t i = 0; i < prototype->m_Materials.Size(); ++i)
             dmResource::Release(factory, prototype->m_Materials[i]);
+        for (uint32_t i = 0; i < prototype->m_RenderTargets.Size(); ++i)
+            dmResource::Release(factory, prototype->m_RenderTargets[i]);
     }
 
     dmResource::Result ResRenderPrototypeCreate(const dmResource::ResourceCreateParams& params)

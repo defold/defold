@@ -70,7 +70,7 @@ import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 
 public class ProtoBuilders {
 
-    private static String[] textureSrcExts = {".png", ".jpg", ".tga", ".cubemap"};
+    private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".tga", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
     private static String[][] textureSetSrcExts = {{".atlas", ".a.texturesetc"}, {".tileset", ".t.texturesetc"}, {".tilesource", ".t.texturesetc"}};
 
     public static String getTextureSetExt(String str) {
@@ -84,8 +84,8 @@ public class ProtoBuilders {
 
     public static String replaceTextureName(String str) {
         String out = str;
-        for (String srcExt : textureSrcExts) {
-            out = BuilderUtil.replaceExt(out, srcExt, ".texturec");
+        for (String[] textureExt : textureSrcExts) {
+            out = BuilderUtil.replaceExt(out, textureExt[0], textureExt[1]);
         }
         return out;
     }

@@ -323,7 +323,8 @@ namespace dmGameSystem
 
             for (uint32_t t = 0; t < material->m_TexturesCount; ++t)
             {
-                if (material->m_Textures[t].m_Texture) dmResource::Release(factory, (void*) material->m_Textures[t].m_Texture);
+                if (material->m_Textures[t].m_Texture)
+                    dmResource::Release(factory, (void*) material->m_Textures[t].m_Texture);
             }
             delete[] material->m_Textures;
             material->m_TexturesCount = 0;
