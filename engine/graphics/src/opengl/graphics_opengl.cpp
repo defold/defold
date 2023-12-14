@@ -3474,6 +3474,20 @@ static void LogFrameBufferError(GLenum status)
         SetPipelineStateValue(((OpenGLContext*) context)->m_PipelineState, state, 0);
     }
 
+    static void OpenGLSetBlendEquation(HContext _context, BlendEquation equation)
+    {
+    #ifdef __MACH__
+        GLenum modes[] = {
+            GL_FUNC_ADD,
+            GL_FUNC_SUBTRACT,
+            GL_FUNC_REVERSE_SUBTRACT,
+            GL_MIN,
+            GL_MAX,
+        };
+        glBlendEquation(modes[equation]);
+    #endif
+    }
+
     static void OpenGLSetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
         assert(_context);

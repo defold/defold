@@ -106,6 +106,15 @@ namespace dmGraphics
         BUFFER_TYPE_STENCIL_BIT = 0x20,
     };
 
+    enum BlendEquation
+    {
+        BLEND_EQUATION_ADD              = 0,
+        BLEND_EQUATION_SUBTRACT         = 1,
+        BLEND_EQUATION_REVERSE_SUBTRACT = 2,
+        BLEND_EQUATION_MIN              = 3,
+        BLEND_EQUATION_MAX              = 4,
+    };
+
     // render states
     enum State
     {
@@ -560,6 +569,7 @@ namespace dmGraphics
     void EnableState(HContext context, State state);
     void DisableState(HContext context, State state);
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
+    void SetBlendEquation(HContext context, BlendEquation blend_equation);
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha);
     void SetDepthMask(HContext context, bool mask);
     void SetDepthFunc(HContext context, CompareFunc func);

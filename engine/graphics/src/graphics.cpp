@@ -1154,6 +1154,10 @@ namespace dmGraphics
     {
         g_functions.m_SetBlendFunc(context, source_factor, destinaton_factor);
     }
+    void SetBlendEquation(HContext context, BlendEquation equation)
+    {
+        g_functions.m_SetBlendEquation(context, equation);
+    }
     void SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         g_functions.m_SetColorMask(context, red, green, blue, alpha);

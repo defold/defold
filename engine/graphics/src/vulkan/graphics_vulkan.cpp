@@ -2990,6 +2990,11 @@ bail:
         g_VulkanContext->m_PipelineState.m_BlendDstFactor = destinaton_factor;
     }
 
+    static void VulkanSetBlendEquation(HContext _context, BlendEquation equation)
+    {
+
+    }
+
     static void VulkanSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
         assert(context);

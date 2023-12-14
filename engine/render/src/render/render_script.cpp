@@ -2196,6 +2196,17 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    int RenderScript_SetBlendEquation(lua_State* L)
+    {
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        uint32_t blend_equation = luaL_checknumber(L, 1);
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_EQUATION, blend_equation)))
+            return 0;
+        else
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
     /*# sets the color mask
      *
      * Specifies whether the individual color components in the frame buffer is enabled for writing (`true`) or disabled (`false`). For example, if `blue` is `false`, nothing is written to the blue component of any pixel in any of the color buffers, regardless of the drawing operation attempted. Note that writing are either enabled or disabled for entire color components, not the individual bits of a component.
@@ -2926,6 +2937,7 @@ namespace dmRender
         {"set_view",                        RenderScript_SetView},
         {"set_projection",                  RenderScript_SetProjection},
         {"set_blend_func",                  RenderScript_SetBlendFunc},
+        {"set_blend_equation",              RenderScript_SetBlendEquation},
         {"set_color_mask",                  RenderScript_SetColorMask},
         {"set_depth_mask",                  RenderScript_SetDepthMask},
         {"set_depth_func",                  RenderScript_SetDepthFunc},
@@ -3054,6 +3066,18 @@ namespace dmRender
         REGISTER_BLEND_CONSTANT(ONE_MINUS_CONSTANT_ALPHA);
 
 #undef REGISTER_BLEND_CONSTANT
+
+#define REGISTER_BLEND_EQUATION(name)\
+        lua_pushnumber(L, (lua_Number) dmGraphics::BLEND_EQUATION_##name); \
+        lua_setfield(L, -2, "BLEND_"#name);
+
+        REGISTER_BLEND_EQUATION(ADD);
+        REGISTER_BLEND_EQUATION(SUBTRACT);
+        REGISTER_BLEND_EQUATION(REVERSE_SUBTRACT);
+        REGISTER_BLEND_EQUATION(MIN);
+        REGISTER_BLEND_EQUATION(MAX);
+
+#undef REGISTER_BLEND_EQUATION
 
 #define REGISTER_COMPARE_FUNC_CONSTANT(name)\
         lua_pushnumber(L, (lua_Number) dmGraphics::COMPARE_FUNC_##name); \
