@@ -14,12 +14,16 @@
 
 #include "res_render_target.h"
 #include "res_texture.h"
+#include "gamesys_private.h"
 
 #include <dmsdk/resource/resource.h>
+#include <dmsdk/graphics/graphics.h>
+
 #include <resource/resource.h>
 #include <dlib/log.h>
 
 #include <render/render.h>
+#include <render/render_target_ddf.h>
 
 namespace dmGameSystem
 {
@@ -116,12 +120,8 @@ namespace dmGameSystem
 
         dmDDF::FreeMessage(ddf);
 
-        TextureResource* rt_resource = new TextureResource();
-        rt_resource->m_IsTexture     = 0;
-        rt_resource->m_RenderTarget  = dmGraphics::NewRenderTarget(
-            dmRender::GetGraphicsContext(render_context),
-            buffer_type_flags,
-            rt_params);
+        dmGraphics::HRenderTarget rt = dmGraphics::NewRenderTarget(dmRender::GetGraphicsContext(render_context), buffer_type_flags, rt_params);
+        TextureResource* rt_resource = NewRenderTargetResource(rt);
 
         if (!rt_resource->m_RenderTarget)
         {
@@ -135,7 +135,7 @@ namespace dmGameSystem
     dmResource::Result ResRenderTargetDestroy(const dmResource::ResourceDestroyParams& params)
     {
         TextureResource* rt_resource = (TextureResource*)dmResource::GetResource(params.m_Resource);
-        assert(!rt_resource->m_IsTexture);
+        assert(rt_resource->m_IsRenderTarget);
 
         dmGraphics::DeleteRenderTarget(rt_resource->m_RenderTarget);
 
@@ -166,8 +166,7 @@ namespace dmGameSystem
 
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
 
-        rt_resource->m_IsTexture     = 0;
-        rt_resource->m_RenderTarget  = dmGraphics::NewRenderTarget(
+        rt_resource->m_RenderTarget = dmGraphics::NewRenderTarget(
             dmRender::GetGraphicsContext(render_context),
             buffer_type_flags,
             rt_params);

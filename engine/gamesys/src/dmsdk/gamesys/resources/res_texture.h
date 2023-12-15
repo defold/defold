@@ -27,8 +27,10 @@ namespace dmGameSystem
             dmGraphics::HRenderTarget m_RenderTarget;
         };
 
-        uint8_t m_IsTexture : 1;
+        uint8_t m_IsRenderTarget : 1;
     };
+
+    dmGraphics::HTexture GetTexture(TextureResource* texture_resource);
 }
 
 #endif

@@ -308,8 +308,7 @@ namespace dmGameSystem
 
     static inline dmGraphics::HTexture GetTexture(const MeshComponent* component, uint32_t index)
     {
-        TextureResource* texture_res = GetTextureResource(component, index);
-        return texture_res ? texture_res->m_Texture : 0;
+        return GetTexture(GetTextureResource(component, index));
     }
 
     static inline dmGraphics::HVertexDeclaration GetVertexDeclaration(const MeshComponent* component) {
@@ -541,11 +540,11 @@ namespace dmGameSystem
         {
             if (textures_component[i])
             {
-                ro.m_Textures[i] = textures_component[i]->m_Texture;
+                ro.m_Textures[i] = GetTexture((TextureResource*) textures_component[i]);
             }
             else if (textures_resource[i])
             {
-                ro.m_Textures[i] = textures_resource[i]->m_Texture;
+                ro.m_Textures[i] = GetTexture((TextureResource*) textures_resource[i]);
             }
         }
 

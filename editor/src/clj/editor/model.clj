@@ -415,7 +415,7 @@
                                                                         (format "'%s' is not defined in the material. Clear the field to delete it."
                                                                                 sampler)))
                                                     :edit-type {:type resource/Resource
-                                                                :ext (conj image/exts "cubemap")
+                                                                :ext (conj image/exts "cubemap" "render_target")
                                                                 :clear-fn (fn [_ _] (g/delete-node _node-id))}}
                                                    texture-binding-should-be-deleted
                                                    (assoc :original-value fake-resource))])
@@ -427,7 +427,7 @@
                                             :value nil
                                             :type resource/Resource
                                             :edit-type {:type resource/Resource
-                                                        :ext (conj image/exts "cubemap")
+                                                        :ext (conj image/exts "cubemap" "render_target")
                                                         :set-fn (fn [_ _ _ new] (create-texture-binding-tx material-binding-node-id sampler new))}}])))))
                                 (sort-by key all-sampler-name+orders)))
                         ;; material does not exist

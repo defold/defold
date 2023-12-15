@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_texture.h"
+#include "gamesys_private.h"
 
 #include <dmsdk/gamesys/resources/res_texture.h>
 
@@ -352,10 +353,7 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, (ImageDesc*) params.m_PreloadData, upload_params, 0, &texture);
         if (r == dmResource::RESULT_OK)
         {
-            TextureResource* texture_res = new TextureResource();
-            texture_res->m_Texture = texture;
-            texture_res->m_IsTexture = 1;
-            params.m_Resource->m_Resource = (void*) texture_res;
+            params.m_Resource->m_Resource = (void*) NewTextureResource(texture);
         }
         return r;
     }

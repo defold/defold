@@ -18,6 +18,7 @@
 #include "gamesys_private.h"
 #include "components/comp_private.h"
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/gamesys/resources/res_texture.h>
 
 namespace dmGameSystem
 {
@@ -70,6 +71,34 @@ namespace dmGameSystem
     {
         dmLogError("%s could not be created since the buffer is full (%d). Increase the '%s' value in [game.project](defold://open?path=/game.project)",
             object_name, max_count, config_key);
+    }
+
+    // res_texture.h (dmsdk)
+    dmGraphics::HTexture GetTexture(TextureResource* texture_resource)
+    {
+        if (texture_resource)
+        {
+            if (texture_resource->m_IsRenderTarget)
+                return dmGraphics::GetRenderTargetTexture(texture_resource->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+            return texture_resource->m_Texture;
+        }
+        return 0;
+    }
+
+    TextureResource* NewTextureResource(dmGraphics::HTexture texture)
+    {
+        TextureResource* res  = new TextureResource();
+        res->m_Texture        = texture;
+        res->m_IsRenderTarget = 0;
+        return res;
+    }
+
+    TextureResource* NewRenderTargetResource(dmGraphics::HRenderTarget render_target)
+    {
+        TextureResource* res  = new TextureResource();
+        res->m_RenderTarget   = render_target;
+        res->m_IsRenderTarget = 1;
+        return res;
     }
 
     dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, dmGameObject::PropertyDesc& out_desc,

@@ -17,10 +17,6 @@
 
 #include <resource/resource.h>
 
-#include <render/render_target_ddf.h>
-
-#include <dmsdk/graphics/graphics.h>
-
 namespace dmGameSystem
 {
     dmResource::Result ResRenderTargetPreload(const dmResource::ResourcePreloadParams& params);

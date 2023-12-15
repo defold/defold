@@ -314,17 +314,9 @@ namespace dmGameSystem
         return 0;
     }
 
-    dmGraphics::HTexture GetMaterialTexture(dmGraphics::HContext graphics_context, const ModelComponent* component, uint32_t material_index, uint32_t texture_unit)
+    static inline dmGraphics::HTexture GetMaterialTexture(dmGraphics::HContext graphics_context, const ModelComponent* component, uint32_t material_index, uint32_t texture_unit)
     {
-        TextureResource* texture = GetTextureResource(component, material_index, texture_unit);
-
-        if (texture && !texture->m_IsTexture)
-        {
-            dmGraphics::HTexture color0 = dmGraphics::GetRenderTargetTexture(texture->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
-            return color0;
-        }
-
-        return texture ? texture->m_Texture : 0;
+        return GetTexture(GetTextureResource(component, material_index, texture_unit));
     }
 
     static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
