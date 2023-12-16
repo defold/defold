@@ -1404,7 +1404,9 @@ namespace dmGraphics
 
     static void NullSetBlendEquation(HContext _context, BlendEquation equation)
     {
-
+        assert(_context);
+        NullContext* context = (NullContext*) _context;
+        context->m_PipelineState.m_BlendEquation = equation;
     }
 
     static void NullSetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
