@@ -2992,7 +2992,7 @@ bail:
 
     static void VulkanSetBlendEquation(HContext _context, BlendEquation equation)
     {
-
+        g_VulkanContext->m_PipelineState.m_BlendEquation = equation;
     }
 
     static void VulkanSetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)

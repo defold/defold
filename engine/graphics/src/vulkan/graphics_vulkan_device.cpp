@@ -996,6 +996,14 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
+    static const VkBlendOp g_vk_blend_equations[] = {
+        VK_BLEND_OP_ADD,
+        VK_BLEND_OP_SUBTRACT,
+        VK_BLEND_OP_REVERSE_SUBTRACT,
+        VK_BLEND_OP_MIN,
+        VK_BLEND_OP_MAX,
+    };
+
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         PipelineState pipelineState, Program* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
         RenderTarget* render_target, Pipeline* pipelineOut)
@@ -1106,10 +1114,11 @@ bail:
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
             blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
             blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
             blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+
+            blend_attachment.colorBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquation];
+            blend_attachment.alphaBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquation];
         }
 
         VkPipelineColorBlendStateCreateInfo vk_color_blending;

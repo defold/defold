@@ -3503,6 +3503,8 @@ static void LogFrameBufferError(GLenum status)
         };
         glBlendEquation(modes[equation]);
     #endif
+        OpenGLContext* context = (OpenGLContext*) _context;
+        context->m_PipelineState.m_BlendEquation = equation;
     }
 
     static void OpenGLSetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)

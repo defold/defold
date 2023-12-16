@@ -332,10 +332,13 @@ namespace dmGraphics
         uint64_t m_StencilWriteMask         : 8;
         uint64_t m_StencilCompareMask       : 8;
         uint64_t m_StencilReference         : 8;
+
         // Blending
         uint64_t m_BlendEnabled             : 1;
         uint64_t m_BlendSrcFactor           : 4;
         uint64_t m_BlendDstFactor           : 4;
+        uint64_t m_BlendEquation            : 3;
+
         // Culling
         uint64_t m_CullFaceEnabled          : 1;
         uint64_t m_CullFaceType             : 2;

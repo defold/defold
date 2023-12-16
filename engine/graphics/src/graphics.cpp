@@ -705,6 +705,7 @@ namespace dmGraphics
         ps.m_BlendEnabled             = 0;
         ps.m_BlendSrcFactor           = BLEND_FACTOR_ZERO;
         ps.m_BlendDstFactor           = BLEND_FACTOR_ZERO;
+        ps.m_BlendEquation            = BLEND_EQUATION_ADD;
         ps.m_StencilEnabled           = 0;
         ps.m_StencilFrontOpFail       = STENCIL_OP_KEEP;
         ps.m_StencilFrontOpDepthFail  = STENCIL_OP_KEEP;
