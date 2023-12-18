@@ -28,15 +28,15 @@ import zipfile
 import tarfile
 import configparser
 import datetime
-import imp
 import fnmatch
 import urllib
 import urllib.parse
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
+
 # TODO: collect common functions in a more suitable reusable module
 try:
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
     sys.dont_write_bytecode = True
     import build_private
 except Exception as e:
@@ -49,6 +49,7 @@ finally:
 
 # defold/build_tools
 import run
+import http_cache
 
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
@@ -103,13 +104,8 @@ def extract(file, path, is_mac):
     else:
         assert False, "Don't know how to extract " + file
 
-modules = {}
-
 def download(url):
-    if not modules.__contains__('http_cache'):
-        modules['http_cache'] = imp.load_source('http_cache', os.path.join('..', 'build_tools', 'http_cache.py'))
-    log('Downloading %s' % (url))
-    path = modules['http_cache'].download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+    path = http_cache.download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
     if not path:
         log('Downloading %s failed' % (url))
     return path
@@ -340,6 +336,7 @@ def remove_platform_files_from_archive(platform, jar):
 
     # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
+    _unpack_platform = "_unpack/" + platform
     for file in files:
         if file.startswith("libexec"):
             # don't remove any folders
@@ -356,6 +353,23 @@ def remove_platform_files_from_archive(platform, jar):
                 continue
             # anything else should be removed
             files_to_remove.append(file)
+        # keep files needed only for this particular platform (+ shared files in '_defold' and 'shared')
+        if file.startswith("_unpack"):
+            # don't touch '_unpack/'
+            if file == "_unpack/":
+                continue
+            # don't touch anything for the current platform
+            if file.startswith(_unpack_platform):
+                continue
+            # keep shared files
+            if file.startswith("_unpack/shared"):
+                continue
+            # keep _defold folder
+            if file.startswith("_unpack/_defold"):
+                continue
+            # anything else should be removed
+            files_to_remove.append(file)
+
 
     # find libs to remove in the root folder
     for file in files:
@@ -417,7 +431,7 @@ def create_bundle(options):
             packages_dir = os.path.join(tmp_dir, 'Defold/packages')
             bundle_dir = os.path.join(tmp_dir, 'Defold')
             exe_dir = os.path.join(tmp_dir, 'Defold')
-            icon = None
+            icon = 'logo_blue.png'
 
         mkdirs(tmp_dir)
         mkdirs(bundle_dir)

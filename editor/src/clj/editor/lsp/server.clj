@@ -245,7 +245,8 @@
             "Lua"
             (let [script-intelligence (g/node-value project :script-intelligence evaluation-context)
                   completions (g/node-value script-intelligence :lua-completions evaluation-context)]
-              {:diagnostics {:globals (into lua/defined-globals
+              {:runtime {:version "Lua 5.1" :pathStrict true}
+               :diagnostics {:globals (into lua/defined-globals
                                             (lua/extract-globals-from-completions completions))}})
 
             "files.associations"
@@ -331,6 +332,7 @@
                                                                                          insert-text-mode-adjust-indentation]}
                                                       :labelDetailsSupport false}
                                      :completionItemKind {:valueSet (vec (sort (keys completion-item-kind:lsp->editor)))}
+                                     :contextSupport true
                                      :insertTextMode insert-text-mode-adjust-indentation}}
          :workspaceFolders [{:uri uri :name title}]}))
     (* 60 1000)))
@@ -508,46 +510,56 @@
    :value value})
 
 (defn- text-edit:lsp->editor [{:keys [range newText]}]
-  {:range (lsp-range->editor-cursor-range range)
-   :new-text newText})
+  {:value newText
+   :cursor-range (lsp-range->editor-cursor-range range)})
 
 (defn- completion-item:lsp->editor
   [{:keys [label filterText insertText tags deprecated kind
            insertTextMode insertTextFormat commitCharacters
-           detail documentation additionalTextEdits]
+           detail documentation textEdit additionalTextEdits]
     :or {insertTextMode insert-text-mode-adjust-indentation
          insertTextFormat insert-text-format-plaintext}
     :as source}]
-  (let [text-format-key (case (insert-text-format:lsp->editor insertTextFormat)
-                          :plaintext :insert-string
-                          :snippet :insert-snippet)]
-    {:completion (code-completion/make
-                   (or filterText label)
-                   :display-string label
-                   text-format-key (or insertText label)
-                   :commit-characters (set commitCharacters)
-                   :type (some-> kind completion-item-kind:lsp->editor)
-                   :detail detail
-                   :doc (cond
-                          (string? documentation) {:type :plaintext :value documentation}
-                          documentation (markup-content:lsp->editor documentation)))
-     ;; Not currently present in completions
-     :tags (into (if deprecated #{:deprecated} #{})
-                 (map completion-item-tag:lsp->editor)
-                 tags)
-     :additional-text-edits (mapv text-edit:lsp->editor additionalTextEdits)
-     ;; source item to use for detail/doc resolution
-     :raw-completion-item source}))
+  (let [insert-text-format (insert-text-format:lsp->editor insertTextFormat)
+        text-edit (some-> textEdit text-edit:lsp->editor)]
+    (vary-meta
+      (code-completion/make
+        (or filterText label)
+        :display-string label
+        :insert (or (some-> text-edit (assoc :type insert-text-format))
+                    {:type insert-text-format
+                     :value (or insertText label)})
+        :commit-characters (set commitCharacters)
+        :type (some-> kind completion-item-kind:lsp->editor)
+        :detail detail
+        :doc (cond
+               (string? documentation) {:type :plaintext :value documentation}
+               documentation (markup-content:lsp->editor documentation))
+        :tags (into (if deprecated #{:deprecated} #{})
+                    (map completion-item-tag:lsp->editor)
+                    tags)
+        :additional-edits (when (pos? (count additionalTextEdits))
+                            (mapv text-edit:lsp->editor additionalTextEdits)))
+      assoc ::completion source)))
+
+(defn- completion-context:editor->lsp [{:keys [trigger-kind trigger-character]}]
+  (cond-> {:triggerKind (case trigger-kind
+                          :invoked 1
+                          :trigger-character 2
+                          :trigger-for-incomplete-completions 3)}
+          trigger-character
+          (assoc :triggerCharacter trigger-character)))
 
 (defn completion
   "See also:
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_completion"
-  [resource cursor item-converter]
+  [resource cursor context item-converter]
   (raw-request
     (lsp.jsonrpc/notification
       "textDocument/completion"
       {:textDocument {:uri (resource-uri resource)}
-       :position (editor-cursor->lsp-position cursor)})
+       :position (editor-cursor->lsp-position cursor)
+       :context (completion-context:editor->lsp context)})
     (bound-fn [result _]
       (let [is-map (map? result)
             incomplete (if is-map (:isIncomplete result) false)
@@ -558,13 +570,17 @@
 (defn resolve-completion
   "See also:
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#completionItem_resolve"
-  [completion-item item-converter]
+  [completion item-converter]
   (raw-request
-    (lsp.jsonrpc/notification "completionItem/resolve" (:raw-completion-item completion-item))
+    (lsp.jsonrpc/notification "completionItem/resolve" (::completion (meta completion)))
     (bound-fn [result _]
       (item-converter
-        (update completion-item :completion conj (select-keys (:completion (completion-item:lsp->editor result))
-                                                              [:detail :doc :additional-text-edits]))))))
+        (cond-> completion
+                ;; LSP specification does not allow null completion resolution
+                ;; results, but the Lua language server might return null anyway
+                result
+                (conj (select-keys (completion-item:lsp->editor result)
+                                   [:detail :doc :additional-edits])))))))
 
 (defn find-references
   "See also:

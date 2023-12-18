@@ -52,7 +52,8 @@
             [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.fn :as fn])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$MaterialDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$ResourceDesc Gui$SceneDesc$TextureDesc]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -2858,18 +2859,19 @@
         root {:id nil}]
     (rest (tree-seq parent->children parent->children root))))
 
-(def ^:private custom-gui-scene-loaders (atom ()))
+(defonce ^:private custom-gui-scene-loaders (atom (sorted-map)))
 
 ;; SDK api
-(defn register-gui-scene-loader! [loader]
-  (swap! custom-gui-scene-loaders conj loader))
+(defn register-gui-scene-loader! [load-fn]
+  (let [load-fn-sym (fn/declared-symbol load-fn)]
+    (swap! custom-gui-scene-loaders assoc load-fn-sym load-fn)))
 
 ;; Used by tests
 (defn clear-custom-gui-scene-loaders-for-tests! []
-  (reset! custom-gui-scene-loaders ()))
+  (reset! custom-gui-scene-loaders (sorted-map)))
 
 (defn- get-registered-gui-scene-loaders []
-  @custom-gui-scene-loaders)
+  (vals @custom-gui-scene-loaders))
 
 (def ^:private non-overridable-properties #{:template :id :parent})
 
@@ -3334,10 +3336,12 @@
     :icon particlefx/particle-fx-icon
     :defaults visual-base-node-defaults}])
 
-(defonce ^:private custom-node-type-infos (atom []))
+(defonce ^:private custom-node-type-infos (atom {}))
 
 (defn- get-registered-node-type-infos []
-  (concat base-node-type-infos @custom-node-type-infos))
+  (into base-node-type-infos
+        (map val)
+        @custom-node-type-infos))
 
 (defn- get-registered-node-type-info [node-type custom-type]
   {:pre [(keyword? node-type)
@@ -3352,13 +3356,17 @@
                               custom-type)
                       {:node-type node-type
                        :custom-type custom-type
-                       :custom-node-type-infos @custom-node-type-infos}))))
+                       :custom-node-type-infos (vals @custom-node-type-infos)}))))
 
 (defn- get-registered-node-type-cls [node-type custom-type]
   (:node-cls (get-registered-node-type-info node-type custom-type)))
 
 ;; SDK api
-(defn register-node-type-info! [{:keys [node-cls] :as type-info}]
+(defn register-node-type-info! [{:keys [custom-type node-cls] :as type-info}]
+  (when-not (integer? custom-type)
+    (throw (ex-info (format "Plugin GUI node type %s does not specify a valid custom type."
+                            (:name @node-cls))
+                    {:node-cls node-cls})))
   (when-some [abstract-output-labels (not-empty (g/abstract-output-labels node-cls))]
     (throw (ex-info (format "Plugin GUI node type %s does not implement required outputs: %s"
                             (:name @node-cls)
@@ -3372,4 +3380,18 @@
     (throw (ex-info (format "Plugin GUI node type %s does not specify :defaults as a map of {:node-prop default-value}."
                             (:name @node-cls))
                     {:node-cls node-cls})))
-  (swap! custom-node-type-infos conj type-info))
+  (swap! custom-node-type-infos update custom-type
+         (fn [old-type-info]
+           (if (nil? old-type-info)
+             type-info
+             (let [old-node-cls (:node-cls old-type-info)
+                   old-node-type-key (:k old-node-cls)
+                   new-node-type-key (:k node-cls)]
+               (if (= old-node-type-key new-node-type-key)
+                 type-info
+                 (throw (ex-info (format "Plugin GUI node type %s custom-type conflicts with %s."
+                                         (:name @node-cls)
+                                         (:name @old-node-cls))
+                                 {:custom-type custom-type
+                                  :node-cls node-cls
+                                  :conflicting-node-cls old-node-cls}))))))))

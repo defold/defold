@@ -99,7 +99,12 @@ def shutdown(sht):
     # write a config file for the tests to use
     config = configparser.RawConfigParser()
     hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
+    try:
+        local_ip = socket.gethostbyname(hostname)
+    except socket.gaierror as e:
+        print(e)
+        print(f"Hostname was '{hostname}', now trying empty ('') string now")
+        local_ip = socket.gethostbyname("")
     print ("SERVER IP: %s" % local_ip)
 
     config.add_section("server")

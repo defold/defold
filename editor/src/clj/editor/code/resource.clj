@@ -230,5 +230,6 @@
                         :search-fn search-fn
                         :search-value-fn search-value-fn
                         :source-value-fn source-value-fn
-                        :textual? true))]
+                        :textual? true
+                        :test-info {:type :code}))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

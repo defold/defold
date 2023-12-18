@@ -834,6 +834,7 @@ namespace dmGameSystem
             dmLogError("Error when initializing gui component: %d.", result);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
+        gui_component->m_Initialized = 1;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -2190,8 +2191,11 @@ namespace dmGameSystem
 
     static dmGameObject::CreateResult CompGuiAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
-        gui_component->m_AddedToUpdate = true;
-        return dmGameObject::CREATE_RESULT_OK;
+        if (gui_component->m_Initialized) {
+            gui_component->m_AddedToUpdate = 1;
+            return dmGameObject::CREATE_RESULT_OK;
+        }
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR; 
     }
 
     static dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
@@ -2821,6 +2825,12 @@ namespace dmGameSystem
         pit->m_Node = node;
         pit->m_Next = 0;
         pit->m_FnIterateNext = CompGuiIterPropertiesGetNext;
+    }
+
+    void IterateDynamicTextures(dmhash_t gui_res_id, dmGameObject::SceneNode* node, FDynamicTextturesIterator callback, void* user_ctx)
+    {
+        GuiComponent* component = (GuiComponent*)node->m_Component;
+        IterateDynamicTextures(gui_res_id, component->m_Scene, callback, user_ctx);
     }
 
     template <typename T2>

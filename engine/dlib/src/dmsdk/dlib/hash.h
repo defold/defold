@@ -18,6 +18,18 @@
 #include <stdint.h>
 #include "shared_library.h"
 
+#if defined(DM_PLATFORM_VENDOR)
+    #include <dmsdk/dlib/hash_vendor.h>
+#elif defined(__linux__) && !defined(__ANDROID__)
+    #define DM_HASH_FMT "%016lx"
+#else
+    #define DM_HASH_FMT "%016llx"
+#endif
+
+#ifndef DM_HASH_FMT
+        #error "DM_HASH_FMT was not defined!"
+#endif
+
 /*# SDK Hash API documentation
  * Hash functions.
  *

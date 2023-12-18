@@ -175,6 +175,12 @@ public class ParseUtil {
                 return Graphics.ShaderDesc.parseFrom(content);
             }
         });
+        parseMap.put("computec", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Graphics.ShaderDesc.parseFrom(content);
+            }
+        });
         parseMap.put("fontc", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {

@@ -91,6 +91,7 @@
             <classpath location="${bob.dir}/dist/bob.jar"/>
             <classpath location="${test.tmp.dir}/bob-tests.jar" />
 
+            
             <batchtest>
                 <fileset dir="../com.dynamo.cr.bob.test/src">
                     <include name="**/*Test*.java" />

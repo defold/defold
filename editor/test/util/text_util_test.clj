@@ -278,6 +278,14 @@
   (is (= "\"234\", \"aaa, bbbb\", \"galaxy\", \"iPhone10,6\""
          (text-util/join-comma-separated-string ["234" "aaa, bbbb" "galaxy" "iPhone10,6"]))))
 
+(deftest character-count-test
+  (is (= 0 (text-util/character-count "" \a)))
+  (is (= 0 (text-util/character-count "a" \b)))
+  (is (= 2 (text-util/character-count "ababb" \a)))
+  (is (= 3 (text-util/character-count "ababb" \b)))
+  (is (= 2 (text-util/character-count (String. (int-array [0x100000 0x10FFFF 0x100000 0x10FFFF 0x10FFFF]) 0 5) 0x100000)))
+  (is (= 3 (text-util/character-count (String. (int-array [0x100000 0x10FFFF 0x100000 0x10FFFF 0x10FFFF]) 0 5) 0x10FFFF))))
+
 (deftest search-string-numeric?-test
   (testing "Returns true for patterns that might match a numeric value."
     (is (true? (text-util/search-string-numeric? ".")))

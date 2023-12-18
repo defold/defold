@@ -16,17 +16,21 @@
   (:require [clj-antlr.core :as antlr]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
+            [editor.code.data]
             [internal.util :as util])
-  (:import [java.net URI]))
+  (:import [editor.code.data CursorRange]
+           [java.net URI]))
 
 ;; Completion spec
 (s/def ::name string?) ;; used for filtering
 (s/def ::display-string string?) ;; used for view
 (s/def :editor.code-completion.insert/type #{:snippet :plaintext})
 (s/def :editor.code-completion.insert/value string?)
+(s/def :editor.code-completion.insert/cursor-range #(instance? CursorRange %))
 (s/def ::insert
   (s/keys :req-un [:editor.code-completion.insert/type
-                   :editor.code-completion.insert/value]))
+                   :editor.code-completion.insert/value]
+          :opt-un [:editor.code-completion.insert/cursor-range]))
 (s/def ::type
   #{;; defold-specific
     :message
@@ -49,9 +53,15 @@
   (s/keys :req-un [:editor.code-completion.doc/type
                    :editor.code-completion.doc/value]
           :opt-un [:editor.code-completion.doc/base-url]))
+(s/def ::tag #{:deprecated})
+(s/def ::tags (s/coll-of ::tag :kind set?))
+(s/def ::additional-edits
+  (s/coll-of (s/keys :req-un [:editor.code-completion.insert/value
+                              :editor.code-completion.insert/cursor-range])
+             :kind vector?))
 (s/def ::completion
   (s/keys :req-un [::name ::display-string ::insert]
-          :opt-un [::type ::commit-characters ::detail ::doc]))
+          :opt-un [::type ::commit-characters ::detail ::doc ::additional-edits ::tags]))
 
 (defn make
   "Create a code completion
@@ -60,10 +70,19 @@
     name    code completion identifier
 
   Optional kv-args:
-    :insert-snippet       LSP-style snippet string for the code completion,
-                          mutually exclusive with :insert-string
-    :insert-string        literal snippet string for the code completion,
-                          mutually exclusive with :snippet
+    :insert               inserted text description, if string, assumed to be an
+                          LSP-style snippet, if absent, the name is assumed to
+                          be inserted as plaintext, otherwise it should be a map
+                          with the following keys:
+                            :type            required, :plaintext or :snippet
+                            :value           required, a string
+                            :cursor-range    optional, document insertion range
+    :additional-edits     vector of additional plaintext changes to apply when
+                          accepting the completion, e.g. adding a require/import
+                          statement at the top of the file. a vector of maps
+                          with following keys (all required):
+                            :value           replacement string
+                            :cursor-range    document replacement range
     :display-string       code completion label shown in the completion popup
     :type                 completion type, either Defold-specific :message or
                           LSP-style :module, :function, :property etc.
@@ -78,16 +97,21 @@
                              :value \"literal doc\"}
                           - {:type :markdown
                              :value \"markdown doc\"
-                             :base-url URI} (optional URI for resolving links)"
-  [name & {:keys [insert-snippet insert-string display-string type commit-characters detail doc]}]
-  {:pre [(not (and insert-string insert-snippet))]
-   :post [(s/assert ::completion %)]}
+                             :base-url URI} (optional URI for resolving links)
+    :tags                 a set of tag keywords contextualizing the completion,
+                          currently the only supported tag is :deprecated"
+  [name & {:keys [insert additional-edits display-string type commit-characters detail doc tags]}]
+  {:post [(s/assert ::completion %)]}
   (cond-> {:name name
            :display-string (or display-string name)
            :insert (cond
-                     insert-snippet {:type :snippet :value insert-snippet}
-                     insert-string {:type :plaintext :value insert-string}
+                     (string? insert) {:type :snippet :value insert}
+                     insert insert
                      :else {:type :plaintext :value name})}
+          tags
+          (assoc :tags tags)
+          additional-edits
+          (assoc :additional-edits additional-edits)
           type
           (assoc :type type)
           commit-characters
@@ -120,7 +144,7 @@
 (s/def ::tab-triggers (s/coll-of ::tab-trigger :kind vector?))
 (s/def ::insertion
   (s/keys :req-un [::insert-string]
-          :opt-un [::tab-triggers ::exit-ranges]))
+          :opt-un [::tab-triggers ::exit-ranges :editor.code-completion.insert/cursor-range ::additional-edits]))
 
 (defn evaluate-snippet
   "Convert LSP-style snippet string to an editor snippet
@@ -276,23 +300,38 @@
   "Convert completion item to insertion item
 
   Returns a map with following keys:
-    :insert-string    required, the string to insert
-    :exit-ranges      optional, non-empty sorted vector of non-intersecting
-                      from+to index pairs in the range [0, string-length] that
-                      defines the exit points for the snippet tab triggers. If
-                      absent, it is assumed that selection should move to the
-                      end of the inserted snippet
-    :tab-triggers     optional, present only if the completion snippet defines
-                      tab triggers, a vector of maps with following keys:
-                        :ranges     non-empty sorted vector of non-intersecting
-                                    from+to index pairs in the range
-                                    [0, string-length]
-                        :choices    optional, present only if the tab trigger
-                                    defines choices, a vector of strings"
+    :insert-string       required, the string to insert
+    :exit-ranges         optional, non-empty sorted vector of non-intersecting
+                         from+to index pairs in the range [0, string-length]
+                         that defines the exit points for the snippet tab
+                         triggers. If absent, it is assumed that selection
+                         should move to the end of the inserted snippet
+    :tab-triggers        optional, present only if the completion snippet
+                         defines tab triggers, a vector of maps with following
+                         keys:
+                           :ranges     non-empty sorted vector of
+                                       non-intersecting from+to index pairs in
+                                       the range [0, string-length]
+                           :choices    optional, present only if the tab trigger
+                                       defines choices, a vector of strings
+    :cursor-range        optional, explicit document insertion range. When
+                         present, only this range should be used even when there
+                         are multiple cursor ranges
+    :additional-edits    optional, vector of additional plaintext changes to
+                         apply when accepting the completion, e.g. adding a
+                         require/import statement at the top of the file. a
+                         vector of maps with following keys (all required):
+                           :value           replacement string
+                           :cursor-range    document replacement range"
   [completion]
   {:pre [(s/assert ::completion completion)]
    :post [(s/assert ::insertion %)]}
-  (let [{:keys [type value]} (:insert completion)]
-    (case type
-      :plaintext {:insert-string value}
-      :snippet (evaluate-snippet value))))
+  (let [{:keys [insert additional-edits]} completion
+        {:keys [type value cursor-range]} insert]
+    (cond-> (case type
+              :plaintext {:insert-string value}
+              :snippet (evaluate-snippet value))
+            cursor-range
+            (assoc :cursor-range cursor-range)
+            additional-edits
+            (assoc :additional-edits additional-edits))))

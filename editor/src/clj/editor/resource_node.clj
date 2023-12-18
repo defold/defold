@@ -175,10 +175,16 @@
                 (g/node-instance*? resource/ResourceNode node))
        (resource-node-resource basis node)))))
 
-(defn defective? [resource-node]
-  (let [value (g/node-value resource-node :valid-node-id+type+resource)]
+(defn defective? [resource-node-id]
+  (let [value (g/node-value resource-node-id :valid-node-id+type+resource)]
     (and (g/error? value)
          (g/error-fatal? value))))
+
+(defn dirty?
+  ([resource-node-id]
+   (g/valid-node-value resource-node-id :dirty?))
+  ([resource-node-id evaluation-context]
+   (g/valid-node-value resource-node-id :dirty? evaluation-context)))
 
 (defn- make-ddf-dependencies-fn-raw [ddf-type]
   (let [get-fields (protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type))]
@@ -281,7 +287,9 @@
                         :read-raw-fn read-raw-fn
                         :read-fn read-fn
                         :write-fn write-fn
-                        :search-fn search-fn))]
+                        :search-fn search-fn
+                        :test-info {:type :ddf
+                                    :ddf-type ddf-type}))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
 (defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn meta-settings icon view-types tags tag-opts label] :as args}]
@@ -295,5 +303,7 @@
                :textual? true
                :read-fn read-fn
                :write-fn write-fn
-               :search-fn settings-core/raw-settings-search-fn)]
+               :search-fn settings-core/raw-settings-search-fn
+               :test-info {:type :settings
+                           :meta-settings meta-settings})]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

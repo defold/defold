@@ -1,15 +1,11 @@
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#else
-#include <alloca.h>
-#endif
 
 #include "resource_archive.h"
 #include "resource_manifest_private.h"
 #include "resource_util.h"
 #include "resource_verify.h"
 
+#include <dlib/dalloca.h>
+#include <dlib/memory.h>
 #include <dlib/endian.h>
 #include <dlib/log.h>
 #include <dlib/sys.h>

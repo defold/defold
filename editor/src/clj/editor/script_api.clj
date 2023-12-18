@@ -96,7 +96,7 @@
                                         (str "\n\n**Examples:**<br>\n"
                                              (string/join "\n\n" (map :desc examples)))))
                             :display-string (str name (build-param-string parameters :display-string))
-                            :insert-snippet (str name (build-param-string parameters :snippet)))]])
+                            :insert (str name (build-param-string parameters :snippet)))]])
 
               (when name
                 [[ns-path (code-completion/make name :type :variable :doc desc)]])))]
@@ -154,4 +154,5 @@
     :search-value-fn r/search-value-fn
     :source-value-fn r/source-value-fn
     :textual? true
-    :language "yaml"))
+    :language "yaml"
+    :test-info {:type :code}))

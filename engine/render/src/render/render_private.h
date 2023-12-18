@@ -92,12 +92,20 @@ namespace dmRender
         dmArray<dmGraphics::VertexAttribute>    m_VertexAttributes;
         dmArray<MaterialAttribute>              m_MaterialAttributes;
         dmArray<uint8_t>                        m_MaterialAttributeValues;
-        dmArray<MaterialConstant>               m_Constants;
+        dmArray<RenderConstant>                 m_Constants;
         dmArray<Sampler>                        m_Samplers;
         uint32_t                                m_TagListKey;      // the key to use with GetMaterialTagList()
         uint64_t                                m_UserData1;
         uint64_t                                m_UserData2;
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
+    };
+
+    struct ComputeProgram
+    {
+        dmGraphics::HComputeProgram                 m_Shader;
+        dmGraphics::HProgram                        m_Program;
+        dmArray<RenderConstant>                     m_Constants;
+        dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered
@@ -270,6 +278,9 @@ namespace dmRender
     void RenderTypeDebugDraw(HRenderContext rendercontext, void* user_context, RenderObject* ro, uint32_t count);
 
     Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix);
+
+    void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out);
+    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers);
 
     // Return true if the predicate tags all exist in the material tag list
     bool                            MatchMaterialTags(uint32_t material_tag_count, const dmhash_t* material_tags, uint32_t tag_count, const dmhash_t* tags);

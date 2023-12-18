@@ -1,0 +1,4 @@
+animations {
+  animation: "/builtins/assets/meshes/cube.dae"
+}
+skeleton: "/builtins/assets/meshes/cube.dae"

@@ -214,10 +214,10 @@ TEST_F(dmGraphicsTest, VertexBuffer)
     ASSERT_NE(0, memcmp(data, vb->m_Buffer, sizeof(data)));
 
     memset(data, 4, 4);
-    void* copy = dmGraphics::MapVertexBuffer(vertex_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
+    void* copy = dmGraphics::MapVertexBuffer(m_Context, vertex_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
     memcpy(copy, data, sizeof(data));
     ASSERT_NE(0, memcmp(data, vb->m_Buffer, sizeof(data)));
-    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(vertex_buffer));
+    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(m_Context, vertex_buffer));
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, sizeof(data)));
 
     // Smaller size
@@ -254,10 +254,10 @@ TEST_F(dmGraphicsTest, IndexBuffer)
     ASSERT_NE(0, memcmp(data, ib->m_Buffer, sizeof(data)));
 
     memset(data, 4, 4);
-    void* copy = dmGraphics::MapIndexBuffer(index_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
+    void* copy = dmGraphics::MapIndexBuffer(m_Context, index_buffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
     memcpy(copy, data, sizeof(data));
     ASSERT_NE(0, memcmp(data, ib->m_Buffer, sizeof(data)));
-    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(index_buffer));
+    ASSERT_TRUE(dmGraphics::UnmapVertexBuffer(m_Context, index_buffer));
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, sizeof(data)));
 
     // Smaller size
@@ -482,6 +482,32 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::DeleteProgram(m_Context, program);
     dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);
+}
+
+TEST_F(dmGraphicsTest, TestComputeProgram)
+{
+    const char* compute_data = ""
+        "#version 430 core\n"
+        "layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;\n"
+        "layout(location = 0) uniform vec4 my_uniform;\n"
+        "void main() {\n"
+        "}\n";
+
+    dmGraphics::ShaderDesc::Shader compute_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, compute_data, (uint32_t) strlen(compute_data));
+    dmGraphics::HComputeProgram cp                = dmGraphics::NewComputeProgram(m_Context, &compute_shader);
+    dmGraphics::HProgram program                  = dmGraphics::NewProgram(m_Context, cp);
+    ASSERT_EQ(1, dmGraphics::GetUniformCount(program));
+    ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "my_uniform"));
+
+    char buffer[64];
+    dmGraphics::Type type;
+    int32_t size;
+    dmGraphics::GetUniformName(program, 0, buffer, 64, &type, &size);
+    ASSERT_STREQ("my_uniform", buffer);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+
+    dmGraphics::DeleteComputeProgram(cp);
+    dmGraphics::DeleteProgram(m_Context, program);
 }
 
 TEST_F(dmGraphicsTest, TestVertexAttributesGL3)

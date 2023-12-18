@@ -169,9 +169,10 @@ def move_release(archive_path, sha1, channel):
         # get the name of the file this key points to
         # archive/sha1/engine/arm64-android/android.jar -> engine/arm64-android/android.jar
         name = key.name.replace(prefix, "")
-
         # destination
         new_key = "archive/%s/%s/%s" % (channel, sha1, name)
+
+        print("Prepair %s to be moved to: %s" % (name, new_key))
 
         # the keys in archive/sha1/* are all redirects to files in archive/channel/sha1/*
         # get the actual file from the redirect
@@ -188,9 +189,12 @@ def move_release(archive_path, sha1, channel):
         if not redirect_key:
             print("Invalid redirect for %s. The file will not be moved" % redirect_path)
             continue
+        if redirect_key.name == new_key:
+            print("Skip key `%s` because it's already exist\n" % new_key)
+            continue
 
         # copy the file to the new location
-        print("Copying %s to %s" % (redirect_key.name, new_key))
+        print("Copying %s to %s\n" % (redirect_key.name, new_key))
         bucket.copy_key(new_key, bucket_name, redirect_key.name)
 
         # update the redirect

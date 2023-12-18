@@ -46,7 +46,11 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:const defold-build-server-url (get-in connection-properties [:native-extensions :build-server-url]))
+(def ^:const defold-build-server-url
+  (or
+    (get-in connection-properties [:native-extensions :custom-build-servers (system/defold-channel)])
+    (get-in connection-properties [:native-extensions :build-server-url])))
+
 (def ^:const defold-build-server-headers "")
 (def ^:const connect-timeout-ms (* 30 1000))
 (def ^:const read-timeout-ms (* 10 60 1000))

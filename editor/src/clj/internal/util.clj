@@ -696,3 +696,9 @@
           (do
             (vswap! unique-volatile conj item)
             item)))))
+
+(defn first-rf
+  "first as a reducing function"
+  ([] nil)
+  ([acc] acc)
+  ([_ v] (ensure-reduced v)))

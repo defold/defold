@@ -52,6 +52,12 @@ namespace dmEngineService
     dmWebServer::HServer GetWebServer(HEngineService engine_service);
 
     void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist);
+
+    struct ResourceHandlerParams
+    {
+        dmResource::HFactory      m_Factory;
+        dmGameObject::HRegister   m_Regist;
+    };
 }
 
 #endif // DM_ENGINE_SERVICE
