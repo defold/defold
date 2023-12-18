@@ -26,6 +26,7 @@ def build(bld):
             'font/*',
             'fragment_program/*',
             'gui/*',
+            'image/*',
             'input/*',
             'label/*',
             'light/*',
@@ -48,7 +49,7 @@ def build(bld):
             'vertex_program/*',
             'window/*']
 
-    excl_pattern = ['**/*.ttf', '**/*.basis']
+    excl_pattern = ['**/*.ttf', '**/*.basis', '**/*.psd']
 
     if not platform_supports_feature(bld.env.PLATFORM, 'compute', None):
         excl_pattern.append('**/*.compute')

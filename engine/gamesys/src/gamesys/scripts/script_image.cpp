@@ -12,23 +12,25 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 
 #include <dlib/log.h>
 #include <dlib/image.h>
-#include "script.h"
+
+#include "script_buffer.h"
+
+#include "../gamesys.h"
 
 extern "C"
 {
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
+    #include <lua/lua.h>
+    #include <lua/lauxlib.h>
 }
 
-#include "script_private.h"
-
-namespace dmScript
+namespace dmGameSystem
 {
     /*# Image API documentation
      *
@@ -70,7 +72,15 @@ namespace dmScript
     *
     * @name image.load
     * @param buffer [type:string] image data buffer
-    * @param [premult] [type:boolean] optional flag if alpha should be premultiplied. Defaults to `false`
+    * @param options [type:table] A table containing options about how to load the image. Supported entries:
+    *
+    * `premultiply_alpha`
+    * : [type:boolean] if true, premultiply the alpha channel
+    *
+    * `buffer`
+    * : [type:boolean] if true, the 'buffer' parameter of the returned table will be a buffer object (see [ref:buffer.create] for more info)
+    * that can be used for creating texture or atlas resources.
+    *
     * @return image [type:table|nil] object or `nil` if loading fails. The object is a table with the following fields:
     *
     * - [type:number] `width`: image width
@@ -80,7 +90,7 @@ namespace dmScript
     *     - `image.TYPE_RGBA`
     *     - `image.TYPE_LUMINANCE`
     *     - `image.TYPE_LUMINANCE_ALPHA`
-    * - [type:string] `buffer`: the raw image data
+    * - [type:string|buffer] `buffer`: the raw image data or a buffer if the options table has the 'buffer' parameter set to true.
     *
     * @examples
     *
@@ -93,6 +103,24 @@ namespace dmScript
     *         local tx = gui.new_texture("image_node", img.width, img.height, img.type, img.buffer)
     *     end)
     * ```
+    *
+    * Load an image from an URL as a buffer and create a texture resource from it:
+    *
+    * ```lua
+    * local imgurl = "http://www.site.com/image.png"
+    * http.request(imgurl, "GET", function(self, id, response)
+    *         local img = image.load(response.response, { buffer = true })
+    *         local tparams = {
+    *             width  = img.width,
+    *             height = img.height,
+    *             type   = resource.TEXTURE_TYPE_2D,
+    *             format = resource.TEXTURE_FORMAT_RGBA }
+    *
+    *         local my_texture_id = resource.create_texture("/my_custom_texture.texturec", tparams, img.buffer)
+    *         -- Apply the texture to a model
+    *         go.set("/go1#model", "texture0", my_texture_id)
+    *     end)
+    * ```
     */
     int Image_Load(lua_State* L)
     {
@@ -102,8 +130,29 @@ namespace dmScript
         const char* buffer = lua_tolstring(L, 1, &buffer_len);
 
         bool premult = false;
-        if (top == 2) {
-            premult = lua_toboolean(L, 2);
+        bool buffer_output = false;
+
+        if (top >= 2)
+        {
+            if (lua_istable(L, 2))
+            {
+                lua_pushvalue(L, 2);
+
+                lua_getfield(L, -1, "premultiply_alpha");
+                premult = lua_isnil(L, -1) ? false : lua_toboolean(L, -1);
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "buffer");
+                buffer_output = lua_isnil(L, -1) ? false : lua_toboolean(L, -1);
+                lua_pop(L, 1);
+
+                lua_pop(L, 1);
+            }
+            else
+            {
+                // DEPRECATED
+                premult = lua_toboolean(L, 2);
+            }
         }
 
         dmImage::Image image;
@@ -145,13 +194,39 @@ namespace dmScript
             }
             lua_rawset(L, -3);
 
+            uint32_t datasize = bytes_per_pixel * image.m_Width * image.m_Height;
+
             lua_pushliteral(L, "buffer");
-            lua_pushlstring(L, (const char*) image.m_Buffer, bytes_per_pixel * image.m_Width * image.m_Height);
+
+            if (buffer_output)
+            {
+                dmBuffer::StreamDeclaration streams_decl[] = {
+                    { dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }
+                };
+
+                dmBuffer::HBuffer buffer = 0;
+                dmBuffer::Create(datasize, streams_decl, 1, &buffer);
+
+                uint8_t* data = 0;
+                uint32_t datasize = 0;
+                dmBuffer::GetBytes(buffer, (void**)&data, &datasize);
+
+                memcpy(data, image.m_Buffer, datasize);
+
+                dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
+                dmScript::PushBuffer(L, luabuf);
+            }
+            else
+            {
+                lua_pushlstring(L, (const char*) image.m_Buffer, bytes_per_pixel * image.m_Width * image.m_Height);
+            }
+
             lua_rawset(L, -3);
 
             dmImage::Free(&image);
-
-        } else {
+        }
+        else
+        {
             dmLogWarning("failed to load image (%d)", r);
             lua_pushnil(L);
         }
@@ -166,8 +241,9 @@ namespace dmScript
         {0, 0}
     };
 
-    void InitializeImage(lua_State* L)
+    void ScriptImageRegister(const ScriptLibContext& context)
     {
+        lua_State* L = context.m_LuaState;
         int top = lua_gettop(L);
 
         luaL_register(L, LIB_NAME, ScriptImage_methods);

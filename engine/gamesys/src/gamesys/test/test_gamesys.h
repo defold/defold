@@ -566,6 +566,33 @@ void GamesysTest<T>::TearDown()
     dmConfigFile::Delete(m_Config);
 }
 
+class ScriptImageTest : public jc_test_base_class
+{
+protected:
+    virtual void SetUp()
+    {
+        dmBuffer::NewContext();
+        m_Context = dmScript::NewContext(0, 0, true);
+        dmScript::Initialize(m_Context);
+
+        m_ScriptLibContext.m_Factory = 0x0;
+        m_ScriptLibContext.m_Register = 0x0;
+        m_ScriptLibContext.m_LuaState = dmScript::GetLuaState(m_Context);
+        dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
+
+        L = dmScript::GetLuaState(m_Context);
+    }
+    virtual void TearDown()
+    {
+        dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
+        dmScript::Finalize(m_Context);
+        dmScript::DeleteContext(m_Context);
+    }
+
+    lua_State* L;
+    dmGameSystem::ScriptLibContext m_ScriptLibContext;
+    dmScript::HContext             m_Context;
+};
 
 // Specific test class for testing dmBuffers in scripts
 class ScriptBufferTest : public jc_test_base_class
