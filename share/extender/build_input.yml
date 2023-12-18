@@ -170,6 +170,8 @@ platforms:
         linkFlags:      ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         swiftFlags:     ["-target", "arm-apple-darwin19"]
+    symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
+    symbolsPattern: '.*dSYM'
 
   x86_64-osx:
     context:
@@ -178,6 +180,8 @@ platforms:
         linkFlags:      ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         swiftFlags:     ["-target", "x86_64-apple-darwin19"]
+    symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
+    symbolsPattern: '.*dSYM'
 
   x86-osx:
     # Intentionally left empty to allow users to have old versions in their manifests
