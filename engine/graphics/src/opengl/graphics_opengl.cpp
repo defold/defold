@@ -3493,7 +3493,6 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetBlendEquation(HContext _context, BlendEquation equation)
     {
-    #ifdef __MACH__
         GLenum modes[] = {
             GL_FUNC_ADD,
             GL_FUNC_SUBTRACT,
@@ -3502,7 +3501,6 @@ static void LogFrameBufferError(GLenum status)
             GL_MAX,
         };
         glBlendEquation(modes[equation]);
-    #endif
         OpenGLContext* context = (OpenGLContext*) _context;
         context->m_PipelineState.m_BlendEquation = equation;
     }

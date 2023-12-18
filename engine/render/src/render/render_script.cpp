@@ -2118,7 +2118,7 @@ namespace dmRender
      * The destination scale factor is referred to as (d<sub>R</sub>,d<sub>G</sub>,d<sub>B</sub>,d<sub>A</sub>).
      *
      * The color values have integer values between 0 and (k<sub>R</sub>,k<sub>G</sub>,k<sub>B</sub>,k<sub>A</sub>), where k<sub>c</sub> = 2<sup>m<sub>c</sub></sup> - 1 and m<sub>c</sub> is the number of bitplanes for that color. I.e for 8 bit color depth, color values are between `0` and `255`.
-
+     *
      * Available factor constants and corresponding scale factors:
      *
      * Factor constant                         | Scale factor (f<sub>R</sub>,f<sub>G</sub>,f<sub>B</sub>,f<sub>A</sub>)
@@ -2196,10 +2196,69 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*#
+      * @name render.BLEND_EQUATION_ADD
+      * @variable
+      */
+
+    /*#
+      * @name render.BLEND_EQUATION_SUBTRACT
+      * @variable
+      */
+
+    /*#
+      * @name render.BLEND_EQUATION_REVERSE_SUBTRACT
+      * @variable
+      */
+
+    /*#
+      * @name render.BLEND_EQUATION_MIN
+      * @variable
+      */
+
+    /*#
+      * @name render.BLEND_EQUATION_MAX
+      * @variable
+      */
+
+    /*# sets the blend equation
+     * Sets the blend equation used when blending pixels with the framebuffer. 
+     *
+     * Available factor constants and corresponding equations:
+     *
+     * Equation constant                        | Equation
+     * ---------------------------------------- | ---------------------------------
+     * `render.BLEND_EQUATION_ADD`              | RGBA (src) + RGBA (dst) (default)
+     * `render.BLEND_EQUATION_SUBTRACT`         | RBGA (src) - RGBA (dst)
+     * `render.BLEND_EQUATION_REVERSE_SUBTRACT` | RGBA (dst) - RGBA (src)
+     * `render.BLEND_EQUATION_MIN`              | min(src, dst) per RGBA component
+     * `render.BLEND_EQUATION_MAX`              | max(src, dst) per RGBA component
+     *
+     * @name render.set_blend_equation
+     * @param equation [type:constant] blend equation constant
+     * @examples
+     *
+     * ```lua
+     * -- set the blend equation to take the smallest value between the
+     * -- incoming pixel and whatever is stored in the backbuffer
+     * render.set_blend_equation(render.BLEND_EQUATION_MIN)
+     * -- do rendering as usual
+     * render.set_blend_equation(render.BLEND_EQUATION_ADD)
+     * ```
+     */
     int RenderScript_SetBlendEquation(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t blend_equation = luaL_checknumber(L, 1);
+        RenderScriptInstance* i                  = RenderScriptInstance_Check(L);
+        dmGraphics::BlendEquation blend_equation = (dmGraphics::BlendEquation) luaL_checknumber(L, 1);
+
+        if (blend_equation != BLEND_EQUATION_ADD &&
+            blend_equation != BLEND_EQUATION_SUBTRACT &&
+            blend_equation != BLEND_EQUATION_REVERSE_SUBTRACT &&
+            blend_equation != BLEND_EQUATION_MIN &&
+            blend_equation != BLEND_EQUATION_MAX)
+        {
+            return luaL_error(L, "Invalid blend equation: %s.set_blend_equation(self, %d)", RENDER_SCRIPT_LIB_NAME, blend_equation);
+        }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_EQUATION, blend_equation)))
             return 0;
