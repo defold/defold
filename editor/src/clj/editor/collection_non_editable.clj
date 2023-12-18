@@ -28,6 +28,7 @@
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
             [util.coll :refer [pair]])
@@ -49,15 +50,7 @@
 
 (defn- any-instance-desc->pose [{:keys [position rotation scale3] :as any-instance-desc}]
   ;; GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
-  (let [scale (if (or (nil? scale3)
-                      (protobuf/default-read-scale-value? scale3))
-
-                ;; Legacy file format - use uniform scale.
-                (let [uniform-scale (or (:scale any-instance-desc) 1.0)]
-                  [uniform-scale uniform-scale uniform-scale])
-
-                ;; Modern file format.
-                scale3)]
+  (let [scale (or scale3 scene/default-scale)]
     (pose/make position rotation scale)))
 
 (defn- any-instance-desc->transform-matrix

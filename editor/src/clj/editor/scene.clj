@@ -29,6 +29,7 @@
             [editor.math :as math]
             [editor.pose :as pose]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.render :as render]
             [editor.resource :as resource]
             [editor.rulers :as rulers]
@@ -79,6 +80,22 @@
   {:position default-position
    :rotation default-rotation
    :scale default-scale})
+
+(defn significant-scale? [value]
+  (cond
+    (nil? value)
+    false
+
+    (vector? value)
+    (and (not= default-scale value)
+         (not (protobuf/default-read-scale-value? value)))
+
+    (number? value)
+    (not= 1.0 value)
+
+    :else
+    (throw (ex-info "Unsupported scale value."
+                    {:value value}))))
 
 (defn overlay-text [^GL2 gl ^String text x y]
   (scene-text/overlay gl text x y))

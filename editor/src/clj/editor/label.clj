@@ -30,10 +30,12 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
             [editor.types :as types]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]))
@@ -367,38 +369,34 @@
 
 (def ^:private sanitize-v4 (comp v3->v4 v4->v3))
 
-(defn- significant-scale-value-v3? [value]
-  (and (vector? value)
-       (not (protobuf/default-read-scale-value? value))
-       (not= default-scale-value-v3 value)))
-
 (defn- sanitize-label [label-desc]
   (let [legacy-scale-v3 (some-> label-desc :scale v4->v3)
         sanitized-label (update label-desc :size sanitize-v4)
-        sanitized-label (if (significant-scale-value-v3? legacy-scale-v3)
+        sanitized-label (if (scene/significant-scale? legacy-scale-v3)
                           (assoc sanitized-label :scale (v3->v4 legacy-scale-v3))
                           (dissoc sanitized-label :scale))]
     sanitized-label))
 
 (defn- sanitize-embedded-label-component [embedded-component-desc label-desc]
   (let [sanitized-embedded-component-desc
-        (if (significant-scale-value-v3? (:scale embedded-component-desc))
+        (if (scene/significant-scale? (:scale embedded-component-desc))
           embedded-component-desc
           (let [label-legacy-scale-v3 (some-> label-desc :scale v4->v3)]
-            (if (significant-scale-value-v3? label-legacy-scale-v3)
+            (if (scene/significant-scale? label-legacy-scale-v3)
               (assoc embedded-component-desc :scale label-legacy-scale-v3)
               (dissoc embedded-component-desc :scale))))
         sanitized-label-desc (dissoc label-desc :scale)]
-    [sanitized-embedded-component-desc sanitized-label-desc]))
+    (pair sanitized-embedded-component-desc
+          sanitized-label-desc)))
 
 (defn- replace-default-scale-with-label-legacy-scale [evaluation-context referenced-component-scale label-node-id]
   ;; The scale used to be stored in the LabelDesc before we had scale on the
   ;; ComponentDesc. Here we transfer the scale value from the LabelDesc to the
   ;; ComponentDesc if the ComponentDesc does not already have a significant
   ;; scale value, and the LabelDesc does.
-  (if (= default-scale-value-v3 referenced-component-scale)
+  (if (= scene/default-scale referenced-component-scale)
     (let [label-legacy-scale (g/node-value label-node-id :legacy-scale evaluation-context)]
-      (if (significant-scale-value-v3? label-legacy-scale)
+      (if (scene/significant-scale? label-legacy-scale)
         label-legacy-scale
         referenced-component-scale))
     referenced-component-scale))

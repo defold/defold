@@ -45,11 +45,11 @@
 
 (defn strip-default-scale-from-component-desc [component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
-  (let [scale (:scale component-desc)]
-    (if (or (= scene/default-scale scale)
-            (protobuf/default-read-scale-value? scale))
-      (dissoc component-desc :scale)
-      component-desc)))
+  (if-let [scale (:scale component-desc)]
+    (if (scene/significant-scale? scale)
+      component-desc
+      (dissoc component-desc :scale))
+    component-desc))
 
 (defn add-default-scale-to-component-desc [component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
