@@ -33,7 +33,7 @@
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
-(defn make-save-data [node-id resource save-value dirty]
+(defn- make-save-data [node-id resource save-value dirty]
   {:pre [(g/node-id? node-id)
          (resource/resource? resource)
          (boolean? dirty)]}
@@ -284,7 +284,6 @@
                  (dissoc :string-encode-fn)
                  (assoc :textual? true
                         :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
-                        :read-raw-fn read-raw-fn
                         :read-fn read-fn
                         :write-fn write-fn
                         :search-fn search-fn

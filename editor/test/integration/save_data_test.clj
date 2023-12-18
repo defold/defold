@@ -23,6 +23,7 @@
             [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -910,7 +911,7 @@
 
 (defn- pb-read-resource
   ^Message [resource]
-  ;; We do not use the :read-fn here since we want the rawest possible file contents.
+  ;; We do not use the read-fn here since we want the rawest possible file contents.
   (let [resource-type (resource/resource-type resource)
         pb-class (-> resource-type :test-info :ddf-type)]
     (protobuf/read-pb pb-class resource)))
@@ -1251,19 +1252,18 @@
 
 (defn- save-data-diff-message
   ^String [save-data]
-  (let [^String save-text (:content save-data)
-        resource (:resource save-data)
+  (let [resource (:resource save-data)
         resource-type (resource/resource-type resource)
         read-fn (:read-fn resource-type)]
     (if read-fn
       ;; Compare data.
-      (let [disk-value (read-fn resource)
-            save-value (with-open [reader (StringReader. save-text)]
-                         (read-fn reader))]
+      (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
+            save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
         (value-diff-message disk-value save-value))
 
       ;; Compare text.
-      (let [disk-text (slurp resource)]
+      (let [disk-text (slurp resource)
+            save-text (resource-node/save-data-content save-data)]
         (text-diff-message disk-text save-text)))))
 
 (defn- check-value-equivalence! [expected-value actual-value message]
@@ -1279,8 +1279,7 @@
       (is (= expected-text actual-text) message-with-diff))))
 
 (defn- check-save-data-disk-equivalence! [save-data]
-  (let [^String save-text (:content save-data)
-        resource (:resource save-data)
+  (let [resource (:resource save-data)
         resource-type (resource/resource-type resource)
         read-fn (:read-fn resource-type)
         message (when-checking-resource-message resource)
@@ -1288,15 +1287,15 @@
         are-values-equivalent
         (if-not read-fn
           false
-          (let [disk-value (read-fn resource)
-                save-value (with-open [reader (StringReader. save-text)]
-                             (read-fn reader))]
+          (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
+                save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
             ;; We have a read-fn, compare data.
             (check-value-equivalence! disk-value save-value message)))]
 
     (when-not are-values-equivalent
       ;; We either don't have a read-fn, or the values differ.
-      (let [disk-text (slurp resource)]
+      (let [disk-text (slurp resource)
+            save-text (resource-node/save-data-content save-data)]
         ;; Compare text.
         (check-text-equivalence! disk-text save-text message)))))
 
