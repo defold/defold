@@ -2251,11 +2251,11 @@ namespace dmRender
         RenderScriptInstance* i                  = RenderScriptInstance_Check(L);
         dmGraphics::BlendEquation blend_equation = (dmGraphics::BlendEquation) luaL_checknumber(L, 1);
 
-        if (blend_equation != BLEND_EQUATION_ADD &&
-            blend_equation != BLEND_EQUATION_SUBTRACT &&
-            blend_equation != BLEND_EQUATION_REVERSE_SUBTRACT &&
-            blend_equation != BLEND_EQUATION_MIN &&
-            blend_equation != BLEND_EQUATION_MAX)
+        if (blend_equation != dmGraphics::BLEND_EQUATION_ADD &&
+            blend_equation != dmGraphics::BLEND_EQUATION_SUBTRACT &&
+            blend_equation != dmGraphics::BLEND_EQUATION_REVERSE_SUBTRACT &&
+            blend_equation != dmGraphics::BLEND_EQUATION_MIN &&
+            blend_equation != dmGraphics::BLEND_EQUATION_MAX)
         {
             return luaL_error(L, "Invalid blend equation: %s.set_blend_equation(self, %d)", RENDER_SCRIPT_LIB_NAME, blend_equation);
         }
