@@ -107,25 +107,38 @@ var EngineLoader = {
 
     stream_wasm: false,
 
-    loadAndInstantiateWasmAsync: function(src, fromProgress, toProgress, callback) {
+    script_loaded: false,
+
+    // load .wasm file using XMLHttpRequest
+    loadWasmFileAsync: function(src, fromProgress, toProgress, callback) {
         FileLoader.load(src, "arraybuffer", EngineLoader.wasm_size,
             function(loaded, total) { Progress.calculateProgress(fromProgress, toProgress, loaded, total); },
             function(error) { throw error; },
-            function(wasm) {
-                Module.instantiateWasm = function(imports, successCallback) {
-                    var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
-                        successCallback(output.instance);
-                    }).catch(function(e) {
-                        console.log('wasm instantiation failed! ' + e);
-                        throw e;
-                    });
-                    return {}; // Compiling asynchronously, no exports.
-                }
-                callback();
-            });
+            function(wasm) { callback(wasm); });
     },
 
-    setupWasmStreamAsync: async function(src, fromProgress, toProgress) {
+    // instantiate a .wasm file
+    instantiateWasmFileAsync: function(wasm, imports, successCallback) {
+        var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
+            successCallback(output.instance);
+        }).catch(function(e) {
+            console.log('wasm instantiation failed! ' + e);
+            throw e;
+        });
+        return {}; // Compiling asynchronously, no exports.
+    },
+
+    loadAndInstantiateWasmAsync: function(exeName, fromProgress, toProgress, callback) {
+        var src = exeName + ".wasm";
+        EngineLoader.loadWasmFileAsync(src, fromProgress, toProgress, function(wasm) {
+            Module.instantiateWasm = function(imports, successCallback) {
+                EngineLoader.instantiateWasmFileAsync(wasm, imports, successCallback);
+            };
+            callback();
+        });
+    },
+
+    fetch: function() {
         // https://stackoverflow.com/a/69179454
         var fetchFn = fetch;
         if (typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough) {
@@ -142,8 +155,9 @@ var EngineLoader = {
                 const ts = new TransformStream({
                     transform (chunk, controller) {
                         bytesLoaded += chunk.byteLength;
+                        if (0 == 0) throw new Error("foobar");
                         Progress.calculateProgress(fromProgress, toProgress, bytesLoaded, total);
-                        controller.enqueue(chunk)
+                        controller.enqueue(chunk);
                     }
                 });
 
@@ -151,28 +165,37 @@ var EngineLoader = {
             }
             fetchFn = fetchWithProgress;
         }
+        return fetchFn;
+    },
 
+    streamAndInstantiateWasmAsync: async function(exeName, fromProgress, toProgress) {
+        var src = exeName + ".wasm";
         Module.instantiateWasm = function(imports, successCallback) {
-            WebAssembly.instantiateStreaming(fetchFn(src), imports).then(function(output) {
+            console.log("setupWasmStreamAsync instantiateWasm");
+            WebAssembly.instantiateStreaming(EngineLoader.fetch(src), imports).then(function(output) {
+                console.log("setupWasmStreamAsync output");
                 Progress.calculateProgress(fromProgress, toProgress, 1, 1);
                 successCallback(output.instance);
             }).catch(function(e) {
                 console.log('wasm streaming instantiation failed! ' + e);
-                throw e;
+                console.log("Fallback to wasm loading");
+                EngineLoader.loadWasmFileAsync(src, fromProgress, toProgress, function(wasm) {
+                    EngineLoader.instantiateWasmFileAsync(wasm, imports, successCallback);
+                });
             });
             return {}; // Compiling asynchronously, no exports.
         }
     },
 
     // instantiate the .wasm file either by streaming it or first loading and then instantiate it
-    // https://github.com/emscripten-core/emscripten/blob/master/tests/manual_wasm_instantiate.html#L170
+    // https://github.com/emscripten-core/emscripten/blob/main/test/manual_wasm_instantiate.html
     loadWasmAsync: function(exeName) {
         if (EngineLoader.stream_wasm && (typeof WebAssembly.instantiateStreaming === "function")) {
-            EngineLoader.setupWasmStreamAsync(exeName + ".wasm", 10, 50);
+            EngineLoader.streamAndInstantiateWasmAsync(exeName, 10, 50);
             EngineLoader.loadAndRunScriptAsync(exeName + '_wasm.js', EngineLoader.wasmjs_size, 0, 10);
         }
         else {
-            EngineLoader.loadAndInstantiateWasmAsync(exeName + ".wasm", 0, 40, function() {
+            EngineLoader.loadAndInstantiateWasmAsync(exeName, 0, 40, function() {
                 EngineLoader.loadAndRunScriptAsync(exeName + '_wasm.js', EngineLoader.wasmjs_size, 40, 50);
             });
         }
@@ -184,13 +207,20 @@ var EngineLoader = {
 
     // load and start engine script (asm.js or wasm.js)
     loadAndRunScriptAsync: function(src, estimatedSize, fromProgress, toProgress) {
+        if (EngineLoader.script_loaded == true) return;
         FileLoader.load(src, "text", estimatedSize,
             function(loaded, total) { Progress.calculateProgress(fromProgress, toProgress, loaded, total); },
             function(error) { throw error; },
             function(response) {
-                var tag = document.createElement("script");
-                tag.text = response;
-                document.body.appendChild(tag);
+                console.log("loadAndRunScriptAsync " + src);
+                console.log("loadAndRunScriptAsync loaded = " + EngineLoader.script_loaded);
+                // prevent double loading of the engine script
+                if (EngineLoader.script_loaded == false) {
+                    var tag = document.createElement("script");
+                    tag.text = response;
+                    document.body.appendChild(tag);
+                    EngineLoader.script_loaded = true;
+                }
             });
     },
 
