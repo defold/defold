@@ -73,7 +73,7 @@ var LibraryDmSys = {
                 jstarget = "_self";
             }
             if (window.open(jsurl, jstarget) == null) {
-                window.location = jsurl;
+                return false;
             }
 
             return true;
