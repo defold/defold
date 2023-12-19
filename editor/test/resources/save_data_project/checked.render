@@ -3,3 +3,7 @@ materials {
   name: "render_material"
   material: "/checked.material"
 }
+render_targets {
+  name: "render_target"
+  render_target: "/checked.render_target"
+}

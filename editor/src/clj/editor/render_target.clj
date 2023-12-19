@@ -17,9 +17,11 @@
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
+            [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.render.proto RenderTarget$RenderTargetDesc]))
+  (:import [com.dynamo.graphics.proto Graphics$TextureImage$Type Graphics$TextureImage$TextureFormat]
+           [com.dynamo.render.proto RenderTarget$RenderTargetDesc]))
 
 (def ^:const atlas-icon "icons/32/Icons_13-Atlas.png")
 
@@ -30,7 +32,7 @@
   (g/clear-property! node-id property))
 
 (g/defnk produce-form-data
-  [_node-id width height]
+  [_node-id width height attachment-count attachment-type attachment-format depth-stencil]
   {:form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
@@ -41,14 +43,38 @@
                          :type :number}
                         {:path [:height]
                          :label "Height"
-                         :type :number}]}]
+                         :type :number}
+                        {:path [:attachment-count]
+                         :label "Attachment Count"
+                         :type :number}
+                        {:path [:attachment-type]
+                         :label "Attachment Type"
+                         :type :choicebox
+                         :options (protobuf-forms/make-options (protobuf/enum-values Graphics$TextureImage$Type))
+                         :default (ffirst (protobuf/enum-values Graphics$TextureImage$Type))}
+                        {:path [:attachment-format]
+                         :label "Attachment Format"
+                         :type :choicebox
+                         :options (protobuf-forms/make-options (protobuf/enum-values Graphics$TextureImage$TextureFormat))
+                         :default (ffirst (protobuf/enum-values Graphics$TextureImage$TextureFormat))}
+                        {:path [:depth-stencil]
+                         :label "Depth / Stencil"
+                         :type :boolean}]}]
    :values {[:width] width
-            [:height] height}})
+            [:height] height
+            [:attachment-count] attachment-count
+            [:attachment-type] attachment-type
+            [:attachment-format] attachment-format
+            [:depth-stencil] depth-stencil}})
 
 (g/defnk produce-pb-msg
-  [width height]
+  [width height attachment-count attachment-type attachment-format depth-stencil]
   {:width width
-   :height height})
+   :height height
+   :attachment-count attachment-count
+   :attachment-type attachment-type
+   :attachment-format attachment-format
+   :depth-stencil depth-stencil})
 
 (defn build-render-target
   [resource dep-resources user-data]
@@ -68,6 +94,10 @@
 
   (property width g/Num)
   (property height g/Num)
+  (property attachment-count g/Num)
+  (property attachment-type g/Keyword)
+  (property attachment-format g/Keyword)
+  (property depth-stencil g/Bool)
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
@@ -77,7 +107,11 @@
 (defn load-render-target [project self resource render-target]
   (g/set-property self
     :width (:width render-target)
-    :height (:height render-target)))
+    :height (:height render-target)
+    :attachment-count (:attachment-count render-target)
+    :attachment-type (:attachment-type render-target)
+    :attachment-format (:attachment-format render-target)
+    :depth-stencil (:depth-stencil render-target)))
 
 (defn register-resource-types
   [workspace]

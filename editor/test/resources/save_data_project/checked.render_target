@@ -1,0 +1,6 @@
+width: 128
+height: 128
+attachment_count: 2
+attachment_type: TYPE_CUBEMAP
+attachment_format: TEXTURE_FORMAT_LUMINANCE
+depth_stencil: true
