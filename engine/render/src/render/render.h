@@ -39,6 +39,8 @@ namespace dmRender
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Predicate*               HPredicate;
     typedef struct ComputeProgram*          HComputeProgram;
+    typedef uintptr_t                       HRenderBuffer;
+    typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
 
     /**
      * Display profiles handle
@@ -50,6 +52,12 @@ namespace dmRender
         RENDER_SCRIPT_RESULT_FAILED = -1,
         RENDER_SCRIPT_RESULT_NO_FUNCTION = 0,
         RENDER_SCRIPT_RESULT_OK = 1
+    };
+
+    enum RenderBufferType
+    {
+        RENDER_BUFFER_TYPE_VERTEX_BUFFER = 0,
+        RENDER_BUFFER_TYPE_INDEX_BUFFER  = 1,
     };
 
     enum TextAlign
@@ -249,6 +257,13 @@ namespace dmRender
     HPredicate                      NewPredicate();
     void                            DeletePredicate(HPredicate predicate);
     Result                          AddPredicateTag(HPredicate predicate, dmhash_t tag);
+
+    HBufferedRenderBuffer           NewBufferedRenderBuffer(HRenderContext render_context);
+    void                            DeleteBufferedRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
+    HRenderBuffer                   NextRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
+    HRenderBuffer                   CurrentRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
+    void                            Trim(HRenderContext render_context, HBufferedRenderBuffer buffer);
+    void                            Rewind(HRenderContext render_context, HBufferedRenderBuffer buffer);
 
 }
 
