@@ -3069,6 +3069,29 @@ TEST_F(ScriptImageTest, TestImage)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptImageTest, TestImageBuffer)
+{
+    int top = lua_gettop(L);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/image/test_image_buffer.goc", dmHashString64("/test_image"));
+    ASSERT_NE((void*)0, go);
+
+    if (DM_HOSTFS)
+    {
+        char run_str[128];
+        dmSnPrintf(run_str, sizeof(run_str), "set_host_fs(%s)", DM_HOSTFS);
+        ASSERT_TRUE(RunString(L, run_str));
+    }
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
     int top = lua_gettop(L);

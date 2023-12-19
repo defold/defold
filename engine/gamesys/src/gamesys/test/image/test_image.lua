@@ -44,7 +44,6 @@ local img_expected_bytes_jpg = {
     0xFF, 0xFF, 0x01}
 
 local function verify_image(img, bpp, image_type, expected_bytes)
-    --print(img.width, img.height, img.type)
     assert(img.width == 2)
     assert(img.height == 2)
     assert(#img.buffer == 2 * 2 * bpp)
