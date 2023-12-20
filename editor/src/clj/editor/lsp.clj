@@ -96,6 +96,22 @@
   {:pre [(= view-node (get-in state [:resource->view-node resource]))]}
   (g/set-property view-node :diagnostics (combined-resource-diagnostics state resource)))
 
+(defn- combined-completion-trigger-characters [state resource-language]
+  (into #{}
+        (comp
+          (filter
+            (fn [[{:keys [languages]} {:keys [status]}]]
+              (and (= :running status) (contains? languages resource-language))))
+          (mapcat #(-> % val :capabilities :completion :trigger-characters)))
+        (:server->server-state state)))
+
+(defn- set-view-node-completion-trigger-characters-tx [state resource view-node]
+  {:pre [(= view-node (get-in state [:resource->view-node resource]))]}
+  (g/set-property
+    view-node
+    :completion-trigger-characters
+    (combined-completion-trigger-characters state (resource/language resource))))
+
 (s/def ::language string?)
 (s/def ::languages (s/coll-of ::language :kind set? :min-count 1))
 (s/def ::launcher #(satisfies? lsp.server/Launcher %))
@@ -137,20 +153,31 @@
 (defn- capability-open-close? [capabilities]
   (-> capabilities :text-document-sync :open-close))
 
+(defn refresh-completion-trigger-characters-for-languages-tx [state languages]
+  (for [[resource view-node] (:resource->view-node state)
+        :let [language (resource/language resource)]
+        :when (contains? languages language)]
+    (set-view-node-completion-trigger-characters-tx state resource view-node)))
+
 (defn- on-server-initialized [server capabilities]
   {:pre [(s/valid? ::server server)
          (s/valid? ::lsp.server/capabilities capabilities)]}
   (fn [{:keys [server->server-state] :as state}]
     (let [{:keys [languages]} server
-          {:keys [in]} (get server->server-state server)]
+          {:keys [in]} (get server->server-state server)
+          state (update-in state [:server->server-state server] assoc
+                           :capabilities capabilities
+                           :status :running)]
       (doseq [[resource {:keys [lines]}] (:resource->open-state state)
               :let [language (resource/language resource)]
               :when (and (contains? languages language)
                          (capability-open-close? capabilities))]
-        (a/put! in (lsp.server/open-text-document resource lines))))
-    (update-in state [:server->server-state server] assoc
-               :capabilities capabilities
-               :status :running)))
+        (a/put! in (lsp.server/open-text-document resource lines)))
+      (when (:completion capabilities)
+        (ui/run-later
+          (g/transact
+            (refresh-completion-trigger-characters-for-languages-tx state languages))))
+      state)))
 
 (defprotocol ServerResponse
   (server-response-value [response])
@@ -217,14 +244,16 @@
           :opt-un [:editor.lsp.server-state/capabilities
                    :editor.lsp.server-state/diagnostics]))
 
-(defn- dispose-server-state! [state {:keys [in out diagnostics] :as server-state}]
+(defn- dispose-server-state! [state server {:keys [in out diagnostics] :as server-state}]
   {:pre [(s/valid? ::server-state server-state)]}
   (ui/run-later
     (g/transact
-      (for [resource (keys diagnostics)
-            :let [view-node (get-in state [:resource->view-node resource])]
-            :when view-node]
-        (set-view-node-diagnostics-tx state resource view-node))))
+      (concat
+        (for [resource (keys diagnostics)
+              :let [view-node (get-in state [:resource->view-node resource])]
+              :when view-node]
+          (set-view-node-diagnostics-tx state resource view-node))
+        (refresh-completion-trigger-characters-for-languages-tx state (:languages server)))))
   (a/close! in)
   (a/close! out))
 
@@ -249,7 +278,7 @@
                   (update :server->server-state dissoc server)
                   (update :server-out->server dissoc out)
                   (cleanup-requests-of-removed-server server-state))]
-    (dispose-server-state! state server-state)
+    (dispose-server-state! state server server-state)
     state))
 
 (defn- fail-server!
@@ -264,7 +293,7 @@
                   (assoc-in [:server->server-state server :status] :down)
                   (update :server-out->server dissoc out)
                   (cleanup-requests-of-removed-server server-state))]
-    (dispose-server-state! state server-state)
+    (dispose-server-state! state server server-state)
     state))
 
 (defn- add-server! [project state {:keys [launcher] :as server}]
@@ -521,7 +550,9 @@
                     (ensure-resource-open! resource lines))]
       (ui/run-later
         (g/transact
-          (set-view-node-diagnostics-tx state resource view-node)))
+          (concat
+            (set-view-node-diagnostics-tx state resource view-node)
+            (set-view-node-completion-trigger-characters-tx state resource view-node))))
       state)))
 
 (defn open-view!
@@ -781,51 +812,73 @@
                     (contains? (:languages server) language))))
        boolean))
 
-(comment
-  ;; ask for completions
-  (let [view (dev/active-view)
-        res (g/node-value (g/node-value view :resource-node) :resource)
-        cursor (editor.code.data/cursor-range-start (first (g/node-value view :cursor-ranges)))
-        lsp (g/graph-value 1 :lsp)]
-    (lsp (fn [state]
-           (send-requests! state
-                           (a/chan 1 (map tap>))
-                           :requests-fn (fn [_ {:keys [out]}]
-                                          [(lsp.server/completion res cursor #(assoc % :server-out out))])
-                           :capabilities-pred :completion
-                           :language (resource/language res)
-                           :timeout-ms 2000))))
+(defn- and-fn [a b]
+  (and a b))
 
-  ;; ask for details
-  (let [item (assoc {:completion {:name "abs(x)"
-                                  :display-string "abs(x)"
-                                  :insert {:type :snippet
-                                           :value "abs"}
-                                  :type :function
-                                  :commit-characters #{}}
-                     :tags #{}
-                     :additional-text-edits []
-                     :raw-completion-item {:data {:id 57
-                                                  :uri "file:///Users/vlaaad/Projects/empty-proj/main/main.script"}
-                                           :insertText "abs"
-                                           :insertTextFormat 2
-                                           :kind 3
-                                           :label "abs(x)"
-                                           :sortText "0001"}}
-               :server-out (-> @running-lsps (first) (val) :server->server-state first val :out))]
-    ((g/graph-value 1 :lsp)
-     (fn [state]
-       (send-requests! state
-                       (a/chan 1 (map tap>))
-                       :requests-fn (fn [_ {:keys [out]}]
-                                      (when (= out (:server-out item))
-                                        [(lsp.server/resolve-completion
-                                           item
-                                           #(dissoc % :raw-completion-item :server-out))]))
-                       :capabilities-pred :completion
-                       :language "lua"
-                       :timeout-ms 10000))))
-  ,,,)
+(defn request-completions!
+  "Request completions for a specific cursor position in the text resource
+
+  Args:
+    lsp                the LSP object
+    resource           text resource
+    cursor             the document position cursor for completions
+    context            extra information for completion request, a map with
+                       following keys:
+                         :trigger-kind         required, either :invoked,
+                                               :trigger-character or
+                                               :trigger-for-incomplete-completions
+                         :trigger-character    needed only when :trigger-kind is
+                                               :trigger-character, a single
+                                               character string
+    result-callback    callback that will be called on the background thread,
+                       will receive a completion result map with the following
+                       keys:
+                         :complete    boolean, indicating whether further typing
+                                      should trigger another completion request
+                         :items       vector of completions
+
+  Kv-args:
+    :timeout-ms    timeout before giving up on requests and returning the
+                   results so far"
+  [lsp resource cursor context result-callback & {:keys [timeout-ms]
+                                                  :or {timeout-ms 1000}}]
+  (lsp (bound-fn [state]
+         (let [ch (a/chan 1)]
+           (a/go (result-callback (<! (a/reduce
+                                        (fn [acc {:keys [complete items]}]
+                                          (-> acc
+                                              (update :complete and-fn complete)
+                                              (update :items into items)))
+                                        {:complete true
+                                         :items []}
+                                        ch))))
+           (send-requests!
+             state ch
+             :capabilities-pred :completion
+             :language (resource/language resource)
+             :timeout-ms timeout-ms
+             :requests-fn (fn [_ {:keys [out]}]
+                            [(lsp.server/completion
+                               resource
+                               cursor
+                               context
+                               #(vary-meta % assoc :editor.lsp.server-state/out out))]))))))
+
+(defn resolve-completion! [lsp completion result-callback & {:keys [timeout-ms]
+                                                             :or {timeout-ms 5000}}]
+  (if-let [completion-out (:editor.lsp.server-state/out (meta completion))]
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1)]
+             (a/go (result-callback (or (<! ch) completion)))
+             (send-requests! state
+                             ch
+                             :requests-fn (fn [_ {:keys [out]}]
+                                            (when (= out completion-out)
+                                              [(lsp.server/resolve-completion
+                                                 completion
+                                                 #(vary-meta % dissoc :editor.lsp.server-state/out))]))
+                             :timeout-ms timeout-ms))))
+    (result-callback completion)))
 
 (comment
   (val (first @running-lsps))
@@ -845,7 +898,12 @@
     #{{:languages #{"json" "jsonc"}
        :launcher {:command ["/opt/homebrew/bin/vscode-json-languageserver" "--stdio"]}}
       {:languages #{"lua"}
-       :launcher {:command ["/Users/vlaaad/Downloads/release 2 5/lsp-lua-language-server/plugins/bin/arm64-macos/bin/lua-language-server"]}}
+       :watched-files [{:pattern "**/.luacheckrc"}]
+       :launcher {:command ["build/plugins/lsp-lua-language-server/plugins/bin/arm64-macos/bin/lua-language-server" "--configpath=build/plugins/lsp-lua-language-server/plugins/share/config.json"]}}
+      #_{:languages #{"lua"}
+         :instance-id 2
+         :watched-files [{:pattern "**/.luacheckrc"}]
+         :launcher {:command ["build/plugins/lsp-lua-language-server/plugins/bin/arm64-macos/bin/lua-language-server" "--configpath=build/plugins/lsp-lua-language-server/plugins/share/config.json"]}}
       #_{:languages #{"lua"}
          :watched-files [{:pattern "**/.luacheckrc"}]
          :launcher {:command ["/Users/vlaaad/Projects/vscode-luacheck/lua_language_server" "--"]}}}))

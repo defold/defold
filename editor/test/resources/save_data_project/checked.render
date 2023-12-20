@@ -1,0 +1,5 @@
+script: "/checked.render_script"
+materials {
+  name: "render_material"
+  material: "/checked.material"
+}

@@ -14,6 +14,7 @@
 
 (ns internal.graph.types
   (:import [clojure.lang IHashEq Keyword]
+           [com.defold.util WeakInterner]
            [java.io Writer]))
 
 (set! *warn-on-reflection* true)
@@ -62,11 +63,13 @@
   (.write writer (str (.-label ep)))
   (.write writer "]"))
 
-(defn- read-endpoint [[node-id-expr label-expr]]
-  `(->Endpoint ~node-id-expr ~label-expr))
+(defonce ^WeakInterner endpoint-interner (WeakInterner. 65536))
 
 (definline endpoint [node-id label]
-  `(->Endpoint ~node-id ~label))
+  `(.intern endpoint-interner (->Endpoint ~node-id ~label)))
+
+(defn- read-endpoint [[node-id-expr label-expr]]
+  `(endpoint ~node-id-expr ~label-expr))
 
 (definline endpoint-node-id [endpoint]
   `(.-node-id ~(with-meta endpoint {:tag `Endpoint})))

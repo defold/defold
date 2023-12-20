@@ -235,8 +235,9 @@
                                                     [com.clojure-goes-fast/clj-async-profiler "0.5.1"]
                                                     [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
-                                                    [org.clojure/test.check   "0.9.0"]
-                                                    [org.clojure/tools.trace  "0.7.9"]
+                                                    [lambdaisland/deep-diff2 "2.10.211"]
+                                                    [org.clojure/test.check "0.9.0"]
+                                                    [org.clojure/tools.trace "0.7.9"]
                                                     [org.mockito/mockito-core "1.10.19"]
                                                     [ring "1.9.6"]]
                                 :source-paths      ["src/dev"]
@@ -258,4 +259,4 @@
                                                     ;; From https://github.com/clojure-goes-fast/clj-async-profiler/blob/master/README.md
                                                     "-Djdk.attach.allowAttachSelf"   ; Required for attach to running process.
                                                     "-XX:+UnlockDiagnosticVMOptions" ; Required for DebugNonSafepoints.
-                                                    "-XX:+DebugNonSafepoints"]}})     ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
+                                                    "-XX:+DebugNonSafepoints"]}})    ; Without this, there is a high chance that simple inlined methods will not appear in the profile.

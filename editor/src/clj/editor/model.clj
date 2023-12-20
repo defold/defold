@@ -299,7 +299,7 @@
       renames)))
 
 (g/defnode MaterialBinding
-  (inherits core/Scope)
+  (input copied-nodes g/Any :array :cascade-delete)
   (input dep-build-targets g/Any :array)
   (input shader ShaderLifecycle)
   (input vertex-space g/Keyword)
@@ -367,7 +367,7 @@
   (g/make-nodes (g/node-id->graph-id material-binding) [texture-binding [TextureBinding
                                                                          :sampler sampler
                                                                          :texture texture]]
-    (g/connect texture-binding :_node-id material-binding :nodes)
+    (g/connect texture-binding :_node-id material-binding :copied-nodes)
     (g/connect texture-binding :texture-binding-info material-binding :texture-binding-infos)
     (g/connect texture-binding :build-targets material-binding :dep-build-targets)))
 
@@ -376,7 +376,7 @@
                                                                        :name name
                                                                        :material material
                                                                        :vertex-attribute-overrides vertex-attribute-overrides]]
-    (g/connect material-binding :_node-id model-node-id :nodes)
+    (g/connect material-binding :_node-id model-node-id :copied-nodes)
     (g/connect material-binding :dep-build-targets model-node-id :dep-build-targets)
     (g/connect material-binding :material-scene-info model-node-id :material-scene-infos)
     (g/connect material-binding :material-binding-info model-node-id :material-binding-infos)
@@ -510,6 +510,7 @@
                                   (prop-resource-error :fatal _node-id :mesh mesh "Mesh")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types})))
+  (input copied-nodes g/Any :array :cascade-delete)
   (input material-binding-infos g/Any :array)
   (output materials Materials :cached
           (g/fnk [material-binding-infos]
