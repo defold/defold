@@ -39,7 +39,7 @@ def build(bld):
 
     exported_symbols = [graphics_lib_symbols]
 
-    glfw_js = '../../../ext/lib/%s/js/library_glfw.js' % bld.env.PLATFORM
+    glfw_js = '%s/ext/lib/%s/js/library_glfw.js' % (bld.env.DYNAMO_HOME, bld.env.PLATFORM)
 
     web_libs = [glfw_js, 'library_sys.js']
 

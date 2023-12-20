@@ -58,7 +58,7 @@ for i in $(seq 2 $#); do
     (
         cd "${DEFOLD_PATH}/engine/${_SUBMODULE}"
         waf install --platform="${1}" \
-            --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests --opt-level=0 --with-vulkan
+            --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests --opt-level=0
     )
 done
 
@@ -68,7 +68,7 @@ done
     find "build" -type f -name "classes.dex" | xargs -I% rm -f "%"
     find "build" -type d -name "*dmengine*" | xargs -I% rm -rf "%"
     waf install --platform="${1}" \
-        --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests --opt-level=0 --with-vulkan
+        --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests --opt-level=0
 )
 
 
