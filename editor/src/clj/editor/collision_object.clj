@@ -43,7 +43,6 @@
 
 (def collision-object-icon "icons/32/Icons_49-Collision-object.png")
 
-; Shared with editor.atlas - move to graph?
 (g/deftype ^:private NameCounts {s/Str s/Int})
 
 (def shape-type-ui
@@ -77,8 +76,7 @@
 (g/deftype PhysicsType (s/enum "2D" "3D"))
 
 (defn- unique-id-error [node-id id id-counts]
-  (or (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id")
-      (validation/prop-error :fatal node-id :id (partial validation/prop-id-duplicate? id-counts) id)))
+  (validation/prop-error :fatal node-id :id (partial validation/prop-id-duplicate? id-counts) id))
 
 (defn- validate-image-id [node-id id id-counts]
   (when (and (not-empty id) (some? id-counts))
