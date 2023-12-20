@@ -188,7 +188,6 @@ var EngineLoader = {
                 var tag = document.createElement("script");
                 tag.text = response;
                 document.body.appendChild(tag);
-                EngineLoader.script_loaded = true;
             });
     },
 
