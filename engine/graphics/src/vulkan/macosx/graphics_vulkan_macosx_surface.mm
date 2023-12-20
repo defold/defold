@@ -15,7 +15,7 @@
 #include <dlib/math.h>
 #include <dlib/array.h>
 
-#include <graphics/glfw/glfw_native.h>
+#include  <glfw/glfw_native.h>
 #include <objc/objc.h>
 
 #if defined(DM_PLATFORM_MACOS)
