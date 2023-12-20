@@ -203,6 +203,16 @@ public class LuaScanner extends LuaParserBaseListener {
                     rewriter.replace(token, System.lineSeparator().repeat(token.getText().split("\r\n|\r|\n").length - 1));
                 }
              }
+             else {
+                 /**
+                 * We use this to remove any semicolon statements.
+                 * The semicolon may cause problems if it is at the end of a go.property call
+                 * as it will be removed after it has been parsed.
+                 */
+                if (token.getType() == LuaLexer.SEMICOLON) {
+                    rewriter.replace(token, " ");
+                }
+             }
         }
 
         // parse code
@@ -472,22 +482,4 @@ public class LuaScanner extends LuaParserBaseListener {
         }
         return result;
     }
-
-    /**
-     * Callback from ANTLR when a statement is entered. We use this to remove
-     * any stand-alone semicolon statements. The semicolon may cause problems
-     * if it is at the end of a go.property call as it will be removed after it
-     * has been parsed.
-     * Note that semicolons used as field or return separators are not affected.
-     */
-    @Override public void enterStat(LuaParser.StatContext ctx) {
-        List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
-        if (tokens.size() == 1) {
-            Token token = tokens.get(0);
-            if (token.getText().equals(";")) {
-                removeToken(token);
-            }
-        }
-    }
-
 }

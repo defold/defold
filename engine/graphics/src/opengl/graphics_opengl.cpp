@@ -2859,16 +2859,33 @@ static void LogFrameBufferError(GLenum status)
         return texture_filter_lut[texture_filter];
     }
 
+    static inline bool IsTextureFilterMipmapped(GLenum filter)
+    {
+        return filter == GL_NEAREST_MIPMAP_NEAREST ||
+               filter == GL_NEAREST_MIPMAP_LINEAR  ||
+               filter == GL_LINEAR_MIPMAP_NEAREST  ||
+               filter == GL_LINEAR_MIPMAP_LINEAR;
+    }
+
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
         GLenum type = GetOpenGLTextureType(tex->m_Type);
 
-        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GetOpenGLTextureFilter(minfilter));
+        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter);
+        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter);
+
+        // Using a mipmapped min filter without any mipmaps will break the sampler
+        if (tex->m_MipMapCount <= 1 && IsTextureFilterMipmapped(gl_min_filter))
+        {
+            gl_min_filter = gl_mag_filter;
+        }
+
+        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
         CHECK_GL_ERROR;
 
-        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GetOpenGLTextureFilter(magfilter));
+        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
         CHECK_GL_ERROR;
 
         glTexParameteri(type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
