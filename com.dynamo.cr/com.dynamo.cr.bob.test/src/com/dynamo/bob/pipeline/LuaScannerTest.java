@@ -493,7 +493,6 @@ public class LuaScannerTest {
         LuaScanner scanner = new LuaScanner();
         scanner.parse(luaCode);
         String expected = "do return nil end else end ";
-        System.out.println(scanner.getParsedLua());
         assertEquals(expected, scanner.getParsedLua());
     }
 }
