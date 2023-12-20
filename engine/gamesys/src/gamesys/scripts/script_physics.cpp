@@ -1267,7 +1267,7 @@ namespace dmGameSystem
      *
      * @name physics.get_shape
      * @param url [type:string|hash|url] the collision object.
-     * @param shape [type:string] the name of the shape to get data for.
+     * @param shape [type:string|hash] the name of the shape to get data for.
      * @return table [type:table] A table containing meta data about the physics shape
      *
      * `type`
@@ -1310,7 +1310,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmhash_t shape_name_hash = dmScript::CheckHashOrString(L, -1);
+        dmhash_t shape_name_hash = dmScript::CheckHashOrString(L, 2);
         uint32_t shape_ix;
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
 
@@ -1320,13 +1320,13 @@ namespace dmGameSystem
 
         if (!dmGameSystem::GetShapeIndex(comp, shape_name_hash, &shape_ix))
         {
-            return luaL_error(L, "No shape with name '%s' found", dmHashReverseSafe64(shape_name_hash));
+            return DM_LUA_ERROR("No shape with name '%s' found", dmHashReverseSafe64(shape_name_hash));
         }
 
         dmGameSystem::ShapeInfo shape_info = {};
         if (!dmGameSystem::GetShape(comp_world, comp, shape_ix, &shape_info))
         {
-            return luaL_error(L, "Unable to get shape data at index %d.", shape_ix);
+            return DM_LUA_ERROR("Unable to get shape data at index %d.", shape_ix);
         }
 
         lua_newtable(L);
@@ -1362,7 +1362,7 @@ namespace dmGameSystem
      *
      * @name physics.set_shape
      * @param url [type:string|hash|url] the collision object.
-     * @param shape [type:string] the name of the shape to get data for.
+     * @param shape [type:string|hash] the name of the shape to get data for.
      * @param table [type:table] the shape data to update the shape with.
      *
      * See [ref:physics.get_shape] for a detailed description of each field in the data table.
@@ -1403,7 +1403,7 @@ namespace dmGameSystem
 
         if (!dmGameSystem::GetShapeIndex(comp, shape_name_hash, &shape_ix))
         {
-            return luaL_error(L, "No shape with name '%s' found", dmHashReverseSafe64(shape_name_hash));
+            return DM_LUA_ERROR("No shape with name '%s' found", dmHashReverseSafe64(shape_name_hash));
         }
 
         luaL_checktype(L, 3, LUA_TTABLE);
@@ -1422,7 +1422,6 @@ namespace dmGameSystem
             }
             else if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_BOX)
             {
-                assert(sizeof(shape_info.m_BoxDimensions) <= sizeof(dmVMath::Vector3));
                 lua_getfield(L, -1, "dimensions");
                 dmVMath::Vector3* box_dimensions = dmScript::CheckVector3(L, -1);
                 memcpy(shape_info.m_BoxDimensions, &box_dimensions[0], sizeof(shape_info.m_BoxDimensions));
@@ -1440,12 +1439,12 @@ namespace dmGameSystem
             }
             else
             {
-                return luaL_error(L, "Unsupported shape type %d", (int) shape_info.m_Type);
+                return DM_LUA_ERROR( "Unsupported shape type %d", (int) shape_info.m_Type);
             }
 
             if (!dmGameSystem::SetShape(comp_world, comp, shape_ix, &shape_info))
             {
-                return luaL_error(L, "Unable to set shape data at index %d", shape_ix);
+                return DM_LUA_ERROR( "Unable to set shape data at index %d", shape_ix);
             }
         }
 
