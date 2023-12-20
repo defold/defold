@@ -486,4 +486,13 @@ public class LuaScannerTest {
         assertEquals(expected, parsed);
     }
 
+    @Test
+    public void testSemicolon() throws Exception {
+        // Basic
+        String luaCode = "do return nil end;else end;";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String expected = "do return nil end else end ";
+        assertEquals(expected, scanner.getParsedLua());
+    }
 }
