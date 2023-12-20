@@ -96,7 +96,7 @@
 
 (defn- into-vertex-buffer [^VertexBuffer vbuf renderables]
   (let [renderable-datas (mapv renderable-data renderables)]
-    (graphics/put-attributes vbuf renderable-datas)))
+    (graphics/put-attributes! vbuf renderable-datas)))
 
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
   (.set pt x y 0)

@@ -341,7 +341,7 @@
 
 (defn- attribute-value [attribute-values property-type semantic-type expected-element-count]
   (if (= g/Num property-type)
-    (first attribute-values)      ; The widget expects a number, not a vector.
+    (first attribute-values) ; The widget expects a number, not a vector.
     (resize-doubles attribute-values semantic-type expected-element-count)))
 
 (defn attribute-properties-by-property-key [_node-id material-attribute-infos vertex-attribute-overrides]
@@ -419,12 +419,13 @@
   (let [local-positions (:position-data data)
         world-transform (:world-transform data)]
     (geom/transf-p world-transform local-positions)))
+
 (defn- attribute-data->world-position-v4 [data]
   (let [local-positions (:position-data data)
         world-transform (:world-transform data)]
     (geom/transf-p4 world-transform local-positions)))
 
-(defn put-attributes [^VertexBuffer vbuf attribute-data-arrays]
+(defn put-attributes! [^VertexBuffer vbuf attribute-data-arrays]
   (let [vertex-description (.vertex-description vbuf)
         vertex-byte-stride (:size vertex-description)
         ^ByteBuffer buf (.buf vbuf)

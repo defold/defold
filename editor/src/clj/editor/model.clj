@@ -475,7 +475,7 @@
                                                                                          :ext (conj image/exts "cubemap")
                                                                                          :set-fn (fn [_ _ _ new] (create-texture-binding-tx material-binding-node-id sampler new))}}])))))
                                                                  (sort-by key all-sampler-name+orders))]
-                          (vec (concat combined-material-properties material-attribute-properties)))
+                          (into combined-material-properties material-attribute-properties))
                         ;; material does not exist
                         [[material-prop-key
                           {:node-id _node-id

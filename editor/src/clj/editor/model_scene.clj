@@ -96,13 +96,12 @@
 (defn- transf-n
   [^Matrix3f m3f normals]
   (let [normal-tmp (Vector3f.)]
-    (let [res (mapv (fn [[^float x ^float y ^float z]]
-                      (.set normal-tmp x y z)
-                      (.transform m3f normal-tmp)
-                      (.normalize normal-tmp) ; need to normalize since normal-transform may be scaled
-                      [(.x normal-tmp) (.y normal-tmp) (.z normal-tmp)])
-                    normals)]
-      res)))
+    (mapv (fn [[^float x ^float y ^float z]]
+            (.set normal-tmp x y z)
+            (.transform m3f normal-tmp)
+            (.normalize normal-tmp) ; need to normalize since normal-transform may be scaled
+            [(.x normal-tmp) (.y normal-tmp) (.z normal-tmp)])
+          normals)))
 
 (defn- mesh->attribute-data [mesh ^Matrix4d world-transform ^Matrix3f normal-transform vertex-attribute-bytes vertex-space]
   (let [^ints indices (:indices mesh)
@@ -110,7 +109,7 @@
         ^floats texcoords (:texcoord0 mesh)
         ^floats normals   (:normals mesh)
         mesh-data-out
-        (reduce (fn [out-data vi]
+        (reduce (fn [out-data ^long vi]
                   (let [p-base (* 3 vi)
                         p-0 (double (get positions p-base))
                         p-1 (double (get positions (+ 1 p-base)))
@@ -146,7 +145,7 @@
                            (.transpose tmp)
                            tmp)
         mesh-data (mesh->attribute-data mesh world-transform normal-transform vertex-attribute-bytes vertex-space)]
-    (graphics/put-attributes vbuf [mesh-data])
+    (graphics/put-attributes! vbuf [mesh-data])
     vbuf))
 
 (defn- request-vb! [^GL2 gl node-id mesh ^Matrix4d world-transform vertex-space vertex-description vertex-attribute-bytes]
@@ -159,14 +158,14 @@
   (let [position-entry (->> material-attribute-infos
                             (filter #(= (:name %) "position"))
                             first)]
+    ;; This workaround is currently needed because we set the manufactured "position"
+    ;; to coordinate-space-world which means that we will produce wrong vertices
+    ;; based on the vertex space setting on the material.
     (if position-entry
       material-attribute-infos
       (conj material-attribute-infos {:name "position"
                                       :name-key (vtx/attribute-name->key "position")
                                       :semantic-type :semantic-type-position
-                                      ;; TODO: This is a workaround because we set the manufactured "position"
-                                      ;;       to coordinate-space-world which means that we will produce wrong vertices
-                                      ;;       based on the vertex space setting on the material..
                                       :coordinate-space :coordinate-space-local
                                       :data-type :type-float
                                       :element-count 4}))))
@@ -420,8 +419,7 @@
 (defn- update-vb [^GL2 gl ^VertexBuffer vb data]
   (let [{:keys [mesh world-transform vertex-space vertex-attribute-bytes]} data
         world-transform (doto (Matrix4d.) (math/clj->vecmath world-transform))]
-    (-> vb
-      (mesh->vb! world-transform vertex-space vertex-attribute-bytes mesh))))
+    (mesh->vb! vb world-transform vertex-space vertex-attribute-bytes mesh)))
 
 (defn- make-vb [^GL2 gl data]
   (let [{:keys [mesh vertex-description]} data
