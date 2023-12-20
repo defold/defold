@@ -162,12 +162,9 @@
                [ns-path (code-completion/make name
                                               :type type
                                               :display-string (make-display-string el)
-                                              :insert-snippet (make-snippet el)
+                                              :insert (make-snippet el)
                                               :doc (make-markdown-doc raw-name base-url el))])))
       docs)))
-
-(def helper-keywords #{"assert" "collectgarbage" "dofile" "error" "getfenv" "getmetatable" "ipairs" "loadfile" "loadstring" "module" "next" "pairs" "pcall"
-                       "print" "rawequal" "rawget" "rawset" "require" "select" "setfenv" "setmetatable" "tonumber" "tostring" "type" "unpack" "xpcall"})
 
 (def logic-keywords #{"and" "or" "not"})
 
@@ -182,8 +179,7 @@
 (def lua-constants #{"nil" "false" "true"})
 
 (def all-keywords
-  (set/union helper-keywords
-             logic-keywords
+  (set/union logic-keywords
              self-keyword
              control-flow-keywords
              defold-keywords))
@@ -254,12 +250,12 @@
                            name
                            :type :function
                            :display-string (str name "(" (string/join ", " params) ")")
-                           :insert-snippet (str name
-                                                "("
-                                                (->> params
-                                                     (map-indexed #(format "${%s:%s}" (inc %1) %2))
-                                                     (string/join ", "))
-                                                ")"))])))
+                           :insert (str name
+                                        "("
+                                        (->> params
+                                             (map-indexed #(format "${%s:%s}" (inc %1) %2))
+                                             (string/join ", "))
+                                        ")"))])))
        functions)]))
 
 (defn- make-ast-completions [local-completion-info required-completion-infos]

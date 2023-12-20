@@ -1,0 +1,25 @@
+mesh: "/referenced/mesh.glb"
+skeleton: "/referenced/mesh.glb"
+animations: "/referenced/mesh.glb"
+default_animation: "cube_flip"
+name: "checked"
+materials {
+  name: "material0"
+  material: "/builtins/materials/model.material"
+  textures {
+    sampler: "tex0"
+    texture: "/referenced/images/red.png"
+  }
+}
+materials {
+  name: "material1"
+  material: "/referenced/model.material"
+  textures {
+    sampler: "texture0"
+    texture: "/referenced/images/green.png"
+  }
+  textures {
+    sampler: "texture1"
+    texture: "/referenced/images/blue.png"
+  }
+}

@@ -18,6 +18,7 @@
   (:import (java.io Reader)))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn text-char?
   "Returns true if the supplied character is textual. This can
@@ -131,7 +132,7 @@
    (with-open [rdr (io/reader readable)]
      (let [cbuf (char-array chars-to-check)
            nread (.read rdr cbuf 0 chars-to-check)
-           limit (* binary-chars-threshold nread)]
+           limit (long (* (double binary-chars-threshold) nread))]
        (loop [i 0
               binary-chars 0]
          (if (< i nread)
@@ -140,7 +141,7 @@
              (recur (inc i) (if (text-char? (aget cbuf i)) binary-chars (inc binary-chars))))
            false))))))
 
-(defn- consume-separator [^String str start-index]
+(defn- consume-separator [^String str ^long start-index]
   (loop [quote-char-count 0
          index start-index]
     (if (= index (count str))
@@ -161,7 +162,7 @@
 (defn parse-comma-separated-string
   "Parses a string of comma-separated, optionally quoted strings into a vector of unquoted strings."
   [^String str]
-  (let [[start-index stop-char] (consume-separator str 0)]
+  (let [[^long start-index stop-char] (consume-separator str 0)]
     (loop [substrings (transient [])
            builder (StringBuilder.)
            index start-index
@@ -189,3 +190,17 @@
     (if (empty? inner-string)
       inner-string
       (str "\"" inner-string "\""))))
+
+(defn character-count
+  "Returns the number of occurrences of the specified char-or-code-point in the string."
+  ^long [^String str char-or-code-point]
+  (let [length (.length str)
+        code-point (int char-or-code-point)]
+    (loop [index (int 0)
+           found-count 0]
+      (if (== length index)
+        found-count
+        (recur (inc index)
+               (if (== code-point (.codePointAt str index))
+                 (inc found-count)
+                 found-count))))))

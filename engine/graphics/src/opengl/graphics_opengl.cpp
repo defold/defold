@@ -250,6 +250,8 @@ static void LogGLError(GLint err, const char* fnname, int line)
 
 #endif
 
+static bool OpenGLIsTextureFormatSupported(HContext context, TextureFormat format);
+
 static void OpenGLClearGLError()
 {
     GLint err = glGetError();
@@ -1087,6 +1089,27 @@ static void LogFrameBufferError(GLenum status)
 
 
 #if defined (__EMSCRIPTEN__)
+        // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
+        // see https://github.com/defold/defold/issues/8030
+        if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4x4)) {
+            unsigned char fakeZeroBuffer[] = {
+                0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
+                0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01,
+                0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
+                0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01
+            };
+            GLuint texture;
+            glGenTextures(1, &texture);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+            DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, 4, 4, 2, 0, 32, &fakeZeroBuffer);
+            GLint err = glGetError();
+            if (err != 0) 
+            {
+                context->m_TextureFormatSupport &= ~(1 << TEXTURE_FORMAT_RGBA_ASTC_4x4);
+            }
+            glDeleteTextures(1, &texture);
+        }
+
         // webgl GL_DEPTH_STENCIL_ATTACHMENT for stenciling and GL_DEPTH_COMPONENT16 for depth only by specifications, even though it reports 24-bit depth and no packed depth stencil extensions.
         context->m_PackedDepthStencilSupport = 1;
         context->m_DepthBufferBits = 16;
@@ -2836,16 +2859,33 @@ static void LogFrameBufferError(GLenum status)
         return texture_filter_lut[texture_filter];
     }
 
+    static inline bool IsTextureFilterMipmapped(GLenum filter)
+    {
+        return filter == GL_NEAREST_MIPMAP_NEAREST ||
+               filter == GL_NEAREST_MIPMAP_LINEAR  ||
+               filter == GL_LINEAR_MIPMAP_NEAREST  ||
+               filter == GL_LINEAR_MIPMAP_LINEAR;
+    }
+
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
         GLenum type = GetOpenGLTextureType(tex->m_Type);
 
-        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GetOpenGLTextureFilter(minfilter));
+        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter);
+        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter);
+
+        // Using a mipmapped min filter without any mipmaps will break the sampler
+        if (tex->m_MipMapCount <= 1 && IsTextureFilterMipmapped(gl_min_filter))
+        {
+            gl_min_filter = gl_mag_filter;
+        }
+
+        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
         CHECK_GL_ERROR;
 
-        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GetOpenGLTextureFilter(magfilter));
+        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
         CHECK_GL_ERROR;
 
         glTexParameteri(type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));

@@ -40,7 +40,7 @@
                     <Image url="@/sponsors/rive.png" />
                 </ImageView>
                 <ImageView fitHeight="30.0" preserveRatio="true">
-                    <Image url="@/sponsors/op-games.png" />
+                    <Image url="@/sponsors/poki.png" />
                 </ImageView>
              </HBox>
              <HBox id="sponsor-icons">
@@ -49,6 +49,9 @@
                 </ImageView>
                 <ImageView fitHeight="30.0" preserveRatio="true">
                     <Image url="@/sponsors/heroiclabs.png" />
+                </ImageView>
+                <ImageView fitHeight="30.0" preserveRatio="true">
+                    <Image url="@/sponsors/op-games.png" />
                 </ImageView>
              </HBox>
           </VBox>

@@ -29,6 +29,7 @@
             [cljfx.prop :as fx.prop]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.defold-project :as project]
             [editor.fxui :as fxui]
             [editor.html-view :as html-view]
             [editor.resource-io :as resource-io]
@@ -45,6 +46,8 @@
            [org.jsoup.helper StringUtil]
            [org.jsoup.nodes Element Node TextNode]))
 
+(set! *warn-on-reflection* true)
+
 (defn- child-nodes [node]
   (when (instance? Element node)
     (.childNodes ^Element node)))
@@ -57,11 +60,21 @@
     (.attr ^Element node name)))
 
 (defn- open-link! [^URI base-url project ^String url _event]
-  (when-let [resolved-url (try
-                            (if base-url (.resolve base-url url) (URI. url))
-                            (catch Exception _ nil))]
-    (if (= "defold" (.getScheme resolved-url))
+  (when-let [^URI resolved-url (try
+                                 (if base-url (.resolve base-url url) (URI. url))
+                                 (catch Exception _ nil))]
+    (case (.getScheme resolved-url)
+      "defold"
       (html-view/dispatch-url! project resolved-url)
+
+      "file"
+      (if-let [resource (g/with-auto-evaluation-context evaluation-context
+                          (let [workspace (project/workspace project evaluation-context)]
+                            (when-let [proj-path (workspace/as-proj-path workspace resolved-url evaluation-context)]
+                              (workspace/find-resource workspace proj-path))))]
+        (ui/execute-command (ui/contexts (ui/main-scene)) :open {:resources [resource]})
+        (ui/open-url resolved-url))
+
       (ui/open-url resolved-url))))
 
 (defn- text-view
@@ -319,6 +332,7 @@
                  (layout-children acc node ctx)))
       "pre" (with-separators acc 1 1 add-view (code-block-view node ctx))
       "ul" (with-separators acc 0 0 add-view (unordered-list-view node ctx))
+      "hr" (with-separators acc 3 3 add-view {:fx/type fx.region/lifecycle :style-class "md-hr"})
       "head" acc
       (-> acc
           (add-text (str "<" tag ">") (style ctx "error"))
