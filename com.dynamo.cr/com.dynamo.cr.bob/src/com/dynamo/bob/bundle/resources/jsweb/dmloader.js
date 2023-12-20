@@ -108,7 +108,7 @@ var EngineLoader = {
     stream_wasm: false,
 
     // load and instantiate .wasm file using XMLHttpRequest
-    loadWasmFileAsync: function(src, fromProgress, toProgress, imports, successCallback) {
+    loadAndInstantiateWasmAsync: function(src, fromProgress, toProgress, imports, successCallback) {
         FileLoader.load(src, "arraybuffer", EngineLoader.wasm_size,
             function(loaded, total) { Progress.calculateProgress(fromProgress, toProgress, loaded, total); },
             function(error) { throw error; },
@@ -123,7 +123,7 @@ var EngineLoader = {
     },
 
     // stream and instantiate .wasm file
-    streamWasmFileAsync: async function(src, fromProgress, toProgress, imports, successCallback) {
+    streamAndInstantiateWasmAsync: async function(src, fromProgress, toProgress, imports, successCallback) {
         // https://stackoverflow.com/a/69179454
         var fetchFn = fetch;
         if (typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough) {
@@ -156,7 +156,7 @@ var EngineLoader = {
         }).catch(function(e) {
             console.log('wasm streaming instantiation failed! ' + e);
             console.log('Fallback to wasm loading');
-            EngineLoader.loadWasmFileAsync(src, fromProgress, toProgress, imports, successCallback);
+            EngineLoader.loadAndInstantiateWasmAsync(src, fromProgress, toProgress, imports, successCallback);
         });
     },
 
@@ -165,10 +165,10 @@ var EngineLoader = {
     loadWasmAsync: function(exeName) {
         Module.instantiateWasm = function(imports, successCallback) {
             if (EngineLoader.stream_wasm && (typeof WebAssembly.instantiateStreaming === "function")) {
-                EngineLoader.streamWasmFileAsync(exeName + ".wasm", 10, 50, imports, successCallback);
+                EngineLoader.streamAndInstantiateWasmAsync(exeName + ".wasm", 10, 50, imports, successCallback);
             }
             else {
-                EngineLoader.loadWasmFileAsync(exeName + ".wasm", 10, 50, imports, successCallback);
+                EngineLoader.loadAndInstantiateWasmAsync(exeName + ".wasm", 10, 50, imports, successCallback);
             }
             return {}; // Compiling asynchronously, no exports.
         };
