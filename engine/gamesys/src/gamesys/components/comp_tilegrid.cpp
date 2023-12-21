@@ -650,7 +650,7 @@ namespace dmGameSystem
 
         ro.Init();
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
-        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::AllocateRenderBuffer(render_context, world->m_VertexBuffer);
+        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::AdvanceRenderBuffer(render_context, world->m_VertexBuffer);
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - world->m_VertexBufferData;
         ro.m_VertexCount = (world->m_VertexBufferWritePtr - vb_begin);

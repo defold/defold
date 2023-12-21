@@ -114,7 +114,7 @@ namespace dmGameSystem
         world->m_VertexBufferData.SetCapacity(buffer_size);
 
         world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
-        dmRender::AllocateRenderBuffer(ctx->m_RenderContext, world->m_VertexBuffer);
+        dmRender::AdvanceRenderBuffer(ctx->m_RenderContext, world->m_VertexBuffer);
         dmRender::SetBufferData(ctx->m_RenderContext, world->m_VertexBuffer, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         world->m_WarnOutOfROs = 0;
@@ -381,7 +381,7 @@ namespace dmGameSystem
         ro.m_Textures[0]       = (dmGraphics::HTexture) first->m_Texture;
         ro.m_VertexStart       = vertex_offset;
         ro.m_VertexCount       = ro_vertex_count;
-        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::AllocateRenderBuffer(render_context, pfx_world->m_VertexBuffer);
+        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::AdvanceRenderBuffer(render_context, pfx_world->m_VertexBuffer);
         ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_SetBlendFactors   = 1;
 

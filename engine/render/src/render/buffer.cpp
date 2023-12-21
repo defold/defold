@@ -73,8 +73,7 @@ namespace dmRender
         delete buffer;
     }
 
-    // TODO: Naming?
-    HRenderBuffer AllocateRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
+    HRenderBuffer AdvanceRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
     {
         if (!buffer)
             return 0;
@@ -119,13 +118,6 @@ namespace dmRender
         }
     }
 
-    uint32_t GetBufferCount(HRenderContext render_context, HBufferedRenderBuffer buffer)
-    {
-        if(!buffer)
-            return 0;
-        return buffer->m_Buffers.Size();
-    }
-
     void TrimBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
     {
         if (!buffer)
@@ -137,7 +129,6 @@ namespace dmRender
         if (new_buffer_count == n)
             return;
 
-        // Remove buffers except for one (should we allow removing all?)
         for (int i = 0; i < (n - new_buffer_count); ++i)
         {
             PopAndDelete(render_context, buffer);

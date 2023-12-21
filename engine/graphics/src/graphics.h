@@ -696,6 +696,12 @@ namespace dmGraphics
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
 
     uint32_t GetTypeSize(dmGraphics::Type type);
+
+    // Both experimental + tests only:
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
+    bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
+    bool  UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
 }
 
 #endif // DM_GRAPHICS_H
