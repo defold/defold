@@ -73,6 +73,7 @@ namespace dmRender
         delete buffer;
     }
 
+    // TODO: Naming?
     HRenderBuffer AllocateRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
     {
         if (!buffer)
@@ -86,6 +87,7 @@ namespace dmRender
 
         if (!render_context->m_MultiBufferingRequired)
         {
+            buffer->m_BufferIndex = 0;
             assert(buffer->m_Buffers.Size() == 1);
             return buffer->m_Buffers.Front();
         }

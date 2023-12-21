@@ -145,7 +145,7 @@ namespace dmGameSystem
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(world->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER); //dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(world->m_RenderContext), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(world->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         uint32_t vcount = 6 * world->m_MaxTileCount;
         world->m_VertexBufferData = (TileGridVertex*) malloc(sizeof(TileGridVertex) * vcount);
         world->m_VertexBufferDataEnd = world->m_VertexBufferData + vcount;
@@ -174,7 +174,6 @@ namespace dmGameSystem
         if (world->m_VertexDeclaration)
         {
             dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
-            //dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
             dmRender::DeleteBufferedRenderBuffer(world->m_RenderContext, world->m_VertexBuffer);
             free(world->m_VertexBufferData);
         }
