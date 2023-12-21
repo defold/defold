@@ -860,7 +860,7 @@ namespace dmRig
 
             if (has_tangents)
             {
-                tangent = normal_matrix * normal_out;
+                tangent = normal_matrix * tangent_out;
                 if (lengthSqr(tangent) > 0.0f) {
                     normalize(tangent);
                 }
