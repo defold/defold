@@ -52,12 +52,13 @@ namespace dmRender
         buffer->m_Buffers.Pop();
     }
 
-    HBufferedRenderBuffer NewBufferedRenderBuffer(HRenderContext render_context)
+    HBufferedRenderBuffer NewBufferedRenderBuffer(HRenderContext render_context, RenderBufferType type)
     {
-        BufferedRenderBuffer* b = new BufferedRenderBuffer();
-        memset(b, 0, sizeof(BufferedRenderBuffer));
-        Rewind(render_context, b);
-        return b;
+        BufferedRenderBuffer* buffer = new BufferedRenderBuffer();
+        memset(buffer, 0, sizeof(BufferedRenderBuffer));
+        RewindBuffer(render_context, buffer);
+        buffer->m_Type = type;
+        return buffer;
     }
 
     void DeleteBufferedRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
@@ -72,7 +73,7 @@ namespace dmRender
         delete buffer;
     }
 
-    HRenderBuffer NextRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
+    HRenderBuffer AllocateRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
     {
         if (!buffer)
             return 0;
@@ -98,11 +99,22 @@ namespace dmRender
         return buffer->m_Buffers[buffer->m_BufferIndex];
     }
 
-    HRenderBuffer CurrentRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
+    void SetBufferData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t size, void* data, dmGraphics::BufferUsage buffer_usage)
     {
-        if(!buffer)
-            return 0;
-        return buffer->m_Buffers[buffer->m_BufferIndex];
+        switch(buffer->m_Type)
+        {
+            case RENDER_BUFFER_TYPE_VERTEX_BUFFER:
+            {
+                dmGraphics::HVertexBuffer vbuf = (dmGraphics::HVertexBuffer) buffer->m_Buffers[buffer->m_BufferIndex];
+                dmGraphics::SetVertexBufferData(vbuf, size, data, buffer_usage);
+            } break;
+            case RENDER_BUFFER_TYPE_INDEX_BUFFER:
+            {
+                dmGraphics::HIndexBuffer ibuf = (dmGraphics::HIndexBuffer) buffer->m_Buffers[buffer->m_BufferIndex];
+                dmGraphics::SetIndexBufferData(ibuf, size, data, buffer_usage);
+            } break;
+            default:assert(0);
+        }
     }
 
     uint32_t GetBufferCount(HRenderContext render_context, HBufferedRenderBuffer buffer)
@@ -112,7 +124,7 @@ namespace dmRender
         return buffer->m_Buffers.Size();
     }
 
-    void Trim(HRenderContext render_context, HBufferedRenderBuffer buffer)
+    void TrimBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
     {
         if (!buffer)
             return;
@@ -132,7 +144,7 @@ namespace dmRender
         buffer->m_Buffers.SetCapacity(new_buffer_count);
     }
 
-    void Rewind(HRenderContext render_context, HBufferedRenderBuffer buffer)
+    void RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
     {
         if (!buffer)
             return;

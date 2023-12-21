@@ -188,7 +188,7 @@ namespace dmGameSystem
             sprite_world->m_VertexBuffer = 0;
         }
 
-        sprite_world->m_VertexBuffer     = dmRender::NewBufferedRenderBuffer(render_context);  // dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        sprite_world->m_VertexBuffer     = dmRender::NewBufferedRenderBuffer(render_context, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         uint32_t vertex_memsize          = sprite_world->m_VertexMemorySize;
         sprite_world->m_VertexBufferData = (uint8_t*) realloc(sprite_world->m_VertexBufferData, vertex_memsize);
 
@@ -203,7 +203,7 @@ namespace dmGameSystem
             sprite_world->m_IndexBuffer = 0;
         }
 
-        sprite_world->m_IndexBuffer    = dmRender::NewBufferedRenderBuffer(render_context); // dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_memsize, (void*)sprite_world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        sprite_world->m_IndexBuffer    = dmRender::NewBufferedRenderBuffer(render_context, dmRender::RENDER_BUFFER_TYPE_INDEX_BUFFER);
         sprite_world->m_ReallocBuffers = 0;
     }
 
@@ -1309,8 +1309,8 @@ namespace dmGameSystem
 
         ro.Init();
         ro.m_VertexDeclaration = vx_decl;
-        ro.m_VertexBuffer = (dmGraphics::HVertexBuffer) dmRender::NextRenderBuffer(render_context, sprite_world->m_VertexBuffer);
-        ro.m_IndexBuffer = (dmGraphics::HIndexBuffer) dmRender::NextRenderBuffer(render_context, sprite_world->m_IndexBuffer);
+        ro.m_VertexBuffer = (dmGraphics::HVertexBuffer) dmRender::AllocateRenderBuffer(render_context, sprite_world->m_VertexBuffer);
+        ro.m_IndexBuffer = (dmGraphics::HIndexBuffer) dmRender::AllocateRenderBuffer(render_context, sprite_world->m_IndexBuffer);
         ro.m_Material = material;
         for(uint32_t i = 0; i < resource->m_NumTextures; ++i)
         {
@@ -1633,11 +1633,11 @@ namespace dmGameSystem
         PostMessages(world);
 
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
-        dmRender::Trim(sprite_context->m_RenderContext, world->m_VertexBuffer);
-        dmRender::Rewind(sprite_context->m_RenderContext, world->m_VertexBuffer);
+        dmRender::TrimBuffer(sprite_context->m_RenderContext, world->m_VertexBuffer);
+        dmRender::RewindBuffer(sprite_context->m_RenderContext, world->m_VertexBuffer);
 
-        dmRender::Trim(sprite_context->m_RenderContext, world->m_IndexBuffer);
-        dmRender::Rewind(sprite_context->m_RenderContext, world->m_IndexBuffer);
+        dmRender::TrimBuffer(sprite_context->m_RenderContext, world->m_IndexBuffer);
+        dmRender::RewindBuffer(sprite_context->m_RenderContext, world->m_IndexBuffer);
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -1679,8 +1679,7 @@ namespace dmGameSystem
 
                     if (vertex_data_size)
                     {
-                        dmGraphics::HVertexBuffer vbuf = (dmGraphics::HVertexBuffer) dmRender::CurrentRenderBuffer(params.m_Context, world->m_VertexBuffer);
-                        dmGraphics::SetVertexBufferData(vbuf, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                        dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
                         DM_PROPERTY_ADD_U32(rmtp_SpriteVertexCount, world->m_VertexCount);
                         DM_PROPERTY_ADD_U32(rmtp_SpriteVertexSize, vertex_data_size);
@@ -1689,8 +1688,7 @@ namespace dmGameSystem
                     uint32_t index_size = (world->m_IndexBufferWritePtr - world->m_IndexBufferData);
                     if (index_size)
                     {
-                        dmGraphics::HIndexBuffer ibuf = (dmGraphics::HIndexBuffer) dmRender::CurrentRenderBuffer(params.m_Context, world->m_IndexBuffer);
-                        dmGraphics::SetIndexBufferData(ibuf, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                        dmRender::SetBufferData(params.m_Context, world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
                         DM_PROPERTY_ADD_U32(rmtp_SpriteIndexSize, index_size);
                     }

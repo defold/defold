@@ -258,12 +258,12 @@ namespace dmRender
     void                            DeletePredicate(HPredicate predicate);
     Result                          AddPredicateTag(HPredicate predicate, dmhash_t tag);
 
-    HBufferedRenderBuffer           NewBufferedRenderBuffer(HRenderContext render_context);
+    HBufferedRenderBuffer           NewBufferedRenderBuffer(HRenderContext render_context, RenderBufferType type);
     void                            DeleteBufferedRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
-    HRenderBuffer                   NextRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
-    HRenderBuffer                   CurrentRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
-    void                            Trim(HRenderContext render_context, HBufferedRenderBuffer buffer);
-    void                            Rewind(HRenderContext render_context, HBufferedRenderBuffer buffer);
+    HRenderBuffer                   AllocateRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
+    void                            SetBufferData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t size, void* data, dmGraphics::BufferUsage buffer_usage);
+    void                            TrimBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
+    void                            RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
 
 }
 
