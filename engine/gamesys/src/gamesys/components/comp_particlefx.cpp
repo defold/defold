@@ -113,7 +113,10 @@ namespace dmGameSystem
         const uint32_t buffer_size     = ctx->m_MaxParticleCount * 6 * default_vx_size;
         world->m_VertexBufferData.SetCapacity(buffer_size);
 
-        world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER); // dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(ctx->m_RenderContext), buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
+        dmRender::AllocateRenderBuffer(ctx->m_RenderContext, world->m_VertexBuffer);
+        dmRender::SetBufferData(ctx->m_RenderContext, world->m_VertexBuffer, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+
         world->m_WarnOutOfROs = 0;
         world->m_EmitterCount = 0;
 
