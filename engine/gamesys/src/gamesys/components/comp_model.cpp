@@ -103,14 +103,13 @@ namespace dmGameSystem
         dmObjectPool<ModelComponent*>   m_Components;
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        dmGraphics::HVertexBuffer*      m_VertexBuffers;
+        dmRender::HBufferedRenderBuffer* m_VertexBuffers;
         dmArray<dmRig::RigModelVertex>* m_VertexBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmRig::HRigContext              m_RigContext;
         uint32_t                        m_MaxElementsVertices;
-        uint32_t                        m_VertexBufferSwapChainIndex;
-        uint32_t                        m_VertexBufferSwapChainSize;
+        uint32_t                        m_MaxBatchIndex;
     };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
@@ -154,13 +153,14 @@ namespace dmGameSystem
         dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration, "texcoord1", 2, dmGraphics::TYPE_FLOAT, false);
 
+        world->m_MaxBatchIndex = 0;
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         world->m_MaxElementsVertices = dmGraphics::GetMaxElementsVertices(graphics_context);
-        world->m_VertexBuffers = new dmGraphics::HVertexBuffer[VERTEX_BUFFER_MAX_BATCHES];
+        world->m_VertexBuffers = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
         world->m_VertexBufferData = new dmArray<dmRig::RigModelVertex>[VERTEX_BUFFER_MAX_BATCHES];
         for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
-            world->m_VertexBuffers[i] = dmGraphics::NewVertexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+            world->m_VertexBuffers[i] = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         }
 
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
@@ -174,11 +174,12 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
+        ModelContext* context = (ModelContext*)params.m_Context;
         ModelWorld* world = (ModelWorld*)params.m_World;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
-            dmGraphics::DeleteVertexBuffer(world->m_VertexBuffers[i]);
+            dmRender::DeleteBufferedRenderBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
         }
 
         dmResource::UnregisterResourceReloadedCallback(((ModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
@@ -696,6 +697,8 @@ namespace dmGameSystem
         uint32_t index_count = 0;
         uint32_t batchIndex = buf[*begin].m_MinorOrder;
 
+        world->m_MaxBatchIndex = dmMath::Max(batchIndex, world->m_MaxBatchIndex);
+
         for (uint32_t *i=begin;i!=end;i++)
         {
             const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
@@ -719,7 +722,7 @@ namespace dmGameSystem
         if (vertex_buffer.Remaining() < required_vertex_count)
             vertex_buffer.OffsetCapacity(required_vertex_count - vertex_buffer.Remaining());
 
-        dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batchIndex];
+        dmRender::HBufferedRenderBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batchIndex];
 
         // Fill in vertex buffer
         dmRig::RigModelVertex *vb_begin = vertex_buffer.End();
@@ -761,7 +764,7 @@ namespace dmGameSystem
 
         ro.Init();
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
-        ro.m_VertexBuffer = gfx_vertex_buffer;
+        ro.m_VertexBuffer = (dmGraphics::HVertexBuffer) dmRender::AllocateRenderBuffer(render_context, gfx_vertex_buffer);
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
@@ -878,6 +881,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
+        ModelContext* context = (ModelContext*)params.m_Context;
 
         dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
 
@@ -901,6 +905,15 @@ namespace dmGameSystem
 
             DM_PROPERTY_ADD_U32(rmtp_Model, 1);
         }
+
+        assert(world->m_MaxBatchIndex < VERTEX_BUFFER_MAX_BATCHES);
+        for (int i = 0; i < world->m_MaxBatchIndex; ++i)
+        {
+            dmRender::TrimBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
+            dmRender::RewindBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
+        }
+
+        world->m_MaxBatchIndex = 0;
 
         update_result.m_TransformsUpdated = rig_res == dmRig::RESULT_UPDATED_POSE;
         return dmGameObject::UPDATE_RESULT_OK;
@@ -953,8 +966,10 @@ namespace dmGameSystem
                         continue;
                     }
                     uint32_t vb_size = sizeof(dmRig::RigModelVertex) * vertex_buffer_data.Size();
-                    dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batch_index];
-                    dmGraphics::SetVertexBufferData(gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+
+                    dmRender::HBufferedRenderBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batch_index];
+                    dmRender::SetBufferData(params.m_Context, gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+
                     total_count += vertex_buffer_data.Size();
                 }
 
