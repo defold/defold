@@ -327,6 +327,8 @@ namespace dmPhysics
      */
     HWorld2D NewWorld2D(HContext2D context, const NewWorldParams& params);
 
+    HContext3D GetContext3D(HWorld3D world);
+
     /**
      * Delete a 3D physics world
      *
@@ -1382,6 +1384,24 @@ namespace dmPhysics
     void FlipH2D(HCollisionObject2D collision_object);
     void FlipV2D(HCollisionObject2D collision_object);
 
+    void ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape);
+    HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index);
+
+    void GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius);
+    void GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz);
+    void GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height);
+
+    void SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius);
+    void SetCollisionShapeHalfBoxExtents3D(HCollisionShape2D shape, float w, float h, float d);
+
+    void GetCollisionShapeRadius2D(HCollisionShape2D shape, float* radius);
+    void GetCollisionShapePolygonVertices2D(HCollisionShape2D shape, float** vertices, uint32_t* vertex_count);
+
+    void SetCollisionShapeRadius2D(HCollisionShape2D shape, float radius);
+    void SetCollisionShapeBoxDimensions2D(HCollisionShape2D shape, float w, float h);
+
+    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object, uint32_t shape_index);
+    void SynchronizeObject2D(HCollisionObject2D collision_object);
 }
 
 #endif // DM_PHYSICS_H
