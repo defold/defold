@@ -151,6 +151,20 @@ struct EngineCtx
     ITest* m_Test;
 } g_EngineCtx;
 
+struct SimpleQuadTest : ITest
+{
+    void Initialize(EngineCtx* engine) override
+    {
+
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_Window), dmGraphics::GetWindowHeight(engine->m_Window));
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0.0f, 80.0f, 140.0f, 255.0f, 1.0f, 0);
+    }
+};
+
 struct CopyToBufferTest : ITest
 {
     dmGraphics::HTexture      m_CopyBufferToTextureTexture;
@@ -395,7 +409,8 @@ static void* EngineCreate(int argc, char** argv)
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
-    engine->m_Test = new ComputeTest();
+    //engine->m_Test = new ComputeTest();
+    engine->m_Test = new SimpleQuadTest();
 
     engine->m_Test->Initialize(engine);
 

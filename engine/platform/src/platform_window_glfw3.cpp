@@ -27,7 +27,6 @@ namespace dmPlatform
     struct Window
     {
         GLFWwindow* m_Window;
-        /*
         WindowResizeCallback          m_ResizeCallback;
         void*                         m_ResizeCallbackUserData;
         WindowCloseCallback           m_CloseCallback;
@@ -44,12 +43,12 @@ namespace dmPlatform
         void*                         m_DeviceChangedCallbackUserData;
         int32_t                       m_Width;
         int32_t                       m_Height;
+        /*
         uint32_t                      m_Samples               : 8;
-        uint32_t                      m_WindowOpened          : 1;
-        uint32_t                      m_SwapIntervalSupported : 1;
         uint32_t                      m_HighDPI               : 1;
         */
 
+        uint32_t                      m_SwapIntervalSupported : 1;
         uint32_t                      m_WindowOpened          : 1;
     };
 
@@ -75,6 +74,13 @@ namespace dmPlatform
     PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
         wnd->m_Window = glfwCreateWindow(640, 480, "Hello World", NULL, NULL);
+
+        if (!wnd->m_Window)
+        {
+            return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        wnd->m_SwapIntervalSupported = 1;
 
         return PLATFORM_RESULT_OK;
     }
@@ -104,6 +110,11 @@ namespace dmPlatform
             default: assert(0);
         }
 
+        if (res == PLATFORM_RESULT_OK)
+        {
+            window->m_WindowOpened = 1;
+        }
+
         return res;
     }
 
@@ -120,5 +131,83 @@ namespace dmPlatform
     void PollEvents(HWindow window)
     {
         glfwPollEvents();
+    }
+
+    void SwapBuffers(HWindow window)
+    {
+        glfwSwapBuffers(window->m_Window);
+    }
+
+    void IconifyWindow(HWindow window)
+    {
+        glfwIconifyWindow(window->m_Window);
+    }
+
+    uint32_t GetWindowWidth(HWindow window)
+    {
+        return (uint32_t) window->m_Width;
+    }
+    uint32_t GetWindowHeight(HWindow window)
+    {
+        return (uint32_t) window->m_Height;
+    }
+
+    void SetSwapInterval(HWindow window, uint32_t swap_interval)
+    {
+        if (window->m_SwapIntervalSupported)
+        {
+            glfwSwapInterval(swap_interval);
+        }
+    }
+
+    void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
+    {
+        glfwSetWindowSize(window->m_Window, (int) width, (int) height);
+        int window_width, window_height;
+        glfwGetWindowSize(window->m_Window, &window_width, &window_height);
+        window->m_Width  = window_width;
+        window->m_Height = window_height;
+
+        // The callback is not called from glfw when the size is set manually
+        if (window->m_ResizeCallback)
+        {
+            window->m_ResizeCallback(window->m_ResizeCallbackUserData, window_width, window_height);
+        }
+    }
+
+    float GetDisplayScaleFactor(HWindow window)
+    {
+        return 1.0f;
+    }
+
+    void* AcquireAuxContext(HWindow window)
+    {
+        return 0;
+    }
+
+    void UnacquireAuxContext(HWindow window, void* aux_context)
+    {
+    }
+
+    uint32_t GetWindowStateParam(HWindow window, WindowState state)
+    {
+        switch(state)
+        {
+            case WINDOW_STATE_OPENED: return window->m_WindowOpened;
+        }
+
+        return 0;
+        /*
+        switch(state)
+        {
+            case WINDOW_STATE_REFRESH_RATE: return glfwGetWindowRefreshRate();
+            case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
+            case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
+            case WINDOW_STATE_AUX_CONTEXT:  return glfwQueryAuxContext();
+            default:break;
+        }
+
+        return window->m_WindowOpened ? glfwGetWindowParam(WindowStateToGLFW(state)) : 0;
+        */
     }
 }
