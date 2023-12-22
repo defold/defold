@@ -15,7 +15,6 @@
 #include <dlib/math.h>
 #include <dlib/array.h>
 
-#include  <glfw/glfw_native.h>
 #include <objc/objc.h>
 
 #if defined(DM_PLATFORM_MACOS)
@@ -30,6 +29,7 @@ namespace dmGraphics
     // Source: GLFW3
     VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
+        /*
         VkMacOSSurfaceCreateInfoMVK sci;
         PFN_vkCreateMacOSSurfaceMVK vkCreateMacOSSurfaceMVK;
 
@@ -56,5 +56,7 @@ namespace dmGraphics
         sci.pView = window_view;
 
         return vkCreateMacOSSurfaceMVK(vkInstance, &sci, 0, vkSurfaceOut);
+        */
+        return VK_INCOMPLETE;
     }
 }

@@ -81,6 +81,7 @@ namespace dmPlatform
         WINDOW_STATE_FSAA_SAMPLES       = 19,
         WINDOW_STATE_SAMPLE_COUNT       = 20,
         WINDOW_STATE_HIGH_DPI           = 21,
+        WINDOW_STATE_AUX_CONTEXT        = 22,
     };
 
     struct WindowParams
@@ -140,6 +141,7 @@ namespace dmPlatform
     uint32_t       GetWindowHeight(HWindow window);
     uint32_t       GetWindowStateParam(HWindow window, WindowState state);
     float          GetDisplayScaleFactor(HWindow window);
+    uintptr_t      GetProcAddress(HWindow window, const char* proc_name);
 
     int32_t        GetKey(HWindow window, int32_t code);
     int32_t        GetMouseButton(HWindow window, int32_t button);
@@ -157,6 +159,13 @@ namespace dmPlatform
     void           SetKeyboardDeviceChangedCallback(HWindow window, WindowDeviceChangedCallback cb, void* user_data);
     void           IconifyWindow(HWindow window);
     void           PollEvents(HWindow window);
+    void           SwapBuffers(HWindow window);
+
+    void*          AcquireAuxContext(HWindow window);
+    void           UnacquireAuxContext(HWindow window, void* aux_context);
+
+    // OpenGL Specific functions
+    int32_t OpenGLGetDefaultFramebufferId();
 
     // For tests
     int32_t TriggerCloseCallback(HWindow window);

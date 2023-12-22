@@ -19,8 +19,6 @@
 #include <dlib/condition_variable.h>
 #include <dlib/array.h>
 
-#include <glfw/glfw.h>
-
 #include "job_queue.h"
 
 namespace dmGraphics
@@ -32,6 +30,7 @@ namespace dmGraphics
     static dmThread::Thread m_JobThread = 0x0;
     static dmMutex::HMutex  m_ConsumerThreadMutex;
     static dmConditionVariable::HConditionVariable m_ConsumerThreadCondition;
+    static dmPlatform::HWindow m_Window = 0;
     static volatile bool m_Active = false;
 
     /// Job input and output queues
@@ -49,7 +48,7 @@ namespace dmGraphics
 
     static void AsyncThread(void* args)
     {
-        void* aux_context = glfwAcquireAuxContext();
+        void* aux_context = dmPlatform::AcquireAuxContext(m_Window);
         JobDesc job;
         while (m_Active)
         {
@@ -65,7 +64,7 @@ namespace dmGraphics
             }
             ProcessJob(job);
         }
-        glfwUnacquireAuxContext(aux_context);
+        dmPlatform::UnacquireAuxContext(m_Window, aux_context);
     }
 
     void JobQueuePush(const JobDesc& job)
@@ -88,11 +87,11 @@ namespace dmGraphics
         }
     }
 
-    void JobQueueInitialize()
+    void JobQueueInitialize(dmPlatform::HWindow window)
     {
         dmLogDebug("AsyncInitialize: Initializing auxillary context..");
         assert(m_JobThread == 0x0);
-        if(!glfwQueryAuxContext())
+        if(!dmPlatform::GetWindowStateParam(window, dmPlatform::WINDOW_STATE_AUX_CONTEXT))
         {
             dmLogDebug("AsyncInitialize: Auxillary context unsupported");
             return;
@@ -103,6 +102,7 @@ namespace dmGraphics
         m_ConsumerThreadCondition = dmConditionVariable::New();
         m_Active = true;
         m_JobThread = dmThread::New(AsyncThread, 0x80000, 0, "graphicsworker");
+        m_Window = window;
 
         dmLogDebug("AsyncInitialize: Auxillary context enabled");
     }
@@ -122,6 +122,7 @@ namespace dmGraphics
             dmConditionVariable::Delete(m_ConsumerThreadCondition);
             dmMutex::Delete(m_ConsumerThreadMutex);
             m_JobThread = 0;
+            m_Window = 0;
         }
     }
 

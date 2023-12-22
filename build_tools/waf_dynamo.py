@@ -86,6 +86,12 @@ def platform_setup_vars(ctx, build_util):
 def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
 
+# Remove once migration is complete
+def platform_glfw_version(platform):
+    if platform in ['x86_64-macos', 'arm64-macos']:
+        return 3
+    return 2
+
 # Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
 # The goal is to put the sdk versions in sdk.py
 SDK_ROOT=sdk.SDK_ROOT
@@ -1829,7 +1835,10 @@ def detect(conf):
     conf.env['STLIB_PLATFORM']      = ['platform']
     conf.env['STLIB_PLATFORM_NULL'] = ['platform_null']
 
-    conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    if platform_glfw_version(platform) == 3:
+        conf.env['STLIB_DMGLFW'] = 'glfw3'
+    else:
+        conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-macos','arm64-macos'):
         conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'

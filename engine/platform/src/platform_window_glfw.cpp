@@ -364,18 +364,13 @@ namespace dmPlatform
 
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
-        // JG: Not sure this is needed, or if it's already supported via the glfwGetWindowParam fn
-        if (state == WINDOW_STATE_REFRESH_RATE)
+        switch(state)
         {
-            return glfwGetWindowRefreshRate();
-        }
-        else if (state == WINDOW_STATE_SAMPLE_COUNT)
-        {
-            return window->m_Samples;
-        }
-        else if (state == WINDOW_STATE_HIGH_DPI)
-        {
-            return window->m_HighDPI;
+            case WINDOW_STATE_REFRESH_RATE: return glfwGetWindowRefreshRate();
+            case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
+            case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
+            case WINDOW_STATE_AUX_CONTEXT:  return glfwQueryAuxContext();
+            default:break;
         }
 
         return window->m_WindowOpened ? glfwGetWindowParam(WindowStateToGLFW(state)) : 0;
@@ -392,6 +387,11 @@ namespace dmPlatform
     float GetDisplayScaleFactor(HWindow window)
     {
         return glfwGetDisplayScaleFactor();
+    }
+
+    uintptr_t GetProcAddress(HWindow window, const char* proc_name)
+    {
+        return (uintptr_t) glfwGetProcAddress(proc_name);
     }
 
     void SetSwapInterval(HWindow window, uint32_t swap_interval)
@@ -475,6 +475,11 @@ namespace dmPlatform
         glfwPollEvents();
     }
 
+    void SwapBuffers(HWindow window)
+    {
+        glfwSwapBuffers();
+    }
+
     void SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data)
     {
         window->m_AddKeyboarCharCallBack         = cb;
@@ -491,6 +496,21 @@ namespace dmPlatform
     {
         window->m_DeviceChangedCallback         = cb;
         window->m_DeviceChangedCallbackUserData = user_data;
+    }
+
+    int32_t OpenGLGetDefaultFramebufferId()
+    {
+        return glfwGetDefaultFramebuffer();
+    }
+
+    void* AcquireAuxContext(HWindow window)
+    {
+        return glfwAcquireAuxContext();
+    }
+
+    void UnacquireAuxContext(HWindow window, void* aux_context)
+    {
+        glfwUnacquireAuxContext(aux_context);
     }
 
     const int PLATFORM_JOYSTICK_LAST       = GLFW_JOYSTICK_LAST;

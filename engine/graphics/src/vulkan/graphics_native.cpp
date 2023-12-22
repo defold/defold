@@ -12,9 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <glfw/glfw.h>
-#include  <glfw/glfw_native.h>
-
 #include <dlib/log.h>
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
@@ -81,11 +78,6 @@ namespace dmGraphics
             return false;
         }
 #endif
-
-        if (glfwInit() == 0)
-        {
-            dmLogError("Could not initialize glfw.");
-        }
         return true;
     }
 
@@ -209,7 +201,7 @@ namespace dmGraphics
     void NativeSwapBuffers(HContext context)
     {
     #if defined(ANDROID) || defined(DM_PLATFORM_IOS)
-        glfwSwapBuffers();
+        dmPlatform::SwapBuffers(((VulkanContext*) context)->m_Window);
     #endif
     }
 }
