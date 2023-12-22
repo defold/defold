@@ -22,7 +22,7 @@ namespace dmRender
         {
             case RENDER_BUFFER_TYPE_VERTEX_BUFFER: return (HRenderBuffer) dmGraphics::NewVertexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
             case RENDER_BUFFER_TYPE_INDEX_BUFFER:  return (HRenderBuffer) dmGraphics::NewIndexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-            default:assert(0);
+            default:break;
         }
         return (HRenderBuffer) 0;
     }
@@ -37,7 +37,7 @@ namespace dmRender
             case RENDER_BUFFER_TYPE_INDEX_BUFFER:
                 dmGraphics::DeleteIndexBuffer((dmGraphics::HIndexBuffer) buffer_to_remove);
                 break;
-            default:assert(0);
+            default:break;
         }
     }
 
@@ -46,18 +46,17 @@ namespace dmRender
         buffer->m_Buffers.Push(NewRenderBuffer(render_context->m_GraphicsContext, buffer->m_Type));
     }
 
-    static inline void PopAndDelete(HRenderContext render_context, HBufferedRenderBuffer buffer)
-    {
-        DeleteRenderBuffer(buffer->m_Buffers.Back(), buffer->m_Type);
-        buffer->m_Buffers.Pop();
-    }
-
     HBufferedRenderBuffer NewBufferedRenderBuffer(HRenderContext render_context, RenderBufferType type)
     {
         BufferedRenderBuffer* buffer = new BufferedRenderBuffer();
         memset(buffer, 0, sizeof(BufferedRenderBuffer));
-        RewindBuffer(render_context, buffer);
+
         buffer->m_Type = type;
+        buffer->m_Buffers.SetCapacity(1);
+
+        RewindBuffer(render_context, buffer);
+        CreateAndPush(render_context, buffer);
+
         return buffer;
     }
 
@@ -73,35 +72,37 @@ namespace dmRender
         delete buffer;
     }
 
-    HRenderBuffer AdvanceRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
+    HRenderBuffer AddRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
     {
         if (!buffer)
             return 0;
 
-        if (buffer->m_Buffers.Empty())
+        if (render_context->m_MultiBufferingRequired)
         {
-            buffer->m_Buffers.OffsetCapacity(1);
-            CreateAndPush(render_context, buffer);
-        }
+            buffer->m_BufferIndex++;
 
-        if (!render_context->m_MultiBufferingRequired)
+            if (buffer->m_BufferIndex > 0)
+            {
+                if (buffer->m_Buffers.Full())
+                {
+                    buffer->m_Buffers.OffsetCapacity(4);
+                }
+
+                CreateAndPush(render_context, buffer);
+            }
+        }
+        else
         {
             buffer->m_BufferIndex = 0;
-            assert(buffer->m_Buffers.Size() == 1);
-            return buffer->m_Buffers.Front();
-        }
-
-        buffer->m_BufferIndex++;
-        if (buffer->m_BufferIndex >= buffer->m_Buffers.Capacity())
-        {
-            buffer->m_Buffers.OffsetCapacity(1);
-            CreateAndPush(render_context, buffer);
         }
         return buffer->m_Buffers[buffer->m_BufferIndex];
     }
 
     void SetBufferData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t size, void* data, dmGraphics::BufferUsage buffer_usage)
     {
+        if (buffer->m_BufferIndex < 0)
+            return;
+
         switch(buffer->m_Type)
         {
             case RENDER_BUFFER_TYPE_VERTEX_BUFFER:
@@ -114,7 +115,7 @@ namespace dmRender
                 dmGraphics::HIndexBuffer ibuf = (dmGraphics::HIndexBuffer) buffer->m_Buffers[buffer->m_BufferIndex];
                 dmGraphics::SetIndexBufferData(ibuf, size, data, buffer_usage);
             } break;
-            default:assert(0);
+            default:break;
         }
     }
 
@@ -126,15 +127,14 @@ namespace dmRender
         uint32_t n = buffer->m_Buffers.Size();
         uint32_t new_buffer_count = buffer->m_BufferIndex+1;
 
-        if (new_buffer_count == n)
-            return;
-
-        for (int i = 0; i < (n - new_buffer_count); ++i)
+        if (new_buffer_count > 0)
         {
-            PopAndDelete(render_context, buffer);
+            for (int i = new_buffer_count; i < n; ++i)
+            {
+                DeleteRenderBuffer(buffer->m_Buffers[i], buffer->m_Type);
+            }
+            buffer->m_Buffers.SetSize(new_buffer_count);
         }
-
-        buffer->m_Buffers.SetCapacity(new_buffer_count);
     }
 
     void RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)

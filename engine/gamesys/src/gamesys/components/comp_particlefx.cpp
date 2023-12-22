@@ -112,10 +112,7 @@ namespace dmGameSystem
         const uint32_t default_vx_size = sizeof(float) * (3 + 4 + 2 + 1);
         const uint32_t buffer_size     = ctx->m_MaxParticleCount * 6 * default_vx_size;
         world->m_VertexBufferData.SetCapacity(buffer_size);
-
         world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
-        dmRender::AdvanceRenderBuffer(ctx->m_RenderContext, world->m_VertexBuffer);
-        dmRender::SetBufferData(ctx->m_RenderContext, world->m_VertexBuffer, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         world->m_WarnOutOfROs = 0;
         world->m_EmitterCount = 0;
@@ -381,7 +378,7 @@ namespace dmGameSystem
         ro.m_Textures[0]       = (dmGraphics::HTexture) first->m_Texture;
         ro.m_VertexStart       = vertex_offset;
         ro.m_VertexCount       = ro_vertex_count;
-        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::AdvanceRenderBuffer(render_context, pfx_world->m_VertexBuffer);
+        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::AddRenderBuffer(render_context, pfx_world->m_VertexBuffer);
         ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_SetBlendFactors   = 1;
 

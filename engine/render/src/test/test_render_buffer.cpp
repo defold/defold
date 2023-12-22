@@ -69,16 +69,16 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferSimple)
 
     m_RenderContext->m_MultiBufferingRequired = 0;
 
-    dmRender::HRenderBuffer render_buffer = dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
+    dmRender::HRenderBuffer render_buffer = dmRender::AddRenderBuffer(m_RenderContext, buffer);
     ASSERT_NE(0, render_buffer);
     ASSERT_EQ(1, buffer->m_Buffers.Size());
 
-    dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
+    dmRender::AddRenderBuffer(m_RenderContext, buffer);
     ASSERT_EQ(1, buffer->m_Buffers.Size());
 
     m_RenderContext->m_MultiBufferingRequired = 1;
 
-    dmRender::HRenderBuffer render_buffer_2 = dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
+    dmRender::HRenderBuffer render_buffer_2 = dmRender::AddRenderBuffer(m_RenderContext, buffer);
     ASSERT_NE(0, render_buffer_2);
     ASSERT_EQ(2, buffer->m_Buffers.Size());
 
@@ -96,13 +96,13 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferSetData)
     // Test creating multiple buffers and then setting the render buffer data
     m_RenderContext->m_MultiBufferingRequired = 1;
 
-    dmRender::HRenderBuffer render_buffer_1 = dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
+    dmRender::HRenderBuffer render_buffer_1 = dmRender::AddRenderBuffer(m_RenderContext, buffer);
     ASSERT_EQ(1, buffer->m_Buffers.Size());
 
     uint8_t buffer_1[] = { 255, 255, 0, 255 };
     dmRender::SetBufferData(m_RenderContext, buffer, sizeof(buffer_1), buffer_1, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
-    dmRender::HRenderBuffer render_buffer_2 = dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
+    dmRender::HRenderBuffer render_buffer_2 = dmRender::AddRenderBuffer(m_RenderContext, buffer);
     ASSERT_EQ(2, buffer->m_Buffers.Size());
 
     uint8_t buffer_2[] = { 0, 127, 255, 127 };
@@ -130,9 +130,9 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAdvanceAndTrim)
     // Test that non-multi buffering doesn't allocate more than one buffers
     m_RenderContext->m_MultiBufferingRequired = 0;
 
-    dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
-    dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
-    dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
+    dmRender::AddRenderBuffer(m_RenderContext, buffer);
+    dmRender::AddRenderBuffer(m_RenderContext, buffer);
+    dmRender::AddRenderBuffer(m_RenderContext, buffer);
     ASSERT_EQ(1, buffer->m_Buffers.Size());
 
     dmRender::RewindBuffer(m_RenderContext, buffer);
@@ -142,9 +142,9 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAdvanceAndTrim)
     // Test that multi buffering can allocate multiple buffers and then trim
     m_RenderContext->m_MultiBufferingRequired = 1;
 
-    dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
-    dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
-    dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
+    dmRender::AddRenderBuffer(m_RenderContext, buffer);
+    dmRender::AddRenderBuffer(m_RenderContext, buffer);
+    dmRender::AddRenderBuffer(m_RenderContext, buffer);
     ASSERT_EQ(3, buffer->m_Buffers.Size());
 
     dmRender::TrimBuffer(m_RenderContext, buffer);
@@ -154,8 +154,8 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAdvanceAndTrim)
     dmRender::RewindBuffer(m_RenderContext, buffer);
     ASSERT_EQ(-1, buffer->m_BufferIndex);
 
-    dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
-    dmRender::AdvanceRenderBuffer(m_RenderContext, buffer);
+    dmRender::AddRenderBuffer(m_RenderContext, buffer);
+    dmRender::AddRenderBuffer(m_RenderContext, buffer);
 
     dmRender::TrimBuffer(m_RenderContext, buffer);
     ASSERT_EQ(2, buffer->m_Buffers.Size());

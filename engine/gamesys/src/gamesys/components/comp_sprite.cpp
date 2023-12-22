@@ -1309,8 +1309,8 @@ namespace dmGameSystem
 
         ro.Init();
         ro.m_VertexDeclaration = vx_decl;
-        ro.m_VertexBuffer = (dmGraphics::HVertexBuffer) dmRender::AdvanceRenderBuffer(render_context, sprite_world->m_VertexBuffer);
-        ro.m_IndexBuffer = (dmGraphics::HIndexBuffer) dmRender::AdvanceRenderBuffer(render_context, sprite_world->m_IndexBuffer);
+        ro.m_VertexBuffer = (dmGraphics::HVertexBuffer) dmRender::AddRenderBuffer(render_context, sprite_world->m_VertexBuffer);
+        ro.m_IndexBuffer = (dmGraphics::HIndexBuffer) dmRender::AddRenderBuffer(render_context, sprite_world->m_IndexBuffer);
         ro.m_Material = material;
         for(uint32_t i = 0; i < resource->m_NumTextures; ++i)
         {
