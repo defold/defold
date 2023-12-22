@@ -125,16 +125,13 @@ namespace dmRender
             return;
 
         uint32_t n = buffer->m_Buffers.Size();
-        uint32_t new_buffer_count = buffer->m_BufferIndex+1;
+        uint32_t new_buffer_count = dmMath::Max(1, buffer->m_BufferIndex+1);
 
-        if (new_buffer_count > 0)
+        for (int i = new_buffer_count; i < n; ++i)
         {
-            for (int i = new_buffer_count; i < n; ++i)
-            {
-                DeleteRenderBuffer(buffer->m_Buffers[i], buffer->m_Type);
-            }
-            buffer->m_Buffers.SetSize(new_buffer_count);
+            DeleteRenderBuffer(buffer->m_Buffers[i], buffer->m_Type);
         }
+        buffer->m_Buffers.SetSize(new_buffer_count);
     }
 
     void RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)

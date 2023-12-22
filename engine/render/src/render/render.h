@@ -258,6 +258,29 @@ namespace dmRender
     void                            DeletePredicate(HPredicate predicate);
     Result                          AddPredicateTag(HPredicate predicate, dmhash_t tag);
 
+    /** Buffered render buffers
+     * A render buffer is a thin wrapper around vertex and index buffers that, depending on graphics context,
+     * can allocate more backing storage if needed. E.g for Vulkan and vendor adapters, we cannot reuse the same
+     * vertex buffer during one scene since we will rewrite the data from the previous draw call during the frame.
+     *
+     * A typical usage scenario will look like this:
+     * // During a frame
+     * HRenderBuffer draw_call_1 = AddRenderBuffer(ctx, buffer);
+     * HRenderBuffer draw_call_2 = AddRenderBuffer(ctx, buffer);
+     * ...
+     *
+     * // After all draw calls have been submitted
+     * TrimBuffer(ctx, buffer);
+     * RewindBuffer(ctx, buffer);
+     *
+     * Note on trimming and rewind:
+     * Trimming the buffer means that we will resize the buffer count to
+     * however many internal render buffers were used since last Rewind call.
+     * This can be used to reduce the amount of unused buffers between consecutive calls,
+     * as well as to avoid excessive buffer allocations between frames.
+     * Rewinding the buffer means that we set the buffer index to the head of the buffer list,
+     * to prepare for setting data to the beginning of the buffer list again.
+     */
     HBufferedRenderBuffer           NewBufferedRenderBuffer(HRenderContext render_context, RenderBufferType type);
     void                            DeleteBufferedRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     HRenderBuffer                   AddRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
