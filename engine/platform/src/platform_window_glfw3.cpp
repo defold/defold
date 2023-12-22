@@ -52,6 +52,11 @@ namespace dmPlatform
         uint32_t                      m_WindowOpened          : 1;
     };
 
+    static void glfw_error_callback(int error, const char* description)
+    {
+        dmLogError("GLFW Error: %s\n", description);
+    }
+
     HWindow NewWindow()
     {
         if (glfwInit() == GL_FALSE)
@@ -63,6 +68,8 @@ namespace dmPlatform
         Window* wnd = new Window;
         memset(wnd, 0, sizeof(Window));
 
+        glfwSetErrorCallback(glfw_error_callback);
+
         return wnd;
     }
 
@@ -73,6 +80,13 @@ namespace dmPlatform
 
     PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
+        // osx
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
         wnd->m_Window = glfwCreateWindow(640, 480, "Hello World", NULL, NULL);
 
         if (!wnd->m_Window)
@@ -81,6 +95,8 @@ namespace dmPlatform
         }
 
         wnd->m_SwapIntervalSupported = 1;
+
+        glfwMakeContextCurrent(wnd->m_Window);
 
         return PLATFORM_RESULT_OK;
     }

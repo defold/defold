@@ -71,9 +71,12 @@ def configure(conf):
     architecture = build_util.get_target_architecture()
 
     sound_lib = 'sound'
+    glfw_lib = 'dmglfw'
 
     if operating_sys == 'macos':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
+
+        glfw_lib = "glfw3"
 
         # For Vulkan/MoltenVK
         if waflib.Options.options.with_vulkan and architecture == 'x86_64':
@@ -113,7 +116,7 @@ def configure(conf):
     conf.env['STLIB_GAMESYS'] = 'gamesys'
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_SCRIPT'] = 'script'
-    conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_DMGLFW'] = glfw_lib
     conf.env['STLIB_GUI'] = 'gui'
     conf.env['STLIB_PARTICLE'] = 'particle'
     conf.env['STLIB_PLATFORM'] = 'platform'

@@ -960,6 +960,8 @@ static void LogFrameBufferError(GLenum status)
 #if !(defined(__EMSCRIPTEN__) || defined(GL_ES_VERSION_2_0))
         GLint n;
         glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+        CHECK_GL_ERROR;
+
         if (n > 0)
         {
             int max_len = 0;

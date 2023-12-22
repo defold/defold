@@ -160,7 +160,7 @@ struct SimpleQuadTest : ITest
 
     void Execute(EngineCtx* engine) override
     {
-        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_Window), dmGraphics::GetWindowHeight(engine->m_Window));
+        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
         dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0.0f, 80.0f, 140.0f, 255.0f, 1.0f, 0);
     }
 };
@@ -438,6 +438,8 @@ static UpdateResult EngineUpdate(void* _engine)
     if (elapsed > 3.0f)
         return RESULT_EXIT;
     */
+
+    engine->m_Test->Execute(engine);
 
     dmPlatform::PollEvents(engine->m_Window);
 
