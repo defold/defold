@@ -292,7 +292,10 @@ namespace dmGameSystem
         // Overridden material (from Lua code)
         MaterialResource* material = component->m_Material;
         if (material)
-            texture = material->m_Textures[texture_unit];
+        {
+            if (texture_unit < material->m_NumTextures)
+                texture = material->m_Textures[texture_unit];
+        }
         if (texture)
             return texture;
 
