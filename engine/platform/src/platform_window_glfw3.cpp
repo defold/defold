@@ -47,18 +47,37 @@ namespace dmPlatform
 
         int32_t                       m_Width;
         int32_t                       m_Height;
-        /*
         uint32_t                      m_Samples               : 8;
         uint32_t                      m_HighDPI               : 1;
-        */
-
         uint32_t                      m_SwapIntervalSupported : 1;
         uint32_t                      m_WindowOpened          : 1;
     };
 
-    static void glfw_error_callback(int error, const char* description)
+    static void OnError(int error, const char* description)
     {
         dmLogError("GLFW Error: %s\n", description);
+    }
+
+    static void OnWindowResize(GLFWwindow* glfw_window, int width, int height)
+    {
+        HWindow window   = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        window->m_Width  = (uint32_t) width;
+        window->m_Height = (uint32_t) height;
+
+        if (window->m_ResizeCallback != 0x0)
+        {
+            window->m_ResizeCallback(window->m_ResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
+        }
+    }
+
+    static void OnWindowClose(GLFWwindow* glfw_window)
+    {
+        HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        assert(window);
+        if (window->m_CloseCallback != 0x0)
+        {
+            window->m_CloseCallback(window->m_CloseCallbackUserData);
+        }
     }
 
     HWindow NewWindow()
@@ -72,7 +91,7 @@ namespace dmPlatform
         Window* wnd = new Window;
         memset(wnd, 0, sizeof(Window));
 
-        glfwSetErrorCallback(glfw_error_callback);
+        glfwSetErrorCallback(OnError);
 
         return wnd;
     }
@@ -91,7 +110,7 @@ namespace dmPlatform
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-        wnd->m_Window = glfwCreateWindow(640, 480, "Hello World", NULL, NULL);
+        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, NULL, NULL);
 
         if (!wnd->m_Window)
         {
@@ -132,7 +151,22 @@ namespace dmPlatform
 
         if (res == PLATFORM_RESULT_OK)
         {
-            window->m_WindowOpened = 1;
+            glfwSetWindowUserPointer(window->m_Window, (void*) window);
+            glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
+            glfwSetWindowCloseCallback(window->m_Window, OnWindowClose);
+            glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
+
+            window->m_ResizeCallback          = params.m_ResizeCallback;
+            window->m_ResizeCallbackUserData  = params.m_ResizeCallbackUserData;
+            window->m_CloseCallback           = params.m_CloseCallback;
+            window->m_CloseCallbackUserData   = params.m_CloseCallbackUserData;
+            window->m_FocusCallback           = params.m_FocusCallback;
+            window->m_FocusCallbackUserData   = params.m_FocusCallbackUserData;
+            window->m_IconifyCallback         = params.m_IconifyCallback;
+            window->m_IconifyCallbackUserData = params.m_IconifyCallbackUserData;
+            window->m_HighDPI                 = params.m_HighDPI;
+            window->m_Samples                 = params.m_Samples;
+            window->m_WindowOpened            = 1;
 
             // typedef void(* GLFWjoystickfun) (int jid, int event)
         }
@@ -245,7 +279,9 @@ namespace dmPlatform
 
     int32_t GetKey(HWindow window, int32_t code)
     {
-         return glfwGetKey(window->m_Window, code);
+        if (code < 0)
+            return 0;
+        return glfwGetKey(window->m_Window, code);
     }
 
     int32_t GetMouseWheel(HWindow window)
