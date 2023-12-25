@@ -46,7 +46,8 @@ namespace dmPlatform
         void*                         m_DeviceChangedCallbackUserData;
         WindowGamepadEventCallback    m_GamepadEventCallback;
         void*                         m_GamepadEventCallbackUserData;
-
+        double                        m_MouseScrollX;
+        double                        m_MouseScrollY;
         int32_t                       m_Width;
         int32_t                       m_Height;
         uint32_t                      m_Samples               : 8;
@@ -78,6 +79,55 @@ namespace dmPlatform
         if (window->m_CloseCallback != 0x0)
         {
             window->m_CloseCallback(window->m_CloseCallbackUserData);
+        }
+    }
+
+    static void OnWindowFocus(GLFWwindow* glfw_window, int focus)
+    {
+        HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        assert(window);
+        if (window->m_FocusCallback != 0x0)
+        {
+            window->m_FocusCallback(window->m_FocusCallbackUserData, focus);
+        }
+    }
+
+    static void OnWindowIconify(GLFWwindow* glfw_window, int iconify)
+    {
+        HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        assert(window);
+        if (window->m_IconifyCallback != 0x0)
+        {
+            window->m_IconifyCallback(window->m_IconifyCallbackUserData, iconify);
+        }
+    }
+
+    static void OnMouseScroll(GLFWwindow* glfw_window, double xoffset, double yoffset)
+    {
+        HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        window->m_MouseScrollX = xoffset;
+        window->m_MouseScrollY = yoffset;
+    }
+
+    static void OnJoystick(int id, int event)
+    {
+        HWindow window = (HWindow) glfwGetJoystickUserPointer(id);
+
+        if (window->m_GamepadEventCallback)
+        {
+            GamepadEvent gp_evt = GAMEPAD_EVENT_UNSUPPORTED;
+            switch(event)
+            {
+                case GLFW_CONNECTED:
+                    gp_evt = GAMEPAD_EVENT_CONNECTED;
+                    break;
+                case GLFW_DISCONNECTED:
+                    gp_evt = GAMEPAD_EVENT_DISCONNECTED;
+                    break;
+                default:break;
+            }
+
+            window->m_GamepadEventCallback(window->m_GamepadEventCallbackUserData, id, gp_evt);
         }
     }
 
@@ -115,6 +165,7 @@ namespace dmPlatform
 
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
         wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, NULL, NULL);
 
@@ -143,6 +194,7 @@ namespace dmPlatform
     PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
     {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
         wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, NULL, NULL);
 
@@ -179,7 +231,23 @@ namespace dmPlatform
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
             glfwSetWindowCloseCallback(window->m_Window, OnWindowClose);
+            glfwSetWindowFocusCallback(window->m_Window, OnWindowFocus);
+            glfwSetWindowIconifyCallback(window->m_Window, OnWindowIconify);
+            glfwSetScrollCallback(window->m_Window, OnMouseScroll);
+
+            for (int i = 0; i < GLFW_JOYSTICK_LAST; ++i)
+            {
+                glfwSetJoystickUserPointer(i, (void*) window);
+            }
+
+            glfwSetJoystickCallback(OnJoystick);
+            glfwSwapInterval(1);
+
             glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
+
+            // This is not supported in the same way by GLFW3, but we could
+            // set glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE); to get a transparent framebuffer
+            // glfwSetWindowBackgroundColor(params.m_BackgroundColor);
 
             window->m_ResizeCallback          = params.m_ResizeCallback;
             window->m_ResizeCallbackUserData  = params.m_ResizeCallbackUserData;
@@ -192,8 +260,6 @@ namespace dmPlatform
             window->m_HighDPI                 = params.m_HighDPI;
             window->m_Samples                 = params.m_Samples;
             window->m_WindowOpened            = 1;
-
-            // typedef void(* GLFWjoystickfun) (int jid, int event)
         }
 
         return res;
@@ -270,26 +336,41 @@ namespace dmPlatform
     {
     }
 
+    static int WindowStateToGLFW(WindowState state)
+    {
+        switch(state)
+        {
+            case WINDOW_STATE_ACTIVE:           return GLFW_FOCUSED;
+            case WINDOW_STATE_ICONIFIED:        return GLFW_ICONIFIED;
+            case WINDOW_STATE_RED_BITS:         return GLFW_RED_BITS;
+            case WINDOW_STATE_GREEN_BITS:       return GLFW_GREEN_BITS;
+            case WINDOW_STATE_BLUE_BITS:        return GLFW_BLUE_BITS;
+            case WINDOW_STATE_ALPHA_BITS:       return GLFW_ALPHA_BITS;
+            case WINDOW_STATE_DEPTH_BITS:       return GLFW_DEPTH_BITS;
+            case WINDOW_STATE_STENCIL_BITS:     return GLFW_STENCIL_BITS;
+            case WINDOW_STATE_REFRESH_RATE:     return GLFW_REFRESH_RATE;
+            case WINDOW_STATE_ACCUM_RED_BITS:   return GLFW_ACCUM_RED_BITS;
+            case WINDOW_STATE_ACCUM_GREEN_BITS: return GLFW_ACCUM_GREEN_BITS;
+            case WINDOW_STATE_ACCUM_BLUE_BITS:  return GLFW_ACCUM_BLUE_BITS;
+            case WINDOW_STATE_ACCUM_ALPHA_BITS: return GLFW_ACCUM_ALPHA_BITS;
+            case WINDOW_STATE_AUX_BUFFERS:      return GLFW_AUX_BUFFERS;
+            case WINDOW_STATE_STEREO:           return GLFW_STEREO;
+            case WINDOW_STATE_FSAA_SAMPLES:     return GLFW_SAMPLES;
+            default:break;
+        }
+        return -1;
+    }
+
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
         switch(state)
         {
-            case WINDOW_STATE_OPENED: return window->m_WindowOpened;
-        }
-
-        return 0;
-        /*
-        switch(state)
-        {
-            case WINDOW_STATE_REFRESH_RATE: return glfwGetWindowRefreshRate();
+            case WINDOW_STATE_OPENED:       return window->m_WindowOpened;
             case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
             case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
-            case WINDOW_STATE_AUX_CONTEXT:  return glfwQueryAuxContext();
-            default:break;
         }
 
-        return window->m_WindowOpened ? glfwGetWindowParam(WindowStateToGLFW(state)) : 0;
-        */
+        return glfwGetWindowAttrib(window->m_Window, WindowStateToGLFW(state));
     }
 
     uint32_t GetTouchData(HWindow window, TouchData* touch_data, uint32_t touch_data_count)
@@ -311,9 +392,8 @@ namespace dmPlatform
 
     int32_t GetMouseWheel(HWindow window)
     {
-        return 0;
-        //glfwSetScrollCallback
-        // return glfwGetMouseWheel();
+        // Eh, not sure about this..
+        return (int32_t) window->m_MouseScrollY;
     }
 
     int32_t GetMouseButton(HWindow window, int32_t button)

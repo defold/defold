@@ -62,6 +62,7 @@ namespace dmPlatform
 
     enum GamepadEvent
     {
+        GAMEPAD_EVENT_UNSUPPORTED  = 0,
         GAMEPAD_EVENT_CONNECTED    = 1,
         GAMEPAD_EVENT_DISCONNECTED = 2,
     };

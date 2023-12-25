@@ -133,8 +133,6 @@ namespace dmGraphics
 
             SynchronizeDevice(vk_device);
 
-            dmPlatform::CloseWindow(context->m_Window);
-
             VulkanDestroyResources(context);
 
             vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);

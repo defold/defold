@@ -125,7 +125,7 @@ namespace dmPlatform
     {
         if (g_Window->m_GamepadEventCallback)
         {
-            g_Window->m_GamepadEventCallback(gamepad_id, connected ? GAMEPAD_EVENT_CONNECTED : GAMEPAD_EVENT_DISCONNECTED, g_Window->m_GamepadEventCallbackUserData);
+            g_Window->m_GamepadEventCallback(g_Window->m_GamepadEventCallbackUserData, gamepad_id, connected ? GAMEPAD_EVENT_CONNECTED : GAMEPAD_EVENT_DISCONNECTED);
         }
     }
 
