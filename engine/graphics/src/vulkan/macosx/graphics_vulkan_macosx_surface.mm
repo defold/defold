@@ -17,18 +17,17 @@
 
 #include <objc/objc.h>
 
-#if defined(DM_PLATFORM_MACOS)
-    #include <Carbon/Carbon.h>
-#endif
-
 #include "../graphics_vulkan_defines.h"
 #include "../graphics_vulkan_private.h"
 
+#include <platform/platform_window_vulkan.h>
+
 namespace dmGraphics
 {
-    // Source: GLFW3
-    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
+    VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
+        return dmPlatform::VulkanCreateWindowSurface(vkInstance, window, vkSurfaceOut);
+
         /*
         VkMacOSSurfaceCreateInfoMVK sci;
         PFN_vkCreateMacOSSurfaceMVK vkCreateMacOSSurfaceMVK;

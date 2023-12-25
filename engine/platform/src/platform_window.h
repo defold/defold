@@ -194,9 +194,6 @@ namespace dmPlatform
     void*          AcquireAuxContext(HWindow window);
     void           UnacquireAuxContext(HWindow window, void* aux_context);
 
-    // OpenGL Specific functions
-    int32_t OpenGLGetDefaultFramebufferId();
-
     // For tests
     int32_t TriggerCloseCallback(HWindow window);
 };

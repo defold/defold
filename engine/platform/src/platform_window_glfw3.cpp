@@ -17,6 +17,8 @@
 #include "platform_window.h"
 #include "platform_window_constants.h"
 
+#include <vulkan/vulkan.h>
+
 #include <glfw/glfw3.h>
 
 #include <dlib/platform.h>
@@ -60,13 +62,12 @@ namespace dmPlatform
 
     static void OnWindowResize(GLFWwindow* glfw_window, int width, int height)
     {
-        HWindow window   = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        window->m_Width  = (uint32_t) width;
-        window->m_Height = (uint32_t) height;
+        HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
 
         if (window->m_ResizeCallback != 0x0)
         {
-            window->m_ResizeCallback(window->m_ResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
+            window->m_ResizeCallback(window->m_ResizeCallbackUserData, window->m_Width, window->m_Height);
         }
     }
 
@@ -101,6 +102,11 @@ namespace dmPlatform
         delete window;
     }
 
+    int32_t OpenGLGetDefaultFramebufferId()
+    {
+        return 0;
+    }
+
     PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
         // osx
@@ -124,9 +130,28 @@ namespace dmPlatform
         return PLATFORM_RESULT_OK;
     }
 
+    VkResult VulkanCreateWindowSurface(VkInstance instance, HWindow window, VkSurfaceKHR* surface_out)
+    {
+        return glfwCreateWindowSurface(instance, window->m_Window, NULL, surface_out);
+    }
+
+    const char** VulkanGetRequiredInstanceExtensions(uint32_t* count)
+    {
+        return glfwGetRequiredInstanceExtensions(count);
+    }
+
     PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
     {
-        return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
+        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, NULL, NULL);
+
+        if (!wnd->m_Window)
+        {
+            return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
+        }
+
+        return PLATFORM_RESULT_OK;
     }
 
     PlatformResult OpenWindow(HWindow window, const WindowParams& params)
@@ -220,7 +245,7 @@ namespace dmPlatform
     {
         glfwSetWindowSize(window->m_Window, (int) width, (int) height);
         int window_width, window_height;
-        glfwGetWindowSize(window->m_Window, &window_width, &window_height);
+        glfwGetFramebufferSize(window->m_Window, &window_width, &window_height);
         window->m_Width  = window_width;
         window->m_Height = window_height;
 

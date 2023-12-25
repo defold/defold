@@ -31,6 +31,8 @@
     #include <emscripten/html5.h>
 #endif
 
+#include <platform/platform_window_opengl.h>
+
 #include "graphics_opengl_defines.h"
 #include "../graphics_private.h"
 #include "../graphics_native.h"
@@ -678,15 +680,6 @@ static void LogFrameBufferError(GLenum status)
         return func;
     }
 
-    static inline int GetDefaultFrameBuffer()
-    {
-    #ifdef DM_PLATFORM_IOS
-        return OpenGLGetDefaultFramebufferId();
-    #else
-        return 0;
-    #endif
-    }
-
     static bool ValidateAsyncJobProcessing(HContext _context)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -745,7 +738,7 @@ static void LogFrameBufferError(GLenum status)
 
             glBindTexture(GL_TEXTURE_2D, 0);
             CHECK_GL_ERROR;
-            glBindFramebuffer(GL_FRAMEBUFFER, GetDefaultFrameBuffer());
+            glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
             CHECK_GL_ERROR;
             glDeleteFramebuffers(1, &osfb);
             DeleteTexture(texture_handle);
@@ -2537,7 +2530,7 @@ static void LogFrameBufferError(GLenum status)
         }
 
         CHECK_GL_FRAMEBUFFER_ERROR;
-        glBindFramebuffer(GL_FRAMEBUFFER, GetDefaultFrameBuffer());
+        glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
         CHECK_GL_ERROR;
 
         return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
@@ -2620,7 +2613,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_FrameBufferInvalidateAttachments = rt != NULL;
 #endif
         }
-        glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? GetDefaultFrameBuffer() : rt->m_Id);
+        glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? dmPlatform::OpenGLGetDefaultFramebufferId() : rt->m_Id);
         CHECK_GL_ERROR;
 
     #if __EMSCRIPTEN__

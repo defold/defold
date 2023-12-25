@@ -587,6 +587,12 @@ namespace dmPlatform
         window->m_GamepadEventCallbackUserData = user_data;
     }
 
+    const char** VulkanGetRequiredInstanceExtensions(uint32_t* count)
+    {
+        *count = 0;
+        return 0;
+    }
+
     int32_t OpenGLGetDefaultFramebufferId()
     {
         return glfwGetDefaultFramebuffer();

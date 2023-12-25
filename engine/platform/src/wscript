@@ -26,6 +26,8 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/platform', 'platform_window.h')
     bld.install_files('${PREFIX}/include/platform', 'platform_window_constants.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_vulkan.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_opengl.h')
 
     if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')
