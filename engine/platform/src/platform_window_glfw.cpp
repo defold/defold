@@ -539,7 +539,7 @@ namespace dmPlatform
     uint32_t GetJoystickHats(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity)
     {
         uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_HATS), (int) values_capacity);
-        glfwGetJoystickHats(glfw_joystick, values, count);
+        glfwGetJoystickHats(joystick_index, values, count);
         return count;
     }
 

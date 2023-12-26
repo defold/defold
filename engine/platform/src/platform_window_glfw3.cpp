@@ -29,7 +29,9 @@ namespace dmPlatform
 {
     struct Window
     {
-        GLFWwindow* m_Window;
+        GLFWwindow*                   m_Window;
+        GLFWwindow*                   m_AuxWindow;
+
         WindowResizeCallback          m_ResizeCallback;
         void*                         m_ResizeCallbackUserData;
         WindowCloseCallback           m_CloseCallback;
@@ -177,6 +179,11 @@ namespace dmPlatform
         wnd->m_SwapIntervalSupported = 1;
 
         glfwMakeContextCurrent(wnd->m_Window);
+
+        // Create aux context
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+
+        wnd->m_AuxWindow = glfwCreateWindow(32, 32, "aux_window", NULL, wnd->m_Window);
 
         return PLATFORM_RESULT_OK;
     }
@@ -329,11 +336,13 @@ namespace dmPlatform
 
     void* AcquireAuxContext(HWindow window)
     {
-        return 0;
+        glfwMakeContextCurrent(window->m_AuxWindow);
+        return (void*) window->m_AuxWindow;
     }
 
     void UnacquireAuxContext(HWindow window, void* aux_context)
     {
+        glfwMakeContextCurrent(0);
     }
 
     static int WindowStateToGLFW(WindowState state)
@@ -368,6 +377,7 @@ namespace dmPlatform
             case WINDOW_STATE_OPENED:       return window->m_WindowOpened;
             case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
             case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
+            case WINDOW_STATE_AUX_CONTEXT:  return window->m_AuxWindow ? 1 : 0;
         }
 
         return glfwGetWindowAttrib(window->m_Window, WindowStateToGLFW(state));
