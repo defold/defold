@@ -416,14 +416,14 @@ namespace dmPlatform
         }
     }
 
-    bool GetAcceleration(context->m_Window, float* x, float* y, float* z)
+    bool GetAcceleration(HWindow window, float* x, float* y, float* z)
     {
         return glfwGetAcceleration(x,y,z);
     }
 
     uint32_t GetTouchData(HWindow window, TouchData* touch_data, uint32_t touch_data_count)
     {
-        uint32_t touch_count = 0;
+        int32_t touch_count = 0;
 
         if (window->m_TouchData.Capacity() < touch_data_count)
         {
@@ -444,7 +444,7 @@ namespace dmPlatform
             touch_data[i].m_Id       = window->m_TouchData[i].Id;
         }
 
-        return touch_count;
+        return (uint32_t) touch_count;
     }
 
     int32_t GetKey(HWindow window, int32_t code)
@@ -531,21 +531,21 @@ namespace dmPlatform
 
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)
     {
-        uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_AXES), values_capacity);
+        uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_AXES), (int) values_capacity);
         glfwGetJoystickPos(joystick_index, values, count);
         return count;
     }
 
     uint32_t GetJoystickHats(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity)
     {
-        uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_HATS), values_capacity);
+        uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_HATS), (int) values_capacity);
         glfwGetJoystickHats(glfw_joystick, values, count);
         return count;
     }
 
     uint32_t GetJoystickButtons(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity)
     {
-        uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_BUTTONS), values_capacity);
+        uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_BUTTONS), (int) values_capacity);
         glfwGetJoystickButtons(joystick_index, values, count);
         return count;
     }
