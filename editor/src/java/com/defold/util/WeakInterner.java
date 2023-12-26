@@ -16,7 +16,7 @@ package com.defold.util;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
-import java.util.Objects;
+import java.util.*;
 
 public final class WeakInterner<T> {
     private static final int MAX_CAPACITY = 1 << 30;
@@ -27,6 +27,7 @@ public final class WeakInterner<T> {
     private int growthThreshold;
     private final float loadFactor;
     private final ReferenceQueue<T> staleEntriesQueue;
+    private final Entry<T> removedSentinelEntry;
 
     /**
      * Constructs a new WeakInterner with the specified initial capacity and a load factor of 0.75.
@@ -60,6 +61,41 @@ public final class WeakInterner<T> {
         this.loadFactor = loadFactor;
         this.growthThreshold = (int)(capacity * loadFactor);
         this.staleEntriesQueue = new ReferenceQueue<>();
+        this.removedSentinelEntry = new Entry<>(null, null, 0);
+    }
+
+    /**
+     * Returns a nested map of details about the internals of the WeakInterner.
+     * This can be used during development to inspect resource allocation, etc.
+     * @return A nested unmodifiable map with details about the WeakInterner.
+     */
+    public synchronized Map<String, Object> getDebugInfo() {
+        final int capacity = hashTable.length;
+        final List<Map<String, Object>> hashTableInfos = new ArrayList<>(capacity);
+
+        for (Entry<T> entry : hashTable) {
+            Map<String, Object> entryInfo;
+
+            if (entry == null) {
+                entryInfo = null;
+            } else if (entry == removedSentinelEntry) {
+                entryInfo = Map.of("status", "removed", "hashValue", entry.hashValue);
+            } else {
+                final Object value = entry.get();
+                entryInfo = value == null
+                        ? Map.of("status", "stale", "hashValue", entry.hashValue)
+                        : Map.of("status", "valid", "hashValue", entry.hashValue, "value", value);
+            }
+
+            hashTableInfos.add(entryInfo);
+        }
+
+        return Map.of(
+                "count", count,
+                "growthThreshold", growthThreshold,
+                "loadFactor", loadFactor,
+                "hashTable", Collections.unmodifiableList(hashTableInfos)
+        );
     }
 
     /**
@@ -69,7 +105,6 @@ public final class WeakInterner<T> {
      * canonical representation of a value instead of many duplicate instances.
      * Values are retained as WeakReferences, and storage will be reclaimed once
      * the canonical values are no longer reachable outside the WeakInterner.
-     *
      * @param value The immutable value to intern.
      * @return The canonical representation of the supplied value.
      */
@@ -82,9 +117,7 @@ public final class WeakInterner<T> {
         // find a match, lock access from other threads while adding it.
         final int hashValue = getHashValue(value);
         final Entry<T>[] hashTable = getHashTable();
-        final int bucketIndex = getBucketIndex(hashValue, hashTable.length);
-        final Entry<T> firstEntryInBucket = hashTable[bucketIndex];
-        final T existingValue = findExistingValue(firstEntryInBucket, value, hashValue);
+        final T existingValue = findExistingValue(hashTable, value, hashValue);
         return existingValue != null ? existingValue : internSynchronized(value, hashValue);
     }
 
@@ -93,42 +126,92 @@ public final class WeakInterner<T> {
         // waiting for it to release the lock. Thus, we must get the hash table
         // again and try to find an existing value once more before interning it
         // ourselves.
+        {
+            final Entry<T>[] hashTable = getHashTable();
+            final T existingValue = findExistingValue(hashTable, value, hashValue);
+
+            if (existingValue != null) {
+                // Another thread interned the value while we were waiting.
+                return existingValue;
+            }
+
+            final int capacity = hashTable.length;
+
+            if (count == capacity) {
+                // We're full, and already at MAX_CAPACITY, so unable to grow.
+                // Simply return the input value without interning it.
+                return value;
+            }
+
+            // We get to intern the value. Make sure we have room.
+            if (count + 1 >= growthThreshold) {
+                rehash(capacity * 2);
+            }
+        }
+
+        // Note: The rehash() method might have updated the hashTable field, so
+        // we need to get a fresh reference to it.
         final Entry<T>[] hashTable = getHashTable();
-        final int bucketIndex = getBucketIndex(hashValue, hashTable.length);
-        final Entry<T> firstEntryInBucket = hashTable[bucketIndex];
-        final T existingValue = findExistingValue(firstEntryInBucket, value, hashValue);
+        final int capacity = hashTable.length;
+        int index = getWraparoundIndex(hashValue, capacity);
+        assert count < capacity;
 
-        if (existingValue != null) {
-            // Another thread interned the value while we were waiting.
-            return existingValue;
+        while (true) {
+            final Entry<T> existingEntry = hashTable[index];
+
+            if (existingEntry == null || existingEntry == removedSentinelEntry || existingEntry.refersTo(null)) {
+                break;
+            }
+
+            index = getWraparoundIndex(index + 1, capacity);
         }
 
-        // We get to intern the value.
-        hashTable[bucketIndex] = new Entry<>(value, staleEntriesQueue, hashValue, firstEntryInBucket);
-
-        if (++count >= growthThreshold) {
-            rehash(hashTable.length * 2);
-        }
+        hashTable[index] = new Entry<>(value, staleEntriesQueue, hashValue);
+        ++count;
 
         return value;
     }
 
-    private static <T> T findExistingValue(final Entry<T> firstEntryInBucket, final T value, final int hashValue) {
-        for (Entry<T> existingEntry = firstEntryInBucket; existingEntry != null; existingEntry = existingEntry.nextEntry) {
-            if (hashValue != existingEntry.hashValue) {
-                continue;
+    private static <T> T findExistingValue(final Entry<T>[] hashTable, final T value, final int hashValue) {
+        final int capacity = hashTable.length;
+        final int startIndex = getWraparoundIndex(hashValue, capacity);
+        int index = startIndex;
+
+        do {
+            final Entry<T> existingEntry = hashTable[index];
+
+            if (existingEntry == null) {
+                // Our search has encountered a slot that has never been
+                // occupied. The entry we're looking for is not present.
+                return null;
             }
 
-            if (existingEntry.refersTo(value)) {
-                return value;
+            if (hashValue == existingEntry.hashValue) {
+                // Try the refersTo() method first to avoid creating a strong
+                // reference to the interned value.
+                if (existingEntry.refersTo(value)) {
+                    // Note: existingEntry cannot be the removedSentinelEntry
+                    // here because it refers to null, and value cannot be null.
+                    return value;
+                }
+
+                // Note: The existing entry can have a value of null if it is a
+                // stale reference or the removedSentinelEntry here. But as
+                // above, it is not possible for us to return the
+                // removedSentinelEntry here as existingValue will be null and
+                // value cannot be null.
+                final T existingValue = existingEntry.get();
+
+                if (value.equals(existingValue)) {
+                    // We have an interned value that is equivalent to the
+                    // input value. Return the interned value.
+                    return existingValue;
+                }
             }
 
-            final T existingValue = existingEntry.get();
-
-            if (value.equals(existingValue)) {
-                return existingValue;
-            }
-        }
+            // Keep looking until we've wrapped around to the start.
+            index = getWraparoundIndex(index + 1, capacity);
+        } while (index != startIndex);
 
         return null;
     }
@@ -152,32 +235,32 @@ public final class WeakInterner<T> {
     }
 
     private synchronized void removeEntry(final Entry<T> removedEntry) {
-        final int bucketIndex = getBucketIndex(removedEntry.hashValue, hashTable.length);
-        Entry<T> previousEntry = null;
-        Entry<T> entry = hashTable[bucketIndex];
+        final int capacity = hashTable.length;
+        final int startIndex = getWraparoundIndex(removedEntry.hashValue, capacity);
+        int index = startIndex;
 
-        while (entry != null) {
-            final Entry<T> nextEntry = entry.nextEntry;
+        do {
+            final Entry<T> entry = hashTable[index];
 
             if (entry == removedEntry) {
-                // We found it. Remove the entry from the bucket.
-                if (previousEntry == null) {
-                    hashTable[bucketIndex] = nextEntry;
-                } else {
-                    previousEntry.nextEntry = nextEntry;
-                }
-
-                // It should be safe to clear out references to other objects to
-                // help the garbage collector here, since nothing should have a
-                // reference to the entry.
-                entry.nextEntry = null;
+                // We found it. Remove the entry from the hash table by
+                // replacing it with a sentinel value. This allows us to
+                // distinguish between slots that were once occupied, and slots
+                // that were never occupied.
+                hashTable[index] = removedSentinelEntry;
                 --count;
                 return;
             }
 
-            previousEntry = entry;
-            entry = nextEntry;
-        }
+            if (entry == null) {
+                // Our search has encountered a slot that has never been
+                // occupied. The entry we're looking for is not present.
+                return;
+            }
+
+            // Keep looking until we've wrapped around to the start.
+            index = getWraparoundIndex(index + 1, capacity);
+        } while (index != startIndex);
     }
 
     private void rehash(final int newCapacity) {
@@ -187,7 +270,7 @@ public final class WeakInterner<T> {
 
         if (oldCapacity == MAX_CAPACITY) {
             // We've grown as far as we can. Disable future growth and return.
-            // Future insertions will just have to share buckets.
+            // Once we reach capacity, new entries will no longer be interned.
             growthThreshold = Integer.MAX_VALUE;
             return;
         }
@@ -212,29 +295,23 @@ public final class WeakInterner<T> {
     private static <T> int transferEntries(final Entry<T>[] sourceHashTable, final Entry<T>[] destinationHashTable) {
         // Warning: This is expected to be called from a synchronized context.
         int validEntryCount = 0;
-        final int destinationBucketCount = destinationHashTable.length;
+        final int destinationCapacity = destinationHashTable.length;
 
-        for (int sourceBucketIndex = 0, sourceBucketCount = sourceHashTable.length; sourceBucketIndex < sourceBucketCount; ++sourceBucketIndex) {
-            Entry<T> entry = sourceHashTable[sourceBucketIndex];
-            sourceHashTable[sourceBucketIndex] = null;
+        for (int sourceIndex = 0, sourceCapacity = sourceHashTable.length; sourceIndex < sourceCapacity; ++sourceIndex) {
+            Entry<T> entry = sourceHashTable[sourceIndex];
+            sourceHashTable[sourceIndex] = null;
 
-            while (entry != null) {
-                final Entry<T> nextEntry = entry.nextEntry;
+            // Only count and transfer valid entries.
+            if (entry != null && !entry.refersTo(null)) {
+                assert validEntryCount < destinationCapacity;
+                int destinationIndex = getWraparoundIndex(entry.hashValue, destinationCapacity);
 
-                if (entry.refersTo(null)) {
-                    // This is a stale entry. Don't count or attempt to transfer
-                    // it. We also clear out references to other objects to help
-                    // the garbage collector.
-                    entry.nextEntry = null;
-                } else {
-                    // This is a valid entry. Transfer it to the destination.
-                    int destinationBucketIndex = getBucketIndex(entry.hashValue, destinationBucketCount);
-                    entry.nextEntry = destinationHashTable[destinationBucketIndex];
-                    destinationHashTable[destinationBucketIndex] = entry;
-                    ++validEntryCount;
+                while (destinationHashTable[destinationIndex] != null) {
+                    destinationIndex = getWraparoundIndex(destinationIndex + 1, destinationCapacity);
                 }
 
-                entry = nextEntry;
+                destinationHashTable[destinationIndex] = entry;
+                ++validEntryCount;
             }
         }
 
@@ -242,15 +319,16 @@ public final class WeakInterner<T> {
     }
 
     private static int getHashValue(final Object value) {
-        // Bitwise trickery that ensures we have a hash of decent-quality
+        // Bitwise trickery that ensures we have a hash of decent quality
         // necessitated by our use of power-of-two sized hash tables.
         int hashValue = value.hashCode();
         hashValue ^= (hashValue >>> 20) ^ (hashValue >>> 12);
         return hashValue ^ (hashValue >>> 7) ^ (hashValue >>> 4);
     }
 
-    private static int getBucketIndex(final int hashValue, final int bucketCount) {
-        return hashValue & (bucketCount - 1);
+    private static int getWraparoundIndex(final int index, final int capacity) {
+        // Note: Assumes capacity is a power-of-two.
+        return index & (capacity - 1);
     }
 
     private static int toPowerOfTwo(final int num) {
@@ -265,12 +343,10 @@ public final class WeakInterner<T> {
 
     private static class Entry<T> extends WeakReference<T> {
         final int hashValue;
-        Entry<T> nextEntry;
 
-        public Entry(final T value, final ReferenceQueue<T> staleEntriesQueue, final int hashValue, final Entry<T> nextEntry) {
+        public Entry(final T value, final ReferenceQueue<T> staleEntriesQueue, final int hashValue) {
             super(value, staleEntriesQueue);
             this.hashValue = hashValue;
-            this.nextEntry = nextEntry;
         }
 
         @Override
