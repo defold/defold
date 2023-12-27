@@ -36,7 +36,10 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
+    glfw_library = 'dmglfw'
+
     if platform in ('x86_64-macos','arm64-macos'):
+        glfw_library = 'glfw3'
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
     elif platform == 'x86_64-ios':
         pass
@@ -53,7 +56,7 @@ def configure(conf):
     conf.env['STLIB_HID'] = 'hid'
     conf.env['STLIB_TEXC'] = ['texc', 'basis_encoder']
     conf.env['STLIB_INPUT'] = 'input'
-    conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_DMGLFW'] = glfw_library
     conf.env['STLIB_GRAPHICS'] = 'graphics'
     conf.env['STLIB_GRAPHICS_VULKAN'] = ['graphics_vulkan']
     conf.env['STLIB_GRAPHICS_PS4'] = ['graphics_ps4']
