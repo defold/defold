@@ -79,12 +79,12 @@ public final class WeakInterner<T> {
             if (entry == null) {
                 entryInfo = null;
             } else if (entry == removedSentinelEntry) {
-                entryInfo = Map.of("status", "removed", "hashValue", entry.hashValue);
+                entryInfo = Map.of("status", "removed", "hash-value", entry.hashValue);
             } else {
                 final Object value = entry.get();
                 entryInfo = value == null
-                        ? Map.of("status", "stale", "hashValue", entry.hashValue)
-                        : Map.of("status", "valid", "hashValue", entry.hashValue, "value", value);
+                        ? Map.of("status", "stale", "hash-value", entry.hashValue)
+                        : Map.of("status", "valid", "hash-value", entry.hashValue, "value", value);
             }
 
             hashTableInfos.add(entryInfo);
@@ -92,9 +92,8 @@ public final class WeakInterner<T> {
 
         return Map.of(
                 "count", count,
-                "growthThreshold", growthThreshold,
-                "loadFactor", loadFactor,
-                "hashTable", Collections.unmodifiableList(hashTableInfos)
+                "growth-threshold", growthThreshold,
+                "hash-table", Collections.unmodifiableList(hashTableInfos)
         );
     }
 
