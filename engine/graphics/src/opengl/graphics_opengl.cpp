@@ -264,7 +264,7 @@ namespace dmGraphics
                 LogGLError(err, __FUNCTION__, __LINE__); \
                 if (err == GL_OUT_OF_MEMORY) { \
                     dmLogWarning("Signs of surface being destroyed. skipping assert.");\
-                    if (glfwAndroidVerifySurface()) { \
+                    if (dmPlatform::AndroidVerifySurface(g_Context->m_Window)) { \
                         assert(0); \
                     } \
                 } else { \
@@ -371,7 +371,7 @@ static void LogFrameBufferError(GLenum status)
     {
         ChooseEAGLView() {
             // Let's us choose the CAEAGLLayer
-            glfwSetViewType(GLFW_OPENGL_API);
+            dmPlatform::iOSSetViewTypeOpenGL(0);
         }
     } g_ChooseEAGLView;
     #endif
@@ -1383,7 +1383,7 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLBeginFrame(HContext context)
     {
 #if defined(ANDROID)
-        glfwAndroidBeginFrame();
+        dmPlatform::AndroidBeginFrame(((OpenGLContext*) context)->m_Window);
 #endif
     }
 

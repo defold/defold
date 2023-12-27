@@ -598,6 +598,29 @@ namespace dmPlatform
         return glfwGetDefaultFramebuffer();
     }
 
+    int32_t AndroidVerifySurface(HWindow window)
+    {
+    #if defined(ANDROID)
+        return glfwAndroidVerifySurface();
+    #else
+        return 0;
+    #endif
+    }
+
+    void AndroidBeginFrame(HWindow window)
+    {
+    #if defined(ANDROID)
+        glfwAndroidBeginFrame();
+    #endif
+    }
+
+    void iOSSetViewTypeOpenGL(HWindow window)
+    {
+    #if defined(DM_PLATFORM_IOS)
+        glfwSetViewType(GLFW_OPENGL_API);
+    #endif
+    }
+
     void* AcquireAuxContext(HWindow window)
     {
         return glfwAcquireAuxContext();

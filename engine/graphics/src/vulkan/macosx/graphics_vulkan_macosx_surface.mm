@@ -27,35 +27,5 @@ namespace dmGraphics
     VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
         return dmPlatform::VulkanCreateWindowSurface(vkInstance, window, vkSurfaceOut);
-
-        /*
-        VkMacOSSurfaceCreateInfoMVK sci;
-        PFN_vkCreateMacOSSurfaceMVK vkCreateMacOSSurfaceMVK;
-
-         vkCreateMacOSSurfaceMVK = (PFN_vkCreateMacOSSurfaceMVK)
-            vkGetInstanceProcAddr(vkInstance, "vkCreateMacOSSurfaceMVK");
-        if (!vkCreateMacOSSurfaceMVK)
-        {
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-
-        id window_layer  = glfwGetOSXCALayer();
-        id window_view   = glfwGetOSXNSView();
-        id window_object = glfwGetOSXNSWindow();
-
-        // JG: OpenGL and MVK differs on osx on how to deal with highDPI.. On OpenGL it doesn't seem to matter,
-        //.    so for NOW we bring vulkan closer to OpenGL and always create a surface with max scale factor
-        // if (enableHighDPI)
-        {
-            [window_layer setContentsScale:[window_object backingScaleFactor]];
-        }
-
-        memset(&sci, 0, sizeof(sci));
-        sci.sType = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK;
-        sci.pView = window_view;
-
-        return vkCreateMacOSSurfaceMVK(vkInstance, &sci, 0, vkSurfaceOut);
-        */
-        return VK_INCOMPLETE;
     }
 }
