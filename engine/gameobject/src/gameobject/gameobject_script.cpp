@@ -2842,6 +2842,19 @@ bail:
      * ```
      */
 
+    /*# called at fixed intervals to update the script component
+     *
+     * This is a callback-function, which is called by the engine at fixed intervals to update the state of a script
+     * component. The function will be called if 'Fixed Update Frequency' is enabled in the Engine section of game.project.
+     * It can for instance be used to update game logic with the physics simulation if using a fixed timestep for the
+     * physics (enabled by ticking 'Use Fixed Timestep' in the Physics section of game.project).
+     *
+     * @name fixed_update
+     * @param self [type:object] reference to the script state to be used for storing data
+     * @param dt [type:number] the time-step of the frame update
+     * @examples
+     */
+
     /*# called when a message has been sent to the script component
      *
      * This is a callback-function, which is called by the engine whenever a message has been sent to the script component.
