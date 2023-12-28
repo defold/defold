@@ -183,7 +183,8 @@ namespace dmPlatform
         // Create aux context
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
-        wnd->m_AuxWindow = glfwCreateWindow(32, 32, "aux_window", NULL, wnd->m_Window);
+        // Note: We can't create a 0x0 window
+        wnd->m_AuxWindow = glfwCreateWindow(1, 1, "aux_window", NULL, wnd->m_Window);
 
         return PLATFORM_RESULT_OK;
     }
@@ -280,6 +281,8 @@ namespace dmPlatform
     void CloseWindow(HWindow window)
     {
         glfwDestroyWindow(window->m_Window);
+        if (window->m_AuxWindow)
+            glfwDestroyWindow(window->m_AuxWindow);
     }
 
     void PollEvents(HWindow window)
