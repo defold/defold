@@ -275,7 +275,7 @@ namespace dmPlatform
             glfwSwapInterval(1);
             glfwGetWindowSize(&window->m_Width, &window->m_Height);
 
-        #if !defined(DM_PLATFORM_WEB)
+        #if !defined(__EMSCRIPTEN__)
             glfwSetWindowTitle(params.m_Title);
         #endif
 
@@ -376,6 +376,15 @@ namespace dmPlatform
         return -1;
     }
 
+    static inline int32_t QueryAuxContextImpl()
+    {
+    #if defined(__EMSCRIPTEN__)
+        return 0;
+    #else
+        return glfwQueryAuxContext();
+    #endif
+    }
+
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
         switch(state)
@@ -383,7 +392,7 @@ namespace dmPlatform
             case WINDOW_STATE_REFRESH_RATE: return glfwGetWindowRefreshRate();
             case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
             case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
-            case WINDOW_STATE_AUX_CONTEXT:  return glfwQueryAuxContext();
+            case WINDOW_STATE_AUX_CONTEXT:  return QueryAuxContextImpl();
             default:break;
         }
 

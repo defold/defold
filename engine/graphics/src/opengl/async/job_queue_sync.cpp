@@ -29,7 +29,7 @@ namespace dmGraphics
         }
     }
 
-    void JobQueueInitialize()
+    void JobQueueInitialize(dmPlatform::HWindow window)
     {
         dmLogDebug("AsyncInitialize: Auxillary context unsupported (threads not supported)");
     }
