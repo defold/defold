@@ -645,15 +645,30 @@
         (->> hash-table
              (keep :attempt)
              (frequencies)
-             (into (sorted-map-by coll/descending-order)))]
+             (into (sorted-map-by coll/descending-order)))
+
+        elapsed-nanosecond-values
+        (keep :elapsed hash-table)
+
+        median-elapsed-nanoseconds
+        (->> elapsed-nanosecond-values
+             (math/median)
+             (long))
+
+        max-elapsed-nanoseconds
+        (->> elapsed-nanosecond-values
+             (reduce max Long/MIN_VALUE))]
 
     {:count entry-count
      :capacity capacity
      :growth-threshold (:growth-threshold info)
      :occupancy-factor (math/round-with-precision occupancy-factor math/precision-general)
+     :median-elapsed-nanoseconds median-elapsed-nanoseconds
+     :max-elapsed-nanoseconds max-elapsed-nanoseconds
      :attempt-frequencies attempt-frequencies}))
 
 (defn endpoint-interner-stats []
+  ;; Trigger a GC and give it a moment to clear out unused weak references.
   (System/gc)
   (Thread/sleep 500)
   (weak-interner-stats gt/endpoint-interner))

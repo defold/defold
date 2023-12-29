@@ -18,6 +18,9 @@ import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.*;
 
+// Sources:
+// https://www.scaler.com/topics/data-structures/open-addressing/
+
 public final class WeakInterner<T> {
     private static final int MAX_CAPACITY = 1 << 30;
     private static final float DEFAULT_LOAD_FACTOR = 0.75f;
@@ -79,10 +82,11 @@ public final class WeakInterner<T> {
             if (entry == null) {
                 entryInfo = null;
             } else if (entry == removedSentinelEntry) {
-                entryInfo = Map.of("status", "removed", "hash-value", entry.hashValue, "attempts", 0);
+                entryInfo = Map.of("status", "removed", "hash-value", entry.hashValue, "attempt", 0, "elapsed", 0);
             } else {
                 final int hashValue = entry.hashValue;
                 int attempt = 0;
+                final long startTime = System.nanoTime();
 
                 while (attempt < capacity) {
                     final int index = getSlotIndex(hashValue, attempt, capacity);
@@ -94,10 +98,11 @@ public final class WeakInterner<T> {
                     ++attempt;
                 }
 
+                final long elapsed = System.nanoTime() - startTime;
                 final Object value = entry.get();
                 entryInfo = value == null
-                        ? Map.of("status", "stale", "hash-value", hashValue, "attempt", attempt)
-                        : Map.of("status", "valid", "hash-value", hashValue, "attempt", attempt, "value", value);
+                        ? Map.of("status", "stale", "hash-value", hashValue, "attempt", attempt, "elapsed", elapsed)
+                        : Map.of("status", "valid", "hash-value", hashValue, "attempt", attempt, "elapsed", elapsed, "value", value);
             }
 
             hashTableInfos.add(entryInfo);
