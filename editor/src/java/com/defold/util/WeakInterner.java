@@ -79,12 +79,25 @@ public final class WeakInterner<T> {
             if (entry == null) {
                 entryInfo = null;
             } else if (entry == removedSentinelEntry) {
-                entryInfo = Map.of("status", "removed", "hash-value", entry.hashValue);
+                entryInfo = Map.of("status", "removed", "hash-value", entry.hashValue, "attempts", 0);
             } else {
+                final int hashValue = entry.hashValue;
+                int attempt = 0;
+
+                while (attempt < capacity) {
+                    final int index = getSlotIndex(hashValue, attempt, capacity);
+
+                    if (hashTable[index] == entry) {
+                        break;
+                    }
+
+                    ++attempt;
+                }
+
                 final Object value = entry.get();
                 entryInfo = value == null
-                        ? Map.of("status", "stale", "hash-value", entry.hashValue)
-                        : Map.of("status", "valid", "hash-value", entry.hashValue, "value", value);
+                        ? Map.of("status", "stale", "hash-value", hashValue, "attempt", attempt)
+                        : Map.of("status", "valid", "hash-value", hashValue, "attempt", attempt, "value", value);
             }
 
             hashTableInfos.add(entryInfo);
@@ -152,31 +165,30 @@ public final class WeakInterner<T> {
         // we need to get a fresh reference to it.
         final Entry<T>[] hashTable = getHashTable();
         final int capacity = hashTable.length;
-        int index = getWraparoundIndex(hashValue, capacity);
         assert count < capacity;
 
-        while (true) {
+        for (int attempt = 0; attempt < capacity; ++attempt) {
+            final int index = getSlotIndex(hashValue, attempt, capacity);
             final Entry<T> existingEntry = hashTable[index];
 
             if (existingEntry == null || existingEntry == removedSentinelEntry || existingEntry.refersTo(null)) {
+                hashTable[index] = new Entry<>(value, staleEntriesQueue, hashValue);
+                ++count;
                 break;
             }
-
-            index = getWraparoundIndex(index + 1, capacity);
         }
 
-        hashTable[index] = new Entry<>(value, staleEntriesQueue, hashValue);
-        ++count;
-
+        // Note: We might reach this point without having successfully interned
+        // the value if the hash table is full. If so, we simply return the
+        // value without interning it.
         return value;
     }
 
     private static <T> T findExistingValue(final Entry<T>[] hashTable, final T value, final int hashValue) {
         final int capacity = hashTable.length;
-        final int startIndex = getWraparoundIndex(hashValue, capacity);
-        int index = startIndex;
 
-        do {
+        for (int attempt = 0; attempt < capacity; ++attempt) {
+            final int index = getSlotIndex(hashValue, attempt, capacity);
             final Entry<T> existingEntry = hashTable[index];
 
             if (existingEntry == null) {
@@ -185,32 +197,31 @@ public final class WeakInterner<T> {
                 return null;
             }
 
-            if (hashValue == existingEntry.hashValue) {
-                // Try the refersTo() method first to avoid creating a strong
-                // reference to the interned value.
-                if (existingEntry.refersTo(value)) {
-                    // Note: existingEntry cannot be the removedSentinelEntry
-                    // here because it refers to null, and value cannot be null.
-                    return value;
-                }
-
-                // Note: The existing entry can have a value of null if it is a
-                // stale reference or the removedSentinelEntry here. But as
-                // above, it is not possible for us to return the
-                // removedSentinelEntry here as existingValue will be null and
-                // value cannot be null.
-                final T existingValue = existingEntry.get();
-
-                if (value.equals(existingValue)) {
-                    // We have an interned value that is equivalent to the
-                    // input value. Return the interned value.
-                    return existingValue;
-                }
+            if (hashValue != existingEntry.hashValue) {
+                continue;
             }
 
-            // Keep looking until we've wrapped around to the start.
-            index = getWraparoundIndex(index + 1, capacity);
-        } while (index != startIndex);
+            // Try the refersTo() method first to avoid creating a strong
+            // reference to the interned value.
+            if (existingEntry.refersTo(value)) {
+                // Note: existingEntry cannot be the removedSentinelEntry
+                // here because it refers to null, and value cannot be null.
+                return value;
+            }
+
+            // Note: The existing entry can have a value of null if it is a
+            // stale reference or the removedSentinelEntry here. But as
+            // above, it is not possible for us to return the
+            // removedSentinelEntry here as existingValue will be null and
+            // value cannot be null.
+            final T existingValue = existingEntry.get();
+
+            if (value.equals(existingValue)) {
+                // We have an interned value that is equivalent to the
+                // input value. Return the interned value.
+                return existingValue;
+            }
+        }
 
         return null;
     }
@@ -234,11 +245,11 @@ public final class WeakInterner<T> {
     }
 
     private synchronized void removeEntry(final Entry<T> removedEntry) {
+        final int hashValue = removedEntry.hashValue;
         final int capacity = hashTable.length;
-        final int startIndex = getWraparoundIndex(removedEntry.hashValue, capacity);
-        int index = startIndex;
 
-        do {
+        for (int attempt = 0; attempt < capacity; ++attempt) {
+            final int index = getSlotIndex(hashValue, attempt, capacity);
             final Entry<T> entry = hashTable[index];
 
             if (entry == removedEntry) {
@@ -256,10 +267,7 @@ public final class WeakInterner<T> {
                 // occupied. The entry we're looking for is not present.
                 return;
             }
-
-            // Keep looking until we've wrapped around to the start.
-            index = getWraparoundIndex(index + 1, capacity);
-        } while (index != startIndex);
+        }
     }
 
     private void rehash(final int newCapacity) {
@@ -297,20 +305,23 @@ public final class WeakInterner<T> {
         final int destinationCapacity = destinationHashTable.length;
 
         for (int sourceIndex = 0, sourceCapacity = sourceHashTable.length; sourceIndex < sourceCapacity; ++sourceIndex) {
-            Entry<T> entry = sourceHashTable[sourceIndex];
+            final Entry<T> entry = sourceHashTable[sourceIndex];
             sourceHashTable[sourceIndex] = null;
 
             // Only count and transfer valid entries.
             if (entry != null && !entry.refersTo(null)) {
+                final int hashValue = entry.hashValue;
                 assert validEntryCount < destinationCapacity;
-                int destinationIndex = getWraparoundIndex(entry.hashValue, destinationCapacity);
 
-                while (destinationHashTable[destinationIndex] != null) {
-                    destinationIndex = getWraparoundIndex(destinationIndex + 1, destinationCapacity);
+                for (int attempt = 0; attempt < destinationCapacity; ++attempt) {
+                    int destinationIndex = getSlotIndex(hashValue, attempt, destinationCapacity);
+
+                    if (destinationHashTable[destinationIndex] == null) {
+                        destinationHashTable[destinationIndex] = entry;
+                        ++validEntryCount;
+                        break;
+                    }
                 }
-
-                destinationHashTable[destinationIndex] = entry;
-                ++validEntryCount;
             }
         }
 
@@ -325,9 +336,9 @@ public final class WeakInterner<T> {
         return hashValue ^ (hashValue >>> 7) ^ (hashValue >>> 4);
     }
 
-    private static int getWraparoundIndex(final int index, final int capacity) {
-        // Note: Assumes capacity is a power-of-two.
-        return index & (capacity - 1);
+    private static int getSlotIndex(final int hashValue, final int attempt, final int capacity) {
+        final int modulus = (hashValue + attempt) % capacity;
+        return modulus < 0 ? modulus + capacity : modulus;
     }
 
     private static int toPowerOfTwo(final int num) {

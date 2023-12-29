@@ -637,25 +637,13 @@
 (defn weak-interner-stats [^WeakInterner weak-interner]
   (let [info (weak-interner-info weak-interner)
         hash-table (:hash-table info)
-        entry-count (int (:count info))
+        entry-count (:count info)
         capacity (count hash-table)
         occupancy-factor (/ (double entry-count) (double capacity))
 
-        augmented-hash-table
-        (into []
-              (map-indexed
-                (fn [^long index entry-info]
-                  (when entry-info
-                    (let [ideal-index (mod (int (:hash-value entry-info)) capacity)
-                          displacement (case (:status entry-info)
-                                         :removed 0
-                                         (mod (- index ideal-index) capacity))]
-                      (assoc entry-info :displacement displacement)))))
-              hash-table)
-
-        displacement-frequencies
-        (->> augmented-hash-table
-             (keep :displacement)
+        attempt-frequencies
+        (->> hash-table
+             (keep :attempt)
              (frequencies)
              (into (sorted-map-by coll/descending-order)))]
 
@@ -663,7 +651,7 @@
      :capacity capacity
      :growth-threshold (:growth-threshold info)
      :occupancy-factor (math/round-with-precision occupancy-factor math/precision-general)
-     :displacement-frequencies displacement-frequencies}))
+     :attempt-frequencies attempt-frequencies}))
 
 (defn endpoint-interner-stats []
   (System/gc)
