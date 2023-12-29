@@ -155,7 +155,8 @@
                      (<! (a/reduce conj [] out)))))))))))
 
 (g/defnode LSPViewNode
-  (property diagnostics g/Any (default [])))
+  (property diagnostics g/Any (default []))
+  (property completion-trigger-characters g/Any (default #{})))
 
 (deftest start-open-order-test
   (tu/with-scratch-project "test/resources/lsp_project"

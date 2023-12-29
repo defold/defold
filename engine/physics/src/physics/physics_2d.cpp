@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -715,7 +715,7 @@ namespace dmPhysics
         filter.maskBits = mask;
         fixture->SetFilterData(filter, child);
     }
-    
+
     void DeleteCollisionShape2D(HCollisionShape2D shape)
     {
         delete (b2Shape*)shape;
@@ -1016,6 +1016,63 @@ namespace dmPhysics
         return i;
     }
 
+    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object, uint32_t shape_index)
+    {
+        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+        uint32_t i = 0;
+        while(i <= shape_index && fixture)
+        {
+            if (i == shape_index)
+                return fixture->GetShape();
+            fixture = fixture->GetNext();
+            i++;
+        }
+        return 0;
+    }
+
+    void GetCollisionShapeRadius2D(HCollisionShape2D _shape, float* radius)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        *radius = shape->m_radius;
+    }
+
+    void SetCollisionShapeRadius2D(HCollisionShape2D _shape, float radius)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        shape->m_radius = radius;
+    }
+
+    void SynchronizeObject2D(HCollisionObject2D collision_object)
+    {
+        ((b2Body*)collision_object)->SynchronizeFixtures();
+    }
+
+    void SetCollisionShapeBoxDimensions2D(HCollisionShape2D _shape, float w, float h)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        if (shape->m_type == b2Shape::e_polygon)
+        {
+            b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
+            polygon_shape->SetAsBox(w, h);
+        }
+    }
+
+    void GetCollisionShapePolygonVertices2D(HCollisionShape2D _shape, float** vertices, uint32_t* vertex_count)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        if (shape->m_type == b2Shape::e_polygon)
+        {
+            b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
+            *vertex_count                 = polygon_shape->GetVertexCount();
+            *vertices                     = (float*) polygon_shape->m_vertices;
+        }
+        else
+        {
+            *vertices     = 0;
+            *vertex_count = 0;
+        }
+    }
+
     void SetCollisionObjectUserData2D(HCollisionObject2D collision_object, void* user_data)
     {
         ((b2Body*)collision_object)->SetUserData(user_data);
@@ -1175,7 +1232,7 @@ namespace dmPhysics
         b2Body* body = ((b2Body*)collision_object);
         body->SetBullet(value);
     }
-        
+
     void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
 		while (fixture) {
@@ -1186,9 +1243,9 @@ namespace dmPhysics
 				fixture->SetFilterData(filter, 0);
 			}
 			fixture = fixture->GetNext();	// NOTE: No guard condition in loop. Assumes proper state of Box2D fixture list.
-		}		
+		}
 	}
-	
+
 	uint16_t GetGroup2D(HCollisionObject2D collision_object) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
 		if (fixture) {
@@ -1196,10 +1253,10 @@ namespace dmPhysics
 				b2Filter filter = fixture->GetFilterData(0);
 				return filter.categoryBits;
 			}
-		}	
+		}
 		return 0;
 	}
-	
+
 	// updates a specific group bit of a collision object's current mask
 	void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
@@ -1214,9 +1271,9 @@ namespace dmPhysics
 				fixture->SetFilterData(filter, 0);
 			}
 			fixture = fixture->GetNext();
-		}			
+		}
 	}
-	
+
 	bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
 		if (fixture) {
@@ -1224,10 +1281,10 @@ namespace dmPhysics
 				b2Filter filter = fixture->GetFilterData(0);
 				return !!(filter.maskBits & groupbit);
 			}
-		}	
-		return false;		
+		}
+		return false;
 	}
-	
+
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())

@@ -266,8 +266,16 @@ namespace dmRender
 
         dmMessage::HSocket          m_Socket;
 
-        uint32_t                    m_OutOfResources : 1;
-        uint32_t                    m_StencilBufferCleared : 1;
+        uint32_t                    m_OutOfResources         : 1;
+        uint32_t                    m_StencilBufferCleared   : 1;
+        uint32_t                    m_MultiBufferingRequired : 1;
+    };
+
+    struct BufferedRenderBuffer
+    {
+        dmArray<HRenderBuffer> m_Buffers;
+        RenderBufferType       m_Type;
+        int16_t                m_BufferIndex;
     };
 
     void RenderTypeTextBegin(HRenderContext rendercontext, void* user_context);

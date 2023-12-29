@@ -15,8 +15,9 @@
 #include <assert.h>
 
 #include "platform_window.h"
+#include "platform_window_constants.h"
 
-#include <dmsdk/graphics/glfw/glfw.h>
+#include <glfw/glfw.h>
 
 #include <dlib/platform.h>
 #include <dlib/log.h>
@@ -25,7 +26,14 @@ namespace dmPlatform
 {
     struct Window
     {
-        WindowParams                  m_CreateParams;
+        WindowResizeCallback          m_ResizeCallback;
+        void*                         m_ResizeCallbackUserData;
+        WindowCloseCallback           m_CloseCallback;
+        void*                         m_CloseCallbackUserData;
+        WindowFocusCallback           m_FocusCallback;
+        void*                         m_FocusCallbackUserData;
+        WindowIconifyCallback         m_IconifyCallback;
+        void*                         m_IconifyCallbackUserData;
         WindowAddKeyboardCharCallback m_AddKeyboarCharCallBack;
         void*                         m_AddKeyboarCharCallBackUserData;
         WindowSetMarkedTextCallback   m_SetMarkedTextCallback;
@@ -34,8 +42,10 @@ namespace dmPlatform
         void*                         m_DeviceChangedCallbackUserData;
         int32_t                       m_Width;
         int32_t                       m_Height;
+        uint32_t                      m_Samples               : 8;
         uint32_t                      m_WindowOpened          : 1;
         uint32_t                      m_SwapIntervalSupported : 1;
+        uint32_t                      m_HighDPI               : 1;
     };
 
     // Needed by glfw2.7
@@ -46,18 +56,19 @@ namespace dmPlatform
         assert(g_Window);
         g_Window->m_Width  = (uint32_t) width;
         g_Window->m_Height = (uint32_t) height;
-        if (g_Window->m_CreateParams.m_ResizeCallback != 0x0)
+
+        if (g_Window->m_ResizeCallback != 0x0)
         {
-            g_Window->m_CreateParams.m_ResizeCallback(g_Window->m_CreateParams.m_ResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
+            g_Window->m_ResizeCallback(g_Window->m_ResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
         }
     }
 
     static int OnWindowClose()
     {
         assert(g_Window);
-        if (g_Window->m_CreateParams.m_CloseCallback != 0x0)
+        if (g_Window->m_CloseCallback != 0x0)
         {
-            return g_Window->m_CreateParams.m_CloseCallback(g_Window->m_CreateParams.m_CloseCallbackUserData);
+            return g_Window->m_CloseCallback(g_Window->m_CloseCallbackUserData);
         }
         // Close by default
         return 1;
@@ -66,18 +77,18 @@ namespace dmPlatform
     static void OnWindowFocus(int focus)
     {
         assert(g_Window);
-        if (g_Window->m_CreateParams.m_FocusCallback != 0x0)
+        if (g_Window->m_FocusCallback != 0x0)
         {
-            g_Window->m_CreateParams.m_FocusCallback(g_Window->m_CreateParams.m_FocusCallbackUserData, focus);
+            g_Window->m_FocusCallback(g_Window->m_FocusCallbackUserData, focus);
         }
     }
 
     static void OnWindowIconify(int iconify)
     {
         assert(g_Window);
-        if (g_Window->m_CreateParams.m_IconifyCallback != 0x0)
+        if (g_Window->m_IconifyCallback != 0x0)
         {
-            g_Window->m_CreateParams.m_IconifyCallback(g_Window->m_CreateParams.m_IconifyCallbackUserData, iconify);
+            g_Window->m_IconifyCallback(g_Window->m_IconifyCallbackUserData, iconify);
         }
     }
 
@@ -126,15 +137,15 @@ namespace dmPlatform
         return 0;
     }
 
-    PlatformResult OpenWindowOpenGL(Window* wnd)
+    PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
-        if (wnd->m_CreateParams.m_HighDPI)
+        if (params.m_HighDPI)
         {
             glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
         }
 
         glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, wnd->m_CreateParams.m_Samples);
+        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params.m_Samples);
 
 #if defined(ANDROID)
         // Seems to work fine anyway without any hints
@@ -164,11 +175,11 @@ namespace dmPlatform
         }
 
         int mode = GLFW_WINDOW;
-        if (wnd->m_CreateParams.m_Fullscreen)
+        if (params.m_Fullscreen)
         {
             mode = GLFW_FULLSCREEN;
         }
-        if (!glfwOpenWindow(wnd->m_CreateParams.m_Width, wnd->m_CreateParams.m_Height, 8, 8, 8, 8, 32, 8, mode))
+        if (!glfwOpenWindow(params.m_Width, params.m_Height, 8, 8, 8, 8, 32, 8, mode))
         {
             if (is_desktop)
             {
@@ -176,11 +187,12 @@ namespace dmPlatform
 
                 // Try a second time, this time without core profile, and lower the minor version.
                 // And GLFW clears hints, so we have to set them again.
-                if (wnd->m_CreateParams.m_HighDPI) {
+                if (params.m_HighDPI)
+                {
                     glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
                 }
                 glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-                glfwOpenWindowHint(GLFW_FSAA_SAMPLES, wnd->m_CreateParams.m_Samples);
+                glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params.m_Samples);
 
                 // We currently cannot go lower since we support shader model 140
                 glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
@@ -188,7 +200,7 @@ namespace dmPlatform
 
                 glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-                if (!glfwOpenWindow(wnd->m_CreateParams.m_Width, wnd->m_CreateParams.m_Height, 8, 8, 8, 8, 32, 8, mode))
+                if (!glfwOpenWindow(params.m_Width, params.m_Height, 8, 8, 8, 8, 32, 8, mode))
                 {
                     return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
                 }
@@ -204,14 +216,14 @@ namespace dmPlatform
         return PLATFORM_RESULT_OK;
     }
 
-    PlatformResult OpenWindowVulkan(Window* wnd)
+    PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
     {
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
-        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, wnd->m_CreateParams.m_Samples);
+        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params.m_Samples);
 
-        int mode = wnd->m_CreateParams.m_Fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
+        int mode = params.m_Fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
 
-        if (!glfwOpenWindow(wnd->m_CreateParams.m_Width, wnd->m_CreateParams.m_Height, 8, 8, 8, 8, 32, 8, mode))
+        if (!glfwOpenWindow(params.m_Width, params.m_Height, 8, 8, 8, 8, 32, 8, mode))
         {
             return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
         }
@@ -226,24 +238,22 @@ namespace dmPlatform
             return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
-        window->m_CreateParams = params;
-
         PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
 
-        switch(window->m_CreateParams.m_GraphicsApi)
+        switch(params.m_GraphicsApi)
         {
             case PLATFORM_GRAPHICS_API_OPENGL:
-                res = OpenWindowOpenGL(window);
+                res = OpenWindowOpenGL(window, params);
                 break;
             case PLATFORM_GRAPHICS_API_VULKAN:
-                res = OpenWindowVulkan(window);
+                res = OpenWindowVulkan(window, params);
                 break;
             default: assert(0);
         }
 
         if (res == PLATFORM_RESULT_OK)
         {
-            glfwSetWindowBackgroundColor(window->m_CreateParams.m_BackgroundColor);
+            glfwSetWindowBackgroundColor(params.m_BackgroundColor);
             glfwSetWindowSizeCallback(OnWindowResize);
             glfwSetWindowCloseCallback(OnWindowClose);
             glfwSetWindowFocusCallback(OnWindowFocus);
@@ -252,10 +262,8 @@ namespace dmPlatform
             glfwGetWindowSize(&window->m_Width, &window->m_Height);
 
         #if !defined(DM_PLATFORM_WEB)
-            glfwSetWindowTitle(window->m_CreateParams.m_Title);
+            glfwSetWindowTitle(params.m_Title);
         #endif
-
-            window->m_WindowOpened = 1;
 
             if (glfwSetCharCallback(OnAddCharacterCallback) == 0)
             {
@@ -269,6 +277,21 @@ namespace dmPlatform
             {
                 dmLogFatal("coult not set glfw gamepad connection callback.");
             }
+
+            // These callback pointers are set on the window AFTER the glfw callbacks have been set,
+            // This is to make sure glfw don't call any of the callbacks before everything has been setup in the engine
+            window->m_ResizeCallback          = params.m_ResizeCallback;
+            window->m_ResizeCallbackUserData  = params.m_ResizeCallbackUserData;
+            window->m_CloseCallback           = params.m_CloseCallback;
+            window->m_CloseCallbackUserData   = params.m_CloseCallbackUserData;
+            window->m_FocusCallback           = params.m_FocusCallback;
+            window->m_FocusCallbackUserData   = params.m_FocusCallbackUserData;
+            window->m_IconifyCallback         = params.m_IconifyCallback;
+            window->m_IconifyCallbackUserData = params.m_IconifyCallbackUserData;
+            window->m_HighDPI                 = params.m_HighDPI;
+            window->m_Samples                 = params.m_Samples;
+
+            window->m_WindowOpened = 1;
         }
 
         return res;
@@ -296,9 +319,9 @@ namespace dmPlatform
         window->m_Height = window_height;
 
         // The callback is not called from glfw when the size is set manually
-        if (window->m_CreateParams.m_ResizeCallback)
+        if (window->m_ResizeCallback)
         {
-            window->m_CreateParams.m_ResizeCallback(window->m_CreateParams.m_ResizeCallbackUserData, window_width, window_height);
+            window->m_ResizeCallback(window->m_ResizeCallbackUserData, window_width, window_height);
         }
     }
 
@@ -348,11 +371,11 @@ namespace dmPlatform
         }
         else if (state == WINDOW_STATE_SAMPLE_COUNT)
         {
-            return window->m_CreateParams.m_Samples;
+            return window->m_Samples;
         }
         else if (state == WINDOW_STATE_HIGH_DPI)
         {
-            return window->m_CreateParams.m_HighDPI;
+            return window->m_HighDPI;
         }
 
         return window->m_WindowOpened ? glfwGetWindowParam(WindowStateToGLFW(state)) : 0;
@@ -469,4 +492,74 @@ namespace dmPlatform
         window->m_DeviceChangedCallback         = cb;
         window->m_DeviceChangedCallbackUserData = user_data;
     }
+
+    const int PLATFORM_JOYSTICK_LAST       = GLFW_JOYSTICK_LAST;
+    const int PLATFORM_KEY_ESC             = GLFW_KEY_ESC;
+    const int PLATFORM_KEY_F1              = GLFW_KEY_F1;
+    const int PLATFORM_KEY_F2              = GLFW_KEY_F2;
+    const int PLATFORM_KEY_F3              = GLFW_KEY_F3;
+    const int PLATFORM_KEY_F4              = GLFW_KEY_F4;
+    const int PLATFORM_KEY_F5              = GLFW_KEY_F5;
+    const int PLATFORM_KEY_F6              = GLFW_KEY_F6;
+    const int PLATFORM_KEY_F7              = GLFW_KEY_F7;
+    const int PLATFORM_KEY_F8              = GLFW_KEY_F8;
+    const int PLATFORM_KEY_F9              = GLFW_KEY_F9;
+    const int PLATFORM_KEY_F10             = GLFW_KEY_F10;
+    const int PLATFORM_KEY_F11             = GLFW_KEY_F11;
+    const int PLATFORM_KEY_F12             = GLFW_KEY_F12;
+    const int PLATFORM_KEY_UP              = GLFW_KEY_UP;
+    const int PLATFORM_KEY_DOWN            = GLFW_KEY_DOWN;
+    const int PLATFORM_KEY_LEFT            = GLFW_KEY_LEFT;
+    const int PLATFORM_KEY_RIGHT           = GLFW_KEY_RIGHT;
+    const int PLATFORM_KEY_LSHIFT          = GLFW_KEY_LSHIFT;
+    const int PLATFORM_KEY_RSHIFT          = GLFW_KEY_RSHIFT;
+    const int PLATFORM_KEY_LCTRL           = GLFW_KEY_LCTRL;
+    const int PLATFORM_KEY_RCTRL           = GLFW_KEY_RCTRL;
+    const int PLATFORM_KEY_LALT            = GLFW_KEY_LALT;
+    const int PLATFORM_KEY_RALT            = GLFW_KEY_RALT;
+    const int PLATFORM_KEY_TAB             = GLFW_KEY_TAB;
+    const int PLATFORM_KEY_ENTER           = GLFW_KEY_ENTER;
+    const int PLATFORM_KEY_BACKSPACE       = GLFW_KEY_BACKSPACE;
+    const int PLATFORM_KEY_INSERT          = GLFW_KEY_INSERT;
+    const int PLATFORM_KEY_DEL             = GLFW_KEY_DEL;
+    const int PLATFORM_KEY_PAGEUP          = GLFW_KEY_PAGEUP;
+    const int PLATFORM_KEY_PAGEDOWN        = GLFW_KEY_PAGEDOWN;
+    const int PLATFORM_KEY_HOME            = GLFW_KEY_HOME;
+    const int PLATFORM_KEY_END             = GLFW_KEY_END;
+    const int PLATFORM_KEY_KP_0            = GLFW_KEY_KP_0;
+    const int PLATFORM_KEY_KP_1            = GLFW_KEY_KP_1;
+    const int PLATFORM_KEY_KP_2            = GLFW_KEY_KP_2;
+    const int PLATFORM_KEY_KP_3            = GLFW_KEY_KP_3;
+    const int PLATFORM_KEY_KP_4            = GLFW_KEY_KP_4;
+    const int PLATFORM_KEY_KP_5            = GLFW_KEY_KP_5;
+    const int PLATFORM_KEY_KP_6            = GLFW_KEY_KP_6;
+    const int PLATFORM_KEY_KP_7            = GLFW_KEY_KP_7;
+    const int PLATFORM_KEY_KP_8            = GLFW_KEY_KP_8;
+    const int PLATFORM_KEY_KP_9            = GLFW_KEY_KP_9;
+    const int PLATFORM_KEY_KP_DIVIDE       = GLFW_KEY_KP_DIVIDE;
+    const int PLATFORM_KEY_KP_MULTIPLY     = GLFW_KEY_KP_MULTIPLY;
+    const int PLATFORM_KEY_KP_SUBTRACT     = GLFW_KEY_KP_SUBTRACT;
+    const int PLATFORM_KEY_KP_ADD          = GLFW_KEY_KP_ADD;
+    const int PLATFORM_KEY_KP_DECIMAL      = GLFW_KEY_KP_DECIMAL;
+    const int PLATFORM_KEY_KP_EQUAL        = GLFW_KEY_KP_EQUAL;
+    const int PLATFORM_KEY_KP_ENTER        = GLFW_KEY_KP_ENTER;
+    const int PLATFORM_KEY_KP_NUM_LOCK     = GLFW_KEY_KP_NUM_LOCK;
+    const int PLATFORM_KEY_CAPS_LOCK       = GLFW_KEY_CAPS_LOCK;
+    const int PLATFORM_KEY_SCROLL_LOCK     = GLFW_KEY_SCROLL_LOCK;
+    const int PLATFORM_KEY_PAUSE           = GLFW_KEY_PAUSE;
+    const int PLATFORM_KEY_LSUPER          = GLFW_KEY_LSUPER;
+    const int PLATFORM_KEY_RSUPER          = GLFW_KEY_RSUPER;
+    const int PLATFORM_KEY_MENU            = GLFW_KEY_MENU;
+    const int PLATFORM_KEY_BACK            = GLFW_KEY_BACK;
+    const int PLATFORM_MOUSE_BUTTON_LEFT   = GLFW_MOUSE_BUTTON_LEFT;
+    const int PLATFORM_MOUSE_BUTTON_MIDDLE = GLFW_MOUSE_BUTTON_MIDDLE;
+    const int PLATFORM_MOUSE_BUTTON_RIGHT  = GLFW_MOUSE_BUTTON_RIGHT;
+    const int PLATFORM_MOUSE_BUTTON_1      = GLFW_MOUSE_BUTTON_1;
+    const int PLATFORM_MOUSE_BUTTON_2      = GLFW_MOUSE_BUTTON_2;
+    const int PLATFORM_MOUSE_BUTTON_3      = GLFW_MOUSE_BUTTON_3;
+    const int PLATFORM_MOUSE_BUTTON_4      = GLFW_MOUSE_BUTTON_4;
+    const int PLATFORM_MOUSE_BUTTON_5      = GLFW_MOUSE_BUTTON_5;
+    const int PLATFORM_MOUSE_BUTTON_6      = GLFW_MOUSE_BUTTON_6;
+    const int PLATFORM_MOUSE_BUTTON_7      = GLFW_MOUSE_BUTTON_7;
+    const int PLATFORM_MOUSE_BUTTON_8      = GLFW_MOUSE_BUTTON_8;
 }

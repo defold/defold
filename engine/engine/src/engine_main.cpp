@@ -17,7 +17,7 @@
 
 #include <dlib/time.h>
 #include <dlib/thread.h>
-#include <dmsdk/graphics/glfw/glfw.h>
+#include <glfw/glfw.h>
 #endif
 
 #include "engine.h"

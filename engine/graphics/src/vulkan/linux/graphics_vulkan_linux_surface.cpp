@@ -14,7 +14,7 @@
 
 #include <string.h>
 
-#include <graphics/glfw/glfw_native.h>
+#include  <glfw/glfw_native.h>
 
 #include <dlib/math.h>
 #include <dlib/array.h>

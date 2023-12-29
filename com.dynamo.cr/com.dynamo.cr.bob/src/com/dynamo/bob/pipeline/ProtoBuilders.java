@@ -49,6 +49,7 @@ import com.dynamo.gamesys.proto.GameSystem.LightDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionShape.Shape;
+import com.dynamo.gamesys.proto.Physics.CollisionShape.ShapeOrBuilder;
 import com.dynamo.gamesys.proto.Physics.CollisionShape.Type;
 import com.dynamo.gamesys.proto.Physics.CollisionShape;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
@@ -219,6 +220,13 @@ public class ProtoBuilders {
                 eb.addAllData(cb.getDataList());
                 messageBuilder.setEmbeddedCollisionShape(eb);
                 messageBuilder.setCollisionShape("");
+            }
+
+            CollisionShape.Builder embeddedShapesBuilder = messageBuilder.getEmbeddedCollisionShapeBuilder();
+
+            for (int i=0; i < embeddedShapesBuilder.getShapesCount(); i++) {
+                CollisionShape.Shape.Builder shapeBuilder = embeddedShapesBuilder.getShapesBuilder(i);
+                shapeBuilder.setIdHash(MurmurHash.hash64(shapeBuilder.getId()));
             }
 
             messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".convexshape", ".convexshapec"));

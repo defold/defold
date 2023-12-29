@@ -304,8 +304,8 @@
 (g/defnk produce-anim-ddf [id fps flip-horizontal flip-vertical playback img-ddf]
   {:id id
    :fps fps
-   :flip-horizontal flip-horizontal
-   :flip-vertical flip-vertical
+   :flip-horizontal (if flip-horizontal 1 0)
+   :flip-vertical (if flip-vertical 1 0)
    :playback playback
    :images (sort-by-and-strip-order img-ddf)})
 

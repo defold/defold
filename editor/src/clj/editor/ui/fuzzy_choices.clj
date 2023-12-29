@@ -25,9 +25,7 @@
 
 (defn- option->fuzzy-matched-option [option->text pattern option]
   (when-some [[score matching-indices] (fuzzy-text/match-path pattern (option->text option))]
-    (with-meta option
-               {:score score
-                :matching-indices matching-indices})))
+    (vary-meta option assoc :score score :matching-indices matching-indices)))
 
 (defn- option-order [option->text a b]
   (let [a-meta (meta a)
@@ -117,6 +115,10 @@
                       [(make-text-run-cljfx (subs text start end) nil)])))
           (fuzzy-text/runs (.length text) matching-indices))))
 
-(defn make-matched-text-flow-cljfx [text matching-indices]
-  {:fx/type fx.text-flow/lifecycle
-   :children (matched-text-runs-cljfx text matching-indices)})
+(defn make-matched-text-flow-cljfx [text matching-indices & {:keys [deprecated]
+                                                             :or {deprecated false}}]
+  (cond->
+    {:fx/type fx.text-flow/lifecycle
+     :children (matched-text-runs-cljfx text matching-indices)}
+    deprecated
+    (assoc :style-class "deprecated")))

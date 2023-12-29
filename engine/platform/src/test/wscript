@@ -10,8 +10,9 @@ def build(bld):
                 use = 'TESTMAIN DLIB PROFILE_NULL platform_null',
                 target = 'test_platform')
 
-    bld.program(features = 'cxx cprogram test skip_test',
-                includes = ['../../src'],
-                source = 'test_platform_app.cpp',
-                use = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE OPENGL platform'.split(),
-                target = 'test_platform_app')
+    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+        bld.program(features = 'cxx cprogram test skip_test',
+                    includes = ['../../src'],
+                    source = 'test_platform_app.cpp',
+                    use = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE OPENGL platform'.split(),
+                    target = 'test_platform_app')

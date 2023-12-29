@@ -32,7 +32,7 @@ case $PLATFORM in
         OSX_MIN_SDK_VERSION=11.0
         ;;
     arm64-macos)
-        OSX_MIN_SDK_VERSION=12.0
+        OSX_MIN_SDK_VERSION=11.0
         ;;
 esac
 

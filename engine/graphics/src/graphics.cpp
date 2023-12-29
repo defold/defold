@@ -17,7 +17,7 @@
 #include "graphics_adapter.h"
 
 #if defined(DM_PLATFORM_IOS)
-#include <graphics/glfw/glfw_native.h> // for glfwAppBootstrap
+#include  <glfw/glfw_native.h> // for glfwAppBootstrap
 #endif
 #include <string.h>
 #include <assert.h>

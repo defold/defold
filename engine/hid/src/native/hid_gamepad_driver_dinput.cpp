@@ -31,6 +31,8 @@
     #define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = 0; } }
 #endif
 
+#include <glfw/glfw.h>
+
 // NOTE: This implementation is inspired by both the GLFW3 and SDL sources,
 //       with a heavier emphasis on the GLFW3 setup since we already use GLFW
 //       for our other platform functionality.
