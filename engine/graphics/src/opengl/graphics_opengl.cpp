@@ -1475,6 +1475,12 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
+    static HStorageBuffer OpenGLNewStorageBuffer(HContext _context, uint32_t buffer_size)
+    {
+        // Not implemented yet
+        return 0;
+    }
+
     static bool OpenGLIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
         return (((OpenGLContext*) context)->m_IndexBufferFormatSupport & (1 << format)) != 0;

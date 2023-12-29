@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Scanner;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.io.IOException;
@@ -253,11 +254,100 @@ public class ShaderUtil {
             public int    elementCount;
             public int    binding;
             public int    set;
+            public int    typeIndex;
         }
 
         public static class UniformBlock extends Resource
         {
             public ArrayList<Resource> uniforms = new ArrayList<Resource>();
+        }
+
+        public static class ResourceMember
+        {
+            public String name;
+            public String type;
+            public int    elementCount;
+        }
+
+        public static class ResourceType
+        {
+            public String                    key;
+            public String                    name;
+            public ArrayList<ResourceMember> members = new ArrayList<ResourceMember>();
+        }
+
+        public static ArrayList<ResourceType> getTypes()
+        {
+            ArrayList<ResourceType> resourceTypes = new ArrayList<ResourceType>();
+            JsonNode typesNode = root.get("types");
+            if (typesNode == null) {
+                return resourceTypes;
+            }
+
+            for (Iterator<Map.Entry<String, JsonNode>> jsonFields = typesNode.getFields(); jsonFields.hasNext();) {
+                Map.Entry<String, JsonNode> jsonField = jsonFields.next();
+                String key = jsonField.getKey();
+                JsonNode value = jsonField.getValue();
+
+                ResourceType type = new ResourceType();
+                type.key = key;
+                type.name = value.get("name").asText();
+
+                JsonNode membersNode = value.get("members");
+                Iterator<JsonNode> membersNodeIt = membersNode.getElements();
+
+                while(membersNodeIt.hasNext()) {
+                    JsonNode memberNode = membersNodeIt.next();
+                    ResourceMember res  = new ResourceMember();
+                    res.name            = memberNode.get("name").asText();
+                    res.type            = memberNode.get("type").asText();
+
+                    JsonNode arrayNode = memberNode.get("array");
+                    if (arrayNode != null && arrayNode.isArray())
+                    {
+                        ArrayNode array = (ArrayNode) arrayNode;
+                        res.elementCount = arrayNode.get(0).asInt();
+                    }
+
+                    type.members.add(res);
+                }
+
+                resourceTypes.add(type);
+            }
+
+            /*
+            Iterator<JsonNode> typeNodeIt = typesNode.getElements();
+            while (typeNodeIt.hasNext()) {
+                JsonNode typeNode = typeNodeIt.next();
+
+                ResourceType type = new ResourceType();
+                type.name         = typeNode.get("name").asText();
+
+                JsonNode membersNode = typeNode.get("members");
+
+                Iterator<JsonNode> membersNodeIt = membersNode.getElements();
+
+                while(membersNodeIt.hasNext()) {
+                    JsonNode memberNode = membersNodeIt.next();
+                    ResourceMember res  = new ResourceMember();
+                    res.name            = memberNode.get("name").asText();
+                    res.type            = memberNode.get("type").asText();
+
+                    JsonNode arrayNode = memberNode.get("array");
+                    if (arrayNode != null && arrayNode.isArray())
+                    {
+                        ArrayNode array = (ArrayNode) arrayNode;
+                        res.elementCount = arrayNode.get(0).asInt();
+                    }
+
+                    type.members.add(res);
+                }
+
+                resourceTypes.add(type);
+            }
+            */
+
+            return resourceTypes;
         }
 
         public static ArrayList<UniformBlock> getUniformBlocks()
@@ -307,6 +397,62 @@ public class ShaderUtil {
             }
 
             return uniformBlocks;
+        }
+
+        public static ArrayList<UniformBlock> getSsbos() {
+            ArrayList<UniformBlock> ssbos = new ArrayList<UniformBlock>();
+
+            JsonNode ssboNode  = root.get("ssbos");
+            JsonNode typesNode = root.get("types");
+
+            if (ssboNode == null || typesNode == null) {
+                return ssbos;
+            }
+
+            Iterator<JsonNode> ssboBlockIt = ssboNode.getElements();
+            while (ssboBlockIt.hasNext()) {
+                JsonNode ssboBlockNode = ssboBlockIt.next();
+
+                UniformBlock ssbo = new UniformBlock();
+                ssbo.name         = ssboBlockNode.get("name").asText();
+                ssbo.set          = ssboBlockNode.get("set").asInt();
+                ssbo.binding      = ssboBlockNode.get("binding").asInt();
+                ssbo.type         = "ssbo";
+
+                System.out.println("SSBO:");
+                System.out.println("name: " + ssbo.name);
+
+                JsonNode typeNode    = typesNode.get(ssboBlockNode.get("type").asText());
+                JsonNode membersNode = typeNode.get("members");
+
+                for (Iterator<JsonNode> membersNodeIt = membersNode.getElements(); membersNodeIt.hasNext();) {
+                    JsonNode uniformNode = membersNodeIt.next();
+                    Resource res         = new Resource();
+                    res.name             = uniformNode.get("name").asText();
+                    res.type             = uniformNode.get("type").asText();
+                    res.elementCount     = 1;
+                    res.binding          = 0;
+                    res.set              = 0;
+
+                    JsonNode arrayNode = uniformNode.get("array");
+                    if (arrayNode != null && arrayNode.isArray())
+                    {
+                        ArrayNode array = (ArrayNode) arrayNode;
+                        res.elementCount = arrayNode.get(0).asInt();
+                    }
+
+                    System.out.println("  member");
+                    System.out.println("  name: " + res.name);
+                    System.out.println("  type: " + res.type);
+                    System.out.println("  elementCount: " + res.elementCount);
+
+                    ssbo.uniforms.add(res);
+                }
+
+                ssbos.add(ssbo);
+            }
+
+            return ssbos;
         }
 
         private static void addTexturesFromNode(JsonNode node, ArrayList<Resource> textures) {

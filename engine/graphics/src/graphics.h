@@ -65,6 +65,8 @@ namespace dmGraphics
 
     typedef uintptr_t HComputeProgram;
 
+    typedef uintptr_t HStorageBuffer;
+
     const static uint64_t MAX_ASSET_HANDLE_VALUE       = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_COLOR_ATTACHMENTS = 4;
     static const uint8_t  MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
@@ -551,6 +553,9 @@ namespace dmGraphics
     uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t         GetUniformCount(HProgram prog);
     HUniformLocation GetUniformLocation(HProgram prog, const char* name);
+
+    // SSBO
+    HStorageBuffer NewStorageBuffer(HContext context, uint32_t buffer_size);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);

@@ -334,6 +334,12 @@ namespace dmGraphics
 
     #undef NATIVE_HANDLE_IMPL
 
+    static HStorageBuffer NullNewStorageBuffer(HContext _context, uint32_t buffer_size)
+    {
+        // Not implemented yet
+        return 0;
+    }
+
     static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = new VertexBuffer();

@@ -4164,6 +4164,18 @@ bail:
         delete shader;
     }
 
+    static HStorageBuffer VulkanNewStorageBuffer(HContext _context, uint32_t buffer_size)
+    {
+        VulkanContext* context       = (VulkanContext*) _context;
+        DeviceBuffer* storage_buffer = new DeviceBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+        if (buffer_size > 0)
+        {
+            DeviceBufferUploadHelper(context, 0, buffer_size, 0, storage_buffer);
+        }
+        return (HStorageBuffer) storage_buffer;
+    }
+
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     static void* VulkanMapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
     {

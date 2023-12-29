@@ -346,6 +346,48 @@ public class ShaderCompilerHelpers {
             resources.add(textureBlock);
         }
 
+        ArrayList<SPIRVReflector.ResourceType> types = reflector.getTypes();
+
+        System.out.println("-----");
+        System.out.println("Types");
+        for (SPIRVReflector.ResourceType t : types)
+        {
+            System.out.println("    Type: " + t.name);
+        }
+
+        for (SPIRVReflector.UniformBlock ssbo : reflector.getSsbos()) {
+
+            if (ssbo.uniforms.size() == 0) {
+                shaderIssues.add("No uniforms found in storage buffer block '" + ssbo.name + "'");
+            }
+
+            for (SPIRVReflector.Resource member : ssbo.uniforms) {
+
+                if (Common.stringTypeToShaderType(member.type) == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
+
+                    int type_index = -1;
+                    for (int i=0; i < types.size(); i++) {
+                        if (types.get(i).key.equals(member.type)) {
+                            type_index = i;
+                            break;
+                        }
+                    }
+
+                    if (type_index < 0) {
+                        shaderIssues.add(String.format("Unsupported type '%s' for uniform '%s'", member.type, member.name));
+                    }
+
+                    member.typeIndex = type_index;
+                }
+
+                if (member.set > 1) {
+                    shaderIssues.add(String.format("Unsupported set value for uniform '%s', expected <= 1 but found %d", member.name, member.set));
+                }
+            }
+
+            resources.add(ssbo);
+        }
+
         // This is a soft-fail mechanism just to notify that the shaders won't work in runtime.
         // At some point we should probably throw a compilation error here so that the build fails.
         if (shaderIssues.size() > 0) {
@@ -356,6 +398,7 @@ public class ShaderCompilerHelpers {
         res.inputs         = reflector.getInputs();
         res.outputs        = reflector.getOutputs();
         res.resourceBlocks = resources;
+        res.types          = types;
         res.source         = FileUtils.readFileToByteArray(file_out_spv);
 
         Collections.sort(res.inputs, new SortBindingsComparator());
@@ -378,6 +421,7 @@ public class ShaderCompilerHelpers {
         public ArrayList<SPIRVReflector.Resource> inputs             = new ArrayList<SPIRVReflector.Resource>();
         public ArrayList<SPIRVReflector.Resource> outputs            = new ArrayList<SPIRVReflector.Resource>();
         public ArrayList<SPIRVReflector.UniformBlock> resourceBlocks = new ArrayList<SPIRVReflector.UniformBlock>();
+        public ArrayList<SPIRVReflector.ResourceType> types          = new ArrayList<SPIRVReflector.ResourceType>();
     };
 
     static public ShaderProgramBuilder.ShaderBuildResult buildSpirvFromGLSL(String source, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
@@ -430,10 +474,31 @@ public class ShaderCompilerHelpers {
                 resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
                 resourceBindingBuilder.setType(Common.stringTypeToShaderType(res.type));
                 resourceBindingBuilder.setElementCount(res.elementCount);
+                resourceBindingBuilder.setTypeIndex(res.typeIndex);
                 resourceBlockBuilder.addBindings(resourceBindingBuilder);
             }
 
             builder.addResources(resourceBlockBuilder);
+        }
+
+        for (SPIRVReflector.ResourceType type : compile_res.types) {
+            ShaderDesc.ResourceType.Builder resourceTypeBuilder = ShaderDesc.ResourceType.newBuilder();
+
+            resourceTypeBuilder.setName(type.name);
+            resourceTypeBuilder.setNameHash(MurmurHash.hash64(type.name));
+
+            for (SPIRVReflector.ResourceMember member : type.members) {
+                ShaderDesc.ResourceMember.Builder typeMemberBuilder = ShaderDesc.ResourceMember.newBuilder();
+
+                typeMemberBuilder.setName(member.name);
+                typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
+                typeMemberBuilder.setType(Common.stringTypeToShaderType(member.type));
+                typeMemberBuilder.setElementCount(member.elementCount);
+
+                resourceTypeBuilder.addMembers(typeMemberBuilder);
+            }
+
+            builder.addTypes(resourceTypeBuilder);
         }
 
         return new ShaderProgramBuilder.ShaderBuildResult(builder);
