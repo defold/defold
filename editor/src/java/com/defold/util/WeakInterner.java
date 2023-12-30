@@ -35,11 +35,27 @@ public final class WeakInterner<T> {
     private final Entry<T> removedSentinelEntry;
 
     static {
-        PRIME_CAPACITY_SEQUENCE = new int[30];
+        final ArrayList<Integer> primeCapacitySequence = new ArrayList<>();
+
+        for (int i = 0, len = 30; i < len; ++i) {
+            final int powerOfTwo = 1 << (i + 1);
+            final boolean addSubsteps = i > 21;
+
+            if (addSubsteps) {
+                primeCapacitySequence.add(getNextPrime(powerOfTwo + powerOfTwo / 4));
+            }
+
+            primeCapacitySequence.add(getNextPrime(powerOfTwo + powerOfTwo / 2));
+
+            if (addSubsteps) {
+                primeCapacitySequence.add(getNextPrime(powerOfTwo + powerOfTwo / 4 * 3));
+            }
+        }
+
+        PRIME_CAPACITY_SEQUENCE = new int[primeCapacitySequence.size()];
 
         for (int i = 0, len = PRIME_CAPACITY_SEQUENCE.length; i < len; ++i) {
-            final int powerOfTwo = 1 << (i + 1);
-            PRIME_CAPACITY_SEQUENCE[i] = getNextPrime(powerOfTwo + powerOfTwo / 2);
+            PRIME_CAPACITY_SEQUENCE[i] = primeCapacitySequence.get(i);
         }
 
         MAX_CAPACITY = PRIME_CAPACITY_SEQUENCE[PRIME_CAPACITY_SEQUENCE.length - 1];
