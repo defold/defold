@@ -651,13 +651,17 @@
         (keep :elapsed hash-table)
 
         median-elapsed-nanoseconds
-        (->> elapsed-nanosecond-values
-             (math/median)
-             (long))
+        (if (empty? elapsed-nanosecond-values)
+          0
+          (->> elapsed-nanosecond-values
+               (math/median)
+               (long)))
 
         max-elapsed-nanoseconds
-        (->> elapsed-nanosecond-values
-             (reduce max Long/MIN_VALUE))]
+        (if (empty? elapsed-nanosecond-values)
+          0
+          (->> elapsed-nanosecond-values
+               (reduce max Long/MIN_VALUE)))]
 
     {:count entry-count
      :capacity capacity

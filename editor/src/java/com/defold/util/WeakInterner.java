@@ -19,11 +19,13 @@ import java.lang.ref.WeakReference;
 import java.util.*;
 
 // Sources:
-// https://www.scaler.com/topics/data-structures/open-addressing/
+// https://www.scaler.com/topics/data-structures/open-addressing
+// https://planetmath.org/goodhashtableprimes
 
 public final class WeakInterner<T> {
-    private static final int MAX_CAPACITY = 1 << 30;
     private static final float DEFAULT_LOAD_FACTOR = 0.75f;
+    private static final int[] PRIME_CAPACITY_SEQUENCE;
+    private static final int MAX_CAPACITY;
 
     private Entry<T>[] hashTable;
     private int count;
@@ -31,6 +33,17 @@ public final class WeakInterner<T> {
     private final float loadFactor;
     private final ReferenceQueue<T> staleEntriesQueue;
     private final Entry<T> removedSentinelEntry;
+
+    static {
+        PRIME_CAPACITY_SEQUENCE = new int[30];
+
+        for (int i = 0, len = PRIME_CAPACITY_SEQUENCE.length; i < len; ++i) {
+            final int powerOfTwo = 1 << (i + 1);
+            PRIME_CAPACITY_SEQUENCE[i] = getNextPrime(powerOfTwo + powerOfTwo / 2);
+        }
+
+        MAX_CAPACITY = PRIME_CAPACITY_SEQUENCE[PRIME_CAPACITY_SEQUENCE.length - 1];
+    }
 
     /**
      * Constructs a new WeakInterner with the specified initial capacity and a load factor of 0.75.
@@ -46,23 +59,15 @@ public final class WeakInterner<T> {
      * @param loadFactor The ratio of accepted occupancy before growing the internal storage.
      */
     public WeakInterner(final int initialCapacity, final float loadFactor) {
-        if (initialCapacity < 0) {
-            throw new IllegalArgumentException("Initial capacity cannot be negative.");
-        }
-
-        if (initialCapacity > MAX_CAPACITY) {
-            throw new IllegalArgumentException("Initial capacity must not exceed " + MAX_CAPACITY + ".");
-        }
-
         if (loadFactor <= 0.0f || Float.isNaN(loadFactor)) {
             throw new IllegalArgumentException("Load factor must be a positive number.");
         }
 
-        final int capacity = toPowerOfTwo(initialCapacity);
+        final int capacity = initialCapacity == 0 ? 0 : toPrimeCapacity(initialCapacity);
         this.hashTable = makeHashTable(capacity);
         this.count = 0;
         this.loadFactor = loadFactor;
-        this.growthThreshold = (int)(capacity * loadFactor);
+        this.growthThreshold = (int) (capacity * loadFactor);
         this.staleEntriesQueue = new ReferenceQueue<>();
         this.removedSentinelEntry = new Entry<>(null, null, 0);
     }
@@ -132,7 +137,7 @@ public final class WeakInterner<T> {
 
         // First attempt to get the existing value without locking. If we don't
         // find a match, lock access from other threads while adding it.
-        final int hashValue = getHashValue(value);
+        final int hashValue = value.hashCode();
         final Entry<T>[] hashTable = getHashTable();
         final T existingValue = findExistingValue(hashTable, value, hashValue);
         return existingValue != null ? existingValue : internSynchronized(value, hashValue);
@@ -154,7 +159,7 @@ public final class WeakInterner<T> {
 
             final int capacity = hashTable.length;
 
-            if (count == capacity) {
+            if (count == MAX_CAPACITY) {
                 // We're full, and already at MAX_CAPACITY, so unable to grow.
                 // Simply return the input value without interning it.
                 return value;
@@ -162,7 +167,8 @@ public final class WeakInterner<T> {
 
             // We get to intern the value. Make sure we have room.
             if (count + 1 >= growthThreshold) {
-                rehash(capacity * 2);
+                final int newCapacity = toPrimeCapacity(capacity + 1);
+                rehash(newCapacity);
             }
         }
 
@@ -278,15 +284,6 @@ public final class WeakInterner<T> {
     private void rehash(final int newCapacity) {
         // Warning: This is expected to be called from a synchronized context.
         final Entry<T>[] oldHashTable = getHashTable();
-        final int oldCapacity = oldHashTable.length;
-
-        if (oldCapacity == MAX_CAPACITY) {
-            // We've grown as far as we can. Disable future growth and return.
-            // Once we reach capacity, new entries will no longer be interned.
-            growthThreshold = Integer.MAX_VALUE;
-            return;
-        }
-
         final Entry<T>[] newHashTable = makeHashTable(newCapacity);
         count = transferEntries(oldHashTable, newHashTable);
         hashTable = newHashTable;
@@ -300,7 +297,15 @@ public final class WeakInterner<T> {
             hashTable = oldHashTable;
         } else {
             // We actually needed to grow. Adjust the growth threshold.
-            growthThreshold = (int) (newCapacity * loadFactor);
+            if (newCapacity == MAX_CAPACITY) {
+                // We've grown as far as we can. Disable future growth. Once we
+                // reach capacity, new entries will no longer be interned.
+                growthThreshold = Integer.MAX_VALUE;
+            } else {
+                // We can grow further in the future. Set the growth threshold
+                // based on the new capacity and load factor.
+                growthThreshold = (int) (newCapacity * loadFactor);
+            }
         }
     }
 
@@ -333,27 +338,60 @@ public final class WeakInterner<T> {
         return validEntryCount;
     }
 
-    private static int getHashValue(final Object value) {
-        // Bitwise trickery that ensures we have a hash of decent quality
-        // necessitated by our use of power-of-two sized hash tables.
-        int hashValue = value.hashCode();
-        hashValue ^= (hashValue >>> 20) ^ (hashValue >>> 12);
-        return hashValue ^ (hashValue >>> 7) ^ (hashValue >>> 4);
-    }
-
     private static int getSlotIndex(final int hashValue, final int attempt, final int capacity) {
         final int modulus = (hashValue + attempt) % capacity;
         return modulus < 0 ? modulus + capacity : modulus;
     }
 
-    private static int toPowerOfTwo(final int num) {
-        int powerOfTwo = 1;
-
-        while (powerOfTwo < num) {
-            powerOfTwo <<= 1;
+    private static int getNextPrime(int num) {
+        if (num < 0) {
+            throw new IllegalArgumentException("The argument must be a non-negative number.");
         }
 
-        return powerOfTwo;
+        if (num <= 2) {
+            return 2;
+        }
+
+        // Ensure odd, so we can skip even numbers.
+        if ((num & 1) == 0) {
+            ++num;
+        }
+
+        while (true) {
+            for (int divisor = 3; true; divisor += 2) {
+                final int quotient = num / divisor;
+
+                if (quotient < divisor) {
+                    return num;
+                } else if (num == quotient * divisor) {
+                    break;
+                }
+            }
+
+            num += 2;
+        }
+    }
+
+    private static int toPrimeCapacity(final int desiredCapacity) {
+        if (desiredCapacity < 0) {
+            throw new IllegalArgumentException("Capacity cannot be negative.");
+        }
+
+        if (desiredCapacity > MAX_CAPACITY) {
+            throw new IllegalArgumentException("Capacity must not exceed " + MAX_CAPACITY + ".");
+        }
+
+        int index = Arrays.binarySearch(PRIME_CAPACITY_SEQUENCE, desiredCapacity);
+
+        if (index < 0) {
+            // Not an exact match. Negate to get the index at which the desired
+            // capacity would be inserted in the prime capacity sequence.
+            // To be clear, this is also the index referring to the smallest
+            // prime in the sequence that can hold the desired capacity.
+            index = ~index;
+        }
+
+        return PRIME_CAPACITY_SEQUENCE[index];
     }
 
     private static class Entry<T> extends WeakReference<T> {
