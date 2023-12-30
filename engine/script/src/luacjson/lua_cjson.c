@@ -83,6 +83,7 @@
 #define DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT 1
 #define DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT 0
 #define DEFAULT_ENCODE_ESCAPE_FORWARD_SLASH 1
+#define DEFAULT_DECODE_NULL_AS_USERDATA 0
 
 #ifdef DISABLE_INVALID_NUMBERS
 #undef DEFAULT_DECODE_INVALID_NUMBERS
@@ -166,6 +167,7 @@ typedef struct {
     int decode_invalid_numbers;
     int decode_max_depth;
     int decode_array_with_array_mt;
+    int decode_null_as_userdata;
 } json_config_t;
 
 typedef struct {
@@ -475,6 +477,7 @@ static void json_initialize_config(json_config_t* cfg, int encode_keep_buffer)
     cfg->encode_empty_table_as_object = DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT;
     cfg->decode_array_with_array_mt = DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT;
     cfg->encode_escape_forward_slash = DEFAULT_ENCODE_ESCAPE_FORWARD_SLASH;
+    cfg->decode_null_as_userdata = DEFAULT_DECODE_NULL_AS_USERDATA;
 
     if (encode_keep_buffer > 0)
     {
@@ -1495,7 +1498,15 @@ static void json_process_value(lua_State *l, json_parse_t *json,
     case T_NULL:
         /* In Lua, setting "t[k] = nil" will delete k from the table.
          * Hence a NULL pointer lightuserdata object is used instead */
-        lua_pushlightuserdata(l, NULL);
+        // DEFOLD:
+        if (json->cfg->decode_null_as_userdata)
+        {
+            lua_pushlightuserdata(l, NULL);
+        }
+        else
+        {
+            lua_pushnil(l);
+        }
         break;;
     default:
         json_throw_parse_error(l, json, "value", token);
