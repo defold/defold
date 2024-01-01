@@ -3131,6 +3131,7 @@ namespace dmGui
         InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         int adjust_mode = (int) luaL_checknumber(L, 2);
         n->m_Node.m_AdjustMode = (AdjustMode) adjust_mode;
+        n->m_Node.m_DirtyLocal = 1;
         return 0;
     }
 

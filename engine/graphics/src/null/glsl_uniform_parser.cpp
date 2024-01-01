@@ -169,9 +169,10 @@ namespace dmGraphics
         const char* line_start = buffer;
         const char* word_start = 0;
         const char* word_end   = 0;
+        const char* buffer_end = buffer + strlen(buffer);
 
         uint32_t size = 0;
-        while (*line_end != '\0')
+        while (line_end < buffer_end)
         {
             line_end   = SkipLine(line_start) + 1;
             word_start = line_start;

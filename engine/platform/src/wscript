@@ -1,0 +1,25 @@
+#! /usr/bin/env python
+import waflib.Options
+
+def configure(conf):
+    pass
+
+def build(bld):
+
+    lib = bld.stlib(features = 'cxx c ddf',
+                    includes = '.',
+                    target   = 'platform',
+                    source   = bld.path.ant_glob(['platform_window_glfw.cpp']))
+
+    lib = bld.stlib(features = 'cxx c ddf',
+                    includes = '.',
+                    target   = 'platform_null',
+                    source   = bld.path.ant_glob(['platform_window_null.cpp']))
+
+    bld.add_group()
+
+    bld.install_files('${PREFIX}/include/platform', 'platform_window.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_constants.h')
+
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')

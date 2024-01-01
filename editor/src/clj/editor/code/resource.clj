@@ -211,5 +211,6 @@
                  (assoc :load-fn load-fn
                         :read-fn read-fn
                         :write-fn write-fn
-                        :textual? true))]
+                        :textual? true
+                        :test-info {:type :code}))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

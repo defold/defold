@@ -1826,6 +1826,9 @@ def detect(conf):
     conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
+    conf.env['STLIB_PLATFORM']      = ['platform']
+    conf.env['STLIB_PLATFORM_NULL'] = ['platform_null']
+
     conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-macos','arm64-macos'):

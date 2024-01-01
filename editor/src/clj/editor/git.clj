@@ -776,5 +776,6 @@
      :old old
      :old-path old-path}))
 
-(defn init [^String path]
+(defn init
+  ^Git [^String path]
   (-> (Git/init) (.setDirectory (File. path)) (.call)))

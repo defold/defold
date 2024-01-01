@@ -137,6 +137,8 @@ struct EngineCtx
 
     uint64_t m_TimeStart;
 
+    dmPlatform::HWindow                     m_Window;
+
     dmGraphics::HContext                    m_GraphicsContext;
     dmGraphics::HRenderTarget               m_Rendertarget;
     dmGraphics::HProgram                    m_ShaderProgram;
@@ -151,39 +153,25 @@ struct EngineCtx
 
 static void* EngineCreate(int argc, char** argv)
 {
-    if (!dmGraphics::Initialize())
-    {
-        return 0;
-    }
+    EngineCtx* engine = &g_EngineCtx;
 
-    dmGraphics::ContextParams graphics_context_params;
+    engine->m_Window = dmPlatform::NewWindow();
+
+    dmPlatform::WindowParams window_params = {};
+    window_params.m_Width       = 512;
+    window_params.m_Height      = 512;
+    window_params.m_Title       = "Vulkan Test App";
+    window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+
+    dmPlatform::OpenWindow(engine->m_Window, window_params);
+
+    dmGraphics::ContextParams graphics_context_params = {};
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-    graphics_context_params.m_VerifyGraphicsCalls = 1;
-    graphics_context_params.m_RenderDocSupport = 0;
-    graphics_context_params.m_UseValidationLayers = 1;
+    graphics_context_params.m_VerifyGraphicsCalls     = 1;
+    graphics_context_params.m_UseValidationLayers     = 1;
 
-    EngineCtx* engine = &g_EngineCtx;
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
-
-    dmGraphics::WindowParams window_params;
-    window_params.m_ResizeCallback = 0;
-    window_params.m_ResizeCallbackUserData = 0;
-    window_params.m_CloseCallback = 0;
-    window_params.m_CloseCallbackUserData = 0;
-    window_params.m_FocusCallback = 0;
-    window_params.m_FocusCallbackUserData = 0;
-    window_params.m_IconifyCallback = 0;
-    window_params.m_IconifyCallbackUserData = 0;
-    window_params.m_Width = 512;
-    window_params.m_Height = 512;
-    window_params.m_Samples = 0;
-    window_params.m_Title = "TestTitle!";
-    window_params.m_Fullscreen = 0;
-    window_params.m_PrintDeviceInfo = false;
-    window_params.m_HighDPI = 0;
-
-    (void)dmGraphics::OpenWindow(engine->m_GraphicsContext, &window_params);
 
     //////////// VERTEX BUFFER ////////////
     const float vertex_data_no_index[] = {

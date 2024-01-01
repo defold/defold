@@ -77,6 +77,12 @@
 #define DMGRAPHICS_TYPE_HALF_FLOAT                          (0x140B)
 #endif
 
+#ifdef GL_HALF_FLOAT_OES
+#define DMGRAPHICS_TYPE_HALF_FLOAT_OES                      (GL_HALF_FLOAT_OES)
+#else
+#define DMGRAPHICS_TYPE_HALF_FLOAT_OES                      (0x8D61)
+#endif
+
 // Texture arrays
 #ifdef GL_SAMPLER_2D_ARRAY
 #define DMGRAPHICS_SAMPLER_2D_ARRAY 						(GL_SAMPLER_2D_ARRAY)

@@ -940,7 +940,7 @@
                   (let [mod-properties (into {} (map #(do [(:key %) (dissoc % :key)])
                                                      (:properties modifier)))]
                     (concat
-                      (g/set-property mod-node :use-direction (= 1 (:use-direction mod-properties)))
+                      (g/set-property mod-node :use-direction (= 1 (:use-direction modifier)))
                       (g/set-property mod-node :magnitude (if-let [prop (:modifier-key-magnitude mod-properties)]
                                                             (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)) (:spread prop))
                                                             props/default-curve-spread))

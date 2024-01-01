@@ -490,6 +490,7 @@
     [(g/map->error
       {:_node-id nil ;; The editor cannot currently reference files in the /build folder
        :message (str "For the full log, see " log-path)
+       :file-path log-path
        :severity :warning})]))
 
 (defn- multiple-compile-exception-error-causes [project evaluation-context ^MultipleCompileException exception]

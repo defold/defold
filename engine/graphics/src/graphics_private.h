@@ -118,12 +118,6 @@ namespace dmGraphics
 
     // Test only functions:
     uint64_t GetDrawCount();
-
-    // Both experimental + tests only:
-    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
-    bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
-    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
-    bool  UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

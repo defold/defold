@@ -86,6 +86,7 @@ def transform_collisionobject(task, msg):
     import physics_ddf_pb2
     import google.protobuf.text_format
     import ddf.ddf_math_pb2
+    import dlib
     if msg.type != physics_ddf_pb2.COLLISION_OBJECT_TYPE_DYNAMIC:
         msg.mass = 0
 
@@ -108,6 +109,9 @@ def transform_collisionobject(task, msg):
                 msg.embedded_collision_shape.data.append(x)
 
         msg.collision_shape = ''
+
+    for x in msg.embedded_collision_shape.shapes:
+        x.id_hash = dlib.dmHashBuffer64(x.id)
 
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilemapc')
@@ -332,8 +336,18 @@ def transform_render(task, msg):
     return msg
 
 def transform_sprite(task, msg):
-    msg.tile_set = transform_tilesource_name(msg.tile_set)
+    import sprite_ddf_pb2
+
     msg.material = msg.material.replace('.material', '.materialc')
+    if msg.tile_set:
+        st = sprite_ddf_pb2.SpriteTexture()
+        st.sampler = ""
+        st.texture = msg.tile_set
+        msg.textures.append(st)
+        msg.tile_set = ""
+
+    for st in msg.textures:
+        st.texture = transform_tilesource_name(st.texture)
     return msg
 
 def transform_tilegrid(task, msg):

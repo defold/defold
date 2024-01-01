@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,6 +36,7 @@ using namespace dmVMath;
 class dmRenderTest : public jc_test_base_class
 {
 protected:
+    dmPlatform::HWindow m_Window;
     dmRender::HRenderContext m_Context;
     dmGraphics::HContext m_GraphicsContext;
     dmScript::HContext m_ScriptContext;
@@ -43,8 +44,19 @@ protected:
 
     virtual void SetUp()
     {
-        dmGraphics::Initialize();
-        m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
+        dmGraphics::InstallAdapter();
+
+        dmPlatform::WindowParams win_params = {};
+        win_params.m_Width = 20;
+        win_params.m_Height = 10;
+
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, win_params);
+
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_Window = m_Window;
+
+        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         dmRender::RenderContextParams params;
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         params.m_MaxRenderTargets = 1;
@@ -82,6 +94,9 @@ protected:
         dmRender::DeleteFontMap(m_SystemFontMap);
         dmGraphics::DeleteContext(m_GraphicsContext);
         dmScript::DeleteContext(m_ScriptContext);
+
+        dmPlatform::CloseWindow(m_Window);
+        dmPlatform::DeleteWindow(m_Window);
     }
 };
 
@@ -1194,7 +1209,7 @@ TEST(Constants, NamedConstantsArray)
     result = dmRender::GetNamedConstant(buffer, name_hash_array, &values, &num_values);
     ASSERT_TRUE(result);
     ASSERT_EQ(num_values, 7);
-    
+
     // All intermediate vectors should be 0 i.e values of index [1...6]
     dmVMath::Vector4 test_zero_vec(0,0,0,0);
     for (int i = 1; i < num_values-1; ++i)
