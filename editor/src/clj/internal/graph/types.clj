@@ -18,6 +18,7 @@
            [java.io Writer]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defrecord Arc [source-id source-label target-id target-label])
 
@@ -31,11 +32,11 @@
 (definline node-id-hash [node-id]
   `(Murmur3/hashLong ~node-id))
 
-(deftype Endpoint [^Long node-id ^Keyword label]
+(deftype Endpoint [^long node-id ^Keyword label]
   Comparable
   (compareTo [_ that]
     (let [^Endpoint that that
-          node-id-comparison (.compareTo node-id (.-node-id that))]
+          node-id-comparison (Long/compare node-id (.-node-id that))]
       (if (zero? node-id-comparison)
         (.compareTo label (.-label that))
         node-id-comparison)))
@@ -54,10 +55,8 @@
   (equals [this that]
     (or (identical? this that)
         (and (instance? Endpoint that)
-             (let [^Endpoint that that]
-               (and
-                 (.equals (.-node-id that) node-id)
-                 (.equals (.-label that) label)))))))
+             (= node-id (.-node-id ^Endpoint that))
+             (identical? label (.-label ^Endpoint that))))))
 
 (defmethod print-method Endpoint [^Endpoint ep ^Writer writer]
   (.write writer "#g/endpoint [")
