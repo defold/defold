@@ -106,11 +106,13 @@ public final class WeakInterner<T> {
                 entryInfo = Map.of("status", "removed", "hash-value", entry.hashValue, "attempt", 0, "elapsed", 0);
             } else {
                 final int hashValue = entry.hashValue;
+                final int idealSlotIndex = getAbsoluteModulus(hashValue, capacity);
+                final int slotConflictOffset = getSlotConflictOffset(hashValue, capacity);
                 int attempt = 0;
                 final long startTime = System.nanoTime();
 
                 while (attempt < capacity) {
-                    final int index = getSlotIndex(hashValue, attempt, capacity);
+                    final int index = getAbsoluteModulus(idealSlotIndex + slotConflictOffset * attempt, capacity);
 
                     if (hashTable[index] == entry) {
                         break;
@@ -132,6 +134,7 @@ public final class WeakInterner<T> {
         return Map.of(
                 "count", count,
                 "growth-threshold", growthThreshold,
+                "growth-sequence", Arrays.stream(PRIME_CAPACITY_SEQUENCE).boxed().toList(),
                 "hash-table", Collections.unmodifiableList(hashTableInfos)
         );
     }
@@ -192,10 +195,12 @@ public final class WeakInterner<T> {
         // we need to get a fresh reference to it.
         final Entry<T>[] hashTable = getHashTable();
         final int capacity = hashTable.length;
+        final int idealSlotIndex = getAbsoluteModulus(hashValue, capacity);
+        final int slotConflictOffset = getSlotConflictOffset(hashValue, capacity);
         assert count < capacity;
 
         for (int attempt = 0; attempt < capacity; ++attempt) {
-            final int index = getSlotIndex(hashValue, attempt, capacity);
+            final int index = getAbsoluteModulus(idealSlotIndex + slotConflictOffset * attempt, capacity);
             final Entry<T> existingEntry = hashTable[index];
 
             if (existingEntry == null || existingEntry == removedSentinelEntry || existingEntry.refersTo(null)) {
@@ -214,8 +219,15 @@ public final class WeakInterner<T> {
     private static <T> T findExistingValue(final Entry<T>[] hashTable, final T value, final int hashValue) {
         final int capacity = hashTable.length;
 
+        if (capacity == 0) {
+            return null;
+        }
+
+        final int idealSlotIndex = getAbsoluteModulus(hashValue, capacity);
+        final int slotConflictOffset = getSlotConflictOffset(hashValue, capacity);
+
         for (int attempt = 0; attempt < capacity; ++attempt) {
-            final int index = getSlotIndex(hashValue, attempt, capacity);
+            final int index = getAbsoluteModulus(idealSlotIndex + slotConflictOffset * attempt, capacity);
             final Entry<T> existingEntry = hashTable[index];
 
             if (existingEntry == null) {
@@ -272,11 +284,18 @@ public final class WeakInterner<T> {
     }
 
     private synchronized void removeEntry(final Entry<T> removedEntry) {
-        final int hashValue = removedEntry.hashValue;
         final int capacity = hashTable.length;
 
+        if (capacity == 0) {
+            return;
+        }
+
+        final int hashValue = removedEntry.hashValue;
+        final int idealSlotIndex = getAbsoluteModulus(hashValue, capacity);
+        final int slotConflictOffset = getSlotConflictOffset(hashValue, capacity);
+
         for (int attempt = 0; attempt < capacity; ++attempt) {
-            final int index = getSlotIndex(hashValue, attempt, capacity);
+            final int index = getAbsoluteModulus(idealSlotIndex + slotConflictOffset * attempt, capacity);
             final Entry<T> entry = hashTable[index];
 
             if (entry == removedEntry) {
@@ -337,10 +356,12 @@ public final class WeakInterner<T> {
             // Only count and transfer valid entries.
             if (entry != null && !entry.refersTo(null)) {
                 final int hashValue = entry.hashValue;
+                final int idealSlotIndex = getAbsoluteModulus(hashValue, destinationCapacity);
+                final int slotConflictOffset = getSlotConflictOffset(hashValue, destinationCapacity);
                 assert validEntryCount < destinationCapacity;
 
                 for (int attempt = 0; attempt < destinationCapacity; ++attempt) {
-                    int destinationIndex = getSlotIndex(hashValue, attempt, destinationCapacity);
+                    final int destinationIndex = getAbsoluteModulus(idealSlotIndex + slotConflictOffset * attempt, destinationCapacity);
 
                     if (destinationHashTable[destinationIndex] == null) {
                         destinationHashTable[destinationIndex] = entry;
@@ -354,9 +375,13 @@ public final class WeakInterner<T> {
         return validEntryCount;
     }
 
-    private static int getSlotIndex(final int hashValue, final int attempt, final int capacity) {
-        final int modulus = (hashValue + attempt) % capacity;
-        return modulus < 0 ? modulus + capacity : modulus;
+    private static int getSlotConflictOffset(final int hashValue, final int capacity) {
+        return 1 + getAbsoluteModulus(hashValue, capacity - 1);
+    }
+
+    private static int getAbsoluteModulus(final int num, final int div) {
+        final int modulus = num % div;
+        return modulus < 0 ? modulus + div : modulus;
     }
 
     private static int getNextPrime(int num) {

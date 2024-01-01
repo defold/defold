@@ -641,6 +641,11 @@
         capacity (count hash-table)
         occupancy-factor (/ (double entry-count) (double capacity))
 
+        next-capacity
+        (util/first-where
+          #(< capacity %)
+          (:growth-sequence info))
+
         attempt-frequencies
         (->> hash-table
              (keep :attempt)
@@ -665,6 +670,7 @@
 
     {:count entry-count
      :capacity capacity
+     :next-capacity next-capacity
      :growth-threshold (:growth-threshold info)
      :occupancy-factor (math/round-with-precision occupancy-factor math/precision-general)
      :median-elapsed-nanoseconds median-elapsed-nanoseconds
