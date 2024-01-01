@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph.types
-  (:import [clojure.lang IHashEq Keyword]
+  (:import [clojure.lang IHashEq Keyword Murmur3 Util]
            [com.defold.util WeakInterner]
            [java.io Writer]))
 
@@ -28,6 +28,9 @@
 (defn target-label [^Arc arc] (.target-label arc))
 (defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
 
+(definline node-id-hash [node-id]
+  `(Murmur3/hashLong ~node-id))
+
 (deftype Endpoint [^Long node-id ^Keyword label]
   Comparable
   (compareTo [_ that]
@@ -38,15 +41,15 @@
         node-id-comparison)))
   IHashEq
   (hasheq [_]
-    (unchecked-add-int
-      (unchecked-multiply-int 31 (.hashCode node-id))
+    (Util/hashCombine
+      (node-id-hash node-id)
       (.hasheq label)))
   Object
   (toString [_]
     (str "#g/endpoint [" node-id " " label "]"))
   (hashCode [_]
-    (unchecked-add-int
-      (unchecked-multiply-int 31 (.hashCode node-id))
+    (Util/hashCombine
+      (node-id-hash node-id)
       (.hasheq label)))
   (equals [this that]
     (or (identical? this that)
