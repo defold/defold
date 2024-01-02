@@ -14,6 +14,10 @@
 
 #include <string.h>
 #include <assert.h>
+
+#include <d3d12.h>
+#include <dxgi1_6.h>
+
 #include <dmsdk/dlib/vmath.h>
 
 #include <dlib/array.h>
@@ -23,27 +27,38 @@
 
 #include <platform/platform_window.h>
 
+#include <graphics/glfw/glfw_native.h>
+
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
 
 #include "graphics_dx12_private.h"
 
+
 namespace dmGraphics
 {
     static GraphicsAdapterFunctionTable DX12RegisterFunctionTable();
     static bool                         DX12IsSupported();
-    static bool 						DX12Initialize(HContext _context);
+    static bool                         DX12Initialize(HContext _context);
     static const int8_t    g_dx12_adapter_priority = 0;
     static GraphicsAdapter g_dx12_adapter(ADAPTER_FAMILY_DIRECTX);
     static DX12Context*    g_DX12Context = 0x0;
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterDX12, &g_dx12_adapter, DX12IsSupported, DX12RegisterFunctionTable, g_dx12_adapter_priority);
 
+    #define CHECK_HR_ERROR(result) \
+    { \
+        if(g_DX12Context->m_VerifyGraphicsCalls && result != S_OK) { \
+            dmLogError("DX Error (%s:%d) code: %d", __FILE__, __LINE__, HRESULT_CODE(result)); \
+            assert(0); \
+        } \
+    }
+
     DX12Context::DX12Context(const ContextParams& params)
     {
         memset(this, 0, sizeof(*this));
-        m_NumFramesInFlight       = DM_MAX_FRAMES_IN_FLIGHT;
+        m_NumFramesInFlight       = MAX_FRAMES_IN_FLIGHT;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
@@ -71,9 +86,56 @@ namespace dmGraphics
         return 0x0;
     }
 
+    static IDXGIAdapter1* CreateDeviceAdapter(IDXGIFactory4* dxgiFactory)
+    {
+        IDXGIAdapter1* adapter = 0;
+        int adapterIndex = 0;
+
+        // find first hardware gpu that supports d3d 12
+        while (dxgiFactory->EnumAdapters1(adapterIndex, &adapter) != DXGI_ERROR_NOT_FOUND)
+        {
+            DXGI_ADAPTER_DESC1 desc;
+            adapter->GetDesc1(&desc);
+
+            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+            {
+                adapterIndex++;
+                continue;
+            }
+
+            // we want a device that is compatible with direct3d 12 (feature level 11 or higher)
+            HRESULT hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr);
+            if (SUCCEEDED(hr))
+            {
+                break;
+            }
+
+            adapterIndex++;
+        }
+
+        return adapter;
+    }
+
+    static IDXGIFactory4* CreateDXGIFactory()
+    {
+        IDXGIFactory4* factory;
+        HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory));
+        if (FAILED(hr))
+        {
+            return 0;
+        }
+        return factory;
+    }
+
     static bool DX12IsSupported()
     {
-        return true;
+        IDXGIAdapter1* adapter = CreateDeviceAdapter(CreateDXGIFactory());
+        if (adapter)
+        {
+            adapter->Release();
+            return true;
+        }
+        return false;
     }
 
     static void DX12DeleteContext(HContext _context)
@@ -91,9 +153,43 @@ namespace dmGraphics
     {
         DX12Context* context = (DX12Context*) _context;
 
+        IDXGIFactory4* factory = CreateDXGIFactory();
+        IDXGIAdapter1* adapter = CreateDeviceAdapter(factory);
+
+        HRESULT hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&context->m_Device));
+        CHECK_HR_ERROR(hr);
+
+        D3D12_COMMAND_QUEUE_DESC cmd_queue_desc = {};
+        hr = context->m_Device->CreateCommandQueue(&cmd_queue_desc, IID_PPV_ARGS(&context->m_CommandQueue));
+        CHECK_HR_ERROR(hr);
+
+        // Create swapchain
+        DXGI_MODE_DESC back_buffer_desc = {};
+        back_buffer_desc.Width          = context->m_Width;
+        back_buffer_desc.Height         = context->m_Height;
+        back_buffer_desc.Format         = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+        DXGI_SAMPLE_DESC sample_desc = {};
+        sample_desc.Count            = 1;
+
+        DXGI_SWAP_CHAIN_DESC swap_chain_desc = {};
+        swap_chain_desc.BufferCount          = MAX_FRAMEBUFFERS;
+        swap_chain_desc.BufferDesc           = back_buffer_desc;
+        swap_chain_desc.BufferUsage          = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        swap_chain_desc.SwapEffect           = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+        swap_chain_desc.OutputWindow         = glfwGetWindowsHWND();
+        swap_chain_desc.SampleDesc           = sample_desc;
+        swap_chain_desc.Windowed             = true;
+
+        IDXGISwapChain* swap_chain_tmp = 0;
+        factory->CreateSwapChain(context->m_CommandQueue, &swap_chain_desc, &swap_chain_tmp);
+        context->m_SwapChain = static_cast<IDXGISwapChain3*>(swap_chain_tmp);
+
+        // frameIndex = swapChain->GetCurrentBackBufferIndex();
+
         if (context->m_PrintDeviceInfo)
         {
-            dmLogInfo("Device: null");
+            dmLogInfo("Device: DirectX 12");
         }
         return true;
     }
@@ -205,7 +301,7 @@ namespace dmGraphics
 
     static HIndexBuffer DX12NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-    	return 0;
+        return 0;
     }
 
     static void DX12DeleteIndexBuffer(HIndexBuffer buffer)
@@ -295,7 +391,7 @@ namespace dmGraphics
 
     static HProgram DX12NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-    	return 0;
+        return 0;
     }
 
     static void DX12DeleteProgram(HContext context, HProgram program)
@@ -337,7 +433,7 @@ namespace dmGraphics
 
     static ShaderDesc::Language DX12GetShaderProgramLanguage(HContext context)
     {
-    	return ShaderDesc::LANGUAGE_GLSL_SM140;
+        return ShaderDesc::LANGUAGE_GLSL_SM140;
     }
 
     static void DX12EnableProgram(HContext context, HProgram program)
@@ -350,7 +446,7 @@ namespace dmGraphics
 
     static bool DX12ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
-    	return true;
+        return true;
     }
 
     static uint32_t DX12GetAttributeCount(HProgram prog)
@@ -411,7 +507,7 @@ namespace dmGraphics
 
     static HRenderTarget DX12NewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-    	return 0;
+        return 0;
     }
 
     static void DX12DeleteRenderTarget(HRenderTarget render_target)
@@ -568,8 +664,8 @@ namespace dmGraphics
 
     static PipelineState DX12GetPipelineState(HContext context)
     {
-    	PipelineState s;
-    	return s;
+        PipelineState s = {};
+        return s;
     }
 
     static void DX12SetTextureAsync(HTexture texture, const TextureParams& params)

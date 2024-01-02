@@ -204,7 +204,7 @@ namespace dmPlatform
         return PLATFORM_RESULT_OK;
     }
 
-    PlatformResult OpenWindowVulkan(Window* wnd)
+    PlatformResult OpenWindowNoAPI(Window* wnd)
     {
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, wnd->m_CreateParams.m_Samples);
@@ -236,7 +236,8 @@ namespace dmPlatform
                 res = OpenWindowOpenGL(window);
                 break;
             case PLATFORM_GRAPHICS_API_VULKAN:
-                res = OpenWindowVulkan(window);
+            case PLATFORM_GRAPHICS_API_DIRECTX:
+                res = OpenWindowNoAPI(window);
                 break;
             default: assert(0);
         }

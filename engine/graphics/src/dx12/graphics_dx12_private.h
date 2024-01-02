@@ -23,7 +23,8 @@
 
 namespace dmGraphics
 {
-    const static uint8_t DM_MAX_FRAMES_IN_FLIGHT = 2;
+    const static uint8_t MAX_FRAMES_IN_FLIGHT = 2;
+    const static uint8_t MAX_FRAMEBUFFERS     = 3;
 
     struct DX12Texture
     {
@@ -41,9 +42,25 @@ namespace dmGraphics
         int dummy;
     };
 
+    struct DX12FrameResource
+    {
+        ID3D12Resource*         m_RenderTarget;
+        ID3D12CommandAllocator* m_CommandAllocator;
+        ID3D12Fence*            m_Fence;
+        uint64_t                m_FenceValue;
+    };
+
     struct DX12Context
     {
         DX12Context(const ContextParams& params);
+
+        ID3D12Device*              m_Device;
+        IDXGISwapChain3*           m_SwapChain;
+        ID3D12CommandQueue*        m_CommandQueue;
+        ID3D12DescriptorHeap*      m_RtvDescriptorHeap;
+        ID3D12GraphicsCommandList* m_CommandList;
+
+        DX12FrameResource          m_FrameResources[MAX_FRAMEBUFFERS];
 
         dmPlatform::HWindow                m_Window;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;

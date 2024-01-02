@@ -40,10 +40,11 @@ namespace dmPlatform
 
     enum PlatformGraphicsApi
     {
-        PLATFORM_GRAPHICS_API_NULL   = 0,
-        PLATFORM_GRAPHICS_API_OPENGL = 1,
-        PLATFORM_GRAPHICS_API_VULKAN = 2,
-        PLATFORM_GRAPHICS_API_VENDOR = 3,
+        PLATFORM_GRAPHICS_API_NULL    = 0,
+        PLATFORM_GRAPHICS_API_OPENGL  = 1,
+        PLATFORM_GRAPHICS_API_VULKAN  = 2,
+        PLATFORM_GRAPHICS_API_VENDOR  = 3,
+        PLATFORM_GRAPHICS_API_DIRECTX = 4,
     };
 
     enum DeviceState

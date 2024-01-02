@@ -102,6 +102,8 @@ namespace dmGraphics
             return ADAPTER_FAMILY_VULKAN;
         if (dmStrCaseCmp("vendor", adapter_name) == 0)
             return ADAPTER_FAMILY_VENDOR;
+        if (dmStrCaseCmp("dx12", adapter_name) == 0)
+            return ADAPTER_FAMILY_DIRECTX;
         assert(0 && "Adapter type not supported?");
         return ADAPTER_FAMILY_NONE;
     }

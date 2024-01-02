@@ -104,6 +104,8 @@ def configure(conf):
         # For Vulkan
         if waflib.Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['vulkan-1.lib'])
+        if waflib.Options.options.with_dx12:
+            conf.env.append_value('LINKFLAGS', ['D3D12.lib', 'DXGI.lib'])
     elif 'web' in operating_sys:
         pass
 
