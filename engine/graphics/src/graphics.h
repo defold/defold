@@ -81,11 +81,12 @@ namespace dmGraphics
 
     enum AdapterFamily
     {
-        ADAPTER_FAMILY_NONE   = -1,
-        ADAPTER_FAMILY_NULL   = 1,
-        ADAPTER_FAMILY_OPENGL = 2,
-        ADAPTER_FAMILY_VULKAN = 3,
-        ADAPTER_FAMILY_VENDOR = 4,
+        ADAPTER_FAMILY_NONE    = -1,
+        ADAPTER_FAMILY_NULL    = 1,
+        ADAPTER_FAMILY_OPENGL  = 2,
+        ADAPTER_FAMILY_VULKAN  = 3,
+        ADAPTER_FAMILY_DIRECTX = 4,
+        ADAPTER_FAMILY_VENDOR  = 5,
     };
 
     enum AssetType

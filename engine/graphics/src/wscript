@@ -102,6 +102,13 @@ def build(bld):
                         defines  = vulkan_defines + ['DM_EXPERIMENTAL_GRAPHICS_FEATURES'],
                         target   = 'graphics_vulkan_experimental')
 
+    if platform_supports_feature(bld.env.PLATFORM, 'dx12', {}):
+        obj = bld.stlib(features        = 'cxx',
+                        includes        = ['.', 'dx12'] + proto_cpp_includes,
+                        use             = 'DDF DLIB',
+                        source          = bld.path.ant_glob(['*.cpp', 'dx12/*.cpp']) + proto_cpp_source,
+                        target          = 'graphics_dx12')
+
     if bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5'):
         bld.recurse('ps4')
 
