@@ -67,19 +67,42 @@ namespace dmGameSystem
      * @variable
      */
 
+    static void PushImageParameters(lua_State* L, dmImage::Image image)
+    {
+        lua_pushliteral(L, "width");
+        lua_pushinteger(L, image.m_Width);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "height");
+        lua_pushinteger(L, image.m_Height);
+        lua_rawset(L, -3);
+
+        lua_pushliteral(L, "type");
+        switch (image.m_Type) {
+            case dmImage::TYPE_RGB:
+                lua_pushliteral(L, "rgb");
+                break;
+            case dmImage::TYPE_RGBA:
+                lua_pushliteral(L, "rgba");
+                break;
+            case dmImage::TYPE_LUMINANCE:
+                lua_pushliteral(L, "l");
+                break;
+            case dmImage::TYPE_LUMINANCE_ALPHA:
+                lua_pushliteral(L, "la");
+                break;
+            default:
+                assert(false);
+        }
+        lua_rawset(L, -3);
+    }
+
     /*# load image from buffer
     * Load image (PNG or JPEG) from buffer.
     *
     * @name image.load
     * @param buffer [type:string] image data buffer
-    * @param options [type:table] A table containing options about how to load the image. Supported entries:
-    *
-    * `premultiply_alpha`
-    * : [type:boolean] if true, premultiply the alpha channel
-    *
-    * `buffer`
-    * : [type:boolean] if true, the 'buffer' parameter of the returned table will be a buffer object (see [ref:buffer.create] for more info)
-    * that can be used for creating texture or atlas resources.
+    * @param [premult] [type:boolean] optional flag if alpha should be premultiplied. Defaults to `false`
     *
     * @return image [type:table|nil] object or `nil` if loading fails. The object is a table with the following fields:
     *
@@ -90,7 +113,7 @@ namespace dmGameSystem
     *     - `image.TYPE_RGBA`
     *     - `image.TYPE_LUMINANCE`
     *     - `image.TYPE_LUMINANCE_ALPHA`
-    * - [type:string|buffer] `buffer`: the raw image data or a buffer if the options table has the 'buffer' parameter set to true.
+    * - [type:string] `buffer`: the raw image data
     *
     * @examples
     *
@@ -103,24 +126,6 @@ namespace dmGameSystem
     *         local tx = gui.new_texture("image_node", img.width, img.height, img.type, img.buffer)
     *     end)
     * ```
-    *
-    * Load an image from an URL as a buffer and create a texture resource from it:
-    *
-    * ```lua
-    * local imgurl = "http://www.site.com/image.png"
-    * http.request(imgurl, "GET", function(self, id, response)
-    *         local img = image.load(response.response, { buffer = true })
-    *         local tparams = {
-    *             width  = img.width,
-    *             height = img.height,
-    *             type   = resource.TEXTURE_TYPE_2D,
-    *             format = resource.TEXTURE_FORMAT_RGBA }
-    *
-    *         local my_texture_id = resource.create_texture("/my_custom_texture.texturec", tparams, img.buffer)
-    *         -- Apply the texture to a model
-    *         go.set("/go1#model", "texture0", my_texture_id)
-    *     end)
-    * ```
     */
     int Image_Load(lua_State* L)
     {
@@ -130,29 +135,10 @@ namespace dmGameSystem
         const char* buffer = lua_tolstring(L, 1, &buffer_len);
 
         bool premult = false;
-        bool buffer_output = false;
 
         if (top >= 2)
         {
-            if (lua_istable(L, 2))
-            {
-                lua_pushvalue(L, 2);
-
-                lua_getfield(L, -1, "premultiply_alpha");
-                premult = lua_isnil(L, -1) ? false : lua_toboolean(L, -1);
-                lua_pop(L, 1);
-
-                lua_getfield(L, -1, "buffer");
-                buffer_output = lua_isnil(L, -1) ? false : lua_toboolean(L, -1);
-                lua_pop(L, 1);
-
-                lua_pop(L, 1);
-            }
-            else
-            {
-                // DEPRECATED
-                premult = lua_toboolean(L, 2);
-            }
+            premult = lua_toboolean(L, 2);
         }
 
         dmImage::Image image;
@@ -167,59 +153,108 @@ namespace dmGameSystem
 
             lua_newtable(L);
 
-            lua_pushliteral(L, "width");
-            lua_pushinteger(L, image.m_Width);
+            PushImageParameters(L, image);
+
+            lua_pushliteral(L, "buffer");
+            lua_pushlstring(L, (const char*) image.m_Buffer, bytes_per_pixel * image.m_Width * image.m_Height);
             lua_rawset(L, -3);
 
-            lua_pushliteral(L, "height");
-            lua_pushinteger(L, image.m_Height);
-            lua_rawset(L, -3);
+            dmImage::Free(&image);
+        }
+        else
+        {
+            dmLogWarning("failed to load image (%d)", r);
+            lua_pushnil(L);
+        }
 
-            lua_pushliteral(L, "type");
-            switch (image.m_Type) {
-                case dmImage::TYPE_RGB:
-                    lua_pushliteral(L, "rgb");
-                    break;
-                case dmImage::TYPE_RGBA:
-                    lua_pushliteral(L, "rgba");
-                    break;
-                case dmImage::TYPE_LUMINANCE:
-                    lua_pushliteral(L, "l");
-                    break;
-                case dmImage::TYPE_LUMINANCE_ALPHA:
-                    lua_pushliteral(L, "la");
-                    break;
-                default:
-                    assert(false);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    /*# load image from a string into a buffer object
+    * Load image (PNG or JPEG) from a string buffer.
+    *
+    * @name image.load_buffer
+    * @param buffer [type:string] image data buffer
+    * @param [premult] [type:boolean] optional flag if alpha should be premultiplied. Defaults to `false`
+    *
+    * @return image [type:table|nil] object or `nil` if loading fails. The object is a table with the following fields:
+    *
+    * - [type:number] `width`: image width
+    * - [type:number] `height`: image height
+    * - [type:constant] `type`: image type
+    *     - `image.TYPE_RGB`
+    *     - `image.TYPE_RGBA`
+    *     - `image.TYPE_LUMINANCE`
+    *     - `image.TYPE_LUMINANCE_ALPHA`
+    * - [type:buffer] `buffer`: the script buffer that holds the decompressed image data. See [ref:buffer.create] how to use the buffer.
+    *
+    * @examples
+    *
+    * Load an image from an URL as a buffer and create a texture resource from it:
+    *
+    * ```lua
+    * local imgurl = "http://www.site.com/image.png"
+    * http.request(imgurl, "GET", function(self, id, response)
+    *         local img = image.load_buffer(response.response)
+    *         local tparams = {
+    *             width  = img.width,
+    *             height = img.height,
+    *             type   = resource.TEXTURE_TYPE_2D,
+    *             format = resource.TEXTURE_FORMAT_RGBA }
+    *
+    *         local my_texture_id = resource.create_texture("/my_custom_texture.texturec", tparams, img.buffer)
+    *         -- Apply the texture to a model
+    *         go.set("/go1#model", "texture0", my_texture_id)
+    *     end)
+    * ```
+    */
+    static int Image_LoadBuffer(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        luaL_checktype(L, 1, LUA_TSTRING);
+        size_t buffer_len = 0;
+        const char* buffer = lua_tolstring(L, 1, &buffer_len);
+
+        bool premult = false;
+
+        if (top >= 2)
+        {
+            premult = lua_toboolean(L, 2);
+        }
+
+        dmImage::Image image;
+        dmImage::Result r = dmImage::Load(buffer, buffer_len, premult, &image);
+        if (r == dmImage::RESULT_OK) {
+
+            int bytes_per_pixel = dmImage::BytesPerPixel(image.m_Type);
+            if (bytes_per_pixel == 0) {
+                dmImage::Free(&image);
+                luaL_error(L, "unknown image type %d", image.m_Type);
             }
-            lua_rawset(L, -3);
+
+            lua_newtable(L);
+
+            PushImageParameters(L, image);
 
             uint32_t datasize = bytes_per_pixel * image.m_Width * image.m_Height;
 
             lua_pushliteral(L, "buffer");
 
-            if (buffer_output)
-            {
-                dmBuffer::StreamDeclaration streams_decl[] = {
-                    { dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }
-                };
+            dmBuffer::StreamDeclaration streams_decl[] = {
+                { dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }
+            };
 
-                dmBuffer::HBuffer buffer = 0;
-                dmBuffer::Create(datasize, streams_decl, 1, &buffer);
+            dmBuffer::HBuffer buffer = 0;
+            dmBuffer::Create(datasize, streams_decl, 1, &buffer);
 
-                uint8_t* data = 0;
-                uint32_t datasize = 0;
-                dmBuffer::GetBytes(buffer, (void**)&data, &datasize);
+            uint8_t* buffer_data     = 0;
+            uint32_t buffer_datasize = 0;
+            dmBuffer::GetBytes(buffer, (void**)&buffer_data, &buffer_datasize);
+            memcpy(buffer_data, image.m_Buffer, datasize);
 
-                memcpy(data, image.m_Buffer, datasize);
-
-                dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
-                dmScript::PushBuffer(L, luabuf);
-            }
-            else
-            {
-                lua_pushlstring(L, (const char*) image.m_Buffer, bytes_per_pixel * image.m_Width * image.m_Height);
-            }
+            dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
+            dmScript::PushBuffer(L, luabuf);
 
             lua_rawset(L, -3);
 
@@ -237,7 +272,8 @@ namespace dmGameSystem
 
     static const luaL_reg ScriptImage_methods[] =
     {
-        {"load", Image_Load},
+        {"load",        Image_Load},
+        {"load_buffer", Image_LoadBuffer},
         {0, 0}
     };
 

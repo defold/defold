@@ -35,7 +35,7 @@ local function load_and_verify_image(path, w, h)
     file:close()
 
     print("Loading", path)
-    local img = image.load(buf, { buffer = true })
+    local img = image.load_buffer(buf)
 
     verify_image(img, w, h)
 end
