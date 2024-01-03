@@ -182,9 +182,9 @@
 
 (defn dirty?
   ([resource-node-id]
-   (g/valid-node-value resource-node-id :dirty?))
+   (g/valid-node-value resource-node-id :dirty))
   ([resource-node-id evaluation-context]
-   (g/valid-node-value resource-node-id :dirty? evaluation-context)))
+   (g/valid-node-value resource-node-id :dirty evaluation-context)))
 
 (defn- make-ddf-dependencies-fn-raw [ddf-type]
   (let [get-fields (protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type))]

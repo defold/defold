@@ -27,12 +27,12 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [util.coll :as coll :refer [pair]]
+            [util.coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
   (:import [com.dynamo.bob.pipeline ShaderProgramBuilder]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
-           [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
+           [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Vector4d]))
@@ -549,7 +549,7 @@
                        (util/distinct-by :name)
                        (concat existing-samplers
                                samplers-created-from-textures))
-        attributes (mapv graphics/sanitize-attribute (:attributes material-desc))]
+        attributes (mapv graphics/sanitize-attribute-definition (:attributes material-desc))]
     (-> material-desc
         (dissoc :textures)
         (protobuf/assign-repeated :samplers samplers)

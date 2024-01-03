@@ -14,9 +14,10 @@
 
 (ns editor.graphics
   (:require [dynamo.graph :as g]
-            [editor.gl.vertex2 :as vtx]
             [editor.gl.shader :as shader]
+            [editor.gl.vertex2 :as vtx]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.types :as types]
             [editor.util :as util]
             [editor.validation :as validation]
@@ -24,8 +25,8 @@
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.jogamp.opengl GL2]
-           [com.google.protobuf ByteString]))
+  (:import [com.google.protobuf ByteString]
+           [com.jogamp.opengl GL2]))
 
 (set! *warn-on-reflection* true)
 
@@ -204,7 +205,13 @@
   (let [vtx-attributes (mapv attribute-info->vtx-attribute attribute-infos)]
     (vtx/make-vertex-description nil vtx-attributes)))
 
-(defn sanitize-attribute [{:keys [data-type normalize] :as attribute}]
+(defn sanitize-attribute-value-v [attribute-value]
+  (protobuf/sanitize-repeated attribute-value :v))
+
+(defn sanitize-attribute-value-field [attribute attribute-value-keyword]
+  (protobuf/sanitize attribute attribute-value-keyword sanitize-attribute-value-v))
+
+(defn sanitize-attribute-definition [{:keys [data-type normalize] :as attribute}]
   ;; Graphics$VertexAttribute in map format.
   (let [attribute-value-keyword (attribute-value-keyword data-type normalize)
         attribute-values (:v (get attribute attribute-value-keyword))]
@@ -216,6 +223,13 @@
     (-> attribute
         (dissoc :name-hash :double-values :long-values :binary-values)
         (assoc attribute-value-keyword {:v attribute-values}))))
+
+(defn sanitize-attribute-override [attribute]
+  ;; Graphics$VertexAttribute in map format.
+  (-> attribute
+      (dissoc :binary-values :coordinate-space :data-type :element-count :name-hash :normalize :semantic-type)
+      (sanitize-attribute-value-field :double-values)
+      (sanitize-attribute-value-field :long-values)))
 
 (def attribute-key->default-attribute-info
   (into {}

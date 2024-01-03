@@ -1128,11 +1128,20 @@
          (outline/gen-node-outline-keys (map (comp modifier-type-label :type)
                                              (:modifiers pb))))))
 
-(defn- add-default-properties-to-modifier [mod-pb]
-  (update mod-pb :properties #(or (not-empty %) (get-in mod-types [(:type mod-pb) :template :properties]))))
+(defn- sanitize-emitter [emitter]
+  ;; Particle$Emitter in map format.
+  (protobuf/sanitize-repeated emitter :attributes graphics/sanitize-attribute-override))
 
-(defn- add-default-properties-to-modifiers [pb]
-  (protobuf/sanitize-repeated pb :modifiers add-default-properties-to-modifier))
+(defn- sanitize-modifier [modifier]
+  ;; Particle$Modifier in map format.
+  ;; Add default properties.
+  (update modifier :properties #(or (not-empty %) (get-in mod-types [(:type modifier) :template :properties]))))
+
+(defn- sanitize-particle-fx [particle-fx]
+  ;; Particle$ParticleFX in map format.
+  (-> particle-fx
+      (protobuf/sanitize-repeated :emitters sanitize-emitter)
+      (protobuf/sanitize-repeated :modifiers sanitize-modifier)))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -1141,7 +1150,7 @@
     :node-type ParticleFXNode
     :ddf-type Particle$ParticleFX
     :load-fn load-particle-fx
-    :sanitize-fn add-default-properties-to-modifiers
+    :sanitize-fn sanitize-particle-fx
     :icon particle-fx-icon
     :tags #{:component :non-embeddable}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}

@@ -33,8 +33,7 @@
             [util.diff :as diff]
             [util.text-util :as text-util])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
-           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$GenericDescriptor Message]
-           [java.io StringReader]))
+           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$GenericDescriptor Message]))
 
 ;; Note: We use symbol or string representations of protobuf types and values
 ;; instead of the imported classes and enum values when declaring exclusions and
@@ -1351,15 +1350,15 @@
                 node-id (test-util/resource-node project resource)]
             (when (testing (format "File `%s` should not have unsaved changes prior to editing." proj-path)
                     (let [save-data (g/valid-node-value node-id :save-data)]
-                      (if (not (:dirty? save-data))
+                      (if (not (:dirty save-data))
                         true
                         (let [message (str "Unsaved changes detected before editing. This is likely due to an interdependency between resources. You might need to adjust the order resources are edited.\n"
                                            (save-data-diff-message save-data))]
-                          (is (not (:dirty? save-data)) message)))))
+                          (is (not (:dirty save-data)) message)))))
               (test-util/edit-resource-node! node-id)
               (testing (format "File `%s` should have unsaved changes after editing." proj-path)
                 (let [save-data (g/valid-node-value node-id :save-data)]
-                  (is (:dirty? save-data)
+                  (is (:dirty save-data)
                       "No unsaved changes detected after editing. Possibly, `test-util/edit-resource-node!` is not making a meaningful change to the file?"))))))
         (test-util/save-project! project)
         (clear-cached-save-data!)
@@ -1368,7 +1367,7 @@
             (testing (format "File `%s` should not have unsaved changes after saving." proj-path)
               (let [node-id (test-util/resource-node project resource)
                     save-data (g/valid-node-value node-id :save-data)]
-                (is (not (:dirty? save-data))
+                (is (not (:dirty save-data))
                     "Unsaved changes detected after saving.")
-                (when (:dirty? save-data)
+                (when (:dirty save-data)
                   (check-save-data-disk-equivalence! save-data))))))))))
