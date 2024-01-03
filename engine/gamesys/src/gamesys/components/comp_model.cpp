@@ -280,46 +280,56 @@ namespace dmGameSystem
         return GetMaterialResource(component, resource, index)->m_Material;
     }
 
-    TextureResource* GetTextureResource(const ModelComponent* component, uint32_t material_index, uint32_t texture_unit)
+    static TextureResource* GetTextureFromSamplerNameHash(const MaterialInfo* material_info, const MaterialResource* material, uint32_t material_texture_index, dmhash_t sampler_name_hash)
     {
-        assert(texture_unit < MAX_TEXTURE_COUNT);
-        TextureResource* texture;
+        // Material is the actual selected material (may be overridden at runtime)
 
-        // Overridden textures (from Lua code)
-        texture = component->m_Textures[texture_unit];
-        if (texture)
-            return texture;
-        // Overridden material (from Lua code)
-        MaterialResource* material = component->m_Material;
-        if (material)
-            texture = material->m_Textures[texture_unit];
-        if (texture)
-            return texture;
+        // If the model has textures, let's find the one associated with the sampler name
+        for (uint32_t i = 0; i < material_info->m_TexturesCount; ++i)
+        {
+            if (material_info->m_Textures[i].m_SamplerNameHash == sampler_name_hash)
+                return material_info->m_Textures[i].m_Texture;
+        }
 
-        MaterialInfo* material_info = &component->m_Resource->m_Materials[material_index];
-        // Overridden textures (from .model)
-        MaterialTextureInfo* texture_infos = material_info->m_Textures;
-        if (material_info->m_Textures && texture_unit < material_info->m_TexturesCount)
-            texture = material_info->m_Textures[texture_unit].m_Texture;
-        if (texture)
-            return texture;
-
-        // The textures which are set in the .material file
-        material = material_info->m_Material;
-        if (material)
-            texture = material->m_Textures[texture_unit];
-        if (texture)
-            return texture;
+        // If it is contains materials, use that
+        if (material_texture_index < material->m_NumTextures)
+            return material->m_Textures[material_texture_index];
 
         return 0;
     }
 
-    dmGraphics::HTexture GetMaterialTexture(const ModelComponent* component, uint32_t material_index, uint32_t texture_unit)
+    // A bit legacy, as we don't want to set textures based on index anymore, but sampler names.
+    static TextureResource* GetTextureResource(const ModelComponent* component, uint32_t material_index, uint32_t material_texture_index)
     {
-        TextureResource* texture = GetTextureResource(component, material_index, texture_unit);
-        return texture ? texture->m_Texture : 0;
+        MaterialResource* material = GetMaterialResource(component, component->m_Resource, material_index);
+        MaterialInfo* material_info = &component->m_Resource->m_Materials[material_index];
+
+        TextureResource* texture_res = component->m_Textures[material_texture_index]; // Check if it's overridden
+        if (!texture_res && material_texture_index < material_info->m_TexturesCount)
+        {
+            texture_res = material_info->m_Textures[material_texture_index].m_Texture; // Check if the model has a texture
+        }
+        if (!texture_res && material_texture_index < material->m_NumTextures)
+        {
+            texture_res = material->m_Textures[material_texture_index]; // Check if the material has a texture
+        }
+        return texture_res;
     }
 
+    static void FillTextures(dmRender::RenderObject* ro, const ModelComponent* component, uint32_t material_index)
+    {
+        MaterialResource* material = GetMaterialResource(component, component->m_Resource, material_index);
+        for(uint32_t i = 0; i < material->m_NumTextures; ++i)
+        {
+            TextureResource* texture_res = component->m_Textures[i];
+            if (!texture_res)
+            {
+                texture_res = GetTextureFromSamplerNameHash(&component->m_Resource->m_Materials[material_index], material, i, material->m_SamplerNames[i]);
+            }
+
+            ro->m_Textures[i] = texture_res ? texture_res->m_Texture : 0;
+        }
+    }
     static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
     {
         dmHashUpdateBuffer32(state, &material->m_Material, sizeof(material->m_Material));
@@ -513,7 +523,6 @@ namespace dmGameSystem
         }
         create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
 
-        dmRigDDF::MeshSet* mesh_set      = rig_resource->m_MeshSetRes->m_MeshSet;
         // Let's choose the first model for the animation
         create_params.m_ModelId          = 0; // Let's use all models
         create_params.m_DefaultAnimation = animation;
@@ -654,10 +663,7 @@ namespace dmGameSystem
             DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, buffers->m_VertexCount);
             DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, buffers->m_VertexCount * sizeof(dmRig::RigModelVertex));
 
-            for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
-            {
-                ro.m_Textures[i] = GetMaterialTexture(component, material_index, i);
-            }
+            FillTextures(&ro, component, material_index);
 
             if (component->m_RenderConstants) {
                 dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
@@ -768,10 +774,7 @@ namespace dmGameSystem
         ro.m_Material = GetMaterial(component, component->m_Resource, material_index);
         ro.m_WorldTransform = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
 
-        for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
-        {
-            ro.m_Textures[i] = GetMaterialTexture(component, material_index, i);
-        }
+        FillTextures(&ro, component, material_index);
 
         if (component->m_RenderConstants) {
             dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
