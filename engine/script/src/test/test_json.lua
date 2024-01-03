@@ -117,6 +117,10 @@ function test_json_decode()
     assert(#nested[2] == 1)
     assert(nested[2][1] == 30)
 
+    -- https://github.com/defold/defold/issues/8317 
+    local t = json.decode('{"key":null}')
+    assert(t[key] == nil)
+
     print("Expected parsing errors ->")
     test_syntax_error("[")
     test_syntax_error("]")
