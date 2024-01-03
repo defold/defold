@@ -4232,8 +4232,8 @@ namespace dmGui
         memset(out_n, 0, sizeof(InternalNode));
 
         // generate a name for the cloned node
-        char name[16];
-        sprintf(name, "node%d", g_ClonedNodeCount++);
+        char name[18];
+        dmSnPrintf(name, 18, "__node%d", g_ClonedNodeCount++);
 
         InternalNode* n = GetNode(scene, node);
         out_n->m_Node = n->m_Node;
