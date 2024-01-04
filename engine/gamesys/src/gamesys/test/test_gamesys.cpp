@@ -993,6 +993,8 @@ TEST_F(SpriteTest, FrameCount)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
+    WaitForTestsDone(100, 0);
+
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -1011,25 +1013,13 @@ TEST_F(ParticleFxTest, PlayAnim)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
-    lua_State* L = scriptlibcontext.m_LuaState;
-
     bool tests_done = false;
-    int max_iter = 100;
-    while (!tests_done && --max_iter > 0)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    WaitForTestsDone(100, &tests_done);
 
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-    if (max_iter <= 0)
+    if (!tests_done)
     {
         dmLogError("The playback didn't finish");
     }
-
     ASSERT_TRUE(tests_done);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -1096,8 +1086,6 @@ TEST_F(CursorTest, GuiFlipbookCursor)
 // Tests the animation done message/callback
 TEST_F(GuiTest, GuiFlipbookAnim)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_anim.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -1112,22 +1100,12 @@ TEST_F(GuiTest, GuiFlipbookAnim)
     m_UpdateContext.m_DT = 1.0f;
 
     bool tests_done = false;
-    int max_iter = 100;
-    while (!tests_done && --max_iter > 0)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    WaitForTestsDone(100, &tests_done);
 
-        // continue test?
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-    if (max_iter <= 0)
+    if (!tests_done)
     {
         dmLogError("The playback didn't finish");
     }
-    ASSERT_LT(0, max_iter);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
