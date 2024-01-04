@@ -34,6 +34,7 @@
 #include "scripts/script_window.h"
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
+#include "scripts/script_image.h"
 #include "components/comp_gui.h"
 
 #include <dmsdk/gamesys/script.h>
@@ -140,6 +141,7 @@ namespace dmGameSystem
         ScriptModelRegister(context);
         ScriptWindowRegister(context);
         ScriptCollectionProxyRegister(context);
+        ScriptImageRegister(context);
 
         assert(top == lua_gettop(L));
         return result;
