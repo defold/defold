@@ -257,13 +257,13 @@ waflib.Task.task_factory('computeshader', '${JAVA} -classpath ${CLASSPATH} com.d
                       before='c cxx',
                       shell=False)
 
-@extension('.compute')
+@extension('.cp')
 def fragmentprogram_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
     shader = self.create_task('computeshader')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.set_inputs(node)
-    obj_ext = '.computec'
+    obj_ext = '.cpc'
     out = node.change_ext(obj_ext)
     shader.set_outputs(out)
 
@@ -351,7 +351,7 @@ def transform_sprite(task, msg):
     return msg
 
 def transform_compute_program(task, msg):
-    msg.program = msg.program.replace('.compute', '.computec')
+    msg.program = msg.program.replace('.cp', '.cpc')
     return msg
 
 def transform_tilegrid(task, msg):

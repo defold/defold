@@ -352,9 +352,19 @@ struct ComputeTest : ITest
     void Initialize(EngineCtx* engine) override
     {
         dmGraphics::ShaderDesc::Shader compute_shader = {};
-        compute_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
-        compute_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::glsl_compute_program;
-        compute_shader.m_Source.m_Count = sizeof(graphics_assets::glsl_compute_program);
+
+        if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
+        {
+            compute_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
+            compute_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::glsl_compute_program;
+            compute_shader.m_Source.m_Count = sizeof(graphics_assets::glsl_compute_program);
+        }
+        else
+        {
+            compute_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
+            compute_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_compute_program;
+            compute_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_compute_program);
+        }
 
         dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_shader);
 

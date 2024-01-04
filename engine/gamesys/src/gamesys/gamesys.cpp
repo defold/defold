@@ -107,7 +107,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);
         REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);
         REGISTER_RESOURCE_TYPE("compute_programc", render_context, ResComputeProgramPreload, ResComputeProgramCreate, 0, ResComputeProgramDestroy, ResComputeProgramRecreate);
-        REGISTER_RESOURCE_TYPE("computec", graphics_context, ResComputeShaderPreload, ResComputeShaderCreate, 0, ResComputeShaderDestroy, ResComputeShaderRecreate);
+        REGISTER_RESOURCE_TYPE("cpc", graphics_context, ResComputeShaderPreload, ResComputeShaderCreate, 0, ResComputeShaderDestroy, ResComputeShaderRecreate);
         // guic: res_gui.cpp
         // gui_scriptc: res_gui_script.cpp
         REGISTER_RESOURCE_TYPE("glyph_bankc", 0, ResGlyphBankPreload, ResGlyphBankCreate, 0, ResGlyphBankDestroy, ResGlyphBankRecreate);

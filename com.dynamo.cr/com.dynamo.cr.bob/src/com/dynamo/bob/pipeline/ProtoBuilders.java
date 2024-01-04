@@ -420,7 +420,7 @@ public class ProtoBuilders {
         protected ComputeProgramDesc.Builder transform(Task<Void> task, IResource resource, ComputeProgramDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "compute program", messageBuilder.getProgram());
-            messageBuilder.setProgram(BuilderUtil.replaceExt(messageBuilder.getProgram(), ".compute", ".computec"));
+            messageBuilder.setProgram(BuilderUtil.replaceExt(messageBuilder.getProgram(), ".cp", ".cpc"));
             return messageBuilder;
         }
     }

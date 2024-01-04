@@ -3965,7 +3965,7 @@ TEST_F(ComponentTest, GetSetCollisionShape)
 TEST_F(ShaderTest, Compute)
 {
     dmGraphics::ShaderDesc* ddf;
-    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.computec", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.cpc", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
     ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, ddf->m_ShaderClass);
     ASSERT_NE(0, ddf->m_Shaders.m_Count);
 

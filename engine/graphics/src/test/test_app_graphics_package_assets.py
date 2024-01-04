@@ -63,7 +63,7 @@ if __name__ == '__main__':
 		"test_app_graphics_assets.h",
 		[to_glsl("glsl_vertex_program", "test_app_graphics.vs"),
 		 to_glsl("glsl_fragment_program", "test_app_graphics.fs"),
-		 to_glsl("glsl_compute_program", "test_app_graphics.compute"),
+		 to_glsl("glsl_compute_program", "test_app_graphics.cp"),
 		 to_spirv("spirv_vertex_program", "test_app_graphics.vs", "vert"),
 		 to_spirv("spirv_fragment_program", "test_app_graphics.fs", "frag"),
-		 to_spirv("spirv_compute_program", "test_app_graphics.compute", "compute")])
+		 to_spirv("spirv_compute_program", "test_app_graphics.cp", "compute")])
