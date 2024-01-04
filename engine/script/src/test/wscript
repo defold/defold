@@ -145,15 +145,6 @@ def build(bld):
                                        target = 'test_script_zlib',
                                        source = common_src + 'test_script_zlib.cpp test_zlib.lua'.split())
 
-    test_script_image = bld.program(features = flist,
-                                       includes = '..',
-                                       use = libs,
-                                       web_libs = web_libs,
-                                       exported_symbols = exported_symbols,
-                                       proto_gen_py = True,
-                                       target = 'test_script_image',
-                                       source = common_src + 'test_script_image.cpp test_image.lua'.split())
-
     test_script_user_type = bld.program(features = flist,
                                        includes = '..',
                                        use = libs,
