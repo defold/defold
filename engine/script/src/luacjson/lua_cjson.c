@@ -83,6 +83,7 @@
 #define DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT 1
 #define DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT 0
 #define DEFAULT_ENCODE_ESCAPE_FORWARD_SLASH 1
+#define DEFAULT_DECODE_NULL_AS_USERDATA 0
 
 #ifdef DISABLE_INVALID_NUMBERS
 #undef DEFAULT_DECODE_INVALID_NUMBERS
@@ -166,6 +167,7 @@ typedef struct {
     int decode_invalid_numbers;
     int decode_max_depth;
     int decode_array_with_array_mt;
+    int decode_null_as_userdata;
 } json_config_t;
 
 typedef struct {
@@ -459,7 +461,7 @@ static void json_create_config(lua_State *l)
 #endif // DEFOLD
 
 // DEFOLD
-static void json_initialize_config(json_config_t* cfg, int encode_keep_buffer)
+static void json_initialize_config(lua_State *l, json_config_t* cfg, int encode_keep_buffer)
 {
     int i;
 
@@ -475,6 +477,7 @@ static void json_initialize_config(json_config_t* cfg, int encode_keep_buffer)
     cfg->encode_empty_table_as_object = DEFAULT_ENCODE_EMPTY_TABLE_AS_OBJECT;
     cfg->decode_array_with_array_mt = DEFAULT_DECODE_ARRAY_WITH_ARRAY_MT;
     cfg->encode_escape_forward_slash = DEFAULT_ENCODE_ESCAPE_FORWARD_SLASH;
+    cfg->decode_null_as_userdata = DEFAULT_DECODE_NULL_AS_USERDATA;
 
     if (encode_keep_buffer > 0)
     {
@@ -525,6 +528,28 @@ static void json_initialize_config(json_config_t* cfg, int encode_keep_buffer)
     cfg->escape2char['f'] = '\f';
     cfg->escape2char['r'] = '\r';
     cfg->escape2char['u'] = 'u';          /* Unicode parsing required */
+
+    // read additional config values from options table
+    if (lua_istable(l, 2))
+    {
+        lua_pushvalue(l, 2); // push config table to top of stack
+
+        lua_getfield(l, -1, "decode_null_as_userdata");
+        if (!lua_isnil(l, -1))
+        {
+            cfg->decode_null_as_userdata = lua_toboolean(l, -1);
+        }
+        lua_pop(l, 1);
+
+        lua_getfield(l, -1, "encode_empty_table_as_object");
+        if (!lua_isnil(l, -1))
+        {
+            cfg->encode_empty_table_as_object = lua_toboolean(l, -1);
+        }
+        lua_pop(l, 1);
+
+        lua_pop(l, 1); // remove config table from top of stack
+    }
 }
 // END DEFOLD
 
@@ -936,9 +961,7 @@ int lua_cjson_encode(lua_State *l, char** json_str, size_t* json_length)
     strbuf_t local_encode_buf;
     strbuf_t *encode_buf;
 
-    luaL_argcheck(l, lua_gettop(l) == 1, 1, "expected 1 argument");
-
-    json_initialize_config(&cfg, DEFAULT_ENCODE_KEEP_BUFFER);
+    json_initialize_config(l, &cfg, DEFAULT_ENCODE_KEEP_BUFFER);
     if (!cfg.encode_keep_buffer) {
         /* Use private buffer */
         encode_buf = &local_encode_buf;
@@ -949,7 +972,9 @@ int lua_cjson_encode(lua_State *l, char** json_str, size_t* json_length)
         strbuf_reset(encode_buf);
     }
 
+    lua_pushvalue(l, 1); // make sure the table to encode is on the top of the stack
     json_append_data(l, &cfg, 0, encode_buf);
+    lua_pop(l, 1); // pop it again
 
     // DEFOLD: We store away the values
     int len;
@@ -1495,7 +1520,15 @@ static void json_process_value(lua_State *l, json_parse_t *json,
     case T_NULL:
         /* In Lua, setting "t[k] = nil" will delete k from the table.
          * Hence a NULL pointer lightuserdata object is used instead */
-        lua_pushlightuserdata(l, NULL);
+        // DEFOLD:
+        if (json->cfg->decode_null_as_userdata)
+        {
+            lua_pushlightuserdata(l, NULL);
+        }
+        else
+        {
+            lua_pushnil(l);
+        }
         break;;
     default:
         json_throw_parse_error(l, json, "value", token);
@@ -1556,11 +1589,11 @@ static int json_decode(lua_State *l)
 // a user data object.
 int lua_cjson_decode(lua_State *l, const char* json_string, size_t json_len)
 {
-	json_config_t cfg;
+    json_config_t cfg;
     json_parse_t json;
     json_token_t token;
 
-    json_initialize_config(&cfg, 0);
+    json_initialize_config(l, &cfg, 0);
     json.cfg = &cfg;
     json.data = json_string;
     json.data_end = json_string + json_len;

@@ -36,3 +36,11 @@ def build(bld):
                 includes = ['../../src', '../../proto'],
                 target = 'test_render_script')
 
+    bld.program(features = 'cxx cprogram test',
+                source = ['test_render_buffer.cpp'],
+                use = libs,
+                exported_symbols = exported_symbols,
+                web_libs = ['library_sys.js', 'library_script.js'],
+                includes = ['../../src', '../../proto'],
+                target = 'test_render_buffer')
+

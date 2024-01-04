@@ -17,6 +17,8 @@
 #include "hid.h"
 #include "hid_private.h"
 
+#include <platform/platform_window_constants.h>
+
 #include <string.h>
 
 #include <dlib/dstrings.h>
@@ -420,5 +422,93 @@ namespace dmHID
         {
             device->m_Packet.m_TouchCount = 0;
         }
+    }
+
+    int GetKeyValue(Key key)
+    {
+        if (key >= HID_SPECIAL_START)
+        {
+            static const int translation_table_special[] = {
+                dmPlatform::PLATFORM_KEY_ESC,
+                dmPlatform::PLATFORM_KEY_F1,
+                dmPlatform::PLATFORM_KEY_F2,
+                dmPlatform::PLATFORM_KEY_F3,
+                dmPlatform::PLATFORM_KEY_F4,
+                dmPlatform::PLATFORM_KEY_F5,
+                dmPlatform::PLATFORM_KEY_F6,
+                dmPlatform::PLATFORM_KEY_F7,
+                dmPlatform::PLATFORM_KEY_F8,
+                dmPlatform::PLATFORM_KEY_F9,
+                dmPlatform::PLATFORM_KEY_F10,
+                dmPlatform::PLATFORM_KEY_F11,
+                dmPlatform::PLATFORM_KEY_F12,
+                dmPlatform::PLATFORM_KEY_UP,
+                dmPlatform::PLATFORM_KEY_DOWN,
+                dmPlatform::PLATFORM_KEY_LEFT,
+                dmPlatform::PLATFORM_KEY_RIGHT,
+                dmPlatform::PLATFORM_KEY_LSHIFT,
+                dmPlatform::PLATFORM_KEY_RSHIFT,
+                dmPlatform::PLATFORM_KEY_LCTRL,
+                dmPlatform::PLATFORM_KEY_RCTRL,
+                dmPlatform::PLATFORM_KEY_LALT,
+                dmPlatform::PLATFORM_KEY_RALT,
+                dmPlatform::PLATFORM_KEY_TAB,
+                dmPlatform::PLATFORM_KEY_ENTER,
+                dmPlatform::PLATFORM_KEY_BACKSPACE,
+                dmPlatform::PLATFORM_KEY_INSERT,
+                dmPlatform::PLATFORM_KEY_DEL,
+                dmPlatform::PLATFORM_KEY_PAGEUP,
+                dmPlatform::PLATFORM_KEY_PAGEDOWN,
+                dmPlatform::PLATFORM_KEY_HOME,
+                dmPlatform::PLATFORM_KEY_END,
+                dmPlatform::PLATFORM_KEY_KP_0,
+                dmPlatform::PLATFORM_KEY_KP_1,
+                dmPlatform::PLATFORM_KEY_KP_2,
+                dmPlatform::PLATFORM_KEY_KP_3,
+                dmPlatform::PLATFORM_KEY_KP_4,
+                dmPlatform::PLATFORM_KEY_KP_5,
+                dmPlatform::PLATFORM_KEY_KP_6,
+                dmPlatform::PLATFORM_KEY_KP_7,
+                dmPlatform::PLATFORM_KEY_KP_8,
+                dmPlatform::PLATFORM_KEY_KP_9,
+                dmPlatform::PLATFORM_KEY_KP_DIVIDE,
+                dmPlatform::PLATFORM_KEY_KP_MULTIPLY,
+                dmPlatform::PLATFORM_KEY_KP_SUBTRACT,
+                dmPlatform::PLATFORM_KEY_KP_ADD,
+                dmPlatform::PLATFORM_KEY_KP_DECIMAL,
+                dmPlatform::PLATFORM_KEY_KP_EQUAL,
+                dmPlatform::PLATFORM_KEY_KP_ENTER,
+                dmPlatform::PLATFORM_KEY_KP_NUM_LOCK,
+                dmPlatform::PLATFORM_KEY_CAPS_LOCK,
+                dmPlatform::PLATFORM_KEY_SCROLL_LOCK,
+                dmPlatform::PLATFORM_KEY_PAUSE,
+                dmPlatform::PLATFORM_KEY_LSUPER,
+                dmPlatform::PLATFORM_KEY_RSUPER,
+                dmPlatform::PLATFORM_KEY_MENU,
+                dmPlatform::PLATFORM_KEY_BACK,
+            };
+
+            return translation_table_special[key - HID_SPECIAL_START];
+        }
+        return (int) key;
+    }
+
+    int GetMouseButtonValue(MouseButton button)
+    {
+        static int translation_table[] = {
+            dmPlatform::PLATFORM_MOUSE_BUTTON_LEFT,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_MIDDLE,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_RIGHT,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_1,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_2,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_3,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_4,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_5,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_6,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_7,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_8,
+        };
+        assert((int) button < DM_ARRAY_SIZE(translation_table));
+        return translation_table[(int) button];
     }
 }
