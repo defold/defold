@@ -601,6 +601,30 @@ void GamesysTest<T>::WaitForTestsDone(int update_count, bool* result)
     }
 }
 
+class ScriptImageTest : public GamesysTest<const char*>
+{
+protected:
+    virtual void SetUp()
+    {
+        GamesysTest::SetUp();
+
+        m_ScriptLibContext.m_Factory         = m_Factory;
+        m_ScriptLibContext.m_Register        = m_Register;
+        m_ScriptLibContext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+        m_ScriptLibContext.m_GraphicsContext = m_GraphicsContext;
+        dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
+
+        L = dmScript::GetLuaState(m_ScriptContext);
+    }
+    virtual void TearDown()
+    {
+        dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
+        GamesysTest::TearDown();
+    }
+
+    lua_State* L;
+    dmGameSystem::ScriptLibContext m_ScriptLibContext;
+};
 
 // Specific test class for testing dmBuffers in scripts
 class ScriptBufferTest : public jc_test_base_class
