@@ -1036,6 +1036,61 @@ TEST_F(dmGuiScriptTest, TestVisibilityApi)
     dmGui::DeleteScript(script);
 }
 
+TEST_F(dmGuiScriptTest, TestRecreateDynamicTexture)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    // Test
+    // ----
+    // * create a texture with id 'tex'
+    // * delete the texture
+    // * within the same frame, recreate the texture with the same id but with different params
+    // * the texture should have the correct data (test in C world)
+    const char* src =
+            "function update(self)\n"
+            "   local w = 4\n"
+            "   local h = 4\n"
+            "   local tex_id = 'tex'\n"
+            "   local orange_pixel = string.char(0xff) .. string.char(0x80) .. string.char(0x10)\n"
+            "   local res = gui.new_texture(tex_id, w, h, 'rgb', string.rep(orange_pixel, w * h))\n"
+            "   assert(res)\n"
+            "   gui.delete_texture(tex_id)\n"
+            "   w = 8\n"
+            "   h = 8\n"
+            "   res = gui.new_texture(tex_id, w, h, 'rgb', string.rep(orange_pixel, w * h))\n"
+            "   assert(res)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::UpdateScene(scene, 1.0f / 60);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    uint32_t width, height;
+    dmImage::Type type;
+    const void* buffer = 0;
+
+    result = dmGui::GetDynamicTextureData(scene, dmHashString64("tex"), &width, &height, &type, &buffer);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+    ASSERT_EQ(8, width);
+    ASSERT_EQ(8, height);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
 int main(int argc, char **argv)
 {
     TestMainPlatformInit();
