@@ -152,21 +152,19 @@
       (g/transact
         (workspace/set-disk-sha256 (resource/workspace resource) node-id disk-sha256)))))
 
-(defn- eager-load [self resource]
-  ;; Note: This may throw IOExceptions, which is desirable when eager-loading,
-  ;; since it will mark our node as defective.
-  (let [[lines disk-sha256] (resource/read-source-value+sha256-hex resource read-fn)
-        indent-type (guess-indent-type lines)
-        source-value (source-value-fn lines)]
-    (resource-node/set-source-value! self source-value)
+(defn- eager-load [self lines]
+  {:pre [(and (vector? lines)
+              (string? (first lines)))]}
+  (let [indent-type (guess-indent-type lines)]
     (set-unmodified-lines! self lines) ; Avoids a disk read in modified-lines property setter.
-    (cond-> (g/set-property self :modified-lines lines :modified-indent-type indent-type)
-            disk-sha256 (concat (workspace/set-disk-sha256 (resource/workspace resource) self disk-sha256)))))
+    (g/set-property self
+      :modified-lines lines
+      :modified-indent-type indent-type)))
 
-(defn- load-fn [additional-load-fn lazy-loaded connect-breakpoints project self resource]
+(defn- load-fn [additional-load-fn lazy-loaded connect-breakpoints project self resource lines]
   (concat
     (when-not lazy-loaded
-      (eager-load self resource))
+      (eager-load self lines))
     (when connect-breakpoints
       (g/connect self :breakpoints project :breakpoints))
     (when additional-load-fn
@@ -226,6 +224,7 @@
         args (-> args
                  (dissoc :additional-load-fn)
                  (assoc :load-fn load-fn
+                        :read-fn read-fn
                         :write-fn write-fn
                         :search-fn search-fn
                         :search-value-fn search-value-fn

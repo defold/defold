@@ -14,7 +14,7 @@
 
 (ns dynamo.graph
   "Main api for graph and node"
-  (:refer-clojure :exclude [deftype constantly])
+  (:refer-clojure :exclude [constantly deftype])
   (:require [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
             [internal.cache :as c]
@@ -26,7 +26,9 @@
             [internal.transaction :as it]
             [internal.util :as util]
             [potemkin.namespaces :as namespaces]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.coll :as coll]
+            [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
@@ -40,6 +42,8 @@
 (namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order])
 
 (namespaces/import-vars [internal.graph arc explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse])
+
+(namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters])
 
 (let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
@@ -102,6 +106,29 @@
 
 (defn node-override? [node]
   (some? (gt/original node)))
+
+(defn invalidate-counters
+  "The current state of the invalidate counters in the system."
+  []
+  (is/invalidate-counters @*the-system*))
+
+(defn endpoint-invalidated-pred
+  "Return a predicate function that takes an Endpoint and returns a boolean
+  signalling if it has been invalidated since the supplied
+  snapshot-invalidate-counters based on the system-invalidate-counters. If
+  snapshot-invalidate-counters is nil, returns fn/constantly-false. If
+  system-invalidate-counters is not supplied, use the invalidate-counters
+  from the current system."
+  ([snapshot-invalidate-counters]
+   (endpoint-invalidated-pred snapshot-invalidate-counters (invalidate-counters)))
+  ([snapshot-invalidate-counters system-invalidate-counters]
+   {:pre [(or (nil? snapshot-invalidate-counters) (map? snapshot-invalidate-counters))
+          (map? system-invalidate-counters)]}
+   (if (or (nil? snapshot-invalidate-counters)
+           (identical? snapshot-invalidate-counters system-invalidate-counters))
+     fn/constantly-false
+     (fn endpoint-invalidated? [endpoint]
+       (endpoint-invalidated-since? endpoint snapshot-invalidate-counters system-invalidate-counters)))))
 
 (defn cache "The system cache of node values"
   []
@@ -968,15 +995,17 @@
   affected by them. Outputs are specified as a seq of Endpoints
   for both the argument and return value."
   ([outputs]
-   (swap! *the-system* is/invalidate-outputs outputs)
-   nil))
+   (when-not (coll/empty? outputs)
+     (swap! *the-system* is/invalidate-outputs outputs)
+     nil)))
 
 (defn cache-output-values!
   "Write the supplied key-value pairs to the cache. Downstream endpoints will be
   invalidated if the value differs from the previously cached entry."
   [endpoint+value-pairs]
-  (swap! *the-system* is/cache-output-values endpoint+value-pairs)
-  nil)
+  (when-not (coll/empty? endpoint+value-pairs)
+    (swap! *the-system* is/cache-output-values endpoint+value-pairs)
+    nil))
 
 (defn node-defaults
   "Returns a map of property labels to default values. Properties that do not
@@ -1209,7 +1238,7 @@
   ([root-ids opts]
    (copy (now) root-ids opts))
   ([basis root-ids {:keys [traverse? serializer external-refs external-labels]
-                    :or {traverse? (clojure.core/constantly false)
+                    :or {traverse? fn/constantly-false
                          serializer default-node-serializer}
                     :as opts}]
    (s/validate opts-schema opts)

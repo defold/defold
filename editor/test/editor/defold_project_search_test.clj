@@ -17,7 +17,6 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.defold-project :as project]
             [editor.defold-project-search :as project-search]
             [editor.resource :as resource]
             [integration.test-util :as test-util]

@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.reload-test
-  (:require [clojure.java.io :as io]
-            [clojure.set :as set]
+  (:require [clojure.set :as set]
             [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
@@ -814,7 +813,7 @@
             paths (map resource/proj-path all-files)]
         (bulk-change workspace
                      (touch-files workspace paths))
-        (let [internal-paths (map resource/proj-path (filter (fn [r] (not (:stateless? (resource/resource-type r)))) all-files))
+        (let [internal-paths (map resource/proj-path (filter resource/stateful? all-files))
               saved-paths (set (map (fn [s] (resource/proj-path (:resource s))) (g/node-value project :save-data)))
               missing (filter #(not (contains? saved-paths %)) internal-paths)]
           ;; If some editable resource is missing from the save data, it means

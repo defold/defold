@@ -27,6 +27,7 @@
   (output build-targets g/Any produce-build-targets))
 
 (defn load-node [project node-id resource]
+  ;; TODO(save-value): Verify that this is called for placeholder resources.
   (when (and (resource/file-resource? resource)
              (resource/editable? resource)
              (not (text-util/binary? resource)))
@@ -41,6 +42,7 @@
 (def search-value-fn r/search-value-fn)
 
 (defn register-resource-types [workspace]
+  ;; TODO(save-value): I think this should have :auto-connect-save-data false and an :additional-load-fn to do the binary check before connecting to :save-data?
   (r/register-code-resource-type workspace
     :ext resource/placeholder-resource-type-ext
     :label "Unknown"

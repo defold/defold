@@ -169,7 +169,7 @@
                     (is (= "/assets/spineboy.spinescene" (:spine-scene embedded-spine-model-data)))
                     (is (= "idle" (:default-animation embedded-spine-model-data)))
                     (is (= "" (:skin embedded-spine-model-data)))
-                    (is (= :blend-mode-alpha (:blend-mode embedded-spine-model-data)))
+                    (is (not (contains? embedded-spine-model-data :blend-mode)))
                     (is (= "/defold-spine/assets/spine.material" (:material embedded-spine-model-data)))))
 
                 (testing "Gui properties are retained post-update."
@@ -217,7 +217,7 @@
                              "  2 + atlas: \"/assets/spineboy/spineboy.atlas\""]
 
                             "/main/main.collection"
-                            ["16    -   \"material: \\\\\\\"/builtins/materials/spine.material\\\\\\\"\\\\n\""
-                             "   16 +   \"material: \\\\\\\"/defold-spine/assets/spine.material\\\\\\\"\\\\n\""]}
+                            ["15    -   \"material: \\\\\\\"/builtins/materials/spine.material\\\\\\\"\\\\n\""
+                             "   15 +   \"material: \\\\\\\"/defold-spine/assets/spine.material\\\\\\\"\\\\n\""]}
 
                            save-data-diffs-by-proj-path))))))))))))

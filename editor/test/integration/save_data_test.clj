@@ -413,7 +413,7 @@
 
    'dmGuiDDF.SceneDesc
    {:default
-    {"spine_scenes" :deprecated}} ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
+    {"spine_scenes" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    ['dmInputDDF.GamepadMapEntry "[GAMEPAD_TYPE_AXIS]"]
    {:default
@@ -609,6 +609,12 @@
         (is (= [2.0 2.0 2.0] (g/node-value referenced-collection :scale)))
         (is (= [2.0 2.0 2.0] (g/node-value embedded-go :scale)))
         (is (= [2.0 2.0 2.0] (g/node-value referenced-go :scale)))))
+
+    (testing "gui"
+      (let [legacy-spine-resources-gui (test-util/resource-node project "/silently_migrated/legacy_spine_resources.gui")]
+        (is (= [{:name "first_spinescene"
+                 :path "/checked.spinescene"}]
+               (g/node-value legacy-spine-resources-gui :resource-msgs)))))
 
     (testing "material"
       (let [legacy-textures-material (test-util/resource-node project "/silently_migrated/legacy_textures.material")]
@@ -1371,3 +1377,94 @@
                     "Unsaved changes detected after saving.")
                 (when (:dirty save-data)
                   (check-save-data-disk-equivalence! save-data))))))))))
+
+(defn- expected-cached-save-data-endpoints [basis node-id]
+  (let [resource (resource-node/resource basis node-id)
+        resource-type (resource/resource-type resource)
+        lazy-loaded (:lazy-loaded resource-type)]
+    (if lazy-loaded
+      (sorted-set)
+      (let [node-type (g/node-type* basis node-id)
+            output-cached? (g/cached-outputs node-type)]
+        (into (sorted-set)
+              (comp (filter output-cached?)
+                    (map #(g/endpoint node-id %)))
+              [:save-data :save-value])))))
+
+(deftest resource-save-data-retention-test
+  ;; This test is intended to verify that the system cache is populated with the
+  ;; save-related data for each editable resource after the project loads, but
+  ;; is evicted from the cache when the resource is edited.
+  (letfn [(check-resource-at-index [resource-index]
+            ;; We want to test each resource in isolation to avoid interference
+            ;; across resources. Otherwise, editing a referenced template GUI
+            ;; might evict cached entries for the referencing GUI, for example.
+            (test-util/with-loaded-project project-path
+              (let [checked-resources (checked-resources workspace)]
+                (assert (vector? checked-resources))
+                (when-some [resource (get checked-resources resource-index)]
+                  (let [proj-path (resource/proj-path resource)
+                        node-id (test-util/resource-node project resource)
+                        expected-cached-endpoints (expected-cached-save-data-endpoints (g/now) node-id)]
+
+                    (testing (format "File `%s` should have its save-related data in the cache before editing." proj-path)
+                      (is (= #{}
+                             (set/difference
+                               expected-cached-endpoints
+                               (test-util/cached-endpoints)))))
+
+                    (test-util/edit-resource-node! node-id)
+
+                    (testing (format "File `%s` should not have its save-related data in the cache after editing." proj-path)
+                      (is (= #{}
+                             (set/intersection
+                               expected-cached-endpoints
+                               (test-util/cached-endpoints)))))
+
+                    true)))))]
+
+    (loop [resource-index 0]
+      (when (check-resource-at-index resource-index)
+        (recur (inc resource-index))))))
+
+(deftest overall-save-data-retention-test
+  ;; This test works in conjunction with the resource-save-data-retention-test,
+  ;; and is intended to verify that save-related data is retained in memory in
+  ;; situations that are impractical to cover on an individual resource basis.
+  (test-util/with-scratch-project project-path
+    (let [expected-outputs-by-proj-path-missing-from-cache
+          (fn expected-outputs-by-proj-path-missing-from-cache []
+            (let [basis (g/now)
+                  cached-endpoints (test-util/cached-endpoints)]
+              (into (sorted-map)
+                    (map (fn [[node-id]]
+                           (let [resource (resource-node/resource basis node-id)
+                                 proj-path (resource/proj-path resource)
+                                 expected-endpoints (expected-cached-save-data-endpoints basis node-id)
+                                 missing-endpoints (set/difference expected-endpoints cached-endpoints)]
+                             (when (seq missing-endpoints)
+                               (pair proj-path
+                                     (into (sorted-set)
+                                           (map g/endpoint-label)
+                                           missing-endpoints))))))
+                    (g/sources-of basis project :save-data))))
+
+          checked-resources (checked-resources workspace)]
+
+      (testing "Save-related data is in cache after loading the project."
+        (is (= {} (expected-outputs-by-proj-path-missing-from-cache))))
+
+      ;; Perform edits to all checked resources.
+      (g/transact
+        (for [resource checked-resources
+              :let [node-id (test-util/resource-node project resource)]]
+          (test-util/edit-resource-node node-id)))
+
+      ;; Save the changes.
+      (test-util/save-project! project)
+
+      (testing "Save-related data is in cache after saving the project."
+        (is (= {} (expected-outputs-by-proj-path-missing-from-cache)))))))
+
+;; TODO(save-value): Add test to ensure :save-data is cached after a file is reloaded as a result of external changes.
+;; TODO(save-value): Add test to ensure :save-data is not cached if edits were made on the main thread while we were saving on a background thread.

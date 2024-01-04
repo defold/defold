@@ -36,7 +36,8 @@
     (future
       (try
         (let [search-data
-              (->> (into []
+              (->> (g/node-value project :nodes evaluation-context)
+                   (into []
                          (keep (fn [node-id]
                                  (let [resource (g/node-value node-id :resource evaluation-context)]
                                    (when (and (some? resource)
@@ -53,11 +54,11 @@
                                          (let [search-value (search-value-fn node-id resource evaluation-context)]
                                            (when-not (g/error? search-value)
                                              {:resource resource
-                                              :search-value search-value}))))))))
-                         (g/node-value project :nodes evaluation-context))
+                                              :search-value search-value})))))))))
                    (sort-by search-data-sort-key))]
           (ui/run-later
-            (project/update-system-cache-save-data! evaluation-context))
+            (project/update-system-cache-save-data! evaluation-context)
+            (project/log-cache-info! (g/cache) "Cached searched save values in system cache."))
           search-data)
         (catch Throwable error
           (report-error! error)

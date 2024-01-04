@@ -124,41 +124,59 @@
 (def ^:private save-job-atom (atom nil))
 (def ^:private save-data-status-map-entry (comp resource-watch/file-resource-status-map-entry :resource))
 
-(defn make-post-save-actions [written-save-datas written-disk-sha256s]
+(defn make-post-save-actions [written-save-datas written-disk-sha256s snapshot-invalidate-counters]
   {:pre [(vector? written-save-datas)
          (vector? written-disk-sha256s)
-         (= (count written-save-datas) (count written-disk-sha256s))]}
-  (zipmap
-    [:written-file-resource-status-map-entries
-     :written-source-values-by-node-id
-     :written-disk-sha256s-by-node-id]
-    (util/into-multiple
-      [[] {} {}]
-      [(map save-data-status-map-entry)
-       (map (fn [{:keys [node-id resource save-value]}]
-              (let [resource-type (resource/resource-type resource)
-                    value (resource-node/save-value->source-value save-value resource-type)]
-                (pair node-id value))))
-       (map-indexed (fn [index {:keys [node-id]}]
-                      (let [disk-sha256 (written-disk-sha256s index)]
-                        (pair node-id disk-sha256))))]
-      written-save-datas)))
+         (= (count written-save-datas) (count written-disk-sha256s))
+         (or (nil? snapshot-invalidate-counters) (map? snapshot-invalidate-counters))]}
+  (into {:snapshot-invalidate-counters snapshot-invalidate-counters
+         :written-save-datas written-save-datas}
+        (zipmap
+          [:written-file-resource-status-map-entries
+           :written-source-values-by-node-id
+           :written-disk-sha256s-by-node-id]
+          (util/into-multiple
+            [[] {} {}]
+            [(map save-data-status-map-entry)
+             (map (fn [{:keys [node-id resource save-value]}]
+                    (let [resource-type (resource/resource-type resource)
+                          value (resource-node/save-value->source-value save-value resource-type)]
+                      (pair node-id value))))
+             (map-indexed (fn [index {:keys [node-id]}]
+                            (let [disk-sha256 (written-disk-sha256s index)]
+                              (pair node-id disk-sha256))))]
+            written-save-datas))))
 
 (defn process-post-save-actions! [workspace post-save-actions]
   (g/transact
     (concat
       (g/update-property workspace :resource-snapshot resource-watch/update-snapshot-status (:written-file-resource-status-map-entries post-save-actions))
       (workspace/merge-disk-sha256s workspace (:written-disk-sha256s-by-node-id post-save-actions))))
-  (resource-node/merge-source-values! (:written-source-values-by-node-id post-save-actions)))
+  (let [endpoint-invalidated-since-snapshot? (g/endpoint-invalidated-pred (:snapshot-invalidate-counters post-save-actions))]
+    (resource-node/merge-source-values! (:written-source-values-by-node-id post-save-actions))
+    (g/cache-output-values!
+      (g/with-auto-evaluation-context evaluation-context
+        (into []
+              (keep (fn [{:keys [node-id] :as save-data}]
+                      ;; It's possible the user might have edited a resource
+                      ;; while we were saving on a background thread. We need to
+                      ;; make sure we don't add a stale save-data entry to the
+                      ;; cache.
+                      (let [save-data-endpoint (g/endpoint node-id :save-data)]
+                        (when-not (endpoint-invalidated-since-snapshot? save-data-endpoint)
+                          (pair save-data-endpoint
+                                (assoc save-data :dirty false))))))
+              (:written-save-datas post-save-actions))))
+    (project/log-cache-info! (g/cache) "Cached written save data in system cache.")))
 
 (defn- write-message-fn [save-data]
   (when-let [resource (:resource save-data)]
     (str "Writing " (resource/resource->proj-path resource))))
 
 (defn write-save-data-to-disk!
-  [save-datas {:keys [render-progress!]
-               :or {render-progress! progress/null-render-progress!}
-               :as _opts}]
+  [save-datas snapshot-invalidate-counters {:keys [render-progress!]
+                                            :or {render-progress! progress/null-render-progress!}
+                                            :as _opts}]
   "Write the supplied sequence of save-datas to disk. Returns post-save-actions
   that must later be supplied to the process-post-save-actions! function, called
   from the main thread."
@@ -179,7 +197,7 @@
 
                     ;; If the file is non-binary, convert line endings to the
                     ;; type used by the existing file.
-                    ;; TODO: Could we achieve this using a FilterOutputStream and avoid allocating new strings?
+                    ;; TODO(save-value-cleanup): Could we achieve this using a FilterOutputStream and avoid allocating new strings?
                     ^String written-content
                     (if (and (resource/textual? resource)
                              (resource/exists? resource)
@@ -196,7 +214,7 @@
             written-save-datas
             render-progress!
             write-message-fn)]
-      (make-post-save-actions written-save-datas written-disk-sha256s))))
+      (make-post-save-actions written-save-datas written-disk-sha256s snapshot-invalidate-counters))))
 
 (defn- start-save-job! [render-reload-progress! render-save-progress! project changes-view]
   (let [workspace (project/workspace project)
@@ -215,8 +233,9 @@
         (if-not (blocking-reload! render-reload-progress! workspace [] nil)
           (complete! false) ; Errors were already reported by blocking-reload!
           (let [evaluation-context (g/make-evaluation-context)
+                snapshot-invalidate-counters (g/evaluation-context-invalidate-counters evaluation-context)
                 save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)
-                post-save-actions (write-save-data-to-disk! save-data {:render-progress! render-save-progress!})]
+                post-save-actions (write-save-data-to-disk! save-data snapshot-invalidate-counters {:render-progress! render-save-progress!})]
             (if (and (some #(= "/.defignore" (resource/proj-path (:resource %))) save-data)
                      (not (blocking-reload! render-reload-progress! workspace [] nil)))
               (complete! false)

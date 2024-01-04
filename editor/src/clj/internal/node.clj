@@ -22,7 +22,8 @@
             [internal.graph.error-values :as ie]
             [plumbing.core :as pc]
             [schema.core :as s]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [schema.core Maybe ConditionalSchema]
            [java.lang.ref WeakReference]))
@@ -79,9 +80,6 @@
 (def ^:private unjammable?         (partial has-flag? :unjammable))
 (def ^:private explicit?           (partial has-flag? :explicit))
 
-(defn- filterm [pred m]
-  (into {} (filter pred) m))
-
 (defprotocol NodeType)
 
 (defn- node-type-deref? [x] (satisfies? NodeType x))
@@ -104,6 +102,16 @@
   NodeType
   Type)
 
+(defn- cached-outputs-impl-raw [node-type-deref]
+  {:pre [(node-type-deref? node-type-deref)]}
+  (into #{}
+        (keep (fn [[output-label output-info]]
+                (when (cached? output-info)
+                  output-label)))
+        (:output node-type-deref)))
+
+(def ^:private cached-outputs-impl (fn/memoize cached-outputs-impl-raw))
+
 ;;; accessors for node type information
 (defn type-name                [nt]        (some-> nt deref :name))
 (defn supertypes               [nt]        (some-> nt deref :supertypes))
@@ -117,7 +125,7 @@
 (defn property-behavior        [nt label]  (some-> nt deref (get-in [:property-behavior label])))
 (defn declared-property-labels [nt]        (some-> nt deref :declared-property))
 
-(defn cached-outputs           [nt]        (some-> nt deref :output (->> (filterm #(cached? (val %))) util/key-set)))
+(defn cached-outputs           [nt]        (some-> nt deref cached-outputs-impl))
 (defn substitute-for           [nt label]  (some-> nt deref (get-in [:input label :options :substitute])))
 (defn input-type               [nt label]  (some-> nt deref (get-in [:input label :value-type])))
 (defn input-cardinality        [nt label]  (if (has-flag? :array (get-in (deref nt) [:input label])) :many :one))

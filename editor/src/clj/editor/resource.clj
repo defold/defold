@@ -479,26 +479,41 @@
         matcher (.getPathMatcher file-system (str "glob:" query))]
     (filter (fn [r] (let [path (.getPath file-system (path r) (into-array String []))] (.matches matcher path))) resources)))
 
-(defn internal?
-  [resource]
+(defn internal? [resource]
   (string/starts-with? (resource->proj-path resource) "/_defold"))
 
 (defn textual-resource-type?
-  "Returns whether the resource type is marked as textual
+  "Returns whether the resource type is marked as textual.
 
   Resource type is a required argument. If a resource does not specify a
   resource type, you can use [[util.text-util/binary?]] to estimate if
-  the content of the resource is textual or not"
+  the content of the resource is textual or not."
   [resource-type]
   {:pre [(some? resource-type)]
    :post [(boolean? %)]}
   (:textual? resource-type))
 
 (defn textual? [resource]
-  "Returns whether the resource is considered textual based on its type."
-  ;; Placeholder resources have a nil resource-type, and are assumed textual.
+  "Returns whether the resource is considered textual based on its type.
+  Placeholder resources have a nil resource-type, but are assumed textual."
   (if-let [resource-type (resource-type resource)]
     (textual-resource-type? resource-type)
+    true))
+
+(defn stateful-resource-type?
+  "Returns whether the resource type is marked as stateful."
+  [resource-type]
+  {:pre [(some? resource-type)]
+   :post [(boolean? %)]}
+  (not (:stateless? resource-type)))
+
+(defn stateful?
+  "Returns whether the resource is stateful textual based on its type.
+  Placeholder resources have a nil resource-type, but are assumed stateful since
+  they can be edited as plain text using the code editor."
+  [resource]
+  (if-let [resource-type (resource-type resource)]
+    (stateful-resource-type? resource-type)
     true))
 
 (def ^:private known-ext->language

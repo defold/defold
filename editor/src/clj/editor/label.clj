@@ -389,7 +389,9 @@
     (pair sanitized-embedded-component-desc
           sanitized-label-desc)))
 
-(defn- replace-default-scale-with-label-legacy-scale [evaluation-context referenced-component-scale label-node-id]
+(def ^:private add-to-set (fnil conj #{}))
+
+(defn- replace-default-scale-with-label-legacy-scale [evaluation-context referenced-component-scale referenced-component-node-id label-node-id]
   ;; The scale used to be stored in the LabelDesc before we had scale on the
   ;; ComponentDesc. Here we transfer the scale value from the LabelDesc to the
   ;; ComponentDesc if the ComponentDesc does not already have a significant
@@ -397,7 +399,9 @@
   (if (= scene/default-scale referenced-component-scale)
     (let [label-legacy-scale (g/node-value label-node-id :legacy-scale evaluation-context)]
       (if (scene/significant-scale? label-legacy-scale)
-        label-legacy-scale
+        (let [tx-data-context (:tx-data-context evaluation-context)]
+          (swap! tx-data-context update :migrated-node-ids add-to-set referenced-component-node-id label-node-id)
+          label-legacy-scale)
         referenced-component-scale))
     referenced-component-scale))
 
@@ -425,7 +429,7 @@
   ;; `.label` resource but do not save it to the `.go` or `.collection` file
   ;; that hosts the ComponentDesc. This can happen if the user edits the
   ;; `.label` but not the `.go` or `.collection` file and saves the project.
-  (g/update-property-ec referenced-component-node-id :scale replace-default-scale-with-label-legacy-scale label-node-id))
+  (g/update-property-ec referenced-component-node-id :scale replace-default-scale-with-label-legacy-scale referenced-component-node-id label-node-id))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

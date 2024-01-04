@@ -22,6 +22,10 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(defonce constantly-false (constantly false))
+
+(defonce constantly-true (constantly true))
+
 (definline ^:private with-memoize-info [memoized-fn cache arity]
   `(with-meta ~memoized-fn
               {::memoize-original ~memoized-fn

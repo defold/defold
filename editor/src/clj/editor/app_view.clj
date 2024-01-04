@@ -1135,6 +1135,7 @@
                   (build-project! project evaluation-context extra-build-targets old-artifact-map render-progress!)))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
                 (project/update-system-cache-build-targets! evaluation-context)
+                (project/log-cache-info! (g/cache) "Cached compiled build targets in system cache.")
                 (cond
                   run-build-hooks (phase-4-run-post-build-hook! project-build-results)
                   (nil? (:error project-build-results)) (phase-5-await-engine-build! project-build-results)

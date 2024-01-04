@@ -22,7 +22,6 @@
             [editor.defold-project :as project]
             [editor.lua :as lua]
             [editor.resource :as resource]
-            [editor.workspace :as workspace]
             [editor.yaml :as yaml]))
 
 (set! *warn-on-reflection* true)
@@ -126,7 +125,7 @@
   (output build-errors g/Any produce-build-errors)
   (output completions si/ScriptCompletions produce-completions))
 
-(defn- load-script-api
+(defn- additional-load-fn
   [project self resource]
   (let [si (project/script-intelligence project)]
     (concat (g/connect self :completions si :lua-completions)
@@ -140,19 +139,14 @@
 
 (defn register-resource-types
   [workspace]
-  ;; TODO(save-value-cleanup): This seems like it should be able to use r/register-code-resource-type with an :additional-load-fn?
-  (workspace/register-resource-type workspace
+  (r/register-code-resource-type workspace
     :ext "script_api"
     :label "Script API"
     :icon "icons/32/Icons_29-AT-Unknown.png"
     :view-types [:code :default]
     :view-opts nil
     :node-type ScriptApiNode
-    :load-fn load-script-api
-    :write-fn r/write-fn
-    :search-fn r/search-fn
-    :search-value-fn r/search-value-fn
-    :source-value-fn r/source-value-fn
+    :additional-load-fn additional-load-fn
     :textual? true
-    :language "yaml"
-    :test-info {:type :code}))
+    :lazy-loaded true
+    :language "yaml"))

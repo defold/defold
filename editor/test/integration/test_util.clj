@@ -417,6 +417,12 @@
 (defn evict-cached-system-and-project! [path]
   (fn/evict-memoized! load-system-and-project path))
 
+(defn cached-endpoints
+  ([] (cached-endpoints (g/cache)))
+  ([cache]
+   (into (sorted-set)
+         (keys cache))))
+
 (defn- split-keyword-options [forms]
   (let [keyword-options (into {}
                               (comp (take-while (comp keyword? first))
@@ -1207,7 +1213,7 @@
 (defn save-project! [project]
   (let [workspace (project/workspace project)
         save-data (project/dirty-save-data project)
-        post-save-actions (disk/write-save-data-to-disk! save-data nil)]
+        post-save-actions (disk/write-save-data-to-disk! save-data nil nil)]
     (disk/process-post-save-actions! workspace post-save-actions)))
 
 (defn type-preserving-add [a b]

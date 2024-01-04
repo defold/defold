@@ -75,7 +75,7 @@
          (vector? reloaded-proj-paths)]}
   (let [stateful-resources
         (into #{}
-              (remove #(:stateless? (resource/resource-type %)))
+              (filter resource/stateful?)
               touched-resources)
 
         ;; We expect the outputs on all stateless resource nodes to be

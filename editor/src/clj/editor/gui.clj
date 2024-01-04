@@ -3171,11 +3171,22 @@
 (defn- sanitize-layout [layout]
   (protobuf/sanitize-repeated layout :nodes sanitize-node))
 
+(defn- spine-scene-desc->resource-desc [spine-scene-desc]
+  (-> spine-scene-desc
+      (dissoc :spine-scene)
+      (assoc :path (:spine-scene spine-scene-desc))))
+
 (defn- sanitize-scene [scene]
-  (-> scene
-      (protobuf/sanitize-repeated :nodes sanitize-node)
-      (protobuf/sanitize-repeated :layouts sanitize-layout)
-      (update :material #(or % default-material-proj-path))))
+  (let [spine-scene-descs (mapv spine-scene-desc->resource-desc
+                                (:spine-scenes scene))
+        merged-resource-descs (into spine-scene-descs
+                                    (:resources scene))]
+    (-> scene
+        (dissoc :spine-scenes)
+        (protobuf/sanitize-repeated :nodes sanitize-node)
+        (protobuf/sanitize-repeated :layouts sanitize-layout)
+        (protobuf/assign-repeated :resources merged-resource-descs)
+        (update :material #(or % default-material-proj-path)))))
 
 (defn- register [workspace def]
   (let [ext (:ext def)

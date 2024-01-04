@@ -20,7 +20,6 @@
             [editor.code.script-intelligence :as si]
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
-            [editor.error-reporting :as error-reporting]
             [editor.game-project-core :as gpc]
             [editor.gl :as gl]
             [editor.graph-util :as gu]
@@ -42,6 +41,7 @@
             [service.log :as log]
             [util.coll :refer [pair]]
             [util.debug-util :as du]
+            [util.fn :as fn]
             [util.thread-util :as thread-util])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
@@ -256,7 +256,7 @@
           (when-let [node-load-info (node-id->node-load-info node-id)]
             (or (:dependency-proj-paths node-load-info) [])))
 
-        node-id->dependency-node-ids (memoize #(node-load-dependencies % resource-node-ids-by-proj-path old-resource-node-dependencies new-resource-node-dependencies))
+        node-id->dependency-node-ids (fn/memoize #(node-load-dependencies % resource-node-ids-by-proj-path old-resource-node-dependencies new-resource-node-dependencies))
         node-id-load-order (sort-node-ids-for-loading (keys node-id->node-load-info) node-id->dependency-node-ids)]
     (mapv node-id->node-load-info node-id-load-order)))
 
@@ -304,7 +304,7 @@
   (into {}
         (keep (fn [{:keys [resource] :as node-load-info}]
                 (when (and (resource/file-resource? resource)
-                           (not (:stateless? (resource/resource-type resource))))
+                           (resource/stateful? resource))
                   (let [{:keys [disk-sha256 node-id]} node-load-info]
                     (pair node-id disk-sha256)))))
         node-load-infos))
@@ -314,31 +314,88 @@
     (g/transact
       (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id))))
 
-(defn- source-values-by-node-id [node-load-infos]
-  (into {}
-        (keep (fn [{:keys [resource] :as node-load-info}]
-                ;; The source-value output will never be evaluated for
-                ;; non-editable or stateless resources, so there is no
-                ;; need to store their entries.
-                (when (and (resource/file-resource? resource)
-                           (resource/editable? resource))
-                  (let [resource-type (resource/resource-type resource)]
-                    (when-not (:stateless? resource-type)
-                      ;; Note: Here, source-value is whatever was returned
-                      ;; by the read-fn, so it's technically a save-value.
-                      (let [{:keys [node-id read-error source-value]} node-load-info
-                            value (or read-error (resource-node/save-value->source-value source-value resource-type))]
-                        (pair node-id value)))))))
-        node-load-infos))
+(defn- save-data-tracked-resource? [resource]
+  ;; The source-value output will never be evaluated for non-editable or
+  ;; stateless resources, so there is no need to store their entries.
+  ;; TODO(save-value): PlaceholderResourceNodes connect to :save-data only if non-binary.
+  (and (resource/file-resource? resource)
+       (resource/editable? resource)
+       (resource/stateful? resource)))
 
 (defn- store-loaded-source-values! [node-load-infos]
-  (let [source-values-by-node-id (source-values-by-node-id node-load-infos)]
-    (resource-node/merge-source-values! source-values-by-node-id)))
+  (let [node-id+source-value-pairs
+        (into []
+              (keep (fn [{:keys [node-id read-error resource] :as node-load-info}]
+                      (when (save-data-tracked-resource? resource)
+                        (pair node-id
+                              (or read-error
+                                  (let [{:keys [resource source-value]} node-load-info
+                                        resource-type (resource/resource-type resource)]
+                                    ;; Note: Here, source-value is whatever was
+                                    ;; returned by the read-fn, so it's
+                                    ;; technically a save-value.
+                                    (resource-node/save-value->source-value source-value resource-type)))))))
+              node-load-infos)]
+
+    (resource-node/merge-source-values! node-id+source-value-pairs)))
+
+(defn log-cache-info! [cache message]
+  ;; Disabled during tests to minimize log spam.
+  (when-not (Boolean/getBoolean "defold.tests")
+    (let [{:keys [total retained unretained limit]} (g/cache-info cache)]
+      (log/info :message message
+                :total total
+                :retained retained
+                :unretained unretained
+                :limit limit))))
+
+(defn- cache-loaded-save-data! [node-load-infos project excluded-resource-node-id?]
+  (let [basis (g/now)
+
+        cached-resource-node-id?
+        (into #{}
+              (comp (map first)
+                    (remove excluded-resource-node-id?))
+              (g/sources-of basis project :save-data))
+
+        endpoint+cached-value-pairs
+        (into []
+              (mapcat (fn [{:keys [node-id source-value] :as node-load-info}]
+                        (when (and (some? source-value)
+                                   (cached-resource-node-id? node-id))
+                          (let [{:keys [read-error resource]} node-load-info
+
+                                save-data-endpoint+cached-value
+                                (pair (g/endpoint node-id :save-data)
+                                      (or read-error
+                                          (resource-node/make-save-data node-id resource source-value false)))
+
+                                is-save-value-output-cached
+                                (-> (g/node-type* basis node-id)
+                                    (g/cached-outputs)
+                                    (contains? :save-value))]
+
+                            (cond-> [save-data-endpoint+cached-value]
+
+                                    is-save-value-output-cached
+                                    (conj (pair (g/endpoint node-id :save-value)
+                                                (or read-error source-value))))))))
+              node-load-infos)]
+
+    (g/cache-output-values! endpoint+cached-value-pairs)
+    (log-cache-info! (g/cache) "Cached loaded save data in system cache.")))
 
 (defn- load-nodes-into-graph! [node-load-infos project progress-loading! progress-processing! resource-metrics transaction-metrics]
   (let [tx-data (load-tx-data node-load-infos project progress-loading! progress-processing! resource-metrics)
-        tx-opts (du/when-metrics {:metrics transaction-metrics})]
-    (g/transact tx-opts tx-data)))
+        tx-opts (du/when-metrics {:metrics transaction-metrics})
+        tx-result (g/transact tx-opts tx-data)
+        basis (:basis tx-result)]
+    ;; Return the set of migrated resource node ids, if any.
+    (into #{}
+          (keep #(resource-node/owner-resource-node-id basis %))
+          (-> tx-result
+              :tx-data-context-map
+              :migrated-node-ids))))
 
 (defn- make-progress-fns [task-allocations loaded-node-count render-progress!]
   (let [total-task-size (transduce (map first) + task-allocations)]
@@ -378,8 +435,9 @@
 
     (store-loaded-disk-sha256-hashes! node-load-infos workspace)
     (store-loaded-source-values! node-load-infos)
-    (load-nodes-into-graph! node-load-infos project progress-loading! progress-processing! resource-metrics transaction-metrics)
-    (render-progress! progress/done)))
+    (let [migrated-resource-node-ids (load-nodes-into-graph! node-load-infos project progress-loading! progress-processing! resource-metrics transaction-metrics)]
+      (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
+      (render-progress! progress/done))))
 
 (defn connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -644,7 +702,7 @@
 
           old-nodes-by-path (g/node-value project :nodes-by-resource-path)
           rn-dependencies-evaluation-context (g/make-evaluation-context)
-          old-resource-node-dependencies (memoize
+          old-resource-node-dependencies (fn/memoize
                                            (fn old-resource-node-dependencies [node-id]
                                              (let [resource (g/node-value node-id :resource rn-dependencies-evaluation-context)]
                                                (du/measuring resource-metrics (resource/proj-path resource) :find-old-reload-dependencies
@@ -937,17 +995,17 @@
         node (get-resource-node project resource evaluation-context)]
     (disconnect-from-inputs basis node consumer-node connections)))
 
-(defn- ensure-resource-node-created [tx-data-context project resource]
+(defn- ensure-resource-node-created [tx-data-context-map project resource]
   (assert (satisfies? resource/Resource resource))
-  (if-some [[_ pending-resource-node-id] (find (:created-resource-nodes tx-data-context) resource)]
-    [tx-data-context pending-resource-node-id nil]
+  (if-some [[_ pending-resource-node-id] (find (:created-resource-nodes tx-data-context-map) resource)]
+    [tx-data-context-map pending-resource-node-id nil]
     (let [graph-id (g/node-id->graph-id project)
           node-type (resource-node-type resource)
           creation-tx-data (g/make-nodes graph-id [resource-node-id [node-type :resource resource]]
                                          (g/connect resource-node-id :_node-id project :nodes)
                                          (g/connect resource-node-id :node-id+resource project :node-id+resources))
           created-resource-node-id (first (g/tx-data-nodes-added creation-tx-data))
-          tx-data-context' (assoc-in tx-data-context [:created-resource-nodes resource] created-resource-node-id)]
+          tx-data-context' (assoc-in tx-data-context-map [:created-resource-nodes resource] created-resource-node-id)]
       [tx-data-context' created-resource-node-id creation-tx-data])))
 
 (defn connect-resource-node
@@ -1070,35 +1128,11 @@
   (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cache-entry-pred)]
     (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
 
-(defn- log-cache-info! [cache message]
-  ;; Disabled during tests to minimize log spam.
-  (when-not (Boolean/getBoolean "defold.tests")
-    (let [{:keys [total retained unretained limit]} (g/cache-info cache)]
-      (log/info :message message
-                :total total
-                :retained retained
-                :unretained unretained
-                :limit limit))))
-
 (defn update-system-cache-build-targets! [evaluation-context]
-  (update-system-cache-from-pruned-evaluation-context! cached-build-target-output? evaluation-context)
-  (log-cache-info! (g/cache) "Cached build targets in system cache."))
+  (update-system-cache-from-pruned-evaluation-context! cached-build-target-output? evaluation-context))
 
 (defn update-system-cache-save-data! [evaluation-context]
-  (update-system-cache-from-pruned-evaluation-context! cached-save-data-output? evaluation-context)
-  (log-cache-info! (g/cache) "Cached save data in system cache."))
-
-(defn- cache-save-data! [project]
-  ;; Save data is required for the Search in Files feature, so we pull
-  ;; it in the background here to cache it.
-  ;; TODO(save-value): We shouldn't need to do this anymore once we're done.
-  (let [evaluation-context (g/make-evaluation-context)]
-    (future
-      (error-reporting/catch-all!
-        ;; TODO: Progress reporting.
-        (g/node-value project :save-data evaluation-context)
-        (ui/run-later
-          (update-system-cache-save-data! evaluation-context))))))
+  (update-system-cache-from-pruned-evaluation-context! cached-save-data-output? evaluation-context))
 
 (defn open-project! [graph extensions workspace-id game-project-resource render-progress!]
   (let [dependencies (read-dependencies game-project-resource)
@@ -1118,7 +1152,6 @@
           populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
       ;; Prime the auto completion cache
       (g/node-value (script-intelligence project) :lua-completions)
-      (cache-save-data! populated-project)
       populated-project)))
 
 (defn resource-setter [evaluation-context self old-value new-value & connections]

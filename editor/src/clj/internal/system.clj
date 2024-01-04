@@ -13,13 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.system
-  (:require [internal.util :as util]
-            [internal.cache :as c]
+  (:require [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.history :as h]
             [internal.node :as in]
-            [service.log :as log])
+            [internal.util :as util])
   (:import [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
@@ -336,6 +335,20 @@
             :initial-invalidate-counters (:invalidate-counters system))
           options)))))
 
+(defn evaluation-context-invalidate-counters [evaluation-context]
+  (if-let [invalidate-counters (:initial-invalidate-counters evaluation-context)]
+    invalidate-counters
+    (throw (IllegalArgumentException. "The evaluation-context does not have :initial-invalidate-counters."))))
+
+(defn invalidate-counters [system]
+  (if-let [invalidate-counters (:invalidate-counters system)]
+    invalidate-counters
+    (throw (IllegalArgumentException. "The argument is not a valid system."))))
+
+(definline endpoint-invalidated-since? [endpoint snapshot-invalidate-counters system-invalidate-counters]
+  `(not= (long (get ~snapshot-invalidate-counters ~endpoint 0))
+         (long (get ~system-invalidate-counters ~endpoint 0))))
+
 (defn update-cache-from-evaluation-context
   [system evaluation-context]
   ;; We assume here that the evaluation context was created from
@@ -361,9 +374,7 @@
 
                 (seq evaluation-context-misses)
                 (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
-        (let [invalidated-during-node-value? (fn [endpoint]
-                                               (not= (get initial-invalidate-counters endpoint 0)
-                                                     (get invalidate-counters endpoint 0)))
+        (let [invalidated-during-node-value? #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters)
               safe-cache-hits (remove invalidated-during-node-value? evaluation-context-hits)
               safe-cache-misses (remove (comp invalidated-during-node-value? first) evaluation-context-misses)]
           (cond-> system
