@@ -16,6 +16,7 @@
 #include <assert.h>
 
 #include <d3d12.h>
+#include <d3dx12.h>
 #include <dxgi1_6.h>
 
 #include <dmsdk/dlib/vmath.h>
@@ -104,7 +105,7 @@ namespace dmGraphics
             }
 
             // we want a device that is compatible with direct3d 12 (feature level 11 or higher)
-            HRESULT hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), nullptr);
+            HRESULT hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), NULL);
             if (SUCCEEDED(hr))
             {
                 break;
@@ -186,6 +187,38 @@ namespace dmGraphics
         context->m_SwapChain = static_cast<IDXGISwapChain3*>(swap_chain_tmp);
 
         // frameIndex = swapChain->GetCurrentBackBufferIndex();
+
+        // this heap is a render target view heap
+        D3D12_DESCRIPTOR_HEAP_DESC rt_view_heap_desc = {};
+        rt_view_heap_desc.NumDescriptors             = MAX_FRAMEBUFFERS;
+        rt_view_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+        rt_view_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+        hr = context->m_Device->CreateDescriptorHeap(&rt_view_heap_desc, IID_PPV_ARGS(&context->m_RtvDescriptorHeap));
+        CHECK_HR_ERROR(hr);
+
+        uint32_t rtv_descriptor_size = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+        // get a handle to the first descriptor in the descriptor heap. a handle is basically a pointer,
+        // but we cannot literally use it like a c++ pointer.
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle(context->m_RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+        for (int i = 0; i < MAX_FRAMEBUFFERS; i++)
+        {
+            // first we get the n'th buffer in the swap chain and store it in the n'th
+            // position of our ID3D12Resource array
+            hr = context->m_SwapChain->GetBuffer(i, IID_PPV_ARGS(&context->m_FrameResources[i].m_RenderTarget));
+            CHECK_HR_ERROR(hr);
+
+            // the we "create" a render target view which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
+            context->m_Device->CreateRenderTargetView(context->m_FrameResources[i].m_RenderTarget, NULL, rtv_handle);
+
+            // we increment the rtv handle by the rtv descriptor size we got above
+            rtv_handle.Offset(1, rtv_descriptor_size);
+
+            hr = context->m_Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&context->m_FrameResources[i].m_CommandAllocator));
+            CHECK_HR_ERROR(hr);
+        }
 
         if (context->m_PrintDeviceInfo)
         {
