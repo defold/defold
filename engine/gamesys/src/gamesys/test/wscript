@@ -52,7 +52,8 @@ def build(bld):
     excl_pattern = ['**/*.ttf', '**/*.basis', '**/*.psd']
 
     if not platform_supports_feature(bld.env.PLATFORM, 'compute', None):
-        excl_pattern.append('**/*.compute')
+        excl_pattern.append('**/*.cp')
+        excl_pattern.append('**/*.compute_program')
 
     exported_symbols = ['ResourceTypeGameObject',
                         'ResourceTypeCollection',
