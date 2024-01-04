@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -531,16 +531,19 @@ namespace dmGraphics
 
     bool                 ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
     bool                 ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
+    bool                 ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf);
     void                 DeleteVertexProgram(HVertexProgram prog);
     void                 DeleteFragmentProgram(HFragmentProgram prog);
     void                 DeleteComputeProgram(HComputeProgram prog);
 
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
     ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
     void                 EnableProgram(HContext context, HProgram program);
     void                 DisableProgram(HContext context);
     bool                 ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    bool                 ReloadProgram(HContext context, HProgram program, HComputeProgram compute_program);
 
     // Attributes
     uint32_t         GetAttributeCount(HProgram prog);
@@ -696,6 +699,12 @@ namespace dmGraphics
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
 
     uint32_t GetTypeSize(dmGraphics::Type type);
+
+    // Both experimental + tests only:
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
+    bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
+    bool  UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
 }
 
 #endif // DM_GRAPHICS_H

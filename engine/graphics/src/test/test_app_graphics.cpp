@@ -27,7 +27,7 @@
 #include "../graphics_private.h"
 #include "../vulkan/graphics_vulkan.h"
 
-#include "test_app_vulkan_assets.h"
+#include "test_app_graphics_assets.h"
 
 // From engine_private.h
 
@@ -248,15 +248,15 @@ struct SubPassTest : ITest
 
         dmGraphics::ShaderDesc::Shader vs_shader = {};
         vs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
-        vs_shader.m_Source.m_Data  = (uint8_t*) vulkan_assets::spirv_vertex_program;
-        vs_shader.m_Source.m_Count = sizeof(vulkan_assets::spirv_vertex_program);
+        vs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_vertex_program;
+        vs_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_vertex_program);
         vs_shader.m_Inputs.m_Data  = m_VertexAttributes;
         vs_shader.m_Inputs.m_Count = sizeof(m_VertexAttributes) / sizeof(dmGraphics::ShaderDesc::ResourceBinding);
 
         dmGraphics::ShaderDesc::Shader fs_shader = {};
         fs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
-        fs_shader.m_Source.m_Data  = (uint8_t*) vulkan_assets::spirv_fragment_program;
-        fs_shader.m_Source.m_Count = sizeof(vulkan_assets::spirv_fragment_program);
+        fs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_fragment_program;
+        fs_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_fragment_program);
 
         dmGraphics::ShaderDesc::ResourceBlock fs_uniform_block = {};
 
@@ -366,9 +366,19 @@ struct ComputeTest : ITest
     void Initialize(EngineCtx* engine) override
     {
         dmGraphics::ShaderDesc::Shader compute_shader = {};
-        compute_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
-        compute_shader.m_Source.m_Data  = (uint8_t*) vulkan_assets::glsl_compute_program;
-        compute_shader.m_Source.m_Count = sizeof(vulkan_assets::glsl_compute_program);
+
+        if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
+        {
+            compute_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
+            compute_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::glsl_compute_program;
+            compute_shader.m_Source.m_Count = sizeof(graphics_assets::glsl_compute_program);
+        }
+        else
+        {
+            compute_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
+            compute_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_compute_program;
+            compute_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_compute_program);
+        }
 
         dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_shader);
 
@@ -409,7 +419,7 @@ static void* EngineCreate(int argc, char** argv)
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
-    //engine->m_Test = new ComputeTest();
+    // engine->m_Test = new ComputeTest();
     engine->m_Test = new SimpleQuadTest();
 
     engine->m_Test->Initialize(engine);
@@ -438,8 +448,6 @@ static UpdateResult EngineUpdate(void* _engine)
     if (elapsed > 3.0f)
         return RESULT_EXIT;
     */
-
-    engine->m_Test->Execute(engine);
 
     dmPlatform::PollEvents(engine->m_Window);
 

@@ -89,6 +89,7 @@ namespace dmGraphics
     bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
+    Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
 
     static inline void ClearTextureParamsData(TextureParams& params)
     {
@@ -118,12 +119,7 @@ namespace dmGraphics
 
     // Test only functions:
     uint64_t GetDrawCount();
-
-    // Both experimental + tests only:
-    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
-    bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
-    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
-    bool  UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
+    void     SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderClass shader_class, ShaderDesc::Language language);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

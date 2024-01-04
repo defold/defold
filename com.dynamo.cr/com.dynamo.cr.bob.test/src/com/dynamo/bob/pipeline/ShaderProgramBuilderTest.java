@@ -417,7 +417,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
 
-        List<Message> outputs = build("/test_compute.compute", source_no_version);
+        List<Message> outputs = build("/test_compute.cp", source_no_version);
         ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
 
         assert(shaderDesc.getShadersCount() > 0);

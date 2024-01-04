@@ -31,6 +31,7 @@
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
+#include <gameobject/lua_ddf.h>
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
@@ -1829,6 +1830,14 @@ TEST_P(BoxRenderTest, BoxRender)
     const BoxRenderParams& p = GetParam();
     const char* go_path = p.m_GOPath;
 
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
@@ -1864,6 +1873,8 @@ TEST_P(BoxRenderTest, BoxRender)
     dmGraphics::Flip(m_GraphicsContext);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 /* Gamepad connected */
@@ -3006,6 +3017,81 @@ INSTANTIATE_TEST_CASE_P(Cursor, CursorTest, jc_test_values_in(cursor_properties)
 #undef F1T3
 #undef F2T3
 
+bool RunFile(lua_State* L, const char* filename)
+{
+    char path[1024];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", filename);
+
+    dmLuaDDF::LuaModule* ddf = 0;
+    dmDDF::Result res = dmDDF::LoadMessageFromFile(path, dmLuaDDF::LuaModule::m_DDFDescriptor, (void**) &ddf);
+
+    char* buffer = (char*) malloc(ddf->m_Source.m_Script.m_Count + 1);
+    memcpy((void*) buffer, ddf->m_Source.m_Script.m_Data, ddf->m_Source.m_Script.m_Count);
+    buffer[ddf->m_Source.m_Script.m_Count] = '\0';
+
+    int ret = luaL_dostring(L, buffer);
+    free(buffer);
+
+    if (ret != 0)
+    {
+        dmLogError("%s", lua_tolstring(L, -1, 0));
+        return false;
+    }
+    return true;
+}
+
+TEST_F(ScriptImageTest, TestImage)
+{
+    int top = lua_gettop(L);
+
+    ASSERT_TRUE(RunFile(L, "image/test_image.luac"));
+
+    lua_getglobal(L, "functions");
+    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
+    lua_getfield(L, -1, "test_images");
+    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
+
+    char hostfs[64] = {};
+    if (strlen(DM_HOSTFS) != 0)
+        dmSnPrintf(hostfs, sizeof(hostfs), "%s/", DM_HOSTFS);
+    lua_pushstring(L, hostfs);
+    int result = dmScript::PCall(L, 1, LUA_MULTRET);
+    if (result == LUA_ERRRUN)
+    {
+        ASSERT_TRUE(false);
+    }
+    else
+    {
+        ASSERT_EQ(0, result);
+    }
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptImageTest, TestImageBuffer)
+{
+    int top = lua_gettop(L);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/image/test_image_buffer.goc", dmHashString64("/test_image"));
+    ASSERT_NE((void*)0, go);
+
+    if (DM_HOSTFS)
+    {
+        char run_str[128];
+        dmSnPrintf(run_str, sizeof(run_str), "set_host_fs(%s)", DM_HOSTFS);
+        ASSERT_TRUE(RunString(L, run_str));
+    }
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
     int top = lua_gettop(L);
@@ -3856,12 +3942,30 @@ TEST_F(MaterialTest, GoGetSetConstants)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+TEST_F(ComponentTest, GetSetCollisionShape)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_shape.goc", dmHashString64("/get_set_shape_go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_base);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
 
 TEST_F(ShaderTest, Compute)
 {
     dmGraphics::ShaderDesc* ddf;
-    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.computec", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.cpc", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
     ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, ddf->m_ShaderClass);
     ASSERT_NE(0, ddf->m_Shaders.m_Count);
 
@@ -3893,6 +3997,36 @@ TEST_F(ShaderTest, Compute)
     }
 }
 
+TEST_F(ShaderTest, ComputeResource)
+{
+    dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
+
+    dmRender::HComputeProgram compute_program_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/shader/valid.compute_programc", (void**) &compute_program_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((dmRender::HComputeProgram) 0, compute_program_res);
+
+    dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program_res);
+    dmGraphics::HProgram graphics_compute_program       = dmRender::GetComputeProgram(compute_program_res);
+
+    ASSERT_EQ(2, dmGraphics::GetUniformCount(graphics_compute_program));
+
+    char buffer[128] = {};
+    dmGraphics::Type type;
+    int32_t size;
+    dmGraphics::GetUniformName(graphics_compute_program, 0, buffer, 128, &type, &size);
+
+    ASSERT_STREQ("color", buffer);
+    ASSERT_EQ(0, dmGraphics::GetUniformLocation(graphics_compute_program, "color"));
+
+    dmGraphics::GetUniformName(graphics_compute_program, 1, buffer, 128, &type, &size);
+
+    ASSERT_STREQ("texture_out", buffer);
+    ASSERT_EQ(1, dmGraphics::GetUniformLocation(graphics_compute_program, "texture_out"));
+
+    dmResource::Release(m_Factory, (void*) compute_program_res);
+}
 #endif
 
 int main(int argc, char **argv)
