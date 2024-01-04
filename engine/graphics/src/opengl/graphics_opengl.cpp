@@ -1203,11 +1203,15 @@ static void LogFrameBufferError(GLenum status)
         glGetIntegerv(GL_MAJOR_VERSION, &version_major);
         glGetIntegerv(GL_MINOR_VERSION, &version_minor);
 
+        #define COMPUTE_VERSION_NEEDED(MAJOR, MINOR) (MAJOR > version_major || (version_major ==  MAJOR && version_minor >= MINOR))
+
         #if defined(GL_ES_VERSION_3_0) || defined(GL_ES_VERSION_2_0)
-            context->m_ComputeSupport = version_major >= 3 && version_minor >= 1;
+            context->m_ComputeSupport = COMPUTE_VERSION_NEEDED(3,1);
         #else
-            context->m_ComputeSupport = version_major >= 4 && version_minor >= 3;
+            context->m_ComputeSupport = COMPUTE_VERSION_NEEDED(4,3);
         #endif
+
+        #undef COMPUTE_VERSION_NEEDED
     #endif
 
         if (context->m_PrintDeviceInfo)

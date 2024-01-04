@@ -19,21 +19,15 @@ namespace dmGameSystem
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
     {
-        dmRender::HComputeProgram program = (dmRender::HComputeProgram) params.m_UserData;
+        dmRender::HComputeProgram program       = (dmRender::HComputeProgram) params.m_UserData;
+        dmRender::HRenderContext render_context = dmRender::GetProgramRenderContext(program);
+        dmGraphics::HContext graphics_context   = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::HComputeProgram shader      = GetComputeProgramShader(program);
+        dmGraphics::HProgram gfx_program        = GetComputeProgram(program);
 
-        uint64_t program_name_hash = dmRender::GetProgramUserData(program);
-
-        if (params.m_Resource->m_NameHash == program_name_hash)
+        if (!dmGraphics::ReloadProgram(graphics_context, gfx_program, shader))
         {
-            dmRender::HRenderContext render_context = dmRender::GetProgramRenderContext(program);
-            dmGraphics::HContext graphics_context   = dmRender::GetGraphicsContext(render_context);
-            dmGraphics::HComputeProgram shader      = GetComputeProgramShader(program);
-            dmGraphics::HProgram gfx_program        = GetComputeProgram(program);
-
-            if (!dmGraphics::ReloadProgram(graphics_context, gfx_program, shader))
-            {
-                dmLogWarning("Reloading the compute program failed.");
-            }
+            dmLogWarning("Reloading the compute program failed.");
         }
     }
 
