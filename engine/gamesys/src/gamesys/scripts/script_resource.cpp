@@ -802,8 +802,10 @@ static int CreateTexture(lua_State* L)
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
     dmBuffer::HBuffer buffer = 0;
-    if (dmScript::IsBuffer(L, 3))
+
+    if (lua_gettop(L) > 2)
     {
+        // TODO: Support creating texture from string
         dmScript::LuaHBuffer* l_buffer = dmScript::CheckBuffer(L, 3);
         buffer                         = dmGameSystem::UnpackLuaBuffer(l_buffer);
     }

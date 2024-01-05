@@ -19,6 +19,7 @@ def build(bld):
     bld.add_group()
 
     bld.install_files('${PREFIX}/include/platform', 'platform_window.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_constants.h')
 
     if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')
