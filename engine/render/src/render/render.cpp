@@ -132,6 +132,15 @@ namespace dmRender
 
         context->m_StencilBufferCleared = 0;
 
+        context->m_MultiBufferingRequired = 0;
+
+        dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
+        if (installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
+            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR)
+        {
+            context->m_MultiBufferingRequired = 1;
+        }
+
         context->m_RenderListDispatch.SetCapacity(255);
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);

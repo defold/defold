@@ -20,7 +20,7 @@
 
 #include <string.h>
 
-#include <graphics/glfw/glfw_native.h>
+#include  <glfw/glfw_native.h>
 #include <vulkan/vulkan_win32.h>
 
 namespace dmGraphics

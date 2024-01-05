@@ -85,6 +85,9 @@ namespace dmGraphics
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+
+        m_ShaderClassLanguage[(int) ShaderDesc::SHADER_CLASS_GRAPHICS] = ShaderDesc::LANGUAGE_GLSL_SM140;
+        m_ShaderClassLanguage[(int) ShaderDesc::SHADER_CLASS_COMPUTE]  = ShaderDesc::LANGUAGE_GLSL_SM430;
     }
 
     static HContext NullNewContext(const ContextParams& params)
@@ -617,12 +620,6 @@ namespace dmGraphics
         return g_DrawCount;
     }
 
-    struct ShaderProgram
-    {
-        char*                m_Data;
-        ShaderDesc::Language m_Language;
-    };
-
     static void ProgramShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata);
 
     struct ShaderBinding
@@ -634,6 +631,32 @@ namespace dmGraphics
         uint32_t m_Stride;
         Type     m_Type;
     };
+
+    struct ShaderProgram
+    {
+        char*                  m_Data;
+        ShaderDesc::Language   m_Language;
+        dmArray<ShaderBinding> m_Uniforms;
+    };
+
+    static void PushBinding(dmArray<ShaderBinding>* binding_array, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size)
+    {
+        if(binding_array->Full())
+        {
+            binding_array->OffsetCapacity(8);
+        }
+
+        ShaderBinding binding;
+        name_length++;
+        binding.m_Name   = new char[name_length];
+        binding.m_Index  = binding_array->Size();
+        binding.m_Type   = type;
+        binding.m_Size   = size;
+        binding.m_Stride = GetTypeSize(type);
+
+        dmStrlCpy(binding.m_Name, name, name_length);
+        binding_array->Push(binding);
+    }
 
     struct Program
     {
@@ -647,11 +670,13 @@ namespace dmGraphics
             {
                 GLSLAttributeParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
                 GLSLUniformParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
+                TransferUniforms(m_VP);
                 m_Language = m_VP->m_Language;
             }
             if (m_FP != 0x0)
             {
                 GLSLUniformParse(m_FP->m_Language, m_FP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
+                TransferUniforms(m_FP);
                 m_Language = m_FP->m_Language;
             }
         }
@@ -666,7 +691,16 @@ namespace dmGraphics
             if (m_Compute != 0x0)
             {
                 GLSLUniformParse(m_Compute->m_Language, m_Compute->m_Data, ProgramShaderResourceCallback, (uintptr_t) this);
+                TransferUniforms(m_Compute);
                 m_Language = compute->m_Language;
+            }
+        }
+
+        void TransferUniforms(ShaderProgram* p)
+        {
+            for (int i = 0; i < p->m_Uniforms.Size(); ++i)
+            {
+                PushBinding(&m_Uniforms, p->m_Uniforms[i].m_Name, strlen(p->m_Uniforms[i].m_Name), p->m_Uniforms[i].m_Type, p->m_Uniforms[i].m_Size);
             }
         }
 
@@ -674,6 +708,8 @@ namespace dmGraphics
         {
             for(uint32_t i = 0; i < m_Uniforms.Size(); ++i)
                 delete[] m_Uniforms[i].m_Name;
+            for(uint32_t i = 0; i < m_Attributes.Size(); ++i)
+                delete[] m_Attributes[i].m_Name;
         }
 
         ShaderDesc::Language   m_Language;
@@ -693,21 +729,7 @@ namespace dmGraphics
         dmArray<ShaderBinding>* binding_array = binding_type == GLSLUniformParserBindingType::UNIFORM ?
             &program->m_Uniforms : &program->m_Attributes;
 
-        if(binding_array->Full())
-        {
-            binding_array->OffsetCapacity(16);
-        }
-
-        ShaderBinding binding;
-        name_length++;
-        binding.m_Name   = new char[name_length];
-        binding.m_Index  = binding_array->Size();
-        binding.m_Type   = type;
-        binding.m_Size   = size;
-        binding.m_Stride = GetTypeSize(type);
-
-        dmStrlCpy(binding.m_Name, name, name_length);
-        binding_array->Push(binding);
+        PushBinding(binding_array, name, name_length, type, size);
     }
 
     static ShaderProgram* NewShaderProgramFromDDF(ShaderDesc::Shader* ddf)
@@ -718,6 +740,16 @@ namespace dmGraphics
         memcpy(p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
         p->m_Data[ddf->m_Source.m_Count] = '\0';
         p->m_Language = ddf->m_Language;
+
+        for (int i = 0; i < ddf->m_Resources.m_Count; ++i)
+        {
+            for (int j = 0; j < ddf->m_Resources[i].m_Bindings.m_Count; ++j)
+            {
+                ShaderDesc::ResourceBinding& res = ddf->m_Resources[i].m_Bindings[j];
+                PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type), res.m_ElementCount);
+            }
+        }
+
         return p;
     }
 
@@ -733,7 +765,11 @@ namespace dmGraphics
 
     static void NullDeleteComputeProgram(HComputeProgram prog)
     {
-        delete (ShaderProgram*) prog;
+        ShaderProgram* p = (ShaderProgram*) prog;
+        delete [] (char*)p->m_Data;
+        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
+            delete[] p->m_Uniforms[i].m_Name;
+        delete p;
     }
 
     static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -793,6 +829,8 @@ namespace dmGraphics
         assert(program);
         ShaderProgram* p = (ShaderProgram*)program;
         delete [] (char*)p->m_Data;
+        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
+            delete[] p->m_Uniforms[i].m_Name;
         delete p;
     }
 
@@ -801,7 +839,14 @@ namespace dmGraphics
         assert(program);
         ShaderProgram* p = (ShaderProgram*)program;
         delete [] (char*)p->m_Data;
+        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
+            delete[] p->m_Uniforms[i].m_Name;
         delete p;
+    }
+
+    void SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderClass shader_class, ShaderDesc::Language language)
+    {
+        ((NullContext*) context)->m_ShaderClassLanguage[(int) shader_class] = language;
     }
 
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
@@ -809,7 +854,7 @@ namespace dmGraphics
         return ((ShaderProgram*) program)->m_Language;
     }
 
-    static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context)
+    static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
     {
 #if defined(DM_PLATFORM_VENDOR)
         #if defined(DM_GRAPHICS_NULL_SHADER_LANGUAGE)
@@ -818,7 +863,7 @@ namespace dmGraphics
             #error "You must define the platform default shader language using DM_GRAPHICS_NULL_SHADER_LANGUAGE"
         #endif
 #else
-        return ShaderDesc::LANGUAGE_GLSL_SM140;
+        return ((NullContext*) context)->m_ShaderClassLanguage[(int) shader_class];
 #endif
     }
 
@@ -834,11 +879,24 @@ namespace dmGraphics
         ((NullContext*) context)->m_Program = 0x0;
     }
 
-    static bool NullReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool NullReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         (void) context;
         (void) program;
 
+        return true;
+    }
+
+    static bool NullReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
+    {
+        (void) context;
+        (void) program;
+        return true;
+    }
+
+    static bool NullReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    {
+        (void)prog;
         return true;
     }
 

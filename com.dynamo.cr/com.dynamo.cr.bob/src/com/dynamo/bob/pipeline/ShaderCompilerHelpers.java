@@ -195,7 +195,7 @@ public class ShaderCompilerHelpers {
 
             ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
 
-            File file_in_compute = File.createTempFile(FilenameUtils.getName(resourceOutput), ".compute");
+            File file_in_compute = File.createTempFile(FilenameUtils.getName(resourceOutput), ".cp");
             file_in_compute.deleteOnExit();
             FileUtils.writeByteArrayToFile(file_in_compute, es3Result.output.getBytes());
 

@@ -36,7 +36,12 @@ client.search('upnp:rootdevice');
 The engine service is implemented as a small web server running within the engine. The server provides a number of endpoints which can be used to query for data or issue commands:
 
 ### /post
-This endpoint will accept a POST request containing a protobuf command. One such example is the `Reload` command from `resource_ddf.proto` to reload a resource when hot-reloading content.
+This endpoint will accept a POST request containing a protobuf command. One such example is the `Reload` command from `resource_ddf.proto` to reload a resource when hot-reloading content. Examples (also check `engine.clj` where some of these are used):
+
+* `/post/@system/reboot` - Reboot the engine. `com.dynamo.system.proto.System$Reboot`
+* `/post/@system/run_script` - Run a Lua script. `com.dynamo.engine.proto.Engine$RunScript`
+* `/post/@render/resize` - Resize the engine window. `com.dynamo.render.proto.Render$Resize`
+* `/post/@resource/reload` - Reload a resource (ie hot-reload). `com.dynamo.resource.proto.Resource$Reload`
 
 ### /ping
 This endpoint will accept a GET request and reply with a "pong". This can be used to check that the server is running and responding to requests.

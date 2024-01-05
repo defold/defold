@@ -21,6 +21,7 @@ embedded_collision_shape {
     }
     index: 0
     count: 3
+    id: "box"
   }
   shapes {
     shape_type: TYPE_CAPSULE
@@ -37,6 +38,7 @@ embedded_collision_shape {
     }
     index: 3
     count: 2
+    id: "capsule"
   }
   shapes {
     shape_type: TYPE_SPHERE
@@ -53,6 +55,7 @@ embedded_collision_shape {
     }
     index: 5
     count: 1
+    id: "sphere"
   }
   data: 5.5
   data: 6.0
