@@ -292,7 +292,9 @@ namespace dmRender
      */
     HBufferedRenderBuffer           NewBufferedRenderBuffer(HRenderContext render_context, RenderBufferType type);
     void                            DeleteBufferedRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
-    HRenderBuffer                   AddRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
+    void                            AddRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
+    HRenderBuffer                   GetBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
+    int32_t                         GetBufferIndex(HRenderContext render_context, HBufferedRenderBuffer buffer);
     void                            SetBufferData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t size, void* data, dmGraphics::BufferUsage buffer_usage);
     void                            TrimBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     void                            RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);

@@ -122,7 +122,7 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferSetData)
     m_RenderContext->m_MultiBufferingRequired = m_MultiBufferingRequired;
 }
 
-TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAdvanceAndTrim)
+TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAddAndTrim)
 {
     dmRender::HBufferedRenderBuffer buffer = dmRender::NewBufferedRenderBuffer(m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
     ASSERT_NE((void*) 0x0, buffer);
@@ -153,7 +153,7 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAdvanceAndTrim)
     ASSERT_EQ(2, buffer->m_BufferIndex);
 
     dmRender::RewindBuffer(m_RenderContext, buffer);
-    ASSERT_EQ(-1, buffer->m_BufferIndex);
+    ASSERT_EQ(0, buffer->m_BufferIndex);
 
     dmRender::AddRenderBuffer(m_RenderContext, buffer);
     dmRender::AddRenderBuffer(m_RenderContext, buffer);
@@ -165,7 +165,7 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAdvanceAndTrim)
     dmRender::RewindBuffer(m_RenderContext, buffer);
     dmRender::TrimBuffer(m_RenderContext, buffer);
     ASSERT_EQ(1, buffer->m_Buffers.Size());
-    ASSERT_EQ(-1, buffer->m_BufferIndex);
+    ASSERT_EQ(0, buffer->m_BufferIndex);
 
     dmRender::DeleteBufferedRenderBuffer(m_RenderContext, buffer);
 
