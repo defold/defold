@@ -120,6 +120,7 @@ namespace dmGameSystem
         uint32_t                        m_VertexMemorySize;
         uint32_t                        m_VertexCount;
         uint32_t                        m_IndexCount;
+        uint32_t                        m_DispatchCount;
         uint8_t*                        m_IndexBufferData;
         uint8_t*                        m_IndexBufferWritePtr;
         uint8_t                         m_Is16BitIndex : 1;
@@ -1308,10 +1309,15 @@ namespace dmGameSystem
         sprite_world->m_VertexBufferWritePtr = vb_iter;
         sprite_world->m_IndexBufferWritePtr = ib_iter;
 
+        if (dmRender::GetBufferIndex(render_context, sprite_world->m_VertexBuffer) < sprite_world->m_DispatchCount)
+        {
+            dmRender::AddRenderBuffer(render_context, sprite_world->m_VertexBuffer);
+        }
+
         ro.Init();
         ro.m_VertexDeclaration = vx_decl;
-        ro.m_VertexBuffer = (dmGraphics::HVertexBuffer) dmRender::AddRenderBuffer(render_context, sprite_world->m_VertexBuffer);
-        ro.m_IndexBuffer = (dmGraphics::HIndexBuffer) dmRender::AddRenderBuffer(render_context, sprite_world->m_IndexBuffer);
+        ro.m_VertexBuffer = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, sprite_world->m_VertexBuffer);
+        ro.m_IndexBuffer = (dmGraphics::HIndexBuffer) dmRender::GetBuffer(render_context, sprite_world->m_IndexBuffer);
         ro.m_Material = material;
         for(uint32_t i = 0; i < resource->m_NumTextures; ++i)
         {
@@ -1640,6 +1646,8 @@ namespace dmGameSystem
         dmRender::TrimBuffer(sprite_context->m_RenderContext, world->m_IndexBuffer);
         dmRender::RewindBuffer(sprite_context->m_RenderContext, world->m_IndexBuffer);
 
+        world->m_DispatchCount = 0;
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -1693,6 +1701,8 @@ namespace dmGameSystem
 
                         DM_PROPERTY_ADD_U32(rmtp_SpriteIndexSize, index_size);
                     }
+
+                    world->m_DispatchCount++;
                 }
                 break;
             default:
