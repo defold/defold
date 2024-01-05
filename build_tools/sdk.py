@@ -38,11 +38,11 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="15.0.1" # we also use this to match version on Github Actions
-VERSION_MACOSX="13.1"
-VERSION_IPHONEOS="16.2"
+VERSION_XCODE="15.1" # we also use this to match version on Github Actions
 VERSION_XCODE_CLANG="15.0.0"
-VERSION_IPHONESIMULATOR="16.2"
+VERSION_MACOSX="14.2"
+VERSION_IPHONEOS="17.2"
+VERSION_IPHONESIMULATOR="17.2"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files

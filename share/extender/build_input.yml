@@ -119,10 +119,10 @@ platforms:
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
         XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
-        MACOS_VERSION:          "{{env.MACOS_13_VERSION}}"
+        MACOS_VERSION:          "{{env.MACOS_14_VERSION}}"
         MACOS_VERSION_MIN:      "{{env.MACOS_VERSION_MIN}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
-        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_13_VERSION}}.sdk"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_14_VERSION}}.sdk"
     context:
         frameworks:     ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
         engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "webviewext", "profile", "remotery", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
@@ -199,9 +199,9 @@ platforms:
         XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
         XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
-        IOS_VERSION:            "{{env.IOS_16_VERSION}}"
+        IOS_VERSION:            "{{env.IOS_17_VERSION}}"
         IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
-        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_16_VERSION}}.sdk"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_17_VERSION}}.sdk"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation"]
         weakFrameworks: ["Foundation"]
@@ -244,9 +244,9 @@ platforms:
         XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
         XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
         SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
-        IOS_VERSION:            "{{env.IOS_16_VERSION}}"
+        IOS_VERSION:            "{{env.IOS_17_VERSION}}"
         IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
-        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_16_VERSION}}.sdk"
+        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_17_VERSION}}.sdk"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation"]
         weakFrameworks: ["Foundation"]
