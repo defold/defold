@@ -533,16 +533,19 @@ namespace dmGraphics
 
     bool                 ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
     bool                 ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
+    bool                 ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf);
     void                 DeleteVertexProgram(HVertexProgram prog);
     void                 DeleteFragmentProgram(HFragmentProgram prog);
     void                 DeleteComputeProgram(HComputeProgram prog);
 
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
     ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
     void                 EnableProgram(HContext context, HProgram program);
     void                 DisableProgram(HContext context);
     bool                 ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    bool                 ReloadProgram(HContext context, HProgram program, HComputeProgram compute_program);
 
     // Attributes
     uint32_t         GetAttributeCount(HProgram prog);

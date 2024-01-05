@@ -1384,24 +1384,20 @@ namespace dmPhysics
     void FlipH2D(HCollisionObject2D collision_object);
     void FlipV2D(HCollisionObject2D collision_object);
 
-    void ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape);
+    void              ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape);
     HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index);
+    void              GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius);
+    void              GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz);
+    void              GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height);
+    void              SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius);
+    void              SetCollisionShapeHalfBoxExtents3D(HCollisionShape2D shape, float w, float h, float d);
 
-    void GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius);
-    void GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz);
-    void GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height);
-
-    void SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius);
-    void SetCollisionShapeHalfBoxExtents3D(HCollisionShape2D shape, float w, float h, float d);
-
-    void GetCollisionShapeRadius2D(HCollisionShape2D shape, float* radius);
-    void GetCollisionShapePolygonVertices2D(HCollisionShape2D shape, float** vertices, uint32_t* vertex_count);
-
-    void SetCollisionShapeRadius2D(HCollisionShape2D shape, float radius);
-    void SetCollisionShapeBoxDimensions2D(HCollisionShape2D shape, float w, float h);
-
+    void              GetCollisionShapeRadius2D(HCollisionShape2D shape, float* radius);
+    void              GetCollisionShapePolygonVertices2D(HCollisionShape2D shape, float** vertices, uint32_t* vertex_count);
     HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object, uint32_t shape_index);
-    void SynchronizeObject2D(HCollisionObject2D collision_object);
+    void              SetCollisionShapeRadius2D(HCollisionShape2D shape, float radius);
+    void              SetCollisionShapeBoxDimensions2D(HCollisionShape2D shape, float w, float h);
+    void              SynchronizeObject2D(HCollisionObject2D collision_object);
 }
 
 #endif // DM_PHYSICS_H

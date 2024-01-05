@@ -87,6 +87,8 @@ protected:
     virtual void TearDown();
     void SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx);
 
+    void WaitForTestsDone(int update_count, bool* result);
+
     dmGameObject::UpdateContext m_UpdateContext;
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
@@ -566,6 +568,63 @@ void GamesysTest<T>::TearDown()
     dmConfigFile::Delete(m_Config);
 }
 
+template<typename T>
+void GamesysTest<T>::WaitForTestsDone(int update_count, bool* result)
+{
+    if (result)
+        *result = false;
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    bool tests_done = false;
+    while (!tests_done && --update_count > 0)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    ASSERT_LT(0, update_count);
+
+    if (!result)
+    {
+        ASSERT_TRUE(tests_done);
+    }
+    else
+    {
+        *result = tests_done;
+    }
+}
+
+class ScriptImageTest : public GamesysTest<const char*>
+{
+protected:
+    virtual void SetUp()
+    {
+        GamesysTest::SetUp();
+
+        m_ScriptLibContext.m_Factory         = m_Factory;
+        m_ScriptLibContext.m_Register        = m_Register;
+        m_ScriptLibContext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+        m_ScriptLibContext.m_GraphicsContext = m_GraphicsContext;
+        dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
+
+        L = dmScript::GetLuaState(m_ScriptContext);
+    }
+    virtual void TearDown()
+    {
+        dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
+        GamesysTest::TearDown();
+    }
+
+    lua_State* L;
+    dmGameSystem::ScriptLibContext m_ScriptLibContext;
+};
 
 // Specific test class for testing dmBuffers in scripts
 class ScriptBufferTest : public jc_test_base_class

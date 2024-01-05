@@ -64,6 +64,7 @@ import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
+import com.dynamo.render.proto.ComputeProgram.ComputeProgramDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
@@ -408,6 +409,18 @@ public class ProtoBuilders {
                 messageBuilder.addAllAttributes(spriteAttributeOverrides);
             }
 
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(srcClass = ComputeProgramDesc.class, messageClass = ComputeProgramDesc.class)
+    @BuilderParams(name="ComputeProgram", inExts=".compute_program", outExt=".compute_programc")
+    public static class ComputeProgramBuilder extends ProtoBuilder<ComputeProgramDesc.Builder> {
+        @Override
+        protected ComputeProgramDesc.Builder transform(Task<Void> task, IResource resource, ComputeProgramDesc.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+            BuilderUtil.checkResource(this.project, resource, "compute program", messageBuilder.getProgram());
+            messageBuilder.setProgram(BuilderUtil.replaceExt(messageBuilder.getProgram(), ".cp", ".cpc"));
             return messageBuilder;
         }
     }

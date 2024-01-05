@@ -292,7 +292,8 @@ namespace dmGameSystem
         if (!overrides)
             return;
 
-        dmHashUpdateBuffer32(state, overrides->m_Material, sizeof(MaterialResource*));
+        if (overrides->m_Material)
+            dmHashUpdateBuffer32(state, overrides->m_Material, sizeof(MaterialResource*));
         dmHashUpdateBuffer32(state, overrides->m_Textures.Begin(), sizeof(SpriteTexture) * overrides->m_Textures.Size());
     }
 

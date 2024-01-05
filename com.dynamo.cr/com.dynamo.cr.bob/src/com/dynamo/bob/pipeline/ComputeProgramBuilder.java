@@ -29,7 +29,7 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 import org.apache.commons.cli.CommandLine;
 
-@BuilderParams(name = "ComputeProgram", inExts = ".compute", outExt = ".computec")
+@BuilderParams(name = "ComputeProgram", inExts = ".cp", outExt = ".cpc")
 public class ComputeProgramBuilder extends ShaderProgramBuilder {
 
     private static final ES2ToES3Converter.ShaderType SHADER_TYPE = ES2ToES3Converter.ShaderType.COMPUTE_SHADER;

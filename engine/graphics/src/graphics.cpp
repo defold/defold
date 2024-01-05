@@ -285,7 +285,7 @@ namespace dmGraphics
     ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc)
     {
         assert(shader_desc);
-        ShaderDesc::Language language = GetShaderProgramLanguage(context);
+        ShaderDesc::Language language = GetShaderProgramLanguage(context, shader_desc->m_ShaderClass);
         ShaderDesc::Shader* selected_shader = 0x0;
 
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
@@ -376,7 +376,10 @@ namespace dmGraphics
         {
             return 4 * 4 * 4;
         }
-        else if (type == TYPE_SAMPLER_2D || type == TYPE_SAMPLER_CUBE || type == TYPE_SAMPLER_2D_ARRAY)
+        else if (type == TYPE_SAMPLER_2D ||
+                 type == TYPE_SAMPLER_CUBE ||
+                 type == TYPE_SAMPLER_2D_ARRAY ||
+                 type == TYPE_IMAGE_2D)
         {
             return 0;
         }
@@ -426,6 +429,30 @@ namespace dmGraphics
             default: assert(0 && "Unsupported dmGraphics::VertexAttribute::DataType");
         }
         return (dmGraphics::Type) -1;
+    }
+
+    Type ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type)
+    {
+        switch(shader_type)
+        {
+            case ShaderDesc::SHADER_TYPE_INT:             return TYPE_INT;
+            case ShaderDesc::SHADER_TYPE_UINT:            return TYPE_UNSIGNED_INT;
+            case ShaderDesc::SHADER_TYPE_FLOAT:           return TYPE_FLOAT;
+            case ShaderDesc::SHADER_TYPE_VEC2:            return TYPE_FLOAT_VEC2;
+            case ShaderDesc::SHADER_TYPE_VEC3:            return TYPE_FLOAT_VEC3;
+            case ShaderDesc::SHADER_TYPE_VEC4:            return TYPE_FLOAT_VEC4;
+            case ShaderDesc::SHADER_TYPE_MAT2:            return TYPE_FLOAT_MAT2;
+            case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
+            case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
+            case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
+            case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
+            case ShaderDesc::SHADER_TYPE_IMAGE2D:         return TYPE_IMAGE_2D;
+            default: break;
+        }
+
+        // Not supported
+        return (Type) 0xffffffff;
     }
 
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context)
@@ -1090,9 +1117,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetProgramLanguage(program);
     }
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
     {
-        return g_functions.m_GetShaderProgramLanguage(context);
+        return g_functions.m_GetShaderProgramLanguage(context, shader_class);
     }
     void EnableProgram(HContext context, HProgram program)
     {
@@ -1104,7 +1131,15 @@ namespace dmGraphics
     }
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
-        return g_functions.m_ReloadProgram(context, program, vert_program, frag_program);
+        return g_functions.m_ReloadProgramGraphics(context, program, vert_program, frag_program);
+    }
+    bool ReloadProgram(HContext context, HProgram program, HComputeProgram compute_program)
+    {
+        return g_functions.m_ReloadProgramCompute(context, program, compute_program);
+    }
+    bool ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    {
+        return g_functions.m_ReloadComputeProgram(prog, ddf);
     }
     uint32_t GetAttributeCount(HProgram prog)
     {

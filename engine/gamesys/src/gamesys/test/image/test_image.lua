@@ -3,10 +3,10 @@
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
 -- this file except in compliance with the License.
--- 
+--
 -- You may obtain a copy of the License, together with FAQs at
 -- https://www.defold.com/license
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software distributed
 -- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -44,7 +44,6 @@ local img_expected_bytes_jpg = {
     0xFF, 0xFF, 0x01}
 
 local function verify_image(img, bpp, image_type, expected_bytes)
-    --print(img.width, img.height, img.type)
     assert(img.width == 2)
     assert(img.height == 2)
     assert(#img.buffer == 2 * 2 * bpp)
@@ -74,11 +73,11 @@ local function test_image(path, bpp, image_type, premultiply, expected_bytes)
 end
 
 function test_images(mountfs)
-    test_image(mountfs.."src/test/data/color_check_2x2.png", 4, image.TYPE_RGBA, false, img_expected_bytes_rgba)
-    test_image(mountfs.."src/test/data/color_check_2x2.png", 4, image.TYPE_RGBA, true, img_expected_bytes_png_premultiplied)
-    test_image(mountfs.."src/test/data/color_check_2x2.jpg", 3, image.TYPE_RGB, false, img_expected_bytes_jpg)
-    test_image(mountfs.."src/test/data/color_check_2x2_16.png", 4, image.TYPE_RGBA, false, img_expected_bytes_rgba) -- 16 bit
-    test_image(mountfs.."src/test/data/color_check_2x2_indexed.png", 3, image.TYPE_RGB, false, img_expected_bytes_rgb) -- 3 color palette
+    test_image(mountfs .. "src/gamesys/test/image/color_check_2x2.png.raw", 4, image.TYPE_RGBA, false, img_expected_bytes_rgba)
+    test_image(mountfs .. "src/gamesys/test/image/color_check_2x2.png.raw", 4, image.TYPE_RGBA, true, img_expected_bytes_png_premultiplied)
+    test_image(mountfs .. "src/gamesys/test/image/color_check_2x2.jpg.raw", 3, image.TYPE_RGB, false, img_expected_bytes_jpg)
+    test_image(mountfs .. "src/gamesys/test/image/color_check_2x2_16.png.raw", 4, image.TYPE_RGBA, false, img_expected_bytes_rgba) -- 16 bit
+    test_image(mountfs .. "src/gamesys/test/image/color_check_2x2_indexed.png.raw", 3, image.TYPE_RGB, false, img_expected_bytes_rgb) -- 3 color palette
 end
 
 

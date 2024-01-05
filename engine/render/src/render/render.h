@@ -225,6 +225,15 @@ namespace dmRender
     void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* num_values);
     void                            SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count);
 
+    // Compute
+    HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeProgram shader);
+    void                            DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program);
+    HRenderContext                  GetProgramRenderContext(HComputeProgram program);
+    dmGraphics::HComputeProgram     GetComputeProgramShader(HComputeProgram program);
+    dmGraphics::HProgram            GetComputeProgram(HComputeProgram program);
+    uint64_t                        GetProgramUserData(HComputeProgram program);
+    void                            SetProgramUserData(HComputeProgram program, uint64_t user_data);
+
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.
      * In the former case, the available element ids are returned.
