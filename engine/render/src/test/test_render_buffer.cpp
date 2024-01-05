@@ -90,6 +90,7 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferSimple)
 
 TEST_F(dmRenderBufferTest, TestBufferedRenderBufferSetData)
 {
+    // We start off with 1 buffer, so size == 1
     dmRender::HBufferedRenderBuffer buffer = dmRender::NewBufferedRenderBuffer(m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
     ASSERT_NE((void*) 0x0, buffer);
     ASSERT_EQ(1, buffer->m_Buffers.Size());
@@ -98,13 +99,13 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferSetData)
     m_RenderContext->m_MultiBufferingRequired = 1;
 
     dmRender::HRenderBuffer render_buffer_1 = dmRender::AddRenderBuffer(m_RenderContext, buffer);
-    ASSERT_EQ(1, buffer->m_Buffers.Size());
+    ASSERT_EQ(2, buffer->m_Buffers.Size());
 
     uint8_t buffer_1[] = { 255, 255, 0, 255 };
     dmRender::SetBufferData(m_RenderContext, buffer, sizeof(buffer_1), buffer_1, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
     dmRender::HRenderBuffer render_buffer_2 = dmRender::AddRenderBuffer(m_RenderContext, buffer);
-    ASSERT_EQ(2, buffer->m_Buffers.Size());
+    ASSERT_EQ(3, buffer->m_Buffers.Size());
 
     uint8_t buffer_2[] = { 0, 127, 255, 127 };
     dmRender::SetBufferData(m_RenderContext, buffer, sizeof(buffer_2), buffer_2, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
@@ -127,6 +128,7 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAddAndTrim)
     dmRender::HBufferedRenderBuffer buffer = dmRender::NewBufferedRenderBuffer(m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
     ASSERT_NE((void*) 0x0, buffer);
     ASSERT_EQ(1, buffer->m_Buffers.Size());
+    ASSERT_EQ(0, buffer->m_BufferIndex);
 
     // Test that non-multi buffering doesn't allocate more than one buffers
     m_RenderContext->m_MultiBufferingRequired = 0;
@@ -135,8 +137,11 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAddAndTrim)
     dmRender::AddRenderBuffer(m_RenderContext, buffer);
     dmRender::AddRenderBuffer(m_RenderContext, buffer);
     ASSERT_EQ(1, buffer->m_Buffers.Size());
+    ASSERT_EQ(0, buffer->m_BufferIndex);
 
     dmRender::RewindBuffer(m_RenderContext, buffer);
+    ASSERT_EQ(0, buffer->m_BufferIndex);
+
     dmRender::TrimBuffer(m_RenderContext, buffer);
     ASSERT_EQ(1, buffer->m_Buffers.Size());
 
@@ -146,21 +151,25 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAddAndTrim)
     dmRender::AddRenderBuffer(m_RenderContext, buffer);
     dmRender::AddRenderBuffer(m_RenderContext, buffer);
     dmRender::AddRenderBuffer(m_RenderContext, buffer);
-    ASSERT_EQ(3, buffer->m_Buffers.Size());
+    ASSERT_EQ(4, buffer->m_Buffers.Size());
+
+    dmRender::TrimBuffer(m_RenderContext, buffer);
+    ASSERT_EQ(4, buffer->m_Buffers.Size());
+    ASSERT_EQ(3, buffer->m_BufferIndex);
+
+    dmRender::RewindBuffer(m_RenderContext, buffer);
+    ASSERT_EQ(0, buffer->m_BufferIndex);
+    ASSERT_EQ(4, buffer->m_Buffers.Size());
+
+    dmRender::AddRenderBuffer(m_RenderContext, buffer);
+    ASSERT_EQ(1, buffer->m_BufferIndex);
+
+    dmRender::AddRenderBuffer(m_RenderContext, buffer);
+    ASSERT_EQ(2, buffer->m_BufferIndex);
 
     dmRender::TrimBuffer(m_RenderContext, buffer);
     ASSERT_EQ(3, buffer->m_Buffers.Size());
     ASSERT_EQ(2, buffer->m_BufferIndex);
-
-    dmRender::RewindBuffer(m_RenderContext, buffer);
-    ASSERT_EQ(0, buffer->m_BufferIndex);
-
-    dmRender::AddRenderBuffer(m_RenderContext, buffer);
-    dmRender::AddRenderBuffer(m_RenderContext, buffer);
-
-    dmRender::TrimBuffer(m_RenderContext, buffer);
-    ASSERT_EQ(2, buffer->m_Buffers.Size());
-    ASSERT_EQ(1, buffer->m_BufferIndex);
 
     dmRender::RewindBuffer(m_RenderContext, buffer);
     dmRender::TrimBuffer(m_RenderContext, buffer);

@@ -72,10 +72,10 @@ namespace dmRender
         delete buffer;
     }
 
-    void AddRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
+    HRenderBuffer AddRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
     {
         if (!buffer)
-            return;
+            return 0;
 
         if (render_context->m_MultiBufferingRequired)
         {
@@ -91,6 +91,8 @@ namespace dmRender
                 CreateAndPush(render_context, buffer);
             }
         }
+
+        return buffer->m_Buffers[buffer->m_BufferIndex];
     }
 
     void SetBufferData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t size, void* data, dmGraphics::BufferUsage buffer_usage)
