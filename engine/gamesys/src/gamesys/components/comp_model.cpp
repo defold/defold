@@ -110,6 +110,7 @@ namespace dmGameSystem
         dmRig::HRigContext              m_RigContext;
         uint32_t                        m_MaxElementsVertices;
         uint32_t                        m_MaxBatchIndex;
+        uint32_t                        m_DispatchCount;
     };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
@@ -768,9 +769,14 @@ namespace dmGameSystem
         const ModelComponent* component = render_item->m_Component;
         uint32_t material_index = render_item->m_MaterialIndex;
 
+        if (dmRender::GetBufferIndex(render_context, gfx_vertex_buffer) < world->m_DispatchCount)
+        {
+            dmRender::AddRenderBuffer(render_context, gfx_vertex_buffer);
+        }
+
         ro.Init();
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
-        ro.m_VertexBuffer = (dmGraphics::HVertexBuffer) dmRender::AddRenderBuffer(render_context, gfx_vertex_buffer);
+        ro.m_VertexBuffer = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, gfx_vertex_buffer);
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
@@ -910,13 +916,14 @@ namespace dmGameSystem
         }
 
         assert(world->m_MaxBatchIndex < VERTEX_BUFFER_MAX_BATCHES);
-        for (int i = 0; i < world->m_MaxBatchIndex; ++i)
+        for (int i = 0; i <= world->m_MaxBatchIndex; ++i)
         {
             dmRender::TrimBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
             dmRender::RewindBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
         }
 
         world->m_MaxBatchIndex = 0;
+        world->m_DispatchCount = 0;
 
         update_result.m_TransformsUpdated = rig_res == dmRig::RESULT_UPDATED_POSE;
         return dmGameObject::UPDATE_RESULT_OK;
@@ -947,6 +954,7 @@ namespace dmGameSystem
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
             {
                 world->m_RenderObjects.SetSize(0);
+
                 for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
                 {
                     world->m_VertexBufferData[batch_index].SetSize(0);
@@ -976,9 +984,10 @@ namespace dmGameSystem
                     total_count += vertex_buffer_data.Size();
                 }
 
+                world->m_DispatchCount++;
+
                 DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, total_count);
                 DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, total_count * sizeof(dmRig::RigModelVertex));
-
                 break;
             }
             default:

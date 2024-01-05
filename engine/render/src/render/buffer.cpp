@@ -91,18 +91,12 @@ namespace dmRender
                 CreateAndPush(render_context, buffer);
             }
         }
-        else
-        {
-            buffer->m_BufferIndex = 0;
-        }
+
         return buffer->m_Buffers[buffer->m_BufferIndex];
     }
 
     void SetBufferData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t size, void* data, dmGraphics::BufferUsage buffer_usage)
     {
-        if (buffer->m_BufferIndex < 0)
-            return;
-
         switch(buffer->m_Type)
         {
             case RENDER_BUFFER_TYPE_VERTEX_BUFFER:
@@ -134,10 +128,20 @@ namespace dmRender
         buffer->m_Buffers.SetSize(new_buffer_count);
     }
 
+    HRenderBuffer GetBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
+    {
+        return buffer->m_Buffers[buffer->m_BufferIndex];
+    }
+
+    int32_t GetBufferIndex(HRenderContext render_context, HBufferedRenderBuffer buffer)
+    {
+        return buffer->m_BufferIndex;
+    }
+
     void RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
     {
         if (!buffer)
             return;
-        buffer->m_BufferIndex = -1;
+        buffer->m_BufferIndex = 0;
     }
 }

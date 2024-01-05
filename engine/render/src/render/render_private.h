@@ -275,7 +275,7 @@ namespace dmRender
     {
         dmArray<HRenderBuffer> m_Buffers;
         RenderBufferType       m_Type;
-        int16_t                m_BufferIndex;
+        uint16_t               m_BufferIndex;
     };
 
     void RenderTypeTextBegin(HRenderContext rendercontext, void* user_context);
