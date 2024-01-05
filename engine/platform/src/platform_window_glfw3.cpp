@@ -46,8 +46,6 @@ namespace dmPlatform
         void*                         m_SetMarkedTextCallbackUserData;
         WindowDeviceChangedCallback   m_DeviceChangedCallback;
         void*                         m_DeviceChangedCallbackUserData;
-        WindowGamepadEventCallback    m_GamepadEventCallback;
-        void*                         m_GamepadEventCallbackUserData;
         double                        m_MouseScrollX;
         double                        m_MouseScrollY;
         int32_t                       m_Width;
@@ -57,6 +55,16 @@ namespace dmPlatform
         uint32_t                      m_SwapIntervalSupported : 1;
         uint32_t                      m_WindowOpened          : 1;
     };
+
+    // Gamepad callbacks are shared across all windows, so we need a
+    // shared struct to store 'global' data
+    struct Context
+    {
+        WindowGamepadEventCallback m_GamepadEventCallback;
+        void*                      m_GamepadEventCallbackUserData;
+    };
+
+    static Context* g_Context = 0x0;
 
     static void OnError(int error, const char* description)
     {
@@ -77,7 +85,6 @@ namespace dmPlatform
     static void OnWindowClose(GLFWwindow* glfw_window)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        assert(window);
         if (window->m_CloseCallback != 0x0)
         {
             window->m_CloseCallback(window->m_CloseCallbackUserData);
@@ -87,7 +94,6 @@ namespace dmPlatform
     static void OnWindowFocus(GLFWwindow* glfw_window, int focus)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        assert(window);
         if (window->m_FocusCallback != 0x0)
         {
             window->m_FocusCallback(window->m_FocusCallbackUserData, focus);
@@ -97,10 +103,18 @@ namespace dmPlatform
     static void OnWindowIconify(GLFWwindow* glfw_window, int iconify)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        assert(window);
         if (window->m_IconifyCallback != 0x0)
         {
             window->m_IconifyCallback(window->m_IconifyCallbackUserData, iconify);
+        }
+    }
+
+    static void OnAddCharacterCallback(GLFWwindow* glfw_window, unsigned int chr)
+    {
+        HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        if (window->m_AddKeyboarCharCallBack)
+        {
+            window->m_AddKeyboarCharCallBack(window->m_AddKeyboarCharCallBackUserData, chr);
         }
     }
 
@@ -113,9 +127,7 @@ namespace dmPlatform
 
     static void OnJoystick(int id, int event)
     {
-        HWindow window = (HWindow) glfwGetJoystickUserPointer(id);
-
-        if (window->m_GamepadEventCallback)
+        if (g_Context->m_GamepadEventCallback)
         {
             GamepadEvent gp_evt = GAMEPAD_EVENT_UNSUPPORTED;
             switch(event)
@@ -129,7 +141,7 @@ namespace dmPlatform
                 default:break;
             }
 
-            window->m_GamepadEventCallback(window->m_GamepadEventCallbackUserData, id, gp_evt);
+            g_Context->m_GamepadEventCallback(g_Context->m_GamepadEventCallbackUserData, id, gp_evt);
         }
     }
 
@@ -146,6 +158,12 @@ namespace dmPlatform
 
         glfwSetErrorCallback(OnError);
 
+        if (g_Context == 0x0)
+        {
+            g_Context = new Context;
+            memset(g_Context, 0, sizeof(Context));
+        }
+
         return wnd;
     }
 
@@ -161,7 +179,8 @@ namespace dmPlatform
 
     PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
-        // osx
+        // TODO: This is the setup required for OSX, when we implement the other desktop
+        //       platforms we might want to do this differently.
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
 
@@ -242,16 +261,11 @@ namespace dmPlatform
             glfwSetWindowFocusCallback(window->m_Window, OnWindowFocus);
             glfwSetWindowIconifyCallback(window->m_Window, OnWindowIconify);
             glfwSetScrollCallback(window->m_Window, OnMouseScroll);
-
-            for (int i = 0; i < GLFW_JOYSTICK_LAST; ++i)
-            {
-                glfwSetJoystickUserPointer(i, (void*) window);
-            }
-
-            glfwSetJoystickCallback(OnJoystick);
-            glfwSwapInterval(1);
+            glfwSetCharCallback(window->m_Window, OnAddCharacterCallback);
 
             glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
+            glfwSetJoystickCallback(OnJoystick);
+            glfwSwapInterval(1);
 
             // This is not supported in the same way by GLFW3, but we could
             // set glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE); to get a transparent framebuffer
@@ -458,7 +472,7 @@ namespace dmPlatform
         count = dmMath::Min(count, (int32_t) values_capacity);
         if (count > 0)
         {
-            memcpy(values, hats_values, sizeof(float) * count);
+            memcpy(values, hats_values, sizeof(uint8_t) * count);
         }
         return count;
     }
@@ -470,7 +484,7 @@ namespace dmPlatform
         count = dmMath::Min(count, (int32_t) values_capacity);
         if (count > 0)
         {
-            memcpy(values, buttons_values, sizeof(float) * count);
+            memcpy(values, buttons_values, sizeof(uint8_t) * count);
         }
         return count;
     }
@@ -487,41 +501,10 @@ namespace dmPlatform
 
     void SetDeviceState(HWindow window, DeviceState state, bool op1, bool op2)
     {
-        switch(state)
+        if (state == DEVICE_STATE_CURSOR)
         {
-            case DEVICE_STATE_CURSOR:
-                glfwSetInputMode(window->m_Window, GLFW_CURSOR, op1 ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_HIDDEN);
-                break;
+            glfwSetInputMode(window->m_Window, GLFW_CURSOR, op1 ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_HIDDEN);
         }
-
-        /*
-        switch(state)
-        {
-            case DEVICE_STATE_CURSOR:
-                if (op1)
-                    glfwEnable(GLFW_MOUSE_CURSOR);
-                else
-                    glfwDisable(GLFW_MOUSE_CURSOR);
-                break;
-            case DEVICE_STATE_ACCELEROMETER:
-                if (op1)
-                    glfwAccelerometerEnable();
-                break;
-            case DEVICE_STATE_KEYBOARD_DEFAULT:
-                glfwShowKeyboard(op1, GLFW_KEYBOARD_DEFAULT, op2);
-                break;
-            case DEVICE_STATE_KEYBOARD_NUMBER_PAD:
-                glfwShowKeyboard(op1, GLFW_KEYBOARD_NUMBER_PAD, op2);
-                break;
-            case DEVICE_STATE_KEYBOARD_EMAIL:
-                glfwShowKeyboard(op1, GLFW_KEYBOARD_EMAIL, op2);
-                break;
-            case DEVICE_STATE_KEYBOARD_PASSWORD:
-                glfwShowKeyboard(op1, GLFW_KEYBOARD_PASSWORD, op2);
-                break;
-            default:break;
-        }
-        */
     }
 
     void SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data)
@@ -544,8 +527,8 @@ namespace dmPlatform
 
     void SetGamepadEventCallback(HWindow window, WindowGamepadEventCallback cb, void* user_data)
     {
-        window->m_GamepadEventCallback         = cb;
-        window->m_GamepadEventCallbackUserData = user_data;
+        g_Context->m_GamepadEventCallback         = cb;
+        g_Context->m_GamepadEventCallbackUserData = user_data;
     }
 
     const int PLATFORM_JOYSTICK_LAST       = GLFW_JOYSTICK_LAST;

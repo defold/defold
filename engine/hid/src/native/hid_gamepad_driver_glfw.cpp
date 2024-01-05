@@ -120,6 +120,8 @@ namespace dmHID
 
         driver->m_Devices.Push(new_device);
 
+        SetGamepadConnectionStatus(driver->m_HidContext, gp, true);
+
         return gp;
     }
 
