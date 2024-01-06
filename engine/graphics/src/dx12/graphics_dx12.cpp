@@ -422,6 +422,16 @@ namespace dmGraphics
     {
     }
 
+    static bool DX12ReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
+    {
+        return true;
+    }
+
+    static bool DX12ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    {
+        return true;
+    }
+
     static HProgram DX12NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         return 0;
@@ -464,7 +474,7 @@ namespace dmGraphics
         return (ShaderDesc::Language) 0;
     }
 
-    static ShaderDesc::Language DX12GetShaderProgramLanguage(HContext context)
+    static ShaderDesc::Language DX12GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
     {
         return ShaderDesc::LANGUAGE_GLSL_SM140;
     }
@@ -477,7 +487,7 @@ namespace dmGraphics
     {
     }
 
-    static bool DX12ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool DX12ReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         return true;
     }
