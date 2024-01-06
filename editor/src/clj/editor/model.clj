@@ -127,14 +127,14 @@
     (validation/prop-error :fatal _node-id :default-animation validation/prop-member-of? default-animation (set animation-ids)
                            (format "Animation '%s' does not exist" default-animation))))
 
-(defn- transform-vertex-attributes [pb-msg material-binding-infos]
+(defn- produce-build-target-vertex-attributes [pb-msg material-binding-infos]
   (let [materials+attribute-build-data (mapv (fn [material+binding-infos]
                                                (let [material (first material+binding-infos)
                                                      material-binding-info (second material+binding-infos)
-                                                     material-attribute-infos (:material-attribute-infos material-binding-info)
-                                                     vertex-attribute-overrides (:vertex-attribute-overrides material-binding-info)
-                                                     vertex-attribute-bytes (:vertex-attribute-bytes material-binding-info)
-                                                     material-attributes (graphics/attributes->build-target material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)]
+                                                     material-attributes (graphics/attributes->build-target
+                                                                           (:material-attribute-infos material-binding-info)
+                                                                           (:vertex-attribute-overrides material-binding-info)
+                                                                           (:vertex-attribute-bytes material-binding-info))]
                                                  (assoc material :attributes material-attributes)))
                                              (map vector (:materials pb-msg) material-binding-infos))]
     (assoc pb-msg :materials materials+attribute-build-data)))
@@ -165,7 +165,7 @@
             rig-scene-pb-msg {:texture-set ""} ; Set in the ModelProto$Model message. Other field values taken from build targets.
             rig-scene-additional-resource-keys []
             rig-scene-build-targets (rig/make-rig-scene-build-targets _node-id rig-scene-resource rig-scene-pb-msg dep-build-targets rig-scene-additional-resource-keys rig-scene-dep-build-targets)
-            pb-msg (transform-vertex-attributes (select-keys pb-msg [:materials :default-animation]) material-binding-infos)
+            pb-msg (produce-build-target-vertex-attributes (select-keys pb-msg [:materials :default-animation]) material-binding-infos)
             dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))
             deps-by-source (into {}
                                  (map (fn [build-target]
@@ -262,12 +262,14 @@
   {:sampler s/Str
    :texture (s/maybe (s/protocol resource/Resource))})
 
+(def TVertexAttribute
+  {s/Keyword s/Any})
+
 (g/deftype Materials
   [{:name s/Str
     :material (s/maybe (s/protocol resource/Resource))
     :textures [TTexture]
-    ;; TODO-jg: What should this be?? it's a key - vector pair, but I don't know how to specify that..
-    :attributes s/Any}])
+    :attributes TVertexAttribute}])
 
 (g/defnode TextureBinding
   (property sampler g/Str (default ""))
