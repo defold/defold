@@ -84,9 +84,9 @@ namespace dmScript
      * @param [options] [type:table] optional table with request parameters. Supported entries:
      *
      * - [type:number] `timeout`: timeout in seconds
-     * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200
-     * - [type:boolean] `ignore_cache`: don't return cached data if we get a 304
-     * - [type:boolean] `chunked_transfer`: use chunked transfer encoding for https requests larger than 16kb. Defaults to true.
+     * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200. [icon:attention] Not available in HTML5 build
+     * - [type:boolean] `ignore_cache`: don't return cached data if we get a 304. [icon:attention] Not available in HTML5 build
+     * - [type:boolean] `chunked_transfer`: use chunked transfer encoding for https requests larger than 16kb. Defaults to true. [icon:attention] Not available in HTML5 build
      *
      *
      * @examples
