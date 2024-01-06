@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "extension.h"
-#include <dmsdk/graphics/glfw/glfw.h>
+#include <glfw/glfw.h>
 
 namespace dmExtension
 {

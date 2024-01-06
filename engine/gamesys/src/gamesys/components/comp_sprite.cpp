@@ -112,14 +112,15 @@ namespace dmGameSystem
         dmArray<dmRender::RenderObject*> m_RenderObjects;
         dmArray<float>                  m_BoundingVolumes;
         uint32_t                        m_RenderObjectsInUse;
-        dmGraphics::HVertexBuffer       m_VertexBuffer;
+        dmRender::HBufferedRenderBuffer m_VertexBuffer;
         uint8_t*                        m_VertexBufferData;
         uint8_t*                        m_VertexBufferWritePtr;
-        dmGraphics::HIndexBuffer        m_IndexBuffer;
+        dmRender::HBufferedRenderBuffer m_IndexBuffer;
         uint32_t                        m_VerticesWritten;
         uint32_t                        m_VertexMemorySize;
         uint32_t                        m_VertexCount;
         uint32_t                        m_IndexCount;
+        uint32_t                        m_DispatchCount;
         uint8_t*                        m_IndexBufferData;
         uint8_t*                        m_IndexBufferWritePtr;
         uint8_t                         m_Is16BitIndex : 1;
@@ -182,12 +183,13 @@ namespace dmGameSystem
     static void SetPlaybackRate(SpriteComponent* component, float playback_rate);
 
     static void ReAllocateBuffers(SpriteWorld* sprite_world, dmRender::HRenderContext render_context) {
-        if (sprite_world->m_VertexBuffer) {
-            dmGraphics::DeleteVertexBuffer(sprite_world->m_VertexBuffer);
+        if (sprite_world->m_VertexBuffer)
+        {
+            dmRender::DeleteBufferedRenderBuffer(render_context, sprite_world->m_VertexBuffer);
             sprite_world->m_VertexBuffer = 0;
         }
 
-        sprite_world->m_VertexBuffer     = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        sprite_world->m_VertexBuffer     = dmRender::NewBufferedRenderBuffer(render_context, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         uint32_t vertex_memsize          = sprite_world->m_VertexMemorySize;
         sprite_world->m_VertexBufferData = (uint8_t*) realloc(sprite_world->m_VertexBufferData, vertex_memsize);
 
@@ -198,11 +200,11 @@ namespace dmGameSystem
 
         if (sprite_world->m_IndexBuffer)
         {
-            dmGraphics::DeleteIndexBuffer(sprite_world->m_IndexBuffer);
+            dmRender::DeleteBufferedRenderBuffer(render_context, sprite_world->m_IndexBuffer);
             sprite_world->m_IndexBuffer = 0;
         }
 
-        sprite_world->m_IndexBuffer    = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_memsize, (void*)sprite_world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        sprite_world->m_IndexBuffer    = dmRender::NewBufferedRenderBuffer(render_context, dmRender::RENDER_BUFFER_TYPE_INDEX_BUFFER);
         sprite_world->m_ReallocBuffers = 0;
     }
 
@@ -234,9 +236,10 @@ namespace dmGameSystem
             delete sprite_world->m_RenderObjects[i];
         }
 
-        dmGraphics::DeleteVertexBuffer(sprite_world->m_VertexBuffer);
+        SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
+        dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_VertexBuffer);
         free(sprite_world->m_VertexBufferData);
-        dmGraphics::DeleteIndexBuffer(sprite_world->m_IndexBuffer);
+        dmRender::DeleteBufferedRenderBuffer(sprite_context->m_RenderContext, sprite_world->m_IndexBuffer);
         free(sprite_world->m_IndexBufferData);
 
         delete sprite_world;
@@ -290,7 +293,8 @@ namespace dmGameSystem
         if (!overrides)
             return;
 
-        dmHashUpdateBuffer32(state, overrides->m_Material, sizeof(MaterialResource*));
+        if (overrides->m_Material)
+            dmHashUpdateBuffer32(state, overrides->m_Material, sizeof(MaterialResource*));
         dmHashUpdateBuffer32(state, overrides->m_Textures.Begin(), sizeof(SpriteTexture) * overrides->m_Textures.Size());
     }
 
@@ -1305,10 +1309,15 @@ namespace dmGameSystem
         sprite_world->m_VertexBufferWritePtr = vb_iter;
         sprite_world->m_IndexBufferWritePtr = ib_iter;
 
+        if (dmRender::GetBufferIndex(render_context, sprite_world->m_VertexBuffer) < sprite_world->m_DispatchCount)
+        {
+            dmRender::AddRenderBuffer(render_context, sprite_world->m_VertexBuffer);
+        }
+
         ro.Init();
         ro.m_VertexDeclaration = vx_decl;
-        ro.m_VertexBuffer = sprite_world->m_VertexBuffer;
-        ro.m_IndexBuffer = sprite_world->m_IndexBuffer;
+        ro.m_VertexBuffer = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, sprite_world->m_VertexBuffer);
+        ro.m_IndexBuffer = (dmGraphics::HIndexBuffer) dmRender::GetBuffer(render_context, sprite_world->m_IndexBuffer);
         ro.m_Material = material;
         for(uint32_t i = 0; i < resource->m_NumTextures; ++i)
         {
@@ -1629,6 +1638,16 @@ namespace dmGameSystem
         Animate(world, params.m_UpdateContext->m_DT);
 
         PostMessages(world);
+
+        SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
+        dmRender::TrimBuffer(sprite_context->m_RenderContext, world->m_VertexBuffer);
+        dmRender::RewindBuffer(sprite_context->m_RenderContext, world->m_VertexBuffer);
+
+        dmRender::TrimBuffer(sprite_context->m_RenderContext, world->m_IndexBuffer);
+        dmRender::RewindBuffer(sprite_context->m_RenderContext, world->m_IndexBuffer);
+
+        world->m_DispatchCount = 0;
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -1652,7 +1671,6 @@ namespace dmGameSystem
         }
     }
 
-
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
         SpriteWorld* world = (SpriteWorld*) params.m_UserData;
@@ -1670,8 +1688,7 @@ namespace dmGameSystem
 
                     if (vertex_data_size)
                     {
-                        dmGraphics::SetVertexBufferData(world->m_VertexBuffer, vertex_data_size,
-                                                        world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                        dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
                         DM_PROPERTY_ADD_U32(rmtp_SpriteVertexCount, world->m_VertexCount);
                         DM_PROPERTY_ADD_U32(rmtp_SpriteVertexSize, vertex_data_size);
@@ -1680,10 +1697,12 @@ namespace dmGameSystem
                     uint32_t index_size = (world->m_IndexBufferWritePtr - world->m_IndexBufferData);
                     if (index_size)
                     {
-                        dmGraphics::SetIndexBufferData(world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                        dmRender::SetBufferData(params.m_Context, world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
                         DM_PROPERTY_ADD_U32(rmtp_SpriteIndexSize, index_size);
                     }
+
+                    world->m_DispatchCount++;
                 }
                 break;
             default:

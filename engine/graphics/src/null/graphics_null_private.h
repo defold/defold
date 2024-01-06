@@ -104,6 +104,7 @@ namespace dmGraphics
         PipelineState                      m_PipelineState;
         TextureFilter                      m_DefaultTextureMinFilter;
         TextureFilter                      m_DefaultTextureMagFilter;
+        ShaderDesc::Language               m_ShaderClassLanguage[2];
         uint32_t                           m_Width;
         uint32_t                           m_Height;
         int32_t                            m_ScissorRect[4];
