@@ -86,6 +86,13 @@
         (or (not-empty (:v (:double-values attribute)))
             (not-empty (:v (:long-values attribute))))))
 
+(defn attribute->value-source [attribute]
+  (if (not-empty (:v (:double-values attribute)))
+    :double-values
+    (if (not-empty (:v (:long-values attribute)))
+      :long-values
+      nil)))
+
 (defn- doubles->stored-values [double-values attribute-value-keyword]
   (case attribute-value-keyword
     :double-values

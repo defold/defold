@@ -62,6 +62,19 @@
         [])
       (:animation-ids animation-set-info))))
 
+(defn- produce-orphaned-attribute-save-values [attribute-save-values attribute-overrides attribute-value-sources]
+  (let [attribute-save-value-names (mapv #(:name %) attribute-save-values)]
+    (into []
+          (keep (fn [attribute]
+                  (when-not (some #(= (key attribute) %) attribute-save-value-names)
+                    (let [attribute-name (key attribute)
+                          attribute-values (second attribute)
+                          attribute-name-key (:name-key attribute-values)
+                          attribute-value-source-key (:value-source-key attribute-values)
+                          attribute-values (attribute-name-key attribute-overrides)]
+                      {:name attribute-name attribute-value-source-key {:v attribute-values} })))
+                attribute-value-sources))))
+
 (g/defnk produce-pb-msg [name mesh materials material-binding-infos skeleton animations default-animation]
   (cond-> {:mesh (resource/resource->proj-path mesh)
            :materials (mapv
@@ -70,8 +83,10 @@
                                 material-binding-info (second material+binding-infos)
                                 material-attribute-infos (:material-attribute-infos material-binding-info)
                                 vertex-attribute-overrides (:vertex-attribute-overrides material-binding-info)
-                                vertex-attribute-save-values (graphics/attributes->save-values material-attribute-infos vertex-attribute-overrides)]
-                            (-> (assoc material :attributes vertex-attribute-save-values)
+                                vertex-attribute-overrides-value-sources (:vertex-attribute-overrides-value-sources material-binding-info)
+                                vertex-attribute-save-values (graphics/attributes->save-values material-attribute-infos vertex-attribute-overrides)
+                                produce-orphaned-attribute-save-values (produce-orphaned-attribute-save-values vertex-attribute-save-values vertex-attribute-overrides vertex-attribute-overrides-value-sources)]
+                            (-> (assoc material :attributes (concat vertex-attribute-save-values produce-orphaned-attribute-save-values))
                                 (update :material resource/resource->proj-path)
                                 (update :textures
                                         (fn [textures]
@@ -321,6 +336,9 @@
   (property vertex-attribute-overrides g/Any
             (default {})
             (dynamic visible (g/constantly false)))
+  (property vertex-attribute-overrides-value-sources g/Any
+            (default {})
+            (dynamic visible (g/constantly false)))
   (input material-resource resource/Resource)
   (input material-attribute-infos g/Any)
   (input texture-binding-infos g/Any :array)
@@ -331,6 +349,7 @@
                                               material
                                               ^:try material-attribute-infos
                                               vertex-attribute-overrides
+                                              vertex-attribute-overrides-value-sources
                                               ^:try vertex-attribute-bytes
                                               ^:try samplers
                                               ^:try texture-binding-infos
@@ -373,11 +392,12 @@
     (g/connect texture-binding :texture-binding-info material-binding :texture-binding-infos)
     (g/connect texture-binding :build-targets material-binding :dep-build-targets)))
 
-(defn- create-material-binding-tx [model-node-id name material textures vertex-attribute-overrides]
+(defn- create-material-binding-tx [model-node-id name material textures vertex-attribute-overrides vertex-attribute-overrides-value-sources]
   (g/make-nodes (g/node-id->graph-id model-node-id) [material-binding [MaterialBinding
                                                                        :name name
                                                                        :material material
-                                                                       :vertex-attribute-overrides vertex-attribute-overrides]]
+                                                                       :vertex-attribute-overrides vertex-attribute-overrides
+                                                                       :vertex-attribute-overrides-value-sources vertex-attribute-overrides-value-sources]]
     (g/connect material-binding :_node-id model-node-id :copied-nodes)
     (g/connect material-binding :dep-build-targets model-node-id :dep-build-targets)
     (g/connect material-binding :material-scene-info model-node-id :material-scene-infos)
@@ -615,8 +635,17 @@
                       (map (fn [vertex-attribute]
                              [(graphics/attribute-name->key (:name vertex-attribute))
                               (graphics/attribute->any-doubles vertex-attribute)]))
+                      attributes)
+                ;; We need to remember which field the values were loaded from
+                ;; in case we need to store orphaned attributes when producing the save value
+                vertex-attribute-overrides-value-sources
+                (into {}
+                      (map (fn [vertex-attribute]
+                             [(:name vertex-attribute)
+                              {:value-source-key (graphics/attribute->value-source vertex-attribute)
+                               :name-key (graphics/attribute-name->key (:name vertex-attribute))}]))
                       attributes)]]
-      (create-material-binding-tx self name material textures vertex-attribute-overrides))))
+      (create-material-binding-tx self name material textures vertex-attribute-overrides vertex-attribute-overrides-value-sources))))
 
 (defn- sanitize-model [{:keys [material textures materials] :as pb}]
   (-> pb
