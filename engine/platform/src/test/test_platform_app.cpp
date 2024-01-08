@@ -162,8 +162,6 @@ static UpdateResult EngineUpdate(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
     engine->m_WasRun++;
-    uint64_t t = dmTime::GetTime();
-    float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
 
     dmPlatform::PollEvents(engine->m_Window);
 
