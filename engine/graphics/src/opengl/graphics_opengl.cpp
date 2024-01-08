@@ -180,6 +180,7 @@
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
+DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
 namespace dmGraphics
 {
@@ -1710,6 +1711,13 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
         CHECK_GL_ERROR
+    }
+
+    static void OpenGLDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
+        // Not supported yet
     }
 
     static GLuint DoCreateShader(GLenum type, const void* program, uint32_t program_size)

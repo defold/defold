@@ -996,7 +996,22 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
+    VkResult CreateComputePipeline(VkDevice vk_device, Program* program, Pipeline* pipelineOut)
+    {
+        assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
+
+        VkComputePipelineCreateInfo vk_pipeline_create_info = {};
+        vk_pipeline_create_info.sType              = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        vk_pipeline_create_info.basePipelineHandle = 0;
+        vk_pipeline_create_info.basePipelineIndex  = 0;
+        vk_pipeline_create_info.flags              = 0;
+        vk_pipeline_create_info.layout             = program->m_Handle.m_PipelineLayout;
+        vk_pipeline_create_info.pNext              = 0;
+        vk_pipeline_create_info.stage              = program->m_PipelineStageInfo[0];
+        return vkCreateComputePipelines(vk_device, 0, 1, &vk_pipeline_create_info, 0, pipelineOut);
+    }
+
+    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         PipelineState pipelineState, Program* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
         RenderTarget* render_target, Pipeline* pipelineOut)
     {

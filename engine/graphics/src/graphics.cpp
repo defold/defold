@@ -25,6 +25,7 @@
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics");
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, FrameReset, "# vertices", &rmtp_Graphics);
+DM_PROPERTY_U32(rmtp_DispatchCalls, 0, FrameReset, "# dispatches", &rmtp_Graphics);
 
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
@@ -1080,6 +1081,10 @@ namespace dmGraphics
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
         g_functions.m_Draw(context, prim_type, first, count);
+    }
+    void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        g_functions.m_DispatchCompute(context, group_count_x, group_count_y, group_count_z);
     }
     HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {

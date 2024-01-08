@@ -27,6 +27,7 @@
 #include "graphics_vulkan_private.h"
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
+DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
 namespace dmGraphics
 {
@@ -1284,7 +1285,8 @@ bail:
         tex_sc->m_GraphicsFormat     = TEXTURE_FORMAT_BGRA8U;
     #endif
 
-        BeginRenderPass(context, context->m_CurrentRenderTarget);
+        // TODO
+        // BeginRenderPass(context, context->m_CurrentRenderTarget);
     }
 
     static void VulkanFlip(HContext _context)
@@ -1489,6 +1491,37 @@ bail:
         resource->m_Destroyed = 1;
     }
 
+    static Pipeline* GetOrCreateComputePipeline(VkDevice vk_device, PipelineCache& pipelineCache, Program* program)
+    {
+        HashState64 pipeline_hash_state;
+        dmHashInit64(&pipeline_hash_state, false);
+        dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_Hash, sizeof(program->m_Hash));
+
+        uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
+        Pipeline* cached_pipeline = pipelineCache.Get(pipeline_hash);
+
+        if (!cached_pipeline)
+        {
+            Pipeline new_pipeline;
+            memset(&new_pipeline, 0, sizeof(new_pipeline));
+
+            VkResult res = CreateComputePipeline(vk_device, program, &new_pipeline);
+            CHECK_VK_ERROR(res);
+
+            if (pipelineCache.Full())
+            {
+                pipelineCache.SetCapacity(32, pipelineCache.Capacity() + 4);
+            }
+
+            pipelineCache.Put(pipeline_hash, new_pipeline);
+            cached_pipeline = pipelineCache.Get(pipeline_hash);
+
+            dmLogDebug("Created new VK Compute Pipeline with hash %llu", (unsigned long long) pipeline_hash);
+        }
+
+        return cached_pipeline;
+    }
+
     static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkSampleCountFlagBits vk_sample_count,
         const PipelineState pipelineState, PipelineCache& pipelineCache,
         Program* program, RenderTarget* rt, VertexDeclaration** vertexDeclaration, uint32_t vertexDeclarationCount)
@@ -1520,7 +1553,7 @@ bail:
             vk_scissor.offset.x = 0;
             vk_scissor.offset.y = 0;
 
-            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, vertexDeclarationCount, rt, &new_pipeline);
+            VkResult res = CreateGraphicsPipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, vertexDeclarationCount, rt, &new_pipeline);
             CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
@@ -2102,6 +2135,34 @@ bail:
         vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
     }
 
+    static VkResult CommitComputeUniforms(VulkanContext* context, VkCommandBuffer vk_command_buffer, VkDevice vk_device,
+        Program* program_ptr, ScratchBuffer* scratch_buffer,
+        uint32_t* dynamic_offsets, const uint32_t alignment)
+    {
+        const uint32_t num_descriptors     = program_ptr->m_TotalResourcesCount;
+        const uint32_t num_dynamic_offsets = program_ptr->m_UniformBufferCount;
+
+        if (num_descriptors == 0)
+        {
+            return VK_SUCCESS;
+        }
+
+        VkDescriptorSet* vk_descriptor_set_list = 0x0;
+        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayouts, program_ptr->m_Handle.m_DescriptorSetLayoutsCount, num_descriptors, &vk_descriptor_set_list);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment);
+
+        vkCmdBindDescriptorSets(vk_command_buffer,
+            VK_PIPELINE_BIND_POINT_COMPUTE, program_ptr->m_Handle.m_PipelineLayout,
+            0, 1, vk_descriptor_set_list, 0, 0);
+
+        return VK_SUCCESS;
+    }
+
     static VkResult CommitUniforms(VulkanContext* context, VkCommandBuffer vk_command_buffer, VkDevice vk_device,
         Program* program_ptr, ScratchBuffer* scratch_buffer,
         uint32_t* dynamic_offsets, const uint32_t alignment)
@@ -2141,6 +2202,52 @@ bail:
         scratchBuffer->m_DeviceBuffer.MapMemory(context->m_LogicalDevice.m_Device);
 
         return res;
+    }
+
+    static void DrawSetupCompute(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer)
+    {
+        VkDevice vk_device   = context->m_LogicalDevice.m_Device;
+        Program* program_ptr = context->m_CurrentProgram;
+        assert(program_ptr->m_ComputeModule);
+
+        // Ensure there is room in the descriptor allocator to support this draw call
+        const uint32_t num_uniform_buffers = program_ptr->m_UniformBufferCount;
+        const bool resize_scratch_buffer   = program_ptr->m_UniformDataSizeAligned > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
+
+        if (resize_scratch_buffer)
+        {
+            const uint8_t descriptor_increase = 32;
+            const uint32_t bytes_increase = 256 * descriptor_increase;
+            VkResult res = ResizeScratchBuffer(context, scratchBuffer->m_DeviceBuffer.m_MemorySize + bytes_increase, scratchBuffer);
+            CHECK_VK_ERROR(res);
+        }
+
+        // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this draw call
+        if (context->m_DynamicOffsetBufferSize < num_uniform_buffers)
+        {
+            const size_t offset_buffer_size = sizeof(uint32_t) * num_uniform_buffers;
+
+            if (context->m_DynamicOffsetBuffer == 0x0)
+            {
+                context->m_DynamicOffsetBuffer = (uint32_t*) malloc(offset_buffer_size);
+            }
+            else
+            {
+                context->m_DynamicOffsetBuffer = (uint32_t*) realloc(context->m_DynamicOffsetBuffer, offset_buffer_size);
+            }
+
+            memset(context->m_DynamicOffsetBuffer, 0, offset_buffer_size);
+
+            context->m_DynamicOffsetBufferSize = num_uniform_buffers;
+        }
+
+        // Write the uniform data to the descriptors
+        uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
+        VkResult res               = CommitComputeUniforms(context, vk_command_buffer, vk_device, program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
+        CHECK_VK_ERROR(res);
+
+        Pipeline* pipeline = GetOrCreateComputePipeline(vk_device, context->m_PipelineCache, program_ptr);
+        vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
     }
 
     static void DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
@@ -2310,6 +2417,18 @@ bail:
         context->m_PipelineState.m_PrimtiveType = prim_type;
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], 0, TYPE_BYTE);
         vkCmdDraw(vk_command_buffer, count, 1, first, 0);
+    }
+
+    static void VulkanDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
+        VulkanContext* context = (VulkanContext*) _context;
+
+        const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        DrawSetupCompute(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix]);
+        vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
     }
 
     static void CreateShaderResourceBindings(ShaderModule* shader, ShaderDesc::Shader* ddf, uint32_t dynamicAlignment)
@@ -2565,17 +2684,16 @@ bail:
             assert(program->m_VertexModule && program->m_FragmentModule);
             FillProgramResourceBindings(program, program->m_VertexModule, bindings, dynamic_alignment, VK_SHADER_STAGE_VERTEX_BIT, buffer_count, sampler_count, uniform_count, data_size, data_size_aligned, max_set, max_binding);
             FillProgramResourceBindings(program, program->m_FragmentModule, bindings, dynamic_alignment, VK_SHADER_STAGE_FRAGMENT_BIT, buffer_count, sampler_count, uniform_count, data_size, data_size_aligned, max_set, max_binding);
-
-            program->m_UniformData = new uint8_t[data_size];
-            memset(program->m_UniformData, 0, data_size);
         }
 
+        program->m_UniformData         = new uint8_t[data_size];
         program->m_UniformBufferCount  = buffer_count;
         program->m_TextureSamplerCount = sampler_count;
         program->m_TotalUniformCount   = uniform_count; // num buffer members + samplers
         program->m_TotalResourcesCount = buffer_count + sampler_count; // num actual descriptors
         program->m_MaxSet              = max_set;
         program->m_MaxBinding          = max_binding;
+        memset(program->m_UniformData, 0, data_size);
 
         CreatePipelineLayout(context, program, bindings, max_set);
     }

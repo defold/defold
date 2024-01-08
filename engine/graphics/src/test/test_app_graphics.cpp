@@ -347,7 +347,14 @@ struct SubPassTest : ITest
 
 struct ComputeTest : ITest
 {
-    dmGraphics::HProgram m_Program;
+    dmGraphics::HProgram                    m_Program;
+    dmGraphics::HUniformLocation            m_UniformLoc;
+    dmGraphics::ShaderDesc::ResourceBinding m_ColorMember;
+
+    struct buf
+    {
+        float color[4];
+    };
 
     void Initialize(EngineCtx* engine) override
     {
@@ -366,14 +373,37 @@ struct ComputeTest : ITest
             compute_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_compute_program);
         }
 
+        m_ColorMember = {};
+        m_ColorMember.m_Name         = "color";
+        m_ColorMember.m_Type         = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4;
+        m_ColorMember.m_ElementCount = 1;
+
+        dmGraphics::ShaderDesc::ResourceBlock uniform_block = {};
+        uniform_block.m_Name             = "buf";
+        uniform_block.m_NameHash         = dmHashString64(uniform_block.m_Name);
+        uniform_block.m_Type             = dmGraphics::ShaderDesc::SHADER_TYPE_UNIFORM_BUFFER;
+        uniform_block.m_Bindings.m_Data  = &m_ColorMember;
+        uniform_block.m_Bindings.m_Count = 1;
+
+        compute_shader.m_Resources.m_Data  = &uniform_block;
+        compute_shader.m_Resources.m_Count = 1;
+
         dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_shader);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, compute_program);
+
+        m_UniformLoc = dmGraphics::GetUniformLocation(m_Program, "buf");
     }
 
     void Execute(EngineCtx* engine) override
     {
+        dmVMath::Vector4 color(1.0f, 0.0f, 0.0f, 1.0f);
 
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::SetConstantV4(engine->m_GraphicsContext, &color, 1, m_UniformLoc);
+
+        dmGraphics::DispatchCompute(engine->m_GraphicsContext, 1, 1, 1);
+        dmGraphics::DisableProgram(engine->m_GraphicsContext);
     }
 };
 
@@ -406,7 +436,6 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
     engine->m_Test = new ComputeTest();
-
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
@@ -437,6 +466,8 @@ static UpdateResult EngineUpdate(void* _engine)
     dmPlatform::PollEvents(engine->m_Window);
 
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
+
+    engine->m_Test->Execute(engine);
 
     dmGraphics::Flip(engine->m_GraphicsContext);
 

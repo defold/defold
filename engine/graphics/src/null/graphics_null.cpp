@@ -598,6 +598,11 @@ namespace dmGraphics
         g_DrawCount++;
     }
 
+    static void NullDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        // Not supported
+    }
+
     // For tests
     uint64_t GetDrawCount()
     {
