@@ -15,10 +15,10 @@
 
 # add build_tools folder to the import search path
 import sys, os, platform
-from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
+from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath, splitext
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
-import shutil, zipfile, re, itertools, json, platform, math, mimetypes
+import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import run
@@ -743,9 +743,26 @@ class Configuration(object):
 
             zip.close()
 
+    def _create_sha256_signature_file(self, input_filepath):
+        file_sha256 = hashlib.sha256()
+        with open(input_filepath, 'rb') as source_archive:
+            for byte_block in iter(lambda: source_archive.read(4096), b""):
+                file_sha256.update(byte_block)
+            source_archive.close()
+
+        print("File {} sha256 signature is {}".format(input_filepath, file_sha256.hexdigest()))
+        sig_filename = None
+        with open(splitext(input_filepath)[0] + '.sha256', 'w') as sig_file:
+            sig_filename = sig_file.name
+            sig_file.write(file_sha256.hexdigest())
+            sig_file.close()
+        return sig_filename
+
     # package the native SDK, return the path to the zip file
+    # and path to zip sha256 signature file
     def _package_platform_sdk(self, platform):
-        with open(join(self.dynamo_home, 'defoldsdk.zip'), 'wb') as outfile:
+        sdk_archive_path = join(self.dynamo_home, 'defoldsdk.zip')
+        with open(sdk_archive_path, 'wb') as outfile:
             zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
 
             topfolder = 'defoldsdk'
@@ -908,17 +925,19 @@ class Configuration(object):
                 print(x)
 
             zip.close()
-            return outfile.name
-        return None
+
+            sig_filename = self._create_sha256_signature_file(sdk_archive_path)
+            return outfile.name, sig_filename
+        return None, None
 
     def build_platform_sdk(self):
         # Helper function to make it easier to build a platform sdk locally
         try:
-            path = self._package_platform_sdk(self.target_platform)
+            path, sig_path = self._package_platform_sdk(self.target_platform)
         except Exception as e:
             print ("Failed to package sdk for platform %s: %s" % (self.target_platform, e))
         else:
-            print ("Wrote %s" % path)
+            print ("Wrote %s, %s" % (path, sig_path))
 
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
@@ -1025,8 +1044,9 @@ class Configuration(object):
                 lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
                 self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
-        sdkpath = self._package_platform_sdk(self.target_platform)
+        sdkpath, sdk_sig_path = self._package_platform_sdk(self.target_platform)
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
+        self.upload_to_archive(sdk_sig_path, '%s/defoldsdk.sha256' % full_archive_path)
 
     def _can_run_tests(self):
         supported_tests = {}
@@ -1342,6 +1362,10 @@ class Configuration(object):
 
         sdkurl = join(sha1, 'engine').replace('\\', '/')
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % sdkurl)
+
+        print("Create sdk signature")
+        sig_filename = self._create_sha256_signature_file(sdkpath)
+        self.upload_to_archive(join(dirname(sdkpath, sig_filename)), '%s/defoldsdk.sha256' % sdkurl)
 
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)

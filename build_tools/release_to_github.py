@@ -154,6 +154,7 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
         return os.path.basename(path) in filenames \
             or is_editor_file(path) \
             or 'engine/defoldsdk.zip' in path \
+            or 'engine/defoldsdk.sha256' in path \
             or 'engine/defoldsdk_headers.zip' in path
 
     def is_platform_file(path):
