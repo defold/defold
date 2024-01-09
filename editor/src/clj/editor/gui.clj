@@ -51,7 +51,7 @@
             [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
             Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
@@ -3075,10 +3075,8 @@
         child-indices (g/node-value parent :child-indices)
         before? (partial > node-index)
         after? (partial < node-index)
-        ascending-order #(compare %1 %2)
-        descending-order #(compare %2 %1)
         neighbour (first (sort-by second
-                                  (if (= offset -1) descending-order ascending-order)
+                                  (if (= offset -1) coll/descending-order coll/ascending-order)
                                   (filter (comp (if (= offset -1) before? after?) second)
                                           child-indices)))]
     (when neighbour

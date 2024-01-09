@@ -36,6 +36,19 @@
   ^double [^double rad]
   (* rad 180.0 recip-pi))
 
+(defn median [numbers]
+  (let [sorted-numbers (sort numbers)
+        count (count sorted-numbers)]
+    (if (zero? count)
+      (throw (ex-info "Cannot calculate the median of an empty sequence." {:numbers numbers}))
+      (let [middle-index (quot count 2)
+            middle-number (nth sorted-numbers middle-index)]
+        (if (odd? count)
+          middle-number
+          (-> middle-number
+              (+ (nth sorted-numbers (dec middle-index)))
+              (/ 2.0)))))))
+
 (defn round-with-precision
   "Slow but precise rounding to a specified precision. Use with UI elements that
   produce doubles, not for performance-sensitive code. The precision is expected
