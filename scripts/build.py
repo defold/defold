@@ -1363,7 +1363,7 @@ class Configuration(object):
 
         print("Create sdk signature")
         sig_filename = self._create_sha256_signature_file(sdkpath)
-        self.upload_to_archive(join(dirname(sdkpath, sig_filename)), '%s/defoldsdk.sha256' % sdkurl)
+        self.upload_to_archive(join(dirname(sdkpath), sig_filename), '%s/defoldsdk.sha256' % sdkurl)
 
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)
