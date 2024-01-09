@@ -35,6 +35,7 @@
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.ui.updater :as ui.updater]
             [schema.core :as s]
+            [util.coll :as coll]
             [util.net :as net]
             [util.time :as time])
   (:import [clojure.lang ExceptionInfo]
@@ -194,9 +195,6 @@
                    :last-opened instant
                    :title title})))))))
 
-(defn- descending-order [a b]
-  (compare b a))
-
 (defn- recent-projects
   "Returns a sequence of recently opened projects. Project files that no longer
   exist will be filtered out. If the user has an older preference file that does
@@ -205,7 +203,7 @@
   the most recently opened project first."
   [prefs]
   (sort-by :last-opened
-           descending-order
+           coll/descending-order
            (if-some [timestamps-by-path (prefs/get-prefs prefs recent-projects-prefs-key nil)]
              (into [] xform-timestamps-by-path->recent-projects timestamps-by-path)
              (if-some [paths (prefs/get-prefs prefs legacy-recent-project-paths-prefs-key nil)]
