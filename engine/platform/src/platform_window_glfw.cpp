@@ -467,6 +467,15 @@ namespace dmPlatform
         return false;
     }
 
+    int32_t TriggerCloseCallback(HWindow window)
+    {
+        if (window->m_CloseCallback)
+        {
+            return window->m_CloseCallback(window->m_CloseCallbackUserData);
+        }
+        return 0;
+    }
+
     void PollEvents(HWindow window)
     {
         // NOTE: GLFW_AUTO_POLL_EVENTS might be enabled but an application shouldn't have rely on

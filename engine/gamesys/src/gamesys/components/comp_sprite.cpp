@@ -422,7 +422,11 @@ namespace dmGameSystem
 
     static inline TextureSetResource* GetTextureSet(const SpriteComponent* component, uint32_t index) {
         const SpriteResourceOverrides* overrides = component->m_Overrides;
-        const SpriteTexture* texture = (overrides && !overrides->m_Textures.Empty()) ? &overrides->m_Textures[index] : &component->m_Resource->m_Textures[index];
+        const SpriteTexture* texture = 0;
+        if (overrides && !overrides->m_Textures.Empty())
+            texture = &overrides->m_Textures[index];
+        if (!texture || !texture->m_TextureSet)
+            texture = &component->m_Resource->m_Textures[index];
         return texture->m_TextureSet;
     }
 
