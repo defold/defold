@@ -1000,11 +1000,7 @@
           graph-id (g/node-id->graph-id self)
           tile-source (workspace/resolve-workspace-resource workspace (:tile-source emitter))
           material (workspace/resolve-workspace-resource workspace (:material emitter))
-          vertex-attribute-overrides (into {}
-                                           (map (fn [attribute]
-                                                  [(graphics/attribute-name->key (:name attribute))
-                                                   (graphics/attribute->any-doubles attribute)]))
-                                           (:attributes emitter))]
+          vertex-attribute-overrides (graphics/attributes->override-backing (:attributes emitter))]
       (g/make-nodes graph-id
                     [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
                                    :id (:id emitter) :mode (:mode emitter) :duration [(:duration emitter) (:duration-spread emitter)] :space (:space emitter)

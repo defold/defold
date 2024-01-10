@@ -280,8 +280,6 @@
         all-attributes (into manufactured-attribute-infos material-attribute-infos)]
     (filterv shader-bound-attribute? all-attributes)))
 
-(def my-atom (atom 0))
-
 (defn attributes->save-values [material-attribute-infos vertex-attribute-overrides]
   (let [material-attribute-names+name-keys (into {} (mapv (fn [attribute] [(:name-key attribute) (:name attribute)]) material-attribute-infos))
         material-attribute-save-values
@@ -308,10 +306,7 @@
                               attribute-values (:values attribute-info)]
                           {:name attribute-name attribute-value-source-key {:v attribute-values} })))
                     vertex-attribute-overrides))]
-    (reset! my-atom [material-attribute-names+name-keys vertex-attribute-overrides orphaned-attribute-save-values])
     (concat material-attribute-save-values orphaned-attribute-save-values)))
-
-(def my-atom (atom 0))
 
 (defn attributes->build-target [material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
   (into []
@@ -322,8 +317,6 @@
                 ;; have already been coerced to the expected size.
                 (when (contains? vertex-attribute-overrides name-key)
                   (let [attribute-bytes (get vertex-attribute-bytes name-key)]
-                    (println "HELLO TIME" attribute-bytes)
-                    (reset! my-atom attribute-bytes)
                     (attribute-info->build-target-attribute
                       (assoc attribute-info :bytes attribute-bytes))))))
         material-attribute-infos))
