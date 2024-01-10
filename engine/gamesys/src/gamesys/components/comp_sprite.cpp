@@ -549,6 +549,8 @@ namespace dmGameSystem
         }
 
         dmHashUpdateBuffer32(&state, resource->m_Textures, sizeof(SpriteTexture) * resource->m_NumTextures);
+        dmHashUpdateBuffer32(&state, resource->m_Material, sizeof(MaterialResource*));
+
         HashResourceOverrides(&state, component->m_Overrides);
 
         component->m_MixedHash = dmHashFinal32(&state);
