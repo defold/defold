@@ -22,6 +22,7 @@
             [schema.core :as s]
             [util.coll :refer [pair]]
             [util.digest :as digest]
+            [util.fn :as fn]
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
            [java.io File FilterInputStream IOException InputStream]
@@ -130,7 +131,7 @@
                                     (string/split-lines (slurp defignore-file)))]
                      (fn ignored-path? [path]
                        (boolean (some #(string/starts-with? path %) prefixes))))
-                   (constantly false))]
+                   fn/constantly-false)]
         (swap! defignore-cache assoc defignore-path {:mtime latest-mtime :pred pred})
         pred))))
 

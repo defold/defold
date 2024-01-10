@@ -14,18 +14,18 @@
 
 (ns editor.lua-parser-test
   (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
-            [clojure.java.io :as io]
             [clojure.string :as string]
+            [clojure.test :refer :all]
             [editor.lua-parser :as lp]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support])
+            [support.test-support :as test-support]
+            [util.fn :as fn])
   (:import [org.apache.commons.lang3 RandomStringUtils]))
 
 (defn- lua-info
   ([code]
-   (lp/lua-info nil (constantly true) code))
+   (lp/lua-info nil fn/constantly-true code))
   ([workspace valid-resource-kind? code]
    (lp/lua-info workspace valid-resource-kind? code)))
 

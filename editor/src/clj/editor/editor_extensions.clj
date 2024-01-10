@@ -34,7 +34,8 @@
             [editor.system :as system]
             [editor.types :as types]
             [editor.util :as util]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.fn :as fn])
   (:import [clojure.lang MultiFn]
            [com.defold.editor.luart SearchPath]
            [com.dynamo.bob Platform]
@@ -696,7 +697,7 @@
                                  (deref 100 false)))))
 
                   (and (not active) query)
-                  (assoc :active? (lua-fn->env-fn (constantly true)))
+                  (assoc :active? (lua-fn->env-fn fn/constantly-true))
 
                   run
                   (assoc :run

@@ -37,7 +37,8 @@ ordinary paths."
             [schema.core :as s]
             [service.log :as log]
             [util.coll :refer [pair]]
-            [util.digest :as digest])
+            [util.digest :as digest]
+            [util.fn :as fn])
   (:import [clojure.lang DynamicClassLoader]
            [editor.resource FileResource]
            [com.dynamo.bob Platform]
@@ -909,7 +910,7 @@ ordinary paths."
 (defn make-workspace [graph project-path build-settings workspace-config]
   (let [editable-proj-path? (if-some [non-editable-directory-proj-paths (not-empty (:non-editable-directories workspace-config))]
                               (make-editable-proj-path-predicate non-editable-directory-proj-paths)
-                              (constantly true))]
+                              fn/constantly-true)]
     (first
       (g/tx-nodes-added
         (g/transact

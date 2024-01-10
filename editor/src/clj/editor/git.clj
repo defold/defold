@@ -17,15 +17,17 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [editor.git-credentials :as git-credentials]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.git-credentials :as git-credentials]
             [editor.ui :as ui]
-            [util.text-util :as text-util]
-            [service.log :as log])
-  (:import [java.io File IOException]
+            [service.log :as log]
+            [util.fn :as fn]
+            [util.text-util :as text-util])
+  (:import [com.jcraft.jsch Session]
+           [java.io File IOException]
            [java.net URI]
-           [java.nio.file Files FileVisitResult Path SimpleFileVisitor]
+           [java.nio.file FileVisitResult Files Path SimpleFileVisitor]
            [java.util Collection]
            [javafx.scene.control ProgressBar]
            [org.eclipse.jgit.api Git PushCommand ResetCommand$ResetType TransportCommand TransportConfigCallback]
@@ -36,8 +38,7 @@
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            [org.eclipse.jgit.transport CredentialsProvider JschConfigSessionFactory RemoteConfig SshTransport URIish UsernamePasswordCredentialsProvider]
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
-           [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]
-           [com.jcraft.jsch Session]))
+           [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]))
 
 (set! *warn-on-reflection* true)
 
@@ -614,7 +615,7 @@
   "Stage all unstaged changes in the specified Git repo."
   [^Git git]
   (let [status (status git)
-        include? (constantly true)]
+        include? fn/constantly-true]
     (stage-removals! git status include?)
     (stage-additions! git status include?)))
 

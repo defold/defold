@@ -2541,7 +2541,7 @@
                     (validation/prop-error :fatal _node-id nil validate-template-build-targets (gu/array-subst-remove-errors template-build-targets))))
 
 (defn- get-ids [outline]
-  (map :label (tree-seq (constantly true) :children outline)))
+  (map :label (tree-seq fn/constantly-true :children outline)))
 
 (defn- one-or-many-handler-infos-to-vec [one-or-many-handler-infos]
   (if (g/node-id? (first one-or-many-handler-infos))
@@ -2908,7 +2908,7 @@
         tmpl-roots         (filter (complement tmpl-node-descs) (map first tmpl-children))
         template-data      (into {} (map (fn [r] [r (into {} (map (fn [[id tmpl]]
                                                                     [(subs id (inc (count r))) (:data tmpl)])
-                                                                  (rest (tree-seq (constantly true)
+                                                                  (rest (tree-seq fn/constantly-true
                                                                                   (comp tmpl-children first)
                                                                                   [r nil]))))])
                                          tmpl-roots))

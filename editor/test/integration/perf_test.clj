@@ -18,11 +18,12 @@
             [editor.scene :as scene]
             [integration.test-util :as test-util]
             [internal.node :as in]
-            [support.test-support :refer [enable-performance-tests]]))
+            [support.test-support :refer [enable-performance-tests]]
+            [util.fn :as fn]))
 
 (defn- gui-node [scene id]
   (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
-                      (tree-seq (constantly true) :children)
+                      (tree-seq fn/constantly-true :children)
                       (map :node-id)
                       (map (fn [node-id] [(g/node-value node-id :id) node-id]))
                       (into {}))]

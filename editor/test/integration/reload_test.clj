@@ -32,7 +32,8 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [do-until-new-mtime spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system]])
+            [support.test-support :refer [do-until-new-mtime spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system]]
+            [util.fn :as fn])
   (:import [java.awt.image BufferedImage]
            [java.io File]
            [javax.imageio ImageIO]
@@ -121,7 +122,7 @@
 (defn- touch-file
   ([workspace name]
    (touch-file workspace name true))
-  ([workspace name sync?]
+  ([workspace ^String name sync?]
    (let [f (File. (workspace/project-path workspace) name)]
      (fs/create-parent-directories! f)
      (touch-until-new-mtime f))
@@ -133,7 +134,7 @@
     (touch-file workspace name false))
   (sync! workspace))
 
-(defn- write-file [workspace name content]
+(defn- write-file [workspace ^String name content]
   (let [f (File. (workspace/project-path workspace) name)]
     (fs/create-parent-directories! f)
     (spit-until-new-mtime f content))
@@ -145,31 +146,31 @@
 (defn- add-file [workspace name]
   (write-file workspace name (template workspace name)))
 
-(defn- delete-file [workspace name]
+(defn- delete-file [workspace ^String name]
   (let [f (File. (workspace/project-path workspace) name)]
     (fs/delete-file! f))
   (sync! workspace))
 
 (defn- copy-file [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) ^String %) [name new-name])]
     (fs/copy-file! f new-f))
   (sync! workspace))
 
 (defn- copy-directory [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) ^String %) [name new-name])]
     (fs/copy-directory! f new-f))
   (sync! workspace))
 
 (defn- move-file [workspace name new-name]
-  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
+  (let [[f new-f] (mapv #(File. (workspace/project-path workspace) ^String %) [name new-name])]
     (fs/move-file! f new-f)
     (sync! workspace [[f new-f]])))
 
-(defn- add-img [workspace name width height]
+(defn- add-img [workspace ^String name width height]
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
         type (FilenameUtils/getExtension name)
         f (File. (workspace/project-path workspace) name)]
-    (do-until-new-mtime (fn [f] (ImageIO/write img type f)) f)
+    (do-until-new-mtime (fn [^File f] (ImageIO/write img type f)) f)
     (sync! workspace)))
 
 (defn- has-undo? [project]
@@ -751,7 +752,7 @@
 
 (defn- gui-node [scene id]
   (let [nodes (into {} (map (fn [o] [(:label o) (:node-id o)])
-                            (tree-seq (constantly true) :children (g/node-value scene :node-outline))))]
+                            (tree-seq fn/constantly-true :children (g/node-value scene :node-outline))))]
     (nodes id)))
 
 (deftest gui-templates

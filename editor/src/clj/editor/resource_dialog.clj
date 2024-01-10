@@ -14,20 +14,18 @@
 
 (ns editor.resource-dialog
   (:require [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.text :as fx.text]
-            [cljfx.fx.text-flow :as fx.text-flow]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
-            [editor.fuzzy-text :as fuzzy-text]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.workspace :as workspace]
-            [internal.graph.types :as gt]))
+            [internal.graph.types :as gt]
+            [util.fn :as fn]))
 
 (def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
 
@@ -107,8 +105,8 @@
 
 (defn make [workspace project options]
   (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
-        accepted-ext (if (seq exts) (set exts) (constantly true))
-        accept-fn    (or (:accept-fn options) (constantly true))
+        accepted-ext (if (seq exts) (set exts) fn/constantly-true)
+        accept-fn    (or (:accept-fn options) fn/constantly-true)
         items        (into []
                            (filter #(and (= :file (resource/source-type %))
                                          (accepted-ext (resource/type-ext %))

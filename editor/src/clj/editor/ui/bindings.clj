@@ -16,15 +16,16 @@
   (:refer-clojure :exclude [= and constantly empty? if-not map nil? not not= or some? when when-not])
   (:require [clojure.core :as core]
             [clojure.string :as string]
-            [editor.ui :as ui])
-  (:import (javafx.beans InvalidationListener Observable)
-           (javafx.beans.value ChangeListener ObservableBooleanValue ObservableObjectValue ObservableStringValue ObservableValue)
-           (javafx.beans.binding Bindings BooleanBinding ObjectBinding)
-           (javafx.beans.property Property SimpleObjectProperty)
-           (javafx.collections ObservableList ObservableMap ObservableSet)
-           (javafx.css Styleable)
-           (javafx.scene Node)
-           (javafx.scene.control SelectionModel)))
+            [editor.ui :as ui]
+            [util.fn :as fn])
+  (:import [javafx.beans InvalidationListener Observable]
+           [javafx.beans.binding Bindings BooleanBinding ObjectBinding]
+           [javafx.beans.property Property SimpleObjectProperty]
+           [javafx.beans.value ChangeListener ObservableBooleanValue ObservableObjectValue ObservableStringValue ObservableValue]
+           [javafx.collections ObservableList ObservableMap ObservableSet]
+           [javafx.css Styleable]
+           [javafx.scene Node]
+           [javafx.scene.control SelectionModel]))
 
 (set! *warn-on-reflection* true)
 
@@ -42,7 +43,7 @@
 
 (defn =
   (^BooleanBinding [_op]
-   (Bindings/createBooleanBinding (core/constantly true) no-dependencies))
+   (Bindings/createBooleanBinding fn/constantly-true no-dependencies))
   (^BooleanBinding [op1 op2 & rest]
    (let [ops (into [op1 op2] rest)]
      (Bindings/createBooleanBinding #(apply core/= (core/map unpack-observable-value ops))

@@ -495,7 +495,7 @@
 ;;; ----------------------------------------
 ;; Type checking
 
-(def ^:private nothing-schema (s/pred (constantly false)))
+(def ^:private nothing-schema (s/pred fn/constantly-false))
 
 (defn- prop-type->schema [prop-type]
   (cond

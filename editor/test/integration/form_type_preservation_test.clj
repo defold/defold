@@ -5,7 +5,8 @@
             [editor.types :as t]
             [editor.ui :as ui]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]])
+            [support.test-support :refer [with-clean-system]]
+            [util.fn :as fn])
   (:import [javafx.scene Parent]
            [javafx.scene.control Control Label ScrollPane]
            [javafx.scene.layout AnchorPane GridPane]))
@@ -78,7 +79,7 @@
 
 (defn- find-controls [^Parent parent]
   (->> parent
-       (tree-seq (constantly true)
+       (tree-seq fn/constantly-true
                  #(.getChildrenUnmodifiable ^Parent %))
        (filterv #(and (instance? Control %)
                       (not (instance? Label %))))))

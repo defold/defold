@@ -16,7 +16,8 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.gviz :as gviz]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [util.fn :as fn])
   (:import [javafx.application Platform]
            [javafx.scene Parent]
            [javafx.scene.control Button ScrollPane]
@@ -26,8 +27,8 @@
 (set! *warn-on-reflection* true)
 
 (defonce ^:private ^:dynamic *root-id* nil)
-(defonce ^:private ^:dynamic *input-fn* (constantly false))
-(defonce ^:private ^:dynamic *output-fn* (constantly false))
+(defonce ^:private ^:dynamic *input-fn* fn/constantly-false)
+(defonce ^:private ^:dynamic *output-fn* fn/constantly-false)
 
 (defn- update-graph-view [^Parent root]
   (when-let [dot-image (-> (gviz/subgraph->dot (g/now) :root-id *root-id* :input-fn *input-fn* :output-fn *output-fn*)

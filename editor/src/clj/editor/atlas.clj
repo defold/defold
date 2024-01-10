@@ -47,14 +47,15 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [util.digestable :as digestable])
-  (:import [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
+            [util.digestable :as digestable]
+            [util.fn :as fn])
+  (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
+           [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
            [com.dynamo.gamesys.proto Tile$Playback Tile$SpriteTrimmingMode]
-           [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.jogamp.opengl GL GL2]
-           [editor.types Animation Image AABB]
+           [editor.types AABB Animation Image]
            [java.awt.image BufferedImage]
            [java.util List]
            [javax.vecmath Matrix4d Point3d Vector3d]))
@@ -958,7 +959,7 @@
         (let [workspace (project/workspace project)
               accept-fn (if atlas
                           (complement (set (g/node-value atlas :image-resources)))
-                          (constantly true))]
+                          fn/constantly-true)]
           (add-images-handler app-view workspace project parent-node accept-fn))))))
 
 (defn- vec-move

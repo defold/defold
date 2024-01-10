@@ -20,7 +20,8 @@
             [editor.resource :as resource]
             [editor.system :as system]
             [internal.cache :as c]
-            [dynamo.graph :as g])
+            [dynamo.graph :as g]
+            [util.fn :as fn])
   (:import [java.io File]
            [java.net URI]))
 
@@ -172,7 +173,7 @@
                     (system/defold-unpack-path))
         root (io/file base-path "_defold/debugger")
         mount-root (io/file base-path)
-        resources (resource/children (make-file-tree workspace mount-root root (constantly false)))
+        resources (resource/children (make-file-tree workspace mount-root root fn/constantly-false))
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources
      :status-map (into {} (map file-resource-status-map-entry) flat-resources)}))

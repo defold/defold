@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.gui-test
-  (:require [clojure.test :refer :all]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
@@ -22,7 +22,8 @@
             [editor.gui :as gui]
             [editor.handler :as handler]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [util.fn :as fn])
   (:import [javax.vecmath Matrix4d Vector3d]))
 
 (defn- prop [node-id label]
@@ -33,7 +34,7 @@
 
 (defn- gui-node [scene id]
   (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
-                   (tree-seq (constantly true) :children)
+                   (tree-seq fn/constantly-true :children)
                    (map :node-id)
                    (map (fn [node-id] [(g/node-value node-id :id) node-id]))
                    (into {}))]
@@ -361,7 +362,7 @@
                        ;; we're not interested in the outline subscenes for gui nodes
                        (remove (fn [scene] (contains? (get-in scene [:renderable :tags]) :outline)))
                        (map (fn [s] [(:node-id s) s])))
-                     (tree-seq (constantly true) :children (strip-scene scene)))]
+                     (tree-seq fn/constantly-true :children (strip-scene scene)))]
     (scenes node-id)))
 
 (deftest gui-template-alpha
@@ -456,7 +457,7 @@
     (g/node-value :text)))
 
 (defn- trans-x [root-id target-id]
-  (let [s (tree-seq (constantly true) :children (g/node-value root-id :scene))]
+  (let [s (tree-seq fn/constantly-true :children (g/node-value root-id :scene))]
     (when-let [^Matrix4d m (some #(and (= (:node-id %) target-id) (:transform %)) s)]
       (let [t (Vector3d.)]
         (.get m t)

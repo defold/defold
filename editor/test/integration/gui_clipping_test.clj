@@ -17,11 +17,12 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.gui :as gui]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [util.fn :as fn]))
 
 (defn- gui-node [scene id]
   (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
-                   (tree-seq (constantly true) :children)
+                   (tree-seq fn/constantly-true :children)
                    (map :node-id)
                    (map (fn [node-id] [(g/node-value node-id :id) node-id]))
                    (into {}))]
@@ -74,7 +75,7 @@
   (let [scene (g/node-value scene-id :scene)
         gpu {:sb (->stencil-buffer)
              :fb (->frame-buffer)}
-        scenes (filter #(contains? shapes (:node-id %)) (tree-seq (constantly true) :children scene))]
+        scenes (filter #(contains? shapes (:node-id %)) (tree-seq fn/constantly-true :children scene))]
     (-> (reduce (fn [gpu scene]
                   (let [colors (shapes (:node-id scene))
                         shape (reduce bit-or colors)
@@ -147,7 +148,7 @@
     (is (nil? act))))
 
 (defn- scene-seq [scene]
-  (tree-seq (constantly true) :children scene))
+  (tree-seq fn/constantly-true :children scene))
 
 (defn- visual-seq [scene]
   (->> scene
