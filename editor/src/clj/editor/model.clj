@@ -510,7 +510,7 @@
                            :edit-type {:type resource/Resource
                                        :ext "material"
                                        :set-fn (fn [_evaluation-context _id _old new]
-                                                 (create-material-binding-tx model-node-id material-name new [] []))}}]]))))
+                                                 (create-material-binding-tx model-node-id material-name new [] {}))}}]]))))
                 cat)
               (sort all-material-names))]
     (-> _declared-properties
