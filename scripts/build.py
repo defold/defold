@@ -835,16 +835,18 @@ class Configuration(object):
             if platform in ['js-web']:
                 # JavaScript files
                 # js-web-pre-x files
-                for subdir in ['share', 'lib/js-web/js/', 'ext/lib/js-web/js/']:
-                    jsdir = os.path.join(self.dynamo_home, subdir)
-                    paths = _findjslibs(jsdir)
-                    self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+                jsdir = os.path.join(self.dynamo_home, 'share')
+                paths = _findjslibs(jsdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
+                jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
+                paths = _findjslibs(jsdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             if platform in ['wasm-web']:
-                for subdir in ['lib/wasm-web/js/', 'ext/lib/wasm-web/js/']:
-                    jsdir = os.path.join(self.dynamo_home, subdir)
-                    paths = _findjslibs(jsdir)
-                    self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+                jsdir = os.path.join(self.dynamo_home, 'lib/wasm-web/js/')
+                paths = _findjslibs(jsdir)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             if platform in ['x86_64-ps4', 'x86_64-ps5']:
                 memory_init = os.path.join(self.dynamo_home, 'ext/lib/%s/memory_init.o' % platform)
