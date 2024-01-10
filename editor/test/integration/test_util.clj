@@ -424,7 +424,47 @@
   ([] (cached-endpoints (g/cache)))
   ([cache]
    (into (sorted-set)
-         (keys cache))))
+         (map key)
+         cache)))
+
+(defn cacheable-save-data-endpoints
+  ([node-id]
+   (cacheable-save-data-endpoints (g/now) node-id))
+  ([basis node-id]
+   (let [node-type (g/node-type* basis node-id)
+         output-cached? (g/cached-outputs node-type)]
+     (into (sorted-set)
+           (comp (filter output-cached?)
+                 (map #(g/endpoint node-id %)))
+           [:save-data :save-value]))))
+
+(defn cacheable-save-data-outputs
+  ([node-id]
+   (cacheable-save-data-outputs (g/now) node-id))
+  ([basis node-id]
+   (into (sorted-set)
+         (map g/endpoint-label)
+         (cacheable-save-data-endpoints basis node-id))))
+
+(defn cached-save-data-outputs
+  ([node-id]
+   (cached-save-data-outputs (g/cache) node-id))
+  ([cache node-id]
+   (into (sorted-set)
+         (filter (fn [output-label]
+                   (contains? cache (g/endpoint node-id output-label))))
+         [:save-data :save-value])))
+
+(defn uncached-save-data-outputs
+  ([node-id]
+   (uncached-save-data-outputs (g/now) (g/cache) node-id))
+  ([basis node-id]
+   (uncached-save-data-outputs basis (g/cache) node-id))
+  ([basis cache node-id]
+   (into (sorted-set)
+         (comp (remove #(contains? cache %))
+               (map g/endpoint-label))
+         (cacheable-save-data-endpoints basis node-id))))
 
 (defn- split-keyword-options [forms]
   (let [keyword-options (into {}

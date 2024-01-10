@@ -26,12 +26,12 @@
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
-            [internal.node :as in]
-            [internal.util :as util]
             [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime with-clean-system]]
+            [util.coll :as coll]
             [util.text-util :as text-util])
   (:import [java.io File]
            [org.apache.commons.io FileUtils]
@@ -153,8 +153,11 @@
           (let [dirty-save-data-before (project/dirty-save-data project)]
 
             ;; Edited externally.
+            (touch-file! workspace "/added_externally.go")
             (touch-file! workspace "/added_externally.md")
+            (touch-file! workspace "/added_externally.json")
             (spit-file! workspace "/script/test_module.lua" "-- Edited externally")
+            (spit-file! workspace "/game_object/test.go" (slurp (workspace/find-resource workspace "/game_object/empty_props.go")))
 
             (disk/async-reload! progress/null-render-progress! workspace [] nil
                                 (fn [successful?]
@@ -164,11 +167,24 @@
                                       (is (= dirty-save-data-before (project/dirty-save-data project))))
 
                                     (testing "External modifications are seen by the editor."
+                                      (is (= {"script" 1} (g/node-value (project/get-resource-node project "/game_object/test.go") :id-counts)))
                                       (is (= ["-- Edited externally"] (g/node-value (project/get-resource-node project "/script/test_module.lua") :lines))))
 
                                     (testing "Externally added files are seen by the editor."
+                                      (is (some? (workspace/find-resource workspace "/added_externally.go")))
+                                      (is (some? (project/get-resource-node project "/added_externally.go")))
                                       (is (some? (workspace/find-resource workspace "/added_externally.md")))
                                       (is (some? (project/get-resource-node project "/added_externally.md"))))
+
+                                    (testing "Save data is cached for externally added and modified files."
+                                      (letfn [(cached-save-data-outputs [proj-path]
+                                                (let [node-id (project/get-resource-node project proj-path)]
+                                                  (test-util/cached-save-data-outputs node-id)))]
+                                        (is (= #{} (cached-save-data-outputs "/added_externally.md"))) ; Stateless, so no save-data.
+                                        (is (= #{:save-data} (cached-save-data-outputs "/added_externally.json"))) ; The save-value output is not :cached. Lazy loaded.
+                                        (is (= #{:save-data} (cached-save-data-outputs "/script/test_module.lua"))) ; The save-value output is not :cached.
+                                        (is (= #{:save-data :save-value} (cached-save-data-outputs "/added_externally.go")))
+                                        (is (= #{:save-data :save-value} (cached-save-data-outputs "/game_object/test.go")))))
 
                                     (testing "Can delete externally added files from within the editor."
                                       (delete-file! workspace "/added_externally.md")
@@ -188,8 +204,11 @@
           (test-util/set-code-editor-source! (test-util/resource-node project "/script/props.script") "-- Edited by us")
 
           ;; Edited externally.
+          (touch-file! workspace "/added_externally.go")
           (touch-file! workspace "/added_externally.md")
+          (touch-file! workspace "/added_externally.json")
           (spit-file! workspace "/script/test_module.lua" "-- Edited externally")
+          (spit-file! workspace "/game_object/test.go" (slurp (workspace/find-resource workspace "/game_object/empty_props.go")))
 
           (disk/async-save! progress/null-render-progress! progress/null-render-progress! project nil
                             (fn [successful?]
@@ -202,14 +221,28 @@
                                     (is (not (contains? dirty-proj-paths "/script/test_module.lua")))))
 
                                 (testing "Externally modified files are not overwritten by the editor."
+                                  (is (not-empty (slurp (workspace/find-resource workspace "/game_object/test.go"))))
                                   (is (= "-- Edited externally" (slurp (workspace/find-resource workspace "/script/test_module.lua")))))
 
                                 (testing "External modifications are seen by the editor."
+                                  (is (= {"script" 1} (g/node-value (project/get-resource-node project "/game_object/test.go") :id-counts)))
                                   (is (= ["-- Edited externally"] (g/node-value (project/get-resource-node project "/script/test_module.lua") :lines))))
 
                                 (testing "Externally added files are seen by the editor."
+                                  (is (some? (workspace/find-resource workspace "/added_externally.go")))
+                                  (is (some? (project/get-resource-node project "/added_externally.go")))
                                   (is (some? (workspace/find-resource workspace "/added_externally.md")))
                                   (is (some? (project/get-resource-node project "/added_externally.md"))))
+
+                                (testing "Save data is cached for externally added and modified files."
+                                  (letfn [(cached-save-data-outputs [proj-path]
+                                            (let [node-id (project/get-resource-node project proj-path)]
+                                              (test-util/cached-save-data-outputs node-id)))]
+                                    (is (= #{} (cached-save-data-outputs "/added_externally.md"))) ; Stateless, so no save-data.
+                                    (is (= #{:save-data} (cached-save-data-outputs "/added_externally.json"))) ; The save-value output is not :cached. Lazy loaded.
+                                    (is (= #{:save-data} (cached-save-data-outputs "/script/test_module.lua"))) ; The save-value output is not :cached.
+                                    (is (= #{:save-data :save-value} (cached-save-data-outputs "/added_externally.go")))
+                                    (is (= #{:save-data :save-value} (cached-save-data-outputs "/game_object/test.go")))))
 
                                 (testing "Can delete externally added files from within the editor."
                                   (delete-file! workspace "/added_externally.md")
@@ -228,11 +261,8 @@
             project (test-util/setup-project! workspace)
             invalidated-save-data-endpoints-atom (atom #{})
             cacheable-save-data-endpoints (into (sorted-set)
-                                                (mapcat (fn [[node-id]]
-                                                          (let [node-type (g/node-type* node-id)
-                                                                cached-outputs (in/cached-outputs node-type)]
-                                                            (map (partial gt/endpoint node-id)
-                                                                 (set/intersection cached-outputs retained-labels)))))
+                                                (comp (map first)
+                                                      (mapcat (partial test-util/cacheable-save-data-endpoints (g/now))))
                                                 (g/sources-of project :save-data))]
         ;; The source-value output will be evicted from the cache for resource
         ;; nodes whose save-data was dirty. This needs to happen, as the
@@ -276,3 +306,73 @@
                       (is (empty? (g/cache)))))
 
                   (exit-event-loop!))))))))))
+
+(deftest edit-during-save-test
+  (with-clean-system {:cache-size 50
+                      :cache-retain? project/cache-retain?}
+    (let [workspace (test-util/setup-workspace! world)
+          project (test-util/setup-project! workspace)
+          edited-before-save (test-util/resource-node project "/script/props.script")
+          edited-during-save (test-util/resource-node project "/script/test_module.lua")
+          written-save-data-by-proj-path-atom (atom {})]
+      ;; Prevent disk writes, but also use this opportunity to simulate a user
+      ;; edit to one of the saved files from the UI thread while the save is in
+      ;; progress. The purpose of this is to verify that the edits that were
+      ;; made while saving are unsaved after we wrap up the save process.
+      (with-redefs [disk/write-save-data-to-disk!
+                    (fn mock-write-save-data-to-disk! [save-datas invalidate-counters _opts]
+                      ;; This function runs on a background thread as part of
+                      ;; the save process. Simulate a concurrent edit on the UI
+                      ;; thread before proceeding with the background thread.
+                      (ui/run-now
+                        (test-util/set-code-editor-source! edited-during-save "-- Edit of test_module.lua during save."))
+
+                      ;; Store the "written" save-data so we can check it later.
+                      (swap! written-save-data-by-proj-path-atom
+                             (fn [written-save-data-by-proj-path]
+                               (into written-save-data-by-proj-path
+                                     (map (coll/pair-fn (comp resource/proj-path :resource)))
+                                     save-datas)))
+
+                      ;; Proceed with the save process.
+                      (let [save-data-sha256s (mapv resource-node/save-data-sha256 save-datas)]
+                        (disk/make-post-save-actions save-datas save-data-sha256s invalidate-counters)))]
+        (test-util/run-event-loop!
+          (fn [exit-event-loop!]
+            (g/clear-system-cache!)
+
+            ;; Make some edits before saving.
+            (test-util/set-code-editor-source! edited-before-save "-- Edit of props.script before save.")
+            (test-util/set-code-editor-source! edited-during-save "-- Edit of test_module.lua before save.")
+
+            (disk/async-save!
+              progress/null-render-progress! progress/null-render-progress! project nil
+              (fn [successful?]
+                (when (is successful?)
+                  (let [cached-endpoints (test-util/cached-endpoints)]
+
+                    (is (contains? cached-endpoints (g/endpoint edited-before-save :save-data))
+                        "Save data is cached for the file that remained unmodified while saving.")
+
+                    (is (not (contains? cached-endpoints (g/endpoint edited-during-save :save-data)))
+                        "Save data is not cached for the file that was edited while saving.")
+
+                    (testing "The file that was edited before saving."
+                      (let [save-data (g/node-value edited-before-save :save-data)
+                            resource (:resource save-data)
+                            proj-path (resource/proj-path resource)
+                            written-save-data (get @written-save-data-by-proj-path-atom proj-path)]
+                        (is (false? (:dirty save-data)))
+                        (is (= ["-- Edit of props.script before save."] (:save-value save-data)))
+                        (is (= ["-- Edit of props.script before save."] (:save-value written-save-data)))))
+
+                    (testing "The file that was edited while saving."
+                      (let [save-data (g/node-value edited-during-save :save-data)
+                            resource (:resource save-data)
+                            proj-path (resource/proj-path resource)
+                            written-save-data (get @written-save-data-by-proj-path-atom proj-path)]
+                        (is (true? (:dirty save-data)))
+                        (is (= ["-- Edit of test_module.lua during save."] (:save-value save-data)))
+                        (is (= ["-- Edit of test_module.lua before save."] (:save-value written-save-data)))))))
+
+                (exit-event-loop!)))))))))

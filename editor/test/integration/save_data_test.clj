@@ -1378,19 +1378,6 @@
                 (when (:dirty save-data)
                   (check-save-data-disk-equivalence! save-data))))))))))
 
-(defn- expected-cached-save-data-endpoints [basis node-id]
-  (let [resource (resource-node/resource basis node-id)
-        resource-type (resource/resource-type resource)
-        lazy-loaded (:lazy-loaded resource-type)]
-    (if lazy-loaded
-      (sorted-set)
-      (let [node-type (g/node-type* basis node-id)
-            output-cached? (g/cached-outputs node-type)]
-        (into (sorted-set)
-              (comp (filter output-cached?)
-                    (map #(g/endpoint node-id %)))
-              [:save-data :save-value])))))
-
 (deftest resource-save-data-retention-test
   ;; This test is intended to verify that the system cache is populated with the
   ;; save-related data for each editable resource after the project loads, but
@@ -1404,22 +1391,16 @@
                 (assert (vector? checked-resources))
                 (when-some [resource (get checked-resources resource-index)]
                   (let [proj-path (resource/proj-path resource)
-                        node-id (test-util/resource-node project resource)
-                        expected-cached-endpoints (expected-cached-save-data-endpoints (g/now) node-id)]
+                        node-id (test-util/resource-node project resource)]
 
                     (testing (format "File `%s` should have its save-related data in the cache before editing." proj-path)
-                      (is (= #{}
-                             (set/difference
-                               expected-cached-endpoints
-                               (test-util/cached-endpoints)))))
+                      (is (= (test-util/cacheable-save-data-outputs node-id)
+                             (test-util/cached-save-data-outputs node-id))))
 
                     (test-util/edit-resource-node! node-id)
 
                     (testing (format "File `%s` should not have its save-related data in the cache after editing." proj-path)
-                      (is (= #{}
-                             (set/intersection
-                               expected-cached-endpoints
-                               (test-util/cached-endpoints)))))
+                      (is (= #{} (test-util/cached-save-data-outputs node-id))))
 
                     true)))))]
 
@@ -1435,18 +1416,13 @@
     (let [expected-outputs-by-proj-path-missing-from-cache
           (fn expected-outputs-by-proj-path-missing-from-cache []
             (let [basis (g/now)
-                  cached-endpoints (test-util/cached-endpoints)]
+                  cache (g/cache)]
               (into (sorted-map)
-                    (map (fn [[node-id]]
-                           (let [resource (resource-node/resource basis node-id)
-                                 proj-path (resource/proj-path resource)
-                                 expected-endpoints (expected-cached-save-data-endpoints basis node-id)
-                                 missing-endpoints (set/difference expected-endpoints cached-endpoints)]
-                             (when (seq missing-endpoints)
-                               (pair proj-path
-                                     (into (sorted-set)
-                                           (map g/endpoint-label)
-                                           missing-endpoints))))))
+                    (keep (fn [[node-id]]
+                            (let [resource (resource-node/resource basis node-id)
+                                  proj-path (resource/proj-path resource)]
+                              (when-some [uncached-save-data-outputs (not-empty (test-util/uncached-save-data-outputs basis cache node-id))]
+                                (pair proj-path uncached-save-data-outputs)))))
                     (g/sources-of basis project :save-data))))
 
           checked-resources (checked-resources workspace)]
@@ -1465,6 +1441,3 @@
 
       (testing "Save-related data is in cache after saving the project."
         (is (= {} (expected-outputs-by-proj-path-missing-from-cache)))))))
-
-;; TODO(save-value): Add test to ensure :save-data is cached after a file is reloaded as a result of external changes.
-;; TODO(save-value): Add test to ensure :save-data is not cached if edits were made on the main thread while we were saving on a background thread.

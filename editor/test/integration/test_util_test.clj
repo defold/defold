@@ -16,6 +16,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.collection :as collection]
+            [editor.defold-project :as project]
             [editor.game-object :as game-object]
             [editor.properties :as properties]
             [editor.resource :as resource]
@@ -107,6 +108,79 @@
         (is (false? (number-type-preserving? (with-meta (->curve [] float) original-meta) (with-meta (->curve [] float) altered-meta))))
         (is (true? (number-type-preserving? (with-meta (->curve (vector-of :float) float) original-meta) (with-meta (->curve (vector-of :float) float) original-meta))))
         (is (false? (number-type-preserving? (with-meta (->curve (vector-of :float) float) original-meta) (with-meta (->curve (vector-of :float) float) altered-meta))))))))
+
+(g/defnode CachedSaveValueOutputNode
+  (output save-value g/Keyword :cached (g/constantly :save-value))
+  (output save-data g/Keyword :cached (g/fnk [save-value] save-value)))
+
+(g/defnode UncachedSaveValueOutputNode
+  (output save-value g/Keyword (g/constantly :save-value))
+  (output save-data g/Keyword :cached (g/fnk [save-value] save-value)))
+
+(deftest cached-save-data-outputs-test
+  (test-support/with-clean-system
+
+    (testing "Node that caches the save-value output."
+      (let [node-id (g/make-node! world CachedSaveValueOutputNode)]
+        (is (= #{} (test-util/cached-save-data-outputs node-id)))
+        (g/node-value node-id :save-data)
+        (is (= #{:save-data :save-value} (test-util/cached-save-data-outputs node-id)))))
+
+    (testing "Node does not cache the save-value output."
+      (let [node-id (g/make-node! world UncachedSaveValueOutputNode)]
+        (is (= #{} (test-util/cached-save-data-outputs node-id)))
+        (g/node-value node-id :save-data)
+        (is (= #{:save-data} (test-util/cached-save-data-outputs node-id)))))))
+
+(deftest cacheable-save-data-endpoints-test
+  (test-util/with-loaded-project
+
+    (testing "Resource that caches the save-value output."
+      (let [resource (workspace/find-resource workspace "/game_object/test.go")
+            node-id (project/get-resource-node project resource)]
+        (assert (contains? (g/cached-outputs (g/node-type* node-id)) :save-value))
+        (is (= #{(g/endpoint node-id :save-data)
+                 (g/endpoint node-id :save-value)}
+               (test-util/cacheable-save-data-endpoints node-id)))))
+
+    (testing "Resource that does not cache the save-value output."
+      (let [resource (workspace/find-resource workspace "/script/props.script")
+            node-id (project/get-resource-node project resource)]
+        (assert (not (contains? (g/cached-outputs (g/node-type* node-id)) :save-value)))
+        (is (= #{(g/endpoint node-id :save-data)}
+               (test-util/cacheable-save-data-endpoints node-id)))))))
+
+(deftest cacheable-save-data-outputs-test
+  (test-util/with-loaded-project
+
+    (testing "Resource that caches the save-value output."
+      (let [resource (workspace/find-resource workspace "/game_object/test.go")
+            node-id (project/get-resource-node project resource)]
+        (assert (contains? (g/cached-outputs (g/node-type* node-id)) :save-value))
+        (is (= #{:save-data :save-value} (test-util/cacheable-save-data-outputs node-id)))))
+
+    (testing "Resource that does not cache the save-value output."
+      (let [resource (workspace/find-resource workspace "/script/props.script")
+            node-id (project/get-resource-node project resource)]
+        (assert (not (contains? (g/cached-outputs (g/node-type* node-id)) :save-value)))
+        (is (= #{:save-data} (test-util/cacheable-save-data-outputs node-id)))))))
+
+(deftest uncached-save-data-outputs-test
+  (test-util/with-loaded-project
+
+    (testing "Resource that caches the save-value output."
+      (let [node-id (project/get-resource-node project "/game_object/test.go")]
+        (g/clear-system-cache!)
+        (is (= #{:save-data :save-value} (test-util/uncached-save-data-outputs node-id)))
+        (g/node-value node-id :save-data)
+        (is (= #{} (test-util/uncached-save-data-outputs node-id)))))
+
+    (testing "Resource that does not cache the save-value output."
+      (let [node-id (project/get-resource-node project "/script/props.script")]
+        (g/clear-system-cache!)
+        (is (= #{:save-data} (test-util/uncached-save-data-outputs node-id)))
+        (g/node-value node-id :save-data)
+        (is (= #{} (test-util/uncached-save-data-outputs node-id)))))))
 
 (deftest run-event-loop-test
 

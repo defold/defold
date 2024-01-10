@@ -361,8 +361,7 @@
         endpoint+cached-value-pairs
         (into []
               (mapcat (fn [{:keys [node-id source-value] :as node-load-info}]
-                        (when (and (some? source-value)
-                                   (cached-resource-node-id? node-id))
+                        (when (cached-resource-node-id? node-id)
                           (let [{:keys [read-error resource]} node-load-info
 
                                 save-data-endpoint+cached-value
