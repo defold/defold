@@ -28,7 +28,8 @@
   (:import [com.jogamp.opengl GL2]
            [com.google.protobuf ByteString]
            [java.nio ByteBuffer]
-           [editor.gl.vertex2 VertexBuffer]))
+           [editor.gl.vertex2 VertexBuffer]
+           [org.snakeyaml.engine.v1.api YamlUnicodeReader]))
 
 (set! *warn-on-reflection* true)
 
@@ -86,7 +87,7 @@
         (or (not-empty (:v (:double-values attribute)))
             (not-empty (:v (:long-values attribute))))))
 
-(defn attribute->value-source [attribute]
+(defn- attribute->value-source [attribute]
   (if (not-empty (:v (:double-values attribute)))
     :double-values
     (if (not-empty (:v (:long-values attribute)))
@@ -107,6 +108,15 @@
   (let [attribute-value-keyword (attribute-value-keyword attribute-data-type normalize)
         stored-values (doubles->stored-values double-values attribute-value-keyword)]
     (pair attribute-value-keyword stored-values)))
+
+(defn attributes->override-backing [attributes]
+  (into {}
+        (map (fn [vertex-attribute]
+               [(attribute-name->key (:name vertex-attribute))
+                {:name (:name vertex-attribute)
+                 :values (attribute->any-doubles vertex-attribute)
+                 :values-source-key (attribute->value-source vertex-attribute)}]))
+        attributes))
 
 (defn doubles-outside-attribute-range-error-message [double-values attribute]
   (let [[^double min ^double max]
@@ -270,20 +280,38 @@
         all-attributes (into manufactured-attribute-infos material-attribute-infos)]
     (filterv shader-bound-attribute? all-attributes)))
 
+(def my-atom (atom 0))
+
 (defn attributes->save-values [material-attribute-infos vertex-attribute-overrides]
-  (into []
-        (keep (fn [{:keys [data-type element-count name name-key normalize semantic-type]}]
-                (when-some [override-values (get vertex-attribute-overrides name-key)]
-                  ;; Ensure our saved values have the expected element-count.
-                  ;; If the material has been edited, this might have changed,
-                  ;; but specialized widgets like the one we use to edit color
-                  ;; properties may also produce a different element count from
-                  ;; what the material dictates.
-                  (let [resized-values (resize-doubles override-values semantic-type element-count)
-                        [attribute-value-keyword stored-values] (doubles->storage resized-values data-type normalize)]
-                    {:name name
-                     attribute-value-keyword {:v stored-values}}))))
-        material-attribute-infos))
+  (let [material-attribute-names+name-keys (into {} (mapv (fn [attribute] [(:name-key attribute) (:name attribute)]) material-attribute-infos))
+        material-attribute-save-values
+        (into []
+              (keep (fn [{:keys [data-type element-count name name-key normalize semantic-type]}]
+                      (when-some [override-values (:values (get vertex-attribute-overrides name-key))]
+                        ;; Ensure our saved values have the expected element-count.
+                        ;; If the material has been edited, this might have changed,
+                        ;; but specialized widgets like the one we use to edit color
+                        ;; properties may also produce a different element count from
+                        ;; what the material dictates.
+                        (let [resized-values (resize-doubles override-values semantic-type element-count)
+                              [attribute-value-keyword stored-values] (doubles->storage resized-values data-type normalize)]
+                          {:name name
+                           attribute-value-keyword {:v stored-values}}))))
+              material-attribute-infos)
+        orphaned-attribute-save-values
+        (into []
+              (keep (fn [attribute]
+                      (when-not (contains? material-attribute-names+name-keys (key attribute))
+                        (let [attribute-info (second attribute)
+                              attribute-name (:name attribute-info)
+                              attribute-value-source-key (:values-source-key attribute-info)
+                              attribute-values (:values attribute-info)]
+                          {:name attribute-name attribute-value-source-key {:v attribute-values} })))
+                    vertex-attribute-overrides))]
+    (reset! my-atom [material-attribute-names+name-keys vertex-attribute-overrides orphaned-attribute-save-values])
+    (concat material-attribute-save-values orphaned-attribute-save-values)))
+
+(def my-atom (atom 0))
 
 (defn attributes->build-target [material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
   (into []
@@ -294,6 +322,8 @@
                 ;; have already been coerced to the expected size.
                 (when (contains? vertex-attribute-overrides name-key)
                   (let [attribute-bytes (get vertex-attribute-bytes name-key)]
+                    (println "HELLO TIME" attribute-bytes)
+                    (reset! my-atom attribute-bytes)
                     (attribute-info->build-target-attribute
                       (assoc attribute-info :bytes attribute-bytes))))))
         material-attribute-infos))
@@ -319,7 +349,13 @@
     (:element-count attribute)))
 
 (defn- attribute-update-property [current-property-value attribute new-value]
-  (assoc current-property-value (:name-key attribute) new-value))
+  (let [override-info ((:name-key attribute) current-property-value)
+        attribute-value-keyword (attribute-value-keyword (:data-type attribute) (:normalize attribute))
+        override-values-source-key (or attribute-value-keyword (:values-source-key override-info))
+        override-name (or (:name attribute) (:name override-info))]
+    (assoc current-property-value (:name-key attribute) {:values new-value
+                                                         :values-source-key override-values-source-key
+                                                         :name override-name})))
 
 (defn- attribute-clear-property [current-property-value attribute]
   (dissoc current-property-value (:name-key attribute)))
@@ -359,7 +395,7 @@
                 (let [attribute-key (:name-key attribute-info)
                       semantic-type (:semantic-type attribute-info)
                       material-values (:values attribute-info)
-                      override-values (vertex-attribute-overrides attribute-key)
+                      override-values (:values (vertex-attribute-overrides attribute-key))
                       attribute-values (or override-values material-values)
                       property-type (attribute-property-type attribute-info)
                       expected-element-count (attribute-expected-element-count attribute-info)
@@ -380,9 +416,10 @@
                     [property-key (assoc prop :original-value material-values)]
                     [property-key prop]))))
             material-attribute-infos)
-      (for [[name-key values] vertex-attribute-overrides
+      (for [[name-key vertex-override-info] vertex-attribute-overrides
             :when (not (name-keys name-key))
-            :let [element-count (if (number? values) 1 (count values))
+            :let [values (:values vertex-override-info)
+                  element-count (if (number? values) 1 (count values))
                   assumed-attribute-info {:element-count element-count
                                           :name-key name-key}
                   property-type (attribute-property-type assumed-attribute-info)]]
@@ -398,7 +435,8 @@
   (let [vertex-attribute-bytes
         (into {}
               (map (fn [{:keys [name-key] :as attribute-info}]
-                     (let [override-values (get vertex-attribute-overrides name-key)
+                     (let [override-info (get vertex-attribute-overrides name-key)
+                           override-values (:values override-info)
                            [bytes error] (if (nil? override-values)
                                            [(:bytes attribute-info) (:error attribute-info)]
                                            (let [{:keys [element-count semantic-type]} attribute-info
