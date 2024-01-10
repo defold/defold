@@ -139,7 +139,7 @@
   (let [materials+attribute-build-data (mapv (fn [material+binding-infos]
                                                (let [material (first material+binding-infos)
                                                      material-binding-info (second material+binding-infos)
-                                                     material-attributes (graphics/attributes->build-target
+                                                     material-attributes (graphics/vertex-attribute-overrides->build-target
                                                                            (:material-attribute-infos material-binding-info)
                                                                            (:vertex-attribute-overrides material-binding-info)
                                                                            (:vertex-attribute-bytes material-binding-info))]
@@ -153,7 +153,7 @@
                                          material-binding-info (second material+binding-infos)
                                          material-attribute-infos (:material-attribute-infos material-binding-info)
                                          vertex-attribute-overrides (:vertex-attribute-overrides material-binding-info)
-                                         vertex-attribute-save-values (graphics/attributes->save-values material-attribute-infos vertex-attribute-overrides)]
+                                         vertex-attribute-save-values (graphics/vertex-attribute-overrides->save-values material-attribute-infos vertex-attribute-overrides)]
                                      (-> (assoc material :attributes vertex-attribute-save-values)
                                          (update :material resource/resource->proj-path)
                                          (update :textures
@@ -632,7 +632,7 @@
                 textures (mapv (fn [{:keys [texture] :as texture-desc}]
                                  (assoc texture-desc :texture (workspace/resolve-resource resource texture)))
                                textures)
-                vertex-attribute-overrides (graphics/attributes->override-backing attributes)]]
+                vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides attributes)]]
       (create-material-binding-tx self name material textures vertex-attribute-overrides))))
 
 (defn- sanitize-model [{:keys [material textures materials] :as pb}]

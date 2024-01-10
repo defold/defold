@@ -28,8 +28,7 @@
   (:import [com.jogamp.opengl GL2]
            [com.google.protobuf ByteString]
            [java.nio ByteBuffer]
-           [editor.gl.vertex2 VertexBuffer]
-           [org.snakeyaml.engine.v1.api YamlUnicodeReader]))
+           [editor.gl.vertex2 VertexBuffer]))
 
 (set! *warn-on-reflection* true)
 
@@ -87,7 +86,7 @@
         (or (not-empty (:v (:double-values attribute)))
             (not-empty (:v (:long-values attribute))))))
 
-(defn- attribute->value-source [attribute]
+(defn- attribute->value-keyword [attribute]
   (if (not-empty (:v (:double-values attribute)))
     :double-values
     (if (not-empty (:v (:long-values attribute)))
@@ -109,13 +108,13 @@
         stored-values (doubles->stored-values double-values attribute-value-keyword)]
     (pair attribute-value-keyword stored-values)))
 
-(defn attributes->override-backing [attributes]
+(defn override-attributes->vertex-attribute-overrides [attributes]
   (into {}
         (map (fn [vertex-attribute]
                [(attribute-name->key (:name vertex-attribute))
                 {:name (:name vertex-attribute)
                  :values (attribute->any-doubles vertex-attribute)
-                 :values-source-key (attribute->value-source vertex-attribute)}]))
+                 :value-keyword (attribute->value-keyword vertex-attribute)}]))
         attributes))
 
 (defn doubles-outside-attribute-range-error-message [double-values attribute]
@@ -280,7 +279,7 @@
         all-attributes (into manufactured-attribute-infos material-attribute-infos)]
     (filterv shader-bound-attribute? all-attributes)))
 
-(defn attributes->save-values [material-attribute-infos vertex-attribute-overrides]
+(defn vertex-attribute-overrides->save-values [material-attribute-infos vertex-attribute-overrides]
   (let [material-attribute-names+name-keys (into {} (mapv (fn [attribute] [(:name-key attribute) (:name attribute)]) material-attribute-infos))
         material-attribute-save-values
         (into []
@@ -302,13 +301,13 @@
                       (when-not (contains? material-attribute-names+name-keys (key attribute))
                         (let [attribute-info (second attribute)
                               attribute-name (:name attribute-info)
-                              attribute-value-source-key (:values-source-key attribute-info)
+                              attribute-value-keyword (:value-keyword attribute-info)
                               attribute-values (:values attribute-info)]
-                          {:name attribute-name attribute-value-source-key {:v attribute-values} })))
+                          {:name attribute-name attribute-value-keyword {:v attribute-values} })))
                     vertex-attribute-overrides))]
     (concat material-attribute-save-values orphaned-attribute-save-values)))
 
-(defn attributes->build-target [material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
+(defn vertex-attribute-overrides->build-target [material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
   (into []
         (keep (fn [{:keys [name-key] :as attribute-info}]
                 ;; The values in vertex-attribute-overrides are ignored - we
@@ -344,10 +343,10 @@
 (defn- attribute-update-property [current-property-value attribute new-value]
   (let [override-info ((:name-key attribute) current-property-value)
         attribute-value-keyword (attribute-value-keyword (:data-type attribute) (:normalize attribute))
-        override-values-source-key (or attribute-value-keyword (:values-source-key override-info))
+        override:value-keyword (or attribute-value-keyword (:value-keyword override-info))
         override-name (or (:name attribute) (:name override-info))]
     (assoc current-property-value (:name-key attribute) {:values new-value
-                                                         :values-source-key override-values-source-key
+                                                         :value-keyword override:value-keyword
                                                          :name override-name})))
 
 (defn- attribute-clear-property [current-property-value attribute]

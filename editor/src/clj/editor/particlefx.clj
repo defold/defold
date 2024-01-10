@@ -604,8 +604,8 @@
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
   (let [properties (:properties _declared-properties)]
-    (into {:attributes-save-values (graphics/attributes->save-values material-attribute-infos vertex-attribute-overrides)
-           :attributes-build-target (graphics/attributes->build-target material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)
+    (into {:attributes-save-values (graphics/vertex-attribute-overrides->save-values material-attribute-infos vertex-attribute-overrides)
+           :attributes-build-target (graphics/vertex-attribute-overrides->build-target material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)
            :position position
            :rotation rotation
            :modifiers modifier-msgs}
@@ -1000,7 +1000,7 @@
           graph-id (g/node-id->graph-id self)
           tile-source (workspace/resolve-workspace-resource workspace (:tile-source emitter))
           material (workspace/resolve-workspace-resource workspace (:material emitter))
-          vertex-attribute-overrides (graphics/attributes->override-backing (:attributes emitter))]
+          vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides (:attributes emitter))]
       (g/make-nodes graph-id
                     [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
                                    :id (:id emitter) :mode (:mode emitter) :duration [(:duration emitter) (:duration-spread emitter)] :space (:space emitter)
