@@ -47,7 +47,7 @@
 
 ;; Make it simple to re-run tests after adding content.
 ;; This project is not used by any other tests.
-(test-util/evict-cached-system-and-project! project-path)
+(test-util/evict-cached-project! project-path)
 
 (def ^:private valid-ignore-reason?
   "This is the set of valid reasons why a setting or field may be ignored when

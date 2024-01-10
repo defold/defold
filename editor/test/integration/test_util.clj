@@ -414,7 +414,10 @@
 
 (def load-system-and-project (fn/memoize load-system-and-project-raw))
 
-(defn evict-cached-system-and-project! [path]
+(defn clear-cached-projects! []
+  (fn/clear-memoized! load-system-and-project))
+
+(defn evict-cached-project! [path]
   (fn/evict-memoized! load-system-and-project path))
 
 (defn cached-endpoints

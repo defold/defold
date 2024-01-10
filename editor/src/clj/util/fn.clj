@@ -106,6 +106,16 @@
         2 (memoize-two ifn)
         (memoize-any ifn arity)))))
 
+(defn clear-memoized!
+  "Clear all previously cached results from the cache of a memoized function
+  created by the functions in this module. Returns nil."
+  [memoized-fn]
+  (if-let [memoize-cache (::memoize-cache (meta memoized-fn))]
+    (do
+      (swap! memoize-cache coll/empty-with-meta)
+      nil)
+    (throw (IllegalArgumentException. "The function was not memoized by us."))))
+
 (defn evict-memoized!
   "Evict a previously cached result from the cache of a memoized function
   created by the functions in this module, if present. Returns nil."
