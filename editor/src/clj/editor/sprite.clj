@@ -231,7 +231,7 @@
            :default-animation default-animation
            :material (resource/resource->proj-path material)
            :blend-mode blend-mode
-           :attributes (graphics/attributes->save-values material-attribute-infos vertex-attribute-overrides)}
+           :attributes (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)}
 
           (not= [0.0 0.0 0.0 0.0] slice9)
           (assoc :slice9 slice9)
@@ -313,7 +313,7 @@
                                              :slice9 slice9
                                              :offset offset
                                              :playback-rate playback-rate
-                                             :attributes (graphics/attributes->build-target material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)}
+                                             :attributes (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)}
                                             [:tile-set :material])]))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
@@ -440,12 +440,7 @@
 (defn load-sprite [project self resource sprite]
   (let [image (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))
-        vertex-attribute-overrides
-        (into {}
-              (map (fn [attribute]
-                     [(graphics/attribute-name->key (:name attribute))
-                      (graphics/attribute->any-doubles attribute)]))
-              (:attributes sprite))]
+        vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides (:attributes sprite))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (g/set-property self :default-animation (:default-animation sprite))

@@ -208,7 +208,8 @@
 
    'dmGraphics.VertexAttribute
    {[["particlefx" "emitters" "[*]" "attributes"]
-     ["sprite" "attributes"]]
+     ["sprite" "attributes"]
+     ["model" "materials" "attributes"]]
     {"coordinate_space" :unused
      "data_type" :unused
      "element_count" :unused
@@ -629,7 +630,8 @@
                  :textures [{:sampler "tex0"
                              :texture tex0-resource}
                             {:sampler "tex1"
-                             :texture tex1-resource}]}]
+                             :texture tex1-resource}]
+                 :attributes {}}]
                (g/node-value legacy-material-and-textures-model :materials)))))))
 
 (defn- coll-value-comparator

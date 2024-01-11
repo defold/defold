@@ -289,12 +289,12 @@ namespace dmGameSystem
 
     static inline bool IsDefaultStream(dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type)
     {
-        return name_hash == dmRender::VERTEX_STREAM_POSITION  && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION ||
-               name_hash == dmRender::VERTEX_STREAM_NORMAL    && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL   ||
-               name_hash == dmRender::VERTEX_STREAM_TANGENT   && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT  ||
-               name_hash == dmRender::VERTEX_STREAM_COLOR     && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR    ||
-               name_hash == dmRender::VERTEX_STREAM_TEXCOORD0 && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD ||
-               name_hash == dmRender::VERTEX_STREAM_TEXCOORD1 && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
+        return (name_hash == dmRender::VERTEX_STREAM_POSITION  && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION) ||
+               (name_hash == dmRender::VERTEX_STREAM_NORMAL    && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL)   ||
+               (name_hash == dmRender::VERTEX_STREAM_TANGENT   && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT)  ||
+               (name_hash == dmRender::VERTEX_STREAM_COLOR     && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR)    ||
+               (name_hash == dmRender::VERTEX_STREAM_TEXCOORD0 && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD) ||
+               (name_hash == dmRender::VERTEX_STREAM_TEXCOORD1 && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD);
     }
 
     static inline MaterialResource* GetMaterialResource(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
@@ -527,7 +527,6 @@ namespace dmGameSystem
 
             if (attribute_index >= 0)
             {
-                info.m_Attribute = attributes + attribute_index;
                 dmGraphics::GetAttributeValues(attributes[attribute_index], &info.m_ValuePtr, &info.m_ValueByteSize);
             }
         }
