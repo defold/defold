@@ -34,6 +34,7 @@ import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.render.proto.Font;
+import com.dynamo.render.proto.Material;
 import com.dynamo.rig.proto.Rig;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
@@ -209,6 +210,12 @@ public class ParseUtil {
                     throw new RuntimeException(e);
                 }
                 return builder.build();
+            }
+        });
+        parseMap.put("materialc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Material.MaterialDesc.parseFrom(content);
             }
         });
         parseMap.put("factoryc", new IParser() {

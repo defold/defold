@@ -174,6 +174,16 @@ public class GraphicsUtil {
         return ByteString.copyFrom(buffer);
     }
 
+    public static VertexAttribute getAttributeByName(List<VertexAttribute> materialAttributes, String attributeName)
+    {
+        for (VertexAttribute attr : materialAttributes) {
+            if (attr.getName().equals(attributeName)) {
+                return attr;
+            }
+        }
+        return null;
+    }
+
     public static VertexAttribute buildVertexAttribute(VertexAttribute sourceAttr, VertexAttribute targetAttr) throws CompileExceptionError {
         VertexAttribute.DataType dataType = targetAttr.getDataType();
         boolean normalize = targetAttr.getNormalize();
