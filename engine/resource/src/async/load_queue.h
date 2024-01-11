@@ -15,8 +15,8 @@
 #ifndef RESOURCE_LOAD_QUEUE
 #define RESOURCE_LOAD_QUEUE
 
-#include "resource.h"
-#include "resource_private.h"
+#include "../resource.h"
+// #include "../resource_private.h"
 
 namespace dmLoadQueue
 {

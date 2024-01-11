@@ -395,6 +395,14 @@ namespace dmResource
      */
     const char* ResultToString(Result result);
 
+    struct PreloadHintInfo
+    {
+        HPreloader m_Preloader;
+        int32_t m_Parent;
+    };
+
+    // load with default internal buffer and its management, returns buffer ptr in 'buffer'
+    Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);
 }
 
 #endif // RESOURCE_H
