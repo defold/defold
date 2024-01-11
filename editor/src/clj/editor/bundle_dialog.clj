@@ -17,6 +17,7 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.bundle :as bundle]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
@@ -921,13 +922,14 @@
     (ui/close! stage)))
 
 (handler/defhandler ::query-output-directory :bundle-dialog
-  (run [bundle! prefs presenter stage]
+  (run [bundle! prefs presenter stage workspace]
     (save-prefs! presenter prefs)
     (let [bundle-options (get-options presenter)
-          initial-directory (get-file-pref prefs "bundle-output-directory")]
+          output-prefs-key (str "bundle-output-directory-" (hash (g/node-value workspace :root)))
+          initial-directory (get-file-pref prefs output-prefs-key)]
       (assert (string? (not-empty (:platform bundle-options))))
       (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]
-        (set-file-pref! prefs "bundle-output-directory" output-directory)
+        (set-file-pref! prefs output-prefs-key output-directory)
         (let [platform-bundle-output-directory (io/file output-directory (:platform bundle-options))
               platform-bundle-output-directory-exists? (.exists platform-bundle-output-directory)]
           (when (or (not platform-bundle-output-directory-exists?)
@@ -949,7 +951,8 @@
     (ui/context! root :bundle-dialog {:bundle! bundle!
                                       :prefs prefs
                                       :presenter presenter
-                                      :stage stage} nil)
+                                      :stage stage
+                                      :workspace workspace} nil)
     ;; Key bindings.
     (ui/ensure-receives-key-events! stage)
     (ui/bind-keys! root {KeyCode/ESCAPE ::close})

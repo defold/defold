@@ -1393,7 +1393,7 @@
         col-before-cursor (dec (.-col cursor))
         fallback (:scope-name (get-property view-node :grammar evaluation-context) "source")]
     (if-let [runs (second (get syntax-info row))]
-      (let [result-index (dec (find-insert-index runs [col-before-cursor] #(compare (%1 0) (%2 0))))]
+      (let [result-index (dec ^long (find-insert-index runs [col-before-cursor] #(compare (%1 0) (%2 0))))]
         (or (second (get runs result-index)) fallback))
       fallback)))
 

@@ -21,6 +21,16 @@
 
 (def empty-sorted-map (sorted-map))
 
+(defn ascending-order
+  "Comparator that orders items in ascending order."
+  [a b]
+  (compare a b))
+
+(defn descending-order
+  "Comparator that orders items in descending order."
+  [a b]
+  (compare b a))
+
 (defn supports-transient?
   "Returns true if the supplied persistent collection can be made into a
   transient collection."
