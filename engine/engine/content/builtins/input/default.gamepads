@@ -1152,6 +1152,9 @@ driver
     map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 hat_mask: 0 }
     map { input: GAMEPAD_RPAD_UP type: GAMEPAD_TYPE_BUTTON index: 4 hat_mask: 0 }
     map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 11 hat_mask: 0 }
+    map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 16 hat_mask: 0 }
+    map { input: GAMEPAD_RTRIGGER type: GAMEPAD_TYPE_AXIS index: 4 mod { mod: GAMEPAD_MODIFIER_SCALE } hat_mask: 0 }
+    map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_AXIS index: 5 mod { mod: GAMEPAD_MODIFIER_SCALE } hat_mask: 0 }
 }
 
 driver

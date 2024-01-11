@@ -41,6 +41,7 @@ protected:
         dmHID::DeleteContext(m_Context);
     }
 
+    dmPlatform::HWindow m_Window;
     dmHID::HContext     m_Context;
     dmHID::HKeyboard    m_Keyboard;
     dmHID::HMouse       m_Mouse;

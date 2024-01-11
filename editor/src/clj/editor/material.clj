@@ -470,6 +470,28 @@
                       :error (g/->error _node-id :attributes :fatal nil error-message)))))
         attributes))
 
+(defmulti handle-sampler-names-changed
+  (fn [evaluation-context target-node old-name-index new-name-index sampler-renames sampler-deletions]
+    (let [basis (:basis evaluation-context)]
+      (g/node-type-kw basis target-node))))
+
+(defmethod handle-sampler-names-changed :default [_ _ _ _ _ _])
+
+(defn- notify-sampler-names-targets-setter [evaluation-context self label old-value new-value]
+  (let [old-names (mapv :name old-value)
+        new-names (mapv :name new-value)]
+    (when-not (= old-names new-names)
+      (let [old-name-index (util/name-index old-names identity)
+            new-name-index (util/name-index new-names identity)
+            renames (util/detect-renames old-name-index new-name-index)
+            deletions (util/detect-deletions old-name-index new-name-index)]
+        (into []
+              (comp
+                (map first)
+                (distinct)
+                (mapcat #(handle-sampler-names-changed evaluation-context % old-name-index new-name-index renames deletions)))
+              (g/targets-of (:basis evaluation-context) self label))))))
+
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
 
@@ -495,7 +517,10 @@
   (property attributes g/Any (dynamic visible (g/constantly false)))
   (property vertex-constants g/Any (dynamic visible (g/constantly false)))
   (property fragment-constants g/Any (dynamic visible (g/constantly false)))
-  (property samplers g/Any (dynamic visible (g/constantly false)))
+  (property samplers g/Any
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self old-value new-value]
+                   (notify-sampler-names-targets-setter evaluation-context self :samplers old-value new-value))))
   (property tags g/Any (dynamic visible (g/constantly false)))
   (property vertex-space g/Keyword (dynamic visible (g/constantly false)))
 

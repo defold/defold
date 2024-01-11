@@ -35,7 +35,7 @@
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
            [java.nio ByteBuffer ByteOrder FloatBuffer IntBuffer ShortBuffer]
-           [javax.vecmath Matrix3f Matrix4d Matrix4f Point3d Point3f Quat4d Vector3d Vector3f]))
+           [javax.vecmath Matrix3f Matrix4d Matrix4f Point3d Point3f Vector3f]))
 
 (set! *warn-on-reflection* true)
 
@@ -323,7 +323,10 @@
   (:animation-ids content))
 
 (g/defnk produce-material-ids [content]
-  (:material-ids content))
+  (let [ret (:material-ids content)]
+    (if (zero? (count ret))
+      ["default"]
+      ret)))
 
 (defn- index-oob [vs is comp-count]
   (> (* comp-count (reduce max 0 is)) (count vs)))
@@ -379,17 +382,18 @@
                                 (if-let [m (first meshes)]
                                   (let [^floats ps (:positions m)
                                         c (alength ps)
-                                        ^Matrix4d local-transform (:transform m)] ; Each mesh uses the local matrix of the model it belongs to
-                                    (loop [i 0
-                                           aabb aabb]
-                                      (if (< i c)
-                                        (let [x (aget ps i)
-                                              y (aget ps (+ 1 i))
-                                              z (aget ps (+ 2 i))
-                                              p (Point3d. x y z)
-                                              _ (.transform local-transform p)]
-                                          (recur (+ i 3) (geom/aabb-incorporate aabb p)))
-                                        aabb)))
+                                        ^Matrix4d local-transform (:transform m) ; Each mesh uses the local matrix of the model it belongs to
+                                        aabb (loop [i 0
+                                                    aabb aabb]
+                                               (if (< i c)
+                                                 (let [x (aget ps i)
+                                                       y (aget ps (+ 1 i))
+                                                       z (aget ps (+ 2 i))
+                                                       p (Point3d. x y z)
+                                                       _ (.transform local-transform p)]
+                                                   (recur (+ i 3) (geom/aabb-incorporate aabb p)))
+                                                 aabb))]
+                                    (recur aabb (next meshes)))
                                   aabb))))
   (output bones g/Any produce-bones)
   (output animation-info g/Any produce-animation-info)

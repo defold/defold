@@ -90,7 +90,7 @@ namespace dmHID
     {
     }
 
-    void EnableAccelerometer()
+    void EnableAccelerometer(HContext context)
     {
     }
 

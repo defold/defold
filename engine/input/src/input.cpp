@@ -12,8 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "input.h"
-
 #include <string.h>
 #include <stdio.h>
 
@@ -24,6 +22,7 @@
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 
+#include "input.h"
 #include "input_private.h"
 
 namespace dmInput

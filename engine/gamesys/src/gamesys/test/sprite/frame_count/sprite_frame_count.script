@@ -12,6 +12,8 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
+tests_done = false
+
 local function create_geometries(count)
     local tbl = {}
     for i=1,count do
@@ -64,4 +66,5 @@ end
 function init(self)
     test_simple()
     test_atlas()
+    tests_done = true
 end

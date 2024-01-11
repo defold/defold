@@ -107,6 +107,13 @@ namespace dmGraphics
     typedef struct VertexStreamDeclaration* HVertexStreamDeclaration;
 
     /*#
+     * Invalid stream offset
+     * @constant
+     * @name INVALID_STREAM_OFFSET
+     */
+    const uint32_t INVALID_STREAM_OFFSET = 0xFFFFFFFF;
+
+    /*#
      * @enum
      * @name HandleResult
      * @member HANDLE_RESULT_OK
@@ -494,6 +501,15 @@ namespace dmGraphics
      * @param vertex_declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
      */
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
+
+    /*#
+     * Get the physical offset into the vertex data for a particular stream
+     * @name GetVertexStreamOffset
+     * @param vertex_declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
+     * @param name_hash [type: uint64_t] the name hash of the vertex stream (as passed into AddVertexStream())
+     * @return Offset in bytes into the vertex or INVALID_STREAM_OFFSET if not found
+     */
+    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash);
 
     /*#
      * Create new vertex buffer with initial data

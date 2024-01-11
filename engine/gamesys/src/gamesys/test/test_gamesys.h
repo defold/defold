@@ -87,12 +87,15 @@ protected:
     virtual void TearDown();
     void SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx);
 
+    void WaitForTestsDone(int update_count, bool* result);
+
     dmGameObject::UpdateContext m_UpdateContext;
     dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmConfigFile::HConfig m_Config;
 
+    dmPlatform::HWindow m_Window;
     dmScript::HContext m_ScriptContext;
     dmGraphics::HContext m_GraphicsContext;
     dmRender::HRenderContext m_RenderContext;
@@ -429,8 +432,17 @@ void GamesysTest<T>::SetUp()
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
-    dmGraphics::Initialize();
-    m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
+    dmGraphics::InstallAdapter();
+
+    dmPlatform::WindowParams win_params = {};
+
+    m_Window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(m_Window, win_params);
+
+    dmGraphics::ContextParams graphics_context_params;
+    graphics_context_params.m_Window = m_Window;
+
+    m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
     dmRender::RenderContextParams render_params;
     render_params.m_MaxRenderTypes = 10;
     render_params.m_MaxInstances = 1000;
@@ -537,6 +549,8 @@ void GamesysTest<T>::TearDown()
     dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
+    dmPlatform::CloseWindow(m_Window);
+    dmPlatform::DeleteWindow(m_Window);
     dmScript::Finalize(m_ScriptContext);
     dmScript::DeleteContext(m_ScriptContext);
     dmResource::DeleteFactory(m_Factory);
@@ -552,6 +566,39 @@ void GamesysTest<T>::TearDown()
     }
     dmBuffer::DeleteContext();
     dmConfigFile::Delete(m_Config);
+}
+
+template<typename T>
+void GamesysTest<T>::WaitForTestsDone(int update_count, bool* result)
+{
+    if (result)
+        *result = false;
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    bool tests_done = false;
+    while (!tests_done && --update_count > 0)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    ASSERT_LT(0, update_count);
+
+    if (!result)
+    {
+        ASSERT_TRUE(tests_done);
+    }
+    else
+    {
+        *result = tests_done;
+    }
 }
 
 

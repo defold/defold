@@ -25,14 +25,10 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
+#include <platform/platform_window.h>
+
 namespace dmGraphics
 {
-    typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
-
-    typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);
-
-    typedef void (*WindowIconifyCallback)(void* user_data, uint32_t iconified);
-
     /**
      * Callback function called when the window is requested to close.
      * @param user_data user data that was supplied when opening the window
@@ -82,6 +78,15 @@ namespace dmGraphics
     static const HVertexProgram   INVALID_VERTEX_PROGRAM_HANDLE   = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
     static const HUniformLocation INVALID_UNIFORM_LOCATION        = ~0ull;
+
+    enum AdapterFamily
+    {
+        ADAPTER_FAMILY_NONE   = -1,
+        ADAPTER_FAMILY_NULL   = 1,
+        ADAPTER_FAMILY_OPENGL = 2,
+        ADAPTER_FAMILY_VULKAN = 3,
+        ADAPTER_FAMILY_VENDOR = 4,
+    };
 
     enum AssetType
     {
@@ -150,37 +155,6 @@ namespace dmGraphics
         FACE_TYPE_FRONT          = 0,
         FACE_TYPE_BACK           = 1,
         FACE_TYPE_FRONT_AND_BACK = 2,
-    };
-
-    enum WindowState
-    {
-        WINDOW_STATE_OPENED             = 0x00020001,
-        WINDOW_STATE_ACTIVE             = 0x00020002,
-        WINDOW_STATE_ICONIFIED          = 0x00020003,
-        WINDOW_STATE_ACCELERATED        = 0x00020004,
-        WINDOW_STATE_RED_BITS           = 0x00020005,
-        WINDOW_STATE_GREEN_BITS         = 0x00020006,
-        WINDOW_STATE_BLUE_BITS          = 0x00020007,
-        WINDOW_STATE_ALPHA_BITS         = 0x00020008,
-        WINDOW_STATE_DEPTH_BITS         = 0x00020009,
-        WINDOW_STATE_STENCIL_BITS       = 0x0002000A,
-        WINDOW_STATE_REFRESH_RATE       = 0x0002000B,
-        WINDOW_STATE_ACCUM_RED_BITS     = 0x0002000C,
-        WINDOW_STATE_ACCUM_GREEN_BITS   = 0x0002000D,
-        WINDOW_STATE_ACCUM_BLUE_BITS    = 0x0002000E,
-        WINDOW_STATE_ACCUM_ALPHA_BITS   = 0x0002000F,
-        WINDOW_STATE_AUX_BUFFERS        = 0x00020010,
-        WINDOW_STATE_STEREO             = 0x00020011,
-        WINDOW_STATE_WINDOW_NO_RESIZE   = 0x00020012,
-        WINDOW_STATE_FSAA_SAMPLES       = 0x00020013
-    };
-
-    enum WindowResult
-    {
-        WINDOW_RESULT_ALREADY_OPENED    = 1,
-        WINDOW_RESULT_OK                = 0,
-        WINDOW_RESULT_WINDOW_OPEN_ERROR = -2,
-        WINDOW_RESULT_UNKNOWN_ERROR     = -1000,
     };
 
     enum TextureStatusFlags
@@ -305,58 +279,22 @@ namespace dmGraphics
         uint8_t               m_StencilTexture : 1;
     };
 
-    // Parameters structure for OpenWindow
-    struct WindowParams
-    {
-        WindowParams();
-
-        /// Window resize callback
-        WindowResizeCallback    m_ResizeCallback;
-        /// User data supplied to the callback function
-        void*                   m_ResizeCallbackUserData;
-        /// Window close callback
-        WindowCloseCallback     m_CloseCallback;
-        /// User data supplied to the callback function
-        void*                   m_CloseCallbackUserData;
-        /// Window focus callback
-        WindowFocusCallback     m_FocusCallback;
-        /// User data supplied to the callback function
-        void*                   m_FocusCallbackUserData;
-        /// Window iconify callback
-        WindowIconifyCallback   m_IconifyCallback;
-        /// User data supplied to the callback function
-        void*                   m_IconifyCallbackUserData;
-        /// Window width, 640 by default
-        uint32_t                m_Width;
-        /// Window height, 480 by default
-        uint32_t                m_Height;
-        /// Number of samples (for multi-sampling), 1 by default
-        uint32_t                m_Samples;
-        /// Window title, "Dynamo App" by default
-        const char*             m_Title;
-        /// If the window should cover the full screen or not, false by default
-        bool                    m_Fullscreen;
-        /// Log info about the graphics device being used, false by default
-        bool                    m_PrintDeviceInfo;
-
-        bool                    m_HighDPI;
-
-        // Window background color, RGB 0x00BBGGRR
-        uint32_t                m_BackgroundColor;
-    };
-
     // Parameters structure for NewContext
     struct ContextParams
     {
         ContextParams();
 
-        TextureFilter m_DefaultTextureMinFilter;
-        TextureFilter m_DefaultTextureMagFilter;
-        uint32_t      m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
-        uint8_t       m_VerifyGraphicsCalls : 1;
-        uint8_t       m_RenderDocSupport : 1;           // Vulkan only
-        uint8_t       m_UseValidationLayers : 1;        // Vulkan only
-        uint8_t       : 5;
+        dmPlatform::HWindow m_Window;
+        TextureFilter       m_DefaultTextureMinFilter;
+        TextureFilter       m_DefaultTextureMagFilter;
+        uint32_t            m_Width;
+        uint32_t            m_Height;
+        uint32_t            m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
+        uint8_t             m_VerifyGraphicsCalls : 1;
+        uint8_t             m_PrintDeviceInfo : 1;
+        uint8_t             m_RenderDocSupport : 1;           // Vulkan only
+        uint8_t             m_UseValidationLayers : 1;        // Vulkan only
+        uint8_t             : 4;
     };
 
     struct PipelineState
@@ -410,11 +348,13 @@ namespace dmGraphics
     void DeleteContext(HContext context);
 
     /**
-     * Initialize graphics system
-     * @params adapter_type_str String identifier for which adapter to use (vulkan/opengl/null)
+     * Install a graphics adapter
+     * @params family AdapterFamily identifier for which adapter to use (vulkan/opengl/null/vendor)
      * @return True if a graphics backend could be created, false otherwise.
      */
-    bool Initialize(const char* adapter_type_str = 0);
+    bool InstallAdapter(AdapterFamily family = ADAPTER_FAMILY_NONE);
+    AdapterFamily GetAdapterFamily(const char* adapter_name);
+    AdapterFamily GetInstalledAdapterFamily();
 
     /**
      * Finalize graphics system
@@ -434,12 +374,11 @@ namespace dmGraphics
     uint32_t GetWindowRefreshRate(HContext context);
 
     /**
-     * Open a window
+     * Get the window handle from the graphics context
      * @param context Graphics context handle
-     * @param params Window parameters
-     * @return The result of the operation
+     * @return The window handle
      */
-    WindowResult OpenWindow(HContext context, WindowParams *params);
+    dmPlatform::HWindow GetWindow(HContext context);
 
     /**
      * Close the open window if any.
@@ -459,7 +398,7 @@ namespace dmGraphics
      * @param state Aspect of the window state to query for
      * @return State of the supplied aspect. If no window is opened, 0 is always returned.
      */
-    uint32_t GetWindowState(HContext context, WindowState state);
+    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state);
 
     /**
      * Returns the specified dpi of default monitor.
