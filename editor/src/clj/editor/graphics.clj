@@ -279,8 +279,8 @@
         all-attributes (into manufactured-attribute-infos material-attribute-infos)]
     (filterv shader-bound-attribute? all-attributes)))
 
-(defn vertex-attribute-overrides->save-values [material-attribute-infos vertex-attribute-overrides]
-  (let [material-attribute-names+name-keys (into {} (mapv (fn [attribute] [(:name-key attribute) (:name attribute)]) material-attribute-infos))
+(defn vertex-attribute-overrides->save-values [vertex-attribute-overrides material-attribute-infos]
+  (let [declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
         material-attribute-save-values
         (into []
               (keep (fn [{:keys [data-type element-count name name-key normalize semantic-type]}]
@@ -297,17 +297,16 @@
               material-attribute-infos)
         orphaned-attribute-save-values
         (into []
-              (keep (fn [attribute]
-                      (when-not (contains? material-attribute-names+name-keys (key attribute))
-                        (let [attribute-info (second attribute)
-                              attribute-name (:name attribute-info)
+              (keep (fn [[name-key attribute-info]]
+                      (when-not (contains? declared-material-attribute-key? name-key)
+                        (let [attribute-name (:name attribute-info)
                               attribute-value-keyword (:value-keyword attribute-info)
                               attribute-values (:values attribute-info)]
-                          {:name attribute-name attribute-value-keyword {:v attribute-values} })))
+                          {:name attribute-name attribute-value-keyword {:v attribute-values}})))
                     vertex-attribute-overrides))]
     (concat material-attribute-save-values orphaned-attribute-save-values)))
 
-(defn vertex-attribute-overrides->build-target [material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
+(defn vertex-attribute-overrides->build-target [vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos]
   (into []
         (keep (fn [{:keys [name-key] :as attribute-info}]
                 ;; The values in vertex-attribute-overrides are ignored - we
@@ -343,10 +342,10 @@
 (defn- attribute-update-property [current-property-value attribute new-value]
   (let [override-info ((:name-key attribute) current-property-value)
         attribute-value-keyword (attribute-value-keyword (:data-type attribute) (:normalize attribute))
-        override:value-keyword (or attribute-value-keyword (:value-keyword override-info))
+        override-value-keyword (or attribute-value-keyword (:value-keyword override-info))
         override-name (or (:name attribute) (:name override-info))]
     (assoc current-property-value (:name-key attribute) {:values new-value
-                                                         :value-keyword override:value-keyword
+                                                         :value-keyword override-value-keyword
                                                          :name override-name})))
 
 (defn- attribute-clear-property [current-property-value attribute]

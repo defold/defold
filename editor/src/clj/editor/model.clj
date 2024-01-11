@@ -62,29 +62,15 @@
         [])
       (:animation-ids animation-set-info))))
 
-(defn- produce-orphaned-attribute-save-values [attribute-save-values attribute-value-sources]
-  (let [attribute-save-value-names (mapv #(:name %) attribute-save-values)]
-    (into []
-          (keep (fn [attribute]
-                  (when-not (some #(= (key attribute) %) attribute-save-value-names)
-                    (let [attribute-name (key attribute)
-                          attribute-values (second attribute)
-                          attribute-value-source-key (:value-source-key attribute-values)
-                          attribute-values (:value attribute-values)]
-                      {:name attribute-name attribute-value-source-key {:v attribute-values} })))
-                attribute-value-sources))))
-
-(g/defnk produce-pb-msg [name mesh materials material-binding-infos skeleton animations default-animation]
+(g/defnk produce-pb-msg [name mesh materials skeleton animations default-animation]
   (cond-> {:mesh (resource/resource->proj-path mesh)
-           :materials (mapv
-                        (fn [material+binding-infos]
-                          (let [material (first material+binding-infos)]
-                            (-> material
-                                (update :material resource/resource->proj-path)
-                                (update :textures
-                                        (fn [textures]
-                                          (mapv #(update % :texture resource/proj-path) textures))))))
-                        (map vector materials material-binding-infos))
+           :materials (mapv (fn [material]
+                              (-> material
+                                  (update :material resource/resource->proj-path)
+                                  (update :textures
+                                          (fn [textures]
+                                            (mapv #(update % :texture resource/proj-path) textures)))))
+                            materials)
            :skeleton (resource/resource->proj-path skeleton)
            :animations (resource/resource->proj-path animations)
            :default-animation default-animation}
@@ -140,26 +126,24 @@
                                                (let [material (first material+binding-infos)
                                                      material-binding-info (second material+binding-infos)
                                                      material-attributes (graphics/vertex-attribute-overrides->build-target
-                                                                           (:material-attribute-infos material-binding-info)
                                                                            (:vertex-attribute-overrides material-binding-info)
-                                                                           (:vertex-attribute-bytes material-binding-info))]
+                                                                           (:vertex-attribute-bytes material-binding-info)
+                                                                           (:material-attribute-infos material-binding-info))]
                                                  (assoc material :attributes material-attributes)))
                                              (map vector (:materials pb-msg) material-binding-infos))]
     (assoc pb-msg :materials materials+attribute-build-data)))
 
 (g/defnk produce-save-value [pb-msg materials material-binding-infos]
-  (assoc pb-msg :materials (mapv (fn [material+binding-infos]
-                                   (let [material (first material+binding-infos)
-                                         material-binding-info (second material+binding-infos)
-                                         material-attribute-infos (:material-attribute-infos material-binding-info)
+  (assoc pb-msg :materials (mapv (fn [material material-binding-info]
+                                   (let [material-attribute-infos (:material-attribute-infos material-binding-info)
                                          vertex-attribute-overrides (:vertex-attribute-overrides material-binding-info)
-                                         vertex-attribute-save-values (graphics/vertex-attribute-overrides->save-values material-attribute-infos vertex-attribute-overrides)]
+                                         vertex-attribute-save-values (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)]
                                      (-> (assoc material :attributes vertex-attribute-save-values)
                                          (update :material resource/resource->proj-path)
                                          (update :textures
                                                  (fn [textures]
-                                                   (mapv #(update % :texture resource/proj-path) textures))))))
-                                 (map vector materials material-binding-infos))))
+                                                   (mapv #(update % :texture resource/resource->proj-path) textures))))))
+                                 materials material-binding-infos)))
 
 (g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-set-build-target materials material-binding-infos skeleton-build-target animations mesh skeleton]
   (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
@@ -611,7 +595,7 @@
   (output animation-set-build-target-single g/Any :cached produce-animation-set-build-target-single)
 
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any produce-save-value)
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
 
   (output scene g/Any :cached produce-scene)

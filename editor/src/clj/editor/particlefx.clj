@@ -604,8 +604,8 @@
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
   (let [properties (:properties _declared-properties)]
-    (into {:attributes-save-values (graphics/vertex-attribute-overrides->save-values material-attribute-infos vertex-attribute-overrides)
-           :attributes-build-target (graphics/vertex-attribute-overrides->build-target material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)
+    (into {:attributes-save-values (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)
+           :attributes-build-target (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)
            :position position
            :rotation rotation
            :modifiers modifier-msgs}

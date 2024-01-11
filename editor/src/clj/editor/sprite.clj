@@ -231,7 +231,7 @@
            :default-animation default-animation
            :material (resource/resource->proj-path material)
            :blend-mode blend-mode
-           :attributes (graphics/vertex-attribute-overrides->save-values material-attribute-infos vertex-attribute-overrides)}
+           :attributes (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)}
 
           (not= [0.0 0.0 0.0 0.0] slice9)
           (assoc :slice9 slice9)
@@ -313,7 +313,7 @@
                                              :slice9 slice9
                                              :offset offset
                                              :playback-rate playback-rate
-                                             :attributes (graphics/vertex-attribute-overrides->build-target material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)}
+                                             :attributes (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)}
                                             [:tile-set :material])]))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
