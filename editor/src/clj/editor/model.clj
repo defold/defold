@@ -409,7 +409,6 @@
     (editable? [_] false)))
 
 (g/defnk produce-model-properties [_node-id _declared-properties material-binding-infos mesh-material-ids]
-  (assert (not (g/error-value? material-binding-infos)))
   (let [model-node-id _node-id
         mesh-material-names (if (g/error-value? mesh-material-ids) #{} (set mesh-material-ids))
         proto-material-name->material-binding-info (into {} (map (juxt :name identity)) material-binding-infos)

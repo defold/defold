@@ -154,22 +154,6 @@
         data {:mesh mesh :world-transform clj-world :vertex-space vertex-space :vertex-description vertex-description :vertex-attribute-bytes vertex-attribute-bytes}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
-(defn- vertex-space-fixup [material-attribute-infos]
-  (let [position-entry (->> material-attribute-infos
-                            (filter #(= (:name %) "position"))
-                            first)]
-    ;; This workaround is currently needed because we set the manufactured "position"
-    ;; to coordinate-space-world which means that we will produce wrong vertices
-    ;; based on the vertex space setting on the material.
-    (if position-entry
-      material-attribute-infos
-      (conj material-attribute-infos {:name "position"
-                                      :name-key (vtx/attribute-name->key "position")
-                                      :semantic-type :semantic-type-position
-                                      :coordinate-space :coordinate-space-local
-                                      :data-type :type-float
-                                      :element-count 4}))))
-
 (defn- render-scene-opaque [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
@@ -206,8 +190,7 @@
                     ^Matrix4d world-transform (:world-transform renderable)
                     world-matrix (doto (Matrix4d. world-transform) (.mul local-transform))
 
-                    material-attribute-infos (vertex-space-fixup (:material-attribute-infos user-data))
-                    shader-bound-attributes (graphics/shader-bound-attributes gl shader material-attribute-infos [:position :texcoord0 :normal])
+                    shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :normal] :coordinate-space-local)
                     vertex-description (graphics/make-vertex-description shader-bound-attributes)
                     vertex-attribute-bytes (:vertex-attribute-bytes user-data)]
               mesh meshes

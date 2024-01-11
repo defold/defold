@@ -400,7 +400,7 @@
     (let [user-data (:user-data renderable)
           {:keys [emitter-sim-data emitter-index color max-particle-count]} user-data
           shader (:shader emitter-sim-data)
-          shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color])
+          shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color] :coordinate-space-world)
           vertex-description (graphics/make-vertex-description shader-bound-attributes)
           vertex-attribute-bytes (:vertex-attribute-bytes user-data)
           pfx-sim-request-id (some-> renderable :updatable :node-id)]

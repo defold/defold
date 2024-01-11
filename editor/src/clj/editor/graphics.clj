@@ -269,13 +269,18 @@
           :data-type :type-float
           :element-count 3}]))
 
-(defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-stream-keys]
+(defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-stream-keys default-coordinate-space]
   (let [shader-bound-attribute? (comp boolean (shader/attribute-infos shader gl) :name)
         declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
         manufactured-attribute-infos (into []
                                            (comp (remove declared-material-attribute-key?)
                                                  (map attribute-key->default-attribute-info))
                                            manufactured-stream-keys)
+        manufactured-attribute-infos (mapv (fn [attribute]
+                                             (if (contains? attribute :coordinate-space)
+                                               (assoc attribute :coordinate-space default-coordinate-space)
+                                               attribute))
+                                           manufactured-attribute-infos)
         all-attributes (into manufactured-attribute-infos material-attribute-infos)]
     (filterv shader-bound-attribute? all-attributes)))
 
@@ -321,7 +326,7 @@
 
 (defn- editable-attribute-info? [attribute-info]
   (case (:semantic-type attribute-info)
-    (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index) false
+    (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index :semantic-type-normal) false
     nil false
     true))
 

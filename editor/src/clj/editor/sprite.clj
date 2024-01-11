@@ -199,7 +199,7 @@
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)
-            shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index])
+            shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index] :coordinate-space-world)
             vertex-description (graphics/make-vertex-description shader-bound-attributes)
             vbuf (into-vertex-buffer (vtx/make-vertex-buffer vertex-description :dynamic (* num-quads 6)) renderables)
             vertex-binding (vtx/use-with ::sprite-trans vbuf shader)
