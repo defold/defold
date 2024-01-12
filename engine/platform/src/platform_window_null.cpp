@@ -109,9 +109,10 @@ namespace dmPlatform
         {
             case DEVICE_STATE_CURSOR:
                 window->m_StateCursor = op1;
+                window->m_StateCursorLock = !op1;
                 break;
             case DEVICE_STATE_CURSOR_LOCK:
-                window->m_StateCursorLock = op1;
+                // We don't distinguish between locked state and visible state on the null implementation
                 break;
             case DEVICE_STATE_ACCELEROMETER:
                 window->m_StateCursorAccelerometer = op1;
@@ -138,13 +139,13 @@ namespace dmPlatform
     {
         switch(state)
         {
-            case DEVICE_STATE_CURSOR: return window->m_StateCursor;
-            case DEVICE_STATE_CURSOR_LOCK: return window->m_StateCursorLock;
-            case DEVICE_STATE_ACCELEROMETER: return window->m_StateCursorAccelerometer;
-            case DEVICE_STATE_KEYBOARD_DEFAULT: return window->m_StateKeyboard    == 1;
+            case DEVICE_STATE_CURSOR:              return window->m_StateCursor;
+            case DEVICE_STATE_CURSOR_LOCK:         return window->m_StateCursorLock;
+            case DEVICE_STATE_ACCELEROMETER:       return window->m_StateCursorAccelerometer;
+            case DEVICE_STATE_KEYBOARD_DEFAULT:    return window->m_StateKeyboard == 1;
             case DEVICE_STATE_KEYBOARD_NUMBER_PAD: return window->m_StateKeyboard == 2;
-            case DEVICE_STATE_KEYBOARD_EMAIL: return window->m_StateKeyboard      == 3;
-            case DEVICE_STATE_KEYBOARD_PASSWORD: return window->m_StateKeyboard   == 4;
+            case DEVICE_STATE_KEYBOARD_EMAIL:      return window->m_StateKeyboard == 3;
+            case DEVICE_STATE_KEYBOARD_PASSWORD:   return window->m_StateKeyboard == 4;
             default:
                 dmLogWarning("Unable to set device state (%d), unknown state.", (int) state);
                 break;

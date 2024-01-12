@@ -1156,9 +1156,16 @@ TEST_P(CursorTest, Cursor)
 
 TEST_F(WindowTest, MouseLock)
 {
+    dmPlatform::WindowParams window_params = {};
+    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+
     dmHID::NewContextParams hid_params = {};
     dmHID::HContext hid_context = dmHID::NewContext(hid_params);
     dmHID::Init(hid_context);
+
+    dmPlatform::HWindow window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(window, window_params);
+    dmHID::SetWindow(hid_context, window);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -1187,6 +1194,7 @@ TEST_F(WindowTest, MouseLock)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 
     dmHID::DeleteContext(hid_context);
+    dmPlatform::DeleteWindow(window);
 }
 
 TEST_F(WindowTest, Events)
