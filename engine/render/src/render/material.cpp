@@ -335,6 +335,15 @@ namespace dmRender
         return 0x0;
     }
 
+    dmhash_t GetMaterialSamplerNameHash(HMaterial material, uint32_t unit)
+    {
+        if (unit < material->m_Samplers.Size())
+        {
+            return material->m_Samplers[unit].m_NameHash;
+        }
+        return 0;
+    }
+
     uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash)
     {
         for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)

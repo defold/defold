@@ -276,6 +276,11 @@ namespace dmGameSystem
                 }
 
                 texture_info->m_SamplerNameHash = dmHashString64(texture->m_Sampler);
+                if (!texture_info->m_SamplerNameHash) // old content
+                {
+                    // Then we'll fallback to using the order of each sampler
+                    texture_info->m_SamplerNameHash = dmRender::GetMaterialSamplerNameHash(info.m_Material->m_Material, t);
+                }
             }
 
             // We need to sort the textures on sampler units
