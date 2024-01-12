@@ -751,11 +751,6 @@ namespace dmEngine
 #endif
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
 
-        if (use_accelerometer)
-        {
-            dmHID::EnableAccelerometer(engine->m_HidContext); // Creates and enables the accelerometer
-        }
-
         dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
@@ -1023,6 +1018,11 @@ namespace dmEngine
 
         dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, dmInput::GamepadConnectivityCallback, engine->m_InputContext);
 
+        if (use_accelerometer)
+        {
+            dmHID::EnableAccelerometer(engine->m_HidContext); // Creates and enables the accelerometer
+        }
+
         // JG: Q - Can we create the graphics context before HID and pass in the context to the Hid insteaD?
         dmHID::SetWindow(engine->m_HidContext, dmGraphics::GetWindow(engine->m_GraphicsContext));
 
@@ -1044,6 +1044,7 @@ namespace dmEngine
 
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
+        gui_params.m_HidContext = engine->m_HidContext;
         gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
         gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
