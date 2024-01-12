@@ -920,7 +920,12 @@ namespace dmGameSystem
             uint32_t frame_index = 0xFFFFFFFF;
             if (frame_anim_id == 0xFFFFFFFFFFFFFFFF)
             {
+                uint32_t invalid_anim_index = 0;
                 uint32_t* anim_index = data->m_Resources[i]->m_AnimationIds.Get(anim_id);
+
+                if (!anim_index) // If the animation doesn't exist in the atlas, then fallback to the first animation (old behavior)
+                    anim_index = &invalid_anim_index;
+
                 data->m_Animations[i] = &texture_set_ddf->m_Animations[*anim_index];
 
                 uint32_t anim_frame_index = data->m_Animations[i]->m_Start + current_anim_frame_index;
