@@ -55,7 +55,6 @@ namespace dmPlatform
         DEVICE_STATE_KEYBOARD_NUMBER_PAD = 5,
         DEVICE_STATE_KEYBOARD_EMAIL      = 6,
         DEVICE_STATE_KEYBOARD_PASSWORD   = 7,
-        DEVICE_STATE_KEYBOARD_COUNT      = 8,
     };
 
     enum WindowState

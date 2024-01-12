@@ -14,13 +14,13 @@
 
 #include <assert.h>
 
-#include "platform_window.h"
-#include "platform_window_constants.h"
+#include <dlib/platform.h>
+#include <dlib/log.h>
 
 #include <glfw/glfw.h>
 
-#include <dlib/platform.h>
-#include <dlib/log.h>
+#include "platform_window.h"
+#include "platform_window_constants.h"
 
 namespace dmPlatform
 {
@@ -453,7 +453,9 @@ namespace dmPlatform
             case DEVICE_STATE_KEYBOARD_PASSWORD:
                 glfwShowKeyboard(op1, GLFW_KEYBOARD_PASSWORD, op2);
                 break;
-            default:break;
+            default:
+                dmLogWarning("Unable to get device state (%d), unknown state.", (int) state);
+                break;
         }
     }
 
@@ -463,7 +465,7 @@ namespace dmPlatform
         {
             return glfwGetMouseLocked();
         }
-        assert(0 && "Not supported.");
+        dmLogWarning("Unable to get device state (%d), unknown state.", (int) state);
         return false;
     }
 
