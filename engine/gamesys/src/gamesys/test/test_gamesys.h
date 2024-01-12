@@ -415,8 +415,19 @@ void GamesysTest<T>::SetUp()
     m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
 
+    dmGraphics::InstallAdapter();
+
+    dmPlatform::WindowParams win_params = {};
+    m_Window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(m_Window, win_params);
+
+    m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+    dmHID::Init(m_HidContext);
+    dmHID::SetWindow(m_HidContext, m_Window);
+
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
+    gui_params.m_HidContext = m_HidContext;
     gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
     gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
     gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
@@ -432,13 +443,6 @@ void GamesysTest<T>::SetUp()
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
-    dmGraphics::InstallAdapter();
-
-    dmPlatform::WindowParams win_params = {};
-
-    m_Window = dmPlatform::NewWindow();
-    dmPlatform::OpenWindow(m_Window, win_params);
-
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_Window = m_Window;
 
@@ -451,8 +455,6 @@ void GamesysTest<T>::SetUp()
     render_params.m_MaxCharacters = 256;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
 
-    m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
-    dmHID::Init(m_HidContext);
     dmInput::NewContextParams input_params;
     input_params.m_HidContext = m_HidContext;
     input_params.m_RepeatDelay = 0.3f;

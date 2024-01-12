@@ -57,19 +57,34 @@ class dmGuiScriptTest : public jc_test_base_class
 {
 public:
     dmScript::HContext m_ScriptContext;
+    dmPlatform::HWindow m_Window;
+    dmHID::HContext m_HidContext;
     dmGui::HContext m_Context;
     dmGui::RenderSceneParams m_RenderParams;
 
     virtual void SetUp()
     {
+        dmPlatform::WindowParams window_params = {};
+        window_params.m_Width                  = 2;
+        window_params.m_Height                 = 2;
+        window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, window_params);
+
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
+
+        m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+        dmHID::Init(m_HidContext);
+        dmHID::SetWindow(m_HidContext, m_Window);
 
         dmGui::NewContextParams context_params;
         context_params.m_ScriptContext = m_ScriptContext;
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
         context_params.m_PhysicalWidth = 1;
         context_params.m_PhysicalHeight = 1;
+        context_params.m_HidContext = m_HidContext;
         m_Context = dmGui::NewContext(&context_params);
 
         m_RenderParams.m_RenderNodes = RenderNodesStoreTransform;
@@ -83,6 +98,8 @@ public:
         dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+        dmHID::DeleteContext(m_HidContext);
+        dmPlatform::DeleteWindow(m_Window);
     }
 };
 
@@ -1129,6 +1146,53 @@ TEST_F(dmGuiScriptTest, TestRecreateDynamicTexture)
     ASSERT_EQ(dmGui::RESULT_OK, result);
     ASSERT_EQ(8, width);
     ASSERT_EQ(8, height);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestKeyboardFunctions)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params = {};
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "   gui.show_keyboard(gui.KEYBOARD_TYPE_EMAIL, false)\n"
+            "   gui.show_keyboard(gui.KEYBOARD_TYPE_NUMBER_PAD, false)\n"
+            "   gui.show_keyboard(gui.KEYBOARD_TYPE_PASSWORD, false)\n"
+            "   gui.show_keyboard(gui.KEYBOARD_TYPE_DEFAULT, false)\n"
+            "end\n"
+            "function update(self)\n"
+            "   gui.hide_keyboard()\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    ASSERT_TRUE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD));
+
+    result = dmGui::UpdateScene(scene, 1.0f / 60);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL));
+    ASSERT_FALSE(dmPlatform::GetDeviceState(m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD));
 
     dmGui::DeleteScene(scene);
 
