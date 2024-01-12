@@ -202,6 +202,7 @@ namespace dmRender
     HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
     HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
+    dmhash_t                        GetMaterialSamplerNameHash(HMaterial material, uint32_t unit);
     uint32_t                        GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash);
     void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
     void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);

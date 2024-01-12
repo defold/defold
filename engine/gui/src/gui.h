@@ -234,6 +234,7 @@ namespace dmGui
     struct NewContextParams
     {
         dmScript::HContext      m_ScriptContext;
+        dmHID::HContext         m_HidContext;
         GetURLCallback          m_GetURLCallback;
         GetUserDataCallback     m_GetUserDataCallback;
         ResolvePathCallback     m_ResolvePathCallback;
