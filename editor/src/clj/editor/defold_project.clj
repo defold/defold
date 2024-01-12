@@ -98,39 +98,27 @@
     (g/mark-defective node-id node-type error-value)))
 
 (defn- load-resource-node [project resource-node-id resource source-value]
-  ;; TODO(save-value): This should no longer be true - we should always have a committed resource-node-id.
-  ;; Note that resource-node-id here may be temporary (a make-node not
-  ;; g/transact'ed) here, so we can't use (node-value resource-node-id :...)
-  ;; to inspect it. That's why we pass in node-type, resource.
-  (assert (some? *load-cache*))
-
-  ;; TODO(save-value): We shouldn't have duplicate calls anymore, right?
-  (assert (not (contains? @*load-cache* resource-node-id)))
-
-  ;; Don't generate duplicate tx-data for nodes that have already been loaded.
-  (when-not (contains? @*load-cache* resource-node-id)
-    (swap! *load-cache* conj resource-node-id)
-    (try
-      (if (or (= :folder (resource/source-type resource))
-              (not (resource/exists? resource)))
-        (do
-          ;; TODO(save-value): This shouldn't be able to happen anymore, right?
-          (assert (and (not= :folder (resource/source-type resource))
-                       (resource/exists? resource)))
-          (mark-node-file-not-found resource-node-id resource))
-        (try
-          (if-let [resource-type (resource/resource-type resource)]
-            (load-registered-resource-node resource-type project resource-node-id resource source-value)
-            (placeholder-resource/load-node project resource-node-id resource))
-          (catch Exception exception
-            (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
-            (mark-node-invalid-content resource-node-id resource exception))))
-      (catch Throwable throwable
-        (let [proj-path (resource/proj-path resource)]
-          (throw (ex-info (format "Error when loading resource '%s'" proj-path)
-                          {:node-type (resource-node-type resource)
-                           :proj-path proj-path}
-                          throwable)))))))
+  (try
+    (if (or (= :folder (resource/source-type resource))
+            (not (resource/exists? resource)))
+      (do
+        ;; TODO(save-value): This shouldn't be able to happen anymore, right?
+        (assert (and (not= :folder (resource/source-type resource))
+                     (resource/exists? resource)))
+        (mark-node-file-not-found resource-node-id resource))
+      (try
+        (if-let [resource-type (resource/resource-type resource)]
+          (load-registered-resource-node resource-type project resource-node-id resource source-value)
+          (placeholder-resource/load-node project resource-node-id resource))
+        (catch Exception exception
+          (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
+          (mark-node-invalid-content resource-node-id resource exception))))
+    (catch Throwable throwable
+      (let [proj-path (resource/proj-path resource)]
+        (throw (ex-info (format "Error when loading resource '%s'" proj-path)
+                        {:node-type (resource-node-type resource)
+                         :proj-path proj-path}
+                        throwable))))))
 
 (defn load-embedded-resource-node [project embedded-resource-node-id embedded-resource source-value]
   (let [embedded-resource-type (resource/resource-type embedded-resource)
@@ -230,11 +218,23 @@
                   node-id->dependency-node-ids)))))))
 
 (defn- node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} project]
-  (if read-error
-    (let [node-type (resource-node-type resource)]
-      (g/mark-defective node-id node-type read-error))
-    (let [source-value (:source-value node-load-info)]
-      (load-resource-node project node-id resource source-value))))
+  ;; TODO(save-value): This should no longer be true - we should always have a committed resource-node-id.
+  ;; Note that resource-node-id here may be temporary (a make-node not
+  ;; g/transact'ed) here, so we can't use (node-value resource-node-id :...)
+  ;; to inspect it. That's why we pass in node-type, resource.
+  (assert (some? *load-cache*))
+
+  ;; TODO(save-value): We shouldn't have duplicate calls anymore, right?
+  (assert (not (contains? @*load-cache* node-id)))
+
+  ;; Don't generate duplicate tx-data for nodes that have already been loaded.
+  (when-not (contains? @*load-cache* node-id)
+    (swap! *load-cache* conj node-id)
+    (if read-error
+      (let [node-type (resource-node-type resource)]
+        (g/mark-defective node-id node-type read-error))
+      (let [source-value (:source-value node-load-info)]
+        (load-resource-node project node-id resource source-value)))))
 
 (defn- sort-node-load-infos-for-loading [node-load-infos old-resource-node-ids-by-proj-path old-resource-node-dependencies]
   {:pre [(map? old-resource-node-ids-by-proj-path)
@@ -1040,7 +1040,10 @@
               ;; resource does not exist, or it would have already been created
               ;; during resource-sync.
               created-in-tx
-              (mark-node-file-not-found node-id resource)
+              (do
+                (when (and *load-cache* (not (contains? @*load-cache* node-id)))
+                  (swap! *load-cache* conj node-id))
+                (mark-node-file-not-found node-id resource))
 
               ;; If we're in the process of loading, we can verify that the
               ;; referenced resource node has been loaded before the node that
