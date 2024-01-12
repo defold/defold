@@ -751,11 +751,6 @@ namespace dmEngine
 #endif
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
 
-        if (use_accelerometer)
-        {
-            dmHID::EnableAccelerometer(engine->m_HidContext); // Creates and enables the accelerometer
-        }
-
         dmEngine::ExtensionAppParams app_params;
         app_params.m_ConfigFile = engine->m_Config;
         app_params.m_WebServer = dmEngineService::GetWebServer(engine->m_EngineService);
@@ -1028,6 +1023,11 @@ namespace dmEngine
 
         // Any connected devices are registered here.
         dmHID::Init(engine->m_HidContext);
+
+        if (use_accelerometer)
+        {
+            dmHID::EnableAccelerometer(engine->m_HidContext); // Creates and enables the accelerometer
+        }
 
         dmMessage::Result mr = dmMessage::NewSocket(SYSTEM_SOCKET_NAME, &engine->m_SystemSocket);
         if (mr != dmMessage::RESULT_OK)
