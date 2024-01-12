@@ -197,7 +197,7 @@
                                   mesh-set (target (:mesh-set rig-scene) targets)]
                               (is (= "" (:texture-set rig-scene)))
                               (is (contains? targets (:material (first (:materials pb)))))
-                              (is (= "" (:texture (first (:textures (first (:materials pb)))))))
+                              (is (empty? (:textures (first (:materials pb)))))
 
                               (let [mesh (-> mesh-set :models first :meshes first)
                                     size (.size (:indices mesh))

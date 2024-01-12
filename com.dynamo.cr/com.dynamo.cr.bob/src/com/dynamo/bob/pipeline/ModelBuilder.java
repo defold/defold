@@ -64,16 +64,36 @@ public class ModelBuilder extends Builder<Void> {
             IResource animations = BuilderUtil.checkResource(this.project, input, "animation", modelDescBuilder.getAnimations());
             taskBuilder.addInput(animations);
         }
-        for (String t : modelDescBuilder.getTexturesList()) {
-            if (t.isEmpty())
-                continue; // TODO: Perhaps we can check if the material expects textures?
 
-            IResource res = BuilderUtil.checkResource(this.project, input, "texture", t);
-            Task<?> embedTask = this.project.createTask(res);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input,
-                                                0,
-                                                String.format("Failed to create build task for component '%s'", res.getPath()));
+        if (modelDescBuilder.getMaterialsCount() > 0) {
+            for (Material material : modelDescBuilder.getMaterialsList()) {
+                for (Texture texture : material.getTexturesList()) {
+                    String t = texture.getTexture();
+                    if (t.isEmpty())
+                        continue; // TODO: Perhaps we can check if the material expects textures?
+
+                    IResource res = BuilderUtil.checkResource(this.project, input, "texture", t);
+                    Task<?> embedTask = this.project.createTask(res);
+                    if (embedTask == null) {
+                        throw new CompileExceptionError(input,
+                                                        0,
+                                                        String.format("Failed to create build task for component '%s'", res.getPath()));
+                    }
+                }
+            }
+        } else { 
+            // Deprecated workflow
+            for (String t : modelDescBuilder.getTexturesList()) {
+                if (t.isEmpty())
+                    continue; // TODO: Perhaps we can check if the material expects textures?
+
+                IResource res = BuilderUtil.checkResource(this.project, input, "texture", t);
+                Task<?> embedTask = this.project.createTask(res);
+                if (embedTask == null) {
+                    throw new CompileExceptionError(input,
+                                                    0,
+                                                    String.format("Failed to create build task for component '%s'", res.getPath()));
+                }
             }
         }
         return taskBuilder.build();

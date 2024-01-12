@@ -48,7 +48,6 @@ local tparams_compressed = {
 
 function test_simple()
     local t_id = resource.create_texture("/test_simple.texturec", tparams)
-    print("MAWE", "/test_simple.texturec", t_id)
     go.set("#model", "texture0", t_id)
 end
 

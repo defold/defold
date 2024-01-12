@@ -217,6 +217,10 @@
    {:default
     {"sample_rate" :deprecated}} ; This was a legacy setting in our own Spine implementation. There is no equivalent in the official Spine runtime.
 
+   'dmGameSystemDDF.SpriteDesc
+   {:default
+    {"textures" :unimplemented}} ; Multiple textures for sprites are not supported yet.
+
    'dmGameSystemDDF.TileLayer
    {:default
     {"id_hash" :runtime-only}}
@@ -456,7 +460,8 @@
 
    'dmModelDDF.ModelDesc
    {:default
-    {"materials" :unimplemented}} ; Multiple materials not supported yet.
+    {"material" :deprecated   ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "textures" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    ['dmParticleDDF.Emitter "[EMITTER_TYPE_CIRCLE]"]
    {:default
@@ -599,7 +604,7 @@
   ;; migrations might be covered by tests elsewhere.
   (test-util/with-loaded-project project-path
     (testing "collection"
-      (let [uniform-scale-collection (test-util/resource-node project "/silently_migrated/uniform_scale.collection")
+      (let [uniform-scale-collection (project/get-resource-node project "/silently_migrated/uniform_scale.collection")
             referenced-collection (:node-id (test-util/outline uniform-scale-collection [0]))
             embedded-go (:node-id (test-util/outline uniform-scale-collection [1]))
             referenced-go (:node-id (test-util/outline uniform-scale-collection [2]))]
@@ -617,7 +622,7 @@
                (g/node-value legacy-spine-resources-gui :resource-msgs)))))
 
     (testing "material"
-      (let [legacy-textures-material (test-util/resource-node project "/silently_migrated/legacy_textures.material")]
+      (let [legacy-textures-material (project/get-resource-node project "/silently_migrated/legacy_textures.material")]
         (is (= [{:filter-mag :filter-mode-mag-linear
                  :filter-min :filter-mode-min-linear
                  :max-anisotropy 1.0
@@ -630,7 +635,20 @@
                  :name "normal"
                  :wrap-u :wrap-mode-clamp-to-edge
                  :wrap-v :wrap-mode-clamp-to-edge}]
-               (g/node-value legacy-textures-material :samplers)))))))
+               (g/node-value legacy-textures-material :samplers)))))
+
+    (testing "model"
+      (let [legacy-material-and-textures-model (project/get-resource-node project "/silently_migrated/legacy_material_and_textures.model")
+            material-resource (workspace/find-resource workspace "/builtins/materials/model.material")
+            tex0-resource (workspace/find-resource workspace "/referenced/images/red.png")
+            tex1-resource (workspace/find-resource workspace "/referenced/images/green.png")]
+        (is (= [{:material material-resource
+                 :name "default"
+                 :textures [{:sampler "tex0"
+                             :texture tex0-resource}
+                            {:sampler "tex1"
+                             :texture tex1-resource}]}]
+               (g/node-value legacy-material-and-textures-model :materials)))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.
@@ -1202,7 +1220,7 @@
   ;; overrides), or add a field ignore rule to the `pb-ignored-fields` map at
   ;; the top of this file.
   (test-util/with-loaded-project project-path
-    (let [proj-path->resource #(test-util/resource workspace %)
+    (let [proj-path->resource #(workspace/find-resource workspace %)
           resource->gui-scene-pb (memoize #(protobuf/read-pb Gui$SceneDesc %))
           gui-scene-pb->node-pbs #(.getNodesList ^Gui$SceneDesc %)
           gui-proj-path->node-pbs (comp gui-scene-pb->node-pbs resource->gui-scene-pb proj-path->resource)
@@ -1353,7 +1371,7 @@
                   dirty-proj-paths))
         (doseq [resource checked-resources]
           (let [proj-path (resource/proj-path resource)
-                node-id (test-util/resource-node project resource)]
+                node-id (project/get-resource-node project resource)]
             (when (testing (format "File `%s` should not have unsaved changes prior to editing." proj-path)
                     (let [save-data (g/valid-node-value node-id :save-data)]
                       (if (not (:dirty save-data))
@@ -1371,7 +1389,7 @@
         (doseq [resource checked-resources]
           (let [proj-path (resource/proj-path resource)]
             (testing (format "File `%s` should not have unsaved changes after saving." proj-path)
-              (let [node-id (test-util/resource-node project resource)
+              (let [node-id (project/get-resource-node project resource)
                     save-data (g/valid-node-value node-id :save-data)]
                 (is (not (:dirty save-data))
                     "Unsaved changes detected after saving.")

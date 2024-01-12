@@ -91,124 +91,56 @@ namespace dmGraphics
 
     void NativeExit()
     {
-        glfwTerminate();
     }
 
-    void NativeBeginFrame(HContext context)
+    void NativeBeginFrame(HContext _context)
     {
-    }
+        VulkanContext* context = (VulkanContext*) _context;
+        uint32_t window_width = dmPlatform::GetWindowWidth(context->m_Window);
+        uint32_t window_height = dmPlatform::GetWindowHeight(context->m_Window);
 
-    void OnWindowResize(int width, int height)
-    {
-        assert(g_VulkanContext);
-        g_VulkanContext->m_WindowWidth  = (uint32_t)width;
-        g_VulkanContext->m_WindowHeight = (uint32_t)height;
-
-        SwapChainChanged(g_VulkanContext, &g_VulkanContext->m_WindowWidth, &g_VulkanContext->m_WindowHeight, 0, 0);
-
-        if (g_VulkanContext->m_WindowResizeCallback != 0x0)
+        if (window_width != context->m_WindowWidth || window_height != context->m_WindowHeight)
         {
-            g_VulkanContext->m_WindowResizeCallback(g_VulkanContext->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
+            g_VulkanContext->m_WindowWidth  = (uint32_t) window_width;
+            g_VulkanContext->m_WindowHeight = (uint32_t) window_height;
+
+            SwapChainChanged(g_VulkanContext, &g_VulkanContext->m_WindowWidth, &g_VulkanContext->m_WindowHeight, 0, 0);
         }
     }
 
-    int OnWindowClose()
-    {
-        assert(g_VulkanContext);
-        if (g_VulkanContext->m_WindowCloseCallback != 0x0)
-        {
-            return g_VulkanContext->m_WindowCloseCallback(g_VulkanContext->m_WindowCloseCallbackUserData);
-        }
-        return 1;
-    }
-
-    void OnWindowFocus(int focus)
-    {
-        assert(g_VulkanContext);
-        if (g_VulkanContext->m_WindowFocusCallback != 0x0)
-        {
-            g_VulkanContext->m_WindowFocusCallback(g_VulkanContext->m_WindowFocusCallbackUserData, focus);
-        }
-    }
-
-    uint32_t VulkanGetWindowRefreshRate(HContext _context)
-    {
-        if (((VulkanContext*) _context)->m_WindowOpened)
-        {
-            return glfwGetWindowRefreshRate();
-        }
-        else
-        {
-            return 0;
-        }
-    }
-
-    WindowResult VulkanOpenWindow(HContext _context, WindowParams* params)
+    bool NativeInitializeContext(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_WindowSurface == VK_NULL_HANDLE);
 
-        glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
-        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
-
-        int mode = params->m_Fullscreen ? GLFW_FULLSCREEN : GLFW_WINDOW;
-
-        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
+        if (!InitializeVulkan(context))
         {
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            return false;
         }
 
-        if (!InitializeVulkan(context, params))
-        {
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
-        }
+        context->m_WindowWidth         = context->m_SwapChain->m_ImageExtent.width;
+        context->m_WindowHeight        = context->m_SwapChain->m_ImageExtent.height;
+        context->m_CurrentRenderTarget = context->m_MainRenderTarget;
 
-    #if !defined(__EMSCRIPTEN__)
-        glfwSetWindowTitle(params->m_Title);
-    #endif
-
-        glfwSetWindowBackgroundColor(params->m_BackgroundColor);
-
-        glfwSetWindowSizeCallback(OnWindowResize);
-        glfwSetWindowCloseCallback(OnWindowClose);
-        glfwSetWindowFocusCallback(OnWindowFocus);
-
-        context->m_WindowOpened                  = 1;
-        context->m_Width                         = params->m_Width;
-        context->m_Height                        = params->m_Height;
-        context->m_WindowWidth                   = context->m_SwapChain->m_ImageExtent.width;
-        context->m_WindowHeight                  = context->m_SwapChain->m_ImageExtent.height;
-        context->m_WindowResizeCallback          = params->m_ResizeCallback;
-        context->m_WindowResizeCallbackUserData  = params->m_ResizeCallbackUserData;
-        context->m_WindowCloseCallback           = params->m_CloseCallback;
-        context->m_WindowCloseCallbackUserData   = params->m_CloseCallbackUserData;
-        context->m_WindowFocusCallback           = params->m_FocusCallback;
-        context->m_WindowFocusCallbackUserData   = params->m_FocusCallbackUserData;
-        context->m_WindowIconifyCallback         = params->m_IconifyCallback;
-        context->m_WindowIconifyCallbackUserData = params->m_IconifyCallbackUserData;
-        context->m_CurrentRenderTarget           = context->m_MainRenderTarget;
-
-        return WINDOW_RESULT_OK;
+        return true;
     }
 
     void VulkanCloseWindow(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        if (context->m_WindowOpened)
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
             SynchronizeDevice(vk_device);
 
-            glfwCloseWindow();
+            dmPlatform::CloseWindow(context->m_Window);
 
             VulkanDestroyResources(context);
 
             vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
 
             DestroyInstance(&context->m_Instance);
-
-            context->m_WindowOpened = 0;
 
             if (context->m_DynamicOffsetBuffer)
             {
@@ -220,29 +152,14 @@ namespace dmGraphics
         }
     }
 
-    void VulkanIconifyWindow(HContext context)
-    {
-        if (((VulkanContext*) context)->m_WindowOpened)
-        {
-            glfwIconifyWindow();
-        }
-    }
-
-    uint32_t VulkanGetWindowState(HContext context, WindowState state)
-    {
-        if (((VulkanContext*) context)->m_WindowOpened)
-        {
-            return glfwGetWindowParam(state);
-        }
-        else
-        {
-            return 0;
-        }
-    }
-
     uint32_t VulkanGetDisplayDpi(HContext context)
     {
         return 0;
+    }
+
+    dmPlatform::HWindow VulkanGetWindow(HContext context)
+    {
+        return ((VulkanContext*) context)->m_Window;
     }
 
     uint32_t VulkanGetWidth(HContext context)
@@ -255,58 +172,37 @@ namespace dmGraphics
         return ((VulkanContext*) context)->m_Height;
     }
 
-    uint32_t VulkanGetWindowWidth(HContext context)
+    void VulkanGetNativeWindowSize(HContext _context, uint32_t* width, uint32_t* height)
     {
-        return ((VulkanContext*) context)->m_WindowWidth;
-    }
-
-    uint32_t VulkanGetWindowHeight(HContext context)
-    {
-        return ((VulkanContext*) context)->m_WindowHeight;
-    }
-
-    float VulkanGetDisplayScaleFactor(HContext context)
-    {
-        return glfwGetDisplayScaleFactor();
-    }
-
-    void VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height)
-    {
-        int w, h;
-        glfwGetWindowSize(&w, &h);
-        *width = w;
-        *height = h;
+        VulkanContext* context = (VulkanContext*) _context;
+        *width                 = dmPlatform::GetWindowWidth(context->m_Window);
+        *height                = dmPlatform::GetWindowHeight(context->m_Window);
     }
 
     void VulkanSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*) _context;
 
-        if (context->m_WindowOpened)
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             context->m_Width  = width;
             context->m_Height = height;
-            glfwSetWindowSize((int)width, (int)height);
-            int window_width, window_height;
-            glfwGetWindowSize(&window_width, &window_height);
-            context->m_WindowWidth  = window_width;
-            context->m_WindowHeight = window_height;
+
+            dmPlatform::SetWindowSize(context->m_Window, width, height);
+
+            context->m_WindowWidth  = dmPlatform::GetWindowWidth(context->m_Window);
+            context->m_WindowHeight = dmPlatform::GetWindowHeight(context->m_Window);
 
             SwapChainChanged(g_VulkanContext, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
-
-            // The callback is not called from glfw when the size is set manually
-            if (context->m_WindowResizeCallback)
-            {
-                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, window_width, window_height);
-            }
         }
     }
 
-    void VulkanResizeWindow(HContext context, uint32_t width, uint32_t height)
+    void VulkanResizeWindow(HContext _context, uint32_t width, uint32_t height)
     {
-        if (((VulkanContext*) context)->m_WindowOpened)
+        VulkanContext* context = (VulkanContext*) _context;
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
-            VulkanSetWindowSize(context, width, height);
+            VulkanSetWindowSize(_context, width, height);
         }
     }
 
@@ -315,9 +211,5 @@ namespace dmGraphics
     #if defined(ANDROID) || defined(DM_PLATFORM_IOS)
         glfwSwapBuffers();
     #endif
-    }
-
-    void VulkanSetSwapInterval(HContext context, uint32_t swap_interval)
-    {
     }
 }

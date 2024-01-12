@@ -25,6 +25,7 @@ message AtlasAnimation
     optional uint32 flip_vertical   = 6 [default = 0];
 }
 
+// Editor format. Engine format is in texture_set_ddf.proto
 message Atlas
 {
     repeated AtlasImage images           = 1;

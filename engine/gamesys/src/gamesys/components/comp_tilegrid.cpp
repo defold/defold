@@ -305,7 +305,6 @@ namespace dmGameSystem
 
         region->m_Occupied = 0;
 
-        uint32_t visible_tiles = 0;
         for (uint32_t j = 0; j < n_layers; ++j)
         {
             TileGridLayer* layer = &component->m_Layers[j];
@@ -320,7 +319,6 @@ namespace dmGameSystem
                     uint16_t tile = component->m_Cells[cell];
                     if (tile != 0xffff)
                     {
-                        ++visible_tiles;
                         region->m_Occupied = 1;
                         return region->m_Occupied;
                     }

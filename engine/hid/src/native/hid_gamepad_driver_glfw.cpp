@@ -23,8 +23,6 @@
 #include <dlib/math.h>
 #include <dlib/static_assert.h>
 
-#include <dmsdk/graphics/glfw/glfw.h>
-
 #include "hid_private.h"
 
 #include "hid_native_private.h"

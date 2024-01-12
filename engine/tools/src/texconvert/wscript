@@ -6,6 +6,6 @@ def configure(conf):
 
 def build(bld):
     bld.program(features         = 'c cprogram cxx',
-                use              = 'DLIB TEXC PROFILE_NULL BASIS_ENCODER',
+                use              = 'DLIB TEXC PROFILE_NULL PLATFORM_NULL BASIS_ENCODER',
                 source           = 'main.cpp',
                 target           = 'texconvert')
