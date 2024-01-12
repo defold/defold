@@ -47,7 +47,7 @@
 
 (def ^:const defold-build-server-url (get-in connection-properties [:native-extensions :build-server-url]))
 (def ^:const defold-build-server-headers "")
-(def ^:const connect-timeout-ms (* 30 1000))
+(def ^:const connect-timeout-ms (* 10 60 1000))
 (def ^:const read-timeout-ms (* 10 60 1000))
 
 ;;; Caching
@@ -244,6 +244,13 @@
                 (get info "cached")]))
         ne-cache-info))
 
+(def install-logger
+  (delay
+    (.addHandler
+      (java.util.logging.Logger/getLogger "com.sun.jersey")
+      (doto (java.util.logging.ConsoleHandler.)
+        (.setLevel java.util.logging.Level/ALL)))))
+
 (defn- build-engine-archive
   ^File [server-url server-headers extender-platform sdk-version resource-nodes-by-upload-path evaluation-context]
   ;; NOTE:
@@ -251,6 +258,7 @@
   ;; In this case things will only work correctly if you're running a local
   ;; build server, as it will fall back on using the DYNAMO_HOME env variable.
   ;; Otherwise, you will likely get an Internal Server Error response.
+  @install-logger
   (let [cc (DefaultClientConfig.)
         ;; TODO: Random errors without this... Don't understand why random!
         ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream'
@@ -259,7 +267,8 @@
         _ (.add (.getClasses cc) StringProvider)
         client (doto (Client/create cc)
                  (.setConnectTimeout (int connect-timeout-ms))
-                 (.setReadTimeout (int read-timeout-ms)))
+                 (.setReadTimeout (int read-timeout-ms))
+                 (.addFilter (com.sun.jersey.api.client.filter.LoggingFilter.)))
         api-root (.resource client (URI. server-url))
         extender-username (System/getenv "DM_EXTENDER_USERNAME")
         extender-password (System/getenv "DM_EXTENDER_PASSWORD")
