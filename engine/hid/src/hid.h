@@ -117,6 +117,12 @@ namespace dmHID
      */
     void SetGamepadConnectivityCallback(HContext context, FHIDGamepadFunc callback, void* callback_ctx);
 
+    /**
+     * Set the window handle.
+     *
+     * @param context context for which the window handle should be set
+     * @param window [type: dmPlatform::HWindow] the window handle
+     */
     void SetWindow(HContext context, dmPlatform::HWindow window);
 
     /**

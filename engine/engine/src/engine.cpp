@@ -1044,12 +1044,13 @@ namespace dmEngine
 
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
+        gui_params.m_HidContext = engine->m_HidContext;
         gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
         gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
         gui_params.m_GetTextMetricsCallback = dmGameSystem::GuiGetTextMetricsCallback;
 
-      // If an extension changes window size at extensions initialization phase, engine should read that.
+        // If an extension changes window size at extensions initialization phase, engine should read that.
         physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
 

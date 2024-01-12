@@ -1,6 +1,8 @@
 
 #include <string>
 
+#include <dlib/log.h>
+
 #include "platform_window.h"
 #include "platform_window_constants.h"
 
@@ -9,10 +11,13 @@ namespace dmPlatform
     struct Window
     {
         WindowParams m_CreateParams;
-        bool         m_DeviceStates[DEVICE_STATE_KEYBOARD_COUNT];
         uint32_t     m_WindowWidth;
         uint32_t     m_WindowHeight;
-        uint32_t     m_WindowOpened : 1;
+        uint32_t     m_WindowOpened             : 1;
+        uint32_t     m_StateCursor              : 1;
+        uint32_t     m_StateCursorLock          : 1;
+        uint32_t     m_StateCursorAccelerometer : 1;
+        uint32_t     m_StateKeyboard            : 3;
     };
 
     HWindow NewWindow()
@@ -100,12 +105,50 @@ namespace dmPlatform
 
     void SetDeviceState(HWindow window, DeviceState state, bool op1, bool op2)
     {
-        window->m_DeviceStates[(int) state] = op1;
+        switch(state)
+        {
+            case DEVICE_STATE_CURSOR:
+                window->m_StateCursor = op1;
+                break;
+            case DEVICE_STATE_CURSOR_LOCK:
+                window->m_StateCursorLock = op1;
+                break;
+            case DEVICE_STATE_ACCELEROMETER:
+                window->m_StateCursorAccelerometer = op1;
+                break;
+            case DEVICE_STATE_KEYBOARD_DEFAULT:
+                window->m_StateKeyboard = op1 ? 1 : 0;
+                break;
+            case DEVICE_STATE_KEYBOARD_NUMBER_PAD:
+                window->m_StateKeyboard = op1 ? 2 : 0;
+                break;
+            case DEVICE_STATE_KEYBOARD_EMAIL:
+                window->m_StateKeyboard = op1 ? 3 : 0;
+                break;
+            case DEVICE_STATE_KEYBOARD_PASSWORD:
+                window->m_StateKeyboard = op1 ? 4 : 0;
+                break;
+            default:
+                dmLogWarning("Unable to set device state (%d), unknown state.", (int) state);
+                break;
+        }
     }
 
     bool GetDeviceState(HWindow window, DeviceState state)
     {
-        return window->m_DeviceStates[(int) state];
+        switch(state)
+        {
+            case DEVICE_STATE_CURSOR: return window->m_StateCursor;
+            case DEVICE_STATE_CURSOR_LOCK: return window->m_StateCursorLock;
+            case DEVICE_STATE_ACCELEROMETER: return window->m_StateCursorAccelerometer;
+            case DEVICE_STATE_KEYBOARD_DEFAULT: return window->m_StateKeyboard    == 1;
+            case DEVICE_STATE_KEYBOARD_NUMBER_PAD: return window->m_StateKeyboard == 2;
+            case DEVICE_STATE_KEYBOARD_EMAIL: return window->m_StateKeyboard      == 3;
+            case DEVICE_STATE_KEYBOARD_PASSWORD: return window->m_StateKeyboard   == 4;
+            default:
+                dmLogWarning("Unable to set device state (%d), unknown state.", (int) state);
+                break;
+        }
     }
 
     int32_t TriggerCloseCallback(HWindow window)
