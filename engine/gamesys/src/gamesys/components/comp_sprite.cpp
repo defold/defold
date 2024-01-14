@@ -1582,8 +1582,6 @@ namespace dmGameSystem
                 continue;
             }
 
-            TextureSetResource* texture_set = GetFirstTextureSet(component);
-
             dmRender::HMaterial material           = GetMaterial(component);
             dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
             uint32_t vertex_stride                 = dmGraphics::GetVertexDeclarationStride(vx_decl);
@@ -1591,8 +1589,20 @@ namespace dmGameSystem
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
             vertex_memsize += vertex_stride - vertex_memsize % vertex_stride;
 
-            if (texture_set->m_TextureSet->m_UseGeometries != 0)
+            TexturesData textures = {};
+            textures.m_NumTextures = GetNumTextures(component);
+            for (uint32_t i = 0; i < textures.m_NumTextures; ++i)
             {
+                textures.m_Resources[i] = GetTextureSet(component, i);
+                textures.m_TextureSets[i] = textures.m_Resources[i]->m_TextureSet;
+            }
+
+            // Get the correct animation frames, and other meta data
+            ResolveAnimationData(&textures, component->m_CurrentAnimation, component->m_CurrentAnimationFrame);
+
+            if (!CanUseQuads(&textures))
+            {
+                TextureSetResource* texture_set                     = GetFirstTextureSet(component);
                 dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
                 dmGameSystemDDF::TextureSetAnimation* animations    = texture_set_ddf->m_Animations.m_Data;
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
