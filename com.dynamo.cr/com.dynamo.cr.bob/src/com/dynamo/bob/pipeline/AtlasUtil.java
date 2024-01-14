@@ -345,7 +345,7 @@ public class AtlasUtil {
         }
     }
 
-    // For tests
+    // For AtlasBuilder,java:main()
     private static List<BufferedImage> loadImagesFromPaths(List<String> resourcePaths) throws IOException, CompileExceptionError {
         List<BufferedImage> images = new ArrayList<BufferedImage>(resourcePaths.size());
 
@@ -359,5 +359,57 @@ public class AtlasUtil {
             images.add(image);
         }
         return images;
+    }
+
+    // For AtlasBuilder,java:main()
+    public static TextureSetResult generateTextureSet(Atlas atlas, PathTransformer pathTransformer) throws IOException, CompileExceptionError {
+        List<AtlasImage> atlasImages = collectImages(null, atlas, pathTransformer);
+        List<String> imagePaths = new ArrayList<String>();
+        List<String> imageNames = new ArrayList<String>();
+        List<SpriteTrimmingMode> imageTrimModes = new ArrayList<>();
+
+        final String renamePatterns = atlas.getRenamePatterns();
+        AtlasUtil.PathTransformer nameTransformer = new AtlasUtil.PathTransformer() {
+            @Override
+            public String transform(String path) {
+                String baseName = FilenameUtils.getBaseName(path);
+
+                try {
+                    return AtlasUtil.replaceStrings(renamePatterns, baseName);
+                } catch (CompileExceptionError e) {
+                    System.err.printf("AtlasUtil: Error transforming path: %s\n", e.getMessage());
+                }
+                return path;
+            }
+        };
+
+        for (AtlasImage image : atlasImages) {
+            imagePaths.add(image.getImage());
+            imageNames.add(nameTransformer.transform(image.getImage()));
+            imageTrimModes.add(image.getSpriteTrimMode());
+        }
+
+        int imagePathCount = imagePaths.size();
+        for (int i = 0; i < imagePathCount; ++i) {
+            imagePaths.set(i, pathTransformer.transform(imagePaths.get(i)));
+        }
+
+        List<BufferedImage> imageDatas = loadImagesFromPaths(imagePaths);
+
+        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, nameTransformer);
+        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imageNames);
+        try {
+            TextureSetResult result = TextureSetGenerator.generate(imageDatas, imageTrimModes, imageNames, iterator,
+                Math.max(0, atlas.getMargin()),
+                Math.max(0, atlas.getInnerPadding()),
+                Math.max(0, atlas.getExtrudeBorders()),
+                true, false, null,
+                atlas.getMaxPageWidth(), atlas.getMaxPageHeight());
+
+            return result;
+        }
+        catch (java.lang.NegativeArraySizeException e) {
+            throw new CompileExceptionError("The generated texture is too large.", e);
+        }
     }
 }
