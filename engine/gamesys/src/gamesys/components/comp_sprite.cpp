@@ -803,22 +803,21 @@ namespace dmGameSystem
                 vs[vI[3]] = tc[3];
             }
 
-            // store the full list of uv coords
-            float* us_p = us;
-            float* vs_p = vs;
-            if (uv_rotated)
-            {
-                us_p = vs;
-                vs_p = us;
-            }
-
             int index = 0;
             for (int y=0; y<4; ++y)
             {
                 for (int x=0; x<4; ++x, ++index)
                 {
-                    uvs[index*2+0] = us_p[x];
-                    uvs[index*2+1] = vs_p[y];
+                    if (uv_rotated)
+                    {
+                        uvs[index*2+0] = us[y];
+                        uvs[index*2+1] = vs[x];
+                    }
+                    else
+                    {
+                        uvs[index*2+0] = us[x];
+                        uvs[index*2+1] = vs[y];
+                    }
                 }
             }
         }
