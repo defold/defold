@@ -38,6 +38,7 @@ namespace dmGameSystem
     {
         dmScript::LuaCallbackInfo* m_CallbackInfo;
         dmLoadQueue::HRequest      m_LoadRequest;
+        dmhash_t                   m_PathHash;
     };
 
     static int Sys_LoadBuffer(lua_State* L)
@@ -108,8 +109,9 @@ namespace dmGameSystem
 
         dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
         dmScript::PushBuffer(L, luabuf);
+        dmScript::PushHash(L, request->m_PathHash);
 
-        dmScript::PCall(L, 2, 0);
+        dmScript::PCall(L, 3, 0);
 
         dmScript::TeardownCallback(request->m_CallbackInfo);
         dmScript::DestroyCallback(request->m_CallbackInfo);
@@ -158,9 +160,10 @@ namespace dmGameSystem
         int top = lua_gettop(L);
         const char* filename = luaL_checkstring(L, 1);
 
-        LuaRequest* request = new LuaRequest;
-
+        LuaRequest* request     = new LuaRequest();
+        request->m_PathHash     = dmHashString64(filename);
         request->m_CallbackInfo = dmScript::CreateCallback(dmScript::GetMainThread(L), 2);
+
         if (request->m_CallbackInfo == 0x0)
         {
             return luaL_error(L, "sys.load_buffer_async failed to create callback");
@@ -175,6 +178,8 @@ namespace dmGameSystem
 
         // assert(top + 1 == lua_gettop(L));
         // return 1;
+
+        assert(top == lua_gettop(L));
         return 0;
     }
 
