@@ -1455,6 +1455,9 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_Animations.m_Count = num_animations;
     memset(texture_set_ddf->m_Animations.m_Data, 0, sizeof(dmGameSystemDDF::TextureSetAnimation) * num_animations);
 
+    // TODO: Fix script api to require each "image" to have an ID that we can use for as regular textureset
+    texture_set_ddf->m_ImageNameHashes.m_Count = 0;
+
     const uint32_t num_tex_coords_per_quad  = 8;
     const uint32_t num_tex_coords_byte_size = num_animation_frames * num_tex_coords_per_quad * sizeof(float);
     texture_set_ddf->m_TexCoords.m_Data     = new uint8_t[num_tex_coords_byte_size];
