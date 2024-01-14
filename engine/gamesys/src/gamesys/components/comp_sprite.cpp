@@ -932,7 +932,11 @@ namespace dmGameSystem
                 frame_index = frame_indices[anim_frame_index];
 
                 // The name hash of the current single frame animation
-                frame_anim_id = texture_set_ddf->m_ImageNameHashes[frame_index];
+                // NOTE: Current bug: MakeTextureSetFromLua in script_resource doesn't create valid frames, hence this if-statement
+                if (frame_index < texture_set_ddf->m_ImageNameHashes.m_Count)
+                {
+                    frame_anim_id = texture_set_ddf->m_ImageNameHashes[frame_index];
+                }
             }
             else
             {
