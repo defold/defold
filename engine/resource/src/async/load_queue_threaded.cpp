@@ -94,7 +94,7 @@ namespace dmLoadQueue
                 dmMutex::ScopedLock lk(queue->m_Mutex);
                 if (current != 0)
                 {
-                    // Just finished one (from previous iteratino)
+                    // Just finished one (from previous iteration)
                     queue->m_BytesWaiting += current->m_Buffer.Capacity();
                     queue->m_Loaded++;
                     current->m_Result = result;
@@ -129,21 +129,23 @@ namespace dmLoadQueue
             if (current)
             {
                 // We use the temporary result object here to fill in the data so it can be written with the mutex held.
-                uint32_t size;
+                uint32_t size = 0;
 
                 assert(current->m_Buffer.Size() == 0);
                 if (current->m_Buffer.Capacity() != DEFAULT_CAPACITY)
                 {
                     current->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
                 }
-                result.m_LoadResult    = DoLoadResource(queue->m_Factory, current->m_CanonicalPath, current->m_Name, &size, &current->m_Buffer);
+
+                dmResource::FResourceLoad load_function = current->m_PreloadInfo.m_LoadResourceFunction ? current->m_PreloadInfo.m_LoadResourceFunction : dmResource::DoLoadResource;
+                result.m_LoadResult    = load_function(queue->m_Factory, current->m_CanonicalPath, current->m_Name, &size, &current->m_Buffer);
                 result.m_PreloadResult = dmResource::RESULT_PENDING;
                 result.m_PreloadData   = 0;
 
                 if (result.m_LoadResult == dmResource::RESULT_OK)
                 {
                     assert(current->m_Buffer.Size() == size);
-                    if (current->m_PreloadInfo.m_Function)
+                    if (current->m_PreloadInfo.m_CompleteFunction)
                     {
                         dmResource::ResourcePreloadParams params;
                         params.m_Factory       = queue->m_Factory;
@@ -152,7 +154,7 @@ namespace dmLoadQueue
                         params.m_BufferSize    = current->m_Buffer.Size();
                         params.m_HintInfo      = &current->m_PreloadInfo.m_HintInfo;
                         params.m_PreloadData   = &result.m_PreloadData;
-                        result.m_PreloadResult = current->m_PreloadInfo.m_Function(params);
+                        result.m_PreloadResult = current->m_PreloadInfo.m_CompleteFunction(params);
                     }
                     else
                     {

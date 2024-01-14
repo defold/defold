@@ -54,14 +54,9 @@ namespace dmResource
         FResourceRecreate   m_RecreateFunction;
     };
 
-    typedef dmArray<char> LoadBufferType;
-
     struct SResourceDescriptor;
 
     Result CheckSuppliedResourcePath(const char* name);
-
-    // load with own buffer
-    Result DoLoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
 
     Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, SResourceDescriptor* descriptor);
     uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);

@@ -76,7 +76,7 @@ namespace dmLoadQueue
         load_result->m_PreloadResult = dmResource::RESULT_PENDING;
         load_result->m_PreloadData   = 0;
 
-        if (load_result->m_LoadResult == dmResource::RESULT_OK && request->m_PreloadInfo.m_Function)
+        if (load_result->m_LoadResult == dmResource::RESULT_OK && request->m_PreloadInfo.m_CompleteFunction)
         {
             dmResource::ResourcePreloadParams params;
             params.m_Factory             = queue->m_Factory;
@@ -85,7 +85,7 @@ namespace dmLoadQueue
             params.m_BufferSize          = *size;
             params.m_HintInfo            = &request->m_PreloadInfo.m_HintInfo;
             params.m_PreloadData         = &load_result->m_PreloadData;
-            load_result->m_PreloadResult = request->m_PreloadInfo.m_Function(params);
+            load_result->m_PreloadResult = request->m_PreloadInfo.m_CompleteFunction(params);
         }
         return RESULT_OK;
     }
