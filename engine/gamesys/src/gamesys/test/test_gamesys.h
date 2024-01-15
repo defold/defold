@@ -447,11 +447,6 @@ void GamesysTest<T>::SetUp()
     dmGraphics::InstallAdapter();
     dmGraphics::ResetDrawCount(); // for the unit test
 
-    dmPlatform::WindowParams win_params = {};
-
-    m_Window = dmPlatform::NewWindow();
-    dmPlatform::OpenWindow(m_Window, win_params);
-
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_Window = m_Window;
 
