@@ -266,10 +266,10 @@ public class LuaScanner extends LuaParserBaseListener {
         }
     }
 
-    private void removeTokens(List<Token> tokens, boolean shouldremoveSemicolonAfter) {
+    private void removeTokens(List<Token> tokens, boolean shouldRemoveSemicolonAfter) {
         int lastTokenIndex = tokens.get(tokens.size() - 1).getTokenIndex();;
         removeTokens(tokens);
-        if (shouldremoveSemicolonAfter) {
+        if (shouldRemoveSemicolonAfter) {
             int nextTokenIndex = lastTokenIndex + 1;
             Token token = rewriter.getTokenStream().get(nextTokenIndex);
              /**
