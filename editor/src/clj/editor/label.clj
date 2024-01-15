@@ -399,8 +399,8 @@
   (if (= scene/default-scale referenced-component-scale)
     (let [label-legacy-scale (g/node-value label-node-id :legacy-scale evaluation-context)]
       (if (scene/significant-scale? label-legacy-scale)
-        (let [tx-data-context (:tx-data-context evaluation-context)]
-          (swap! tx-data-context update :migrated-node-ids add-to-set referenced-component-node-id label-node-id)
+        (do
+          (g/flag-nodes-as-migrated! evaluation-context [referenced-component-node-id label-node-id])
           label-legacy-scale)
         referenced-component-scale))
     referenced-component-scale))

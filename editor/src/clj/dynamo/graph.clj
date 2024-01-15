@@ -112,6 +112,11 @@
   []
   (is/invalidate-counters @*the-system*))
 
+(defn flag-nodes-as-migrated! [evaluation-context migrated-node-ids]
+  (let [tx-data-context (:tx-data-context evaluation-context)]
+    (swap! tx-data-context update :migrated-node-ids coll/into-set migrated-node-ids)
+    nil))
+
 (defn endpoint-invalidated-pred
   "Return a predicate function that takes an Endpoint and returns a boolean
   signalling if it has been invalidated since the supplied
@@ -218,28 +223,33 @@
 ;; ---------------------------------------------------------------------------
 (defn tx-nodes-added
  "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
-  [transaction]
-  (:nodes-added transaction))
+  [tx-result]
+  (:nodes-added tx-result))
 
 (defn is-added?
   "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
-  [transaction node-id]
-  (contains? (:nodes-added transaction) node-id))
+  [tx-result node-id]
+  (contains? (:nodes-added tx-result) node-id))
 
 (defn is-deleted?
   "Returns a boolean if a node was delete as a result of a transaction given a tx-result and node."
-  [transaction node-id]
-  (contains? (:nodes-deleted transaction) node-id))
+  [tx-result node-id]
+  (contains? (:nodes-deleted tx-result) node-id))
 
 (defn transaction-basis
   "Returns the final basis from the result of a transaction given a tx-result"
-  [transaction]
-  (:basis transaction))
+  [tx-result]
+  (:basis tx-result))
 
 (defn pre-transaction-basis
   "Returns the original, starting basis from the result of a transaction given a tx-result"
-  [transaction]
-  (:original-basis transaction))
+  [tx-result]
+  (:original-basis tx-result))
+
+(defn migrated-node-ids
+  "Returns the set of node-ids that were flagged as migrated from the result of a transaction given a tx-result."
+  [tx-result]
+  (-> tx-result :tx-data-context-map (:migrated-node-ids #{})))
 
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
@@ -549,6 +559,12 @@
   "Call the specified function with args when reaching the transaction step"
   [f & args]
   (it/callback f args))
+
+(defn callback-ec
+  "Same as callback, but injects the in-transaction evaluation-context
+  as the first argument to the update-fn."
+  [f & args]
+  (it/callback-ec f args))
 
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.

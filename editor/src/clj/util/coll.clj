@@ -124,6 +124,10 @@
     :else
     (not (seq coll))))
 
+(def into-set (fnil into #{}))
+
+(def into-vector (fnil into []))
+
 (defn pair-map-by
   "Returns a hash-map where the keys are the result of applying the supplied
   key-fn to each item in the input sequence and the values are the items

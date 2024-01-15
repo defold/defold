@@ -124,6 +124,15 @@
     :fn f
     :args args}])
 
+(defn callback-ec
+  "Same as callback, but injects the in-transaction evaluation-context as the
+  first argument to the callback-fn."
+  [f args]
+  [{:type :callback
+    :fn f
+    :args args
+    :inject-evaluation-context true}])
+
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and label  and a target node and label. It returns a value suitable for consumption by [[perform]]."
   [source-id source-label target-id target-label]
@@ -651,8 +660,13 @@
   [{:keys [node-id property]}]
   [node-id property])
 
-(defmethod perform :callback [ctx {:keys [fn args]}]
-  (apply fn args)
+(defmethod perform :callback [ctx {:keys [fn args inject-evaluation-context]}]
+  (if inject-evaluation-context
+    (let [basis (:basis ctx)
+          tx-data-context (:tx-data-context ctx)
+          evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
+      (apply fn evaluation-context args))
+    (apply fn args))
   ctx)
 
 (defmethod metrics-key :callback

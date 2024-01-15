@@ -392,9 +392,7 @@
     ;; Return the set of migrated resource node ids, if any.
     (into #{}
           (keep #(resource-node/owner-resource-node-id basis %))
-          (-> tx-result
-              :tx-data-context-map
-              :migrated-node-ids))))
+          (g/migrated-node-ids tx-result))))
 
 (defn- make-progress-fns [task-allocations loaded-node-count render-progress!]
   (let [total-task-size (transduce (map first) + task-allocations)]

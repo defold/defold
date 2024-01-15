@@ -766,7 +766,7 @@
                                        (assoc :updatable scene-updatable)
 
                                        (seq scene-children)
-                                       (update :children (fnil into []) scene-children))))
+                                       (update :children coll/into-vector scene-children))))
 
   (input node-ids IDMap :array)
   (output id g/Str (g/fnk [id-prefix id] (str id-prefix id)))
@@ -1538,7 +1538,7 @@
                                         :transform transform
                                         :visible-self? (and visible enabled)
                                         :visible-children? enabled)
-                                      (update :children (fnil into []) scene-children)))))
+                                      (update :children coll/into-vector scene-children)))))
   (output own-build-errors g/Any (g/fnk [_node-id build-errors-visual-node particlefx particlefx-resource-names]
                                    (g/package-errors _node-id
                                                      build-errors-visual-node

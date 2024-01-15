@@ -35,6 +35,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
+            [util.coll :as coll]
             [util.coll :refer [pair]]
             [util.digest :as digest])
   (:import [com.dynamo.gamesys.proto ModelProto$Model ModelProto$ModelDesc]
@@ -247,10 +248,10 @@
   {:sampler s/Str
    :texture (s/maybe (s/protocol resource/Resource))})
 
-(g/deftype Materials
-  [{:name s/Str
-    :material (s/maybe (s/protocol resource/Resource))
-    :textures [TTexture]}])
+(g/deftype Material
+  {:name s/Str
+   :material (s/maybe (s/protocol resource/Resource))
+   :textures [TTexture]})
 
 (g/defnode TextureBinding
   (property sampler g/Str (default ""))
@@ -471,7 +472,7 @@
                                               :ext model-scene/model-file-types})))
   (input copied-nodes g/Any :array :cascade-delete)
   (input material-binding-infos g/Any :array)
-  (output materials Materials :cached
+  (output materials [Material] :cached
           (g/fnk [material-binding-infos]
             (mapv
               (fn [{:keys [name material texture-binding-infos]}]
@@ -553,7 +554,26 @@
   (output aabb AABB (gu/passthrough aabb))
   (output _properties g/Properties :cached produce-model-properties))
 
-(defn load-model [_project self resource {:keys [name default-animation mesh skeleton animations materials]}]
+(defn- migrated? [model-node-id model-desc evaluation-context]
+  {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.
+  (let [model-node-materials (g/node-value model-node-id :materials evaluation-context)]
+    (if (g/error? model-node-materials)
+      false
+      (let [material-name->model-node-material (coll/pair-map-by :name model-node-materials)]
+        (some (fn [model-desc-material]
+                (let [material-name (:name model-desc-material)
+                      model-node-material (material-name->model-node-material material-name)
+                      model-desc-sampler-names (into #{} (map :sampler) (:textures model-desc-material))
+                      model-node-sampler-names (into #{} (map :sampler) (:textures model-node-material))]
+                  (not= model-desc-sampler-names model-node-sampler-names)))
+              (:materials model-desc))))))
+
+(defn- detect-and-flag-migrated! [evaluation-context model-node-id model-desc]
+  {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.
+  (when (migrated? model-node-id model-desc evaluation-context)
+    (g/flag-nodes-as-migrated! evaluation-context [model-node-id])))
+
+(defn load-model [_project self resource {:keys [name default-animation mesh skeleton animations materials] :as model-desc}]
   (concat
     (g/set-property self
       :name name
@@ -566,7 +586,8 @@
                 textures (mapv (fn [{:keys [texture] :as texture-desc}]
                                  (assoc texture-desc :texture (workspace/resolve-resource resource texture)))
                                textures)]]
-      (create-material-binding-tx self name material textures))))
+      (create-material-binding-tx self name material textures))
+    (g/callback-ec detect-and-flag-migrated! self model-desc)))
 
 (defn- sanitize-model [{:keys [material textures materials] :as pb}]
   (-> pb
