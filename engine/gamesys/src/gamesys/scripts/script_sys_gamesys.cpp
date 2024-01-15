@@ -170,17 +170,24 @@ namespace dmGameSystem
         }
 
         dmLoadQueue::PreloadInfo info = {};
-        info.m_CompleteFunction     = LoadBufferAsyncOnComplete;
-        info.m_LoadResourceFunction = LoadBufferAsyncOnLoad;
-        info.m_Context              = request;
+        info.m_CompleteFunction       = LoadBufferAsyncOnComplete;
+        info.m_LoadResourceFunction   = LoadBufferAsyncOnLoad;
+        info.m_Context                = request;
 
         request->m_LoadRequest = dmLoadQueue::BeginLoad(g_SysModule.m_LoadQueue, filename, filename, &info);
 
-        // assert(top + 1 == lua_gettop(L));
-        // return 1;
+        if (request->m_LoadRequest == 0x0)
+        {
+            dmScript::DestroyCallback(request->m_CallbackInfo);
+            delete request;
+            dmLogWarning("sys.load_buffer_async failed to create request, the request buffer is full.");
+            assert(top == lua_gettop(L));
+            return 0;
+        }
 
-        assert(top == lua_gettop(L));
-        return 0;
+        lua_pushlightuserdata(L, request);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
     }
 
     static const luaL_reg ScriptImage_methods[] =

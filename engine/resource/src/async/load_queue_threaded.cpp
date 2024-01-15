@@ -39,23 +39,25 @@ namespace dmLoadQueue
 
     struct Request
     {
-        const char* m_Name;
-        const char* m_CanonicalPath;
+        const char*                m_Name;
+        const char*                m_CanonicalPath;
         dmResource::LoadBufferType m_Buffer;
-        PreloadInfo m_PreloadInfo;
-        LoadResult m_Result;
+        PreloadInfo                m_PreloadInfo;
+        LoadResult                 m_Result;
     };
 
     struct Queue
     {
-        dmResource::HFactory m_Factory;
-        dmMutex::HMutex m_Mutex;
+        Request                                 m_Request[QUEUE_SLOTS];
+        dmResource::HFactory                    m_Factory;
+        dmMutex::HMutex                         m_Mutex;
         dmConditionVariable::HConditionVariable m_WakeupCond;
-        dmThread::Thread m_Thread;
-        Request m_Request[QUEUE_SLOTS];
-        uint32_t m_Front, m_Back, m_Loaded;
-        uint64_t m_BytesWaiting;
-        bool m_Shutdown;
+        dmThread::Thread                        m_Thread;
+        uint32_t                                m_Front;
+        uint32_t                                m_Back;
+        uint32_t                                m_Loaded;
+        uint64_t                                m_BytesWaiting;
+        bool                                    m_Shutdown;
 
         // Circular queue with indexing as follow (exclusive end)
         //
