@@ -803,22 +803,21 @@ namespace dmGameSystem
                 vs[vI[3]] = tc[3];
             }
 
-            // store the full list of uv coords
-            float* us_p = us;
-            float* vs_p = vs;
-            if (uv_rotated)
-            {
-                us_p = vs;
-                vs_p = us;
-            }
-
             int index = 0;
             for (int y=0; y<4; ++y)
             {
                 for (int x=0; x<4; ++x, ++index)
                 {
-                    uvs[index*2+0] = us_p[x];
-                    uvs[index*2+1] = vs_p[y];
+                    if (uv_rotated)
+                    {
+                        uvs[index*2+0] = us[y];
+                        uvs[index*2+1] = vs[x];
+                    }
+                    else
+                    {
+                        uvs[index*2+0] = us[x];
+                        uvs[index*2+1] = vs[y];
+                    }
                 }
             }
         }
@@ -929,7 +928,11 @@ namespace dmGameSystem
                 frame_index = frame_indices[anim_frame_index];
 
                 // The name hash of the current single frame animation
-                frame_anim_id = texture_set_ddf->m_ImageNameHashes[frame_index];
+                // NOTE: Current bug: MakeTextureSetFromLua in script_resource doesn't create valid frames, hence this if-statement
+                if (frame_index < texture_set_ddf->m_ImageNameHashes.m_Count)
+                {
+                    frame_anim_id = texture_set_ddf->m_ImageNameHashes[frame_index];
+                }
             }
             else
             {
@@ -1574,8 +1577,6 @@ namespace dmGameSystem
                 continue;
             }
 
-            TextureSetResource* texture_set = GetFirstTextureSet(component);
-
             dmRender::HMaterial material           = GetMaterial(component);
             dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
             uint32_t vertex_stride                 = dmGraphics::GetVertexDeclarationStride(vx_decl);
@@ -1583,8 +1584,20 @@ namespace dmGameSystem
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
             vertex_memsize += vertex_stride - vertex_memsize % vertex_stride;
 
-            if (texture_set->m_TextureSet->m_UseGeometries != 0)
+            TexturesData textures = {};
+            textures.m_NumTextures = GetNumTextures(component);
+            for (uint32_t i = 0; i < textures.m_NumTextures; ++i)
             {
+                textures.m_Resources[i] = GetTextureSet(component, i);
+                textures.m_TextureSets[i] = textures.m_Resources[i]->m_TextureSet;
+            }
+
+            // Get the correct animation frames, and other meta data
+            ResolveAnimationData(&textures, component->m_CurrentAnimation, component->m_CurrentAnimationFrame);
+
+            if (!CanUseQuads(&textures))
+            {
+                TextureSetResource* texture_set                     = GetFirstTextureSet(component);
                 dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
                 dmGameSystemDDF::TextureSetAnimation* animations    = texture_set_ddf->m_Animations.m_Data;
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
