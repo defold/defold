@@ -159,6 +159,11 @@ namespace dmGameSystem
         ScriptSysGameSysFinalize(context);
     }
 
+    void UpdateScriptLibs(const ScriptLibContext& context)
+    {
+        ScriptSysGameSysUpdate(context);
+    }
+
     dmGameObject::HInstance CheckGoInstance(lua_State* L) {
         return dmScript::CheckGOInstance(L);
     }

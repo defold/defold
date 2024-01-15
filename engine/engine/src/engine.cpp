@@ -1535,16 +1535,32 @@ bail:
                     DM_PROFILE("Script");
 
                     // Script context updates
-                    if (engine->m_SharedScriptContext) {
+                    dmGameSystem::ScriptLibContext script_lib_context;
+                    script_lib_context.m_Factory  = engine->m_Factory;
+                    script_lib_context.m_Register = engine->m_Register;
+
+                    if (engine->m_SharedScriptContext)
+                    {
+                        script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                        dmGameSystem::UpdateScriptLibs(script_lib_context);
                         dmScript::Update(engine->m_SharedScriptContext);
-                    } else {
-                        if (engine->m_GOScriptContext) {
+                    }
+                     else
+                     {
+                        if (engine->m_GOScriptContext)
+                        {
+                            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
+                            dmGameSystem::UpdateScriptLibs(script_lib_context);
                             dmScript::Update(engine->m_GOScriptContext);
                         }
-                        if (engine->m_RenderScriptContext) {
+                        if (engine->m_RenderScriptContext)
+                        {
                             dmScript::Update(engine->m_RenderScriptContext);
                         }
-                        if (engine->m_GuiScriptContext) {
+                        if (engine->m_GuiScriptContext)
+                        {
+                            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
+                            dmGameSystem::UpdateScriptLibs(script_lib_context);
                             dmScript::Update(engine->m_GuiScriptContext);
                         }
                     }

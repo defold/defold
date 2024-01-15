@@ -90,6 +90,8 @@ public:
      */
     T* Get(HOpaqueHandle handle);
 
+    T* GetByIndex(HOpaqueHandle handle);
+
     /*# container put
      *
      * Adds a reference to an object to the list and returns an opaque handle to that object. If the container
@@ -137,13 +139,6 @@ private:
     uint16_t* m_ObjectVersions;
     uint32_t  m_Capacity;
     uint16_t  m_Version;
-
-    // Internal helper functions
-    inline T* GetByIndex(uint32_t i)
-    {
-        assert(i < m_Capacity);
-        return m_Objects[i];
-    }
 
     // TODO: We can improve the performance of this function by adding as freelist (see comments in https://github.com/defold/defold/pull/7421)
     uint32_t GetFirstEmptyIndex()
@@ -228,6 +223,14 @@ T* dmOpaqueHandleContainer<T>::Get(HOpaqueHandle handle)
     }
 
     return entry;
+}
+
+// Internal helper functions
+template <typename T>
+T* dmOpaqueHandleContainer<T>::GetByIndex(uint32_t i)
+{
+    assert(i < m_Capacity);
+    return m_Objects[i];
 }
 
 template <typename T>
