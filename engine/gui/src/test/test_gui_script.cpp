@@ -98,6 +98,7 @@ public:
         dmGui::DeleteContext(m_Context, m_ScriptContext);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+        dmHID::Final(m_HidContext);
         dmHID::DeleteContext(m_HidContext);
         dmPlatform::DeleteWindow(m_Window);
     }
