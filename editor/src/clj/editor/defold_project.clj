@@ -498,21 +498,35 @@
   ([project resources render-progress!]
    (assert (empty? (g/node-value project :nodes)) "load-project should only be used when loading an empty project")
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
+     ;; Create nodes for all resources in the workspace.
      (let [process-metrics (du/make-metrics-collector)
            resource-metrics (du/make-metrics-collector)
            transaction-metrics (du/make-metrics-collector)
            nodes (du/measuring process-metrics :make-new-nodes
-                   (make-nodes! project resources))
-           script-intel (script-intelligence project)]
+                   (make-nodes! project resources))]
+
+       ;; Make sure the game.project node is property connected before loading
+       ;; the resource nodes, since establishing these connections will
+       ;; invalidate any dependent outputs in the cache.
+       (when-let [game-project (get-resource-node project "/game.project")]
+         (let [script-intel (script-intelligence project)]
+           (g/transact
+             (concat
+               (g/connect script-intel :build-errors game-project :build-errors)
+               (g/connect game-project :display-profiles-data project :display-profiles)
+               (g/connect game-project :texture-profiles-data project :texture-profiles)
+               (g/connect game-project :settings-map project :settings)))))
+
+       ;; Load the resource nodes. Referenced nodes will be loaded prior to
+       ;; nodes that refer to them, provided the :dependencies-fn reports the
+       ;; referenced proj-paths correctly.
+       ;;
+       ;; TODO(save-value-cleanup): There are implicit dependencies between
+       ;; texture profiles and image resources. We probably want to ensure the
+       ;; texture profiles are loaded before anything that makes implicit use of
+       ;; them to avoid potentially costly cache invalidation.
        (du/measuring process-metrics :load-new-nodes
          (load-nodes! project nodes render-progress! {} resource-metrics transaction-metrics))
-       (when-let [game-project (get-resource-node project "/game.project")]
-         (g/transact
-           (concat
-             (g/connect script-intel :build-errors game-project :build-errors)
-             (g/connect game-project :display-profiles-data project :display-profiles)
-             (g/connect game-project :texture-profiles-data project :texture-profiles)
-             (g/connect game-project :settings-map project :settings))))
        (du/when-metrics
          (reset! load-metrics-atom
                  {:new-nodes-by-path (g/node-value project :nodes-by-resource-path)
