@@ -492,7 +492,19 @@ public class LuaScannerTest {
         String luaCode = "do return nil end;else end;";
         LuaScanner scanner = new LuaScanner();
         scanner.parse(luaCode);
-        String expected = "do return nil end else end ";
+        String expected = "do return nil end;else end;";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "local tbl = {a = 1,b=2;c=3}";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = "local tbl = {a = 1,b=2;c=3}";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property('semi1', 1);go.property('semi2', 2)";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = "  ";
         assertEquals(expected, scanner.getParsedLua());
     }
 }
