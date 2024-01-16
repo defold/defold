@@ -1228,8 +1228,8 @@ namespace dmScript
     : m_Buffer(buffer)
     , m_UseLuaGC(use_lua_gc)
     {
-        assert(0);
         dmLogOnceWarning("The constructor is deprecated: dmScript::LuaHBuffer wrapper = { HBuffer, bool };");
+        assert(0);
     }
 
     static inline bool IsValidOwner(LuaBufferOwnership ownership)
