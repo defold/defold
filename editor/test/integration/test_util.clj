@@ -55,6 +55,7 @@
             [internal.util :as util]
             [service.log :as log]
             [support.test-support :as test-support]
+            [util.coll :refer [pair]]
             [util.fn :as fn]
             [util.http-server :as http-server]
             [util.text-util :as text-util]
@@ -70,8 +71,8 @@
            [javafx.event ActionEvent]
            [javafx.scene Parent Scene]
            [javafx.scene.control Cell ColorPicker Control Label ScrollBar Slider TextField ToggleButton]
-           [javafx.scene.paint Color]
            [javafx.scene.layout VBox]
+           [javafx.scene.paint Color]
            [javax.imageio ImageIO]
            [javax.vecmath Vector3d]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -465,6 +466,20 @@
          (comp (remove #(contains? cache %))
                (map g/endpoint-label))
          (cacheable-save-data-endpoints basis node-id))))
+
+(defn uncached-save-data-outputs-by-proj-path
+  ([project]
+   (uncached-save-data-outputs-by-proj-path (g/now) (g/cache) project))
+  ([basis project]
+   (uncached-save-data-outputs-by-proj-path basis (g/cache) project))
+  ([basis cache project]
+   (into (sorted-map)
+         (keep (fn [[node-id]]
+                 (let [resource (resource-node/resource basis node-id)
+                       proj-path (resource/proj-path resource)]
+                   (when-some [uncached-save-data-outputs (not-empty (uncached-save-data-outputs basis cache node-id))]
+                     (pair proj-path uncached-save-data-outputs)))))
+         (g/sources-of basis project :save-data))))
 
 (defn- split-keyword-options [forms]
   (let [keyword-options (into {}

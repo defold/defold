@@ -33,6 +33,7 @@
             [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
             [editor.settings-core :as settings-core]
+            [editor.system :as system]
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
@@ -432,9 +433,15 @@
 
     (store-loaded-disk-sha256-hashes! node-load-infos workspace)
     (store-loaded-source-values! node-load-infos)
-    (let [migrated-resource-node-ids (load-nodes-into-graph! node-load-infos project progress-loading! progress-processing! resource-metrics transaction-metrics)]
+    (let [migrated-resource-node-ids (load-nodes-into-graph! node-load-infos project progress-loading! progress-processing! resource-metrics transaction-metrics)
+          basis (g/now)
+          migrated-proj-paths (into (sorted-set)
+                                    (map #(resource/proj-path (resource-node/resource basis %)))
+                                    migrated-resource-node-ids)]
       (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
-      (render-progress! progress/done))))
+      (render-progress! progress/done)
+      (when (pos? (count migrated-proj-paths))
+        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))))
 
 (defn connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]

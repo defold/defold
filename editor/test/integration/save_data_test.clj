@@ -1431,22 +1431,10 @@
   ;; and is intended to verify that save-related data is retained in memory in
   ;; situations that are impractical to cover on an individual resource basis.
   (test-util/with-scratch-project project-path
-    (let [expected-outputs-by-proj-path-missing-from-cache
-          (fn expected-outputs-by-proj-path-missing-from-cache []
-            (let [basis (g/now)
-                  cache (g/cache)]
-              (into (sorted-map)
-                    (keep (fn [[node-id]]
-                            (let [resource (resource-node/resource basis node-id)
-                                  proj-path (resource/proj-path resource)]
-                              (when-some [uncached-save-data-outputs (not-empty (test-util/uncached-save-data-outputs basis cache node-id))]
-                                (pair proj-path uncached-save-data-outputs)))))
-                    (g/sources-of basis project :save-data))))
-
-          checked-resources (checked-resources workspace)]
+    (let [checked-resources (checked-resources workspace)]
 
       (testing "Save-related data is in cache after loading the project."
-        (is (= {} (expected-outputs-by-proj-path-missing-from-cache))))
+        (is (= {} (test-util/uncached-save-data-outputs-by-proj-path project))))
 
       ;; Perform edits to all checked resources.
       (g/transact
@@ -1458,4 +1446,4 @@
       (test-util/save-project! project)
 
       (testing "Save-related data is in cache after saving the project."
-        (is (= {} (expected-outputs-by-proj-path-missing-from-cache)))))))
+        (is (= {} (test-util/uncached-save-data-outputs-by-proj-path project)))))))
