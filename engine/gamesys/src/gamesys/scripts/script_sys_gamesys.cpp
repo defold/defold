@@ -34,17 +34,16 @@ namespace dmGameSystem
     {
         enum State
         {
-            STATE_ERROR      = -1,
-            STATE_NONE       = 0,
-            STATE_INITALIZED = 0,
-            STATE_PENDING    = 1,
-            STATE_FINISHED   = 2,
+            STATE_INITALIZED = 1,
+            STATE_PENDING    = 2,
+            STATE_FINISHED   = 3,
         };
         dmScript::LuaCallbackInfo* m_CallbackInfo;
         HOpaqueHandle              m_Handle;
         dmBuffer::HBuffer          m_Payload;
         dmLoadQueue::HRequest      m_Request;
         const char*                m_Path;
+        dmhash_t                   m_PathHash;
         State                      m_State;
     };
 
@@ -111,6 +110,19 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
+    // Assumes the g_SysModule.m_LoadRequestsMutex is held
+    static void DispatchRequest(LuaRequest* request)
+    {
+        dmLoadQueue::PreloadInfo info = {};
+        info.m_CompleteFunction       = LoadBufferComplete;
+        info.m_LoadResourceFunction   = LoadBufferFunction;
+        info.m_Context                = (void*) (uintptr_t) request->m_Handle;
+        request->m_Request            = dmLoadQueue::BeginLoad(g_SysModule.m_LoadQueue, request->m_Path, request->m_Path, &info);
+
+        if (request->m_Request)
+            request->m_State = LuaRequest::STATE_PENDING;
+    }
+
     static int Sys_LoadBuffer(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -144,20 +156,10 @@ namespace dmGameSystem
         return 1;
     }
 
-    static void DispatchRequest(LuaRequest* request)
-    {
-        dmLoadQueue::PreloadInfo info = {};
-        info.m_CompleteFunction       = LoadBufferComplete;
-        info.m_LoadResourceFunction   = LoadBufferFunction;
-        info.m_Context                = (void*) (uintptr_t) request->m_Handle;
-        request->m_Request            = dmLoadQueue::BeginLoad(g_SysModule.m_LoadQueue, request->m_Path, request->m_Path, &info);
-        request->m_State              = request->m_Request ? LuaRequest::STATE_PENDING : LuaRequest::STATE_INITALIZED;
-    }
-
     static int Sys_LoadBufferAsync(lua_State* L)
     {
         int top = lua_gettop(L);
-        const char* filename                     = luaL_checkstring(L, 1);
+        const char* path = luaL_checkstring(L, 1);
         dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 2);
 
         if (callback_info == 0x0)
@@ -165,24 +167,37 @@ namespace dmGameSystem
             return luaL_error(L, "sys.load_buffer_async failed to create callback");
         }
 
-        LuaRequest* request     = new LuaRequest();
-        request->m_Path         = filename;
-        request->m_CallbackInfo = callback_info;
-        request->m_State        = LuaRequest::STATE_NONE;
-        request->m_Handle       = INVALID_OPAQUE_HANDLE;
+        dmhash_t path_hash = dmHashString64(path);
         {
             dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
+
+            // We currently don't do anything about duplicated requests here (should we?)
+            for (int i = 0; i < g_SysModule.m_LoadRequests.Capacity(); ++i)
+            {
+                LuaRequest* active_request = g_SysModule.m_LoadRequests.GetByIndex(i);
+                if (active_request && active_request->m_PathHash == path_hash)
+                {
+                    dmLogWarning("sys.load_buffer_async called with path '%s' that is already pending", path);
+                    break;
+                }
+            }
 
             if (g_SysModule.m_LoadRequests.Full())
             {
                 g_SysModule.m_LoadRequests.Allocate(4);
             }
 
-            request->m_Handle = g_SysModule.m_LoadRequests.Put(request);
+            LuaRequest* request     = new LuaRequest();
+            request->m_Path         = path;
+            request->m_PathHash     = path_hash;
+            request->m_CallbackInfo = callback_info;
+            request->m_State        = LuaRequest::STATE_INITALIZED;
+            request->m_Handle       = g_SysModule.m_LoadRequests.Put(request);
+            request->m_Payload      = 0;
             DispatchRequest(request);
+            lua_pushnumber(L, request->m_Handle);
         }
 
-        lua_pushnumber(L, request->m_Handle);
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
@@ -209,31 +224,14 @@ namespace dmGameSystem
         g_SysModule.m_LoadRequestsMutex = dmMutex::New();
     }
 
-    static inline uint32_t GetRequestCount()
-    {
-        dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
-        return g_SysModule.m_LoadRequests.Capacity();
-    }
-
-    static inline LuaRequest* GetRequest(uint32_t index)
-    {
-        dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
-        return g_SysModule.m_LoadRequests.GetByIndex(index);
-    }
-
-    static inline void DeleteRequest(LuaRequest* request)
-    {
-        dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
-        g_SysModule.m_LoadRequests.Release(request->m_Handle);
-        delete request;
-    }
-
     void ScriptSysGameSysUpdate(const ScriptLibContext& context)
     {
-        uint32_t request_count = GetRequestCount();
+        dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
+
+        uint32_t request_count = g_SysModule.m_LoadRequests.Capacity();
         for (int i = 0; i < request_count; ++i)
         {
-            LuaRequest* request = GetRequest(i);
+            LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
 
             if (request)
             {
@@ -256,7 +254,7 @@ namespace dmGameSystem
                         if (dmScript::SetupCallback(request->m_CallbackInfo))
                         {
                             dmScript::PushBuffer(L, luabuf);
-                            dmScript::PushHash(L, dmHashString64(request->m_Path));
+                            dmScript::PushHash(L, request->m_PathHash);
                             dmScript::PCall(L, 3, 0);
                             dmScript::TeardownCallback(request->m_CallbackInfo);
                         }
@@ -268,7 +266,9 @@ namespace dmGameSystem
 
                     dmScript::DestroyCallback(request->m_CallbackInfo);
                     request->m_CallbackInfo = 0x0;
-                    DeleteRequest(request);
+
+                    g_SysModule.m_LoadRequests.Release(request->m_Handle);
+                    delete request;
                 }
             }
         }
@@ -277,7 +277,22 @@ namespace dmGameSystem
     void ScriptSysGameSysFinalize(const ScriptLibContext& context)
     {
         dmLoadQueue::DeleteQueue(g_SysModule.m_LoadQueue);
+        dmMutex::Delete(g_SysModule.m_LoadRequestsMutex);
         g_SysModule.m_Factory   = 0;
         g_SysModule.m_LoadQueue = 0;
+
+        for (int i = 0; i < g_SysModule.m_LoadRequests.Capacity(); ++i)
+        {
+            LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
+            if (request)
+            {
+                if (dmBuffer::IsBufferValid(request->m_Payload))
+                {
+                    dmBuffer::Destroy(request->m_Payload);
+                }
+                dmScript::DestroyCallback(request->m_CallbackInfo);
+                delete request;
+            }
+        }
     }
 }
