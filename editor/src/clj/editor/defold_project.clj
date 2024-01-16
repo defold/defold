@@ -1051,14 +1051,13 @@
                                          [existing-resource-node-id nil]
                                          (thread-util/swap-rest! (:tx-data-context evaluation-context) ensure-resource-node-created project resource))
             node-type (resource-node-type resource)
-            created-in-tx (not existing-resource-node-id)
 
             load-tx-data
             (cond
               ;; If we just created the resource node, that means the referenced
               ;; resource does not exist, or it would have already been created
               ;; during resource-sync.
-              created-in-tx
+              (some? creation-tx-data)
               (do
                 (when (and *load-cache* (not (contains? @*load-cache* node-id)))
                   (swap! *load-cache* conj node-id))
@@ -1075,7 +1074,7 @@
                                      (g/node-type-kw (:basis evaluation-context) consumer-node)
                                      (resource/proj-path resource)))))]
         {:node-id node-id
-         :created-in-tx created-in-tx
+         :created-in-tx (nil? existing-resource-node-id)
          :tx-data (vec
                     (flatten
                       (concat
