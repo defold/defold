@@ -278,6 +278,15 @@ namespace dmResource
     void IncRef(HFactory factory, void* resource);
 
     /**
+     * Get the resource version. The resource version is a sequential serial number
+     * that increases with every resource insertion into the resource system.
+     * This is useful for checking resource validity for resource pointers.
+     * @param factory Factory handle
+     * @param resource Resource
+     */
+    uint16_t GetVersion(HFactory factory, void* resource);
+
+    /**
      * Create a new preloader
      * @param factory Factory handle
      * @param name Resource to load

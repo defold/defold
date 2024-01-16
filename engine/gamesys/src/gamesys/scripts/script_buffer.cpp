@@ -721,8 +721,17 @@ namespace dmGameSystem
             if (buffer->m_Owner == dmScript::OWNER_LUA)
             {
                 dmBuffer::Destroy(buffer->m_Buffer);
-            } else if (buffer->m_Owner == dmScript::OWNER_RES) {
-                dmResource::Release(g_Factory, buffer->m_BufferRes);
+            }
+            else if (buffer->m_Owner == dmScript::OWNER_RES)
+            {
+                uint16_t res_version   = dmResource::GetVersion(g_Factory, buffer->m_BufferRes);
+                dmhash_t res_path_hash = 0;
+                dmResource::GetPath(g_Factory, buffer->m_BufferRes, &res_path_hash);
+
+                if (res_version == buffer->m_BufferResVersion && res_path_hash == buffer->m_BufferResPathHash)
+                {
+                    dmResource::Release(g_Factory, buffer->m_BufferRes);
+                }
             }
 
         }
@@ -1194,6 +1203,35 @@ namespace dmGameSystem
 
 namespace dmScript
 {
+    LuaHBuffer::LuaHBuffer()
+    {
+    }
+
+    LuaHBuffer::LuaHBuffer(dmBuffer::HBuffer buffer, LuaBufferOwnership ownership)
+    : m_Buffer(buffer)
+    , m_Owner(ownership)
+    {
+    }
+
+    LuaHBuffer::LuaHBuffer(dmResource::HFactory factory, void* buffer_resource)
+    : m_BufferRes(buffer_resource)
+    , m_Owner(OWNER_RES)
+    {
+        if (factory)
+        {
+            m_BufferResVersion = dmResource::GetVersion(factory, buffer_resource);
+            dmResource::GetPath(factory, buffer_resource, &m_BufferResPathHash);
+        }
+    }
+
+    LuaHBuffer::LuaHBuffer(dmBuffer::HBuffer buffer, bool use_lua_gc)
+    : m_Buffer(buffer)
+    , m_UseLuaGC(use_lua_gc)
+    {
+        assert(0);
+        dmLogOnceWarning("The constructor is deprecated: dmScript::LuaHBuffer wrapper = { HBuffer, bool };");
+    }
+
     static inline bool IsValidOwner(LuaBufferOwnership ownership)
     {
         return ownership == dmScript::OWNER_C || ownership == dmScript::OWNER_LUA || ownership == dmScript::OWNER_RES;
@@ -1208,9 +1246,18 @@ namespace dmScript
     {
         DM_LUA_STACK_CHECK(L, 1);
         dmScript::LuaHBuffer* luabuf = (dmScript::LuaHBuffer*)lua_newuserdata(L, sizeof(dmScript::LuaHBuffer));
-        luabuf->m_Buffer = v.m_Buffer;
-        luabuf->m_BufferRes = v.m_BufferRes;
         luabuf->m_Owner = v.m_Owner;
+
+        if (v.m_Owner == dmScript::OWNER_RES)
+        {
+            luabuf->m_BufferRes        = v.m_BufferRes;
+            luabuf->m_BufferResVersion = v.m_BufferResVersion;
+        }
+        else
+        {
+            luabuf->m_Buffer = v.m_Buffer;
+        }
+
         assert(IsValidOwner(luabuf->m_Owner));
         luaL_getmetatable(L, SCRIPT_TYPE_NAME_BUFFER);
         lua_setmetatable(L, -2);

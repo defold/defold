@@ -140,6 +140,7 @@ namespace dmResource
         uint32_t m_ResourceSizeOnDisc;
         void*    m_ResourceType;
         uint32_t m_ReferenceCount;
+        uint16_t m_Version;
     };
 
 

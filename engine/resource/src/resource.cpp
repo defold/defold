@@ -119,6 +119,9 @@ struct SResourceFactory
     dmResourceMounts::HContext                   m_Mounts;
     dmResourceProvider::HArchive                 m_BuiltinMount;
     dmResourceProvider::HArchive                 m_BaseArchiveMount;
+
+    // Serial version that increases per resource insertion
+    uint16_t                                     m_Version;
 };
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
@@ -856,6 +859,8 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
         factory->m_ResourceHashToFilename->Put(canonical_path_hash, strdup(canonical_path));
     }
 
+    descriptor->m_Version = factory->m_Version++;
+
     return RESULT_OK;
 }
 
@@ -1208,6 +1213,16 @@ void IncRef(HFactory factory, void* resource)
     assert(rd);
     assert(rd->m_ReferenceCount > 0);
     ++rd->m_ReferenceCount;
+}
+
+uint16_t GetVersion(HFactory factory, void* resource)
+{
+    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
+    assert(resource_hash);
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+    return rd->m_Version;
 }
 
 // For unit testing

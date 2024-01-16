@@ -2406,7 +2406,7 @@ static int GetBuffer(lua_State* L)
     }
 
     dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
-    dmScript::LuaHBuffer luabuf((void*)buffer_resource);
+    dmScript::LuaHBuffer luabuf(g_ResourceModule.m_Factory, (void*)buffer_resource);
     PushBuffer(L, luabuf);
 
     assert(top + 1 == lua_gettop(L));

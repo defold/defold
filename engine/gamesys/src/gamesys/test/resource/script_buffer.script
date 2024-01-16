@@ -28,6 +28,30 @@ local data_stream_desc = {{
     count = 3
 }}
 
+function test_create_garbage_collect(self)
+    local buf            = buffer.create(3, data_stream_desc)
+    local res_buffer     = resource.create_buffer("/my_buffer.bufferc", { buffer = buf }) -- ref: 2
+    local res_buffer_obj = resource.get_buffer(res_buffer) -- ref: 3
+
+    resource.release(res_buffer)
+    resource.release(res_buffer)
+    resource.release(res_buffer)
+
+    assert_error(function() resource.get_buffer(res_buffer) end)
+
+    local buf_2        = buffer.create(3, data_stream_desc)
+    local res_buffer_2 = resource.create_buffer("/my_buffer.bufferc", { buffer = buf_2}) -- ref: 2
+
+    collectgarbage("collect")
+    buf_2 = nil
+    collectgarbage("collect")
+
+    resource.release(res_buffer_2)
+    resource.release(res_buffer_2)
+
+    assert_error(function() resource.get_buffer(res_buffer_2) end)
+end
+
 function test_create_get(self)
     -- owner: lua
     local buf = buffer.create(3, data_stream_desc)
@@ -99,6 +123,7 @@ function test_create_set(self)
 end
 
 function init(self)
+    test_create_garbage_collect(self)
     test_create_get(self)
     test_create_ownership(self)
     test_create_ownership_data(self)
