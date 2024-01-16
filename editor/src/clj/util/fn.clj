@@ -67,17 +67,17 @@
                           cached-result)))]
     (with-memoize-info memoized-fn cache arity)))
 
-(defn- ifn-max-arity-raw
-  ^long [ifn]
+(defn- ifn-class-max-arity-raw
+  ^long [^Class ifn-class]
   (reduce (fn [^long max-arity ^Method method]
             (case (.getName method)
               "invoke" (max max-arity (.getParameterCount method))
               "getRequiredArity" (reduced -1) ; The function is variadic.
               max-arity))
           0
-          (java/get-declared-methods (class ifn))))
+          (java/get-declared-methods ifn-class)))
 
-(def ifn-max-arity (memoize-one ifn-max-arity-raw))
+(def ^:private ifn-class-max-arity (memoize-one ifn-class-max-arity-raw))
 
 (defn max-arity
   "Returns the maximum number of arguments the supplied function can accept, or
@@ -86,7 +86,7 @@
   (let [ifn (if (var? ifn-or-var)
               (var-get ifn-or-var)
               ifn-or-var)
-        ^long max-arity (ifn-max-arity ifn)]
+        ^long max-arity (ifn-class-max-arity (class ifn))]
     (if (and (pos? max-arity)
              (var? ifn-or-var)
              (-> ifn-or-var meta :macro))
