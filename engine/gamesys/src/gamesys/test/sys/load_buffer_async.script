@@ -94,7 +94,9 @@ local function test_3(self)
     local r2 = sys.load_buffer_async("build",
         function(self, request_id, status, buf)
             assert(request_id == self.data.requests[2])
-            assert(status == sys.REQUEST_STATUS_ERROR_IO_ERROR)
+            -- This is different between windows and linux it seems, on *nix systems we get IO error here
+            -- but on windows we get ERROR_NOT_FOUND from fopen. Oh well
+            assert(status == sys.REQUEST_STATUS_ERROR_IO_ERROR or status == sys.REQUEST_STATUS_ERROR_NOT_FOUND)
             assert(buf == nil)
             self.data.test_passed = self.data.test_passed + 1
             tests_done = #self.data.requests == self.data.test_passed

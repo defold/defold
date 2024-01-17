@@ -86,7 +86,7 @@ namespace dmGameSystem
             HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
             request = g_SysModule.m_LoadRequests.Get(request_handle);
         }
-        dmResource::Result res       = dmResource::DoLoadResource(factory, path, original_name, resource_size, buffer);
+        dmResource::Result res = dmResource::DoLoadResource(factory, path, original_name, resource_size, buffer);
 
         if (res != dmResource::RESULT_OK)
         {
