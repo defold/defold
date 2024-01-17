@@ -4033,6 +4033,9 @@ TEST_F(SysTest, LoadBufferASync)
     // Test 3
     ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 3, scriptlibcontext, m_Collection, &m_UpdateContext, true));
 
+    // Test 3
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 4, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }

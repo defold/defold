@@ -76,10 +76,10 @@ namespace dmGameSystem
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
         uint32_t                    m_BoneIndex;
-        uint32_t                    m_MaterialIndex : 5; // current max 16 materials per model
+        uint32_t                    m_MaterialIndex : 4; // current max 16 materials per model
         uint32_t                    m_Enabled : 1;
         uint32_t                    m_AttributeRenderDataIndex : 16;
-        uint32_t                    : 10;
+        uint32_t                    : 11;
     };
 
     struct ModelComponent

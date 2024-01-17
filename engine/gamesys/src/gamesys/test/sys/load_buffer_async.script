@@ -103,13 +103,37 @@ local function test_3(self)
     self.data.requests = { r1, r2, r3 }
 end
 
+local function test_4(self)
+    print("Running async buffer test 'massive amounts of requests'")
+    local request_count = 32
+    self.data.requests = {}
+    for i=1,request_count do
+        local r = sys.load_buffer_async("/sys/sys_buffer_test_content.rawc",
+            function(self, request_id, status, buf)
+                local found = false
+                for k,v in pairs(self.data.requests) do
+                    if v == request_id then
+                        found = true
+                    end
+                end
+                assert(found)
+                local s = buffer.get_bytes(buf, "data")
+                assert(s == expected_lorem_ipsum)
+                self.data.test_passed = self.data.test_passed + 1
+                tests_done = #self.data.requests == self.data.test_passed
+            end)
+
+        table.insert(self.data.requests, r)
+    end
+end
+
 function init(self)
     assert(sys.REQUEST_STATUS_ERROR_IO_ERROR ~= nil)
     assert(sys.REQUEST_STATUS_ERROR_NOT_FOUND ~= nil)
     assert(sys.REQUEST_STATUS_FINISHED ~= nil)
 
     self.test = 0
-    self.tests = { test_1, test_2, test_3 }
+    self.tests = { test_1, test_2, test_3, test_4 }
 end
 
 function update(self)

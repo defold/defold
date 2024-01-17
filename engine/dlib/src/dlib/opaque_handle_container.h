@@ -90,7 +90,20 @@ public:
      */
     T* Get(HOpaqueHandle handle);
 
-    T* GetByIndex(HOpaqueHandle handle);
+    /*# container get by index
+     *
+     * Get the pointer to the object based on an index into the container. The handle will be checked for validity,
+     * i.e the handle version must match the object version and the index of the handle must be in a valid
+     * range of the object list. If the handle is invalid, a NULL pointer will be returned.
+     *
+     * Note: this is indented for internal use only and relies on the fact that the backing
+     *       data structure for the container is a continuous array.
+     *
+     * @name GetByIndex
+     * @param handle [type:uint32_t] The index to query the container with
+     * @return pointer [type:T*] Return the object associated with the handle If it is valid, NULL otherwise
+     */
+    T* GetByIndex(uint32_t handle);
 
     /*# container put
      *
@@ -225,7 +238,6 @@ T* dmOpaqueHandleContainer<T>::Get(HOpaqueHandle handle)
     return entry;
 }
 
-// Internal helper functions
 template <typename T>
 T* dmOpaqueHandleContainer<T>::GetByIndex(uint32_t i)
 {
