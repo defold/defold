@@ -119,7 +119,20 @@ struct SResourceFactory
     dmResourceMounts::HContext                   m_Mounts;
     dmResourceProvider::HArchive                 m_BuiltinMount;
     dmResourceProvider::HArchive                 m_BaseArchiveMount;
+
+    // Serial version that increases per resource insertion
+    uint16_t                                     m_Version;
 };
+
+static inline uint16_t IncreaseVersion(HFactory factory)
+{
+    uint16_t next_version = factory->m_Version++;
+    if (next_version == RESOURCE_VERSION_INVALID)
+    {
+        return ++factory->m_Version;
+    }
+    return next_version;
+}
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
 {
@@ -856,6 +869,8 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
         factory->m_ResourceHashToFilename->Put(canonical_path_hash, strdup(canonical_path));
     }
 
+    descriptor->m_Version = IncreaseVersion(factory);
+
     return RESULT_OK;
 }
 
@@ -933,6 +948,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
+        rd->m_Version = IncreaseVersion(factory);
         params.m_Resource->m_ResourceSizeOnDisc = buffer_size;
         if (factory->m_ResourceReloadedCallbacks)
         {
@@ -1208,6 +1224,16 @@ void IncRef(HFactory factory, void* resource)
     assert(rd);
     assert(rd->m_ReferenceCount > 0);
     ++rd->m_ReferenceCount;
+}
+
+uint16_t GetVersion(HFactory factory, void* resource)
+{
+    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
+    assert(resource_hash);
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+    return rd->m_Version;
 }
 
 // For unit testing
