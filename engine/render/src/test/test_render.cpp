@@ -510,8 +510,7 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
     creation_params.m_OriginalHeight = 2;
     dmGraphics::HTexture texture     = dmGraphics::NewTexture(m_GraphicsContext, creation_params);
 
-    const uint32_t size = creation_params.m_Width * creation_params.m_Height;
-    uint8_t tex_data[size];
+    uint8_t tex_data[2 * 2];
     dmGraphics::TextureParams params;
     params.m_DataSize  = sizeof(tex_data);
     params.m_Data      = tex_data;
