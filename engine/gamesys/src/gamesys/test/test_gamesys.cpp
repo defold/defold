@@ -955,17 +955,7 @@ TEST_F(SpriteTest, FlipbookAnim)
 
     lua_State* L = scriptlibcontext.m_LuaState;
 
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
+    WaitForTestsDone(10000, true, 0);
 
     lua_getglobal(L, "num_finished");
     int num_finished = lua_tointeger(L, -1);
@@ -994,7 +984,7 @@ TEST_F(SpriteTest, FrameCount)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
-    WaitForTestsDone(100, 0);
+    WaitForTestsDone(100, false, 0);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1015,7 +1005,7 @@ TEST_F(ParticleFxTest, PlayAnim)
     ASSERT_NE((void*)0, go);
 
     bool tests_done = false;
-    WaitForTestsDone(100, &tests_done);
+    WaitForTestsDone(100, true, &tests_done);
 
     if (!tests_done)
     {
@@ -1101,7 +1091,7 @@ TEST_F(GuiTest, GuiFlipbookAnim)
     m_UpdateContext.m_DT = 1.0f;
 
     bool tests_done = false;
-    WaitForTestsDone(100, &tests_done);
+    WaitForTestsDone(100, true, &tests_done);
 
     if (!tests_done)
     {

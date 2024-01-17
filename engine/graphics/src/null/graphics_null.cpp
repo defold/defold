@@ -615,6 +615,11 @@ namespace dmGraphics
     }
 
     // For tests
+    void ResetDrawCount()
+    {
+        g_DrawCount = 0;
+    }
+
     uint64_t GetDrawCount()
     {
         return g_DrawCount;
