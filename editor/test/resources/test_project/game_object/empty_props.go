@@ -1,4 +1,4 @@
 components {
-    id: "script"
-    component: "/script/props.script"
+  id: "script"
+  component: "/script/props.script"
 }

@@ -228,32 +228,44 @@
                 (complete! false))]
     (future
       (try
-        ;; Reload any external changes first, so these will not
-        ;; be overwritten if we have not detected them yet.
-        (if-not (blocking-reload! render-reload-progress! workspace [] nil)
-          (complete! false) ; Errors were already reported by blocking-reload!
-          (let [evaluation-context (g/make-evaluation-context)
-                snapshot-invalidate-counters (g/evaluation-context-invalidate-counters evaluation-context)
-                save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)
-                post-save-actions (write-save-data-to-disk! save-data snapshot-invalidate-counters {:render-progress! render-save-progress!})]
-            (if (and (some #(= "/.defignore" (resource/proj-path (:resource %))) save-data)
-                     (not (blocking-reload! render-reload-progress! workspace [] nil)))
-              (complete! false)
-              (do
-                (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
-                (let [touched-resources (into #{} (map :resource) save-data)]
-                  (workspace/reload-plugins! workspace touched-resources)
-                  (lsp/touch-resources! (lsp/get-node-lsp project) touched-resources))
-                (render-save-progress! progress/done)
-                (ui/run-later
-                  (try
-                    (project/update-system-cache-save-data! evaluation-context)
-                    (process-post-save-actions! workspace post-save-actions)
-                    (when (some? changes-view)
-                      (changes-view/refresh! changes-view render-reload-progress!))
-                    (complete! true)
-                    (catch Throwable error
-                      (fail! error))))))))
+        ;; It is safe to save any dirty save-datas without performing a reload
+        ;; first, because files are only considered dirty if their save-value
+        ;; differs from the value we last loaded or saved ourselves. If instead,
+        ;; we considered a file dirty when its save-value differs from the value
+        ;; on disk at the time of saving, we'd have to first perform a reload to
+        ;; ensure we do not overwrite any external changes with our un-edited
+        ;; save-values.
+        (let [evaluation-context (g/make-evaluation-context)
+              snapshot-invalidate-counters (g/evaluation-context-invalidate-counters evaluation-context)
+              save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)
+              post-save-actions (write-save-data-to-disk! save-data snapshot-invalidate-counters {:render-progress! render-save-progress!})
+              written-resources (into #{} (map :resource) save-data)
+              reload-required (some #(= "/.defignore" (resource/proj-path %)) written-resources)]
+          (render-save-progress! (progress/make-indeterminate "Caching save results..."))
+          (ui/run-later
+            (try
+              (project/update-system-cache-save-data! evaluation-context)
+              (process-post-save-actions! workspace post-save-actions)
+              (future
+                (try
+                  (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
+                  (workspace/reload-plugins! workspace written-resources)
+                  (lsp/touch-resources! (lsp/get-node-lsp project) written-resources)
+                  (cond
+                    reload-required
+                    (complete! (blocking-reload! render-reload-progress! workspace [] changes-view))
+
+                    changes-view
+                    (do
+                      (changes-view/refresh! changes-view render-reload-progress!)
+                      (complete! true))
+
+                    :else
+                    (complete! true))
+                  (catch Throwable error
+                    (fail! error))))
+              (catch Throwable error
+                (fail! error)))))
         (catch Throwable error
           (fail! error))))
     success-promise))
