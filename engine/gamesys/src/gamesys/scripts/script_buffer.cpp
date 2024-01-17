@@ -722,7 +722,7 @@ namespace dmGameSystem
             {
                 dmBuffer::Destroy(buffer->m_Buffer);
             }
-            else if (buffer->m_Owner == dmScript::OWNER_RES && buffer->m_BufferResVersion != RESOURCE_VERSION_INVALID)
+            else if (buffer->m_Owner == dmScript::OWNER_RES && buffer->m_BufferResVersion != dmResource::RESOURCE_VERSION_INVALID)
             {
                 uint16_t res_version   = dmResource::GetVersion(g_Factory, buffer->m_BufferRes);
                 dmhash_t res_path_hash = 0;
@@ -1216,7 +1216,7 @@ namespace dmScript
     LuaHBuffer::LuaHBuffer(dmResource::HFactory factory, void* buffer_resource)
     : m_BufferRes(buffer_resource)
     , m_Owner(OWNER_RES)
-    , m_BufferResVersion(RESOURCE_VERSION_INVALID)
+    , m_BufferResVersion(dmResource::RESOURCE_VERSION_INVALID)
     {
         if (factory)
         {
