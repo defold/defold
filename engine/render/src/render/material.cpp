@@ -368,12 +368,7 @@ namespace dmRender
         if (s->m_Location != -1)
         {
             dmGraphics::SetSampler(graphics_context, s->m_Location, unit);
-
-            if (s->m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
-                s->m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
-            {
-                dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
-            }
+            dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
         }
     }
 
