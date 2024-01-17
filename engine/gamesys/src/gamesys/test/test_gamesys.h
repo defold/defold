@@ -379,6 +379,12 @@ public:
     virtual ~ShaderTest() {}
 };
 
+class SysTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~SysTest() {}
+};
+
 bool CopyResource(const char* src, const char* dst);
 bool UnlinkResource(const char* name);
 

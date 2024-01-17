@@ -73,7 +73,7 @@ namespace dmResource
     typedef uintptr_t ResourceType;
     typedef dmArray<char> LoadBufferType;
 
-    typedef Result (*FResourceLoad)(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
+    typedef Result (*FResourceLoad)(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer, void* context);
 
     Result RegisterTypes(HFactory factory, dmHashTable64<void*>* contexts);
     Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts);

@@ -35,6 +35,7 @@
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
+#include "../scripts/script_sys_gamesys.h"
 
 #include <dmsdk/gamesys/render_constants.h>
 
@@ -3944,6 +3945,96 @@ TEST_F(ComponentTest, GetSetCollisionShape)
     ASSERT_NE((void*)0, go_base);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SysTest, LoadBufferSync)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_sync.goc", dmHashString64("/load_buffer_sync"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+static bool RunTestLoadBufferASync(lua_State* L, int test_n,
+    dmGameSystem::ScriptLibContext& scriptlibcontext,
+    dmGameObject::HCollection collection,
+    const dmGameObject::UpdateContext* update_context,
+    bool ignore_script_update_fail)
+{
+    char buffer[256];
+    dmSnPrintf(buffer, sizeof(buffer), "test_n = %d", test_n);
+
+    if (!RunString(L, buffer))
+        return false;
+
+    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    bool tests_done = false;
+    while (dmTime::GetTime() < stop_time && !tests_done)
+    {
+        if (!dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext) && !ignore_script_update_fail)
+            return false;
+        if (!dmGameObject::Update(collection, update_context))
+            return false;
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+
+        dmTime::Sleep(30*1000);
+    }
+
+    return tests_done;
+}
+
+TEST_F(SysTest, LoadBufferASync)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async.goc", dmHashString64("/load_buffer_async"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Test 1
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 1, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+
+    // Test 2
+    uint32_t large_buffer_size = 16 * 1024 * 1024;
+    uint8_t* large_buffer = new uint8_t[large_buffer_size];
+    memset(large_buffer, 0, large_buffer_size);
+
+    large_buffer[0]                   = 127;
+    large_buffer[large_buffer_size-1] = 255;
+
+    dmResource::AddFile(m_Factory, "/sys/non_disk_content/large_file.raw", large_buffer_size, large_buffer);
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 2, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+    dmResource::RemoveFile(m_Factory, "/sys/non_disk_content/large_file.raw");
+    free(large_buffer);
+
+    // Test 3
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 3, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT

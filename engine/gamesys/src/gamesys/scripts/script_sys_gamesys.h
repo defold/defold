@@ -19,7 +19,7 @@ namespace dmGameSystem
 {
     void ScriptSysGameSysRegister(const ScriptLibContext& context);
     void ScriptSysGameSysFinalize(const ScriptLibContext& context);
-    void ScriptSysGameSysUpdate(const ScriptLibContext& context);
+    bool ScriptSysGameSysUpdate(const ScriptLibContext& context);
 }
 
 #endif // DM_GAMESYS_SCRIPT_TILEMAP_H

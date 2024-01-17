@@ -30,28 +30,30 @@ extern "C"
 
 namespace dmGameSystem
 {
+    enum RequestStatus
+    {
+        REQUEST_STATUS_ERROR_IO_ERROR  = -2,
+        REQUEST_STATUS_ERROR_NOT_FOUND = -1,
+        REQUEST_STATUS_INITALIZED      = 1,
+        REQUEST_STATUS_PENDING         = 2,
+        REQUEST_STATUS_FINISHED        = 3,
+    };
+
     struct LuaRequest
     {
-        enum State
-        {
-            STATE_INITALIZED = 1,
-            STATE_PENDING    = 2,
-            STATE_FINISHED   = 3,
-        };
         dmScript::LuaCallbackInfo* m_CallbackInfo;
         HOpaqueHandle              m_Handle;
         dmBuffer::HBuffer          m_Payload;
         dmLoadQueue::HRequest      m_Request;
         const char*                m_Path;
         dmhash_t                   m_PathHash;
-        State                      m_State;
+        RequestStatus              m_Status;
     };
 
     struct SysModule
     {
         dmResource::HFactory                m_Factory;
         dmLoadQueue::HQueue                 m_LoadQueue;
-
         dmOpaqueHandleContainer<LuaRequest> m_LoadRequests;
         dmMutex::HMutex                     m_LoadRequestsMutex;
     } g_SysModule;
@@ -62,7 +64,7 @@ namespace dmGameSystem
         dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
         HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) params.m_Context;
         LuaRequest* request          = g_SysModule.m_LoadRequests.Get(request_handle);
-        request->m_State             = LuaRequest::STATE_FINISHED;
+        request->m_Status            = REQUEST_STATUS_FINISHED;
 
         dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
         dmBuffer::Create(params.m_BufferSize, streams_decl, 1, &request->m_Payload);
@@ -75,15 +77,24 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result LoadBufferFunction(dmResource::HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, dmResource::LoadBufferType* buffer)
+    static dmResource::Result LoadBufferFunction(dmResource::HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, dmResource::LoadBufferType* buffer, void* context)
     {
-        dmResource::Result res = dmResource::DoLoadResource(factory, path, original_name, resource_size, buffer);
+        LuaRequest* request = 0;
+        if (context)
+        {
+            dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
+            HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
+            request = g_SysModule.m_LoadRequests.Get(request_handle);
+        }
+        dmResource::Result res       = dmResource::DoLoadResource(factory, path, original_name, resource_size, buffer);
 
         if (res != dmResource::RESULT_OK)
         {
             FILE* file = fopen(path, "rb");
             if (file == 0x0)
             {
+                if (request)
+                    request->m_Status = REQUEST_STATUS_ERROR_NOT_FOUND;
                 return dmResource::RESULT_RESOURCE_NOT_FOUND;
             }
 
@@ -101,9 +112,12 @@ namespace dmGameSystem
             if (!result)
             {
                 buffer->SetCapacity(0);
+                if (request)
+                    request->m_Status = REQUEST_STATUS_ERROR_IO_ERROR;
                 return dmResource::RESULT_IO_ERROR;
             }
 
+            assert(nread == file_size);
             *resource_size = file_size;
         }
 
@@ -120,9 +134,43 @@ namespace dmGameSystem
         request->m_Request            = dmLoadQueue::BeginLoad(g_SysModule.m_LoadQueue, request->m_Path, request->m_Path, &info);
 
         if (request->m_Request)
-            request->m_State = LuaRequest::STATE_PENDING;
+            request->m_Status = REQUEST_STATUS_PENDING;
     }
 
+    /*# loads a buffer from a resource or disk path
+     * The sys.load_buffer function will first try to load the resource
+     * from any of the mounted resource locations and return the data if
+     * any matching entries found. If not, the path will be tried
+     * as is from the primary disk on the device.
+     *
+     * In order for the engine to include custom resources in the build process, you need
+     * to specify them in the "custom_resources" key in your "game.project" settings file.
+     * You can specify single resource files or directories. If a directory is included
+     * in the resource list, all files and directories in that directory is recursively
+     * included:
+     *
+     * For example "main/data/,assets/level_data.json".
+     *
+     * @name sys.load_buffer
+     * @param path [type:string] the path to load the buffer from
+     * @return buffer [type:buffer] the buffer with data
+     * @examples
+     *
+     * Load binary data from a custom project resource:
+     *
+     * ```lua
+     * local my_buffer = sys.load_buffer("/assets/my_level_data.bin")
+     * local data_str = buffer.get_bytes(my_buffer, "data")
+     * local has_my_header = string.sub(data_str,1,6) == "D3F0LD"
+     * ```
+     *
+     * Load binary data from non-custom resource files on disk:
+     *
+     * ```lua
+     * local asset_1 = sys.load_buffer("folder_next_to_binary/my_level_asset.txt")
+     * local asset_2 = sys.load_buffer("/my/absolute/path")
+     * ```
+     */
     static int Sys_LoadBuffer(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -130,11 +178,11 @@ namespace dmGameSystem
 
         uint32_t load_buffer_size = 0;
         dmResource::LoadBufferType load_buffer_data;
-        dmResource::Result res = LoadBufferFunction(g_SysModule.m_Factory, filename, filename, &load_buffer_size, &load_buffer_data);
+        dmResource::Result res = LoadBufferFunction(g_SysModule.m_Factory, filename, filename, &load_buffer_size, &load_buffer_data, 0);
 
         if (res != dmResource::RESULT_OK)
         {
-            return luaL_error(L, "sys.load_buffer failed to create callback (code=%d)", (int) res);
+            return luaL_error(L, "sys.load_buffer failed to load the resource (code=%d)", (int) res);
         }
 
         assert(load_buffer_data.Size() == load_buffer_size);
@@ -156,6 +204,61 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# loads a buffer from a resource or disk path asynchronously
+     * The sys.load_buffer function will first try to load the resource
+     * from any of the mounted resource locations and return the data if
+     * any matching entries found. If not, the path will be tried
+     * as is from the primary disk on the device.
+     *
+     * In order for the engine to include custom resources in the build process, you need
+     * to specify them in the "custom_resources" key in your "game.project" settings file.
+     * You can specify single resource files or directories. If a directory is included
+     * in the resource list, all files and directories in that directory is recursively
+     * included:
+     *
+     * For example "main/data/,assets/level_data.json".
+     *
+     * Note that issuing multiple requests of the same resource will yield
+     * individual buffers per request. There is no implic caching of the buffers
+     * based on request path.
+     *
+     * @name sys.load_buffer_async
+     * @param path [type:string] the path to load the buffer from
+     * @param status_callback [type:function(self, request_id, status, buf)] A status callback that will be invoked when a request has been handled, or an error occured
+     * @return handle [type:handle] a handle to the request
+     * @examples
+     *
+     * Load binary data from a custom project resource and update a texture resource:
+     *
+     * ```lua
+     * function my_callback(self, request_id, status, buf)
+     *   resource.set_texture("/my_texture", { ... }, buf)
+     * end
+     *
+     * local my_request = sys.load_buffer_async("/assets/my_level_data.bin", my_callback)
+     * ```
+     *
+     * Load binary data from non-custom resource files on disk:
+     *
+     * ```lua
+     * function my_callback(self, request_id, status, buf)
+     *   if status ~= sys.REQUEST_STATUS_FINISHED then
+     *     -- uh oh! File could not be found, do something graceful
+     *   elif request_id == self.first_asset then
+     *     -- buffer contains data from my_level_asset.bin
+     *   elif request_id == self.second_asset then
+     *     -- buffer contains data from 'my_level.bin'
+     *   end
+     * end
+     *
+     * function init(self)
+     *   self.first_asset = hash("folder_next_to_binary/my_level_asset.bin")
+     *   self.second_asset = hash("/some_absolute_path/my_level.bin")
+     *   self.first_request = sys.load_buffer_async(self.first_asset, my_callback)
+     *   self.second_request = sys.load_buffer_async(self.second_asset, my_callback)
+     * end
+     * ```
+     */
     static int Sys_LoadBufferAsync(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -191,7 +294,7 @@ namespace dmGameSystem
             request->m_Path         = path;
             request->m_PathHash     = path_hash;
             request->m_CallbackInfo = callback_info;
-            request->m_State        = LuaRequest::STATE_INITALIZED;
+            request->m_Status        = REQUEST_STATUS_INITALIZED;
             request->m_Handle       = g_SysModule.m_LoadRequests.Put(request);
             request->m_Payload      = 0;
             DispatchRequest(request);
@@ -209,6 +312,21 @@ namespace dmGameSystem
         {0, 0}
     };
 
+    /*# an asyncronous request has finished successfully
+     * @name sys.REQUEST_STATUS_FINISHED
+     * @variable
+     */
+
+    /*# an asyncronous request is unable to read the resource
+     * @name sys.REQUEST_STATUS_ERROR_IO_ERROR
+     * @variable
+     */
+
+    /*# an asyncronous request is unable to locate the resource
+     * @name sys.REQUEST_STATUS_ERROR_NOT_FOUND
+     * @variable
+     */
+
     void ScriptSysGameSysRegister(const ScriptLibContext& context)
     {
         lua_State* L = context.m_LuaState;
@@ -216,6 +334,16 @@ namespace dmGameSystem
         (void)top;
 
         luaL_register(L, "sys", ScriptImage_methods);
+
+    #define SETCONSTANT(name, val) \
+        lua_pushnumber(L, (lua_Number) val); \
+        lua_setfield(L, -2, #name);\
+
+        SETCONSTANT(REQUEST_STATUS_FINISHED,        REQUEST_STATUS_FINISHED);
+        SETCONSTANT(REQUEST_STATUS_ERROR_IO_ERROR,  REQUEST_STATUS_ERROR_IO_ERROR);
+        SETCONSTANT(REQUEST_STATUS_ERROR_NOT_FOUND, REQUEST_STATUS_ERROR_NOT_FOUND);
+    #undef SETCONSTANT
+
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
 
@@ -224,10 +352,11 @@ namespace dmGameSystem
         g_SysModule.m_LoadRequestsMutex = dmMutex::New();
     }
 
-    void ScriptSysGameSysUpdate(const ScriptLibContext& context)
+    bool ScriptSysGameSysUpdate(const ScriptLibContext& context)
     {
         dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
 
+        bool result = true;
         uint32_t request_count = g_SysModule.m_LoadRequests.Capacity();
         for (int i = 0; i < request_count; ++i)
         {
@@ -236,11 +365,13 @@ namespace dmGameSystem
             if (request)
             {
                 // If we tried to dispatch the request, but the queue was full, we try again
-                if (request->m_State == LuaRequest::STATE_INITALIZED)
+                if (request->m_Status == REQUEST_STATUS_INITALIZED)
                 {
                     DispatchRequest(request);
                 }
-                else if (request->m_State == LuaRequest::STATE_FINISHED)
+                else if (request->m_Status == REQUEST_STATUS_FINISHED        ||
+                         request->m_Status == REQUEST_STATUS_ERROR_NOT_FOUND ||
+                         request->m_Status == REQUEST_STATUS_ERROR_IO_ERROR)
                 {
                     dmLoadQueue::FreeLoad(g_SysModule.m_LoadQueue, request->m_Request);
 
@@ -249,18 +380,27 @@ namespace dmGameSystem
                         lua_State* L = dmScript::GetCallbackLuaContext(request->m_CallbackInfo);
                         DM_LUA_STACK_CHECK(L, 0);
 
-                        dmScript::LuaHBuffer luabuf(request->m_Payload, dmScript::OWNER_LUA);
-
+                        // callback has the format:
+                        // * function(self, request_id, status, buffer)
                         if (dmScript::SetupCallback(request->m_CallbackInfo))
                         {
-                            dmScript::PushBuffer(L, luabuf);
-                            dmScript::PushHash(L, request->m_PathHash);
-                            dmScript::PCall(L, 3, 0);
+                            int nargs = 3;
+                            lua_pushnumber(L, request->m_Handle);
+                            lua_pushinteger(L, request->m_Status);
+
+                            if (request->m_Status == REQUEST_STATUS_FINISHED)
+                            {
+                                dmScript::LuaHBuffer luabuf(request->m_Payload, dmScript::OWNER_LUA);
+                                dmScript::PushBuffer(L, luabuf);
+                                nargs++;
+                            }
+                            result &= dmScript::PCall(L, nargs, 0) == 0;
                             dmScript::TeardownCallback(request->m_CallbackInfo);
                         }
                         else
                         {
                             dmLogError("Failed to setup sys.load_buffer_async callback (has the calling script been destroyed?)");
+                            result = false;
                         }
                     }
 
@@ -272,6 +412,8 @@ namespace dmGameSystem
                 }
             }
         }
+
+        return result;
     }
 
     void ScriptSysGameSysFinalize(const ScriptLibContext& context)
