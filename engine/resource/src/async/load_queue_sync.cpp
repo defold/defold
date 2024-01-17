@@ -33,9 +33,10 @@ namespace dmLoadQueue
 
     struct Queue
     {
-        dmResource::HFactory m_Factory;
-        Request m_SingleBuffer;
-        Request* m_ActiveRequest;
+        dmResource::HFactory       m_Factory;
+        Request                    m_SingleBuffer;
+        Request*                   m_ActiveRequest;
+        dmResource::LoadBufferType m_LoadBuffer;
     };
 
     HQueue CreateQueue(dmResource::HFactory factory)
@@ -72,7 +73,17 @@ namespace dmLoadQueue
             return RESULT_INVALID_PARAM;
         }
 
-        load_result->m_LoadResult    = dmResource::LoadResource(queue->m_Factory, request->m_CanonicalPath, request->m_Name, buf, size);
+        if (request->m_PreloadInfo.m_LoadResourceFunction)
+        {
+            load_result->m_LoadResult = request->m_PreloadInfo.m_LoadResourceFunction(queue->m_Factory, request->m_CanonicalPath, request->m_Name, size, &queue->m_LoadBuffer, request->m_PreloadInfo.m_Context);
+            *buf = queue->m_LoadBuffer.Begin();
+            assert(queue->m_LoadBuffer.Size() == *size);
+        }
+        else
+        {
+            load_result->m_LoadResult = dmResource::LoadResource(queue->m_Factory, request->m_CanonicalPath, request->m_Name, buf, size);
+        }
+
         load_result->m_PreloadResult = dmResource::RESULT_PENDING;
         load_result->m_PreloadData   = 0;
 

@@ -30,6 +30,16 @@ extern "C"
 
 namespace dmGameSystem
 {
+    /*# System API documentation
+     *
+     * Functions and messages for using system resources, controlling the engine,
+     * error handling and debugging.
+     *
+     * @document
+     * @name System
+     * @namespace sys
+     */
+
     enum RequestStatus
     {
         REQUEST_STATUS_ERROR_IO_ERROR  = -2,
@@ -135,6 +145,49 @@ namespace dmGameSystem
 
         if (request->m_Request)
             request->m_Status = REQUEST_STATUS_PENDING;
+    }
+
+    // Assumes the g_SysModule.m_LoadRequestsMutex is held
+    static bool HandleCompletedRequest(LuaRequest* request)
+    {
+        dmLoadQueue::FreeLoad(g_SysModule.m_LoadQueue, request->m_Request);
+        bool result = true;
+
+        if (dmScript::IsCallbackValid(request->m_CallbackInfo))
+        {
+            lua_State* L = dmScript::GetCallbackLuaContext(request->m_CallbackInfo);
+            DM_LUA_STACK_CHECK(L, 0);
+
+            // callback has the format:
+            // * function(self, request_id, status, buffer)
+            if (dmScript::SetupCallback(request->m_CallbackInfo))
+            {
+                int nargs = 3;
+                lua_pushnumber(L, request->m_Handle);
+                lua_pushinteger(L, request->m_Status);
+
+                if (request->m_Status == REQUEST_STATUS_FINISHED)
+                {
+                    dmScript::LuaHBuffer luabuf(request->m_Payload, dmScript::OWNER_LUA);
+                    dmScript::PushBuffer(L, luabuf);
+                    nargs++;
+                }
+                result = dmScript::PCall(L, nargs, 0) == 0;
+                dmScript::TeardownCallback(request->m_CallbackInfo);
+            }
+            else
+            {
+                dmLogError("Failed to setup sys.load_buffer_async callback (has the calling script been destroyed?)");
+                result = false;
+            }
+        }
+
+        dmScript::DestroyCallback(request->m_CallbackInfo);
+        request->m_CallbackInfo = 0x0;
+
+        g_SysModule.m_LoadRequests.Release(request->m_Handle);
+        delete request;
+        return result;
     }
 
     /*# loads a buffer from a resource or disk path
@@ -294,7 +347,7 @@ namespace dmGameSystem
             request->m_Path         = path;
             request->m_PathHash     = path_hash;
             request->m_CallbackInfo = callback_info;
-            request->m_Status        = REQUEST_STATUS_INITALIZED;
+            request->m_Status       = REQUEST_STATUS_INITALIZED;
             request->m_Handle       = g_SysModule.m_LoadRequests.Put(request);
             request->m_Payload      = 0;
             DispatchRequest(request);
@@ -373,42 +426,17 @@ namespace dmGameSystem
                          request->m_Status == REQUEST_STATUS_ERROR_NOT_FOUND ||
                          request->m_Status == REQUEST_STATUS_ERROR_IO_ERROR)
                 {
-                    dmLoadQueue::FreeLoad(g_SysModule.m_LoadQueue, request->m_Request);
-
-                    if (dmScript::IsCallbackValid(request->m_CallbackInfo))
+                    result &= HandleCompletedRequest(request);
+                }
+                else
+                {
+                    void* buf;
+                    uint32_t size;
+                    dmLoadQueue::LoadResult load_result;
+                    if (dmLoadQueue::EndLoad(g_SysModule.m_LoadQueue, request->m_Request, &buf, &size, &load_result) == dmLoadQueue::RESULT_OK)
                     {
-                        lua_State* L = dmScript::GetCallbackLuaContext(request->m_CallbackInfo);
-                        DM_LUA_STACK_CHECK(L, 0);
-
-                        // callback has the format:
-                        // * function(self, request_id, status, buffer)
-                        if (dmScript::SetupCallback(request->m_CallbackInfo))
-                        {
-                            int nargs = 3;
-                            lua_pushnumber(L, request->m_Handle);
-                            lua_pushinteger(L, request->m_Status);
-
-                            if (request->m_Status == REQUEST_STATUS_FINISHED)
-                            {
-                                dmScript::LuaHBuffer luabuf(request->m_Payload, dmScript::OWNER_LUA);
-                                dmScript::PushBuffer(L, luabuf);
-                                nargs++;
-                            }
-                            result &= dmScript::PCall(L, nargs, 0) == 0;
-                            dmScript::TeardownCallback(request->m_CallbackInfo);
-                        }
-                        else
-                        {
-                            dmLogError("Failed to setup sys.load_buffer_async callback (has the calling script been destroyed?)");
-                            result = false;
-                        }
+                        HandleCompletedRequest(request);
                     }
-
-                    dmScript::DestroyCallback(request->m_CallbackInfo);
-                    request->m_CallbackInfo = 0x0;
-
-                    g_SysModule.m_LoadRequests.Release(request->m_Handle);
-                    delete request;
                 }
             }
         }
