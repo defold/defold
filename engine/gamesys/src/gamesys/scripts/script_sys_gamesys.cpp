@@ -437,7 +437,8 @@ namespace dmGameSystem
             }
         }
 
-        g_SysModule.m_Factory   = 0;
-        g_SysModule.m_LoadQueue = 0;
+        g_SysModule.m_Factory           = 0;
+        g_SysModule.m_LoadQueue         = 0;
+        g_SysModule.m_LoadRequestsMutex = 0;
     }
 }
