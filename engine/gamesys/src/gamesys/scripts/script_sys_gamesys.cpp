@@ -418,10 +418,10 @@ namespace dmGameSystem
 
     void ScriptSysGameSysFinalize(const ScriptLibContext& context)
     {
-        dmLoadQueue::DeleteQueue(g_SysModule.m_LoadQueue);
-        dmMutex::Delete(g_SysModule.m_LoadRequestsMutex);
-        g_SysModule.m_Factory   = 0;
-        g_SysModule.m_LoadQueue = 0;
+        if (g_SysModule.m_LoadQueue)
+            dmLoadQueue::DeleteQueue(g_SysModule.m_LoadQueue);
+        if (g_SysModule.m_LoadRequestsMutex)
+            dmMutex::Delete(g_SysModule.m_LoadRequestsMutex);
 
         for (int i = 0; i < g_SysModule.m_LoadRequests.Capacity(); ++i)
         {
@@ -436,5 +436,8 @@ namespace dmGameSystem
                 delete request;
             }
         }
+
+        g_SysModule.m_Factory   = 0;
+        g_SysModule.m_LoadQueue = 0;
     }
 }
