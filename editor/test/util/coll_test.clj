@@ -166,6 +166,31 @@
   (is (false? (coll/empty? (range 1))))
   (is (false? (coll/empty? (repeatedly 1 rand)))))
 
+(deftest not-empty-test
+  (is (nil? (coll/not-empty nil)))
+  (is (nil? (coll/not-empty "")))
+  (is (nil? (coll/not-empty [])))
+  (is (nil? (coll/not-empty (vector-of :long))))
+  (is (nil? (coll/not-empty '())))
+  (is (nil? (coll/not-empty {})))
+  (is (nil? (coll/not-empty #{})))
+  (is (nil? (coll/not-empty (sorted-map))))
+  (is (nil? (coll/not-empty (sorted-set))))
+  (is (nil? (coll/not-empty (range 0))))
+  (is (nil? (coll/not-empty (repeatedly 0 rand))))
+  (letfn [(returns-input? [input]
+            (identical? input (coll/not-empty input)))]
+    (is (returns-input? "a"))
+    (is (returns-input? [1]))
+    (is (returns-input? (vector-of :long 1)))
+    (is (returns-input? '(1)))
+    (is (returns-input? {:a 1}))
+    (is (returns-input? #{1}))
+    (is (returns-input? (sorted-map :a 1)))
+    (is (returns-input? (sorted-set 1)))
+    (is (returns-input? (range 1)))
+    (is (returns-input? (repeatedly 1 rand)))))
+
 (deftest pair-map-by-test
   (testing "Works as a transducer"
     (let [result (into (sorted-map)

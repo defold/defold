@@ -917,7 +917,7 @@ ordinary paths."
           (g/make-nodes graph
             [workspace [Workspace
                         :root (.getCanonicalPath (io/file project-path))
-                        :resource-snapshot (resource-watch/empty-snapshot)
+                        :resource-snapshot resource-watch/empty-snapshot
                         :view-types {:default {:id :default}}
                         :resource-listeners (atom [])
                         :build-settings build-settings

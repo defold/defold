@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty?])
+  (:refer-clojure :exclude [bounded-count empty? not-empty])
   (:import [clojure.lang IEditableCollection MapEntry]))
 
 (set! *warn-on-reflection* true)
@@ -123,6 +123,13 @@
 
     :else
     (not (seq coll))))
+
+(defn not-empty
+  "Like core.not-empty, but avoids generating garbage for counted collections."
+  [coll]
+  (if (empty? coll)
+    nil
+    coll))
 
 (def into-set (fnil into #{}))
 

@@ -20,7 +20,7 @@
             [editor.core :as core]
             [editor.fs :as fs]
             [schema.core :as s]
-            [util.coll :refer [pair]]
+            [util.coll :refer [pair] :as coll]
             [util.digest :as digest]
             [util.fn :as fn]
             [util.text-util :as text-util])
@@ -363,7 +363,9 @@
          zip-uri (.toURI zip-file)]
      {:tree (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
                  (mapv (fn [x] (->zip-resources workspace zip-uri "" x))))
-      :crc (into {} (map (juxt (fn [e] (str "/" (:path e))) :crc) entries))})))
+      :crc (into {}
+                 (map (juxt #(str "/" (:path %)) :crc))
+                 entries)})))
 
 (g/defnode ResourceNode
   (property resource Resource :unjammable
@@ -372,17 +374,17 @@
 (defn base-name ^String [resource]
   (FilenameUtils/getBaseName (resource-name resource)))
 
-(defn- seq-children [resource]
-  (seq (children resource)))
+(defn- non-empty-children [resource]
+  (coll/not-empty (children resource)))
 
 (defn resource-seq [root]
-  (tree-seq seq-children seq-children root))
+  (tree-seq non-empty-children non-empty-children root))
 
-(defn resource-list-seq [resource-list]
-  (apply concat (map resource-seq resource-list)))
+(def xform-recursive-resources
+  (mapcat resource-seq))
 
 (defn resource-map [roots]
-  (into {} (map (juxt proj-path identity) roots)))
+  (coll/pair-map-by proj-path roots))
 
 (defn resource->proj-path [resource]
   (if resource
