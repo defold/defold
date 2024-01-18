@@ -1236,6 +1236,9 @@
 (defmethod edit-resource-node "render" [resource-node-id]
   (g/set-property resource-node-id :script nil))
 
+(defmethod edit-resource-node "render_target" [resource-node-id]
+  (g/update-property resource-node-id :attachment-count type-preserving-add 1))
+
 (defmethod edit-resource-node "settings" [resource-node-id]
   (update-setting resource-node-id ["liveupdate" "zip-filepath"] str \_))
 
