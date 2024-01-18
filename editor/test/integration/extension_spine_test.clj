@@ -65,8 +65,8 @@
                 main-collection (test-util/resource-node project main-collection-resource)
                 main-gui (test-util/resource-node project main-gui-resource)]
             (testing "Without the extension, resources with embedded Spine data cannot be edited."
-              (is (resource-node/defective? main-collection))
-              (is (resource-node/defective? main-gui)))
+              (is (g/defective? main-collection))
+              (is (g/defective? main-gui)))
             (testing "Without the extension, resources with embedded Spine data aren't connected to the save-data system, and cannot be corrupted by save."
               (is (not-any? #{main-collection-resource main-gui-resource}
                             (map :resource (project/all-save-data project)))))
@@ -112,8 +112,8 @@
             ;; should still report build errors for legacy Spine JSON data that
             ;; is referenced by Spine Scenes.
             (testing "With the extension, resources with embedded Spine data can be edited."
-              (is (not (resource-node/defective? main-collection)))
-              (is (not (resource-node/defective? main-gui)))
+              (is (not (g/defective? main-collection)))
+              (is (not (g/defective? main-gui)))
               (is (not (g/error? (g/node-value main-collection :node-outline))))
               (is (not (g/error? (g/node-value main-collection :save-data))))
               (is (not (g/error? (g/node-value main-gui :node-outline))))

@@ -175,11 +175,6 @@
                 (g/node-instance*? resource/ResourceNode node))
        (resource-node-resource basis node)))))
 
-(defn defective? [resource-node-id]
-  (let [value (g/node-value resource-node-id :valid-node-id+type+resource)]
-    (and (g/error? value)
-         (g/error-fatal? value))))
-
 (defn dirty?
   ([resource-node-id]
    (g/valid-node-value resource-node-id :dirty))

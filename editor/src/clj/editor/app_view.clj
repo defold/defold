@@ -2003,7 +2003,7 @@ If you do not specifically require different script states, consider changing th
                               (placeholder-resource/view-type workspace)
                               (first (:view-types resource-type)))
                             text-view-type)]
-     (if (resource-node/defective? resource-node)
+     (if (g/defective? resource-node)
        (do (dialogs/make-info-dialog
              {:title "Unable to Open Resource"
               :icon :icon/triangle-error
