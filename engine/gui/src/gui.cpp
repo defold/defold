@@ -74,6 +74,8 @@ namespace dmGui
     const uint64_t INDEX_SHIFT = 0;
     const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
+    // Counter used when assigning an id to a cloned node
+    static uint32_t g_ClonedNodeCount = 0;
 
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
@@ -186,6 +188,7 @@ namespace dmGui
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
+        context->m_HidContext = params->m_HidContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
         context->m_ScratchBoneNodes.SetCapacity(32);
 
@@ -4236,10 +4239,15 @@ namespace dmGui
         InternalNode* out_n = &scene->m_Nodes[index];
         memset(out_n, 0, sizeof(InternalNode));
 
+        // generate a name for the cloned node
+        char name[18];
+        dmSnPrintf(name, 18, "__node%d", g_ClonedNodeCount++);
+
         InternalNode* n = GetNode(scene, node);
         out_n->m_Node = n->m_Node;
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
+        out_n->m_NameHash = dmHashString64(name);
         out_n->m_Version = version;
         out_n->m_Index = index;
         out_n->m_SceneTraversalCacheVersion = INVALID_INDEX;

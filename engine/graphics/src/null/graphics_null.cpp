@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -485,12 +485,28 @@ namespace dmGraphics
         s.m_Source = 0x0;
     }
 
-    static void NullEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
+    static void NullEnableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer, uint32_t binding_index)
     {
-        assert(context);
+        NullContext* context = (NullContext*) _context;
+        context->m_VertexBuffer = vertex_buffer;
+    }
+
+    static void NullDisableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer)
+    {
+        NullContext* context = (NullContext*) _context;
+        context->m_VertexBuffer = 0;
+    }
+
+    void EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index)
+    {
+        assert(_context);
         assert(vertex_declaration);
-        assert(vertex_buffer);
-        VertexBuffer* vb = (VertexBuffer*)vertex_buffer;
+
+        NullContext* context = (NullContext*) _context;
+
+        VertexBuffer* vb = (VertexBuffer*) context->m_VertexBuffer;
+        assert(vb);
+
         uint16_t stride = 0;
 
         for (uint32_t i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
@@ -510,9 +526,9 @@ namespace dmGraphics
         }
     }
 
-    static void NullEnableVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void NullEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
-        NullEnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
+        EnableVertexDeclaration(context, vertex_declaration, binding_index);
     }
 
     static void NullDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
@@ -599,6 +615,11 @@ namespace dmGraphics
     }
 
     // For tests
+    void ResetDrawCount()
+    {
+        g_DrawCount = 0;
+    }
+
     uint64_t GetDrawCount()
     {
         return g_DrawCount;

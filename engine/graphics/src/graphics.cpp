@@ -1049,13 +1049,9 @@ namespace dmGraphics
     {
         g_functions.m_DeleteVertexDeclaration(vertex_declaration);
     }
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
-        g_functions.m_EnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
-    }
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
-    {
-        g_functions.m_EnableVertexDeclarationProgram(context, vertex_declaration, vertex_buffer, program);
+        g_functions.m_EnableVertexDeclaration(context, vertex_declaration, binding_index, program);
     }
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
@@ -1068,6 +1064,14 @@ namespace dmGraphics
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
     {
         return g_functions.m_GetVertexDeclarationStride(vertex_declaration);
+    }
+    void EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index)
+    {
+        return g_functions.m_EnableVertexBuffer(context, vertex_buffer, binding_index);
+    }
+    void DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer)
+    {
+        g_functions.m_DisableVertexBuffer(context, vertex_buffer);
     }
     uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash)
     {

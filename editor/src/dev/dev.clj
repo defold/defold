@@ -21,6 +21,7 @@
             [editor.console :as console]
             [editor.curve-view :as curve-view]
             [editor.defold-project :as project]
+            [editor.math :as math]
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
@@ -29,8 +30,9 @@
             [internal.node :as in]
             [internal.system :as is]
             [internal.util :as util]
-            [util.coll :refer [pair]])
-  (:import [internal.graph.types Arc]
+            [util.coll :as coll :refer [pair]])
+  (:import [com.defold.util WeakInterner]
+           [internal.graph.types Arc]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
            [javafx.stage Window]))
@@ -611,3 +613,72 @@
                            :node-count (node-type-freqs node-type)})
                         dangling-outputs)))
          pprint/print-table)))
+
+(defn weak-interner-info [^WeakInterner weak-interner]
+  (into {}
+        (map (fn [[key value]]
+               (let [keyword-key (keyword key)]
+                 (pair keyword-key
+                       (case keyword-key
+                         :hash-table (mapv (fn [entry-info]
+                                             (when entry-info
+                                               (into {}
+                                                     (map (fn [[key value]]
+                                                            (let [keyword-key (keyword key)]
+                                                              (pair keyword-key
+                                                                    (case keyword-key
+                                                                      :status (keyword value)
+                                                                      value)))))
+                                                     entry-info)))
+                                           value)
+                         value)))))
+        (.getDebugInfo weak-interner)))
+
+(defn weak-interner-stats [^WeakInterner weak-interner]
+  (let [info (weak-interner-info weak-interner)
+        hash-table (:hash-table info)
+        entry-count (:count info)
+        capacity (count hash-table)
+        occupancy-factor (/ (double entry-count) (double capacity))
+
+        next-capacity
+        (util/first-where
+          #(< capacity %)
+          (:growth-sequence info))
+
+        attempt-frequencies
+        (->> hash-table
+             (keep :attempt)
+             (frequencies)
+             (into (sorted-map-by coll/descending-order)))
+
+        elapsed-nanosecond-values
+        (keep :elapsed hash-table)
+
+        median-elapsed-nanoseconds
+        (if (empty? elapsed-nanosecond-values)
+          0
+          (->> elapsed-nanosecond-values
+               (math/median)
+               (long)))
+
+        max-elapsed-nanoseconds
+        (if (empty? elapsed-nanosecond-values)
+          0
+          (->> elapsed-nanosecond-values
+               (reduce max Long/MIN_VALUE)))]
+
+    {:count entry-count
+     :capacity capacity
+     :next-capacity next-capacity
+     :growth-threshold (:growth-threshold info)
+     :occupancy-factor (math/round-with-precision occupancy-factor math/precision-general)
+     :median-elapsed-nanoseconds median-elapsed-nanoseconds
+     :max-elapsed-nanoseconds max-elapsed-nanoseconds
+     :attempt-frequencies attempt-frequencies}))
+
+(defn endpoint-interner-stats []
+  ;; Trigger a GC and give it a moment to clear out unused weak references.
+  (System/gc)
+  (Thread/sleep 500)
+  (weak-interner-stats gt/endpoint-interner))

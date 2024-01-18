@@ -98,6 +98,7 @@ namespace dmGraphics
         VertexStreamBuffer                 m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         dmVMath::Vector4                   m_ProgramRegisters[MAX_REGISTER_COUNT];
         HTexture                           m_Textures[MAX_TEXTURE_COUNT];
+        HVertexBuffer                      m_VertexBuffer;
         FrameBuffer                        m_MainFrameBuffer;
         FrameBuffer*                       m_CurrentFrameBuffer;
         void*                              m_Program;

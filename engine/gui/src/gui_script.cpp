@@ -3301,7 +3301,9 @@ namespace dmGui
     }
 
     /*# clone a node
-     * Make a clone instance of a node.
+     * Make a clone instance of a node. The cloned node will be identical to the
+     * original node, except the id which is generated as the string "node" plus
+     * a sequential unsigned integer value.
      * This function does not clone the supplied node's children nodes.
      * Use gui.clone_tree for that purpose.
      *

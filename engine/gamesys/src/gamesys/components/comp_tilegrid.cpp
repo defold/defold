@@ -129,6 +129,7 @@ namespace dmGameSystem
 
         uint32_t                        m_MaxTilemapCount;
         uint32_t                        m_MaxTileCount;
+        uint32_t                        m_DispatchCount;
     };
 
     static void TileGridWorldAllocate(TileGridWorld* world)
@@ -514,6 +515,7 @@ namespace dmGameSystem
         TilemapContext* context = (TilemapContext*)params.m_Context;
         dmRender::TrimBuffer(context->m_RenderContext, world->m_VertexBuffer);
         dmRender::RewindBuffer(context->m_RenderContext, world->m_VertexBuffer);
+        world->m_DispatchCount = 0;
 
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -648,9 +650,14 @@ namespace dmGameSystem
         TileGridVertex* vb_begin = world->m_VertexBufferWritePtr;
         world->m_VertexBufferWritePtr = CreateVertexData(world, vb_begin, texture_set, buf, begin, end);
 
+        if (dmRender::GetBufferIndex(render_context, world->m_VertexBuffer) < world->m_DispatchCount)
+        {
+            dmRender::AddRenderBuffer(render_context, world->m_VertexBuffer);
+        }
+
         ro.Init();
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
-        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::AddRenderBuffer(render_context, world->m_VertexBuffer);
+        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_VertexBuffer);
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - world->m_VertexBufferData;
         ro.m_VertexCount = (world->m_VertexBufferWritePtr - vb_begin);
@@ -716,6 +723,8 @@ namespace dmGameSystem
                 DM_PROPERTY_ADD_U32(rmtp_TilemapTileCount, vertex_count/6);
                 DM_PROPERTY_ADD_U32(rmtp_TilemapVertexCount, vertex_count);
                 DM_PROPERTY_ADD_U32(rmtp_TilemapVertexSize, vertex_count * sizeof(TileGridVertex));
+
+                world->m_DispatchCount++;
             }
             break;
 

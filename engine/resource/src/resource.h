@@ -42,6 +42,8 @@ namespace dmResource
     // This is both for the total resource path, ie m_UriParts.X concatenated with relative path
     const uint32_t RESOURCE_PATH_MAX = 1024;
 
+    const uint16_t RESOURCE_VERSION_INVALID = 0xFFFF;
+
     /**
      * Configuration key used to tweak the max number of resources allowed.
      */
@@ -276,6 +278,15 @@ namespace dmResource
      * @param resource Resource
      */
     void IncRef(HFactory factory, void* resource);
+
+    /**
+     * Get the resource version. The resource version is a sequential serial number
+     * that increases with every resource insertion into the resource system.
+     * This is useful for checking resource validity for resource pointers.
+     * @param factory Factory handle
+     * @param resource Resource
+     */
+    uint16_t GetVersion(HFactory factory, void* resource);
 
     /**
      * Create a new preloader

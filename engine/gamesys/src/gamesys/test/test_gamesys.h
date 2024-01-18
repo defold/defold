@@ -27,6 +27,7 @@
 #include "gamesys/scripts/script_buffer.h"
 #include "../components/comp_gui_private.h" // BoxVertex
 #include "../components/comp_gui.h" // The GuiGetURLCallback et.al
+#include "../../../../graphics/src/graphics_private.h" // for unit test functions
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
@@ -87,7 +88,7 @@ protected:
     virtual void TearDown();
     void SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx);
 
-    void WaitForTestsDone(int update_count, bool* result);
+    void WaitForTestsDone(int update_count, bool render, bool* result);
 
     dmGameObject::UpdateContext m_UpdateContext;
     dmGameObject::HRegister m_Register;
@@ -415,8 +416,19 @@ void GamesysTest<T>::SetUp()
     m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
 
+    dmGraphics::InstallAdapter();
+
+    dmPlatform::WindowParams win_params = {};
+    m_Window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(m_Window, win_params);
+
+    m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+    dmHID::Init(m_HidContext);
+    dmHID::SetWindow(m_HidContext, m_Window);
+
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
+    gui_params.m_HidContext = m_HidContext;
     gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
     gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
     gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
@@ -433,11 +445,7 @@ void GamesysTest<T>::SetUp()
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
     dmGraphics::InstallAdapter();
-
-    dmPlatform::WindowParams win_params = {};
-
-    m_Window = dmPlatform::NewWindow();
-    dmPlatform::OpenWindow(m_Window, win_params);
+    dmGraphics::ResetDrawCount(); // for the unit test
 
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_Window = m_Window;
@@ -451,8 +459,6 @@ void GamesysTest<T>::SetUp()
     render_params.m_MaxCharacters = 256;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
 
-    m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
-    dmHID::Init(m_HidContext);
     dmInput::NewContextParams input_params;
     input_params.m_HidContext = m_HidContext;
     input_params.m_RepeatDelay = 0.3f;
@@ -569,27 +575,38 @@ void GamesysTest<T>::TearDown()
 }
 
 template<typename T>
-void GamesysTest<T>::WaitForTestsDone(int update_count, bool* result)
+void GamesysTest<T>::WaitForTestsDone(int update_count, bool render, bool* result)
 {
     if (result)
         *result = false;
 
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     bool tests_done = false;
-    while (!tests_done && --update_count > 0)
+    int count = update_count;
+    while (!tests_done && --count > 0)
     {
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
-        dmRender::RenderListBegin(m_RenderContext);
-        dmGameObject::Render(m_Collection);
+        if (render)
+        {
+            dmRender::RenderListBegin(m_RenderContext);
+            dmGameObject::Render(m_Collection);
+
+            dmRender::RenderListEnd(m_RenderContext);
+            dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+        }
 
         // check if tests are done
         lua_getglobal(L, "tests_done");
         tests_done = lua_toboolean(L, -1);
         lua_pop(L, 1);
     }
-    ASSERT_LT(0, update_count);
+    if (count >= 0)
+    {
+        dmLogError("Waited %d frames for test to finish. Aborting.", update_count);
+    }
+    ASSERT_LT(0, count);
 
     if (!result)
     {

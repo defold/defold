@@ -33,6 +33,8 @@ import com.dynamo.gamesys.proto.ModelProto.Material;
 import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
 import com.dynamo.gamesys.proto.ModelProto.Texture;
+import com.dynamo.graphics.proto.Graphics.VertexAttribute;
+import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.google.protobuf.TextFormat;
 
@@ -80,8 +82,11 @@ public class ModelBuilder extends Builder<Void> {
                                                         String.format("Failed to create build task for component '%s'", res.getPath()));
                     }
                 }
+
+                IResource materialOutput = this.project.getResource(material.getMaterial()).changeExt(".materialc");
+                taskBuilder.addInput(materialOutput);
             }
-        } else { 
+        } else {
             // Deprecated workflow
             for (String t : modelDescBuilder.getTexturesList()) {
                 if (t.isEmpty())
@@ -95,7 +100,13 @@ public class ModelBuilder extends Builder<Void> {
                                                     String.format("Failed to create build task for component '%s'", res.getPath()));
                 }
             }
+
+            if (!modelDescBuilder.getMaterial().isEmpty()) {
+                IResource materialOutput = this.project.getResource(modelDescBuilder.getMaterial()).changeExt(".materialc");
+                taskBuilder.addInput(materialOutput);
+            }
         }
+
         return taskBuilder.build();
     }
 
@@ -145,7 +156,7 @@ public class ModelBuilder extends Builder<Void> {
             for (Material material : modelDescBuilder.getMaterialsList()) {
                 Material.Builder materialBuilder = Material.newBuilder();
 
-                BuilderUtil.checkResource(this.project, resource, "material", material.getMaterial());
+                IResource materialSourceResource = BuilderUtil.checkResource(this.project, resource, "material", material.getMaterial());
                 materialBuilder.setName(material.getName());
                 materialBuilder.setMaterial(BuilderUtil.replaceExt(material.getMaterial(), ".material", ".materialc"));
 
@@ -159,6 +170,25 @@ public class ModelBuilder extends Builder<Void> {
                 }
 
                 materialBuilder.addAllTextures(texturesList);
+
+                IResource materialBuildResource            = materialSourceResource.changeExt(".materialc");
+                MaterialDesc.Builder materialSourceBuilder = MaterialDesc.newBuilder();
+                materialSourceBuilder.mergeFrom(materialBuildResource.getContent());
+
+                List<VertexAttribute> materialAttributes      = materialSourceBuilder.getAttributesList();
+                List<VertexAttribute> modelAttributeOverrides = new ArrayList<VertexAttribute>();
+
+                for (int i=0; i < material.getAttributesCount(); i++) {
+                    VertexAttribute modelAttribute    = material.getAttributes(i);
+                    VertexAttribute materialAttribute = GraphicsUtil.getAttributeByName(materialAttributes, modelAttribute.getName());
+
+                    if (materialAttribute != null) {
+                        modelAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(modelAttribute, materialAttribute));
+                    }
+                }
+
+                materialBuilder.addAllAttributes(modelAttributeOverrides);
+
                 model.addMaterials(materialBuilder);
             }
         } else {

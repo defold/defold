@@ -254,6 +254,9 @@ namespace dmGameSystem
 
             info.m_Name = strdup(model_material->m_Name);
 
+            info.m_Attributes = model_material->m_Attributes.m_Data;
+            info.m_AttributeCount = model_material->m_Attributes.m_Count;
+
             // Currently, we don't support overriding the textures per-material on the model level
 
             // While the material may use less samplers than the model has textures,
@@ -273,6 +276,11 @@ namespace dmGameSystem
                 }
 
                 texture_info->m_SamplerNameHash = dmHashString64(texture->m_Sampler);
+                if (!texture_info->m_SamplerNameHash) // old content
+                {
+                    // Then we'll fallback to using the order of each sampler
+                    texture_info->m_SamplerNameHash = dmRender::GetMaterialSamplerNameHash(info.m_Material->m_Material, t);
+                }
             }
 
             // We need to sort the textures on sampler units
