@@ -16,6 +16,8 @@
   (:require [editor.build-target :as bt]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
+            [editor.gl.texture :as texture]
+            [editor.material :as material]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
@@ -89,6 +91,9 @@
       :build-fn build-render-target
       :user-data {:pb-msg pb-msg}})])
 
+(defn- generate-gpu-texture [args request-id params unit]
+  (texture/image-texture request-id nil))
+
 (g/defnode RenderTargetNode
   (inherits resource-node/ResourceNode)
 
@@ -102,6 +107,7 @@
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (output form-data g/Any produce-form-data)
+  (output gpu-texture-generator g/Any {:f generate-gpu-texture })
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-render-target [project self resource render-target]

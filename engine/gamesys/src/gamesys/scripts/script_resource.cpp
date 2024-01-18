@@ -1193,6 +1193,34 @@ static int SetTexture(lua_State* L)
  * end
  * ```
  */
+    
+static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
+{
+    uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
+    uint32_t texture_height              = dmGraphics::GetTextureHeight(texture_handle);
+    uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
+    uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
+    dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
+
+    lua_pushnumber(L, texture_handle);
+    lua_setfield(L, -2, "handle");
+
+    lua_pushinteger(L, texture_width);
+    lua_setfield(L, -2, "width");
+
+    lua_pushinteger(L, texture_height);
+    lua_setfield(L, -2, "height");
+
+    lua_pushinteger(L, texture_depth);
+    lua_setfield(L, -2, "depth");
+
+    lua_pushinteger(L, texture_mipmaps);
+    lua_setfield(L, -2, "mipmaps");
+
+    lua_pushinteger(L, texture_type);
+    lua_setfield(L, -2, "type");
+}
+
 static int GetTextureInfo(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -1223,36 +1251,35 @@ static int GetTextureInfo(lua_State* L)
         return luaL_error(L, "Asset handle is not a texture");
     }
 
-    uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
-    uint32_t texture_height              = dmGraphics::GetTextureHeight(texture_handle);
-    uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
-    uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
-    dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
-
     lua_newtable(L);
-
-    lua_pushnumber(L, texture_handle);
-    lua_setfield(L, -2, "handle");
-
-    lua_pushinteger(L, texture_width);
-    lua_setfield(L, -2, "width");
-
-    lua_pushinteger(L, texture_height);
-    lua_setfield(L, -2, "height");
-
-    lua_pushinteger(L, texture_depth);
-    lua_setfield(L, -2, "depth");
-
-    lua_pushinteger(L, texture_mipmaps);
-    lua_setfield(L, -2, "mipmaps");
-
-    lua_pushinteger(L, texture_type);
-    lua_setfield(L, -2, "type");
+    PushTextureInfo(L, texture_handle);
 
     assert((top + 1) == lua_gettop(L));
     return 1;
 }
 
+/*# get render target info
+ * Gets render target info from a render target resource path or a render target handle
+ *
+ * @name resource.get_render_target_info
+ *
+ * @param path [type:hash|string|handle] The path to the resource or a render target handle
+ * @return table [type:table] A table containing info about the render target:
+ *
+ * `handle`
+ * : [type:handle] the opaque handle to the texture resource
+ *
+ * 'attachments'
+ * : [type:table] a table of attachments, where each attachment contains the following entries:
+ *
+ * @examples
+ * Create a new texture and get the metadata from it
+ *
+ * ```lua
+ * function init(self)
+ * end
+ * ```
+ */
 static int GetRenderTargetInfo(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -1292,16 +1319,30 @@ static int GetRenderTargetInfo(lua_State* L)
 
     lua_newtable(L);
 
+    lua_pushnumber(L, rt_handle);
+    lua_setfield(L, -2, "handle");
+
+    lua_pushliteral(L, "attachments");
+    lua_newtable(L);
+
     for (int i = 0; i < dmGraphics::MAX_ATTACHMENT_COUNT; ++i)
     {
         dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, color_buffer_flags[i]);
         if (t)
         {
+            lua_pushinteger(L, (lua_Integer) (i+1));
+            lua_newtable(L);
+            
+            PushTextureInfo(L, t);
+
             lua_pushinteger(L, color_buffer_flags[i]);
-            lua_pushnumber(L, t);
+            lua_setfield(L, -2, "buffer_type");
+
             lua_rawset(L, -3);
         }
     }
+
+    lua_rawset(L, -3);
 
     assert((top + 1) == lua_gettop(L));
     return 1;
