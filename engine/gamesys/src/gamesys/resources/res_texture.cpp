@@ -353,7 +353,9 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, (ImageDesc*) params.m_PreloadData, upload_params, 0, &texture);
         if (r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*) NewTextureResource(texture);
+            TextureResource* texture_res = new TextureResource();
+            texture_res->m_Texture = texture;
+            params.m_Resource->m_Resource = texture_res;
         }
         return r;
     }

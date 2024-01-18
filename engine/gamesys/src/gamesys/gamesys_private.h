@@ -93,10 +93,6 @@ namespace dmGameSystem
      * @param format printf-style format string
      */
     void LogMessageError(dmMessage::Message* message, const char* format, ...);
-
-    struct TextureResource;
-    TextureResource* NewTextureResource(dmGraphics::HTexture texture);
-    TextureResource* NewRenderTargetResource(dmGraphics::HRenderTarget render_target);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

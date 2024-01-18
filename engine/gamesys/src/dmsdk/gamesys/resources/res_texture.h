@@ -21,13 +21,7 @@ namespace dmGameSystem
 {
     struct TextureResource
     {
-        union
-        {
-            dmGraphics::HTexture      m_Texture;
-            dmGraphics::HRenderTarget m_RenderTarget;
-        };
-
-        uint8_t m_IsRenderTarget : 1;
+        dmGraphics::HAssetHandle m_Texture;
     };
 
     dmGraphics::HTexture GetTexture(TextureResource* texture_resource);

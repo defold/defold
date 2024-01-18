@@ -1270,7 +1270,7 @@ static int GetRenderTargetInfo(lua_State* L)
     {
         dmhash_t path_hash      = dmScript::CheckHashOrString(L, 1);
         TextureResource* rt_res = (TextureResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "render_targetc");
-        rt_handle               = rt_res->m_RenderTarget;
+        rt_handle               = rt_res->m_Texture;
 
         if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, rt_handle))
         {

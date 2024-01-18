@@ -121,12 +121,8 @@ namespace dmGameSystem
         dmDDF::FreeMessage(ddf);
 
         dmGraphics::HRenderTarget rt = dmGraphics::NewRenderTarget(dmRender::GetGraphicsContext(render_context), buffer_type_flags, rt_params);
-        TextureResource* rt_resource = NewRenderTargetResource(rt);
-
-        if (!rt_resource->m_RenderTarget)
-        {
-            return dmResource::RESULT_NOT_SUPPORTED;
-        }
+        TextureResource* rt_resource = new TextureResource();
+        rt_resource->m_Texture       = rt;
 
         dmResource::SetResource(params.m_Resource, (void*) rt_resource);
         return dmResource::RESULT_OK;
@@ -134,10 +130,9 @@ namespace dmGameSystem
 
     dmResource::Result ResRenderTargetDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        TextureResource* rt_resource = (TextureResource*)dmResource::GetResource(params.m_Resource);
-        assert(rt_resource->m_IsRenderTarget);
-
-        dmGraphics::DeleteRenderTarget(rt_resource->m_RenderTarget);
+        TextureResource* rt_resource = (TextureResource*) dmResource::GetResource(params.m_Resource);
+        assert(dmGraphics::GetAssetType(rt_resource->m_Texture) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        dmGraphics::DeleteRenderTarget(rt_resource->m_Texture);
 
         delete rt_resource;
         return dmResource::RESULT_OK;
@@ -159,14 +154,14 @@ namespace dmGameSystem
         GetRenderTargetParams(ddf, buffer_type_flags, rt_params);
         dmDDF::FreeMessage(ddf);
 
-        if (rt_resource->m_RenderTarget)
+        if (rt_resource->m_Texture)
         {
-            dmGraphics::DeleteRenderTarget(rt_resource->m_RenderTarget);
+            dmGraphics::DeleteRenderTarget(rt_resource->m_Texture);
         }
 
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
 
-        rt_resource->m_RenderTarget = dmGraphics::NewRenderTarget(
+        rt_resource->m_Texture = dmGraphics::NewRenderTarget(
             dmRender::GetGraphicsContext(render_context),
             buffer_type_flags,
             rt_params);

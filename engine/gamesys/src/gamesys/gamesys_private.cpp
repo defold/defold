@@ -78,27 +78,11 @@ namespace dmGameSystem
     {
         if (texture_resource)
         {
-            if (texture_resource->m_IsRenderTarget)
-                return dmGraphics::GetRenderTargetTexture(texture_resource->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+            if (dmGraphics::GetAssetType(texture_resource->m_Texture) == dmGraphics::ASSET_TYPE_RENDER_TARGET)
+                return dmGraphics::GetRenderTargetTexture(texture_resource->m_Texture, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
             return texture_resource->m_Texture;
         }
         return 0;
-    }
-
-    TextureResource* NewTextureResource(dmGraphics::HTexture texture)
-    {
-        TextureResource* res  = new TextureResource();
-        res->m_Texture        = texture;
-        res->m_IsRenderTarget = 0;
-        return res;
-    }
-
-    TextureResource* NewRenderTargetResource(dmGraphics::HRenderTarget render_target)
-    {
-        TextureResource* res  = new TextureResource();
-        res->m_RenderTarget   = render_target;
-        res->m_IsRenderTarget = 1;
-        return res;
     }
 
     dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, dmGameObject::PropertyDesc& out_desc,

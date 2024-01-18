@@ -98,7 +98,7 @@ namespace dmGameSystem
             {
                 for (uint32_t i = 0; i < prototype->m_RenderTargets.Size(); ++i)
                 {
-                    dmRender::AddRenderScriptInstanceRenderTarget(prototype->m_Instance, prototype_desc->m_RenderTargets[i].m_Name, prototype->m_RenderTargets[i]->m_RenderTarget);
+                    dmRender::AddRenderScriptInstanceRenderTarget(prototype->m_Instance, prototype_desc->m_RenderTargets[i].m_Name, prototype->m_RenderTargets[i]->m_Texture);
                 }
             }
         }
