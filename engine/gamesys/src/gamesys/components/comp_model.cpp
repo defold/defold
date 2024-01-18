@@ -59,7 +59,6 @@ namespace dmGameSystem
     using namespace dmGameSystemDDF;
 
     static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED = 0xffff;
-    static const uint8_t MAX_MATERIAL_INDEX = 0xff;
 
     struct MeshAttributeRenderData
     {
@@ -77,10 +76,10 @@ namespace dmGameSystem
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
         uint32_t                    m_BoneIndex;
-        uint32_t                    m_MaterialIndex : 8; // current max 256 materials per model
+        uint32_t                    m_MaterialIndex;
         uint32_t                    m_Enabled : 1;
         uint32_t                    m_AttributeRenderDataIndex : 16;
-        uint32_t                    : 7;
+        uint32_t                    : 15;
     };
 
     struct ModelComponent
@@ -631,11 +630,6 @@ namespace dmGameSystem
             item.m_Enabled = 1;
             item.m_BoneIndex = dmRig::INVALID_BONE_INDEX;
             item.m_AttributeRenderDataIndex = ATTRIBUTE_RENDER_DATA_INDEX_UNUSED;
-
-            if (resource->m_Meshes[i].m_Mesh->m_MaterialIndex > MAX_MATERIAL_INDEX)
-            {
-                dmLogWarning("Max material limit reached per model component (%d), there is no way to change this value.", MAX_MATERIAL_INDEX);
-            }
 
             // This model is a child under a bone, but isn't actually skinned
             if (item.m_Model->m_BoneId && bone_id_to_indices)
