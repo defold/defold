@@ -41,6 +41,7 @@ import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.Tile.TileSet;
 import com.google.protobuf.TextFormat;
+import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 
 @BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".t.texturesetc")
 public class TileSetBuilder extends Builder<Void>  {
@@ -64,7 +65,11 @@ public class TileSetBuilder extends Builder<Void>  {
             String texturePath = String.format("%s__%s_tilesource.%s", FilenameUtils.getPath(input.getPath()),
                     FilenameUtils.getBaseName(input.getPath()),
  "texturec");
-            taskBuilder.addOutput(input.getResource(texturePath).output());
+
+            if (!imgPath.endsWith("render_target")) {
+                taskBuilder.addOutput(input.getResource(texturePath).output());
+            }
+
             if (image.exists()) {
                 taskBuilder.addInput(image);
             }
@@ -104,16 +109,25 @@ public class TileSetBuilder extends Builder<Void>  {
         ProtoUtil.merge(task.input(0), builder);
         TileSet tileSet = builder.build();
 
-        String imgPath = tileSet.getImage();
+        String imgPath         = tileSet.getImage();
+        String collisionPath   = tileSet.getCollision();
 
-        String collisionPath = tileSet.getCollision();
-        IResource imageRes = this.project.getResource(imgPath);
+        IResource imageRes     = this.project.getResource(imgPath);
         IResource collisionRes = this.project.getResource(collisionPath);
 
         BufferedImage image = null;
-        if (imageRes.exists()) {
+
+        boolean isRenderTarget = false;
+
+        if (imgPath.endsWith("render_target")) {
+            RenderTargetDesc.Builder rtBuilder = RenderTargetDesc.newBuilder();
+            ProtoUtil.merge(imageRes, rtBuilder);
+            image = new BufferedImage(rtBuilder.getWidth(), rtBuilder.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            isRenderTarget = true;
+        } else if (imageRes.exists()) {
             image = ImageIO.read(new ByteArrayInputStream(imageRes.getContent()));
         }
+
         if (image != null && (image.getWidth() < tileSet.getTileWidth() || image.getHeight() < tileSet.getTileHeight())) {
             throw new CompileExceptionError(task.input(0), -1, String.format(
                     "the image dimensions (%dx%d) are smaller than the tile dimensions (%dx%d)", image.getWidth(),
@@ -130,31 +144,38 @@ public class TileSetBuilder extends Builder<Void>  {
             g2d.dispose();
         }
 
-        if (image != null && collisionImage != null
-                && (image.getWidth() != collisionImage.getWidth() || image.getHeight() != collisionImage.getHeight())) {
+        if (image != null && collisionImage != null && (image.getWidth() != collisionImage.getWidth() || image.getHeight() != collisionImage.getHeight())) {
             throw new CompileExceptionError(task.input(0), -1, String.format(
                     "the image and collision image has different dimensions: (%dx%d) vs (%dx%d)", image.getWidth(),
                     image.getHeight(), collisionImage.getWidth(), collisionImage.getHeight()));
         }
+
         if (collisionImage != null && !collisionImage.getColorModel().hasAlpha()) {
             throw new CompileExceptionError(task.input(0), -1, "the collision image does not have an alpha channel");
         }
+
         TextureSetResult result = TileSetGenerator.generate(tileSet, image, collisionImage);
         TextureSet.Builder textureSetBuilder = result.builder;
 
-        int buildDirLen = project.getBuildDirectory().length();
-        String texturePath = task.output(1).getPath().substring(buildDirLen);
-        TextureSet textureSet = textureSetBuilder.setTexture(texturePath).build();
+        TextureSet textureSet = null;
 
-        TextureImage texture;
-        try {
-            boolean compress = project.option("texture-compression", "false").equals("true");
-            texture = TextureGenerator.generate(result.images.get(0), texProfile, compress);
-        } catch (TextureGeneratorException e) {
-            throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+        if (isRenderTarget) {
+            textureSet = textureSetBuilder.setTexture(BuilderUtil.replaceExt(imgPath, ".render_target", ".render_targetc")).build();
+        } else {
+            int buildDirLen = project.getBuildDirectory().length();
+            String texturePath = task.output(1).getPath().substring(buildDirLen);
+            textureSet = textureSetBuilder.setTexture(texturePath).build();
+
+            TextureImage texture;
+            try {
+                boolean compress = project.option("texture-compression", "false").equals("true");
+                texture = TextureGenerator.generate(result.images.get(0), texProfile, compress);
+            } catch (TextureGeneratorException e) {
+                throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+            }
+            task.output(1).setContent(texture.toByteArray());
         }
 
         task.output(0).setContent(textureSet.toByteArray());
-        task.output(1).setContent(texture.toByteArray());
     }
 }

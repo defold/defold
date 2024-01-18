@@ -926,6 +926,7 @@
                             [idx (collision-group->node-id collision-group)])
                           convex-hulls))))
 
+;; Need to add support for setting render target properties here
 (defn- load-tile-source [project self resource tile-source]
   (let [image (workspace/resolve-resource resource (:image tile-source))
         collision (workspace/resolve-resource resource (:collision tile-source))
