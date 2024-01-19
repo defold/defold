@@ -446,12 +446,22 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor)
         {
+            dmGameSystemDDF::StopSound* stop_sound = (dmGameSystemDDF::StopSound*)params.m_Message->m_Data;
+            uint32_t play_id = stop_sound->m_PlayId;
             for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
             {
                 PlayEntry& entry = world->m_Entries[i];
                 if (entry.m_SoundInstance != 0 && entry.m_Sound == component->m_Resource && entry.m_Instance == params.m_Instance)
                 {
-                    entry.m_StopRequested = 1;
+                    if (play_id == dmSound::INVALID_PLAY_ID)
+                    {
+                        entry.m_StopRequested = 1;
+                    }
+                    else if (entry.m_PlayId == play_id)
+                    {
+                        entry.m_StopRequested = 1;
+                        break; 
+                    }
                 }
             }
         }
