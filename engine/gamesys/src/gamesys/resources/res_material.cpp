@@ -35,13 +35,6 @@ namespace dmGameSystem
                                                  dmGraphics::TEXTURE_WRAP_MIRRORED_REPEAT,
                                                  dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE};
 
-    static dmGraphics::TextureFilter filter_lut[] = {dmGraphics::TEXTURE_FILTER_NEAREST,
-                                                     dmGraphics::TEXTURE_FILTER_LINEAR,
-                                                     dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST,
-                                                     dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR,
-                                                     dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST,
-                                                     dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR};
-
     static dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
     {
         assert(wrap_mode <= dmRenderDDF::MaterialDesc::WRAP_MODE_CLAMP_TO_EDGE);
@@ -50,14 +43,30 @@ namespace dmGameSystem
 
     static dmGraphics::TextureFilter FilterMinFromDDF(dmRenderDDF::MaterialDesc::FilterModeMin min_filter)
     {
-        assert(min_filter <= dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR);
-        return filter_lut[min_filter];
+        switch(min_filter)
+        {
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST:                return dmGraphics::TEXTURE_FILTER_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR:                 return dmGraphics::TEXTURE_FILTER_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST_MIPMAP_NEAREST: return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST_MIPMAP_LINEAR:  return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_NEAREST:  return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR:   return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_DEFAULT:                return dmGraphics::TEXTURE_FILTER_DEFAULT;
+            default:break;
+        }
+        return dmGraphics::TEXTURE_FILTER_DEFAULT;
     }
 
     static dmGraphics::TextureFilter FilterMagFromDDF(dmRenderDDF::MaterialDesc::FilterModeMag mag_filter)
     {
-        assert(mag_filter <= dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_LINEAR);
-        return filter_lut[mag_filter];
+        switch(mag_filter)
+        {
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_NEAREST: return dmGraphics::TEXTURE_FILTER_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_LINEAR:  return dmGraphics::TEXTURE_FILTER_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_DEFAULT: return dmGraphics::TEXTURE_FILTER_DEFAULT;
+            default:break;
+        }
+        return dmGraphics::TEXTURE_FILTER_DEFAULT;
     }
 
     static bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
