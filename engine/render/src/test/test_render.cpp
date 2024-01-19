@@ -24,6 +24,8 @@
 #include <script/script.h>
 #include <algorithm> // std::stable_sort
 
+#include "../../../graphics/src/graphics_private.h"
+
 #include "render/render.h"
 #include "render/render_private.h"
 #include "render/font_renderer_private.h"

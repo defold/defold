@@ -706,9 +706,6 @@ namespace dmGraphics
     bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
     void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
     bool  UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
-
-    // Tests only:
-    void GetTextureFilters(HContext context, uint32_t unit, TextureFilter& min_filter, TextureFilter& mag_filter);
 }
 
 #endif // DM_GRAPHICS_H
