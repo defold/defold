@@ -797,6 +797,8 @@
     (cond-> name
             ; disallow dots when extension is expected
             (seq extension) (string/replace #"\." "")
+            ; disallow "." and ".." names (only necessary when there is no extension)
+            (not (seq extension)) (string/replace #"^\.{1,2}$" "")
             ; append extension if there was one
             (and (seq extension) (seq name)) (str "." extension))))
 
