@@ -111,10 +111,19 @@ namespace dmGameSystem
             {
                 for (uint32_t i = 0; i < prototype->m_RenderResources.Size(); ++i)
                 {
+                    void* render_resource = prototype->m_RenderResources[i];
+                    uint64_t render_resource_val = (uint64_t) render_resource;
+
+                    if (render_resource_types[i] == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET)
+                    {
+                        dmGameSystem::TextureResource* texture_res = (dmGameSystem::TextureResource*) render_resource;
+                        render_resource_val = (uint64_t) texture_res->m_Texture;
+                    }
+
                     dmRender::AddRenderScriptInstanceRenderResource(
                         prototype->m_Instance,
                         prototype_desc->m_RenderResources[i].m_Name,
-                        (uint64_t) prototype->m_RenderResources[i],
+                        render_resource_val,
                         render_resource_types[i]);
                 }
             }
