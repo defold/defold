@@ -16,7 +16,6 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
-            [editor.placeholder-resource :as placeholder-resource]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
@@ -36,25 +35,20 @@
     (future
       (try
         (let [search-data
-              (->> (g/node-value project :nodes evaluation-context)
+              (->> (g/node-value project :node-id+resources evaluation-context)
                    (into []
-                         (keep (fn [node-id]
-                                 (let [resource (g/node-value node-id :resource evaluation-context)]
-                                   (when (and (some? resource)
-                                              (not (resource/internal? resource))
-                                              (= :file (resource/source-type resource)))
-                                     (let [resource-type (resource/resource-type resource)
-                                           search-value-fn (cond
-                                                             (nil? resource-type)
-                                                             placeholder-resource/search-value-fn
-
-                                                             (some? (:search-fn resource-type))
-                                                             (:search-value-fn resource-type))]
-                                       (when search-value-fn
-                                         (let [search-value (search-value-fn node-id resource evaluation-context)]
-                                           (when-not (g/error? search-value)
-                                             {:resource resource
-                                              :search-value search-value})))))))))
+                         (keep (fn [[node-id resource]]
+                                 (when (and (not (resource/internal? resource))
+                                            (= :file (resource/source-type resource)))
+                                   (let [resource-type (resource/resource-type resource)
+                                         search-value-fn (when (:search-fn resource-type)
+                                                           (:search-value-fn resource-type))]
+                                     (when (and search-value-fn
+                                                (resource/textual? resource))
+                                       (let [search-value (search-value-fn node-id resource evaluation-context)]
+                                         (when-not (g/error? search-value)
+                                           {:resource resource
+                                            :search-value search-value}))))))))
                    (sort-by search-data-sort-key))]
           (ui/run-later
             (project/update-system-cache-save-data! evaluation-context)
@@ -75,13 +69,7 @@
               file-ext-pats))))
 
 (defn- make-resource-type->matches-fn [workspace search-string]
-  (let [placeholder-resource-matches-fn
-        (delay
-          (let [pattern (placeholder-resource/search-fn search-string)
-                matches-fn #(placeholder-resource/search-fn % pattern)]
-            matches-fn))
-
-        search-fn->matches-fn
+  (let [search-fn->matches-fn
         (into {}
               (comp (mapcat #(vals (workspace/get-resource-type-map workspace %)))
                     (keep :search-fn)
@@ -93,9 +81,7 @@
               [:editable :non-editable])]
 
     (fn resource-type->matches-fn [resource-type]
-      (if (nil? resource-type)
-        (deref placeholder-resource-matches-fn)
-        (some-> (:search-fn resource-type) search-fn->matches-fn)))))
+      (some-> resource-type :search-fn search-fn->matches-fn))))
 
 (defn- make-search-resource? [searched-exts search-libraries]
   {:pre [(boolean? search-libraries)]}

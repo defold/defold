@@ -23,11 +23,11 @@
             [editor.fs :as fs]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.resource-watch :as resource-watch]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [with-clean-system]])
-  (:import [com.defold.editor.test TestDdf$DefaultValue]))
+            [support.test-support :refer [with-clean-system]]))
 
 (deftest workspace-tree
   (testing "The file system can be retrieved as a tree"
@@ -45,7 +45,8 @@
                   :let [results (project/find-resources project query)]]
             (is (= 1 (count results)))
             (let [resource-node (get (first results) 1)
-                  resource-type (project/get-resource-type resource-node)
+                  resource (resource-node/resource resource-node)
+                  resource-type (resource/resource-type resource)
                   view-type (first (:view-types resource-type))
                   make-preview-fn (:make-preview-fn view-type)
                   view-opts (assoc ((:id view-type) (:view-opts resource-type))
@@ -258,7 +259,7 @@
     (= name
        (->> name
             (asset-browser/replace-template-name "string_value: \"{{NAME}}\"")
-            (protobuf/str->pb TestDdf$DefaultValue)
+            (protobuf/str->pb com.defold.editor.test.TestDdf$DefaultValue)
             (.getStringValue)))
 
     "single-quoted: 'text in quotes'"

@@ -841,7 +841,8 @@
    (validate-component-resource-node-id (g/now) node-id))
   ([basis node-id]
    (if (and (g/node-instance? basis resource-node/ResourceNode node-id)
-            (when-some [resource-type (resource/resource-type (resource-node/resource basis node-id))]
+            (let [resource (resource-node/resource basis node-id)
+                  resource-type (resource/resource-type resource)]
               (contains? (:tags resource-type) :component)))
      node-id
      (throw-invalid-component-resource-node-id-exception basis node-id))))
@@ -1288,17 +1289,17 @@
   (fn [resource-node-id]
     (let [resource (resource-node/resource resource-node-id)
           resource-type (resource/resource-type resource)]
-      (if resource-type
+      (if (resource/placeholder-resource-type? resource-type)
+        (if (text-util/binary? resource)
+          :binary
+          :code)
         (case (:type (:test-info resource-type))
           :code :code
           (let [ext (:ext resource-type)]
             (case ext
               ("tilegrid" "tilemap") "tilemap"
               ("tileset" "tilesource") "tilesource"
-              ext)))
-        (if (text-util/binary? resource)
-          :binary
-          :code)))))
+              ext)))))))
 
 (defmethod edit-resource-node :code [resource-node-id]
   (update-code-editor-lines resource-node-id conj ""))

@@ -16,7 +16,6 @@
   (:require [dynamo.graph :as g]
             [editor.code.resource :as r]
             [editor.resource :as resource]
-            [editor.workspace :as workspace]
             [util.text-util :as text-util]))
 
 (g/defnk produce-build-targets [_node-id resource]
@@ -26,27 +25,19 @@
   (inherits r/CodeEditorResourceNode)
   (output build-targets g/Any produce-build-targets))
 
-(defn load-node [project node-id resource]
-  ;; TODO(save-value): Verify that this is called for placeholder resources.
+(defn- additional-load-fn [project node-id resource]
   (when (and (resource/file-resource? resource)
              (resource/editable? resource)
              (not (text-util/binary? resource)))
     (g/connect node-id :save-data project :save-data)))
 
-;; TODO(save-value): Get rid of these and go over any places where we handle nil resource types some special way.
-(defn view-type [workspace]
-  (workspace/get-view-type workspace :code))
-
-(def search-fn r/search-fn)
-
-(def search-value-fn r/search-value-fn)
-
 (defn register-resource-types [workspace]
-  ;; TODO(save-value): I think this should have :auto-connect-save-data false and an :additional-load-fn to do the binary check before connecting to :save-data?
   (r/register-code-resource-type workspace
     :ext resource/placeholder-resource-type-ext
     :label "Unknown"
     :icon "icons/32/Icons_29-AT-Unknown.png"
     :node-type PlaceholderResourceNode
     :view-types [:code :default]
-    :lazy-loaded true))
+    :lazy-loaded true
+    :auto-connect-save-data? false
+    :additional-load-fn additional-load-fn))

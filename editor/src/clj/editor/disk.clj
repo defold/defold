@@ -199,8 +199,8 @@
                     ;; type used by the existing file.
                     ;; TODO(save-value-cleanup): Could we achieve this using a FilterOutputStream and avoid allocating new strings?
                     ^String written-content
-                    (if (and (resource/textual? resource)
-                             (resource/exists? resource)
+                    (if (and (resource/exists? resource)
+                             (resource/textual? resource)
                              (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
                       (text-util/lf->crlf content)
                       content)

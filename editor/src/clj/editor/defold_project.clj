@@ -33,7 +33,6 @@
             [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
             [editor.settings-core :as settings-core]
-            [editor.system :as system]
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
@@ -69,25 +68,6 @@
 
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
-(defn- load-registered-resource-node [resource-type project node-id resource source-value]
-  (let [read-fn (:read-fn resource-type)
-        load-fn (:load-fn resource-type)]
-    (cond-> []
-
-            load-fn
-            (into (flatten
-                    (if (nil? read-fn)
-                      (load-fn project node-id resource)
-                      (load-fn project node-id resource source-value))))
-
-            (and (resource/file-resource? resource)
-                 (resource/editable? resource)
-                 (:auto-connect-save-data? resource-type))
-            (into (g/connect node-id :save-data project :save-data))
-
-            :always
-            not-empty)))
-
 (defn- mark-node-file-not-found [node-id resource]
   (let [node-type (resource-node-type resource)
         error-value (resource-io/file-not-found-error node-id nil :fatal resource)]
@@ -108,9 +88,22 @@
                      (resource/exists? resource)))
         (mark-node-file-not-found resource-node-id resource))
       (try
-        (if-let [resource-type (resource/resource-type resource)]
-          (load-registered-resource-node resource-type project resource-node-id resource source-value)
-          (placeholder-resource/load-node project resource-node-id resource))
+        (let [{:keys [read-fn load-fn] :as resource-type} (resource/resource-type resource)]
+          (cond-> []
+
+                  load-fn
+                  (into (flatten
+                          (if (nil? read-fn)
+                            (load-fn project resource-node-id resource)
+                            (load-fn project resource-node-id resource source-value))))
+
+                  (and (resource/file-resource? resource)
+                       (resource/editable? resource)
+                       (:auto-connect-save-data? resource-type))
+                  (into (g/connect resource-node-id :save-data project :save-data))
+
+                  :always
+                  not-empty))
         (catch Exception exception
           (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
           (mark-node-invalid-content resource-node-id resource exception))))
@@ -965,9 +958,6 @@
   (output default-tex-params g/Any :cached produce-default-tex-params)
   (output build-settings g/Any (gu/passthrough build-settings))
   (output breakpoints Breakpoints :cached (g/fnk [breakpoints] (into [] cat breakpoints))))
-
-(defn get-resource-type [resource-node]
-  (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
 
 (defn get-project
   ([node]

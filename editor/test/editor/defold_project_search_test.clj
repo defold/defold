@@ -148,15 +148,17 @@
           ;; Note: This is more of a sanity-check than anything else.
           ;; As we make the search system more flexible, these assumptions might
           ;; not hold.
-          (is (= (into #{}
-                       (map (comp resource/proj-path :resource))
-                       (deref search-data-future))
-                 (into #{}
-                       (comp (keep #(some-> (g/node-value % :save-data) :resource))
+          (is (= (into (sorted-set)
+                       (comp (keep (fn [[node-id]]
+                                     (when-some [save-data (g/node-value node-id :save-data)]
+                                       (:resource save-data))))
                              (remove resource/internal?)
                              (filter resource/textual?)
-                             (keep resource/proj-path))
-                       (g/node-value project :nodes)))))
+                             (map resource/proj-path))
+                       (g/node-value project :node-id+resources))
+                 (into (sorted-set)
+                       (map (comp resource/proj-path :resource))
+                       (deref search-data-future)))))
 
         (testing "Matches expected results"
           (let [report-error! (test-util/make-call-logger)

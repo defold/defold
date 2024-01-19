@@ -55,7 +55,6 @@
             [editor.lua :as lua]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
-            [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.process :as process]
@@ -1999,9 +1998,7 @@ If you do not specifically require different script states, consider changing th
                                             {})))
          text-view-type (workspace/get-view-type workspace :text)
          view-type      (or (:selected-view-type opts)
-                            (if (nil? resource-type)
-                              (placeholder-resource/view-type workspace)
-                              (first (:view-types resource-type)))
+                            (first (:view-types resource-type))
                             text-view-type)]
      (if (g/defective? resource-node)
        (do (dialogs/make-info-dialog

@@ -274,7 +274,7 @@
                      (when-some [old-source (g/node-value self :source-id evaluation-context)]
                        (g/delete-node old-source))
                      (let [new-resource (:resource new-value)
-                           resource-type (and new-resource (resource/resource-type new-resource))
+                           resource-type (some-> new-resource resource/resource-type)
                            project (project/get-project self)
                            override? (contains? (:tags resource-type) :overridable-properties)
 

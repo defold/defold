@@ -485,23 +485,31 @@
 (defn internal? [resource]
   (string/starts-with? (resource->proj-path resource) "/_defold"))
 
-(defn textual-resource-type?
-  "Returns whether the resource type is marked as textual.
+(defn placeholder-resource-type?
+  "Returns true if the specified resource-type is the placeholder resource type,
+  or false otherwise."
+  [resource-type]
+  (= placeholder-resource-type-ext (:ext resource-type)))
 
-  Resource type is a required argument. If a resource does not specify a
-  resource type, you can use [[util.text-util/binary?]] to estimate if
-  the content of the resource is textual or not."
+(defn- textual-resource-type?
+  "Returns whether the resource type is marked as textual. Note that the
+  placeholder resource type reports as textual, but might later call
+  [[util.text-util/binary?]] to estimate if the content is textual or not."
   [resource-type]
   {:pre [(some? resource-type)]
    :post [(boolean? %)]}
   (:textual? resource-type))
 
 (defn textual? [resource]
-  "Returns whether the resource is considered textual based on its type.
-  Placeholder resources have a nil resource-type, but are assumed textual."
-  (if-let [resource-type (resource-type resource)]
-    (textual-resource-type? resource-type)
-    true))
+  "Returns whether the resource is considered textual based on its type. If
+  we're unable to determine the type of the resource (i.e. it is a placeholder
+  resource), we scan through part of the file to determine if it looks textual.
+  The resource is expected to exist. If it does not, scanning the file will
+  throw an exception."
+  (let [resource-type (resource-type resource)]
+    (if (placeholder-resource-type? resource-type)
+      (not (text-util/binary? resource))
+      (textual-resource-type? resource-type))))
 
 (defn stateful-resource-type?
   "Returns whether the resource type is marked as stateful."
@@ -515,9 +523,7 @@
   Placeholder resources have a nil resource-type, but are assumed stateful since
   they can be edited as plain text using the code editor."
   [resource]
-  (if-let [resource-type (resource-type resource)]
-    (stateful-resource-type? resource-type)
-    true))
+  (stateful-resource-type? (resource-type resource)))
 
 (def ^:private known-ext->language
   ;; See known language identifiers:
@@ -543,7 +549,5 @@
 
 (defn resource->text-matches [resource pattern]
   (when (and (exists? resource)
-             (if-some [resource-type (resource-type resource)]
-               (textual-resource-type? resource-type)
-               (not (text-util/binary? resource))))
+             (textual? resource))
     (text-util/readable->text-matches resource pattern)))

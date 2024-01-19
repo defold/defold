@@ -13,10 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.defold-project-test
-  (:require [clojure.test :refer :all]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
+            [editor.placeholder-resource :as placeholder-resource]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -74,16 +75,18 @@
                                                 {}
                                                 {})]
         (g/transact
-          (register-resource-types workspace [{:ext "type_a"
-                                               :node-type ANode
-                                               :read-fn read-a
-                                               :dependencies-fn dependencies-a
-                                               :load-fn load-a
-                                               :label "Type A"}
-                                              {:ext "type_b"
-                                               :node-type BNode
-                                               :load-fn load-b
-                                               :label "Type B"}]))
+          (concat
+            (placeholder-resource/register-resource-types workspace)
+            (register-resource-types workspace [{:ext "type_a"
+                                                 :node-type ANode
+                                                 :read-fn read-a
+                                                 :dependencies-fn dependencies-a
+                                                 :load-fn load-a
+                                                 :label "Type A"}
+                                                {:ext "type_b"
+                                                 :node-type BNode
+                                                 :load-fn load-b
+                                                 :label "Type B"}])))
         (workspace/resource-sync! workspace)
         (let [project (test-util/setup-project! workspace)
               a1 (project/get-resource-node project "/a1.type_a")]

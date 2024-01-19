@@ -671,9 +671,10 @@
   (and (resource/file-resource? resource)
        (resource/editable? resource)
        (resource/openable? resource)
-       (if-let [resource-type (resource/resource-type resource)]
-         (some? (:write-fn resource-type))
-         (not (text-util/binary? resource)))))
+       (let [resource-type (resource/resource-type resource)]
+         (if (resource/placeholder-resource-type? resource-type)
+           (not (text-util/binary? resource))
+           (some? (:write-fn resource-type))))))
 
 (defn- editable-resource-types-by-ext [workspace]
   (into (sorted-map)
@@ -944,11 +945,12 @@
 
 (defmulti ^:private nested-field-frequencies
   (fn [resource]
-    (if-let [resource-type (resource/resource-type resource)]
-      (:type (:test-info resource-type))
-      (if (text-util/binary? resource)
-        :binary
-        :code))))
+    (let [resource-type (resource/resource-type resource)]
+      (if (resource/placeholder-resource-type? resource-type)
+        (if (text-util/binary? resource)
+          :binary
+          :code)
+        (:type (:test-info resource-type))))))
 
 (defmethod nested-field-frequencies :code [resource]
   (sorted-map "lines" (if (string/blank? (slurp resource)) 0 1)))
