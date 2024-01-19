@@ -1453,6 +1453,41 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Physics_SetListener(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        int top = lua_gettop(L);
+        int functionref = 0;
+        if (top == 1) // completed cb
+        {
+            if (lua_isfunction(L, 1))
+            {
+                lua_pushvalue(L, 1);
+                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
+                functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+            }
+        }
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        if (world == 0x0)
+        {
+            return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
+        }
+
+        dmMessage::URL listenerReceiver;
+        if (!dmScript::GetURL(L, &listenerReceiver)) {
+            return luaL_error(L, "could not find a requesting instance for physics.set_listener()");
+        }
+
+        SetWorldListener(world, functionref, &listenerReceiver);
+        return 0;
+    }
+
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
@@ -1476,6 +1511,7 @@ namespace dmGameSystem
         {"set_group",		Physics_SetGroup},
         {"get_maskbit",		Physics_GetMaskBit},
         {"set_maskbit",		Physics_SetMaskBit},
+        {"set_listener",    Physics_SetListener},
 
         // Shapes
         {"get_shape", Physics_GetShape},

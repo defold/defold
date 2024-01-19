@@ -78,6 +78,7 @@ namespace dmGameSystem
     void SetCollisionFlipH(void* _component, bool flip);
     void SetCollisionFlipV(void* _component, bool flip);
     void WakeupCollision(void* _world, void* _component);
+    void SetWorldListener(void* _world, uintptr_t listener, dmMessage::URL* listenerReceiver);
     dmhash_t GetCollisionGroup(void* _world, void* _component);
     bool SetCollisionGroup(void* _world, void* _component, dmhash_t group_hash);
     bool GetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool* maskbit);
