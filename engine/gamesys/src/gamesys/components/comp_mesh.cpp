@@ -1065,8 +1065,7 @@ namespace dmGameSystem
         {
             if(params.m_PropertyId == PROP_TEXTURE[i])
             {
-                dmhash_t ext_hashes[] = { TEXTURE_EXT_HASH, RENDER_TARGET_EXT_HASH };
-                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, ext_hashes, DM_ARRAY_SIZE(ext_hashes), (void**)&component->m_Textures[i]);
+                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_EXT_HASH, (void**)&component->m_Textures[i]);
                 component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
                 return res;
             }

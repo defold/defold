@@ -17,10 +17,10 @@
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.gl.texture :as texture]
+            [editor.material :as material]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
-            [editor.types :as types]
             [editor.workspace :as workspace])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage$Type Graphics$TextureImage$TextureFormat]
            [com.dynamo.render.proto RenderTarget$RenderTargetDesc]))
@@ -104,9 +104,6 @@
   (property attachment-format g/Keyword)
   (property depth-stencil g/Bool)
 
-  (output size g/Any (g/fnk [width height]
-                       {:width width
-                        :height height}))
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (output form-data g/Any produce-form-data)
