@@ -509,7 +509,6 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
         float delay = 0.0f, gain = 1.0f, pan = 0.0f, speed = 1.0f;
-        uint32_t play_id = dmSound::INVALID_PLAY_ID;
 
         if (top > 1 && !lua_isnil(L,2)) // table with args
         {
@@ -535,7 +534,7 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
 
-        play_id = dmSound::GetAndIncreasePlayCounter();
+        uint32_t play_id = dmSound::GetAndIncreasePlayCounter();
 
         int functionref = 0;
         if (top > 2) // completed cb
