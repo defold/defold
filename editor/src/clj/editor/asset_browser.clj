@@ -499,7 +499,7 @@
             (app-view/open-resource app-view prefs workspace project resource)
             (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
-    (when-not (:any-file user-data false)
+    (when (not user-data)
       (sort-by (comp string/lower-case :label)
                (into [{:label "File"
                        :icon "icons/64/Icons_29-AT-Unknown.png"
