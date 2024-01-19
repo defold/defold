@@ -55,10 +55,8 @@ namespace dmGameSystem
         }
 
         tile_set->m_TextureSet = texture_set_ddf;
-
-        dmGraphics::HTexture texture = GetTexture(texture_res);
-        uint16_t width = dmGraphics::GetOriginalTextureWidth(texture);
-        uint16_t height = dmGraphics::GetOriginalTextureHeight(texture);
+        uint16_t width = dmGraphics::GetOriginalTextureWidth(texture_res->m_Texture);
+        uint16_t height = dmGraphics::GetOriginalTextureHeight(texture_res->m_Texture);
 
         // Check dimensions
         if (width < texture_set_ddf->m_TileWidth || height < texture_set_ddf->m_TileHeight)

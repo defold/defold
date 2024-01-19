@@ -3445,8 +3445,6 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        assert(GetAssetType(texture) == ASSET_TYPE_TEXTURE);
-
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
         assert(id_index < tex->m_NumTextureIds);
 
