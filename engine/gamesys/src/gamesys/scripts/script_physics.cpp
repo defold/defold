@@ -1458,7 +1458,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
         int functionref = 0;
-        if (top == 1) // completed cb
+        if (top >= 1) // completed cb
         {
             if (lua_isfunction(L, 1))
             {
