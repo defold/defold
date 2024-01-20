@@ -433,7 +433,11 @@
                                     migrated-resource-node-ids)]
       (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
       (render-progress! progress/done)
-      (when (pos? (count migrated-proj-paths))
+
+      ;; Log any migrated proj-paths.
+      ;; Disabled during tests to minimize log spam.
+      (when (and (pos? (count migrated-proj-paths))
+                 (not (Boolean/getBoolean "defold.tests")))
         (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))))
 
 (defn connect-if-output [src-type src tgt connections]
@@ -537,8 +541,11 @@
   (let [workspace (g/node-value project :workspace)]
     (workspace/make-embedded-resource workspace editability ext data)))
 
-(defn all-save-data [project]
-  (g/node-value project :save-data))
+(defn all-save-data
+  ([project]
+   (g/node-value project :save-data))
+  ([project evaluation-context]
+   (g/node-value project :save-data evaluation-context)))
 
 (defn dirty-save-data
   ([project]
@@ -548,15 +555,17 @@
 
 (declare make-count-progress-steps-tracer make-progress-tracer)
 
-(defn dirty-save-data-with-progress [project evaluation-context render-progress!]
+(defn save-data-with-progress [project evaluation-context save-data-fn render-progress!]
+  {:pre [(ifn? save-data-fn)
+         (ifn? render-progress!)]}
   (ui/with-progress [render-progress! render-progress!]
     (let [step-count (AtomicLong.)
           step-count-tracer (make-count-progress-steps-tracer :save-data step-count)
           progress-message-fn (constantly "Saving...")]
       (render-progress! (progress/make "Saving..."))
-      (dirty-save-data project (assoc evaluation-context :dry-run true :tracer step-count-tracer))
+      (save-data-fn project (assoc evaluation-context :dry-run true :tracer step-count-tracer))
       (let [progress-tracer (make-progress-tracer :save-data (.get step-count) progress-message-fn render-progress!)]
-        (dirty-save-data project (assoc evaluation-context :tracer progress-tracer))))))
+        (save-data-fn project (assoc evaluation-context :tracer progress-tracer))))))
 
 (defn make-count-progress-steps-tracer [watched-label ^AtomicLong step-count]
   (fn [state node output-type label]

@@ -323,7 +323,7 @@
           (spit-file! workspace "/added_externally.lua" external-lua-text)
           (spit-file! workspace "/added_externally.md" external-markdown-text)
 
-          (disk/async-save! progress/null-render-progress! progress/null-render-progress! project nil
+          (disk/async-save! progress/null-render-progress! progress/null-render-progress! project/dirty-save-data project nil
                             (fn [successful?]
                               (when (is successful?)
 
@@ -395,7 +395,7 @@
             (fn [exit-event-loop!]
               (g/clear-system-cache!)
               (disk/async-save!
-                progress/null-render-progress! progress/null-render-progress! project nil
+                progress/null-render-progress! progress/null-render-progress! project/dirty-save-data project nil
                 (fn [successful?]
                   (when (is successful?)
 
@@ -454,7 +454,7 @@
             (test-util/set-code-editor-source! edited-during-save "-- Edit of test_module.lua before save.")
 
             (disk/async-save!
-              progress/null-render-progress! progress/null-render-progress! project nil
+              progress/null-render-progress! progress/null-render-progress! project/dirty-save-data project nil
               (fn [successful?]
                 (when (is successful?)
                   (let [cached-endpoints (test-util/cached-endpoints)]

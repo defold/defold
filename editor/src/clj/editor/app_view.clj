@@ -43,6 +43,7 @@
             [editor.fs :as fs]
             [editor.fxui :as fxui]
             [editor.game-project :as game-project]
+            [editor.git :as git]
             [editor.github :as github]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
@@ -1596,6 +1597,9 @@ If you do not specifically require different script states, consider changing th
                {:label "Save All"
                 :id ::save-all
                 :command :save-all}
+               {:label "Upgrade File Formats"
+                :id ::save-and-upgrade-all
+                :command :save-and-upgrade-all}
                {:label :separator}
                {:label "Open Assets..."
                 :command :open-asset}
@@ -2132,57 +2136,118 @@ If you do not specifically require different script states, consider changing th
       (let [[resource view-type] (recent-files/last-closed prefs workspace app-view evaluation-context)]
         (open-resource app-view prefs workspace project resource {:selected-view-type view-type})))))
 
-(handler/defhandler :synchronize :global
-  (enabled? [] (disk-availability/available?))
-  (run [changes-view project workspace app-view]
-       (let [render-reload-progress! (make-render-task-progress :resource-sync)
-             render-save-progress! (make-render-task-progress :save-all)]
-         (if (changes-view/project-is-git-repo? changes-view)
+(defn- async-save!
+  ([app-view changes-view project save-data-fn]
+   (async-save! app-view changes-view project save-data-fn nil))
+  ([app-view changes-view project save-data-fn callback!]
+   {:pre [(g/node-id? app-view)
+          (g/node-id? changes-view)
+          (g/node-id? project)
+          (ifn? save-data-fn)
+          (or (nil? callback!) (ifn? callback!))]}
+   (let [render-reload-progress! (make-render-task-progress :resource-sync)
+         render-save-progress! (make-render-task-progress :save-all)]
+     (disk/async-save! render-reload-progress! render-save-progress! save-data-fn project changes-view
+                       (fn [successful?]
+                         (when successful?
+                           (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true))
+                         (when callback!
+                           (callback! successful? render-reload-progress! render-save-progress!)))))))
 
-           ;; The project is a Git repo.
-           ;; Check if there are locked files below the project folder before proceeding.
-           ;; If so, we abort the sync and notify the user, since this could cause problems.
-           (when (changes-view/ensure-no-locked-files! changes-view)
-             (disk/async-save! render-reload-progress! render-save-progress! project changes-view
-                               (fn [successful?]
-                                 (when successful?
-                                   (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
-                                   (when (changes-view/regular-sync! changes-view)
-                                     (disk/async-reload! render-reload-progress! workspace [] changes-view))))))
-
-           ;; The project is not a Git repo.
-           ;; Show a dialog with info about how to set this up.
-           (dialogs/make-info-dialog
-             {:title "Version Control"
-              :size :default
-              :icon :icon/git
-              :header "This project does not use Version Control"
-              :content {:fx/type fx.text-flow/lifecycle
-                        :style-class "dialog-content-padding"
-                        :children [{:fx/type fx.text/lifecycle
-                                    :text (str "A project under Version Control "
+(defn- show-version-control-info-dialog! [icon title header preamble]
+  (dialogs/make-info-dialog
+    {:title title
+     :size :default
+     :icon icon
+     :header header
+     :content {:fx/type fx.text-flow/lifecycle
+               :style-class "dialog-content-padding"
+               :children [{:fx/type fx.text/lifecycle
+                           :text (cond->> (str "A project under Version Control "
                                                "keeps a history of changes and "
                                                "enables you to collaborate with "
                                                "others by pushing changes to a "
                                                "server.\n\nYou can read about "
                                                "how to configure Version Control "
-                                               "in the ")}
-                                   {:fx/type fx.hyperlink/lifecycle
-                                    :text "Defold Manual"
-                                    :on-action (fn [_]
-                                                 (ui/open-url "https://www.defold.com/manuals/version-control/"))}
-                                   {:fx/type fx.text/lifecycle
-                                    :text "."}]}})))))
+                                               "in the ")
+                                          (not (string/blank? preamble))
+                                          (str preamble "\n\n"))}
+                          {:fx/type fx.hyperlink/lifecycle
+                           :text "Defold Manual"
+                           :on-action (fn [_]
+                                        (ui/open-url "https://www.defold.com/manuals/version-control/"))}
+                          {:fx/type fx.text/lifecycle
+                           :text "."}]}}))
+
+
+(handler/defhandler :synchronize :global
+  (enabled? [] (disk-availability/available?))
+  (run [changes-view project workspace app-view]
+       (if (changes-view/project-is-git-repo? changes-view)
+
+         ;; The project is a Git repo.
+         ;; Check if there are locked files below the project folder before proceeding.
+         ;; If so, we abort the sync and notify the user, since this could cause problems.
+         (when (changes-view/ensure-no-locked-files! changes-view)
+           (async-save! app-view changes-view project project/dirty-save-data
+                        (fn [successful? render-reload-progress! _render-save-progress!]
+                          (when (and successful?
+                                     (changes-view/regular-sync! changes-view))
+                            (disk/async-reload! render-reload-progress! workspace [] changes-view)))))
+
+         ;; The project is not a Git repo.
+         ;; Show a dialog with info about how to set this up.
+         (show-version-control-info-dialog! :icon/git "Version Control" "This project does not use Version Control" nil))))
 
 (handler/defhandler :save-all :global
   (enabled? [] (not (bob/build-in-progress?)))
   (run [app-view changes-view project]
-       (let [render-reload-progress! (make-render-task-progress :resource-sync)
-             render-save-progress! (make-render-task-progress :save-all)]
-         (disk/async-save! render-reload-progress! render-save-progress! project changes-view
-                           (fn [successful?]
-                             (when successful?
-                               (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))))
+       (async-save! app-view changes-view project project/dirty-save-data)))
+
+(handler/defhandler :save-and-upgrade-all :global
+  (enabled? [] (not (bob/build-in-progress?)))
+  (run [app-view changes-view project]
+       (if (not (changes-view/project-is-git-repo? changes-view))
+
+         ;; The project is not under version control. Refuse to perform the file
+         ;; format upgrade, and instead show an info dialog on how to set up
+         ;; version control for the project.
+         (show-version-control-info-dialog! :icon/triangle-error "Not Safe to Upgrade File Formats" "Requires Version Control" "Due to potential data-loss concerns, file format upgrades are only allowed for projects under Version Control.")
+
+         (let [git (g/node-value changes-view :git)]
+           (if (git/has-local-changes? git)
+
+             ;; The project is under version control, but local changes were
+             ;; detected. Refuse to perform the file format upgrade, and instead
+             ;; ask the user to commit their changes before retrying.
+             (dialogs/make-info-dialog
+               {:title "Not Safe to Upgrade File Formats"
+                :size :default
+                :icon :icon/triangle-error
+                :header "Uncommitted changes detected"
+                :content {:fx/type fxui/label
+                          :style-class "dialog-content-padding"
+                          :text "Due to potential data-loss concerns, file format upgrades must start from a clean working directory.\n\nPlease commit your local changes before retrying the operation."}})
+
+             ;; The project is under version control, and no local changes were
+             ;; detected. Show a confirmation dialog before proceeding with the
+             ;; file format upgrade.
+             (when (dialogs/make-confirmation-dialog
+                     {:title "Save and Upgrade File Formats?"
+                      :size :large
+                      :icon :icon/circle-question
+                      :header "Re-save all files in the latest file format?"
+                      :content {:fx/type fxui/label
+                                :style-class "dialog-content-padding"
+                                :text "All files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this."}
+                      :buttons [{:text "Cancel"
+                                 :cancel-button true
+                                 :default-button true
+                                 :result false}
+                                {:text "Upgrade File Formats"
+                                 :variant :danger
+                                 :result true}]})
+               (async-save! app-view changes-view project project/all-save-data)))))))
 
 (handler/defhandler :async-reload :global
   (active? [prefs] (not (async-reload-on-app-focus? prefs)))

@@ -120,6 +120,7 @@
                                (disk/async-save!
                                  render-reload-progress!
                                  render-save-progress!
+                                 project/dirty-save-data
                                  project
                                  nil ; Use nil for changes-view to skip refresh.
                                  (fn [successful?]

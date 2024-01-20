@@ -210,6 +210,12 @@
                                      (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)])
                                              (.getConflictingStageState s)))}))
 
+(defn has-local-changes? [^Git git]
+  (let [status (status git)]
+    (boolean
+      (some #(pos? (count (get status %)))
+            [:added :changed :missing :modified :removed :untracked]))))
+
 (defn- make-add-diff-entry [file-path]
   {:score 0 :change-type :add :old-path nil :new-path file-path})
 

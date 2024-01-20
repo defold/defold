@@ -265,7 +265,7 @@
               (g/transact
                 (g/set-property node :name "new_name"))
               (is (has-undo? project))
-              (disk/async-save! progress/null-render-progress! progress/null-render-progress! project nil
+              (disk/async-save! progress/null-render-progress! progress/null-render-progress! project/dirty-save-data project nil
                                 (fn [successful?]
                                   (when (is successful?)
                                     (sync! workspace)

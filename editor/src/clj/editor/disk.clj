@@ -216,7 +216,12 @@
             write-message-fn)]
       (make-post-save-actions written-save-datas written-disk-sha256s snapshot-invalidate-counters))))
 
-(defn- start-save-job! [render-reload-progress! render-save-progress! project changes-view]
+(defn- start-save-job! [render-reload-progress! render-save-progress! save-data-fn project changes-view]
+  {:pre [(ifn? render-reload-progress!)
+         (ifn? render-save-progress!)
+         (ifn? save-data-fn)
+         (g/node-id? project)
+         (or (nil? changes-view) (g/node-id? changes-view))]}
   (let [workspace (project/workspace project)
         success-promise (promise)
         complete! (fn [successful?]
@@ -237,7 +242,7 @@
         ;; save-values.
         (let [evaluation-context (g/make-evaluation-context)
               snapshot-invalidate-counters (g/evaluation-context-invalidate-counters evaluation-context)
-              save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)
+              save-data (project/save-data-with-progress project evaluation-context save-data-fn render-save-progress!)
               post-save-actions (write-save-data-to-disk! save-data snapshot-invalidate-counters {:render-progress! render-save-progress!})
               written-resources (into #{} (map :resource) save-data)
               reload-required (some #(= "/.defignore" (resource/proj-path %)) written-resources)]
@@ -271,10 +276,16 @@
     success-promise))
 
 (defn async-save!
-  ([render-reload-progress! render-save-progress! project changes-view]
-   (async-save! render-reload-progress! render-save-progress! project changes-view nil))
-  ([render-reload-progress! render-save-progress! project changes-view callback!]
-   (async-job! callback! save-job-atom start-save-job! render-reload-progress! render-save-progress! project changes-view)))
+  ([render-reload-progress! render-save-progress! save-data-fn project changes-view]
+   (async-save! render-reload-progress! render-save-progress! save-data-fn project changes-view nil))
+  ([render-reload-progress! render-save-progress! save-data-fn project changes-view callback!]
+   {:pre [(ifn? render-reload-progress!)
+          (ifn? render-save-progress!)
+          (ifn? save-data-fn)
+          (g/node-id? project)
+          (or (nil? changes-view) (g/node-id? changes-view))
+          (or (nil? callback!) (ifn? callback!))]}
+   (async-job! callback! save-job-atom start-save-job! render-reload-progress! render-save-progress! save-data-fn project changes-view)))
 
 ;; -----------------------------------------------------------------------------
 ;; Bob build
@@ -316,7 +327,7 @@
               (render-reload-progress! progress/done)
               (throw error)))
           ;; We need to save because bob reads from FS.
-          (async-save! render-reload-progress! render-save-progress! project changes-view
+          (async-save! render-reload-progress! render-save-progress! project/dirty-save-data project changes-view
                        (fn [successful?]
                          (if-not successful?
                            (try
