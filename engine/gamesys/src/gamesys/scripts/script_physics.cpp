@@ -1507,10 +1507,10 @@ namespace dmGameSystem
         {"set_hflip",       Physics_SetFlipH},
         {"set_vflip",       Physics_SetFlipV},
         {"wakeup",          Physics_Wakeup},
-        {"get_group",		Physics_GetGroup},
-        {"set_group",		Physics_SetGroup},
-        {"get_maskbit",		Physics_GetMaskBit},
-        {"set_maskbit",		Physics_SetMaskBit},
+        {"get_group",       Physics_GetGroup},
+        {"set_group",       Physics_SetGroup},
+        {"get_maskbit",     Physics_GetMaskBit},
+        {"set_maskbit",     Physics_SetMaskBit},
         {"set_listener",    Physics_SetListener},
 
         // Shapes
