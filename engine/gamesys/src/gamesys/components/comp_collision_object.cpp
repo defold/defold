@@ -562,8 +562,11 @@ namespace dmGameSystem
     };
 
     template <class DDFMessage>
-    static void BroadCast(DDFMessage* ddf, dmGameObject::HInstance instance, dmhash_t instance_id, uint16_t component_index, CollisionWorld* world)
+    static void BroadCast(DDFMessage* ddf, dmGameObject::HInstance instance, dmhash_t instance_id, uint16_t component_index)
     {
+        dmhash_t message_id = DDFMessage::m_DDFDescriptor->m_NameHash;
+        uintptr_t descriptor = (uintptr_t)DDFMessage::m_DDFDescriptor;
+        uint32_t data_size = sizeof(DDFMessage);
         dmMessage::URL sender;
         dmMessage::ResetURL(&sender);
         dmMessage::URL receiver;
@@ -577,8 +580,8 @@ namespace dmGameSystem
         {
             dmLogError("Could not retrieve sender component when reporting %s: %d", DDFMessage::m_DDFDescriptor->m_Name, r);
         }
-        dmGameObject::Result result = dmGameObject::PostDDF(ddf, &sender, &receiver, 0, false);
-        if (result != dmGameObject::RESULT_OK)
+        dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, ddf, data_size, 0);
+        if (result != dmMessage::RESULT_OK)
         {
             dmLogError("Could not send %s to component: %d", DDFMessage::m_DDFDescriptor->m_Name, result);
         }
@@ -633,7 +636,7 @@ namespace dmGameSystem
             ddf.m_Group = group_hash_b;
             ddf.m_OtherId = instance_b_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
-            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex, world);
+            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
             // Broadcast to B components
             ddf.m_OwnGroup = group_hash_b;
@@ -641,7 +644,7 @@ namespace dmGameSystem
             ddf.m_Group = group_hash_a;
             ddf.m_OtherId = instance_a_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_a);
-            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex, world);
+            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
 
             return true;
         }
@@ -718,7 +721,7 @@ namespace dmGameSystem
             ddf.m_OwnGroup = group_hash_a;
             ddf.m_OtherGroup = group_hash_b;
             ddf.m_LifeTime = 0;
-            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex, world);
+            BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
             // Broadcast to B components
             ddf.m_Position = contact_point.m_PositionB;
@@ -734,7 +737,7 @@ namespace dmGameSystem
             ddf.m_OwnGroup = group_hash_b;
             ddf.m_OtherGroup = group_hash_a;
             ddf.m_LifeTime = 0;
-            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex, world);
+            BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
 
             return true;
         }
@@ -791,14 +794,14 @@ namespace dmGameSystem
         ddf.m_Group = group_hash_b;
         ddf.m_OwnGroup = group_hash_a;
         ddf.m_OtherGroup = group_hash_b;
-        BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex, world);
+        BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
         ddf.m_Group = group_hash_a;
         ddf.m_OwnGroup = group_hash_b;
         ddf.m_OtherGroup = group_hash_a;
-        BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex, world);
+        BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
     void TriggerExitedCallback(const dmPhysics::TriggerExit& trigger_exit, void* user_data)
@@ -845,14 +848,14 @@ namespace dmGameSystem
         ddf.m_Group = group_hash_b;
         ddf.m_OwnGroup = group_hash_a;
         ddf.m_OtherGroup = group_hash_b;
-        BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex, world);
+        BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex);
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
         ddf.m_Group = group_hash_a;
         ddf.m_OwnGroup = group_hash_b;
         ddf.m_OtherGroup = group_hash_a;
-        BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex, world);
+        BroadCast(&ddf, instance_b, instance_b_id, component_b->m_ComponentIndex);
     }
 
     struct RayCastUserData
