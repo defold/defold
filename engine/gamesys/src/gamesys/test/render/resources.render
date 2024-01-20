@@ -1,0 +1,13 @@
+script: "/render_script/valid.render_script"
+materials {
+  name: "test_material"
+  material: "/material/valid.material"
+}
+render_resources {
+  name: "test_material_2"
+  path: "/material/valid.material"
+}
+render_resources {
+  name: "test_render_target"
+  path: "/render_target/valid.render_target"
+}

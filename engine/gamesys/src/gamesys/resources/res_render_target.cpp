@@ -56,6 +56,8 @@ namespace dmGameSystem
 
         for (int i = 0; i < ddf->m_AttachmentCount; ++i)
         {
+            buffer_type_flags |= color_buffer_flags[i];
+
             params.m_ColorBufferCreationParams[i].m_Type           = attachment_type;
             params.m_ColorBufferCreationParams[i].m_Width          = ddf->m_Width;
             params.m_ColorBufferCreationParams[i].m_Height         = ddf->m_Height;
@@ -69,15 +71,11 @@ namespace dmGameSystem
             params.m_ColorBufferParams[i].m_Width    = ddf->m_Width;
             params.m_ColorBufferParams[i].m_Height   = ddf->m_Height;
             params.m_ColorBufferParams[i].m_Depth    = 1;
-
-            buffer_type_flags |= color_buffer_flags[i];
         }
 
-        if (ddf->m_DepthStencil)
+        if (ddf->m_AttachmentDepth)
         {
             buffer_type_flags |= dmGraphics::BUFFER_TYPE_DEPTH_BIT;
-            buffer_type_flags |= dmGraphics::BUFFER_TYPE_STENCIL_BIT;
-
             params.m_DepthBufferCreationParams.m_Type           = dmGraphics::TEXTURE_TYPE_2D;
             params.m_DepthBufferCreationParams.m_Width          = ddf->m_Width;
             params.m_DepthBufferCreationParams.m_Height         = ddf->m_Height;
@@ -92,6 +90,13 @@ namespace dmGameSystem
             params.m_DepthBufferParams.m_Height   = ddf->m_Height;
             params.m_DepthBufferParams.m_Depth    = 1;
 
+            params.m_DepthTexture = ddf->m_DepthTexture;
+        }
+
+        if (ddf->m_AttachmentStencil)
+        {
+            buffer_type_flags |= dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+
             params.m_StencilBufferCreationParams.m_Type           = dmGraphics::TEXTURE_TYPE_2D;
             params.m_StencilBufferCreationParams.m_Width          = ddf->m_Width;
             params.m_StencilBufferCreationParams.m_Height         = ddf->m_Height;
@@ -105,6 +110,7 @@ namespace dmGameSystem
             params.m_StencilBufferParams.m_Width    = ddf->m_Width;
             params.m_StencilBufferParams.m_Height   = ddf->m_Height;
             params.m_StencilBufferParams.m_Depth    = 1;
+            params.m_StencilTexture = false; // Currently not supported
         }
     }
 

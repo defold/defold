@@ -1,0 +1,8 @@
+width: 128
+height: 128
+attachment_count: 2
+attachment_type: TYPE_2D
+attachment_format: TEXTURE_FORMAT_RGB
+attachment_depth: true
+depth_texture: true
+

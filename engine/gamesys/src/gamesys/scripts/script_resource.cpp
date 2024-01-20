@@ -1272,11 +1272,48 @@ static int GetTextureInfo(lua_State* L)
  * 'attachments'
  * : [type:table] a table of attachments, where each attachment contains the following entries:
  *
+ * `handle`
+ * : [type:handle] the opaque handle to the texture resource
+ *
+ * `width`
+ * : [type:integer] width of the texture
+ *
+ * `height`
+ * : [type:integer] height of the texture
+ *
+ * `depth`
+ * : [type:integer] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
+ *
+ * `mipmaps`
+ * : [type:integer] number of mipmaps of the texture
+ *
+ * `type`
+ * : [type:number] The texture type. Supported values:
+ *
+ * - `resource.TEXTURE_TYPE_2D`
+ * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ * - `resource.TEXTURE_TYPE_2D_ARRAY`
+ *
+ * `buffer_type`
+ * : [type:number] The attachment buffer type. Supported values:
+ *
+ * - `resource.BUFFER_TYPE_COLOR0`
+ * - `resource.BUFFER_TYPE_COLOR1`
+ * - `resource.BUFFER_TYPE_COLOR2`
+ * - `resource.BUFFER_TYPE_COLOR3`
+ * - `resource.BUFFER_TYPE_DEPTH`
+ * - `resource.BUFFER_TYPE_STENCIL`
+ *
  * @examples
- * Create a new texture and get the metadata from it
+ * Get the metadata from a render target resource
  *
  * ```lua
  * function init(self)
+ *     local info = resource.get_render_target_info("/my_render_target.render_targetc")
+ *     -- the info table contains meta data about all the render target attachments
+ *     -- so it's not necessary to use resource.get_texture here, but we do it here
+ *     -- just to show that it's possible:
+ *     local info_attachment_1 = resource.get_texture_info(info.attachments[1].handle)
  * end
  * ```
  */
@@ -1315,6 +1352,8 @@ static int GetRenderTargetInfo(lua_State* L)
         dmGraphics::BUFFER_TYPE_COLOR1_BIT,
         dmGraphics::BUFFER_TYPE_COLOR2_BIT,
         dmGraphics::BUFFER_TYPE_COLOR3_BIT,
+        dmGraphics::BUFFER_TYPE_DEPTH_BIT,
+        dmGraphics::BUFFER_TYPE_STENCIL_BIT,
     };
 
     lua_newtable(L);
@@ -1325,12 +1364,13 @@ static int GetRenderTargetInfo(lua_State* L)
     lua_pushliteral(L, "attachments");
     lua_newtable(L);
 
-    for (int i = 0; i < dmGraphics::MAX_ATTACHMENT_COUNT; ++i)
+    uint32_t attachment_count = 0;
+    for (int i = 0; i < dmGraphics::MAX_ATTACHMENT_COUNT + 2; ++i)
     {
         dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, color_buffer_flags[i]);
         if (t)
         {
-            lua_pushinteger(L, (lua_Integer) (i+1));
+            lua_pushinteger(L, (lua_Integer) (attachment_count+1));
             lua_newtable(L);
             
             PushTextureInfo(L, t);
@@ -1339,6 +1379,8 @@ static int GetRenderTargetInfo(lua_State* L)
             lua_setfield(L, -2, "buffer_type");
 
             lua_rawset(L, -3);
+
+            attachment_count++;
         }
     }
 
@@ -2957,6 +2999,13 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETGRAPHICS_ENUM(TEXTURE_TYPE_2D);
     SETGRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
     SETGRAPHICS_ENUM(TEXTURE_TYPE_2D_ARRAY);
+
+    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR0_BIT);
+    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR1_BIT);
+    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR2_BIT);
+    SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR3_BIT);
+    SETGRAPHICS_ENUM(BUFFER_TYPE_DEPTH_BIT);
+    SETGRAPHICS_ENUM(BUFFER_TYPE_STENCIL_BIT);
 #undef SETGRAPHICS_ENUM
 
 #define SETTEXTUREFORMAT_IF_SUPPORTED(name) \
