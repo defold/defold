@@ -13,25 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.factory
-  (:require [clojure.string :as s]
-            [plumbing.core :as pc]
-            [dynamo.graph :as g]
-            [editor.colors :as colors]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
-            [editor.handler :as handler]
             [editor.outline :as outline]
-            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.gamesys.proto
-            GameSystem$FactoryDesc
-            GameSystem$CollectionFactoryDesc]))
+  (:import [com.dynamo.gamesys.proto GameSystem$CollectionFactoryDesc GameSystem$FactoryDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -72,7 +64,7 @@
             [:load-dynamically] load-dynamically
             [:dynamic-prototype] dynamic-prototype}})
 
-(g/defnk produce-pb-msg
+(g/defnk produce-save-value
   [prototype-resource load-dynamically dynamic-prototype factory-type]
   (let [pb-class (-> factory-types factory-type :pb-type)]
     (protobuf/make-map-with-defaults pb-class
@@ -89,7 +81,7 @@
      :content (protobuf/map->bytes (:pb-type user-data) pb-msg)}))
 
 (g/defnk produce-build-targets
-  [_node-id resource factory-type prototype pb-msg dep-build-targets]
+  [_node-id resource factory-type prototype save-value dep-build-targets]
   (or (validation/prop-error :fatal _node-id :prototype validation/prop-nil? prototype "prototype")
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
@@ -100,7 +92,7 @@
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-factory
-            :user-data {:pb-msg pb-msg
+            :user-data {:pb-msg save-value
                         :pb-type (get-in factory-types [factory-type :pb-type])
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
@@ -149,8 +141,7 @@
                                                                (resource/openable-resource? prototype)
                                                                (assoc :link prototype :outline-reference? false)))))
 
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
 

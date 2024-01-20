@@ -24,8 +24,8 @@
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [java.io IOException]
-           [com.dynamo.gamesys.proto Sound$SoundDesc]
+  (:import [com.dynamo.gamesys.proto Sound$SoundDesc]
+           [java.io IOException]
            [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -116,7 +116,7 @@
             [:speed] speed
             [:loopcount] loopcount}})
 
-(g/defnk produce-pb-msg
+(g/defnk produce-save-value
   [_node-id sound-resource looping group gain pan speed loopcount]
   (protobuf/make-map-with-defaults Sound$SoundDesc
     :sound (resource/resource->proj-path sound-resource)
@@ -136,7 +136,7 @@
      :content (protobuf/map->bytes Sound$SoundDesc pb-msg)}))
 
 (g/defnk produce-build-targets
-  [_node-id resource sound dep-build-targets pb-msg]
+  [_node-id resource sound dep-build-targets save-value]
   (or (validation/prop-error :fatal _node-id :sound validation/prop-nil? sound "Sound")
       (validation/prop-error :fatal _node-id :sound validation/prop-nil? (seq dep-build-targets) "Sound")
       (let [dep-build-targets (flatten dep-build-targets)
@@ -148,7 +148,7 @@
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-sound
-            :user-data {:pb-msg pb-msg
+            :user-data {:pb-msg save-value
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
 
@@ -203,8 +203,7 @@
 
   (output form-data g/Any :cached produce-form-data)
   (output node-outline outline/OutlineData :cached produce-outline-data)
-  (output pb-msg g/Any produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn register-resource-types [workspace]

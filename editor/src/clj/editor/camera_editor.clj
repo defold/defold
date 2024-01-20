@@ -21,10 +21,9 @@
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.gl.pass :as pass]
-            [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.protobuf :as protobuf]
@@ -32,7 +31,7 @@
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Camera$CameraDesc]
            [com.jogamp.opengl GL GL2]
-           [javax.vecmath Matrix4d Vector3d Vector4d Quat4d]))
+           [javax.vecmath Matrix4d Quat4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -95,7 +94,7 @@
             [:orthographic-projection] orthographic-projection
             [:orthographic-zoom] orthographic-zoom}})
 
-(g/defnk produce-pb-msg
+(g/defnk produce-save-value
   [aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom]
   (protobuf/make-map-with-defaults Camera$CameraDesc
     :aspect-ratio aspect-ratio
@@ -112,12 +111,12 @@
    :content (protobuf/map->bytes Camera$CameraDesc (:pb-msg user-data))})
 
 (g/defnk produce-build-targets
-  [_node-id resource pb-msg]
+  [_node-id resource save-value]
   [(bt/with-content-hash
      {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-camera
-      :user-data {:pb-msg pb-msg}})])
+      :user-data {:pb-msg save-value}})])
 
 (shader/defshader outline-vertex-shader
   (attribute vec4 position)
@@ -301,8 +300,7 @@
                                                       :label "Camera"
                                                       :icon camera-icon}))
 
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output scene g/Any :cached produce-camera-scene)
   (output build-targets g/Any :cached produce-build-targets))
 

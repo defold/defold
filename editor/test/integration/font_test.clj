@@ -101,13 +101,13 @@
           (is (g/error-fatal? (test-util/prop-error node-id p))))))))
 
 (defn pb-property [node-id property]
-  (get-in (g/node-value node-id :pb-msg) [property]))
+  (get-in (g/node-value node-id :save-value) [property]))
 
 (deftest antialias
   (test-util/with-loaded-project
-    (let [score    (test-util/resource-node project "/fonts/score.font")
+    (let [score (test-util/resource-node project "/fonts/score.font")
           score-not-antialias (test-util/resource-node project "/fonts/score_not_antialias.font")
-          score-no-antialias  (test-util/resource-node project "/fonts/score_no_antialias.font")]
+          score-no-antialias (test-util/resource-node project "/fonts/score_no_antialias.font")]
 
       (is (= (g/node-value score :antialiased) true))
       (is (= (g/node-value score :antialias) 1))

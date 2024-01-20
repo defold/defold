@@ -485,9 +485,10 @@
                                               :text preview-text}
                                   :passes [pass/transparent]}))))
 
-(g/defnk produce-pb-msg [font material size antialias alpha outline-alpha outline-width
-                         shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format
-                         all-chars cache-width cache-height render-mode]
+(g/defnk produce-save-value
+  [font material size antialias alpha outline-alpha outline-width
+   shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format
+   all-chars cache-width cache-height render-mode]
   (protobuf/make-map-with-defaults Font$FontDesc
     :font (resource/resource->proj-path font)
     :material (resource/resource->proj-path material)
@@ -539,8 +540,8 @@
       (let [proj-path (str base-path "/" path)]
         (resource-map proj-path)))))
 
-(g/defnk produce-font-map [_node-id font type font-resource-map pb-msg]
-  (make-font-map _node-id font type pb-msg (make-font-resource-resolver font font-resource-map)))
+(g/defnk produce-font-map [_node-id font type font-resource-map save-value]
+  (make-font-map _node-id font type save-value (make-font-resource-resolver font font-resource-map)))
 
 (defn- build-glyph-bank [resource _dep-resources user-data]
   (let [{:keys [font-map]} user-data]
@@ -557,7 +558,7 @@
      :build-fn build-glyph-bank
      :user-data user-data}))
 
-(g/defnk produce-build-targets [_node-id resource font-map pb-msg material dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource font-map save-value material dep-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")]
                              (remove nil?)
@@ -573,14 +574,14 @@
             dep-build-targets+glyph-bank (conj dep-build-targets glyph-bank-build-target)
             protobuf-build-target (pipeline/make-protobuf-build-target resource dep-build-targets+glyph-bank
                                                                        Font$FontMap
-                                                                       {:material (str (:material pb-msg) "c")
+                                                                       {:material (str (:material save-value) "c")
                                                                         :glyph-bank (resource/proj-path glyph-bank-build-resource)
-                                                                        :shadow-x (:shadow-x pb-msg)
-                                                                        :shadow-y (:shadow-y pb-msg)
-                                                                        :alpha (:alpha pb-msg)
-                                                                        :outline-alpha (:outline-alpha pb-msg)
-                                                                        :shadow-alpha (:shadow-alpha pb-msg)
-                                                                        :layer-mask (fontc/font-desc->layer-mask pb-msg)}
+                                                                        :shadow-x (:shadow-x save-value)
+                                                                        :shadow-y (:shadow-y save-value)
+                                                                        :alpha (:alpha save-value)
+                                                                        :outline-alpha (:outline-alpha save-value)
+                                                                        :shadow-alpha (:shadow-alpha save-value)
+                                                                        :layer-mask (fontc/font-desc->layer-mask save-value)}
                                                                        nil)]
         [(assoc protobuf-build-target :node-id _node-id)])))
 
@@ -747,8 +748,7 @@
   (input font-resource-map g/Any)
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Font" :icon font-icon}))
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output font-resource-hashes g/Any (g/fnk [font-resource-map] (map resource/resource->sha1-hex (vals font-resource-map))))
   (output build-targets g/Any :cached produce-build-targets)
   (output font-map g/Any :cached produce-font-map)

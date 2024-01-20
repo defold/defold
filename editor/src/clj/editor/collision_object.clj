@@ -35,8 +35,7 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [schema.core :as s]
-            [util.coll :as coll])
+            [schema.core :as s])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
            [javax.vecmath Matrix4d Quat4d Vector3d]))
 
@@ -416,7 +415,7 @@
           (empty? (:shapes (:embedded-collision-shape collision-object-desc)))
           (dissoc :embedded-collision-shape)))
 
-(g/defnk produce-pb-msg
+(g/defnk produce-save-value
   [collision-shape-resource type mass friction restitution
    group mask angular-damping linear-damping locked-rotation bullet
    shapes]
@@ -463,13 +462,13 @@
     collision-shape))
 
 (g/defnk produce-build-targets
-  [_node-id resource pb-msg collision-shape dep-build-targets mass type project-physics-type shapes]
+  [_node-id resource save-value collision-shape dep-build-targets mass type project-physics-type shapes]
   (let [dep-build-targets (flatten dep-build-targets)
         convex-shape (when (and collision-shape (= "convexshape" (resource/type-ext collision-shape)))
                        (get-in (first dep-build-targets) [:user-data :pb]))
         pb-msg (if convex-shape
-                 (dissoc pb-msg :collision-shape) ; Convex shape will be merged into :embedded-collision-shape below.
-                 pb-msg)
+                 (dissoc save-value :collision-shape) ; Convex shape will be merged into :embedded-collision-shape below.
+                 save-value)
         dep-build-targets (if convex-shape [] dep-build-targets)
         deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
         dep-resources (if convex-shape
@@ -561,8 +560,7 @@
                                                       :child-reqs [{:node-type Shape
                                                                     :tx-attach-fn (partial attach-shape-node true)}]}))
 
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
   (output collision-group-color g/Any :cached produce-collision-group-color))

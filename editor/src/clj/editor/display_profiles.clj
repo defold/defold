@@ -37,7 +37,7 @@
 (defn- qualifier-form-value->pb [qualifier]
   (protobuf/sanitize qualifier :device-models comma-separated-string->non-empty-vector))
 
-(g/defnk produce-pb-msg [form-values]
+(g/defnk produce-profile-pb-msg [form-values]
   (-> form-values
       (dissoc :node-id)
       (protobuf/sanitize-repeated :qualifiers qualifier-form-value->pb)))
@@ -50,7 +50,7 @@
                               {:node-id _node-id
                                :name name
                                :qualifiers qualifiers}))
-  (output pb-msg g/Any produce-pb-msg)
+  (output pb-msg g/Any produce-profile-pb-msg)
   (output profile-data g/Any (g/fnk [_node-id pb-msg]
                                     (assoc pb-msg :node-id _node-id))))
 
@@ -108,12 +108,12 @@
                             (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes (:pb-class pb-def) pb)}))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg]
+(g/defnk produce-build-targets [_node-id resource save-value]
   [(bt/with-content-hash
      {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-pb
-      :user-data {:pb pb-msg
+      :user-data {:pb save-value
                   :pb-class (:pb-class pb-def)}
       :deps []})])
 
@@ -121,9 +121,9 @@
   (inherits resource-node/ResourceNode)
 
   (input profile-msgs g/Any :array)
-  (output pb-msg g/Any :cached (g/fnk [profile-msgs]
-                                 (protobuf/make-map-with-defaults Render$DisplayProfiles
-                                   :profiles profile-msgs)))
+  (output save-value g/Any :cached (g/fnk [profile-msgs]
+                                     (protobuf/make-map-with-defaults Render$DisplayProfiles
+                                       :profiles profile-msgs)))
   (input profile-form-values g/Any :array)
   (output form-values g/Any (g/fnk [profile-form-values] {[:profiles] profile-form-values}))
   (output form-data-desc g/Any :cached produce-form-data-desc)
@@ -131,7 +131,6 @@
 
   (input profile-data g/Any :array)
   (output profile-data g/Any (gu/passthrough profile-data))
-  (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-display-profiles [project self resource pb]

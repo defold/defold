@@ -39,7 +39,7 @@
 (defn- animation-instance-desc-pb-msg [resource]
   {:animation (resource/resource->proj-path resource)})
 
-(g/defnk produce-desc-pb-msg [animation-resources]
+(g/defnk produce-save-value [animation-resources]
   (protobuf/make-map-without-defaults Rig$AnimationSetDesc
     :animations (mapv animation-instance-desc-pb-msg animation-resources)))
 
@@ -170,9 +170,7 @@
             (dynamic visible (g/constantly false)))
 
   (output form-data g/Any :cached produce-form-data)
-
-  (output desc-pb-msg g/Any :cached produce-desc-pb-msg)
-  (output save-value g/Any (gu/passthrough desc-pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output animation-set-info g/Any :cached produce-animation-set-info)
   (output animation-set g/Any produce-animation-set)
   (output animation-ids g/Any produce-animation-ids)

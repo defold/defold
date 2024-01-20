@@ -71,7 +71,7 @@
 
 (def id-shader (shader/make-shader ::model-id-shader model-id-vertex-shader model-id-fragment-shader {"id" :id "world_view_proj" :world-view-proj}))
 
-(g/defnk produce-pb-msg [primitive-type position-stream normal-stream material vertices textures]
+(g/defnk produce-save-value [primitive-type position-stream normal-stream material vertices textures]
   (protobuf/make-map-without-defaults MeshProto$MeshDesc
     :material (resource/resource->proj-path material)
     :vertices (resource/resource->proj-path vertices)
@@ -123,7 +123,7 @@
     (= stream-name specified-normal-stream-name)
     (= stream-name "normal")))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets material vertices vertex-space position-stream normal-stream stream-ids]
+(g/defnk produce-build-targets [_node-id resource save-value dep-build-targets material vertices vertex-space position-stream normal-stream stream-ids]
   (or (some->> [(prop-resource-error :fatal _node-id :material material "Material")
                 (prop-resource-error :fatal _node-id :vertices vertices "Vertices")
                 (validate-stream-id _node-id :position-stream position-stream stream-ids vertices vertex-space)
@@ -131,7 +131,7 @@
                (filterv some?)
                not-empty
                g/error-aggregate)
-      (let [pb-msg (select-keys pb-msg [:material :vertices :textures :primitive-type :position-stream :normal-stream])
+      (let [pb-msg (select-keys save-value [:material :vertices :textures :primitive-type :position-stream :normal-stream])
             dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
             dep-resources (into (res-fields->resources pb-msg deps-by-source [:material :vertices])
@@ -448,8 +448,7 @@
   (input shader ShaderLifecycle)
   (input vertex-space g/Keyword)
 
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-textures g/Any :cached produce-gpu-textures)
   (output scene g/Any :cached produce-scene)

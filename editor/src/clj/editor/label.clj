@@ -188,7 +188,7 @@
 
 (def ^:private default-scale-value-v3 [(float 1.0) (float 1.0) (float 1.0)])
 
-(g/defnk produce-pb-msg [text size color outline shadow leading tracking pivot blend-mode line-break font material]
+(g/defnk produce-save-value [text size color outline shadow leading tracking pivot blend-mode line-break font material]
   (-> (protobuf/make-map-with-defaults Label$LabelDesc
         :text text
         :size (v3->v4 size)
@@ -239,7 +239,7 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Label$LabelDesc pb)}))
 
-(g/defnk produce-build-targets [_node-id resource font material pb-msg dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets]
   (or (when-let [errors (->> [[font :font "Font"]
                               [material :material "Material"]]
                           (keep (fn [[v prop-kw name]]
@@ -253,7 +253,7 @@
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-label
-            :user-data {:proto-msg pb-msg
+            :user-data {:proto-msg save-value
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
 
@@ -318,7 +318,7 @@
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
 
-  (output pb-msg g/Any :cached produce-pb-msg)
+  (output save-value g/Any :cached produce-save-value)
   (output text-layout g/Any :cached (g/fnk [size font-map text line-break leading tracking]
                                            (font/layout-text font-map text line-break (first size) tracking leading)))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color outline shadow pivot]
@@ -338,7 +338,6 @@
                                      [max-x max-y _] (offset-fn size)]
                                  (geom/coords->aabb [min-x min-y 0]
                                                     [max-x max-y 0]))))
-  (output save-value g/Any (gu/passthrough pb-msg))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
   (output tex-params g/Any :cached (g/fnk [material-samplers]

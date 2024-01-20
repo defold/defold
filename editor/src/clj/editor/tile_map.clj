@@ -395,7 +395,7 @@
    :icon             tile-map-icon
    :children         (vec (sort-by :z child-outlines))})
 
-(g/defnk produce-pb-msg
+(g/defnk produce-save-value
   [tile-source material blend-mode layer-msgs]
   (protobuf/make-map-with-defaults Tile$TileGrid
     :tile-set (resource/resource->proj-path tile-source)
@@ -423,7 +423,7 @@
                              (format "Tile map uses tiles outside the range of this tile source (%d tiles in source, but a tile with index %d is used in tile map)" tile-count max-tile-index))) tile-source "Tile Source"))
 
 (g/defnk produce-build-targets
-  [_node-id resource tile-source material pb-msg dep-build-targets tile-count max-tile-index]
+  [_node-id resource tile-source material save-value dep-build-targets tile-count max-tile-index]
   (g/precluding-errors
     [(prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
      (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index)]
@@ -437,7 +437,7 @@
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)
           :build-fn build-tile-map
-          :user-data {:pb-msg pb-msg
+          :user-data {:pb-msg save-value
                       :dep-resources dep-resources}
           :deps dep-build-targets})])))
 
@@ -488,10 +488,10 @@
   (property blend-mode g/Any
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$TileGrid$BlendMode))))
 
-  (output max-tile-index g/Any :cached (g/fnk [pb-msg]
+  (output max-tile-index g/Any :cached (g/fnk [layer-msgs]
                                          (transduce (comp (mapcat :cell)
                                                           (map :tile))
-                                                    max 0 (:layers pb-msg))))
+                                                    max 0 layer-msgs)))
 
   (output tile-source-attributes g/Any (gu/passthrough tile-source-attributes))
   (output tile-count g/Int (g/fnk [tile-source-attributes]
@@ -511,8 +511,7 @@
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached produce-node-outline)
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
 

@@ -61,7 +61,7 @@
         [])
       (:animation-ids animation-set-info))))
 
-(g/defnk produce-pb-msg [name mesh materials skeleton animations default-animation]
+(g/defnk produce-save-value [name mesh materials skeleton animations default-animation]
   (cond-> (protobuf/make-map-with-defaults ModelProto$ModelDesc
             :mesh (resource/resource->proj-path mesh)
             :materials (mapv
@@ -127,12 +127,12 @@
     (validation/prop-error :fatal _node-id :default-animation validation/prop-member-of? default-animation (set animation-ids)
                            (format "Animation '%s' does not exist" default-animation))))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-set-build-target materials skeleton-build-target animations mesh skeleton]
+(g/defnk produce-build-targets [_node-id resource save-value dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-set-build-target materials skeleton-build-target animations mesh skeleton]
   (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
                       (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")
                       (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations "Animations")
                       (validate-default-animation _node-id default-animation animation-ids)
-                      (validation/prop-error :fatal _node-id :materials validation/prop-empty? (:materials pb-msg) "Materials")]
+                      (validation/prop-error :fatal _node-id :materials validation/prop-empty? (:materials save-value) "Materials")]
                      (map (fn [{:keys [name material]}]
                             (validation/prop-error
                               :fatal _node-id
@@ -153,7 +153,7 @@
             rig-scene-pb-msg {:texture-set ""} ; Set in the ModelProto$Model message. Other field values taken from build targets.
             rig-scene-additional-resource-keys []
             rig-scene-build-targets (rig/make-rig-scene-build-targets _node-id rig-scene-resource rig-scene-pb-msg dep-build-targets rig-scene-additional-resource-keys rig-scene-dep-build-targets)
-            pb-msg (select-keys pb-msg [:materials :default-animation])
+            pb-msg (select-keys save-value [:materials :default-animation])
             dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))
             deps-by-source (into {}
                                  (map (fn [build-target]
@@ -545,8 +545,7 @@
   ; if we're referencing a single animation file
   (output animation-set-build-target-single g/Any :cached produce-animation-set-build-target-single)
 
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
 
   (output scene g/Any :cached produce-scene)

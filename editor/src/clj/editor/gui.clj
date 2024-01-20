@@ -2686,8 +2686,17 @@
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input samplers [g/KeywordMap])
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
+
+  ;; Having the save-value output :cached means we will encache the read value
+  ;; under the save-value endpoint during loading, making dirty checks
+  ;; significantly cheaper. However, we cannot pass such a read value though to
+  ;; the pb-msg output, since pb-msg expects node-descs imported from template
+  ;; scenes to be augmented with metadata that affects the build output. As a
+  ;; result, the pb-msg output is the source of truth here, but we still gain
+  ;; value from caching the save-value output even though it is a passthrough.
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached (gu/passthrough pb-msg))
+
   (input template-build-targets g/Any :array)
   (output own-build-errors g/Any produce-own-build-errors)
   (input build-errors g/Any :array)

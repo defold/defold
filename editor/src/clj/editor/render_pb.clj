@@ -13,19 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.render-pb
-  (:require
-   [dynamo.graph :as g]
-   [editor.build-target :as bt]
-   [editor.core :as core]
-   [editor.graph-util :as gu]
-   [editor.resource :as resource]
-   [editor.resource-node :as resource-node]
-   [editor.validation :as validation]
-   [editor.workspace :as workspace]
-   [editor.protobuf :as protobuf]
-   [editor.defold-project :as project])
-  (:import
-    [com.dynamo.render.proto Render$RenderPrototypeDesc Render$RenderPrototypeDesc$MaterialDesc]))
+  (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
+            [editor.core :as core]
+            [editor.defold-project :as project]
+            [editor.graph-util :as gu]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.render.proto Render$RenderPrototypeDesc Render$RenderPrototypeDesc$MaterialDesc]))
 
 (g/defnode NamedMaterial
   (property name g/Str
@@ -101,7 +99,7 @@
       (assoc :values {[:script] script-resource
                       [:named-materials] named-materials})))
 
-(g/defnk produce-pb-msg [script-resource named-materials]
+(g/defnk produce-save-value [script-resource named-materials]
   (protobuf/make-map-with-defaults Render$RenderPrototypeDesc
     :script (resource/resource->proj-path script-resource)
     :materials (mapv (fn [{:keys [name material]}]
@@ -127,7 +125,7 @@
                          (seq))]
     (g/error-aggregate errors)))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets script named-materials]
+(g/defnk produce-build-targets [_node-id resource save-value dep-build-targets script named-materials]
   (or (build-errors _node-id script named-materials) 
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [build-resource (:resource %)
@@ -143,7 +141,7 @@
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-render
-            :user-data {:pb-msg pb-msg
+            :user-data {:pb-msg save-value
                         :built-resources built-resources}
             :deps dep-build-targets})])))
 
@@ -164,8 +162,7 @@
   (input dep-build-targets g/Any :array)
 
   (output form-data g/Any :cached produce-form-data)
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn- load-render [project self resource render-ddf]
