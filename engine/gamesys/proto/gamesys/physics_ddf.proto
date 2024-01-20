@@ -340,3 +340,47 @@ message EnableGridShapeLayer
     required uint32 shape = 1;
     required uint32 enable = 2;
 }
+
+message ContactPoint
+{
+    required dmMath.Point3  position                 = 1;
+    required dmMath.Vector3 normal                   = 2;
+    required dmMath.Vector3 relative_velocity        = 3;
+    required float          mass                     = 4;
+    required uint64         id                       = 5;
+    required uint64         group                    = 6;
+}
+
+message ContactPointEvent
+{   
+    required ContactPoint   a                         = 1;
+    required ContactPoint   b                         = 2;
+    required float          distance                  = 3;
+    required float          applied_impulse           = 4;
+}
+
+message Collision
+{
+    required dmMath.Point3 position                  = 1;
+    required uint64 id                               = 2;
+    required uint64 group                            = 3;
+}
+
+message CollisionEvent
+{
+    required Collision a                            = 1;
+    required Collision b                            = 2;
+}
+
+message Trigger
+{
+    required uint64 id                              = 1;
+    required uint64 group                           = 2;
+}
+
+message TriggerEvent
+{
+    required bool enter                             = 1;
+    required Trigger a                              = 2;
+    required Trigger b                              = 3;
+}

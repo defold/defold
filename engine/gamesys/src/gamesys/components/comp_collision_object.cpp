@@ -577,7 +577,7 @@ namespace dmGameSystem
         {
             dmLogError("Could not retrieve sender component when reporting %s: %d", DDFMessage::m_DDFDescriptor->m_Name, r);
         }
-        dmGameObject::Result result = dmGameObject::PostDDF(ddf, &sender, world->m_LuaListener == 0 ? &receiver : &world->m_LuaListenerReceiver, world->m_LuaListener, false);
+        dmGameObject::Result result = dmGameObject::PostDDF(ddf, &sender, &receiver, 0, false);
         if (result != dmGameObject::RESULT_OK)
         {
             dmLogError("Could not send %s to component: %d", DDFMessage::m_DDFDescriptor->m_Name, result);
@@ -598,11 +598,34 @@ namespace dmGameSystem
             dmGameObject::HInstance instance_b = component_b->m_Instance;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
             dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
+            uint64_t group_hash_a = GetLSBGroupHash(world, group_a);
+            uint64_t group_hash_b = GetLSBGroupHash(world, group_b);
+
+            if (world->m_LuaListener != 0)
+            {
+                dmPhysicsDDF::Collision a;
+                a.m_Group =     group_hash_a;
+                a.m_Id =        instance_a_id;
+                a.m_Position =  dmGameObject::GetWorldPosition(instance_a);
+
+                dmPhysicsDDF::Collision b;
+                b.m_Group =     group_hash_b;
+                b.m_Id =        instance_b_id;
+                b.m_Position =  dmGameObject::GetWorldPosition(instance_b);
+
+                dmPhysicsDDF::CollisionEvent ddf;
+                ddf.m_A = a;
+                ddf.m_B = b;
+
+                dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
+                if (message_result != dmGameObject::RESULT_OK)
+                {
+                    dmLogError("Error when sending CollisionEvent : %d", message_result);
+                }
+                return true;
+            }
 
             dmPhysicsDDF::CollisionResponse ddf;
-
-            uint64_t group_hash_a = GetLSBGroupHash(cud->m_World, group_a);
-            uint64_t group_hash_b = GetLSBGroupHash(cud->m_World, group_b);
 
             // Broadcast to A components
             ddf.m_OwnGroup = group_hash_a;
@@ -611,12 +634,6 @@ namespace dmGameSystem
             ddf.m_OtherId = instance_b_id;
             ddf.m_OtherPosition = dmGameObject::GetWorldPosition(instance_b);
             BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex, world);
-
-            // It's enough to have one message in global physics world listener
-            if (world->m_LuaListener != 0)
-            {
-                return true;
-            }
 
             // Broadcast to B components
             ddf.m_OwnGroup = group_hash_b;
@@ -648,13 +665,44 @@ namespace dmGameSystem
             dmGameObject::HInstance instance_b = component_b->m_Instance;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
             dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
-
-            dmPhysicsDDF::ContactPointResponse ddf;
             float mass_a = dmMath::Select(-contact_point.m_MassA, 0.0f, contact_point.m_MassA);
             float mass_b = dmMath::Select(-contact_point.m_MassB, 0.0f, contact_point.m_MassB);
+            uint64_t group_hash_a = GetLSBGroupHash(world, contact_point.m_GroupA);
+            uint64_t group_hash_b = GetLSBGroupHash(world, contact_point.m_GroupB);
 
-            uint64_t group_hash_a = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
-            uint64_t group_hash_b = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
+            if (world->m_LuaListener != 0)
+            {
+                dmPhysicsDDF::ContactPoint a;
+                a.m_Group               = group_hash_a;
+                a.m_Id                  = instance_a_id;
+                a.m_Position            = dmGameObject::GetWorldPosition(instance_a);
+                a.m_Mass                = mass_a;
+                a.m_RelativeVelocity    = -contact_point.m_RelativeVelocity;
+                a.m_Normal              = -contact_point.m_Normal;
+
+                dmPhysicsDDF::ContactPoint b;
+                b.m_Group               = group_hash_b;
+                b.m_Id                  = instance_b_id;
+                b.m_Position            = dmGameObject::GetWorldPosition(instance_b);
+                b.m_Mass                = mass_b;
+                b.m_RelativeVelocity    = contact_point.m_RelativeVelocity;
+                b.m_Normal              = contact_point.m_Normal;
+
+                dmPhysicsDDF::ContactPointEvent ddf;
+                ddf.m_A = a;
+                ddf.m_B = b;
+                ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
+                ddf.m_Distance = contact_point.m_Distance;
+
+                dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
+                if (message_result != dmGameObject::RESULT_OK)
+                {
+                    dmLogError("Error when sending ContactPointEvent : %d", message_result);
+                }
+                return true;
+            }
+
+            dmPhysicsDDF::ContactPointResponse ddf;
 
             // Broadcast to A components
             ddf.m_Position = contact_point.m_PositionA;
@@ -671,12 +719,6 @@ namespace dmGameSystem
             ddf.m_OtherGroup = group_hash_b;
             ddf.m_LifeTime = 0;
             BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex, world);
-
-            // It's enough to have one message in global physics world listener
-            if (world->m_LuaListener != 0)
-            {
-                return true;
-            }
 
             // Broadcast to B components
             ddf.m_Position = contact_point.m_PositionB;
@@ -715,11 +757,34 @@ namespace dmGameSystem
         dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
         dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
 
-        dmPhysicsDDF::TriggerResponse ddf;
-        ddf.m_Enter = 1;
-
         uint64_t group_hash_a = GetLSBGroupHash(world, trigger_enter.m_GroupA);
         uint64_t group_hash_b = GetLSBGroupHash(world, trigger_enter.m_GroupB);
+
+        if (world->m_LuaListener != 0)
+        {
+            dmPhysicsDDF::Trigger a;
+            a.m_Group       = group_hash_a;
+            a.m_Id          = instance_a_id;
+
+            dmPhysicsDDF::Trigger b;
+            b.m_Group       = group_hash_b;
+            b.m_Id          = instance_b_id;
+
+            dmPhysicsDDF::TriggerEvent ddf;
+            ddf.m_Enter = 1;
+            ddf.m_A = a;
+            ddf.m_B = b;
+
+            dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
+            if (message_result != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Error when sending TriggerEventEntered : %d", message_result);
+            }
+            return;
+        }
+
+        dmPhysicsDDF::TriggerResponse ddf;
+        ddf.m_Enter = 1;
 
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
@@ -727,12 +792,6 @@ namespace dmGameSystem
         ddf.m_OwnGroup = group_hash_a;
         ddf.m_OtherGroup = group_hash_b;
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex, world);
-
-        // It's enough to have one message in global physics world listener
-        if (world->m_LuaListener != 0)
-        {
-            return;
-        }
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
@@ -752,11 +811,34 @@ namespace dmGameSystem
         dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
         dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
 
-        dmPhysicsDDF::TriggerResponse ddf;
-        ddf.m_Enter = 0;
-
         uint64_t group_hash_a = GetLSBGroupHash(world, trigger_exit.m_GroupA);
         uint64_t group_hash_b = GetLSBGroupHash(world, trigger_exit.m_GroupB);
+
+        if (world->m_LuaListener != 0)
+        {
+            dmPhysicsDDF::Trigger a;
+            a.m_Group       = group_hash_a;
+            a.m_Id          = instance_a_id;
+
+            dmPhysicsDDF::Trigger b;
+            b.m_Group       = group_hash_b;
+            b.m_Id          = instance_b_id;
+
+            dmPhysicsDDF::TriggerEvent ddf;
+            ddf.m_Enter = 0;
+            ddf.m_A = a;
+            ddf.m_B = b;
+
+            dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
+            if (message_result != dmGameObject::RESULT_OK)
+            {
+                dmLogError("Error when sending TriggerEventExited : %d", message_result);
+            }
+            return;
+        }
+
+        dmPhysicsDDF::TriggerResponse ddf;
+        ddf.m_Enter = 0;
 
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
@@ -764,13 +846,6 @@ namespace dmGameSystem
         ddf.m_OwnGroup = group_hash_a;
         ddf.m_OtherGroup = group_hash_b;
         BroadCast(&ddf, instance_a, instance_a_id, component_a->m_ComponentIndex, world);
-
-        // It's enough to have one message in global physics world listener
-        if (world->m_LuaListener != 0)
-        {
-            return;
-        }
-
 
         // Broadcast to B components
         ddf.m_OtherId = instance_a_id;
