@@ -32,6 +32,12 @@ namespace dmGameSystem
         }
     }
 
+    struct RenderResourceMeta
+    {
+        const char*                  m_Name;
+        dmRender::RenderResourceType m_Type;
+    };
+
     dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
         dmRender::HRenderContext render_context, RenderScriptPrototype* prototype, const char* filename)
     {
@@ -55,56 +61,75 @@ namespace dmGameSystem
             {
                 dmRender::SetRenderScriptInstanceRenderScript(prototype->m_Instance, prototype->m_Script);
                 dmRender::ClearRenderScriptInstanceRenderResources(prototype->m_Instance);
-                //dmRender::ClearRenderScriptInstanceRenderTargets(prototype->m_Instance);
             }
 
-            // The materials field is deprecated
-            assert(prototype_desc->m_Materials.m_Count == 0);
-            prototype->m_RenderResources.SetCapacity(prototype_desc->m_RenderResources.m_Count);
+            // The materials field is deprecated (should we support loading old content?)
+            uint32_t total_resource_count = prototype_desc->m_RenderResources.m_Count + prototype_desc->m_Materials.m_Count;
 
-            dmArray<dmRender::RenderResourceType> render_resource_types;
-            render_resource_types.SetCapacity(prototype_desc->m_RenderResources.m_Count);
+            dmArray<RenderResourceMeta> render_resource_metas;
+            render_resource_metas.SetCapacity(total_resource_count);
+            prototype->m_RenderResources.SetCapacity(total_resource_count);
 
-            // Supported render resource types:
-            dmResource::ResourceType res_type_material;
-            dmResource::ResourceType res_type_render_target;
-
-            dmResource::Result type_res = dmResource::GetTypeFromExtension(factory, "materialc", &res_type_material);
-            assert(type_res == dmResource::RESULT_OK);
-
-            type_res = dmResource::GetTypeFromExtension(factory, "render_targetc", &res_type_render_target);
-            assert(type_res == dmResource::RESULT_OK);
-
-            for (uint32_t i = 0; i < prototype_desc->m_RenderResources.m_Count; ++i)
+            for (uint32_t i = 0; i < prototype_desc->m_Materials.m_Count; ++i)
             {
-                void* res;
-                if (dmResource::Get(factory, prototype_desc->m_RenderResources[i].m_Path, &res) != dmResource::RESULT_OK)
-                {
+                void* material;
+                result = dmResource::Get(factory, prototype_desc->m_Materials[i].m_Material, (void**)&material);
+                if (result != dmResource::RESULT_OK)
                     break;
-                }
 
-                dmResource::ResourceType res_type;
-                dmResource::GetType(factory, res, &res_type);
+                RenderResourceMeta meta;
+                meta.m_Name = prototype_desc->m_Materials[i].m_Name;
+                meta.m_Type = dmRender::RENDER_RESOURCE_TYPE_MATERIAL;
 
-                dmRender::RenderResourceType render_resource_type = dmRender::RENDER_RESOURCE_TYPE_INVALID;
+                prototype->m_RenderResources.Push(material);
+                render_resource_metas.Push(meta);
+            }
 
-                if (res_type == res_type_material)
+            if (prototype_desc->m_RenderResources.m_Count > 0)
+            {
+                // Supported render resource types:
+                dmResource::ResourceType res_type_material;
+                dmResource::ResourceType res_type_render_target;
+
+                dmResource::Result type_res = dmResource::GetTypeFromExtension(factory, "materialc", &res_type_material);
+                assert(type_res == dmResource::RESULT_OK);
+
+                type_res = dmResource::GetTypeFromExtension(factory, "render_targetc", &res_type_render_target);
+                assert(type_res == dmResource::RESULT_OK);
+
+                for (uint32_t i = 0; i < prototype_desc->m_RenderResources.m_Count; ++i)
                 {
-                    render_resource_type = dmRender::RENDER_RESOURCE_TYPE_MATERIAL;
-                }
-                else if (res_type == res_type_render_target)
-                {
-                    render_resource_type = dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET;
-                }
-                else
-                {
-                    // some error
-                    result = dmResource::RESULT_NOT_SUPPORTED;
-                    break;
-                }
+                    void* res;
+                    result = dmResource::Get(factory, prototype_desc->m_RenderResources[i].m_Path, &res);
+                    if (result != dmResource::RESULT_OK)
+                        break;
 
-                prototype->m_RenderResources.Push(res);
-                render_resource_types.Push(render_resource_type);
+                    dmResource::ResourceType res_type;
+                    dmResource::GetType(factory, res, &res_type);
+                    dmRender::RenderResourceType render_resource_type = dmRender::RENDER_RESOURCE_TYPE_INVALID;
+
+                    if (res_type == res_type_material)
+                    {
+                        render_resource_type = dmRender::RENDER_RESOURCE_TYPE_MATERIAL;
+                    }
+                    else if (res_type == res_type_render_target)
+                    {
+                        render_resource_type = dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET;
+                    }
+                    else
+                    {
+                        result = dmResource::RESULT_NOT_SUPPORTED;
+                        break;
+                    }
+
+                    prototype->m_RenderResources.Push(res);
+
+                    RenderResourceMeta meta;
+                    meta.m_Name = prototype_desc->m_RenderResources[i].m_Name;
+                    meta.m_Type = render_resource_type;
+
+                    render_resource_metas.Push(meta);
+                }
             }
 
             if (result == dmResource::RESULT_OK)
@@ -112,72 +137,29 @@ namespace dmGameSystem
                 for (uint32_t i = 0; i < prototype->m_RenderResources.Size(); ++i)
                 {
                     void* render_resource = prototype->m_RenderResources[i];
-                    uint64_t render_resource_val = (uint64_t) render_resource;
+                    uint64_t render_resource_val = 0;
 
-                    if (render_resource_types[i] == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET)
+                    switch(render_resource_metas[i].m_Type)
                     {
-                        dmGameSystem::TextureResource* texture_res = (dmGameSystem::TextureResource*) render_resource;
-                        render_resource_val = (uint64_t) texture_res->m_Texture;
+                        case dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET:
+                            render_resource_val = (uint64_t) ((dmGameSystem::TextureResource*) render_resource)->m_Texture;
+                            break;
+                        case dmRender::RENDER_RESOURCE_TYPE_MATERIAL:
+                            render_resource_val = (uint64_t) render_resource;
+                            break;
                     }
 
                     dmRender::AddRenderScriptInstanceRenderResource(
                         prototype->m_Instance,
-                        prototype_desc->m_RenderResources[i].m_Name,
+                        render_resource_metas[i].m_Name,
                         render_resource_val,
-                        render_resource_types[i]);
+                        render_resource_metas[i].m_Type);
                 }
             }
             else if (!prototype->m_RenderResources.Full())
             {
                 result = dmResource::RESULT_OUT_OF_RESOURCES;
             }
-
-
-            /*
-            // Materials
-            prototype->m_Materials.SetCapacity(prototype_desc->m_Materials.m_Count);
-            for (uint32_t i = 0; i < prototype_desc->m_Materials.m_Count; ++i)
-            {
-                dmGameSystem::MaterialResource* material;
-                if (dmResource::RESULT_OK == dmResource::Get(factory, prototype_desc->m_Materials[i].m_Material, (void**)&material))
-                    prototype->m_Materials.Push(material);
-                else
-                    break;
-            }
-            if (!prototype->m_Materials.Full())
-            {
-                result = dmResource::RESULT_OUT_OF_RESOURCES;
-            }
-            else
-            {
-                for (uint32_t i = 0; i < prototype->m_Materials.Size(); ++i)
-                {
-                    dmRender::AddRenderScriptInstanceMaterial(prototype->m_Instance, prototype_desc->m_Materials[i].m_Name, prototype->m_Materials[i]->m_Material);
-                }
-            }
-
-            // RenderTargets
-            prototype->m_RenderTargets.SetCapacity(prototype_desc->m_RenderTargets.m_Count);
-            for (uint32_t i = 0; i < prototype_desc->m_RenderTargets.m_Count; ++i)
-            {
-                dmGameSystem::TextureResource* rt;
-                if (dmResource::RESULT_OK == dmResource::Get(factory, prototype_desc->m_RenderTargets[i].m_RenderTarget, (void**)&rt))
-                    prototype->m_RenderTargets.Push(rt);
-                else
-                    break;
-            }
-            if (!prototype->m_RenderTargets.Full())
-            {
-                result = dmResource::RESULT_OUT_OF_RESOURCES;
-            }
-            else
-            {
-                for (uint32_t i = 0; i < prototype->m_RenderTargets.Size(); ++i)
-                {
-                    dmRender::AddRenderScriptInstanceRenderTarget(prototype->m_Instance, prototype_desc->m_RenderTargets[i].m_Name, prototype->m_RenderTargets[i]->m_Texture);
-                }
-            }
-            */
         }
         dmDDF::FreeMessage(prototype_desc);
         return result;
@@ -187,12 +169,8 @@ namespace dmGameSystem
     {
         if (prototype->m_Script)
             dmResource::Release(factory, prototype->m_Script);
-        /*
-        for (uint32_t i = 0; i < prototype->m_Materials.Size(); ++i)
-            dmResource::Release(factory, prototype->m_Materials[i]);
-        for (uint32_t i = 0; i < prototype->m_RenderTargets.Size(); ++i)
-            dmResource::Release(factory, prototype->m_RenderTargets[i]);
-        */
+        for (uint32_t i = 0; i < prototype->m_RenderResources.Size(); ++i)
+            dmResource::Release(factory, prototype->m_RenderResources[i]);
     }
 
     dmResource::Result ResRenderPrototypeCreate(const dmResource::ResourceCreateParams& params)
