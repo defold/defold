@@ -17,7 +17,6 @@
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.gl.texture :as texture]
-            [editor.material :as material]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
@@ -34,7 +33,7 @@
   (g/clear-property! node-id property))
 
 (g/defnk produce-form-data
-  [_node-id width height attachment-count attachment-type attachment-format depth-stencil]
+  [_node-id width height attachment-count attachment-type attachment-format attachment-depth attachment-stencil depth-texture]
   {:form-ops {:user-data {:node-id _node-id}
               :set set-form-op
               :clear clear-form-op}
@@ -47,36 +46,46 @@
                          :label "Height"
                          :type :number}
                         {:path [:attachment-count]
-                         :label "Attachment Count"
+                         :label "Color Attachment Count"
                          :type :number}
                         {:path [:attachment-type]
-                         :label "Attachment Type"
+                         :label "Color Attachment Type"
                          :type :choicebox
                          :options (protobuf-forms/make-options (protobuf/enum-values Graphics$TextureImage$Type))
                          :default (ffirst (protobuf/enum-values Graphics$TextureImage$Type))}
                         {:path [:attachment-format]
-                         :label "Attachment Format"
+                         :label "Color Attachment Format"
                          :type :choicebox
                          :options (protobuf-forms/make-options (protobuf/enum-values Graphics$TextureImage$TextureFormat))
                          :default (ffirst (protobuf/enum-values Graphics$TextureImage$TextureFormat))}
-                        {:path [:depth-stencil]
-                         :label "Depth / Stencil"
+                        {:path [:attachment-depth]
+                         :label "Depth Attachment"
+                         :type :boolean}
+                        {:path [:attachment-stencil]
+                         :label "Stencil Attachment"
+                         :type :boolean}
+                        {:path [:depth-texture]
+                         :label "Depth Texture"
                          :type :boolean}]}]
    :values {[:width] width
             [:height] height
             [:attachment-count] attachment-count
             [:attachment-type] attachment-type
             [:attachment-format] attachment-format
-            [:depth-stencil] depth-stencil}})
+            [:attachment-depth] attachment-depth
+            [:attachment-stencil] attachment-stencil
+            [:depth-texture] depth-texture}})
 
 (g/defnk produce-pb-msg
-  [width height attachment-count attachment-type attachment-format depth-stencil]
+  [width height attachment-count attachment-type attachment-format attachment-depth attachment-stencil depth-texture]
   {:width width
    :height height
    :attachment-count attachment-count
    :attachment-type attachment-type
    :attachment-format attachment-format
-   :depth-stencil depth-stencil})
+   :attachment-depth attachment-depth
+   :attachment-stencil attachment-stencil
+   :depth-texture depth-texture})
 
 (defn build-render-target
   [resource dep-resources user-data]
@@ -102,7 +111,9 @@
   (property attachment-count g/Num)
   (property attachment-type g/Keyword)
   (property attachment-format g/Keyword)
-  (property depth-stencil g/Bool)
+  (property attachment-depth g/Bool)
+  (property attachment-stencil g/Bool)
+  (property depth-texture g/Bool)
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
@@ -117,7 +128,9 @@
     :attachment-count (:attachment-count render-target)
     :attachment-type (:attachment-type render-target)
     :attachment-format (:attachment-format render-target)
-    :depth-stencil (:depth-stencil render-target)))
+    :attachment-depth (:attachment-depth render-target)
+    :attachment-stencil (:attachment-stencil render-target)
+    :depth-texture (:depth-texture render-target)))
 
 (defn register-resource-types
   [workspace]
