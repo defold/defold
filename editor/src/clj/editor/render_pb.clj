@@ -27,15 +27,9 @@
   (:import
    [com.dynamo.render.proto Render$RenderPrototypeDesc]))
 
-(g/defnode NamedAsset
+(g/defnode NamedRenderResource
   (property name g/Str
             (dynamic visible (g/constantly false)))
-  (input resource resource/Resource)
-  (input dep-build-targets g/Any)
-  (output dep-build-targets g/Any (gu/passthrough dep-build-targets)))
-
-(g/defnode NamedRenderResource
-  (inherits NamedAsset)
   (property render-resource resource/Resource
             (value (gu/passthrough resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -50,6 +44,11 @@
                          (:tx-data (project/connect-resource-node evaluation-context project new-value self connections))
                          (g/connect project :nil-resource self :resource))))))
             (dynamic visible (g/constantly false)))
+
+  (input resource resource/Resource)
+  (input dep-build-targets g/Any)
+
+  (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
   (output named-render-resource g/Any (g/fnk [_node-id name render-resource]
                                  {:name name
                                   :path render-resource})))
@@ -109,15 +108,12 @@
                        :path (resource/resource->proj-path path)})
                     named-render-resources)})
 
-(def my-atom (atom 0))
 (defn- build-render [resource dep-resources user-data]
   (let [{:keys [pb-msg built-resources]} user-data
         built-pb (reduce (fn [pb [path built-resource]]
-                           (println "AKOSDSAOK" path built-resource)
                            (assoc-in pb path (resource/proj-path (get dep-resources built-resource))))
                          pb-msg
                          built-resources)]
-    (reset! my-atom built-pb)
     {:resource resource :content (protobuf/map->bytes Render$RenderPrototypeDesc built-pb)}))
 
 (defn- build-errors
