@@ -1133,7 +1133,6 @@
       (disk/process-post-save-actions! workspace post-save-actions))))
 
 (defn type-preserving-add [a b]
-  (println a b)
   (condp instance? a
     Double (double (+ a b))
     Float (float (+ a b))
@@ -1238,8 +1237,7 @@
   (g/set-property resource-node-id :script nil))
 
 (defmethod edit-resource-node "render_target" [resource-node-id]
-  (println resource-node-id (g/node-value resource-node-id :color-attachments))
-  (g/update-property resource-node-id :pb update-in [:color-attachments 0 :width] type-preserving-add 1))
+  (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
 
 (defmethod edit-resource-node "settings" [resource-node-id]
   (update-setting resource-node-id ["liveupdate" "zip-filepath"] str \_))
@@ -1270,6 +1268,5 @@
   (g/update-property resource-node-id :tile-spacing type-preserving-add 1))
 
 (defn edit-resource-node! [resource-node-id]
-  (println "WUTUT" (resource-node/resource resource-node-id))
   (g/transact
     (edit-resource-node resource-node-id)))
