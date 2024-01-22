@@ -21,6 +21,7 @@
 #include <dlib/time.h>
 #include <extension/extension.h>
 #include <render/render.h>
+#include <script/script.h>
 #include <dmsdk/dlib/vmath.h>
 
 #include "profiler_private.h"
@@ -126,7 +127,7 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
  *
  * OS                                | Value
  * ----------------------------------|------------------
- * [icon:ios] iOS<br/>[icon:macos] MacOS<br/>[icon:android]<br/>Androd<br/>[icon:linux] Linux | [Resident memory](https://en.wikipedia.org/wiki/Resident_set_size)
+ * [icon:ios] iOS<br/>[icon:macos] MacOS<br/>[icon:android]<br/>Android<br/>[icon:linux] Linux | [Resident memory](https://en.wikipedia.org/wiki/Resident_set_size)
  * [icon:windows] Windows            | [Working set](https://en.wikipedia.org/wiki/Working_set)
  * [icon:html5] HTML5                | [icon:attention] Not available
  *
@@ -167,6 +168,14 @@ static int CPUUsage(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
     lua_pushnumber(L, dmProfilerExt::GetCpuUsage());
+    return 1;
+}
+
+
+static int GetLuaRefCount(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+    lua_pushnumber(L, dmScript::GetLuaRefCount());
     return 1;
 }
 
@@ -648,6 +657,7 @@ static dmExtension::Result InitializeProfiler(dmExtension::Params* params)
     {
         {"get_memory_usage",            MemoryUsage},
         {"get_cpu_usage",               CPUUsage},
+        {"get_lua_ref_count",           GetLuaRefCount},
         {"enable_ui",                   EnableProfilerUI},
         {"set_ui_mode",                 SetProfileUIMode},
         {"set_ui_view_mode",            SetProfilerUIViewMode},

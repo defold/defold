@@ -47,9 +47,9 @@
   ordered, the result is undefined. New items will be inserted after exact
   matches, or between two non-exact matches that each compare differently to
   item using the supplied comparator."
-  ([coll item]
+  (^long [coll item]
    (find-insert-index coll item compare))
-  ([^List coll item ^Comparator comparator]
+  (^long [^List coll item ^Comparator comparator]
    (let [search-result (Collections/binarySearch coll item comparator)]
      (->insert-index search-result))))
 

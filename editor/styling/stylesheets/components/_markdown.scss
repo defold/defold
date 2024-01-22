@@ -51,6 +51,12 @@
       &-nb { -fx-fill: -df-script-operator; }
     }
   }
+  &-hr {
+    -fx-background-color: derive(#212428, 30%);
+    -fx-min-height: 1px;
+    -fx-background-insets: 0px 8px;
+    -fx-pref-width: Infinity;
+  }
   &-icon {
     -fx-background-color: -df-text;
     -fx-translate-y: 2px;

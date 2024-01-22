@@ -132,6 +132,15 @@ namespace dmRender
 
         context->m_StencilBufferCleared = 0;
 
+        context->m_MultiBufferingRequired = 0;
+
+        dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
+        if (installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
+            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR)
+        {
+            context->m_MultiBufferingRequired = 1;
+        }
+
         context->m_RenderListDispatch.SetCapacity(255);
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
@@ -276,6 +285,11 @@ namespace dmRender
     const Matrix4& GetViewProjectionMatrix(HRenderContext render_context)
     {
         return render_context->m_ViewProj;
+    }
+
+    const Matrix4& GetViewMatrix(HRenderContext render_context)
+    {
+        return render_context->m_View;
     }
 
     void SetViewMatrix(HRenderContext render_context, const Matrix4& view)
@@ -866,14 +880,37 @@ namespace dmRender
                 }
             }
 
-            dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
+            dmGraphics::HProgram material_program = GetMaterialProgram(material);
+
+            for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
+            {
+                if (ro->m_VertexBuffers[i])
+                {
+                    dmGraphics::EnableVertexBuffer(context, ro->m_VertexBuffers[i], i);
+                }
+                if (ro->m_VertexDeclarations[i])
+                {
+                    dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclarations[i], i, material_program);
+                }
+            }
 
             if (ro->m_IndexBuffer)
                 dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer);
             else
                 dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
 
-            dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
+            for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
+            {
+                if (ro->m_VertexBuffers[i])
+                {
+                    dmGraphics::DisableVertexBuffer(context, ro->m_VertexBuffers[i]);
+                }
+
+                if (ro->m_VertexDeclarations[i])
+                {
+                    dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclarations[i]);
+                }
+            }
 
             next_texture_unit = 0;
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)

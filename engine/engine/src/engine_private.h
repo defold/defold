@@ -106,6 +106,7 @@ namespace dmEngine
         Engine(dmEngineService::HEngineService engine_service);
         dmEngineService::HEngineService             m_EngineService;
         dmConfigFile::HConfig                       m_Config;
+        dmPlatform::HWindow                         m_Window;
 
         RunResult                                   m_RunResult;
         bool                                        m_Alive;

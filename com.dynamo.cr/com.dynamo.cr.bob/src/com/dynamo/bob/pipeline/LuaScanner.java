@@ -266,6 +266,23 @@ public class LuaScanner extends LuaParserBaseListener {
         }
     }
 
+    private void removeTokens(List<Token> tokens, boolean shouldRemoveSemicolonAfter) {
+        int lastTokenIndex = tokens.get(tokens.size() - 1).getTokenIndex();
+        removeTokens(tokens);
+        if (shouldRemoveSemicolonAfter) {
+            int nextTokenIndex = lastTokenIndex + 1;
+            Token token = rewriter.getTokenStream().get(nextTokenIndex);
+             /**
+             * We use this to remove semicolon statements in the end of line;
+             * The semicolon may cause problems if it is at the end of a go.property call
+             * as it will be removed after it has been parsed.
+             */
+            if (token != null && token.getType() == LuaLexer.SEMICOLON) {
+                removeToken(token);
+            }
+        }
+    }
+
     // returns first function argument only if it's a string, otherwise null
     private String getFirstStringArg(LuaParser.ArgsContext argsCtx) {
         if (argsCtx == null) {
@@ -358,7 +375,7 @@ public class LuaScanner extends LuaParserBaseListener {
             properties.add(property);
 
             // strip property from code
-            removeTokens(tokens);
+            removeTokens(tokens, true);
         }
     }
 
@@ -472,22 +489,4 @@ public class LuaScanner extends LuaParserBaseListener {
         }
         return result;
     }
-
-    /**
-     * Callback from ANTLR when a statement is entered. We use this to remove
-     * any stand-alone semicolon statements. The semicolon may cause problems
-     * if it is at the end of a go.property call as it will be removed after it
-     * has been parsed.
-     * Note that semicolons used as field or return separators are not affected.
-     */
-    @Override public void enterStat(LuaParser.StatContext ctx) {
-        List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
-        if (tokens.size() == 1) {
-            Token token = tokens.get(0);
-            if (token.getText().equals(";")) {
-                removeToken(token);
-            }
-        }
-    }
-
 }

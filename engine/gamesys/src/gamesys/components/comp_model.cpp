@@ -58,6 +58,14 @@ namespace dmGameSystem
     using namespace dmVMath;
     using namespace dmGameSystemDDF;
 
+    static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED = 0xffff;
+
+    struct MeshAttributeRenderData
+    {
+        dmGraphics::HVertexBuffer      m_VertexBuffer;
+        dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    };
+
     struct MeshRenderItem
     {
         dmVMath::Matrix4            m_World;
@@ -70,7 +78,8 @@ namespace dmGameSystem
         uint32_t                    m_BoneIndex;
         uint32_t                    m_MaterialIndex : 4; // current max 16 materials per model
         uint32_t                    m_Enabled : 1;
-        uint32_t                    : 27;
+        uint32_t                    m_AttributeRenderDataIndex : 16;
+        uint32_t                    : 11;
     };
 
     struct ModelComponent
@@ -89,7 +98,8 @@ namespace dmGameSystem
 
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
-        dmArray<MeshRenderItem>     m_RenderItems;
+        dmArray<MeshRenderItem>          m_RenderItems;
+        dmArray<MeshAttributeRenderData> m_MeshAttributeRenderDatas;
         uint16_t                    m_ComponentIndex;
         uint8_t                     m_Enabled : 1;
         uint8_t                     m_DoRender : 1;
@@ -103,14 +113,15 @@ namespace dmGameSystem
         dmObjectPool<ModelComponent*>   m_Components;
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        dmGraphics::HVertexBuffer*      m_VertexBuffers;
-        dmArray<dmRig::RigModelVertex>* m_VertexBufferData;
+        dmRender::HBufferedRenderBuffer* m_VertexBuffers;
+        dmArray<uint8_t>*                m_VertexBufferData;
+        uint32_t*                        m_VertexBufferVertexCounts;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmRig::HRigContext              m_RigContext;
         uint32_t                        m_MaxElementsVertices;
-        uint32_t                        m_VertexBufferSwapChainIndex;
-        uint32_t                        m_VertexBufferSwapChainSize;
+        uint32_t                        m_MaxBatchIndex;
+        uint32_t                        m_DispatchCount;
     };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
@@ -154,13 +165,16 @@ namespace dmGameSystem
         dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration, "texcoord1", 2, dmGraphics::TYPE_FLOAT, false);
 
+        world->m_MaxBatchIndex = 0;
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         world->m_MaxElementsVertices = dmGraphics::GetMaxElementsVertices(graphics_context);
-        world->m_VertexBuffers = new dmGraphics::HVertexBuffer[VERTEX_BUFFER_MAX_BATCHES];
-        world->m_VertexBufferData = new dmArray<dmRig::RigModelVertex>[VERTEX_BUFFER_MAX_BATCHES];
+        world->m_VertexBuffers = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
+        world->m_VertexBufferData = new dmArray<uint8_t>[VERTEX_BUFFER_MAX_BATCHES];
+        world->m_VertexBufferVertexCounts = new uint32_t[VERTEX_BUFFER_MAX_BATCHES];
+
         for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
-            world->m_VertexBuffers[i] = dmGraphics::NewVertexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+            world->m_VertexBuffers[i] = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         }
 
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
@@ -174,11 +188,12 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
+        ModelContext* context = (ModelContext*)params.m_Context;
         ModelWorld* world = (ModelWorld*)params.m_World;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
         for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
-            dmGraphics::DeleteVertexBuffer(world->m_VertexBuffers[i]);
+            dmRender::DeleteBufferedRenderBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
         }
 
         dmResource::UnregisterResourceReloadedCallback(((ModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
@@ -186,6 +201,7 @@ namespace dmGameSystem
         dmRig::DeleteContext(world->m_RigContext);
 
         delete [] world->m_VertexBufferData;
+        delete [] world->m_VertexBufferVertexCounts;
         delete [] world->m_VertexBuffers;
 
         delete world;
@@ -271,55 +287,75 @@ namespace dmGameSystem
         }
     }
 
+    static inline bool IsDefaultStream(dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type)
+    {
+        return (name_hash == dmRender::VERTEX_STREAM_POSITION  && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION) ||
+               (name_hash == dmRender::VERTEX_STREAM_NORMAL    && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL)   ||
+               (name_hash == dmRender::VERTEX_STREAM_TANGENT   && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT)  ||
+               (name_hash == dmRender::VERTEX_STREAM_COLOR     && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR)    ||
+               (name_hash == dmRender::VERTEX_STREAM_TEXCOORD0 && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD) ||
+               (name_hash == dmRender::VERTEX_STREAM_TEXCOORD1 && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD);
+    }
+
     static inline MaterialResource* GetMaterialResource(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
         // TODO: Add support for setting material on different indices
-        return component->m_Material ? component->m_Material : resource->m_Materials[index].m_Material;;
+        return component->m_Material ? component->m_Material : resource->m_Materials[index].m_Material;
     }
 
     static inline dmRender::HMaterial GetMaterial(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
         return GetMaterialResource(component, resource, index)->m_Material;
     }
 
-    TextureResource* GetTextureResource(const ModelComponent* component, uint32_t material_index, uint32_t texture_unit)
+    static TextureResource* GetTextureFromSamplerNameHash(const MaterialInfo* material_info, const MaterialResource* material, uint32_t material_texture_index, dmhash_t sampler_name_hash)
     {
-        assert(texture_unit < MAX_TEXTURE_COUNT);
-        TextureResource* texture;
+        // Material is the actual selected material (may be overridden at runtime)
 
-        // Overridden textures (from Lua code)
-        texture = component->m_Textures[texture_unit];
-        if (texture)
-            return texture;
-        // Overridden material (from Lua code)
-        MaterialResource* material = component->m_Material;
-        if (material)
-            texture = material->m_Textures[texture_unit];
-        if (texture)
-            return texture;
+        // If the model has textures, let's find the one associated with the sampler name
+        for (uint32_t i = 0; i < material_info->m_TexturesCount; ++i)
+        {
+            if (material_info->m_Textures[i].m_SamplerNameHash == sampler_name_hash)
+                return material_info->m_Textures[i].m_Texture;
+        }
 
-        MaterialInfo* material_info = &component->m_Resource->m_Materials[material_index];
-        // Overridden textures (from .model)
-        MaterialTextureInfo* texture_infos = material_info->m_Textures;
-        if (material_info->m_Textures && texture_unit < material_info->m_TexturesCount)
-            texture = material_info->m_Textures[texture_unit].m_Texture;
-        if (texture)
-            return texture;
-
-        // The textures which are set in the .material file
-        material = material_info->m_Material;
-        if (material)
-            texture = material->m_Textures[texture_unit];
-        if (texture)
-            return texture;
+        // If it is contains materials, use that
+        if (material_texture_index < material->m_NumTextures)
+            return material->m_Textures[material_texture_index];
 
         return 0;
     }
 
-    dmGraphics::HTexture GetMaterialTexture(const ModelComponent* component, uint32_t material_index, uint32_t texture_unit)
+    // A bit legacy, as we don't want to set textures based on index anymore, but sampler names.
+    static TextureResource* GetTextureResource(const ModelComponent* component, uint32_t material_index, uint32_t material_texture_index)
     {
-        TextureResource* texture = GetTextureResource(component, material_index, texture_unit);
-        return texture ? texture->m_Texture : 0;
+        MaterialResource* material = GetMaterialResource(component, component->m_Resource, material_index);
+        MaterialInfo* material_info = &component->m_Resource->m_Materials[material_index];
+
+        TextureResource* texture_res = component->m_Textures[material_texture_index]; // Check if it's overridden
+        if (!texture_res && material_texture_index < material_info->m_TexturesCount)
+        {
+            texture_res = material_info->m_Textures[material_texture_index].m_Texture; // Check if the model has a texture
+        }
+        if (!texture_res && material_texture_index < material->m_NumTextures)
+        {
+            texture_res = material->m_Textures[material_texture_index]; // Check if the material has a texture
+        }
+        return texture_res;
     }
 
+    static void FillTextures(dmRender::RenderObject* ro, const ModelComponent* component, uint32_t material_index)
+    {
+        MaterialResource* material = GetMaterialResource(component, component->m_Resource, material_index);
+        for(uint32_t i = 0; i < material->m_NumTextures; ++i)
+        {
+            TextureResource* texture_res = component->m_Textures[i];
+            if (!texture_res)
+            {
+                texture_res = GetTextureFromSamplerNameHash(&component->m_Resource->m_Materials[material_index], material, i, material->m_SamplerNames[i]);
+            }
+
+            ro->m_Textures[i] = texture_res ? texture_res->m_Texture : 0;
+        }
+    }
     static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
     {
         dmHashUpdateBuffer32(state, &material->m_Material, sizeof(material->m_Material));
@@ -451,10 +487,131 @@ namespace dmGameSystem
         return true;
     }
 
+    static bool HasCustomVertexAttributes(dmRender::HMaterial material)
+    {
+        const dmGraphics::VertexAttribute* attributes = 0;
+        uint32_t attribute_count = 0;
+        dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+        for (int i = 0; i < attribute_count; ++i)
+        {
+            const dmGraphics::VertexAttribute& attr = attributes[i];
+            if (!IsDefaultStream(attr.m_NameHash, attr.m_SemanticType))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static inline int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash)
+    {
+        for (int i = 0; i < attributes_count; ++i)
+        {
+            if (attributes[i].m_NameHash == name_hash)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    static void FillAttributeInfos(dmRig::AttributeInfo* material_infos, uint32_t material_infos_count, const dmGraphics::VertexAttribute* attributes, uint32_t attribute_count, dmRig::AttributeInfo* attribute_infos)
+    {
+        for (int i = 0; i < material_infos_count; ++i)
+        {
+            int attribute_index        = FindAttributeIndex(attributes, attribute_count, material_infos[i].m_Attribute->m_NameHash);
+            dmRig::AttributeInfo& info = attribute_infos[i];
+            info.m_Attribute           = material_infos[i].m_Attribute;
+            info.m_ValuePtr            = material_infos[i].m_ValuePtr;
+            info.m_ValueByteSize       = material_infos[i].m_ValueByteSize;
+
+            if (attribute_index >= 0)
+            {
+                dmGraphics::GetAttributeValues(attributes[attribute_index], &info.m_ValuePtr, &info.m_ValueByteSize);
+            }
+        }
+    }
+
+    static uint32_t FillMaterialAttributeInfos(dmRender::HMaterial material, dmRig::AttributeInfo* infos)
+    {
+        const dmGraphics::VertexAttribute* attributes = 0;
+        uint32_t attributes_count                     = 0;
+        dmRender::GetMaterialProgramAttributes(material, &attributes, &attributes_count);
+        attributes_count = dmMath::Min(attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
+
+        for (int i = 0; i < attributes_count; ++i)
+        {
+            dmRig::AttributeInfo& info = infos[i];
+            info.m_Attribute = attributes + i;
+            dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
+        }
+        return attributes_count;
+    }
+
+    static void SetupMeshAttributeRenderData(dmRender::HRenderContext render_context, dmRender::HMaterial material, const MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
+    {
+        assert(!rd->m_VertexBuffer);
+        assert(!rd->m_VertexDeclaration);
+
+        dmGraphics::HContext graphics_context                   = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+        dmGraphics::HVertexDeclaration material_vx_decl         = dmRender::GetVertexDeclaration(material);
+
+        dmRig::AttributeInfo material_attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
+        uint32_t material_attributes_count = FillMaterialAttributeInfos(material, material_attributes);
+
+        dmRig::AttributeInfo attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
+        FillAttributeInfos(material_attributes, material_attributes_count, model_attributes, model_attribute_count, attributes);
+
+        uint8_t* scratch_attribute_vertex = (uint8_t*) malloc(dmGraphics::GetVertexDeclarationStride(material_vx_decl));
+        uint32_t custom_vertex_size       = 0;
+
+        for (int i = 0; i < material_attributes_count; ++i)
+        {
+            const dmGraphics::VertexAttribute* attr = attributes[i].m_Attribute;
+            const dmGraphics::VertexAttribute* attr_material = material_attributes[i].m_Attribute;
+
+            if (!IsDefaultStream(attr->m_NameHash, attr_material->m_SemanticType))
+            {
+                assert(attr->m_NameHash == attr_material->m_NameHash);
+                dmGraphics::AddVertexStream(stream_declaration,
+                    attr->m_NameHash,
+                    attr_material->m_ElementCount, // Need the material attribute here to get the _actual_ element count
+                    dmGraphics::GetGraphicsType(attr->m_DataType),
+                    attr->m_Normalize);
+
+                uint8_t* data_write_ptr = scratch_attribute_vertex + custom_vertex_size;
+                memcpy(data_write_ptr, attributes[i].m_ValuePtr, attributes[i].m_ValueByteSize);
+                custom_vertex_size += attributes[i].m_ValueByteSize;
+            }
+        }
+
+        uint32_t vertex_count     = render_item->m_Buffers->m_VertexCount;
+        uint32_t vertex_data_size = custom_vertex_size * vertex_count;
+        void* attribute_data      = malloc(vertex_data_size);
+        uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
+
+        for (int i = 0; i < vertex_count; ++i)
+        {
+            memcpy(vertex_write_ptr, scratch_attribute_vertex, custom_vertex_size);
+            vertex_write_ptr += custom_vertex_size;
+        }
+
+        rd->m_VertexBuffer      = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        rd->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
+
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+
+        free(attribute_data);
+        free(scratch_attribute_vertex);
+    }
+
     static void SetupRenderItems(ModelComponent* component, ModelResource* resource)
     {
         component->m_RenderItems.SetCapacity(resource->m_Meshes.Size());
         component->m_RenderItems.SetSize(0);
+
+        uint32_t num_custom_attributes = 0;
 
         dmHashTable64<uint32_t>* bone_id_to_indices = 0;
         if (resource->m_RigScene->m_SkeletonRes)
@@ -472,6 +629,7 @@ namespace dmGameSystem
             item.m_AabbMax = item.m_Mesh->m_AabbMax;
             item.m_Enabled = 1;
             item.m_BoneIndex = dmRig::INVALID_BONE_INDEX;
+            item.m_AttributeRenderDataIndex = ATTRIBUTE_RENDER_DATA_INDEX_UNUSED;
 
             // This model is a child under a bone, but isn't actually skinned
             if (item.m_Model->m_BoneId && bone_id_to_indices)
@@ -482,8 +640,19 @@ namespace dmGameSystem
                     item.m_BoneIndex = *idx;
                 }
             }
+
+            if (HasCustomVertexAttributes(GetMaterial(component, component->m_Resource, item.m_MaterialIndex)))
+            {
+                item.m_AttributeRenderDataIndex = num_custom_attributes;
+                num_custom_attributes++;
+            }
+
             component->m_RenderItems.Push(item);
         }
+
+        component->m_MeshAttributeRenderDatas.SetCapacity(num_custom_attributes);
+        component->m_MeshAttributeRenderDatas.SetSize(num_custom_attributes);
+        memset(component->m_MeshAttributeRenderDatas.Begin(), 0, component->m_MeshAttributeRenderDatas.Size() * sizeof(MeshAttributeRenderData));
     }
 
     static dmGameObject::CreateResult SetupRigInstance(dmRig::HRigContext rig_context, ModelComponent* component, RigSceneResource* rig_resource, dmhash_t animation)
@@ -511,9 +680,8 @@ namespace dmGameSystem
                 dmLogWarning("Model has animations but no skeleton set");
             }
         }
-        create_params.m_MeshSet          = rig_resource->m_MeshSetRes->m_MeshSet;
+        create_params.m_MeshSet = rig_resource->m_MeshSetRes->m_MeshSet;
 
-        dmRigDDF::MeshSet* mesh_set      = rig_resource->m_MeshSetRes->m_MeshSet;
         // Let's choose the first model for the animation
         create_params.m_ModelId          = 0; // Let's use all models
         create_params.m_DefaultAnimation = animation;
@@ -620,7 +788,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static inline void RenderBatchLocalVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    static inline void RenderBatchLocalVS(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("RenderBatchLocal");
 
@@ -628,7 +796,7 @@ namespace dmGameSystem
         {
             const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
             const ModelResourceBuffers* buffers = render_item->m_Buffers;
-            const ModelComponent* component = render_item->m_Component;
+            ModelComponent* component = render_item->m_Component;
             uint32_t material_index = render_item->m_MaterialIndex;
 
             // We currently have no support for instancing, so we generate a separate draw call for each render item
@@ -636,10 +804,28 @@ namespace dmGameSystem
             dmRender::RenderObject& ro = world->m_RenderObjects.Back();
 
             ro.Init();
-            ro.m_VertexDeclaration = world->m_VertexDeclaration;
-            ro.m_VertexBuffer = buffers->m_VertexBuffer;
-            ro.m_Material = GetMaterial(component, component->m_Resource, material_index);
-            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+            ro.m_Material              = GetMaterial(component, component->m_Resource, material_index);
+            ro.m_PrimitiveType         = dmGraphics::PRIMITIVE_TRIANGLES;
+            ro.m_VertexDeclarations[0] = world->m_VertexDeclaration;
+            ro.m_VertexBuffers[0]      = buffers->m_VertexBuffer;
+
+            if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+            {
+                MeshAttributeRenderData* attribute_rd = &component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex];
+
+                if (!attribute_rd->m_VertexDeclaration)
+                {
+                    SetupMeshAttributeRenderData(render_context,
+                        ro.m_Material,
+                        render_item,
+                        component->m_Resource->m_Materials[material_index].m_Attributes,
+                        component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                        attribute_rd);
+                }
+
+                ro.m_VertexDeclarations[1] = attribute_rd->m_VertexDeclaration;
+                ro.m_VertexBuffers[1]      = attribute_rd->m_VertexBuffer;
+            }
 
             // These should be named "element" or "index" (as opposed to vertex)
             ro.m_VertexStart = 0;
@@ -654,12 +840,10 @@ namespace dmGameSystem
             DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, buffers->m_VertexCount);
             DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, buffers->m_VertexCount * sizeof(dmRig::RigModelVertex));
 
-            for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
-            {
-                ro.m_Textures[i] = GetMaterialTexture(component, material_index, i);
-            }
+            FillTextures(&ro, component, material_index);
 
-            if (component->m_RenderConstants) {
+            if (component->m_RenderConstants)
+            {
                 dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
             }
 
@@ -688,13 +872,24 @@ namespace dmGameSystem
     }
     #endif
 
-    static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    static inline void RenderBatchWorldVS(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("RenderBatchWorld");
+
+        const MeshRenderItem* render_item      = (MeshRenderItem*) buf[*begin].m_UserData;
+        const ModelComponent* component        = render_item->m_Component;
+        uint32_t material_index                = render_item->m_MaterialIndex;
+        dmRender::HMaterial material           = GetMaterial(component, component->m_Resource, material_index);
+        dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
+
+        dmRig::AttributeInfo material_attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
+        uint32_t material_attributes_count = FillMaterialAttributeInfos(material, material_attributes);
 
         uint32_t vertex_count = 0;
         uint32_t index_count = 0;
         uint32_t batchIndex = buf[*begin].m_MinorOrder;
+
+        world->m_MaxBatchIndex = dmMath::Max(batchIndex, world->m_MaxBatchIndex);
 
         for (uint32_t *i=begin;i!=end;i++)
         {
@@ -714,16 +909,41 @@ namespace dmGameSystem
 
         // Since we currently don't support index buffer, we need to produce the indexed vertices
         uint32_t required_vertex_count = dmMath::Max(vertex_count, index_count);
+        world->m_VertexBufferVertexCounts[batchIndex] = required_vertex_count;
 
-        dmArray<dmRig::RigModelVertex>& vertex_buffer = world->m_VertexBufferData[batchIndex];
-        if (vertex_buffer.Remaining() < required_vertex_count)
-            vertex_buffer.OffsetCapacity(required_vertex_count - vertex_buffer.Remaining());
+        uint32_t vertex_stride = dmGraphics::GetVertexDeclarationStride(vx_decl);
 
-        dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batchIndex];
+        if (!HasCustomVertexAttributes(material))
+        {
+            vertex_stride = sizeof(dmRig::RigModelVertex);
+            vx_decl       = world->m_VertexDeclaration;
+        }
+
+        uint32_t required_vertex_memory_count = required_vertex_count * vertex_stride;
+
+        dmArray<uint8_t>& vertex_buffer = world->m_VertexBufferData[batchIndex];
+
+        // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
+        const uint32_t vb_buffer_offset = vertex_buffer.Size();
+        uint32_t vb_buffer_padding      = 0;
+
+        if (vb_buffer_offset % vertex_stride != 0)
+        {
+            required_vertex_memory_count += vertex_stride;
+            vb_buffer_padding             = vertex_stride - vb_buffer_offset % vertex_stride;
+        }
+
+        if (vertex_buffer.Remaining() < required_vertex_memory_count)
+        {
+            vertex_buffer.OffsetCapacity(required_vertex_memory_count - vertex_buffer.Remaining());
+        }
+
+        dmRender::HBufferedRenderBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batchIndex];
 
         // Fill in vertex buffer
-        dmRig::RigModelVertex *vb_begin = vertex_buffer.End();
-        dmRig::RigModelVertex *vb_end = vb_begin;
+        uint8_t* vb_begin = vertex_buffer.End() + vb_buffer_padding;
+        uint8_t* vb_end = vb_begin;
+
         for (uint32_t *i=begin;i!=end;i++)
         {
             const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
@@ -745,35 +965,47 @@ namespace dmGameSystem
 
                 dmVMath::Matrix4 world_matrix = c->m_World * model_matrix;
 
-                dmRig::HRigContext rig_context = world->m_RigContext;
-                vb_end = dmRig::GenerateVertexData(rig_context, c->m_RigInstance, render_item->m_Mesh, world_matrix, vb_end);
+                // Either generate the vertices by using the attributes or the 'old' way.
+                // This should mean that we won't take a performance hit if we don't use attributes.
+                if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+                {
+                    dmRig::AttributeInfo attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
+                    FillAttributeInfos(material_attributes, material_attributes_count,
+                        c->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Data,
+                        c->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Count,
+                        attributes);
+
+                    vb_end = dmRig::GenerateVertexDataFromAttributes(world->m_RigContext, c->m_RigInstance, render_item->m_Mesh, world_matrix, attributes, material_attributes_count, vertex_stride, vb_end);
+                }
+                else
+                {
+                    vb_end = (uint8_t*) dmRig::GenerateVertexData(world->m_RigContext, c->m_RigInstance, render_item->m_Mesh, world_matrix, (dmRig::RigModelVertex*) vb_end);
+                }
             }
         }
+
+        uint32_t vx_start = (vb_begin - vertex_buffer.Begin()) / vertex_stride;
+        uint32_t vx_count = (vb_end - vb_begin) / vertex_stride;
+
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
         // Ninja in-place writing of render object.
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
         dmRender::RenderObject& ro = world->m_RenderObjects[world->m_RenderObjects.Size()-1];
 
-        const MeshRenderItem* render_item = (MeshRenderItem*) buf[*begin].m_UserData;
-        const ModelComponent* component = render_item->m_Component;
-        uint32_t material_index = render_item->m_MaterialIndex;
-
         ro.Init();
-        ro.m_VertexDeclaration = world->m_VertexDeclaration;
-        ro.m_VertexBuffer = gfx_vertex_buffer;
-        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
-        ro.m_VertexCount = vb_end - vb_begin;
-        ro.m_Material = GetMaterial(component, component->m_Resource, material_index);
-        ro.m_WorldTransform = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
+        ro.m_Material          = material;
+        ro.m_VertexDeclaration = vx_decl;
+        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, gfx_vertex_buffer);
+        ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_VertexStart       = vx_start;
+        ro.m_VertexCount       = vx_count;
+        ro.m_WorldTransform    = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
 
-        for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
+        FillTextures(&ro, component, material_index);
+
+        if (component->m_RenderConstants)
         {
-            ro.m_Textures[i] = GetMaterialTexture(component, material_index, i);
-        }
-
-        if (component->m_RenderConstants) {
             dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
         }
 
@@ -791,11 +1023,11 @@ namespace dmGameSystem
         switch(dmRender::GetMaterialVertexSpace(material))
         {
             case dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD:
-                RenderBatchWorldVS(world, material, render_context, buf, begin, end);
+                RenderBatchWorldVS(world, render_context, buf, begin, end);
             break;
 
             case dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL:
-                RenderBatchLocalVS(world, material, render_context, buf, begin, end);
+                RenderBatchLocalVS(world, render_context, buf, begin, end);
             break;
 
             default:
@@ -878,6 +1110,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompModelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
+        ModelContext* context = (ModelContext*)params.m_Context;
 
         dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
 
@@ -901,6 +1134,16 @@ namespace dmGameSystem
 
             DM_PROPERTY_ADD_U32(rmtp_Model, 1);
         }
+
+        assert(world->m_MaxBatchIndex < VERTEX_BUFFER_MAX_BATCHES);
+        for (int i = 0; i <= world->m_MaxBatchIndex; ++i)
+        {
+            dmRender::TrimBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
+            dmRender::RewindBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
+        }
+
+        world->m_MaxBatchIndex = 0;
+        world->m_DispatchCount = 0;
 
         update_result.m_TransformsUpdated = rig_res == dmRig::RESULT_UPDATED_POSE;
         return dmGameObject::UPDATE_RESULT_OK;
@@ -931,6 +1174,7 @@ namespace dmGameSystem
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
             {
                 world->m_RenderObjects.SetSize(0);
+
                 for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
                 {
                     world->m_VertexBufferData[batch_index].SetSize(0);
@@ -947,20 +1191,23 @@ namespace dmGameSystem
                 uint32_t total_count = 0;
                 for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
                 {
-                    dmArray<dmRig::RigModelVertex>& vertex_buffer_data = world->m_VertexBufferData[batch_index];
+                    dmArray<uint8_t>& vertex_buffer_data = world->m_VertexBufferData[batch_index];
                     if (vertex_buffer_data.Empty())
                     {
                         continue;
                     }
-                    uint32_t vb_size = sizeof(dmRig::RigModelVertex) * vertex_buffer_data.Size();
-                    dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batch_index];
-                    dmGraphics::SetVertexBufferData(gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-                    total_count += vertex_buffer_data.Size();
+
+                    uint32_t vb_size = vertex_buffer_data.Size();
+                    dmRender::HBufferedRenderBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batch_index];
+                    dmRender::SetBufferData(params.m_Context, gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+
+                    total_count += world->m_VertexBufferVertexCounts[batch_index];
                 }
+
+                world->m_DispatchCount++;
 
                 DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, total_count);
                 DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, total_count * sizeof(dmRig::RigModelVertex));
-
                 break;
             }
             default:

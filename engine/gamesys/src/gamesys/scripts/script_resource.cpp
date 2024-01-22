@@ -801,8 +801,10 @@ static int CreateTexture(lua_State* L)
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
     dmBuffer::HBuffer buffer = 0;
-    if (dmScript::IsBuffer(L, 3))
+
+    if (lua_gettop(L) > 2)
     {
+        // TODO: Support creating texture from string
         dmScript::LuaHBuffer* l_buffer = dmScript::CheckBuffer(L, 3);
         buffer                         = dmGameSystem::UnpackLuaBuffer(l_buffer);
     }
@@ -1452,6 +1454,9 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_Animations.m_Data  = new dmGameSystemDDF::TextureSetAnimation[num_animations];
     texture_set_ddf->m_Animations.m_Count = num_animations;
     memset(texture_set_ddf->m_Animations.m_Data, 0, sizeof(dmGameSystemDDF::TextureSetAnimation) * num_animations);
+
+    // TODO: Fix script api to require each "image" to have an ID that we can use for as regular textureset
+    texture_set_ddf->m_ImageNameHashes.m_Count = 0;
 
     const uint32_t num_tex_coords_per_quad  = 8;
     const uint32_t num_tex_coords_byte_size = num_animation_frames * num_tex_coords_per_quad * sizeof(float);
@@ -2401,7 +2406,7 @@ static int GetBuffer(lua_State* L)
     }
 
     dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
-    dmScript::LuaHBuffer luabuf((void*)buffer_resource);
+    dmScript::LuaHBuffer luabuf(g_ResourceModule.m_Factory, (void*)buffer_resource);
     PushBuffer(L, luabuf);
 
     assert(top + 1 == lua_gettop(L));

@@ -65,21 +65,6 @@ namespace dmGameSystem
         }
     };
 
-    // We could sort them in the pipeline, but then we'd have to read the material data
-    // for compiling each model which we might not want
-    struct TextureSortPred
-    {
-        dmGraphics::HProgram m_Program;
-        TextureSortPred(dmGraphics::HProgram program) : m_Program(program) {}
-
-        bool operator ()(const dmModelDDF::Texture* a, const dmModelDDF::Texture* b) const
-        {
-            uintptr_t ia = dmGraphics::GetUniformLocation(m_Program, a->m_Sampler);
-            uintptr_t ib = dmGraphics::GetUniformLocation(m_Program, b->m_Sampler);
-            return ia < ib;
-        }
-    };
-
     // Flattens the meshes into a list, sorted on material
     static void FlattenMeshes(ModelResource* resource, dmRigDDF::MeshSet* mesh_set)
     {
@@ -215,6 +200,27 @@ namespace dmGameSystem
         return true; // All materials are currently world space
     }
 
+    // We could sort them in the pipeline, but then we'd have to read the material data
+    // for compiling each model which we might not want
+    struct TextureSortPred
+    {
+        dmRender::HMaterial m_Material;
+        TextureSortPred(dmRender::HMaterial material) : m_Material(material) {}
+
+        bool operator ()(MaterialTextureInfo& a, MaterialTextureInfo& b) const
+        {
+            uintptr_t ia = dmRender::GetMaterialConstantLocation(m_Material, a.m_SamplerNameHash);
+            uintptr_t ib = dmRender::GetMaterialConstantLocation(m_Material, b.m_SamplerNameHash);
+            return ia < ib;
+        }
+    };
+
+    void SortTextures(dmRender::HMaterial material, uint32_t num_textures, MaterialTextureInfo* textures)
+    {
+        TextureSortPred pred(material);
+        std::sort(textures, textures + num_textures, pred);
+    }
+
     dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource, const char* filename)
     {
         dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_RigScene, (void**) &resource->m_RigScene);
@@ -248,7 +254,13 @@ namespace dmGameSystem
 
             info.m_Name = strdup(model_material->m_Name);
 
+            info.m_Attributes = model_material->m_Attributes.m_Data;
+            info.m_AttributeCount = model_material->m_Attributes.m_Count;
+
             // Currently, we don't support overriding the textures per-material on the model level
+
+            // While the material may use less samplers than the model has textures,
+            // We'll still respect the users wishes as they may change the material later on
             info.m_TexturesCount = model_material->m_Textures.m_Count;
             info.m_Textures = new MaterialTextureInfo[info.m_TexturesCount];
             memset(info.m_Textures, 0, sizeof(MaterialTextureInfo)*info.m_TexturesCount);
@@ -264,7 +276,15 @@ namespace dmGameSystem
                 }
 
                 texture_info->m_SamplerNameHash = dmHashString64(texture->m_Sampler);
+                if (!texture_info->m_SamplerNameHash) // old content
+                {
+                    // Then we'll fallback to using the order of each sampler
+                    texture_info->m_SamplerNameHash = dmRender::GetMaterialSamplerNameHash(info.m_Material->m_Material, t);
+                }
             }
+
+            // We need to sort the textures on sampler units
+            SortTextures(info.m_Material->m_Material, info.m_TexturesCount, info.m_Textures);
 
             if (resource->m_Materials.Full())
                 resource->m_Materials.OffsetCapacity(1);

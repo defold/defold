@@ -43,6 +43,8 @@ message VertexAttribute
         SEMANTIC_TYPE_TEXCOORD   = 3;
         SEMANTIC_TYPE_PAGE_INDEX = 4;
         SEMANTIC_TYPE_COLOR      = 5;
+        SEMANTIC_TYPE_NORMAL     = 6;
+        SEMANTIC_TYPE_TANGENT    = 7;
     }
 
     message LongValues
@@ -56,7 +58,7 @@ message VertexAttribute
     }
 
     required string          name             = 1;
-    optional uint64          name_hash        = 2;
+    optional uint64          name_hash        = 2 [(runtime_only) = true];
     optional SemanticType    semantic_type    = 3 [default = SEMANTIC_TYPE_NONE];
     optional int32           element_count    = 4 [default = 0];
     optional bool            normalize        = 5 [default = false];
@@ -69,7 +71,7 @@ message VertexAttribute
     {
         LongValues   long_values   = 8;  // Saved integer values (project files only)
         DoubleValues double_values = 9;  // Saved floating point values (project files only)
-        bytes        binary_values = 10; // Packed binary representation of the input values (engine only)
+        bytes        binary_values = 10 [(runtime_only) = true]; // Packed binary representation of the input values (engine only)
     }
 }
 
@@ -228,11 +230,11 @@ message ShaderDesc
     {
         LANGUAGE_GLSL_SM120 = 1; // OpenGLES 2 compatible
         LANGUAGE_GLSL_SM140 = 2; // OpenGLES 3 compatible
-        LANGUAGE_GLSL_SM430 = 3; // OpenGL 4.3+ compatible
-        LANGUAGE_GLES_SM100 = 4; // OpenGLES 2 / WebGL 1
-        LANGUAGE_GLES_SM300 = 5; // OpenGLES 3 / WebGL 2
-        LANGUAGE_SPIRV      = 6; // Vulkan / MoltenVK
-        LANGUAGE_PSSL       = 7; // Playstation
+        LANGUAGE_GLES_SM100 = 3; // OpenGLES 2 / WebGL 1
+        LANGUAGE_GLES_SM300 = 4; // OpenGLES 3 / WebGL 2
+        LANGUAGE_SPIRV      = 5; // Vulkan / MoltenVK
+        LANGUAGE_PSSL       = 6; // Playstation
+        LANGUAGE_GLSL_SM430 = 7; // OpenGL 4.3+ compatible
     }
 
     enum ShaderClass
@@ -258,6 +260,17 @@ message ShaderDesc
         SHADER_TYPE_SAMPLER_CUBE    = 12;
         SHADER_TYPE_SAMPLER2D_ARRAY = 13;
         SHADER_TYPE_UNIFORM_BUFFER  = 14;
+
+        // Extended types (not universally supported)
+        SHADER_TYPE_UVEC2             = 15;
+        SHADER_TYPE_UVEC3             = 16;
+        SHADER_TYPE_UVEC4             = 17;
+        SHADER_TYPE_TEXTURE2D         = 18;
+        SHADER_TYPE_UTEXTURE2D        = 19;
+        SHADER_TYPE_RENDER_PASS_INPUT = 20;
+        SHADER_TYPE_UIMAGE2D          = 21;
+        SHADER_TYPE_IMAGE2D           = 22;
+        SHADER_TYPE_SAMPLER           = 23;
     }
 
     message ResourceBinding

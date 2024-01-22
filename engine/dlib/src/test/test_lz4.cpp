@@ -73,6 +73,8 @@ char * RandomCharArray(int max, int *real)
 {
     char *tmp;
     uint32_t n = rand() % max;
+    if (n == 0)
+        n++;
 
     tmp = (char *)malloc(n + 1);
 

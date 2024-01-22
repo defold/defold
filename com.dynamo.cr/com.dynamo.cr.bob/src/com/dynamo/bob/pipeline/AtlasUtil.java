@@ -121,15 +121,28 @@ public class AtlasUtil {
         }
     }
 
-    public static List<AtlasImage> collectImages(Atlas atlas) {
-        Map<AtlasImageSortKey, AtlasImage> uniqueImages = new HashMap<AtlasImageSortKey, AtlasImage>();
+    public static List<AtlasImage> collectImages(IResource atlasResource, Atlas atlas, PathTransformer transformer) throws CompileExceptionError {
+        Map<AtlasImageSortKey, AtlasImage> uniqueImages = new HashMap<>();
+        HashSet<String> uniqueNames = new HashSet<>();
         List<AtlasImage> images = new ArrayList<AtlasImage>();
         for (AtlasImage image : atlas.getImagesList()) {
+
             AtlasImageSortKey key = new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode());
             if (!uniqueImages.containsKey(key)) {
                 uniqueImages.put(key, image);
                 images.add(image);
             }
+
+            //System.out.printf("R: %s -> %s\n", imageResourcePaths.get(i), imageName);
+
+            // We'll check that the explicitly added top level (single frame animations) won't collide
+            String imageName = transformer.transform(image.getImage());
+            if (uniqueNames.contains(imageName))
+            {
+                String message = String.format("Image name '%s' is not unique. Created from path '%s'", imageName, image.getImage());
+                throw new CompileExceptionError(atlasResource, -1, message);
+            }
+            uniqueNames.add(imageName);
         }
 
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
@@ -248,32 +261,8 @@ public class AtlasUtil {
         return animDescs;
     }
 
-    public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource) throws IOException, CompileExceptionError {
-        TimeProfiler.start("generateTextureSet");
-        Atlas.Builder builder = Atlas.newBuilder();
-        ProtoUtil.merge(atlasResource, builder);
-        Atlas atlas = builder.build();
-
-        List<AtlasImage> atlasImages = collectImages(atlas);
-        List<String> imageResourcePaths = new ArrayList<String>();
-        List<SpriteTrimmingMode> imageTrimModes = new ArrayList<>();
-        for (AtlasImage image : atlasImages) {
-            imageResourcePaths.add(image.getImage());
-            imageTrimModes.add(image.getSpriteTrimMode());
-        }
-        List<IResource> imageResources = toResources(atlasResource, imageResourcePaths);
-        List<BufferedImage> images = TextureUtil.loadImages(imageResources);
-
-        try {
-            validatePatterns(atlas.getRenamePatterns());
-        } catch(CompileExceptionError e) {
-            throw new CompileExceptionError(atlasResource, -1, e.getMessage());
-        }
-
-        // The transformer converts paths to basename
-        // It is not allowed to have duplicate names
-        final String renamePatterns = atlas.getRenamePatterns();
-        PathTransformer transformer = new PathTransformer() {
+    public static PathTransformer createPathTransformer(final Project project, final String renamePatterns) {
+        return new PathTransformer() {
             @Override
             public String transform(String path) {
                 String resourcePath = project.getResource(path).getPath();
@@ -287,21 +276,41 @@ public class AtlasUtil {
                 return path;
             }
         };
+    }
+
+    public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource) throws IOException, CompileExceptionError {
+        TimeProfiler.start("generateTextureSet");
+        Atlas.Builder builder = Atlas.newBuilder();
+        ProtoUtil.merge(atlasResource, builder);
+        Atlas atlas = builder.build();
+
+        try {
+            validatePatterns(atlas.getRenamePatterns());
+        } catch(CompileExceptionError e) {
+            throw new CompileExceptionError(atlasResource, -1, e.getMessage());
+        }
+
+        // The transformer converts paths to basename
+        // It is not allowed to have duplicate names
+        PathTransformer transformer = createPathTransformer(project, atlas.getRenamePatterns());
+
+        List<AtlasImage> atlasImages = collectImages(atlasResource, atlas, transformer);
+        List<String> imageResourcePaths = new ArrayList<String>();
+        List<SpriteTrimmingMode> imageTrimModes = new ArrayList<>();
+        for (AtlasImage image : atlasImages) {
+            imageResourcePaths.add(image.getImage());
+            imageTrimModes.add(image.getSpriteTrimMode());
+        }
+        List<IResource> imageResources = toResources(atlasResource, imageResourcePaths);
+        List<BufferedImage> images = TextureUtil.loadImages(imageResources);
 
         // Make sure we don't accidentally create a duplicate due to the pattern renaming
 
         List<String> imageNames = new ArrayList<String>();
-        Set<String> uniqueImageNames = new HashSet<String>();
         int imageCount = imageResourcePaths.size();
         for (int i = 0; i < imageCount; ++i) {
 
             String imageName = transformer.transform(imageResourcePaths.get(i));
-            if (uniqueImageNames.contains(imageName)) {
-                String message = String.format("Image name '%s' is not unique. Created from path '%s' and rename patterns '%s'", imageName, imageResourcePaths.get(i), renamePatterns);
-                throw new CompileExceptionError(atlasResource, -1, message);
-            }
-
-            uniqueImageNames.add(imageName);
             imageNames.add(imageName);
         }
 
@@ -325,7 +334,7 @@ public class AtlasUtil {
         }
     }
 
-    // For tests
+    // For AtlasBuilder,java:main()
     private static List<BufferedImage> loadImagesFromPaths(List<String> resourcePaths) throws IOException, CompileExceptionError {
         List<BufferedImage> images = new ArrayList<BufferedImage>(resourcePaths.size());
 
@@ -341,9 +350,9 @@ public class AtlasUtil {
         return images;
     }
 
-    // For unit tests only
+    // For AtlasBuilder.java:main()
     public static TextureSetResult generateTextureSet(Atlas atlas, PathTransformer pathTransformer) throws IOException, CompileExceptionError {
-        List<AtlasImage> atlasImages = collectImages(atlas);
+        List<AtlasImage> atlasImages = collectImages(null, atlas, pathTransformer);
         List<String> imagePaths = new ArrayList<String>();
         List<String> imageNames = new ArrayList<String>();
         List<SpriteTrimmingMode> imageTrimModes = new ArrayList<>();

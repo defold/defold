@@ -29,17 +29,15 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    static const dmhash_t VERTEX_STREAM_POSITION   = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_COLOR      = dmHashString64("color");
-    static const dmhash_t VERTEX_STREAM_PAGE_INDEX = dmHashString64("page_index");
-
     static dmGraphics::VertexAttribute::SemanticType GetAttributeSemanticType(dmhash_t from_hash)
     {
         if      (from_hash == VERTEX_STREAM_POSITION)   return dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
         else if (from_hash == VERTEX_STREAM_TEXCOORD0)  return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
+        else if (from_hash == VERTEX_STREAM_TEXCOORD1)  return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
         else if (from_hash == VERTEX_STREAM_COLOR)      return dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
         else if (from_hash == VERTEX_STREAM_PAGE_INDEX) return dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX;
+        else if (from_hash == VERTEX_STREAM_NORMAL)     return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
+        else if (from_hash == VERTEX_STREAM_TANGENT)    return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
         return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
     }
 
@@ -335,6 +333,15 @@ namespace dmRender
             return (HSampler) &material->m_Samplers[unit];
         }
         return 0x0;
+    }
+
+    dmhash_t GetMaterialSamplerNameHash(HMaterial material, uint32_t unit)
+    {
+        if (unit < material->m_Samplers.Size())
+        {
+            return material->m_Samplers[unit].m_NameHash;
+        }
+        return 0;
     }
 
     uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash)

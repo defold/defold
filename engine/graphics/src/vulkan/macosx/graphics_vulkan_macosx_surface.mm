@@ -15,7 +15,7 @@
 #include <dlib/math.h>
 #include <dlib/array.h>
 
-#include <graphics/glfw/glfw_native.h>
+#include  <glfw/glfw_native.h>
 #include <objc/objc.h>
 
 #if defined(DM_PLATFORM_MACOS)
@@ -44,7 +44,9 @@ namespace dmGraphics
         id window_view   = glfwGetOSXNSView();
         id window_object = glfwGetOSXNSWindow();
 
-        if (enableHighDPI)
+        // JG: OpenGL and MVK differs on osx on how to deal with highDPI.. On OpenGL it doesn't seem to matter,
+        //.    so for NOW we bring vulkan closer to OpenGL and always create a surface with max scale factor
+        // if (enableHighDPI)
         {
             [window_layer setContentsScale:[window_object backingScaleFactor]];
         }

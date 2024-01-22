@@ -88,30 +88,8 @@ namespace dmGraphics
     const char*          TextureFormatToString(TextureFormat format);
     bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
-
-    static inline uint32_t GetShaderTypeSize(ShaderDesc::ShaderDataType type)
-    {
-        const uint8_t conversion_table[] = {
-            0,  // SHADER_TYPE_UNKNOWN
-            4,  // SHADER_TYPE_INT
-            4,  // SHADER_TYPE_UINT
-            4,  // SHADER_TYPE_FLOAT
-            8,  // SHADER_TYPE_VEC2
-            12, // SHADER_TYPE_VEC3
-            16, // SHADER_TYPE_VEC4
-            16, // SHADER_TYPE_MAT2
-            36, // SHADER_TYPE_MAT3
-            64, // SHADER_TYPE_MAT4
-            4,  // SHADER_TYPE_SAMPLER2D
-            4,  // SHADER_TYPE_SAMPLER3D
-            4,  // SHADER_TYPE_SAMPLER_CUBE
-            4,  // SHADER_TYPE_SAMPLER_ARRAY_2D
-        };
-
-        assert(((int) type) < DM_ARRAY_SIZE(conversion_table));
-
-        return conversion_table[type];
-    }
+    uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
+    Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
 
     static inline void ClearTextureParamsData(TextureParams& params)
     {
@@ -139,14 +117,11 @@ namespace dmGraphics
         return (T*) container.Get(opaque_handle);
     }
 
-    // These functions are used for engine tests, but are available as experimental functions as well
-    void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
-    bool  UnmapVertexBuffer(HVertexBuffer buffer);
-    void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
-    bool  UnmapIndexBuffer(HIndexBuffer buffer);
-
-    // Test functions:
+    // Test only functions:
+    void     ResetDrawCount();
     uint64_t GetDrawCount();
+    void     EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
+    void     SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderClass shader_class, ShaderDesc::Language language);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

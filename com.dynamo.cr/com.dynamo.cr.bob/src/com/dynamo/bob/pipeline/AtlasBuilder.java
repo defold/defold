@@ -88,7 +88,8 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(".texturec"));
 
-        for (AtlasImage image : AtlasUtil.collectImages(atlas)) {
+        AtlasUtil.PathTransformer transformer = AtlasUtil.createPathTransformer(project, atlas.getRenamePatterns());
+        for (AtlasImage image : AtlasUtil.collectImages(input, atlas, transformer)) {
             taskBuilder.addInput(input.getResource(image.getImage()));
         }
 

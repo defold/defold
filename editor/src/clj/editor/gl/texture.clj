@@ -299,6 +299,16 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
         :min-filter GL2/GL_NEAREST
         :mag-filter GL2/GL_NEAREST))))
 
+(defonce black-pixel
+  (delay
+    (image-texture
+      ::black
+      (-> (image-util/blank-image 1 1)
+          (image-util/flood 0.0 0.0 0.0))
+      (assoc default-image-texture-params
+        :min-filter GL2/GL_NEAREST
+        :mag-filter GL2/GL_NEAREST))))
+
 (defn tex-sub-image [^GL2 gl ^TextureLifecycle texture page-index data x y w h data-format]
   (let [tex (->texture texture gl page-index)
         data (->texture-data w h data-format data false)]

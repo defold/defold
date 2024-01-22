@@ -203,7 +203,7 @@ public class TextureSetLayout {
 
         @Override
         public String toString() {
-            return String.format("Rect: x/y: %d, %d w/h: %d, %d r: %d id: %s", rect.x, rect.y, rect.width, rect.height, rotated?1:0, id);
+            return String.format("Rect: x/y: %d, %d  w/h: %d, %d  r: %d  id: %s", rect.x, rect.y, rect.width, rect.height, rotated?1:0, id);
         }
     }
 
@@ -227,6 +227,17 @@ public class TextureSetLayout {
             return height;
         }
 
+        @Override
+        public String toString() {
+            String s = "Layout:\n";
+            s += String.format("  width: %d:\n", width);
+            s += String.format("  height: %d:\n", height);
+            for (Rect r : rectangles) {
+                s += String.format("  %s\n", r.toString());
+            }
+            s += "\n";
+            return s;
+        }
     }
 
     public static List<Layout> packedLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) {

@@ -99,19 +99,19 @@ copy () {
 
 copy x86_64-linux/stripped/dmengine x86_64-linux/dmengine
 copy x86_64-linux/stripped/dmengine_release x86_64-linux/dmengine_release
-copy x86_64-linux/stripped/dmengine_headless x86_64-linux/dmengine_headless
+# copy x86_64-linux/stripped/dmengine_headless x86_64-linux/dmengine_headless
 copy x86_64-macos/stripped/dmengine x86_64-macos/dmengine
 copy x86_64-macos/stripped/dmengine_release x86_64-macos/dmengine_release
-copy x86_64-macos/stripped/dmengine_headless x86_64-macos/dmengine_headless
+# copy x86_64-macos/stripped/dmengine_headless x86_64-macos/dmengine_headless
 copy arm64-macos/stripped/dmengine arm64-macos/dmengine
 copy arm64-macos/stripped/dmengine_release arm64-macos/dmengine_release
-copy arm64-macos/stripped/dmengine_headless arm64-macos/dmengine_headless
+# copy arm64-macos/stripped/dmengine_headless arm64-macos/dmengine_headless
 copy win32/dmengine.exe x86-win32/dmengine.exe
 copy win32/dmengine_release.exe x86-win32/dmengine_release.exe
-copy win32/dmengine_headless.exe x86-win32/dmengine_headless.exe
+# copy win32/dmengine_headless.exe x86-win32/dmengine_headless.exe
 copy x86_64-win32/dmengine.exe x86_64-win32/dmengine.exe
 copy x86_64-win32/dmengine_release.exe x86_64-win32/dmengine_release.exe
-copy x86_64-win32/dmengine_headless.exe x86_64-win32/dmengine_headless.exe
+# copy x86_64-win32/dmengine_headless.exe x86_64-win32/dmengine_headless.exe
 copy arm64-ios/stripped/dmengine arm64-ios/dmengine
 copy arm64-ios/stripped/dmengine_release arm64-ios/dmengine_release
 copy x86_64-ios/stripped/dmengine x86_64-ios/dmengine

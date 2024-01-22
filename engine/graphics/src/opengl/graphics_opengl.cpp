@@ -43,8 +43,8 @@
 #include <Carbon/Carbon.h>
 #endif
 
-#include <dmsdk/graphics/glfw/glfw.h>
-#include <graphics/glfw/glfw_native.h>
+#include <glfw/glfw.h>
+#include  <glfw/glfw_native.h>
 
 #if defined(__linux__) && !defined(ANDROID)
     #include <GL/glext.h>
@@ -250,6 +250,8 @@ static void LogGLError(GLint err, const char* fnname, int line)
 
 #endif
 
+static bool OpenGLIsTextureFormatSupported(HContext context, TextureFormat format);
+
 static void OpenGLClearGLError()
 {
     GLint err = glGetError();
@@ -351,7 +353,7 @@ static void LogFrameBufferError(GLenum status)
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static int8_t          g_null_adapter_priority = 1;
-    static GraphicsAdapter g_opengl_adapter("opengl");
+    static GraphicsAdapter g_opengl_adapter(ADAPTER_FAMILY_OPENGL);
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, g_null_adapter_priority);
 
@@ -364,6 +366,7 @@ static void LogFrameBufferError(GLenum status)
     dmIndexPool16 g_TextureParamsAsyncArrayIndices;
     dmArray<HTexture> g_PostDeleteTexturesArray;
     static void PostDeleteTextures(bool);
+    static bool OpenGLInitialize(HContext context);
 
     extern GLenum TEXTURE_UNIT_NAMES[32];
 
@@ -400,8 +403,15 @@ static void LogFrameBufferError(GLenum status)
         m_ModificationVersion     = 1;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
         m_RenderDocSupport        = params.m_RenderDocSupport;
+        m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
+        m_Width                   = params.m_Width;
+        m_Height                  = params.m_Height;
+        m_Window                  = params.m_Window;
+
+        assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
+
         // Formats supported on all platforms
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
@@ -411,7 +421,7 @@ static void LogFrameBufferError(GLenum status)
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
 
-        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport)*4 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
+        DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
 
     static GLenum GetOpenGLPrimitiveType(PrimitiveType prim_type)
@@ -510,14 +520,15 @@ static void LogFrameBufferError(GLenum status)
     {
         if (g_Context == 0x0)
         {
-            if (glfwInit() == GL_FALSE)
-            {
-                dmLogError("Could not initialize glfw.");
-                return 0x0;
-            }
-            g_Context = new OpenGLContext(params);
+            g_Context               = new OpenGLContext(params);
             g_Context->m_AsyncMutex = dmMutex::New();
-            return (HContext) g_Context;
+
+            if (OpenGLInitialize(g_Context))
+            {
+                return (HContext) g_Context;
+            }
+
+            DeleteContext(g_Context);
         }
         return 0x0;
     }
@@ -536,52 +547,13 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static bool OpenGLInitialize()
-    {
-        // NOTE: We do glfwInit as glfw doesn't cleanup menus properly on OSX.
-        return (glfwInit() == GL_TRUE);
-    }
-
     static bool OpenGLIsSupported()
     {
-        return OpenGLInitialize();
+        return (glfwInit() == GL_TRUE);
     }
 
     static void OpenGLFinalize()
     {
-        glfwTerminate();
-    }
-
-    static void OnWindowResize(int width, int height)
-    {
-        assert(g_Context);
-        g_Context->m_WindowWidth = (uint32_t)width;
-        g_Context->m_WindowHeight = (uint32_t)height;
-        if (g_Context->m_WindowResizeCallback != 0x0)
-            g_Context->m_WindowResizeCallback(g_Context->m_WindowResizeCallbackUserData, (uint32_t)width, (uint32_t)height);
-    }
-
-    static int OnWindowClose()
-    {
-        assert(g_Context);
-        if (g_Context->m_WindowCloseCallback != 0x0)
-            return g_Context->m_WindowCloseCallback(g_Context->m_WindowCloseCallbackUserData);
-        // Close by default
-        return 1;
-    }
-
-    static void OnWindowFocus(int focus)
-    {
-        assert(g_Context);
-        if (g_Context->m_WindowFocusCallback != 0x0)
-            g_Context->m_WindowFocusCallback(g_Context->m_WindowFocusCallbackUserData, focus);
-    }
-
-    static void OnWindowIconify(int iconify)
-    {
-        assert(g_Context);
-        if (g_Context->m_WindowIconifyCallback != 0x0)
-            g_Context->m_WindowIconifyCallback(g_Context->m_WindowIconifyCallbackUserData, iconify);
     }
 
     static void StoreExtensions(HContext _context, const GLubyte* _extensions)
@@ -635,11 +607,10 @@ static void LogFrameBufferError(GLenum status)
         {
             case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
-            case CONTEXT_FEATURE_COMPUTE_SHADER:         return false; // TODO!
+            case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
         }
         return false;
     }
-
 
     static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext context)
     {
@@ -772,87 +743,17 @@ static void LogFrameBufferError(GLenum status)
             dmLogInfo("  %s", #feature);
         PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_TEXTURE_ARRAY);
+        PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_COMPUTE_SHADER);
     #undef PRINT_FEATURE_IF_SUPPORTED
     }
 
-    static WindowResult OpenGLOpenWindow(HContext _context, WindowParams *params)
+    static bool OpenGLInitialize(HContext _context)
     {
         assert(_context);
-        assert(params);
-
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (context->m_WindowOpened) return WINDOW_RESULT_ALREADY_OPENED;
-
-        if (params->m_HighDPI) {
-            glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
-        }
-
-        glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-        glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
-
-#if defined(ANDROID)
-        // Seems to work fine anyway without any hints
-        // which is good, since we want to fallback from OpenGLES 3 to 2
-#elif defined(__linux__)
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
-#elif defined(_WIN32)
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
-#elif defined(__MACH__)
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-    #if defined(DM_PLATFORM_IOS)
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
-    #else
-        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2); // 3.2 on macOS (actually picks 4.1 anyways)
-    #endif
-#endif
-
-        bool is_desktop = false;
-#if defined(_WIN32) || (defined(__linux__) && !defined(ANDROID)) || defined(DM_PLATFORM_MACOS)
-        is_desktop = true;
-#endif
-        if (is_desktop) {
-            glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        }
-
-        int mode = GLFW_WINDOW;
-        if (params->m_Fullscreen)
-            mode = GLFW_FULLSCREEN;
-        if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
-        {
-            if (is_desktop)
-            {
-                dmLogWarning("Trying OpenGL 3.1 compat mode");
-
-                // Try a second time, this time without core profile, and lower the minor version.
-                // And GLFW clears hints, so we have to set them again.
-                if (params->m_HighDPI) {
-                    glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
-                }
-                glfwOpenWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-                glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
-
-                // We currently cannot go lower since we support shader model 140
-                glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
-                glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 1);
-
-                glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-
-                if (!glfwOpenWindow(params->m_Width, params->m_Height, 8, 8, 8, 8, 32, 8, mode))
-                {
-                    return WINDOW_RESULT_WINDOW_OPEN_ERROR;
-                }
-            }
-            else
-            {
-                return WINDOW_RESULT_WINDOW_OPEN_ERROR;
-            }
-        }
 
 #if defined (_WIN32)
-#define GET_PROC_ADDRESS(function, name, type)\
+    #define GET_PROC_ADDRESS(function, name, type)\
         function = (type)wglGetProcAddress(name);\
         if (function == 0x0)\
         {\
@@ -865,7 +766,7 @@ static void LogFrameBufferError(GLenum status)
         if (function == 0x0)\
         {\
             dmLogError("Could not find gl function '%s'.", name);\
-            return WINDOW_RESULT_WINDOW_OPEN_ERROR;\
+            return false;\
         }
 
         GET_PROC_ADDRESS(glGenProgramsARB, "glGenPrograms", PFNGLGENPROGRAMARBPROC);
@@ -923,51 +824,18 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glCompressedTexImage3D, "glCompressedTexImage3D", PFNGLCOMPRESSEDTEXIMAGE3DPROC);
         GET_PROC_ADDRESS(glCompressedTexSubImage3D, "glCompressedTexSubImage3D", PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC);
 
-#if !defined(GL_ES_VERSION_2_0)
+    #if !defined(GL_ES_VERSION_2_0)
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
         GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
         GET_PROC_ADDRESS(glBindVertexArray, "glBindVertexArray", PFNGLBINDVERTEXARRAYPROC);
         GET_PROC_ADDRESS(glDrawBuffers, "glDrawBuffers", PFNGLDRAWBUFFERSPROC);
         GET_PROC_ADDRESS(glGetFragDataLocation, "glGetFragDataLocation", PFNGLGETFRAGDATALOCATIONPROC);
         GET_PROC_ADDRESS(glBindFragDataLocation, "glBindFragDataLocation", PFNGLBINDFRAGDATALOCATIONPROC);
+    #endif
+
+    #undef GET_PROC_ADDRESS
 #endif
 
-#undef GET_PROC_ADDRESS
-#endif
-
-#if !defined(__EMSCRIPTEN__)
-        glfwSetWindowTitle(params->m_Title);
-#endif
-
-        glfwSetWindowBackgroundColor(params->m_BackgroundColor);
-
-        glfwSetWindowSizeCallback(OnWindowResize);
-        glfwSetWindowCloseCallback(OnWindowClose);
-        glfwSetWindowFocusCallback(OnWindowFocus);
-        glfwSetWindowIconifyCallback(OnWindowIconify);
-        glfwSwapInterval(1);
-        CHECK_GL_ERROR;
-
-        context->m_WindowResizeCallback           = params->m_ResizeCallback;
-        context->m_WindowResizeCallbackUserData   = params->m_ResizeCallbackUserData;
-        context->m_WindowCloseCallback            = params->m_CloseCallback;
-        context->m_WindowCloseCallbackUserData    = params->m_CloseCallbackUserData;
-        context->m_WindowFocusCallback            = params->m_FocusCallback;
-        context->m_WindowFocusCallbackUserData    = params->m_FocusCallbackUserData;
-        context->m_WindowIconifyCallback          = params->m_IconifyCallback;
-        context->m_WindowIconifyCallbackUserData  = params->m_IconifyCallbackUserData;
-        context->m_WindowOpened                   = 1;
-
-        context->m_Width                          = params->m_Width;
-        context->m_Height                         = params->m_Height;
-
-        // read back actual window size
-        int width, height;
-        glfwGetWindowSize(&width, &height);
-
-        context->m_WindowWidth    = (uint32_t) width;
-        context->m_WindowHeight   = (uint32_t) height;
-        context->m_Dpi            = 0;
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
         context->m_PipelineState  = GetDefaultPipelineState();
 
@@ -1034,14 +902,6 @@ static void LogFrameBufferError(GLenum status)
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_lose_context");
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
-
-        if (params->m_PrintDeviceInfo)
-        {
-            dmLogInfo("Device: OpenGL");
-            dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
-            dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
-            dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
-        }
 
 #if defined(DM_PLATFORM_MACOS)
         ProcessSerialNumber psn;
@@ -1179,6 +1039,22 @@ static void LogFrameBufferError(GLenum status)
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
         }
+        else
+        {
+            // https://registry.khronos.org/OpenGL/extensions/EXT/EXT_color_buffer_half_float.txt
+            if (OpenGLIsExtensionSupported(context, "EXT_color_buffer_half_float"))
+            {
+                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB16F;
+                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA16F;
+            }
+
+            // https://registry.khronos.org/webgl/extensions/WEBGL_color_buffer_float/
+            if (OpenGLIsExtensionSupported(context, "WEBGL_color_buffer_float"))
+            {
+                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
+                context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
+            }
+        }
 
         // GL_NUM_COMPRESSED_TEXTURE_FORMATS is deprecated in newer OpenGL Versions
         GLint iNumCompressedFormats = 0;
@@ -1205,6 +1081,27 @@ static void LogFrameBufferError(GLenum status)
 
 
 #if defined (__EMSCRIPTEN__)
+        // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
+        // see https://github.com/defold/defold/issues/8030
+        if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4x4)) {
+            unsigned char fakeZeroBuffer[] = {
+                0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
+                0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01,
+                0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
+                0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01
+            };
+            GLuint texture;
+            glGenTextures(1, &texture);
+            glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+            DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, 4, 4, 2, 0, 32, &fakeZeroBuffer);
+            GLint err = glGetError();
+            if (err != 0) 
+            {
+                context->m_TextureFormatSupport &= ~(1 << TEXTURE_FORMAT_RGBA_ASTC_4x4);
+            }
+            glDeleteTextures(1, &texture);
+        }
+
         // webgl GL_DEPTH_STENCIL_ATTACHMENT for stenciling and GL_DEPTH_COMPONENT16 for depth only by specifications, even though it reports 24-bit depth and no packed depth stencil extensions.
         context->m_PackedDepthStencilSupport = 1;
         context->m_DepthBufferBits = 16;
@@ -1301,7 +1198,23 @@ static void LogFrameBufferError(GLenum status)
         CLEAR_GL_ERROR;
 #endif
 
-        if (params->m_PrintDeviceInfo)
+    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+        int32_t version_major = 0, version_minor = 0;
+        glGetIntegerv(GL_MAJOR_VERSION, &version_major);
+        glGetIntegerv(GL_MINOR_VERSION, &version_minor);
+
+        #define COMPUTE_VERSION_NEEDED(MAJOR, MINOR) (MAJOR > version_major || (version_major ==  MAJOR && version_minor >= MINOR))
+
+        #if defined(GL_ES_VERSION_3_0) || defined(GL_ES_VERSION_2_0)
+            context->m_ComputeSupport = COMPUTE_VERSION_NEEDED(3,1);
+        #else
+            context->m_ComputeSupport = COMPUTE_VERSION_NEEDED(4,3);
+        #endif
+
+        #undef COMPUTE_VERSION_NEEDED
+    #endif
+
+        if (context->m_PrintDeviceInfo)
         {
             OpenGLPrintDeviceInfo(context);
         }
@@ -1324,36 +1237,30 @@ static void LogFrameBufferError(GLenum status)
         }
 #endif
 
-        return WINDOW_RESULT_OK;
+        return true;
+    }
+
+    static dmPlatform::HWindow OpenGLGetWindow(HContext _context)
+    {
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        return context->m_Window;
     }
 
     static void OpenGLCloseWindow(HContext _context)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (context->m_WindowOpened)
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             JobQueueFinalize();
             PostDeleteTextures(true);
-            glfwCloseWindow();
-            context->m_WindowResizeCallback = 0x0;
+
             context->m_Width = 0;
             context->m_Height = 0;
-            context->m_WindowWidth = 0;
-            context->m_WindowHeight = 0;
-            context->m_WindowOpened = 0;
             context->m_Extensions.SetSize(0);
             free(context->m_ExtensionsString);
             context->m_ExtensionsString = 0;
-        }
-    }
-
-    static void OpenGLIconifyWindow(HContext context)
-    {
-        assert(context);
-        if (((OpenGLContext*) context)->m_WindowOpened)
-        {
-            glfwIconifyWindow();
         }
     }
 
@@ -1373,24 +1280,6 @@ static void LogFrameBufferError(GLenum status)
         #endif
     }
 
-    static uint32_t OpenGLGetWindowState(HContext context, WindowState state)
-    {
-        assert(context);
-        if (((OpenGLContext*) context)->m_WindowOpened)
-            return glfwGetWindowParam(state);
-        else
-            return 0;
-    }
-
-    static uint32_t OpenGLGetWindowRefreshRate(HContext context)
-    {
-        assert(context);
-        if (((OpenGLContext*) context)->m_WindowOpened)
-            return glfwGetWindowRefreshRate();
-        else
-            return 0;
-    }
-
     static PipelineState OpenGLGetPipelineState(HContext context)
     {
         return ((OpenGLContext*) context)->m_PipelineState;
@@ -1399,7 +1288,7 @@ static void LogFrameBufferError(GLenum status)
     static uint32_t OpenGLGetDisplayDpi(HContext context)
     {
         assert(context);
-        return ((OpenGLContext*) context)->m_Dpi;
+        return 0;
     }
 
     static uint32_t OpenGLGetWidth(HContext context)
@@ -1414,51 +1303,25 @@ static void LogFrameBufferError(GLenum status)
         return ((OpenGLContext*) context)->m_Height;
     }
 
-    static uint32_t OpenGLGetWindowWidth(HContext context)
-    {
-        assert(context);
-        return ((OpenGLContext*) context)->m_WindowWidth;
-    }
-
-    static float OpenGLGetDisplayScaleFactor(HContext context)
-    {
-        assert(context);
-        return glfwGetDisplayScaleFactor();
-    }
-
-    static uint32_t OpenGLGetWindowHeight(HContext context)
-    {
-        assert(context);
-        return ((OpenGLContext*) context)->m_WindowHeight;
-    }
-
     static void OpenGLSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
-        if (context->m_WindowOpened)
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
-            context->m_Width = width;
+            context->m_Width  = width;
             context->m_Height = height;
-            glfwSetWindowSize((int)width, (int)height);
-            int window_width, window_height;
-            glfwGetWindowSize(&window_width, &window_height);
-            context->m_WindowWidth = window_width;
-            context->m_WindowHeight = window_height;
-            // The callback is not called from glfw when the size is set manually
-            if (context->m_WindowResizeCallback)
-            {
-                context->m_WindowResizeCallback(context->m_WindowResizeCallbackUserData, window_width, window_height);
-            }
+            dmPlatform::SetWindowSize(context->m_Window, width, height);
         }
     }
 
-    static void OpenGLResizeWindow(HContext context, uint32_t width, uint32_t height)
+    static void OpenGLResizeWindow(HContext _context, uint32_t width, uint32_t height)
     {
-        assert(context);
-        if (((OpenGLContext*) context)->m_WindowOpened)
+        assert(_context);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
-            glfwSetWindowSize((int)width, (int)height);
+            dmPlatform::SetWindowSize(context->m_Window, width, height);
         }
     }
 
@@ -1508,11 +1371,6 @@ static void LogFrameBufferError(GLenum status)
         PostDeleteTextures(false);
         glfwSwapBuffers();
         CHECK_GL_ERROR;
-    }
-
-    static void OpenGLSetSwapInterval(HContext context, uint32_t swap_interval)
-    {
-        glfwSwapInterval(swap_interval);
     }
 
     static GLenum GetOpenGLBufferUsage(BufferUsage buffer_usage)
@@ -1686,34 +1544,6 @@ static void LogFrameBufferError(GLenum status)
         delete vertex_declaration;
     }
 
-    static void OpenGLEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
-    {
-        assert(context);
-        assert(vertex_buffer);
-        assert(vertex_declaration);
-        #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
-
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
-        CHECK_GL_ERROR;
-
-        for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
-        {
-            glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_LogicalIndex);
-            CHECK_GL_ERROR;
-            glVertexAttribPointer(
-                    vertex_declaration->m_Streams[i].m_LogicalIndex,
-                    vertex_declaration->m_Streams[i].m_Size,
-                    GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
-                    vertex_declaration->m_Streams[i].m_Normalize,
-                    vertex_declaration->m_Stride,
-            BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
-
-            CHECK_GL_ERROR;
-        }
-
-        #undef BUFFER_OFFSET
-    }
-
     static void BindVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HProgram program)
     {
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
@@ -1748,10 +1578,20 @@ static void LogFrameBufferError(GLenum status)
         vertex_declaration->m_ModificationVersion = ((OpenGLContext*) context)->m_ModificationVersion;
     }
 
-    static void OpenGLEnableVertexDeclarationProgram(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void OpenGLEnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index)
+    {
+        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
+        CHECK_GL_ERROR;
+    }
+
+    static void OpenGLDisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer)
+    {
+        // NOP
+    }
+
+    static void OpenGLEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
         assert(_context);
-        assert(vertex_buffer);
         assert(vertex_declaration);
 
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -1762,9 +1602,6 @@ static void LogFrameBufferError(GLenum status)
         }
 
         #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
-
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
-        CHECK_GL_ERROR;
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
@@ -1868,6 +1705,7 @@ static void LogFrameBufferError(GLenum status)
         glGetShaderiv(shader_id, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
+            dmLogError("Unable to compile %s shader.", type == GL_VERTEX_SHADER ? "vertex" : "fragment");
 #ifndef NDEBUG
             GLint logLength;
             glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &logLength);
@@ -1875,7 +1713,7 @@ static void LogFrameBufferError(GLenum status)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
                 glGetShaderInfoLog(shader_id, logLength, &logLength, log);
-                dmLogError("%s\n", log);
+                dmLogError("%s", log);
                 free(log);
             }
 #endif
@@ -1907,6 +1745,11 @@ static void LogFrameBufferError(GLenum status)
     static HFragmentProgram OpenGLNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf);
+    }
+
+    static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    {
+        return (HVertexProgram) CreateShader(DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf);
     }
 
     static void BuildAttributes(OpenGLProgram* program_ptr)
@@ -1947,23 +1790,62 @@ static void LogFrameBufferError(GLenum status)
         context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
     }
 
-    static HComputeProgram OpenGLNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static bool LinkProgram(GLuint program)
     {
-        assert(0 && "Not implemented!");
-        return 0;
+        glLinkProgram(program);
+
+        GLint status;
+        glGetProgramiv(program, GL_LINK_STATUS, &status);
+
+        if (status == 0)
+        {
+            dmLogError("Unable to link program.");
+#ifndef NDEBUG
+            GLint logLength;
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+            if (logLength > 0)
+            {
+                GLchar *log = (GLchar*) malloc(logLength);
+                glGetProgramInfoLog(program, logLength, &logLength, log);
+                dmLogWarning("%s\n", log);
+                free(log);
+            }
+#endif
+            return false;
+        }
+        return true;
     }
 
     static HProgram OpenGLNewProgramFromCompute(HContext context, HComputeProgram compute_program)
     {
-        assert(0 && "Not implemented!");
-        return 0;
+        IncreaseModificationVersion((OpenGLContext*) context);
+
+        OpenGLComputeProgram* program = new OpenGLComputeProgram();
+
+        (void) context;
+        GLuint p = glCreateProgram();
+        CHECK_GL_ERROR;
+
+        OpenGLShader* compute_shader = (OpenGLShader*) compute_program;
+        GLuint compute_shader_id     = compute_shader->m_Id;
+
+        glAttachShader(p, compute_shader_id);
+        CHECK_GL_ERROR;
+
+        if (!LinkProgram(p))
+        {
+            delete program;
+            glDeleteProgram(p);
+            CHECK_GL_ERROR;
+            return 0;
+        }
+
+        program->m_Id       = p;
+        program->m_Language = compute_shader->m_Language;
+        return (HProgram) program;
     }
 
-    static void OpenGLDeleteComputeProgram(HComputeProgram prog)
-    {
-        assert(0 && "Not implemented!");
-    }
-
+    // TODO: Rename to graphicsprogram instead of newprogram
     static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         IncreaseModificationVersion((OpenGLContext*) context);
@@ -1997,25 +1879,9 @@ static void LogFrameBufferError(GLenum status)
         }
 #endif
 
-        glLinkProgram(p);
-
-        GLint status;
-        glGetProgramiv(p, GL_LINK_STATUS, &status);
-        if (status == 0)
+        if (!LinkProgram(p))
         {
-#ifndef NDEBUG
-            GLint logLength;
-            glGetProgramiv(p, GL_INFO_LOG_LENGTH, &logLength);
-            if (logLength > 0)
-            {
-                GLchar *log = (GLchar *)malloc(logLength);
-                glGetProgramInfoLog(p, logLength, &logLength, log);
-                dmLogWarning("%s\n", log);
-                free(log);
-            }
-#endif
             delete program;
-
             glDeleteProgram(p);
             CHECK_GL_ERROR;
             return 0;
@@ -2052,13 +1918,14 @@ static void LogFrameBufferError(GLenum status)
         glGetShaderiv(prog, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
+            dmLogError("Unable to compile shader.");
             GLint logLength;
             glGetShaderiv(prog, GL_INFO_LOG_LENGTH, &logLength);
             if (logLength > 0)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
                 glGetShaderInfoLog(prog, logLength, &logLength, log);
-                dmLogError("%s\n", log);
+                dmLogError("%s", log);
                 free(log);
             }
             CHECK_GL_ERROR;
@@ -2124,12 +1991,17 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteVertexProgram(HVertexProgram program)
     {
-        OpenGLDeleteShader(((OpenGLShader*) program));
+        OpenGLDeleteShader((OpenGLShader*) program);
     }
 
     static void OpenGLDeleteFragmentProgram(HFragmentProgram program)
     {
-        OpenGLDeleteShader(((OpenGLShader*) program));
+        OpenGLDeleteShader((OpenGLShader*) program);
+    }
+
+    static void OpenGLDeleteComputeProgram(HComputeProgram program)
+    {
+        OpenGLDeleteShader((OpenGLShader*) program);
     }
 
     static ShaderDesc::Language OpenGLGetProgramLanguage(HProgram program)
@@ -2137,7 +2009,7 @@ static void LogFrameBufferError(GLenum status)
         return ((OpenGLProgram*) program)->m_Language;
     }
 
-    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context)
+    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context, ShaderDesc::ShaderClass shader_class)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_IsShaderLanguageGles) // 0 == glsl, 1 == gles
@@ -2177,13 +2049,14 @@ static void LogFrameBufferError(GLenum status)
         glGetProgramiv(tmp_program, GL_LINK_STATUS, &status);
         if (status == 0)
         {
+            dmLogError("Unable to link program.");
             GLint logLength;
             glGetProgramiv(tmp_program, GL_INFO_LOG_LENGTH, &logLength);
             if (logLength > 0)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
                 glGetProgramInfoLog(tmp_program, logLength, &logLength, log);
-                dmLogError("%s\n", log);
+                dmLogError("%s", log);
                 free(log);
             }
             success = false;
@@ -2193,7 +2066,7 @@ static void LogFrameBufferError(GLenum status)
         return success;
     }
 
-    static bool OpenGLReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool OpenGLReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         if (!TryLinkProgram(vert_program, frag_program))
         {
@@ -2206,6 +2079,18 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 
         BuildAttributes(program_ptr);
+        return true;
+    }
+
+    static bool OpenGLReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
+    {
+        assert(0);
+        return false;
+    }
+
+    static bool OpenGLReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    {
+        (void)prog;
         return true;
     }
 
@@ -3005,16 +2890,33 @@ static void LogFrameBufferError(GLenum status)
         return texture_filter_lut[texture_filter];
     }
 
+    static inline bool IsTextureFilterMipmapped(GLenum filter)
+    {
+        return filter == GL_NEAREST_MIPMAP_NEAREST ||
+               filter == GL_NEAREST_MIPMAP_LINEAR  ||
+               filter == GL_LINEAR_MIPMAP_NEAREST  ||
+               filter == GL_LINEAR_MIPMAP_LINEAR;
+    }
+
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
         GLenum type = GetOpenGLTextureType(tex->m_Type);
 
-        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GetOpenGLTextureFilter(minfilter));
+        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter);
+        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter);
+
+        // Using a mipmapped min filter without any mipmaps will break the sampler
+        if (tex->m_MipMapCount <= 1 && IsTextureFilterMipmapped(gl_min_filter))
+        {
+            gl_min_filter = gl_mag_filter;
+        }
+
+        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
         CHECK_GL_ERROR;
 
-        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GetOpenGLTextureFilter(magfilter));
+        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
         CHECK_GL_ERROR;
 
         glTexParameteri(type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
@@ -3171,7 +3073,8 @@ static void LogFrameBufferError(GLenum status)
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGB;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGB16F;
             EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGB);
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_RGB32F:
             gl_type            = GL_FLOAT;
@@ -3183,7 +3086,9 @@ static void LogFrameBufferError(GLenum status)
             gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RGBA;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA16F;
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_internal_format, DMGRAPHICS_TEXTURE_FORMAT_RGBA);
+            EMSCRIPTEN_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_RGBA32F:
             gl_type            = GL_FLOAT;
@@ -3195,7 +3100,7 @@ static void LogFrameBufferError(GLenum status)
             gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R16F;
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_R32F:
             gl_type            = GL_FLOAT;
@@ -3206,7 +3111,7 @@ static void LogFrameBufferError(GLenum status)
             gl_type            = DMGRAPHICS_TYPE_HALF_FLOAT;
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG16F;
-            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, GL_HALF_FLOAT_OES);
+            ANDROID_ES2_BACKWARDS_COMPAT(gl_type, DMGRAPHICS_TYPE_HALF_FLOAT_OES);
             break;
         case TEXTURE_FORMAT_RG32F:
             gl_type            = GL_FLOAT;

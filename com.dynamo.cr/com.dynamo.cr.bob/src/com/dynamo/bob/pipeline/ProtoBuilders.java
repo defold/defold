@@ -53,6 +53,7 @@ import com.dynamo.gamesys.proto.GameSystem.LightDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionShape.Shape;
+import com.dynamo.gamesys.proto.Physics.CollisionShape.ShapeOrBuilder;
 import com.dynamo.gamesys.proto.Physics.CollisionShape.Type;
 import com.dynamo.gamesys.proto.Physics.CollisionShape;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
@@ -67,6 +68,7 @@ import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
+import com.dynamo.render.proto.ComputeProgram.ComputeProgramDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
@@ -108,16 +110,6 @@ public class ProtoBuilders {
         MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
         materialBuilder.mergeFrom(materialBuildResource.getContent());
         return materialBuilder;
-    }
-
-    private static VertexAttribute GetAttributeByName(List<VertexAttribute> attributes, String attributeName)
-    {
-        for (VertexAttribute attr : attributes) {
-            if (attr.getName().equals(attributeName)) {
-                return attr;
-            }
-        }
-        return null;
     }
 
     // TODO: Should we move this to a build resource?
@@ -220,6 +212,13 @@ public class ProtoBuilders {
                 eb.addAllData(cb.getDataList());
                 messageBuilder.setEmbeddedCollisionShape(eb);
                 messageBuilder.setCollisionShape("");
+            }
+
+            CollisionShape.Builder embeddedShapesBuilder = messageBuilder.getEmbeddedCollisionShapeBuilder();
+
+            for (int i=0; i < embeddedShapesBuilder.getShapesCount(); i++) {
+                CollisionShape.Shape.Builder shapeBuilder = embeddedShapesBuilder.getShapesBuilder(i);
+                shapeBuilder.setIdHash(MurmurHash.hash64(shapeBuilder.getId()));
             }
 
             messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".convexshape", ".convexshapec"));
@@ -348,7 +347,8 @@ public class ProtoBuilders {
                     throw new CompileExceptionError(input, -1, e.getMessage(), e);
                 }
 
-                task.addInput(project.getResource(atlas).changeExt(extension));
+                IResource atlasOutput = project.getResource(atlas).changeExt(extension);
+                task.addInput(atlasOutput);
             }
 
             return task.build();
@@ -358,7 +358,7 @@ public class ProtoBuilders {
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
 
-            if (messageBuilder.getTexturesList().isEmpty()) {
+            if (messageBuilder.hasTileSet()) {
                 String texture = messageBuilder.getTileSet();
 
                 SpriteTexture.Builder textureBuilder = SpriteTexture.newBuilder();
@@ -366,6 +366,7 @@ public class ProtoBuilders {
                 textureBuilder.setSampler("");
                 messageBuilder.clearTextures();
                 messageBuilder.addTextures(textureBuilder.build());
+                messageBuilder.clearTileSet();
             }
 
             MaterialDesc.Builder materialBuilder = getMaterialBuilderFromResource(this.project.getResource(messageBuilder.getMaterial()));
@@ -398,7 +399,7 @@ public class ProtoBuilders {
 
                 for (int i=0; i < messageBuilder.getAttributesCount(); i++) {
                     VertexAttribute spriteAttribute = messageBuilder.getAttributes(i);
-                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, spriteAttribute.getName());
+                    VertexAttribute materialAttribute = GraphicsUtil.getAttributeByName(materialAttributes, spriteAttribute.getName());
 
                     if (materialAttribute != null) {
                         spriteAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(spriteAttribute, materialAttribute));
@@ -409,6 +410,18 @@ public class ProtoBuilders {
                 messageBuilder.addAllAttributes(spriteAttributeOverrides);
             }
 
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(srcClass = ComputeProgramDesc.class, messageClass = ComputeProgramDesc.class)
+    @BuilderParams(name="ComputeProgram", inExts=".compute_program", outExt=".compute_programc")
+    public static class ComputeProgramBuilder extends ProtoBuilder<ComputeProgramDesc.Builder> {
+        @Override
+        protected ComputeProgramDesc.Builder transform(Task<Void> task, IResource resource, ComputeProgramDesc.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+            BuilderUtil.checkResource(this.project, resource, "compute program", messageBuilder.getProgram());
+            messageBuilder.setProgram(BuilderUtil.replaceExt(messageBuilder.getProgram(), ".cp", ".cpc"));
             return messageBuilder;
         }
     }
@@ -514,7 +527,7 @@ public class ProtoBuilders {
 
                 for (int j=0; j < emitterBuilder.getAttributesCount(); j++) {
                     VertexAttribute emitterAttribute  = emitterBuilder.getAttributes(j);
-                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, emitterAttribute.getName());
+                    VertexAttribute materialAttribute = GraphicsUtil.getAttributeByName(materialAttributes, emitterAttribute.getName());
 
                     if (materialAttribute != null) {
                         emitterAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(emitterAttribute, materialAttribute));

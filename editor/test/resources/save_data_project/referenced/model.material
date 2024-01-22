@@ -1,0 +1,259 @@
+name: "model"
+tags: "model"
+vertex_program: "/checked.vp"
+fragment_program: "/checked.fp"
+vertex_space: VERTEX_SPACE_LOCAL
+vertex_constants {
+  name: "viewproj"
+  type: CONSTANT_TYPE_VIEWPROJ
+  value {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+}
+samplers {
+  name: "texture0"
+  wrap_u: WRAP_MODE_REPEAT
+  wrap_v: WRAP_MODE_REPEAT
+  filter_min: FILTER_MODE_MIN_NEAREST
+  filter_mag: FILTER_MODE_MAG_NEAREST
+  max_anisotropy: 0.0
+}
+samplers {
+  name: "texture1"
+  wrap_u: WRAP_MODE_REPEAT
+  wrap_v: WRAP_MODE_REPEAT
+  filter_min: FILTER_MODE_MIN_NEAREST
+  filter_mag: FILTER_MODE_MAG_NEAREST
+  max_anisotropy: 0.0
+}
+max_page_count: 4
+attributes {
+  name: "position"
+  semantic_type: SEMANTIC_TYPE_POSITION
+  element_count: 3
+  normalize: false
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 0.0
+    v: 0.0
+    v: 0.0
+  }
+}
+attributes {
+  name: "texcoord0"
+  semantic_type: SEMANTIC_TYPE_TEXCOORD
+  element_count: 2
+  normalize: true
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  double_values {
+    v: 0.0
+    v: 0.0
+  }
+}
+attributes {
+  name: "texpage0"
+  semantic_type: SEMANTIC_TYPE_PAGE_INDEX
+  element_count: 1
+  normalize: false
+  data_type: TYPE_UNSIGNED_INT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  long_values {
+    v: 0
+  }
+}
+attributes {
+  name: "texcoord1"
+  semantic_type: SEMANTIC_TYPE_TEXCOORD
+  element_count: 2
+  normalize: true
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  double_values {
+    v: 0.0
+    v: 0.0
+  }
+}
+attributes {
+  name: "texpage1"
+  semantic_type: SEMANTIC_TYPE_PAGE_INDEX
+  element_count: 1
+  normalize: false
+  data_type: TYPE_UNSIGNED_INT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  long_values {
+    v: 0
+  }
+}
+attributes {
+  name: "normalized_byte"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_BYTE
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_unsigned_byte"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_UNSIGNED_BYTE
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_short"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_SHORT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_unsigned_short"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_UNSIGNED_SHORT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_int"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_INT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_unsigned_int"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_UNSIGNED_INT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_float"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "byte"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_BYTE
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "unsigned_byte"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_UNSIGNED_BYTE
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "short"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_SHORT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "unsigned_short"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_UNSIGNED_SHORT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "int"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_INT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "unsigned_int"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_UNSIGNED_INT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "float"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+  }
+}

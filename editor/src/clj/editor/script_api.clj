@@ -96,7 +96,7 @@
                                         (str "\n\n**Examples:**<br>\n"
                                              (string/join "\n\n" (map :desc examples)))))
                             :display-string (str name (build-param-string parameters :display-string))
-                            :insert-snippet (str name (build-param-string parameters :snippet)))]])
+                            :insert (str name (build-param-string parameters :snippet)))]])
 
               (when name
                 [[ns-path (code-completion/make name :type :variable :doc desc)]])))]
@@ -146,16 +146,16 @@
 (defn register-resource-types
   [workspace]
   (workspace/register-resource-type workspace
-                                    :ext "script_api"
-                                    :label "Script API"
-                                    :icon "icons/32/Icons_29-AT-Unknown.png"
-                                    :view-types [:code :default]
-                                    :view-opts nil
-                                    :node-type ScriptApiNode
-                                    :load-fn load-script-api
-                                    :read-fn r/read-fn
-                                    :write-fn r/write-fn
-                                    :textual? true
-                                    :language "yaml"
-                                    :auto-connect-save-data? false))
-
+    :ext "script_api"
+    :label "Script API"
+    :icon "icons/32/Icons_29-AT-Unknown.png"
+    :view-types [:code :default]
+    :view-opts nil
+    :node-type ScriptApiNode
+    :load-fn load-script-api
+    :read-fn r/read-fn
+    :write-fn r/write-fn
+    :textual? true
+    :language "yaml"
+    :auto-connect-save-data? false
+    :test-info {:type :code}))

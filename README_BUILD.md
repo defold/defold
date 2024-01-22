@@ -41,6 +41,7 @@ The following platforms are supported:
 
 * `x86_64-linux`
 * `x86_64-macos`
+* `arm64-macos`
 * `win32`
 * `x86_64-win32`
 * `x86_64-ios`
