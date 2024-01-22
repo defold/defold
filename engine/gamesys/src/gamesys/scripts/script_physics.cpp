@@ -127,7 +127,7 @@ namespace dmGameSystem
      *
      * The following properties are available when connecting a joint of `JOINT_TYPE_WHEEL` type:
      * @param local_axis_a [type:vector3] The local translation unit axis in bodyA.
-     * @param max_motor_force [type:number] The maximum motor torque, usually in N-m.
+     * @param max_motor_torque [type:number] The maximum motor torque used to achieve the desired motor speed. Usually in N-m.
      * @param motor_speed [type:number] The desired motor speed in radians per second.
      * @param enable_motor [type:boolean] Enable/disable the joint motor.
      * @param frequency [type:number] The mass-spring-damper frequency in Hertz. Rotation only. Disable softness with a value of 0.
