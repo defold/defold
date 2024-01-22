@@ -32,7 +32,7 @@
             [util.coll :as coll :refer [pair]]
             [util.diff :as diff]
             [util.text-util :as text-util])
-  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Builder Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
            [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$GenericDescriptor Message]))
 
 ;; Note: We use symbol or string representations of protobuf types and values
@@ -296,7 +296,7 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "size" :unused
-     "size_mode" :non-editable
+     "size_mode" :unused
      "slice9" :unused
      "spine_node_child" :deprecated ; This was a legacy setting in our own Spine implementation. The Spine/Rive extensions now create GUI bones themselves.
      "template" :unused
@@ -325,7 +325,7 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "size" :unused
-     "size_mode" :non-editable
+     "size_mode" :unused
      "slice9" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
@@ -364,7 +364,7 @@
      "clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
-     "color" :non-editable ; Annoyingly, we need to write a white color to the file because Bob will read it and write it to the binaries when bundling.
+     "color" :unused
      "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -393,7 +393,10 @@
      "texture" :unused
      "visible" :unused
      "xanchor" :unused
-     "yanchor" :unused}}
+     "yanchor" :unused}
+
+    [["gui" "layouts" "nodes"]]
+    {"template" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEXT]"]
    {:default
@@ -456,7 +459,7 @@
      ["gui" "layouts" "nodes" "[*]" "scale"]
      ["gui" "layouts" "nodes" "[*]" "size"]
      ["gui" "layouts" "nodes" "[*]" "shadow"]]
-    {"w" :non-editable}}
+    {"w" :padding}}
 
    'dmModelDDF.ModelDesc
    {:default
@@ -498,7 +501,11 @@
    {:default
     {"name_hash" :runtime-only
      "name_indirections" :runtime-only
-     "texture" :unimplemented}}}) ; Default texture resources not supported yet.
+     "texture" :unimplemented}} ; Default texture resources not supported yet.
+
+   'dmRigDDF.AnimationSetDesc
+   {:default
+    {"skeleton" :deprecated}}}) ; This was a legacy setting used back when we addressed bones by index instead of name. It is no longer needed.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))
@@ -595,6 +602,11 @@
   (is (s/valid? ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)
       (s/explain-str ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)))
 
+(defn- clear-cached-save-data! []
+  ;; Ensure any cache entries introduced by loading the project aren't covering
+  ;; up an actual dirty-check issue.
+  (g/clear-system-cache!))
+
 (deftest silent-migrations-test
   ;; This test is intended to verify that certain silent data migrations are
   ;; performed correctly. A silent migration typically involves a :sanitize-fn
@@ -603,6 +615,8 @@
   ;; until the user changes something significant in the file. More involved
   ;; migrations might be covered by tests elsewhere.
   (test-util/with-loaded-project project-path
+    (clear-cached-save-data!)
+
     (testing "collection"
       (let [uniform-scale-collection (project/get-resource-node project "/silently_migrated/uniform_scale.collection")
             referenced-collection (:node-id (test-util/outline uniform-scale-collection [0]))
@@ -616,6 +630,12 @@
         (is (= [2.0 2.0 2.0] (g/node-value referenced-go :scale)))))
 
     (testing "gui"
+      (let [redundant-layout-field-values-gui (test-util/resource-node project "/silently_migrated/redundant_layout_field_values.gui")]
+        (is (= (g/node-value redundant-layout-field-values-gui :source-value)
+               (g/node-value redundant-layout-field-values-gui :save-value))))
+      (let [redundant-template-field-values-gui (test-util/resource-node project "/silently_migrated/redundant_template_field_values.gui")]
+        (is (= (g/node-value redundant-template-field-values-gui :source-value)
+               (g/node-value redundant-template-field-values-gui :save-value))))
       (let [legacy-spine-resources-gui (test-util/resource-node project "/silently_migrated/legacy_spine_resources.gui")]
         (is (= [{:name "first_spinescene"
                  :path "/checked.spinescene"}]
@@ -1044,6 +1064,24 @@
   (and (= \/ (get node-id (count template-node-id)))
        (string/starts-with? node-id template-node-id)))
 
+(defn- apply-gui-overrides
+  ^Gui$NodeDesc [^Gui$NodeDesc original-node-pb ^Gui$NodeDesc override-node-pb]
+  (let [overridden-pb-field-index? (set (.getOverriddenFieldsList override-node-pb))
+
+        ^Gui$NodeDesc$Builder overridden-node-pb-builder
+        (reduce
+          (fn [^Gui$NodeDesc$Builder overridden-node-pb-builder ^Descriptors$FieldDescriptor field-desc]
+            (if (or (if (.isRepeated field-desc)
+                      (pos? (.getRepeatedFieldCount override-node-pb field-desc))
+                      (.hasField override-node-pb field-desc))
+                    (overridden-pb-field-index? (.getNumber field-desc)))
+              (.setField overridden-node-pb-builder field-desc (.getField override-node-pb field-desc))
+              overridden-node-pb-builder))
+          (.toBuilder original-node-pb)
+          (.getFields (.getDescriptorForType original-node-pb)))]
+
+    (.build overridden-node-pb-builder)))
+
 (defn- gui-template-node-override-infos [gui-node-pbs gui-proj-path->node-pbs]
   (let [[override-node-pbs template-node-pbs]
         (util/into-multiple
@@ -1090,7 +1128,9 @@
                         original-node-pb (original-node-id->pb original-node-id)]
                     (assert (some? original-node-pb))
                     {:original-node-pb original-node-pb
-                     :override-node-pb override-node-pb}))]
+                     :override-node-pb (if override-node-pb
+                                         (apply-gui-overrides original-node-pb override-node-pb)
+                                         original-node-pb)}))]
 
             (->> template-node-id
                  (template-node-id->override-node-pbs)
@@ -1133,10 +1173,8 @@
                           (.getField original-pb field-desc)
                           (.getField altered-pb field-desc)))
                   ;; Non-repeated field.
-                  (let [a-value (when (.hasField original-pb field-desc)
-                                  (.getField original-pb field-desc))
-                        b-value (when (.hasField altered-pb field-desc)
-                                  (.getField altered-pb field-desc))]
+                  (let [a-value (.getField original-pb field-desc)
+                        b-value (.getField altered-pb field-desc)]
                     (if (pb-message-field? field-desc)
                       ;; Non-repeated message field.
                       (let [pb-path (conj typed-pb-path (.getName field-desc))]
@@ -1200,7 +1238,7 @@
                                     :override-node-pb nil}]
                                   (map (fn [override-node-pb]
                                          {:original-node-pb original-node-pb
-                                          :override-node-pb override-node-pb})
+                                          :override-node-pb (apply-gui-overrides original-node-pb override-node-pb)})
                                        override-node-pbs)))))
                     (.getNodesList scene-pb))))
 
@@ -1241,11 +1279,6 @@
             (format "The following gui node fields are not covered by template overrides in any .gui files under `editor/%s`:"
                     project-path)
             non-template-overridden-gui-node-field-paths)))))
-
-(defn- clear-cached-save-data! []
-  ;; Ensure any cache entries introduced by loading the project aren't covering
-  ;; up an actual dirty-check issue.
-  (g/clear-system-cache!))
 
 (defn- diff->string
   ^String [diff]

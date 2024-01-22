@@ -21,17 +21,6 @@ components {
 components {
   id: "referenced_script"
   component: "/checked.script"
-  position {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-  }
-  rotation {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
-  }
 }
 embedded_components {
   id: "embedded_sprite"
@@ -39,7 +28,6 @@ embedded_components {
   data: "tile_set: \"/checked.atlas\"\n"
   "default_animation: \"diamond\"\n"
   "material: \"/checked.material\"\n"
-  "blend_mode: BLEND_MODE_ALPHA\n"
   ""
   position {
     x: 0.1

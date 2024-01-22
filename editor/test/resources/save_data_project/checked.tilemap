@@ -3,6 +3,7 @@ layers {
   id: "background"
   z: 0.1
   is_visible: 0
+  id_hash: 0
   cell {
     x: 0
     y: 0

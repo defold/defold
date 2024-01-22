@@ -317,8 +317,11 @@
       corners? (cornify max-angle)
       cut-off? (into (geom/rotate [0 0 max-angle] ps)))))
 
-(defn- v3->v4 [v3]
-  (conj v3 0.0))
+(defn- v3->zero-v4 [v3]
+  (conj v3 (float 0.0)))
+
+(defn- v3->one-v4 [v3]
+  (conj v3 (float 1.0)))
 
 (defn- v4->v3 [v4]
   (subvec v4 0 3))
@@ -336,7 +339,7 @@
   [{:pb-field :position
     :prop-key :position
     :pb->prop v4->v3
-    :prop->pb v3->v4}
+    :prop->pb v3->zero-v4}
    {:pb-field :rotation
     :prop-key :rotation
     :pb->prop euler-v4->clj-quat
@@ -344,11 +347,11 @@
    {:pb-field :scale
     :prop-key :scale
     :pb->prop v4->v3
-    :prop->pb v3->v4}
+    :prop->pb v3->one-v4}
    {:pb-field :size
     :prop-key :manual-size
     :pb->prop v4->v3
-    :prop->pb v3->v4}
+    :prop->pb v3->zero-v4}
    {:pb-field :xanchor
     :prop-key :x-anchor}
    {:pb-field :yanchor
@@ -361,22 +364,23 @@
                (pair pb-field (pair prop-key pb->prop))))
         property-conversions))
 
-(def ^:private field-index->prop-key
-  (let [field-index->pb-field (protobuf/fields-by-indices Gui$NodeDesc)]
-    (persistent!
-      (reduce-kv (fn [field-index->prop-key field-index pb-field]
-                   (if-some [[prop-key] (pb-field-to-node-property-conversions pb-field)]
-                     (assoc! field-index->prop-key field-index prop-key)
-                     field-index->prop-key))
-                 (transient field-index->pb-field)
-                 field-index->pb-field))))
+(def ^:private pb-field-index->pb-field (protobuf/fields-by-indices Gui$NodeDesc))
 
-(def ^:private prop-key->prop-index
+(def ^:private pb-field-index->prop-key
   (persistent!
-    (reduce-kv (fn [prop-key->prop-index prop-index prop-key]
-                 (assoc! prop-key->prop-index prop-key prop-index))
+    (reduce-kv (fn [pb-field-index->prop-key pb-field-index pb-field]
+                 (if-some [[prop-key] (pb-field-to-node-property-conversions pb-field)]
+                   (assoc! pb-field-index->prop-key pb-field-index prop-key)
+                   pb-field-index->prop-key))
+               (transient pb-field-index->pb-field)
+               pb-field-index->pb-field)))
+
+(def ^:private prop-key->pb-field-index
+  (persistent!
+    (reduce-kv (fn [prop-key->pb-field-index pb-field-index prop-key]
+                 (assoc! prop-key->pb-field-index prop-key pb-field-index))
                (transient {})
-               field-index->prop-key)))
+               pb-field-index->prop-key)))
 
 (declare get-registered-node-type-info get-registered-node-type-infos)
 
@@ -594,13 +598,32 @@
       (when emit-warnings?
         (validate-contains :warning "layer '%s' from template scene does not exist in the scene - will use layer of parent" :layer node-id layer-names layer)))))
 
-(defn- overridden-fields [gui-node]
+(defn- overridden-pb-field-indices [gui-node]
   (->> gui-node
        (gt/overridden-properties)
        (keys)
-       (keep prop-key->prop-index)
+       (keep prop-key->pb-field-index)
        (sort)
        (vec)))
+
+(def ^:private override-retained-pb-fields
+  [:type ; Not overridden or necessary, but improves readability.
+   :custom-type ; Not overridden or necessary, but improves readability.
+   :id ; Not overridden, but used to locate the original.
+   :parent ; No property exists for field.
+   :template-node-child ; No property exists for field.
+   :child-index ; No field exists for property.
+   :overridden-fields]) ; No property exists for field.
+
+(defn- strip-unused-overridden-fields [node-desc]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  (into (coll/empty-with-meta node-desc)
+        (keep (fn [pb-field]
+                (some->> (node-desc pb-field)
+                         (pair pb-field))))
+        (into override-retained-pb-fields
+              (map pb-field-index->pb-field)
+              (:overridden-fields node-desc))))
 
 (g/defnk produce-gui-base-node-msg [_this type custom-type child-index position rotation scale id generated-id color alpha inherit-alpha enabled layer parent]
   ;; Warning: This base output or any of the base outputs that derive from it
@@ -613,9 +636,9 @@
   (-> (protobuf/make-map-without-defaults Gui$NodeDesc
         :custom-type custom-type
         :template-node-child false
-        :position (v3->v4 position)
+        :position (v3->zero-v4 position)
         :rotation (clj-quat->euler-v4 rotation)
-        :scale (v3->v4 scale)
+        :scale (v3->one-v4 scale)
         :id (if (g/node-override? _this) generated-id id)
         :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
         :alpha alpha
@@ -623,7 +646,7 @@
         :enabled enabled
         :layer layer
         :parent parent
-        :overridden-fields (overridden-fields _this))
+        :overridden-fields (overridden-pb-field-indices _this))
       (assoc
         :type type ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
         :child-index child-index))) ; Used to sort layers in the SceneDesc.
@@ -913,17 +936,17 @@
 
 (def ^:private validate-texture-resource (partial validate-optional-gui-resource "Texture '%s' does not exist in the scene" :texture))
 
-(def ^:private size-prop-index (prop-key->prop-index :manual-size))
+(def ^:private size-pb-field-index (prop-key->pb-field-index :manual-size))
 
-(def ^:private is-size-prop-index? (partial = size-prop-index))
+(def ^:private is-size-pb-field-index? (partial = size-pb-field-index))
 
-(def ^:private is-size-mode-prop-index? (partial = (prop-key->prop-index :size-mode)))
+(def ^:private is-size-mode-pb-field-index? (partial = (prop-key->pb-field-index :size-mode)))
 
 (defn- strip-size-from-overridden-fields [overridden-fields]
-  (util/removev is-size-prop-index? overridden-fields))
+  (util/removev is-size-pb-field-index? overridden-fields))
 
 (defn- add-size-to-overridden-fields [overridden-fields]
-  (vec (sort (conj overridden-fields size-prop-index))))
+  (vec (sort (conj overridden-fields size-pb-field-index))))
 
 (defn- strip-size-from-shape-base-node-msg [node-desc]
   (-> node-desc
@@ -951,14 +974,14 @@
             ;; be overwritten by the size of its auto-sized original (which will
             ;; be zero now that we strip away auto-sized node sizes).
             (and (not= :size-mode-auto size-mode) ; May be nil, which means :size-mode-manual.
-                 (some is-size-mode-prop-index? overridden-fields)
-                 (not-any? is-size-prop-index? overridden-fields))
+                 (some is-size-mode-pb-field-index? overridden-fields)
+                 (not-any? is-size-pb-field-index? overridden-fields))
             (add-size-to-overridden-fields-in-node-desc))))
 
-(g/defnk produce-shape-base-node-msg [visual-base-node-msg manual-size size-mode texture material clipping-mode clipping-visible clipping-inverted]
+(g/defnk produce-shape-base-node-msg [visual-base-node-msg manual-size size-mode texture clipping-mode clipping-visible clipping-inverted]
   (-> visual-base-node-msg
       (merge (protobuf/make-map-without-defaults Gui$NodeDesc
-               :size (v3->v4 manual-size)
+               :size (v3->zero-v4 manual-size)
                :size-mode size-mode
                :texture texture
                :clipping-mode clipping-mode
@@ -1181,7 +1204,7 @@
 (g/defnk produce-text-node-msg [visual-base-node-msg manual-size text line-break font text-leading text-tracking outline outline-alpha shadow shadow-alpha]
   (merge visual-base-node-msg
          (protobuf/make-map-without-defaults Gui$NodeDesc
-           :size (v3->v4 manual-size)
+           :size (v3->zero-v4 manual-size)
            :text text
            :line-break line-break
            :font font
@@ -2368,6 +2391,17 @@
 (g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
   (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs))
 
+(g/defnk produce-save-value [pb-msg]
+  (-> pb-msg
+      (protobuf/sanitize-repeated
+        :nodes (fn [node-desc]
+                 (if (:template-node-child node-desc)
+                   (strip-unused-overridden-fields node-desc)
+                   node-desc)))
+      (protobuf/sanitize-repeated
+        :layouts (fn [layout-desc]
+                   (protobuf/sanitize-repeated layout-desc :nodes strip-unused-overridden-fields)))))
+
 (defn- build-pb [resource dep-resources user-data]
   (let [def (:def user-data)
         pb  (:pb user-data)
@@ -2687,15 +2721,8 @@
   (input samplers [g/KeywordMap])
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
 
-  ;; Having the save-value output :cached means we will encache the read value
-  ;; under the save-value endpoint during loading, making dirty checks
-  ;; significantly cheaper. However, we cannot pass such a read value though to
-  ;; the pb-msg output, since pb-msg expects node-descs imported from template
-  ;; scenes to be augmented with metadata that affects the build output. As a
-  ;; result, the pb-msg output is the source of truth here, but we still gain
-  ;; value from caching the save-value output even though it is a passthrough.
   (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any :cached (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
 
   (input template-build-targets g/Any :array)
   (output own-build-errors g/Any produce-own-build-errors)
@@ -2889,7 +2916,7 @@
 
 (defn- extract-overrides [node-properties]
   (into {}
-        (comp (map field-index->prop-key)
+        (comp (map pb-field-index->prop-key)
               (remove non-overridable-properties)
               (map (fn [prop-key]
                      (let [prop-value (node-properties prop-key ::not-found)]
@@ -3103,12 +3130,12 @@
 (def default-pb-read-node-alpha (protobuf/default Gui$NodeDesc :alpha))
 (assert (= (float 1.0) default-pb-read-node-alpha))
 
-(defn- sanitize-node-color [node-desc color-field alpha-field]
+(defn- sanitize-node-color [node-desc color-pb-field alpha-pb-field]
   {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
   ;; In previous versions of the file format, alpha was stored in the fourth
   ;; color component. This was later moved to a separate alpha field to support
   ;; overriding of the alpha separately from the color.
-  (let [color (get node-desc color-field)]
+  (let [color (get node-desc color-pb-field)]
     (if (or (nil? color)
             (= default-pb-read-node-color color))
       ;; The node does not specify color. Return unaltered.
@@ -3124,17 +3151,22 @@
           ;; Make it opaque in the color, and transfer the color alpha to the
           ;; node alpha if the node alpha has the protobuf default value.
           (-> node-desc
-              (assoc color-field (assoc color 3 default-pb-read-node-alpha))
-              (update alpha-field (fn [node-alpha]
-                                    (if (or (nil? node-alpha)
-                                            (= default-pb-read-node-alpha node-alpha))
-                                      (or color-alpha default-pb-read-node-alpha)
-                                      node-alpha)))))))))
+              (assoc color-pb-field (assoc color 3 default-pb-read-node-alpha))
+              (update alpha-pb-field (fn [node-alpha]
+                                       (if (or (nil? node-alpha)
+                                               (= default-pb-read-node-alpha node-alpha))
+                                         (or color-alpha default-pb-read-node-alpha)
+                                         node-alpha)))))))))
 
-(defn- sanitize-v4 [v4]
+(defn- sanitize-zero-v4 [v4]
   (let [v3 (v4->v3 v4)]
     (when (not-every? zero? v3)
-      (v3->v4 v3))))
+      (v3->zero-v4 v3))))
+
+(defn- sanitize-one-v4 [v4]
+  (let [v3 (v4->v3 v4)]
+    (when (not-every? #(= 0.0 %) v3) ; TODO(save-value): Change to 1.0 once we use Vector4One in proto file.
+      (v3->one-v4 v3))))
 
 (defn- sanitize-euler-v4 [euler-v4]
   (let [clj-quat (euler-v4->clj-quat euler-v4)
@@ -3144,10 +3176,10 @@
 
 (defn- sanitize-node-geometry [node]
   (-> node
-      (protobuf/sanitize :position sanitize-v4)
+      (protobuf/sanitize :position sanitize-zero-v4)
       (protobuf/sanitize :rotation sanitize-euler-v4)
-      (protobuf/sanitize :scale sanitize-v4)
-      (protobuf/sanitize :size sanitize-v4)))
+      (protobuf/sanitize :scale sanitize-one-v4)
+      (protobuf/sanitize :size sanitize-zero-v4)))
 
 (defn- sanitize-node-specifics [node-desc]
   (case (:type node-desc)
@@ -3164,7 +3196,7 @@
 
     node-desc))
 
-(defn- sanitize-node [node-desc]
+(defn- sanitize-node-fields [node-desc]
   (let [node-type (:type node-desc default-pb-node-type)
         custom-type (:custom-type node-desc 0)
         node-type-info (get-registered-node-type-info node-type custom-type)
@@ -3177,8 +3209,19 @@
         (sanitize-node-geometry)
         (sanitize-node-specifics))))
 
+(defn- sanitize-scene-node [node-desc]
+  (cond-> (sanitize-node-fields node-desc)
+
+          (:template-node-child node-desc)
+          (strip-unused-overridden-fields)))
+
+(defn- sanitize-layout-node [node-desc]
+  (-> node-desc
+      (sanitize-node-fields)
+      (strip-unused-overridden-fields)))
+
 (defn- sanitize-layout [layout]
-  (protobuf/sanitize-repeated layout :nodes sanitize-node))
+  (protobuf/sanitize-repeated layout :nodes sanitize-layout-node))
 
 (defn- spine-scene-desc->resource-desc [spine-scene-desc]
   (-> spine-scene-desc
@@ -3192,7 +3235,7 @@
                                     (:resources scene))]
     (-> scene
         (dissoc :spine-scenes)
-        (protobuf/sanitize-repeated :nodes sanitize-node)
+        (protobuf/sanitize-repeated :nodes sanitize-scene-node)
         (protobuf/sanitize-repeated :layouts sanitize-layout)
         (protobuf/assign-repeated :resources merged-resource-descs)
         (update :material #(or % default-material-proj-path)))))

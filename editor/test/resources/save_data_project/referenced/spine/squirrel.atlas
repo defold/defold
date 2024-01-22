@@ -31,3 +31,4 @@ extrude_borders: 2
 inner_padding: 0
 max_page_width: 0
 max_page_height: 0
+rename_patterns: ""
