@@ -472,13 +472,13 @@
    {:default
     {"texture" :unimplemented}} ; Default texture resources not supported yet.
 
-   'dmRenderDDF.RenderTargetDesc.DepthStencilAttachment
-   {:default
-    {"format" :unimplemented}} ; Non-default depth/stencil format not supported yet.
-
    'dmRenderDDF.RenderPrototypeDesc
    {:default
-    {"materials" :deprecated}}})
+    {"materials" :deprecated}}
+
+   'dmRenderDDF.RenderTargetDesc.DepthStencilAttachment
+   {:default
+    {"format" :unimplemented}}}) ; Non-default depth/stencil format not supported yet.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))

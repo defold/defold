@@ -13,18 +13,18 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.render-target
-  (:require [editor.build-target :as bt]
-            [dynamo.graph :as g]
-            [editor.graph-util :as gu]
+  (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
             [editor.gl.texture :as texture]
+            [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.graphics.proto Graphics$TextureImage$Type Graphics$TextureImage$TextureFormat]
+  (:import [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
            [com.dynamo.render.proto RenderTarget$RenderTargetDesc]))
 
-(def ^:const atlas-icon "icons/32/Icons_13-Atlas.png")
+(def ^:const texture-icon "icons/32/Icons_36-Texture.png")
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
   (g/set-property! node-id property value))
@@ -49,7 +49,7 @@
                           :label "format"
                           :type :choicebox
                           :options (protobuf-forms/make-options (protobuf/enum-values Graphics$TextureImage$TextureFormat))
-                          :default (ffirst (protobuf/enum-values Graphics$TextureImage$TextureFormat))}]}
+                          :default Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA}]}
               {:path [:depth-stencil-attachment-width]
                :label "Depth/Stencil Width"
                :type :number}
@@ -123,7 +123,7 @@
                                             :node-type RenderTargetNode
                                             :ddf-type RenderTarget$RenderTargetDesc
                                             :load-fn load-render-target
-                                            :icon atlas-icon
+                                            :icon texture-icon
                                             :view-types [:cljfx-form-view :text]
                                             :view-opts {}
                                             :label "Render Target"))

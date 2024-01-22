@@ -54,10 +54,10 @@
                                   :path render-resource})))
 
 (defn- make-named-render-resource-node
-  [graph-id render-node name render-resource-path]
+  [graph-id render-node name render-resource-resource]
   (g/make-nodes
     graph-id
-    [named-render-resource [NamedRenderResource :name name :render-resource render-resource-path]]
+    [named-render-resource [NamedRenderResource :name name :render-resource render-resource-resource]]
     (g/connect named-render-resource :_node-id render-node :nodes)
     (g/connect named-render-resource :named-render-resource render-node :named-render-resources)
     (g/connect named-render-resource :dep-build-targets render-node :dep-build-targets)))
@@ -87,12 +87,12 @@
   (condp = path
     [:script]          (g/set-property! node-id :script value)
     [:named-render-resources] (let [graph-id (g/node-id->graph-id node-id)]
-                              (g/transact
-                                (concat
-                                  (for [[named-render-resource-id _] (g/sources-of node-id :named-render-resources)]
-                                    (g/delete-node named-render-resource-id))
-                                  (for [{:keys [name path]} value]
-                                    (make-named-render-resource-node graph-id node-id name path)))))))
+                                (g/transact
+                                  (concat
+                                    (for [[named-render-resource-id _] (g/sources-of node-id :named-render-resources)]
+                                      (g/delete-node named-render-resource-id))
+                                    (for [{:keys [name path]} value]
+                                      (make-named-render-resource-node graph-id node-id name path)))))))
 
 (g/defnk produce-form-data [_node-id script-resource named-render-resources]
   (-> form-sections
@@ -104,9 +104,9 @@
 (g/defnk produce-pb-msg [script-resource named-render-resources]
   {:script (resource/resource->proj-path script-resource)
    :render-resources (mapv (fn [{:keys [name path]}]
-                      {:name name
-                       :path (resource/resource->proj-path path)})
-                    named-render-resources)})
+                             {:name name
+                              :path (resource/resource->proj-path path)})
+                           named-render-resources)})
 
 (defn- build-render [resource dep-resources user-data]
   (let [{:keys [pb-msg built-resources]} user-data
