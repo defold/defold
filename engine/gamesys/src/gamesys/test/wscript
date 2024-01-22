@@ -43,6 +43,7 @@ def build(bld):
             'shader/*',
             'sound/*',
             'sprite/**',
+            'sys/**',
             'tile/*',
             'texture/*',
             'textureset/*',
