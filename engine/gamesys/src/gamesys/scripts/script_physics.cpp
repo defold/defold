@@ -123,6 +123,24 @@ namespace dmGameSystem
      * @variable
      */
 
+    /*# wheel joint type
+     *
+     * The following properties are available when connecting a joint of `JOINT_TYPE_WHEEL` type:
+     * @param local_axis_a [type:vector3] The local translation unit axis in bodyA.
+     * @param max_motor_force [type:number] The maximum motor torque, usually in N-m.
+     * @param motor_speed [type:number] The desired motor speed in radians per second.
+     * @param enable_motor [type:boolean] Enable/disable the joint motor.
+     * @param frequency [type:number] The mass-spring-damper frequency in Hertz. Rotation only. Disable softness with a value of 0.
+     * @param damping [type:number] The spring damping ratio. 0 = no damping, 1 = critical damping.
+     * @param joint_translation [type:number] [mark:READ ONLY]Current joint translation, usually in meters.
+     * (Read only field, available from `physics.get_joint_properties()`)
+     * @param joint_speed [type:number] [mark:READ ONLY]Current joint translation speed, usually in meters per second.
+     * (Read only field, available from `physics.get_joint_properties()`)
+     *
+     * @name physics.JOINT_TYPE_WHEEL
+     * @variable
+     */
+
     struct PhysicsScriptContext
     {
         dmMessage::HSocket m_Socket;
@@ -631,6 +649,15 @@ namespace dmGameSystem
                 UnpackFloatParam(L, table_index, "damping", params.m_WeldJointParams.m_DampingRatio);
                 break;
 
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                UnpackVec3Param(L, table_index, "local_axis_a", params.m_WheelJointParams.m_LocalAxisA);
+                UnpackFloatParam(L, table_index, "max_motor_torque", params.m_WheelJointParams.m_MaxMotorTorque);
+                UnpackFloatParam(L, table_index, "motor_speed", params.m_WheelJointParams.m_MotorSpeed);
+                UnpackBoolParam(L, table_index, "enable_motor", params.m_WheelJointParams.m_EnableMotor);
+                UnpackFloatParam(L, table_index, "frequency", params.m_WheelJointParams.m_FrequencyHz);
+                UnpackFloatParam(L, table_index, "damping", params.m_WheelJointParams.m_DampingRatio);
+                break;
+
             default:
                 DM_LUA_ERROR("property table not implemented for joint type %d", type)
                 return;
@@ -816,6 +843,21 @@ namespace dmGameSystem
                     lua_pushnumber(L, joint_params.m_WeldJointParams.m_ReferenceAngle); lua_setfield(L, -2, "reference_angle");
                     lua_pushnumber(L, joint_params.m_WeldJointParams.m_FrequencyHz); lua_setfield(L, -2, "frequency");
                     lua_pushnumber(L, joint_params.m_WeldJointParams.m_DampingRatio); lua_setfield(L, -2, "damping");
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    dmVMath::Vector3 v(joint_params.m_WheelJointParams.m_LocalAxisA[0], joint_params.m_WheelJointParams.m_LocalAxisA[1], joint_params.m_WheelJointParams.m_LocalAxisA[2]);
+                    dmScript::PushVector3(L, v);
+                    lua_setfield(L, -2, "local_axis_a");
+                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_MaxMotorTorque); lua_setfield(L, -2, "max_motor_torque");
+                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_MotorSpeed); lua_setfield(L, -2, "motor_speed");
+                    lua_pushboolean(L, joint_params.m_WheelJointParams.m_EnableMotor); lua_setfield(L, -2, "enable_motor");
+                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_FrequencyHz); lua_setfield(L, -2, "frequency");
+                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_DampingRatio); lua_setfield(L, -2, "damping");
+
+                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_JointTranslation); lua_setfield(L, -2, "joint_translation");
+                    lua_pushnumber(L, joint_params.m_WheelJointParams.m_JointSpeed); lua_setfield(L, -2, "joint_speed");
                 }
                 break;
             default:
@@ -1498,6 +1540,7 @@ namespace dmGameSystem
         SETCONSTANT(JOINT_TYPE_HINGE)
         SETCONSTANT(JOINT_TYPE_SLIDER)
         SETCONSTANT(JOINT_TYPE_WELD)
+        SETCONSTANT(JOINT_TYPE_WHEEL)
 
  #undef SETCONSTANT
 
