@@ -32,60 +32,49 @@
 (defn- clear-form-op [{:keys [node-id]} [property]]
   (g/clear-property! node-id property))
 
-(g/defnk produce-form-data
-  [_node-id width height attachment-count attachment-type attachment-format attachment-depth attachment-stencil depth-texture]
-  {:form-ops {:user-data {:node-id _node-id}
-              :set set-form-op
-              :clear clear-form-op}
-   :navigation false
-   :sections [{:title "Render Target"
-               :fields [{:path [:width]
-                         :label "Width"
-                         :type :number}
-                        {:path [:height]
-                         :label "Height"
-                         :type :number}
-                        {:path [:attachment-count]
-                         :label "Color Attachment Count"
-                         :type :number}
-                        {:path [:attachment-type]
-                         :label "Color Attachment Type"
-                         :type :choicebox
-                         :options (protobuf-forms/make-options (protobuf/enum-values Graphics$TextureImage$Type))
-                         :default (ffirst (protobuf/enum-values Graphics$TextureImage$Type))}
-                        {:path [:attachment-format]
-                         :label "Color Attachment Format"
-                         :type :choicebox
-                         :options (protobuf-forms/make-options (protobuf/enum-values Graphics$TextureImage$TextureFormat))
-                         :default (ffirst (protobuf/enum-values Graphics$TextureImage$TextureFormat))}
-                        {:path [:attachment-depth]
-                         :label "Depth Attachment"
-                         :type :boolean}
-                        {:path [:attachment-stencil]
-                         :label "Stencil Attachment"
-                         :type :boolean}
-                        {:path [:depth-texture]
-                         :label "Depth Texture"
-                         :type :boolean}]}]
-   :values {[:width] width
-            [:height] height
-            [:attachment-count] attachment-count
-            [:attachment-type] attachment-type
-            [:attachment-format] attachment-format
-            [:attachment-depth] attachment-depth
-            [:attachment-stencil] attachment-stencil
-            [:depth-texture] depth-texture}})
+(def form-data
+  {:navigation false
+   :sections
+   [{:title "Render Target"
+     :fields [{:path [:color-attachments]
+               :label "Color Attachments"
+               :type :table
+               :columns [{:path [:width]
+                          :label "width"
+                          :type :number}
+                         {:path [:height]
+                          :label "height"
+                          :type :number}
+                         {:path [:format]
+                          :label "format"
+                          :type :choicebox
+                          :options (protobuf-forms/make-options (protobuf/enum-values Graphics$TextureImage$TextureFormat))
+                          :default (ffirst (protobuf/enum-values Graphics$TextureImage$TextureFormat))}]}
+              {:path [:depth-stencil-attachment-width]
+               :label "Depth/Stencil Width"
+               :type :number}
+              {:path [:depth-stencil-attachment-height]
+               :label "Depth/Stencil Height"
+               :type :number}
+              {:path [:depth-stencil-attachment-texture-storage]
+               :label "Depth Buffer Texture Storage"
+               :type :boolean}]}]})
+(g/defnk produce-form-data [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-texture-storage :as args]
+  (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
+        form-values (into {} (map (fn [[k v]] [[k] v]) values))]
+    (-> form-data
+        (assoc :values form-values)
+        (assoc :form-ops {:user-data {:node-id _node-id}
+                          :set set-form-op
+                          :clear clear-form-op}))))
 
 (g/defnk produce-pb-msg
-  [width height attachment-count attachment-type attachment-format attachment-depth attachment-stencil depth-texture]
-  {:width width
-   :height height
-   :attachment-count attachment-count
-   :attachment-type attachment-type
-   :attachment-format attachment-format
-   :attachment-depth attachment-depth
-   :attachment-stencil attachment-stencil
-   :depth-texture depth-texture})
+  [color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-format depth-stencil-attachment-texture-storage]
+  {:color-attachments color-attachments
+   :depth-stencil-attachment {:width depth-stencil-attachment-width
+                              :height depth-stencil-attachment-height
+                              :format depth-stencil-attachment-format
+                              :texture-storage depth-stencil-attachment-texture-storage}})
 
 (defn build-render-target
   [resource dep-resources user-data]
@@ -106,14 +95,11 @@
 (g/defnode RenderTargetNode
   (inherits resource-node/ResourceNode)
 
-  (property width g/Num)
-  (property height g/Num)
-  (property attachment-count g/Num)
-  (property attachment-type g/Keyword)
-  (property attachment-format g/Keyword)
-  (property attachment-depth g/Bool)
-  (property attachment-stencil g/Bool)
-  (property depth-texture g/Bool)
+  (property color-attachments g/Any (dynamic visible (g/constantly false)))
+  (property depth-stencil-attachment-width g/Num (dynamic visible (g/constantly false)))
+  (property depth-stencil-attachment-height g/Num (dynamic visible (g/constantly false)))
+  (property depth-stencil-attachment-format g/Any (dynamic visible (g/constantly false)))
+  (property depth-stencil-attachment-texture-storage g/Bool (dynamic visible (g/constantly false)))
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
@@ -122,15 +108,13 @@
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn load-render-target [project self resource render-target]
-  (g/set-property self
-    :width (:width render-target)
-    :height (:height render-target)
-    :attachment-count (:attachment-count render-target)
-    :attachment-type (:attachment-type render-target)
-    :attachment-format (:attachment-format render-target)
-    :attachment-depth (:attachment-depth render-target)
-    :attachment-stencil (:attachment-stencil render-target)
-    :depth-texture (:depth-texture render-target)))
+  (let [depth-stencil-attachment (:depth-stencil-attachment render-target)]
+    (concat
+      (g/set-property self :color-attachments (:color-attachments render-target))
+      (g/set-property self :depth-stencil-attachment-width (:width depth-stencil-attachment))
+      (g/set-property self :depth-stencil-attachment-height (:height depth-stencil-attachment))
+      (g/set-property self :depth-stencil-attachment-format (:format depth-stencil-attachment))
+      (g/set-property self :depth-stencil-attachment-texture-storage (:texture-storage depth-stencil-attachment)))))
 
 (defn register-resource-types
   [workspace]

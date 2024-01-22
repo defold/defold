@@ -1,8 +1,20 @@
-width: 128
-height: 128
-attachment_count: 2
-attachment_type: TYPE_2D
-attachment_format: TEXTURE_FORMAT_RGB
-attachment_depth: true
-depth_texture: true
+color_attachments
+{
+    width: 128
+    height: 128
+    format: TEXTURE_FORMAT_RGB
+}
 
+color_attachments
+{
+    width: 128
+    height: 128
+    format: TEXTURE_FORMAT_RGB
+}
+
+depth_stencil_attachment
+{
+    width: 128
+    height: 128
+    texture_storage: true
+}

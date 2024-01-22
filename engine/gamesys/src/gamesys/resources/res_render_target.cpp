@@ -42,75 +42,81 @@ namespace dmGameSystem
 
     static void GetRenderTargetParams(dmRenderDDF::RenderTargetDesc* ddf, uint32_t& buffer_type_flags, dmGraphics::RenderTargetCreationParams& params)
     {
-        dmGraphics::TextureFormat attachment_format = TextureImageToTextureFormat(ddf->m_AttachmentFormat);
-        dmGraphics::TextureType attachment_type     = TextureImageToTextureType(ddf->m_AttachmentType);
-        assert(attachment_type == dmGraphics::TEXTURE_TYPE_2D);
-        assert(ddf->m_AttachmentCount < dmGraphics::MAX_ATTACHMENT_COUNT);
+        assert(ddf->m_ColorAttachments.m_Count < dmGraphics::MAX_ATTACHMENT_COUNT);
 
-        dmGraphics::BufferType color_buffer_flags[] = {
+        const dmGraphics::BufferType color_buffer_flags[] = {
             dmGraphics::BUFFER_TYPE_COLOR0_BIT,
             dmGraphics::BUFFER_TYPE_COLOR1_BIT,
             dmGraphics::BUFFER_TYPE_COLOR2_BIT,
             dmGraphics::BUFFER_TYPE_COLOR3_BIT,
         };
-
-        for (int i = 0; i < ddf->m_AttachmentCount; ++i)
+        for (int i = 0; i < ddf->m_ColorAttachments.m_Count; ++i)
         {
-            buffer_type_flags |= color_buffer_flags[i];
+            buffer_type_flags                                  |= color_buffer_flags[i];
+            dmRenderDDF::RenderTargetDesc::ColorAttachment& att = ddf->m_ColorAttachments[i];
+            dmGraphics::TextureFormat format                    = TextureImageToTextureFormat(att.m_Format);
 
-            params.m_ColorBufferCreationParams[i].m_Type           = attachment_type;
-            params.m_ColorBufferCreationParams[i].m_Width          = ddf->m_Width;
-            params.m_ColorBufferCreationParams[i].m_Height         = ddf->m_Height;
-            params.m_ColorBufferCreationParams[i].m_OriginalWidth  = ddf->m_Width;
-            params.m_ColorBufferCreationParams[i].m_OriginalHeight = ddf->m_Height;
+            params.m_ColorBufferCreationParams[i].m_Type           = dmGraphics::TEXTURE_TYPE_2D;
+            params.m_ColorBufferCreationParams[i].m_Width          = att.m_Width;
+            params.m_ColorBufferCreationParams[i].m_Height         = att.m_Height;
+            params.m_ColorBufferCreationParams[i].m_OriginalWidth  = att.m_Width;
+            params.m_ColorBufferCreationParams[i].m_OriginalHeight = att.m_Height;
             params.m_ColorBufferCreationParams[i].m_MipMapCount    = 1;
 
             params.m_ColorBufferParams[i].m_Data     = 0;
             params.m_ColorBufferParams[i].m_DataSize = 0;
-            params.m_ColorBufferParams[i].m_Format   = attachment_format;
-            params.m_ColorBufferParams[i].m_Width    = ddf->m_Width;
-            params.m_ColorBufferParams[i].m_Height   = ddf->m_Height;
+            params.m_ColorBufferParams[i].m_Format   = format;
+            params.m_ColorBufferParams[i].m_Width    = att.m_Width;
+            params.m_ColorBufferParams[i].m_Height   = att.m_Height;
             params.m_ColorBufferParams[i].m_Depth    = 1;
         }
 
-        if (ddf->m_AttachmentDepth)
+        if (ddf->m_DepthStencilAttachment.m_Width > 0 && ddf->m_DepthStencilAttachment.m_Height > 0)
         {
-            buffer_type_flags |= dmGraphics::BUFFER_TYPE_DEPTH_BIT;
-            params.m_DepthBufferCreationParams.m_Type           = dmGraphics::TEXTURE_TYPE_2D;
-            params.m_DepthBufferCreationParams.m_Width          = ddf->m_Width;
-            params.m_DepthBufferCreationParams.m_Height         = ddf->m_Height;
-            params.m_DepthBufferCreationParams.m_OriginalWidth  = ddf->m_Width;
-            params.m_DepthBufferCreationParams.m_OriginalHeight = ddf->m_Height;
-            params.m_DepthBufferCreationParams.m_MipMapCount    = 1;
+            // TODO: At some point in the future we should support these formats in the engine,
+            //       but for now we will always create a render target with whatever default format we use.
+            const bool has_depth   = true;
+            const bool has_stencil = true;
 
-            params.m_DepthBufferParams.m_Data     = 0;
-            params.m_DepthBufferParams.m_DataSize = 0;
-            params.m_DepthBufferParams.m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
-            params.m_DepthBufferParams.m_Width    = ddf->m_Width;
-            params.m_DepthBufferParams.m_Height   = ddf->m_Height;
-            params.m_DepthBufferParams.m_Depth    = 1;
+            if (has_depth)
+            {
+                buffer_type_flags |= dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+                params.m_DepthBufferCreationParams.m_Type           = dmGraphics::TEXTURE_TYPE_2D;
+                params.m_DepthBufferCreationParams.m_Width          = ddf->m_DepthStencilAttachment.m_Width;
+                params.m_DepthBufferCreationParams.m_Height         = ddf->m_DepthStencilAttachment.m_Height;
+                params.m_DepthBufferCreationParams.m_OriginalWidth  = ddf->m_DepthStencilAttachment.m_Width;
+                params.m_DepthBufferCreationParams.m_OriginalHeight = ddf->m_DepthStencilAttachment.m_Height;
+                params.m_DepthBufferCreationParams.m_MipMapCount    = 1;
 
-            params.m_DepthTexture = ddf->m_DepthTexture;
-        }
+                params.m_DepthBufferParams.m_Data     = 0;
+                params.m_DepthBufferParams.m_DataSize = 0;
+                params.m_DepthBufferParams.m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
+                params.m_DepthBufferParams.m_Width    = ddf->m_DepthStencilAttachment.m_Width;
+                params.m_DepthBufferParams.m_Height   = ddf->m_DepthStencilAttachment.m_Height;
+                params.m_DepthBufferParams.m_Depth    = 1;
 
-        if (ddf->m_AttachmentStencil)
-        {
-            buffer_type_flags |= dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+                params.m_DepthTexture = ddf->m_DepthStencilAttachment.m_TextureStorage;
+            }
 
-            params.m_StencilBufferCreationParams.m_Type           = dmGraphics::TEXTURE_TYPE_2D;
-            params.m_StencilBufferCreationParams.m_Width          = ddf->m_Width;
-            params.m_StencilBufferCreationParams.m_Height         = ddf->m_Height;
-            params.m_StencilBufferCreationParams.m_OriginalWidth  = ddf->m_Width;
-            params.m_StencilBufferCreationParams.m_OriginalHeight = ddf->m_Height;
-            params.m_StencilBufferCreationParams.m_MipMapCount    = 1;
+            if (has_stencil)
+            {
+                buffer_type_flags |= dmGraphics::BUFFER_TYPE_STENCIL_BIT;
 
-            params.m_StencilBufferParams.m_Data     = 0;
-            params.m_StencilBufferParams.m_DataSize = 0;
-            params.m_StencilBufferParams.m_Format   = dmGraphics::TEXTURE_FORMAT_STENCIL;
-            params.m_StencilBufferParams.m_Width    = ddf->m_Width;
-            params.m_StencilBufferParams.m_Height   = ddf->m_Height;
-            params.m_StencilBufferParams.m_Depth    = 1;
-            params.m_StencilTexture = false; // Currently not supported
+                params.m_StencilBufferCreationParams.m_Type           = dmGraphics::TEXTURE_TYPE_2D;
+                params.m_StencilBufferCreationParams.m_Width          = ddf->m_DepthStencilAttachment.m_Width;
+                params.m_StencilBufferCreationParams.m_Height         = ddf->m_DepthStencilAttachment.m_Height;
+                params.m_StencilBufferCreationParams.m_OriginalWidth  = ddf->m_DepthStencilAttachment.m_Width;
+                params.m_StencilBufferCreationParams.m_OriginalHeight = ddf->m_DepthStencilAttachment.m_Height;
+                params.m_StencilBufferCreationParams.m_MipMapCount    = 1;
+
+                params.m_StencilBufferParams.m_Data     = 0;
+                params.m_StencilBufferParams.m_DataSize = 0;
+                params.m_StencilBufferParams.m_Format   = dmGraphics::TEXTURE_FORMAT_STENCIL;
+                params.m_StencilBufferParams.m_Width    = ddf->m_DepthStencilAttachment.m_Width;
+                params.m_StencilBufferParams.m_Height   = ddf->m_DepthStencilAttachment.m_Height;
+                params.m_StencilBufferParams.m_Depth    = 1;
+                params.m_StencilTexture                 = false; // Currently not supported
+            }
         }
     }
 
