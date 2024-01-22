@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,17 +23,27 @@ namespace dmGraphics
     const static uint32_t MAX_REGISTER_COUNT = 16;
     const static uint32_t MAX_TEXTURE_COUNT  = 32;
 
+    struct TextureSampler
+    {
+        TextureFilter m_MinFilter;
+        TextureFilter m_MagFilter;
+        TextureWrap   m_UWrap;
+        TextureWrap   m_VWrap;
+        float         m_Anisotropy;
+    };
+
     struct Texture
     {
-        void* m_Data;
-        TextureFormat   m_Format;
-        TextureType     m_Type;
-        uint32_t m_Width;
-        uint32_t m_Height;
-        uint32_t m_Depth;
-        uint32_t m_OriginalWidth;
-        uint32_t m_OriginalHeight;
-        uint8_t  m_MipMapCount;
+        void*          m_Data;
+        TextureFormat  m_Format;
+        TextureType    m_Type;
+        TextureSampler m_Sampler;
+        uint32_t       m_Width;
+        uint32_t       m_Height;
+        uint32_t       m_Depth;
+        uint32_t       m_OriginalWidth;
+        uint32_t       m_OriginalHeight;
+        uint8_t        m_MipMapCount;
     };
 
     struct VertexStreamBuffer
@@ -97,6 +107,7 @@ namespace dmGraphics
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         VertexStreamBuffer                 m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         dmVMath::Vector4                   m_ProgramRegisters[MAX_REGISTER_COUNT];
+        TextureSampler                     m_Samplers[MAX_TEXTURE_COUNT];
         HTexture                           m_Textures[MAX_TEXTURE_COUNT];
         HVertexBuffer                      m_VertexBuffer;
         FrameBuffer                        m_MainFrameBuffer;
@@ -110,6 +121,7 @@ namespace dmGraphics
         uint32_t                           m_Height;
         int32_t                            m_ScissorRect[4];
         uint32_t                           m_TextureFormatSupport;
+        uint32_t                           m_TextureUnit;
         // Only use for testing
         uint32_t                           m_RequestWindowClose : 1;
         uint32_t                           m_PrintDeviceInfo    : 1;

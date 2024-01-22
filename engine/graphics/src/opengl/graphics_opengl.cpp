@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -409,6 +409,12 @@ static void LogFrameBufferError(GLenum status)
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_Window                  = params.m_Window;
+
+        // We need to have some sort of valid default filtering
+        if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
+            m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
+        if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
+            m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
 
         assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
 
@@ -2902,10 +2908,9 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
-        GLenum type = GetOpenGLTextureType(tex->m_Type);
-
-        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter);
-        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter);
+        GLenum gl_type       = GetOpenGLTextureType(tex->m_Type);
+        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter == TEXTURE_FILTER_DEFAULT ? g_Context->m_DefaultTextureMinFilter : minfilter);
+        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter == TEXTURE_FILTER_DEFAULT ? g_Context->m_DefaultTextureMagFilter : magfilter);
 
         // Using a mipmapped min filter without any mipmaps will break the sampler
         if (tex->m_MipMapCount <= 1 && IsTextureFilterMipmapped(gl_min_filter))
@@ -2913,21 +2918,21 @@ static void LogFrameBufferError(GLenum status)
             gl_min_filter = gl_mag_filter;
         }
 
-        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
+        glTexParameteri(gl_type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
         CHECK_GL_ERROR;
 
-        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
+        glTexParameteri(gl_type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
         CHECK_GL_ERROR;
 
-        glTexParameteri(type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
+        glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
         CHECK_GL_ERROR
 
-        glTexParameteri(type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
+        glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
         CHECK_GL_ERROR
 
         if (g_Context->m_AnisotropySupport && max_anisotropy > 1.0f)
         {
-            glTexParameterf(type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, g_Context->m_MaxAnisotropy));
+            glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, g_Context->m_MaxAnisotropy));
             CHECK_GL_ERROR
         }
     }
