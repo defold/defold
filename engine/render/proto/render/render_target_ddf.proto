@@ -8,14 +8,43 @@ import "graphics/graphics_ddf.proto";
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "RenderTarget";
 
+// 1:
+// - Simpler, most portable
+// - Least flexible, can't set individual w/h/formats per attachment
 message RenderTargetDesc
 {
     required uint32                                width              = 1;
     required uint32                                height             = 2;
     optional uint32                                attachment_count   = 3 [default = 1];
-    optional dmGraphics.TextureImage.Type          attachment_type    = 4 [default = TYPE_2D];
-    optional dmGraphics.TextureImage.TextureFormat attachment_format  = 5 [default = TEXTURE_FORMAT_RGBA];
-    optional bool                                  attachment_depth   = 6 [default = false];
-    optional bool                                  attachment_stencil = 7 [default = false];
-    optional bool                                  depth_texture      = 8 [default = false];
+    optional dmGraphics.TextureImage.TextureFormat attachment_format  = 4 [default = TEXTURE_FORMAT_RGBA];
+    optional bool                                  attachment_depth   = 5 [default = false];
+    optional bool                                  attachment_stencil = 6 [default = false];
+    optional bool                                  depth_texture      = 7 [default = false];
 }
+
+/*
+// 2:
+// Flexible, can fine-tune the settings per attachment
+// More work, can't guarantee that individual settings are universally supported
+message RenderTargetDesc
+{
+    message ColorAttachment
+    {
+        required uint32 width                                  = 1;
+        required uint32 height                                 = 2;
+        optional dmGraphics.TextureImage.TextureFormat format  = 3 [default = TEXTURE_FORMAT_RGBA];
+    }
+
+    message DepthStencilAttachment
+    {
+        required uint32 width  = 1;
+        required uint32 height = 2;
+        bool texture_storage   = 3;
+    }
+
+    repeated ColorAttachment        color_attachments  = 1;
+    optional DepthStencilAttachment depth_attachment   = 2;
+    optional DepthStencilAttachment stencil_attachment = 3;
+}
+*/
+
