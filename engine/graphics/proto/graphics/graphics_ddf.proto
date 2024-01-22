@@ -43,6 +43,8 @@ message VertexAttribute
         SEMANTIC_TYPE_TEXCOORD   = 3;
         SEMANTIC_TYPE_PAGE_INDEX = 4;
         SEMANTIC_TYPE_COLOR      = 5;
+        SEMANTIC_TYPE_NORMAL     = 6;
+        SEMANTIC_TYPE_TANGENT    = 7;
     }
 
     message LongValues

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,8 +14,8 @@
 
 #include <assert.h>
 
-#include "platform_window.h"
-#include "platform_window_constants.h"
+#include <dlib/platform.h>
+#include <dlib/log.h>
 
 #include <glfw/glfw.h>
 
@@ -23,6 +23,9 @@
 #include <dlib/log.h>
 #include <dlib/array.h>
 #include <dlib/math.h>
+
+#include "platform_window.h"
+#include "platform_window_constants.h"
 
 namespace dmPlatform
 {
@@ -527,7 +530,7 @@ namespace dmPlatform
             case DEVICE_STATE_JOYSTICK_PRESENT: return glfwGetJoystickParam(op1, GLFW_PRESENT);
             default:break;
         }
-        assert(0 && "Not supported.");
+        dmLogWarning("Unable to get device state (%d), unknown state.", (int) state);
         return false;
     }
 
@@ -557,6 +560,15 @@ namespace dmPlatform
         uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_BUTTONS), (int) values_capacity);
         glfwGetJoystickButtons(joystick_index, values, count);
         return count;
+    }
+
+    int32_t TriggerCloseCallback(HWindow window)
+    {
+        if (window->m_CloseCallback)
+        {
+            return window->m_CloseCallback(window->m_CloseCallbackUserData);
+        }
+        return 0;
     }
 
     void PollEvents(HWindow window)

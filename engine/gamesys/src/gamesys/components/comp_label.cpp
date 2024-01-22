@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -220,6 +220,20 @@ namespace dmGameSystem
         return delta_pivot;
     }
 
+    void InitParametersFromDescription(LabelComponent* label_component, dmGameSystemDDF::LabelDesc* label_desc)
+    {
+        label_component->m_Size     = Vector3(label_desc->m_Size[0], label_desc->m_Size[1], label_desc->m_Size[2]);
+        label_component->m_Color    = Vector4(label_desc->m_Color[0], label_desc->m_Color[1], label_desc->m_Color[2], label_desc->m_Color[3]);
+        label_component->m_Outline  = Vector4(label_desc->m_Outline[0], label_desc->m_Outline[1], label_desc->m_Outline[2], label_desc->m_Outline[3]);
+        label_component->m_Shadow   = Vector4(label_desc->m_Shadow[0], label_desc->m_Shadow[1], label_desc->m_Shadow[2], label_desc->m_Shadow[3]);
+        label_component->m_Pivot    = label_desc->m_Pivot;
+        label_component->m_Text = label_desc->m_Text;
+        label_component->m_ReHash = 1;
+        label_component->m_Leading = label_desc->m_Leading;
+        label_component->m_Tracking = label_desc->m_Tracking;
+        label_component->m_LineBreak = label_desc->m_LineBreak;
+    }
+
     dmGameObject::CreateResult CompLabelCreate(const dmGameObject::ComponentCreateParams& params)
     {
         LabelWorld* world = (LabelWorld*)params.m_World;
@@ -237,26 +251,18 @@ namespace dmGameSystem
         LabelComponent* component = &world->m_Components.Get(index);
         memset(component, 0, sizeof(LabelComponent));
         component->m_Instance = params.m_Instance;
-        component->m_Size     = Vector3(ddf->m_Size[0], ddf->m_Size[1], ddf->m_Size[2]);
         component->m_Scale    = params.m_Scale;
         component->m_Position = params.m_Position;
         component->m_Rotation = params.m_Rotation;
-        component->m_Color    = Vector4(ddf->m_Color[0], ddf->m_Color[1], ddf->m_Color[2], ddf->m_Color[3]);
-        component->m_Outline  = Vector4(ddf->m_Outline[0], ddf->m_Outline[1], ddf->m_Outline[2], ddf->m_Outline[3]);
-        component->m_Shadow   = Vector4(ddf->m_Shadow[0], ddf->m_Shadow[1], ddf->m_Shadow[2], ddf->m_Shadow[3]);
         component->m_Resource = resource;
-        component->m_Pivot    = ddf->m_Pivot;
         component->m_RenderConstants = 0;
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
-        component->m_Text = ddf->m_Text;
         component->m_UserAllocatedText = 0;
-        component->m_ReHash = 1;
-        component->m_Leading = ddf->m_Leading;
-        component->m_Tracking = ddf->m_Tracking;
-        component->m_LineBreak = ddf->m_LineBreak;
+
+        InitParametersFromDescription(component, ddf);
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -543,7 +549,12 @@ namespace dmGameSystem
 
     void CompLabelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
-        (void)params;
+        LabelResource* resource = (LabelResource*)params.m_Resource;
+        dmGameSystemDDF::LabelDesc* ddf = resource->m_DDF;
+
+        LabelWorld* label_world = (LabelWorld*)params.m_World;
+        LabelComponent* component = &label_world->m_Components.Get(*params.m_UserData);
+        InitParametersFromDescription(component, ddf);
     }
 
     void* CompLabelGetComponent(const dmGameObject::ComponentGetParams& params)

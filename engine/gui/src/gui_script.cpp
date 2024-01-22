@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -3301,7 +3301,9 @@ namespace dmGui
     }
 
     /*# clone a node
-     * Make a clone instance of a node.
+     * Make a clone instance of a node. The cloned node will be identical to the
+     * original node, except the id which is generated as the string "node" plus
+     * a sequential unsigned integer value.
      * This function does not clone the supplied node's children nodes.
      * Use gui.clone_tree for that purpose.
      *

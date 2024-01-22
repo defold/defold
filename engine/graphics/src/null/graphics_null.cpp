@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -75,6 +75,18 @@ namespace dmGraphics
         m_Height                  = params.m_Height;
         m_Window                  = params.m_Window;
         m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
+
+        // We need to have some sort of valid default filtering
+        if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
+            m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
+        if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
+            m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
+
+        for (int i = 0; i < MAX_TEXTURE_COUNT; ++i)
+        {
+            m_Samplers[i].m_MinFilter = m_DefaultTextureMinFilter;
+            m_Samplers[i].m_MagFilter = m_DefaultTextureMagFilter;
+        }
 
         assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
 
@@ -485,12 +497,28 @@ namespace dmGraphics
         s.m_Source = 0x0;
     }
 
-    static void NullEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
+    static void NullEnableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer, uint32_t binding_index)
     {
-        assert(context);
+        NullContext* context = (NullContext*) _context;
+        context->m_VertexBuffer = vertex_buffer;
+    }
+
+    static void NullDisableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer)
+    {
+        NullContext* context = (NullContext*) _context;
+        context->m_VertexBuffer = 0;
+    }
+
+    void EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index)
+    {
+        assert(_context);
         assert(vertex_declaration);
-        assert(vertex_buffer);
-        VertexBuffer* vb = (VertexBuffer*)vertex_buffer;
+
+        NullContext* context = (NullContext*) _context;
+
+        VertexBuffer* vb = (VertexBuffer*) context->m_VertexBuffer;
+        assert(vb);
+
         uint16_t stride = 0;
 
         for (uint32_t i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
@@ -510,9 +538,9 @@ namespace dmGraphics
         }
     }
 
-    static void NullEnableVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void NullEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
-        NullEnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
+        EnableVertexDeclaration(context, vertex_declaration, binding_index);
     }
 
     static void NullDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
@@ -599,6 +627,11 @@ namespace dmGraphics
     }
 
     // For tests
+    void ResetDrawCount()
+    {
+        g_DrawCount = 0;
+    }
+
     uint64_t GetDrawCount()
     {
         return g_DrawCount;
@@ -1351,6 +1384,8 @@ namespace dmGraphics
     static void NullSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         assert(texture);
+        g_NullContext->m_Samplers[g_NullContext->m_TextureUnit].m_MinFilter = minfilter == TEXTURE_FILTER_DEFAULT ? g_NullContext->m_DefaultTextureMinFilter : minfilter;
+        g_NullContext->m_Samplers[g_NullContext->m_TextureUnit].m_MagFilter = magfilter == TEXTURE_FILTER_DEFAULT ? g_NullContext->m_DefaultTextureMagFilter : magfilter;
     }
 
     static void NullSetTexture(HTexture texture, const TextureParams& params)
@@ -1380,9 +1415,13 @@ namespace dmGraphics
             tex->m_Height = params.m_Height;
         }
 
-        tex->m_Depth       = dmMath::Max((uint16_t) 1, params.m_Depth);
-        tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint8_t) (params.m_MipMap+1));
-        tex->m_MipMapCount = dmMath::Clamp(tex->m_MipMapCount, (uint8_t) 0, GetMipmapCount(dmMath::Max(tex->m_Width, tex->m_Height)));
+        tex->m_Depth               = dmMath::Max((uint16_t) 1, params.m_Depth);
+        tex->m_MipMapCount         = dmMath::Max(tex->m_MipMapCount, (uint8_t) (params.m_MipMap+1));
+        tex->m_MipMapCount         = dmMath::Clamp(tex->m_MipMapCount, (uint8_t) 0, GetMipmapCount(dmMath::Max(tex->m_Width, tex->m_Height)));
+        tex->m_Sampler.m_MinFilter = params.m_MinFilter;
+        tex->m_Sampler.m_MagFilter = params.m_MagFilter;
+        tex->m_Sampler.m_UWrap     = params.m_UWrap;
+        tex->m_Sampler.m_VWrap     = params.m_VWrap;
     }
 
     static uint32_t NullGetTextureResourceSize(HTexture texture)
@@ -1429,8 +1468,11 @@ namespace dmGraphics
         assert(unit < MAX_TEXTURE_COUNT);
         assert(texture);
         NullContext* context = (NullContext*) _context;
-        assert(GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture)->m_Data);
+        Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
+        assert(tex->m_Data);
         context->m_Textures[unit] = texture;
+        context->m_TextureUnit = unit;
+        NullSetTextureParams(texture, tex->m_Sampler.m_MinFilter, tex->m_Sampler.m_MagFilter, tex->m_Sampler.m_UWrap, tex->m_Sampler.m_VWrap, tex->m_Sampler.m_Anisotropy);
     }
 
     static void NullDisableTexture(HContext context, uint32_t unit, HTexture texture)
@@ -1696,6 +1738,12 @@ namespace dmGraphics
         ib->m_Copy = new char[ib->m_Size];
         memcpy(ib->m_Copy, ib->m_Buffer, ib->m_Size);
         return ib->m_Copy;
+    }
+
+    void GetTextureFilters(HContext context, uint32_t unit, TextureFilter& min_filter, TextureFilter& mag_filter)
+    {
+        min_filter = ((NullContext*) context)->m_Samplers[unit].m_MinFilter;
+        mag_filter = ((NullContext*) context)->m_Samplers[unit].m_MagFilter;
     }
 
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable()

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -81,6 +81,7 @@ namespace dmGameSystem
         dmArray<uint8_t>                        m_VertexBufferData;
         uint32_t                                m_VerticesWritten;
         uint32_t                                m_EmitterCount;
+        uint32_t                                m_DispatchCount;
         float                                   m_DT;
         uint32_t                                m_WarnOutOfROs : 1;
     };
@@ -199,6 +200,7 @@ namespace dmGameSystem
         ParticleFXWorld* w   = (ParticleFXWorld*)params.m_World;
         w->m_DT              = params.m_UpdateContext->m_DT;
         w->m_VerticesWritten = 0;
+        w->m_DispatchCount   = 0;
 
         dmArray<ParticleFXComponent>& components = w->m_Components;
         if (components.Empty())
@@ -371,6 +373,11 @@ namespace dmGameSystem
         uint32_t ro_index = pfx_world->m_RenderObjects.Size();
         pfx_world->m_RenderObjects.SetSize(ro_index+1);
 
+        if (dmRender::GetBufferIndex(render_context, pfx_world->m_VertexBuffer) < pfx_world->m_DispatchCount)
+        {
+            dmRender::AddRenderBuffer(render_context, pfx_world->m_VertexBuffer);
+        }
+
         dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];
         ro.Init();
         ro.m_Material          = material_res->m_Material;
@@ -378,7 +385,7 @@ namespace dmGameSystem
         ro.m_Textures[0]       = (dmGraphics::HTexture) first->m_Texture;
         ro.m_VertexStart       = vertex_offset;
         ro.m_VertexCount       = ro_vertex_count;
-        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::AddRenderBuffer(render_context, pfx_world->m_VertexBuffer);
+        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, pfx_world->m_VertexBuffer);
         ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_SetBlendFactors   = 1;
 
@@ -418,6 +425,7 @@ namespace dmGameSystem
             DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VerticesWritten);
             DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSize, pfx_world->m_VertexBufferData.Size());
 
+            pfx_world->m_DispatchCount++;
         }
     }
 

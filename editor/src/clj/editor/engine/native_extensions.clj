@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -45,7 +45,11 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:const defold-build-server-url (get-in connection-properties [:native-extensions :build-server-url]))
+(def ^:const defold-build-server-url
+  (or
+    (get-in connection-properties [:native-extensions :custom-build-servers (system/defold-channel)])
+    (get-in connection-properties [:native-extensions :build-server-url])))
+
 (def ^:const defold-build-server-headers "")
 (def ^:const connect-timeout-ms (* 30 1000))
 (def ^:const read-timeout-ms (* 10 60 1000))

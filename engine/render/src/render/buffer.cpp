@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -91,18 +91,12 @@ namespace dmRender
                 CreateAndPush(render_context, buffer);
             }
         }
-        else
-        {
-            buffer->m_BufferIndex = 0;
-        }
+
         return buffer->m_Buffers[buffer->m_BufferIndex];
     }
 
     void SetBufferData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t size, void* data, dmGraphics::BufferUsage buffer_usage)
     {
-        if (buffer->m_BufferIndex < 0)
-            return;
-
         switch(buffer->m_Type)
         {
             case RENDER_BUFFER_TYPE_VERTEX_BUFFER:
@@ -134,10 +128,20 @@ namespace dmRender
         buffer->m_Buffers.SetSize(new_buffer_count);
     }
 
+    HRenderBuffer GetBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
+    {
+        return buffer->m_Buffers[buffer->m_BufferIndex];
+    }
+
+    int32_t GetBufferIndex(HRenderContext render_context, HBufferedRenderBuffer buffer)
+    {
+        return buffer->m_BufferIndex;
+    }
+
     void RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
     {
         if (!buffer)
             return;
-        buffer->m_BufferIndex = -1;
+        buffer->m_BufferIndex = 0;
     }
 }

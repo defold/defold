@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,8 @@
    :git-issues {:url "https://github.com/defold/defold"}
    :analytics-url "https://www.google-analytics.com/mp/collect?api_secret=TiZ0CR6kTQ6I5SxJvH2Veg&measurement_id=G-WPGB4YL1FQ"
    :analytics-validation-url "https://www.google-analytics.com/debug/mp/collect?api_secret=TiZ0CR6kTQ6I5SxJvH2Veg&measurement_id=G-WPGB4YL1FQ"
-   :native-extensions {:build-server-url "https://build.defold.com"}
+   :native-extensions {:build-server-url "https://build.defold.com"
+                       :custom-build-servers {"alpha" "https://build-stage.defold.com"
+                                              "beta" "https://build-stage.defold.com"}}
    :updater {:download-url-template "https://%s/archive/%s/%s/editor2/Defold-%s.zip"
              :update-url-template "https://%s/editor2/channels/%s/update-v4.json"}})

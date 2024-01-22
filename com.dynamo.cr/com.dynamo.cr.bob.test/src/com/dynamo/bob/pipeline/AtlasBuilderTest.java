@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.HashSet;
@@ -80,6 +81,8 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
     public void testAtlasUtilRenameFunction() throws Exception {
         addImage("/hat_nrm.png", 16, 16);
         addImage("/shirt_normal.png", 16, 16);
+        addImage("/subfolder1/1.png", 16, 16);
+        addImage("/subfolder2/1.png", 16, 16);
 
         StringBuilder src = new StringBuilder();
         src.append("images: {");
@@ -89,10 +92,24 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         src.append("images: {");
         src.append("  image: \"/shirt_normal.png\"");
         src.append("}");
+
         src.append("animations {");
         src.append("id: \"Hello\"");
         src.append("  images: {");
         src.append("    image: \"/shirt_normal.png\"");
+        src.append("  }");
+        src.append("  images: {");
+        src.append("    image: \"/subfolder1/1.png\"");
+        src.append("  }");
+        src.append("}");
+
+        src.append("animations {");
+        src.append("id: \"ValidDuplicates\"");
+        src.append("  images: {");
+        src.append("    image: \"/shirt_normal.png\"");
+        src.append("  }");
+        src.append("  images: {");
+        src.append("    image: \"/subfolder2/1.png\"");
         src.append("  }");
         src.append("}");
 
@@ -109,6 +126,7 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         expectedIds.add("Hello");
         expectedIds.add("cat");
         expectedIds.add("shirt");
+        expectedIds.add("ValidDuplicates");
 
         HashSet<String> ids = new HashSet<>();
         for (TextureSetAnimation anim : textureSet.getAnimationsList()) {
@@ -117,4 +135,55 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
 
         assertEquals(expectedIds, ids);
     }
+
+    @Test
+    public void testAtlasUtilNoDuplicateFiles1() throws Exception {
+        addImage("/1.png", 16, 16);
+
+        // We don't allow duplicate files as single frame animations
+        StringBuilder src = new StringBuilder();
+        src.append("images: {");
+        src.append("  image: \"/1.png\"");
+        src.append("}");
+
+        src.append("images: {");
+        src.append("  image: \"/1.png\"");
+        src.append("}");
+
+        boolean caught = false;
+        try {
+            List<Message> outputs = build("/test.atlas", src.toString());
+        } catch (Exception e) {
+            caught = true;
+        }
+        assertTrue(caught);
+    }
+
+    @Test
+    public void testAtlasUtilNoDuplicateFiles2() throws Exception {
+        addImage("/1.png", 16, 16);
+        addImage("/2.png", 16, 16);
+
+        // We don't allow duplicate files as single frame animations
+        StringBuilder src = new StringBuilder();
+        src.append("images: {");
+        src.append("  image: \"/1.png\"");
+        src.append("}");
+
+        src.append("images: {");
+        src.append("  image: \"/2.png\"");
+        src.append("}");
+
+        // make sure that after the renaming, that we catch this duplicate
+        src.append("rename_patterns: \"2=1\"\n");
+
+        boolean caught = false;
+        try {
+            List<Message> outputs = build("/test.atlas", src.toString());
+        } catch (Exception e) {
+            caught = true;
+        }
+        assertTrue(caught);
+    }
+
 }

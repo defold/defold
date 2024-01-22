@@ -46,18 +46,20 @@ message MaterialDesc
 
     enum FilterModeMin
     {
-        FILTER_MODE_MIN_NEAREST = 0;
-        FILTER_MODE_MIN_LINEAR  = 1;
+        FILTER_MODE_MIN_NEAREST                = 0;
+        FILTER_MODE_MIN_LINEAR                 = 1;
         FILTER_MODE_MIN_NEAREST_MIPMAP_NEAREST = 2;
         FILTER_MODE_MIN_NEAREST_MIPMAP_LINEAR  = 3;
         FILTER_MODE_MIN_LINEAR_MIPMAP_NEAREST  = 4;
         FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR   = 5;
+        FILTER_MODE_MIN_DEFAULT                = 6;
     }
 
     enum FilterModeMag
     {
         FILTER_MODE_MAG_NEAREST = 0;
         FILTER_MODE_MAG_LINEAR  = 1;
+        FILTER_MODE_MAG_DEFAULT = 2;
     }
 
     message Sampler

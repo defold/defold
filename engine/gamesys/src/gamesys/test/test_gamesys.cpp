@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -35,6 +35,7 @@
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
+#include "../scripts/script_sys_gamesys.h"
 
 #include <dmsdk/gamesys/render_constants.h>
 
@@ -954,17 +955,7 @@ TEST_F(SpriteTest, FlipbookAnim)
 
     lua_State* L = scriptlibcontext.m_LuaState;
 
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
+    WaitForTestsDone(10000, true, 0);
 
     lua_getglobal(L, "num_finished");
     int num_finished = lua_tointeger(L, -1);
@@ -993,6 +984,8 @@ TEST_F(SpriteTest, FrameCount)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
+    WaitForTestsDone(100, false, 0);
+
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -1011,25 +1004,13 @@ TEST_F(ParticleFxTest, PlayAnim)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
-    lua_State* L = scriptlibcontext.m_LuaState;
-
     bool tests_done = false;
-    int max_iter = 100;
-    while (!tests_done && --max_iter > 0)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    WaitForTestsDone(100, true, &tests_done);
 
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-    if (max_iter <= 0)
+    if (!tests_done)
     {
         dmLogError("The playback didn't finish");
     }
-
     ASSERT_TRUE(tests_done);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -1096,8 +1077,6 @@ TEST_F(CursorTest, GuiFlipbookCursor)
 // Tests the animation done message/callback
 TEST_F(GuiTest, GuiFlipbookAnim)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_anim.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -1112,22 +1091,12 @@ TEST_F(GuiTest, GuiFlipbookAnim)
     m_UpdateContext.m_DT = 1.0f;
 
     bool tests_done = false;
-    int max_iter = 100;
-    while (!tests_done && --max_iter > 0)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    WaitForTestsDone(100, true, &tests_done);
 
-        // continue test?
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-    if (max_iter <= 0)
+    if (!tests_done)
     {
         dmLogError("The playback didn't finish");
     }
-    ASSERT_LT(0, max_iter);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1178,9 +1147,16 @@ TEST_P(CursorTest, Cursor)
 
 TEST_F(WindowTest, MouseLock)
 {
+    dmPlatform::WindowParams window_params = {};
+    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+
     dmHID::NewContextParams hid_params = {};
     dmHID::HContext hid_context = dmHID::NewContext(hid_params);
     dmHID::Init(hid_context);
+
+    dmPlatform::HWindow window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(window, window_params);
+    dmHID::SetWindow(hid_context, window);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -1209,6 +1185,7 @@ TEST_F(WindowTest, MouseLock)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 
     dmHID::DeleteContext(hid_context);
+    dmPlatform::DeleteWindow(window);
 }
 
 TEST_F(WindowTest, Events)
@@ -3958,6 +3935,103 @@ TEST_F(ComponentTest, GetSetCollisionShape)
     ASSERT_NE((void*)0, go_base);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SysTest, LoadBufferSync)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_sync.goc", dmHashString64("/load_buffer_sync"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+static bool RunTestLoadBufferASync(lua_State* L, int test_n,
+    dmGameSystem::ScriptLibContext& scriptlibcontext,
+    dmGameObject::HCollection collection,
+    const dmGameObject::UpdateContext* update_context,
+    bool ignore_script_update_fail)
+{
+    char buffer[256];
+    dmSnPrintf(buffer, sizeof(buffer), "test_n = %d", test_n);
+
+    if (!RunString(L, buffer))
+        return false;
+
+    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    bool tests_done = false;
+    while (dmTime::GetTime() < stop_time && !tests_done)
+    {
+        dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
+        if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
+            return false;
+        if (!dmGameObject::Update(collection, update_context))
+            return false;
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+
+        dmTime::Sleep(30*1000);
+    }
+
+    return tests_done;
+}
+
+TEST_F(SysTest, LoadBufferASync)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async.goc", dmHashString64("/load_buffer_async"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Test 1
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 1, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+
+    // Test 2
+    uint32_t large_buffer_size = 16 * 1024 * 1024;
+    uint8_t* large_buffer = new uint8_t[large_buffer_size];
+    memset(large_buffer, 0, large_buffer_size);
+
+    large_buffer[0]                   = 127;
+    large_buffer[large_buffer_size-1] = 255;
+
+    dmResource::AddFile(m_Factory, "/sys/non_disk_content/large_file.raw", large_buffer_size, large_buffer);
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 2, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+    dmResource::RemoveFile(m_Factory, "/sys/non_disk_content/large_file.raw");
+    free(large_buffer);
+
+    // Test 3
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 3, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
+    // Test 4
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 4, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
+    // Test 5
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 5, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT

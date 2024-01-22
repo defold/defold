@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -3087,10 +3087,8 @@
         child-indices (g/node-value parent :child-indices)
         before? (partial > node-index)
         after? (partial < node-index)
-        ascending-order #(compare %1 %2)
-        descending-order #(compare %2 %1)
         neighbour (first (sort-by second
-                                  (if (= offset -1) descending-order ascending-order)
+                                  (if (= offset -1) coll/descending-order coll/ascending-order)
                                   (filter (comp (if (= offset -1) before? after?) second)
                                           child-indices)))]
     (when neighbour

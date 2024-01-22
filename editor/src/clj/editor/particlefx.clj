@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -400,7 +400,7 @@
     (let [user-data (:user-data renderable)
           {:keys [emitter-sim-data emitter-index color max-particle-count]} user-data
           shader (:shader emitter-sim-data)
-          shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color])
+          shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color] :coordinate-space-world)
           vertex-description (graphics/make-vertex-description shader-bound-attributes)
           vertex-attribute-bytes (:vertex-attribute-bytes user-data)
           pfx-sim-request-id (some-> renderable :updatable :node-id)]
@@ -604,8 +604,8 @@
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
   (let [properties (:properties _declared-properties)]
-    (into {:attributes-save-values (graphics/attributes->save-values material-attribute-infos vertex-attribute-overrides)
-           :attributes-build-target (graphics/attributes->build-target material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)
+    (into {:attributes-save-values (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)
+           :attributes-build-target (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)
            :position position
            :rotation rotation
            :modifiers modifier-msgs}
@@ -1000,11 +1000,7 @@
           graph-id (g/node-id->graph-id self)
           tile-source (workspace/resolve-workspace-resource workspace (:tile-source emitter))
           material (workspace/resolve-workspace-resource workspace (:material emitter))
-          vertex-attribute-overrides (into {}
-                                           (map (fn [attribute]
-                                                  [(graphics/attribute-name->key (:name attribute))
-                                                   (graphics/attribute->any-doubles attribute)]))
-                                           (:attributes emitter))]
+          vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides (:attributes emitter))]
       (g/make-nodes graph-id
                     [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
                                    :id (:id emitter) :mode (:mode emitter) :duration [(:duration emitter) (:duration-spread emitter)] :space (:space emitter)
