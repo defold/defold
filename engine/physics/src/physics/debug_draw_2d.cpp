@@ -122,6 +122,11 @@ namespace dmPhysics
                 points[i*3 + 2] = c + dmVMath::Vector3(c_a * radius, s_a * radius, 0.0f);
             }
             (*m_Callbacks->m_DrawTriangles)(points, MAX_TRI_COUNT * 3, dmVMath::Vector4(color.r, color.g, color.b, m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
+            
+            dmVMath::Point3 line_points[2];
+            line_points[0] = c;
+            line_points[1] = c + dmVMath::Vector3(axis.x * radius, axis.y * radius, 0.0f);
+            (*m_Callbacks->m_DrawLines)(line_points, 2, dmVMath::Vector4(1.0f - color.r, 1.0f - color.g, 1.0f - color.b, m_Callbacks->m_Alpha), m_Callbacks->m_UserData);
         }
     }
 
