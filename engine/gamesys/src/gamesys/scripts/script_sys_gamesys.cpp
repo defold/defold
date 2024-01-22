@@ -55,7 +55,7 @@ namespace dmGameSystem
         HOpaqueHandle              m_Handle;
         dmBuffer::HBuffer          m_Payload;
         dmLoadQueue::HRequest      m_Request;
-        const char*                m_Path;
+        char*                      m_Path;
         dmhash_t                   m_PathHash;
         RequestStatus              m_Status;
     };
@@ -66,6 +66,7 @@ namespace dmGameSystem
         dmLoadQueue::HQueue                 m_LoadQueue;
         dmOpaqueHandleContainer<LuaRequest> m_LoadRequests;
         dmMutex::HMutex                     m_LoadRequestsMutex;
+        uint8_t                             m_LastUpdateResult : 1;
     } g_SysModule;
 
     // Assumes the g_SysModule.m_LoadRequestsMutex is held
@@ -81,20 +82,26 @@ namespace dmGameSystem
             DM_LUA_STACK_CHECK(L, 0);
 
             // callback has the format:
-            // function(self, request_id, status, buffer)
+            // function(self, request_id, result)
+            //  result contains:
+            //      - status: request status
+            //      - buffer: if successfull, this contains the payload
             if (dmScript::SetupCallback(request->m_CallbackInfo))
             {
-                int nargs = 3;
                 lua_pushnumber(L, request->m_Handle);
-                lua_pushinteger(L, request->m_Status);
+
+                lua_newtable(L);
+                lua_pushnumber(L, request->m_Status);
+                lua_setfield(L, -2, "status");
 
                 if (request->m_Status == REQUEST_STATUS_FINISHED)
                 {
                     dmScript::LuaHBuffer luabuf(request->m_Payload, dmScript::OWNER_LUA);
                     dmScript::PushBuffer(L, luabuf);
-                    nargs++;
+                    lua_setfield(L, -2, "buffer");
                 }
-                result = dmScript::PCall(L, nargs, 0) == 0;
+
+                result = dmScript::PCall(L, 3, 0) == 0;
                 dmScript::TeardownCallback(request->m_CallbackInfo);
             }
             else
@@ -108,6 +115,7 @@ namespace dmGameSystem
         request->m_CallbackInfo = 0x0;
 
         g_SysModule.m_LoadRequests.Release(request->m_Handle);
+        free(request->m_Path);
         delete request;
         return result;
     }
@@ -115,7 +123,7 @@ namespace dmGameSystem
     // Assumes the g_SysModule.m_LoadRequestsMutex is held (if needed)
     static dmResource::Result HandleRequestLoading(dmResource::HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, dmResource::LoadBufferType* buffer, LuaRequest* request)
     {
-        dmResource::Result res = dmResource::DoLoadResource(factory, path, original_name, resource_size, buffer);
+        dmResource::Result res = dmResource::LoadResourceFromBuffer(factory, path, original_name, resource_size, buffer);
 
         if (res != dmResource::RESULT_OK)
         {
@@ -155,6 +163,7 @@ namespace dmGameSystem
     static dmResource::Result LoadBufferFunctionCallback(dmResource::HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, dmResource::LoadBufferType* buffer, void* context)
     {
         dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
+
         HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
         LuaRequest* request          = g_SysModule.m_LoadRequests.Get(request_handle);
         return HandleRequestLoading(factory, path, original_name, resource_size, buffer, request);
@@ -164,6 +173,7 @@ namespace dmGameSystem
     static dmResource::Result LoadBufferCompleteCallback(const dmResource::ResourcePreloadParams& params)
     {
         dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
+
         HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) params.m_Context;
         LuaRequest* request          = g_SysModule.m_LoadRequests.Get(request_handle);
         request->m_Status            = REQUEST_STATUS_FINISHED;
@@ -281,15 +291,28 @@ namespace dmGameSystem
      *
      * @name sys.load_buffer_async
      * @param path [type:string] the path to load the buffer from
-     * @param status_callback [type:function(self, request_id, status, buf)] A status callback that will be invoked when a request has been handled, or an error occured
+     * @param status_callback [type:function(self, request_id, result)] A status callback that will be invoked when a request has been handled, or an error occured. The result is a table containing:
+     *
+     * `status`
+     * : [type:number] The status of the request, supported values are:
+     *
+     * - `resource.REQUEST_STATUS_FINISHED`
+     * - `resource.REQUEST_STATUS_ERROR_IO_ERROR`
+     * - `resource.REQUEST_STATUS_ERROR_NOT_FOUND`
+     *
+     * `buffer`
+     * : [type:buffer] If the request was successfull, this will contain the request payload in a buffer object, and nil otherwise. Make sure to check the status before doing anything with the buffer value!
+     *
      * @return handle [type:handle] a handle to the request
      * @examples
      *
      * Load binary data from a custom project resource and update a texture resource:
      *
      * ```lua
-     * function my_callback(self, request_id, status, buf)
-     *   resource.set_texture("/my_texture", { ... }, buf)
+     * function my_callback(self, request_id, result)
+     *   if result.status == resource.REQUEST_STATUS_FINISHED then
+     *      resource.set_texture("/my_texture", { ... }, result.buf)
+     *   end
      * end
      *
      * local my_request = sys.load_buffer_async("/assets/my_level_data.bin", my_callback)
@@ -298,13 +321,13 @@ namespace dmGameSystem
      * Load binary data from non-custom resource files on disk:
      *
      * ```lua
-     * function my_callback(self, request_id, status, buf)
-     *   if status ~= sys.REQUEST_STATUS_FINISHED then
+     * function my_callback(self, request_id, result)
+     *   if result.status ~= sys.REQUEST_STATUS_FINISHED then
      *     -- uh oh! File could not be found, do something graceful
-     *   elif request_id == self.first_asset then
-     *     -- buffer contains data from my_level_asset.bin
+     *   elseif request_id == self.first_asset then
+     *     -- result.buffer contains data from my_level_asset.bin
      *   elif request_id == self.second_asset then
-     *     -- buffer contains data from 'my_level.bin'
+     *     -- result.buffer contains data from 'my_level.bin'
      *   end
      * end
      *
@@ -331,7 +354,8 @@ namespace dmGameSystem
         {
             dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
 
-            // We currently don't do anything about duplicated requests here (should we?)
+            // We currently don't do anything about duplicated requests here,
+            // it is up to the user to manage this by themselves
             for (int i = 0; i < g_SysModule.m_LoadRequests.Capacity(); ++i)
             {
                 LuaRequest* active_request = g_SysModule.m_LoadRequests.GetByIndex(i);
@@ -348,7 +372,7 @@ namespace dmGameSystem
             }
 
             LuaRequest* request     = new LuaRequest();
-            request->m_Path         = path;
+            request->m_Path         = strdup(path);
             request->m_PathHash     = path_hash;
             request->m_CallbackInfo = callback_info;
             request->m_Status       = REQUEST_STATUS_INITALIZED;
@@ -409,43 +433,45 @@ namespace dmGameSystem
         g_SysModule.m_LoadRequestsMutex = dmMutex::New();
     }
 
-    bool ScriptSysGameSysUpdate(const ScriptLibContext& context)
+    void ScriptSysGameSysUpdate(const ScriptLibContext& context)
     {
-        dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
-
         bool result = true;
-        uint32_t request_count = g_SysModule.m_LoadRequests.Capacity();
-        for (int i = 0; i < request_count; ++i)
+        if (dmMutex::TryLock(g_SysModule.m_LoadRequestsMutex))
         {
-            LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
-
-            if (request)
+            uint32_t request_count = g_SysModule.m_LoadRequests.Capacity();
+            for (int i = 0; i < request_count; ++i)
             {
-                // If we tried to dispatch the request, but the queue was full, we try again
-                if (request->m_Status == REQUEST_STATUS_INITALIZED)
+                LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
+
+                if (request)
                 {
-                    DispatchRequest(request);
-                }
-                else if (request->m_Status == REQUEST_STATUS_FINISHED        ||
-                         request->m_Status == REQUEST_STATUS_ERROR_NOT_FOUND ||
-                         request->m_Status == REQUEST_STATUS_ERROR_IO_ERROR)
-                {
-                    result &= HandleRequestCompleted(request);
-                }
-                else
-                {
-                    void* buf;
-                    uint32_t size;
-                    dmLoadQueue::LoadResult load_result;
-                    if (dmLoadQueue::EndLoad(g_SysModule.m_LoadQueue, request->m_Request, &buf, &size, &load_result) == dmLoadQueue::RESULT_OK)
+                    // If we tried to dispatch the request, but the queue was full, we try again
+                    if (request->m_Status == REQUEST_STATUS_INITALIZED)
                     {
-                        HandleRequestCompleted(request);
+                        DispatchRequest(request);
+                    }
+                    else if (request->m_Status == REQUEST_STATUS_FINISHED        ||
+                             request->m_Status == REQUEST_STATUS_ERROR_NOT_FOUND ||
+                             request->m_Status == REQUEST_STATUS_ERROR_IO_ERROR)
+                    {
+                        result &= HandleRequestCompleted(request);
+                    }
+                    else
+                    {
+                        void* buf;
+                        uint32_t size;
+                        dmLoadQueue::LoadResult load_result;
+                        if (dmLoadQueue::EndLoad(g_SysModule.m_LoadQueue, request->m_Request, &buf, &size, &load_result) == dmLoadQueue::RESULT_OK)
+                        {
+                            result &= HandleRequestCompleted(request);
+                        }
                     }
                 }
             }
+            dmMutex::Unlock(g_SysModule.m_LoadRequestsMutex);
         }
 
-        return result;
+        g_SysModule.m_LastUpdateResult = result;
     }
 
     void ScriptSysGameSysFinalize(const ScriptLibContext& context)
@@ -472,5 +498,11 @@ namespace dmGameSystem
         g_SysModule.m_Factory           = 0;
         g_SysModule.m_LoadQueue         = 0;
         g_SysModule.m_LoadRequestsMutex = 0;
+    }
+
+    // For tests
+    bool GetScriptSysGameSysLastUpdateResult()
+    {
+        return g_SysModule.m_LastUpdateResult;
     }
 }

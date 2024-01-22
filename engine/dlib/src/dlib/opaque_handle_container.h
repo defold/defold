@@ -100,10 +100,10 @@ public:
      *       data structure for the container is a continuous array.
      *
      * @name GetByIndex
-     * @param handle [type:uint32_t] The index to query the container with
+     * @param index [type:uint32_t] The index to query the container with
      * @return pointer [type:T*] Return the object associated with the handle If it is valid, NULL otherwise
      */
-    T* GetByIndex(uint32_t handle);
+    T* GetByIndex(uint32_t index);
 
     /*# container put
      *

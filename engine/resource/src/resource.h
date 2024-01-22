@@ -417,7 +417,7 @@ namespace dmResource
     // load with default internal buffer and its management, returns buffer ptr in 'buffer'
     Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);
     // load with own buffer
-    Result DoLoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
+    Result LoadResourceFromBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
 }
 
 #endif // RESOURCE_H

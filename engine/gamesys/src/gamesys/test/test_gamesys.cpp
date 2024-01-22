@@ -3973,7 +3973,8 @@ static bool RunTestLoadBufferASync(lua_State* L, int test_n,
     bool tests_done = false;
     while (dmTime::GetTime() < stop_time && !tests_done)
     {
-        if (!dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext) && !ignore_script_update_fail)
+        dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
+        if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
             return false;
         if (!dmGameObject::Update(collection, update_context))
             return false;
