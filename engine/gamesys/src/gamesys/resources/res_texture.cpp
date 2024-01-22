@@ -239,7 +239,7 @@ namespace dmGameSystem
                         params.m_DataSize = image_desc->m_DecompressedDataSize[i];
                     }
 
-                    params.m_MipMap   = i;
+                    params.m_MipMap = i;
                     dmGraphics::SetTextureAsync(texture, params);
 
                     params.m_Width >>= 1;
