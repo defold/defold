@@ -1185,6 +1185,28 @@ TYPED_TEST(PhysicsTest, JointGeneral)
     joint = 0x0;
 
 
+    //////////////////////////////////////////////////////////////
+    // Create WHEEL joint
+    joint_type = dmPhysics::JOINT_TYPE_WHEEL;
+    joint_params = dmPhysics::ConnectJointParams(joint_type);
+    joint = dmPhysics::CreateJoint2D(TestFixture::m_World, static_co, p_zero, dynamic_co, p_zero, joint_type, joint_params);
+    ASSERT_NE((dmPhysics::HJoint)0x0, joint);
+
+    // Update WHEEL joint
+    joint_params.m_WheelJointParams.m_DampingRatio = 1.0f;
+    r = dmPhysics::SetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
+    ASSERT_TRUE(r);
+
+    // Get WHEEL joint params
+    r = dmPhysics::GetJointParams2D(TestFixture::m_World, joint, joint_type, joint_params);
+    ASSERT_TRUE(r);
+    ASSERT_NEAR(1.0f, joint_params.m_WheelJointParams.m_DampingRatio, FLT_EPSILON);
+
+    // Delete WHEEL joint
+    DeleteJoint2D(TestFixture::m_World, joint);
+    joint = 0x0;
+
+
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
@@ -1425,6 +1447,68 @@ TYPED_TEST(PhysicsTest, JointWeld)
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+
+}
+
+TYPED_TEST(PhysicsTest, JointWheel)
+{
+    VisualObject vo_a;
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, dmVMath::Vector3(10.0f, 0.1f, 0.0f));
+    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_a, 1u);
+
+    VisualObject vo_b;
+    vo_b.m_Position.setX(0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
+
+    VisualObject vo_circle;
+    vo_circle.m_Position.setY(0.5f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_circle;
+    typename TypeParam::CollisionShapeType circle = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 0.5f);
+    typename TypeParam::CollisionObjectType circle_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &circle, 1u);
+
+    // Create WHEEL joint
+    dmPhysics::JointType joint_type = dmPhysics::JOINT_TYPE_WHEEL;
+    dmVMath::Point3 anchorPoint(0.0f, 0.0f, 0.0f);
+    dmPhysics::ConnectJointParams joint_params(joint_type);
+    joint_params.m_WheelJointParams.m_LocalAxisA[0] = 0.0f;
+    joint_params.m_WheelJointParams.m_LocalAxisA[1] = 1.0f;
+    joint_params.m_WheelJointParams.m_LocalAxisA[2] = 0.0f;
+    joint_params.m_WheelJointParams.m_MotorSpeed = 20.0f;
+    joint_params.m_WheelJointParams.m_EnableMotor = true;
+    joint_params.m_WheelJointParams.m_MaxMotorTorque = 1000.0f;
+    joint_params.m_WheelJointParams.m_DampingRatio = 1.0f;
+    dmPhysics::HJoint joint = dmPhysics::CreateJoint2D(TestFixture::m_World, circle_co, anchorPoint, dynamic_co, anchorPoint, joint_type, joint_params);
+    ASSERT_NE((dmPhysics::HJoint)0x0, joint);
+
+    // Step simulation, make sure Y position increases due to the motor
+    float x = vo_circle.m_Position.getX();
+    for (uint32_t i = 0; i < 40; ++i)
+    {
+        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+        ASSERT_LT(x, vo_circle.m_Position.getX());
+        x = vo_circle.m_Position.getX();
+    }
+
+    // Delete WHEEL joint
+    DeleteJoint2D(TestFixture::m_World, joint);
+    joint = 0x0;
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, circle_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(circle);
 
 }
 
