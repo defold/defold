@@ -255,8 +255,8 @@ namespace dmGameSystem
      * through `groups`.
      * The actual ray cast will be performed during the physics-update.
      *
-     * - If an object is hit, the result will be reported via a `ray_cast_response` message.
-     * - If there is no object hit, the result will be reported via a `ray_cast_missed` message.
+     * - If an object is hit, the result will be reported via a [ref:ray_cast_response] message.
+     * - If there is no object hit, the result will be reported via a [ref:ray_cast_missed] message.
      *
      * @name physics.raycast_async
      * @param from [type:vector3] the world position of the start of the ray
@@ -284,6 +284,105 @@ namespace dmGameSystem
      *     elseif message_id == hash("ray_cast_missed") then
      *         -- act on the miss
      *     end
+     * end
+     * ```
+     */
+
+    /*# sets a physics world event listener.
+     *
+     * @name physics.set_listener
+     *
+     * @param callback [type:function(self, event, data)|nil] A callback that receives information about all the physics interactions in this physics world.
+     *
+     * `self`
+     * : [type:object] The calling script
+     *
+     * `event`
+     * : [type:constant] The type of event. Can be one of these messages:
+     *
+     *
+     * - [ref:contact_point_event]
+     * - [ref:collision_event]
+     * - [ref:trigger_event]
+     * - [ref:ray_cast_response]
+     * - [ref:ray_cast_missed]
+     *
+     * `data`
+     * : [type:table] The callback value data is a table that contains event-related data. See the documentation for details on the messages.
+     *
+     * @examples
+     *
+     * ```lua
+     * local function physics_world_listener(self, event, data)
+     *   if event == hash("contact_point_event") then
+     *     pprint(data)
+     *     -- {
+     *     --  applied_impulse = 310.00769042969,
+     *     --  a = {
+     *     --      position = vmath.vector3(446, 371, 0),
+     *     --      relative_velocity = vmath.vector3(1.1722083854693e-06, -20.667181015015, -0),
+     *     --      mass = 0,
+     *     --      group = hash: [default],
+     *     --      id = hash: [/flat],
+     *     --      normal = vmath.vector3(-0, -1, -0)
+     *     --  },
+     *     --  b = {
+     *     --      position = vmath.vector3(185, 657.92858886719, 0),
+     *     --      relative_velocity = vmath.vector3(-1.1722083854693e-06, 20.667181015015, 0),
+     *     --      mass = 10,
+     *     --      group = hash: [default],
+     *     --      id = hash: [/go2],
+     *     --      normal = vmath.vector3(0, 1, 0)
+     *     --  },
+     *     --  distance = 0.0714111328125
+     *     -- }
+     *   elseif event == hash("collision_event") then
+     *     pprint(data)
+     *     -- {
+     *     --  a = {
+     *     --          group = hash: [default],
+     *     --          position = vmath.vector3(183, 666, 0),
+     *     --          id = hash: [/go1]
+     *     --      },
+     *     --  b = {
+     *     --          group = hash: [default],
+     *     --          position = vmath.vector3(185, 704.05865478516, 0),
+     *     --          id = hash: [/go2]
+     *     --      }
+     *     -- }
+     *   elseif event ==  hash("trigger_event") then
+     *     pprint(data)
+     *     -- {
+     *     --  b = {
+     *     --      group = hash: [default],
+     *     --      id = hash: [/go2]
+     *     --  },
+     *     --  enter = true,
+     *     --  a = {
+     *     --      group = hash: [default],
+     *     --      id = hash: [/go1]
+     *     --  }
+     *     -- },
+     *   elseif event ==  hash("ray_cast_response") then
+     *     pprint(data)
+     *     --{
+     *     --  group = hash: [default],
+     *     --  request_id = 0,
+     *     --  position = vmath.vector3(249.92222595215, 249.92222595215, 0),
+     *     --  fraction = 0.68759721517563,
+     *     --  normal = vmath.vector3(0, 1, 0),
+     *     --  id = hash: [/go]
+     *     -- }
+     *   elseif event ==  hash("ray_cast_missed") then
+     *     pprint(data)
+     *     -- {
+     *     --  request_id = 0
+     *     --},
+     *   end
+     * end
+     *
+     * function init(self)
+     *     physics.set_listener(physics_world_listener)
      * end
      * ```
      */
@@ -379,7 +478,7 @@ namespace dmGameSystem
      * `all`
      * : [type:boolean] Set to `true` to return all ray cast hits. If `false`, it will only return the closest hit.
      *
-     * @return result [type:table|nil] It returns a list. If missed it returns `nil`. See `ray_cast_response` for details on the returned values.
+     * @return result [type:table|nil] It returns a list. If missed it returns `nil`. See [ref:ray_cast_response] for details on the returned values.
      * @examples
      *
      * How to perform a ray cast synchronously:
