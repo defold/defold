@@ -146,8 +146,8 @@ message ApplyForce
  * @name collision_response
  * @param other_id [type:hash] the id of the instance the collision object collided with
  * @param other_position [type:vector3] the world position of the instance the collision object collided with
- * @param other_group [type:hash] the collision group of the other collision object (hash)
- * @param own_group [type:hash] the collision group of the own collision object (hash)
+ * @param other_group [type:hash] the collision group of the other collision object
+ * @param own_group [type:hash] the collision group of the own collision object
  * @examples
  *
  * How to take action when a collision occurs:
@@ -193,8 +193,8 @@ message CollisionResponse
  * @param other_mass [type:number] the mass of the other collision object in kg
  * @param other_id [type:hash] the id of the instance the collision object is in contact with
  * @param other_position [type:vector3] the world position of the other collision object
- * @param other_group [type:hash] the collision group of the other collision object (hash)
- * @param own_group [type:hash] the collision group of the own collision object (hash)
+ * @param other_group [type:hash] the collision group of the other collision object
+ * @param own_group [type:hash] the collision group of the own collision object
  * @examples
  *
  * How to take action when a contact point occurs:
@@ -238,10 +238,10 @@ message ContactPointResponse
  *
  * @message
  * @name trigger_response
- * @param other_id [type:hash] the id of the instance the collision object collided with (hash)
+ * @param other_id [type:hash] the id of the instance the collision object collided with
  * @param enter [type:boolean] if the interaction was an entry or not
- * @param other_group [type:hash] the collision group of the triggering collision object (hash)
- * @param own_group [type:hash] the collision group of the own collision object (hash)
+ * @param other_group [type:hash] the collision group of the triggering collision object
+ * @param own_group [type:hash] the collision group of the own collision object
  * @examples
  *
  * How to take action when a trigger interaction occurs:
@@ -370,13 +370,13 @@ message ContactPoint
  * @param a [type:table] contact point information for object A
  *
  * `position`
- * : [type:vector3] The world position of object A.
+ * : [type:vector3] The world position of object A
  *
  * `id`
- * : [type:hash] The ID of object A.
+ * : [type:hash] The ID of object A
  *
  * `group`
- * : [type:hash] The collision group of object A (hash).
+ * : [type:hash] The collision group of object A
  *
  * `relative_velocity`
  * : [type:vector3] The relative velocity of the collision object A as observed from B object
@@ -390,13 +390,13 @@ message ContactPoint
  * @param b [type:table] contact point information for object B
  *
  * `position`
- * : [type:vector3] The world position of object B.
+ * : [type:vector3] The world position of object B
  *
  * `id`
- * : [type:hash] The ID of object B.
+ * : [type:hash] The ID of object B
  *
  * `group`
- * : [type:hash] The collision group of object B (hash).
+ * : [type:hash] The collision group of object B
  *
  * `relative_velocity`
  * : [type:vector3] The relative velocity of the collision object B as observed from A object
@@ -405,7 +405,7 @@ message ContactPoint
  * : [type:number] The mass of the collision object B in kg
  *
  * `normal`
- * : [type:vector3] normal in world space of the contact point, which points from A object towards  object
+ * : [type:vector3] normal in world space of the contact point, which points from A object towards B object
  *
  * @examples
  *
@@ -460,7 +460,7 @@ message Collision
  * This message is sent to a function specified in [ref:physics.set_listener]
  * when two collision objects collide.
  *
- * This message only reports that a collision has occurred and will be sent once per frame.
+ * This message only reports that a collision has occurred and will be sent once per frame and per colliding pair.
  * For more detailed information, check for the [ref:contact_point_event].
  *
  * @message
@@ -468,24 +468,24 @@ message Collision
  * @param a [type:table] collision information for object A
  *
  * `position`
- * : [type:vector3] The world position of object A.
+ * : [type:vector3] The world position of object A
  *
  * `id`
- * : [type:hash] The ID of object A.
+ * : [type:hash] The ID of object A
  *
  * `group`
- * : [type:hash] The collision group of object A (hash).
+ * : [type:hash] The collision group of object A
  *
  * @param b [type:table] collision information for object B
  *
  * `position`
- * : [type:vector3] The world position of object B.
+ * : [type:vector3] The world position of object B
  *
  * `id`
- * : [type:hash] The ID of object B.
+ * : [type:hash] The ID of object B
  *
  * `group`
- * : [type:hash] The collision group of object B (hash).
+ * : [type:hash] The collision group of object B
  *
  * @examples
  *
@@ -537,18 +537,18 @@ message Trigger
  * @param enter [type:boolean] if the interaction was an entry or not
  * @param a [type:table] interaction information for object A
  * `id`
- * : [type:hash] The ID of object A.
+ * : [type:hash] The ID of object A
  *
  * `group`
- * : [type:hash] The collision group of object A (hash).
+ * : [type:hash] The collision group of object A
  *
  * @param b [type:table] collision information for object B
  *
  * `id`
- * : [type:hash] The ID of object B.
+ * : [type:hash] The ID of object B
  *
  * `group`
- * : [type:hash] The collision group of object B (hash).
+ * : [type:hash] The collision group of object B
  *
  * @examples
  *
