@@ -288,7 +288,7 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# sets a physics world event listener.
+    /*# sets a physics world event listener. If a function is set, physics messages will no longer be sent.
      *
      * @name physics.set_listener
      *
@@ -317,6 +317,7 @@ namespace dmGameSystem
      *   if event == hash("contact_point_event") then
      *     pprint(data)
      *     -- {
+     *     --  distance = 0.0714111328125,
      *     --  applied_impulse = 310.00769042969,
      *     --  a = {
      *     --      position = vmath.vector3(446, 371, 0),
@@ -333,8 +334,7 @@ namespace dmGameSystem
      *     --      group = hash: [default],
      *     --      id = hash: [/go2],
      *     --      normal = vmath.vector3(0, 1, 0)
-     *     --  },
-     *     --  distance = 0.0714111328125
+     *     --  }
      *     -- }
      *   elseif event == hash("collision_event") then
      *     pprint(data)
@@ -353,11 +353,11 @@ namespace dmGameSystem
      *   elseif event ==  hash("trigger_event") then
      *     pprint(data)
      *     -- {
+     *     --  enter = true,
      *     --  b = {
      *     --      group = hash: [default],
      *     --      id = hash: [/go2]
      *     --  },
-     *     --  enter = true,
      *     --  a = {
      *     --      group = hash: [default],
      *     --      id = hash: [/go1]
