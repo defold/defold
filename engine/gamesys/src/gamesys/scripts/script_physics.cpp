@@ -1579,7 +1579,8 @@ namespace dmGameSystem
         }
 
         dmMessage::URL listenerReceiver;
-        if (!dmScript::GetURL(L, &listenerReceiver)) {
+        if (!dmScript::GetURL(L, &listenerReceiver))
+        {
             return luaL_error(L, "could not find a requesting instance for physics.set_listener()");
         }
 
