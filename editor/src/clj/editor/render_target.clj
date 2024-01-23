@@ -57,7 +57,7 @@
                :label "Depth/Stencil Height"
                :type :number}
               {:path [:depth-stencil-attachment-texture-storage]
-               :label "Depth Buffer Texture Storage"
+               :label "Depth Texture Storage"
                :type :boolean}]}]})
 (g/defnk produce-form-data [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-texture-storage :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
