@@ -2191,6 +2191,8 @@ TEST_F(ComponentTest, JointTest)
     ** - [script] collision_object/joint_test.script
     ** joint_test_b
     ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
+    ** joint_test_c
+    ** - [collisionobject] collision_object/joint_test_static_floor.collisionobject
     */
 
     dmHashEnableReverseHash(true);
@@ -2205,9 +2207,14 @@ TEST_F(ComponentTest, JointTest)
 
     const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
     const char* path_joint_test_b = "/collision_object/joint_test_b.goc";
+    const char* path_joint_test_c = "/collision_object/joint_test_c.goc";
 
     dmhash_t hash_go_joint_test_a = dmHashString64("/joint_test_a");
     dmhash_t hash_go_joint_test_b = dmHashString64("/joint_test_b");
+    dmhash_t hash_go_joint_test_c = dmHashString64("/joint_test_c");
+
+    dmGameObject::HInstance go_c = Spawn(m_Factory, m_Collection, path_joint_test_c, hash_go_joint_test_c, 0, 0, Point3(0, -100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_c);
 
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_b);
