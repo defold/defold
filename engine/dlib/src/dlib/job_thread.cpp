@@ -39,7 +39,7 @@
     #include <dmsdk/dlib/thread.h>
 #endif
 
-#include "ringbuffer.h"
+#include "jc/ringbuffer.h"
 #include "job_thread.h"
 
 namespace dmJobThread
@@ -69,7 +69,7 @@ struct JobThreadContext
 struct JobContext
 {
 #if defined(DM_HAS_THREADS)
-    dmThread::Thread    m_Thread;
+    dmArray<dmThread::Thread> m_Threads;
 #endif
     JobThreadContext    m_ThreadContext;
 };
@@ -130,15 +130,21 @@ static void UpdateSingleThread(JobThreadContext* ctx)
 }
 #endif
 
-HContext Create(const char* thread_name)
+HContext Create(uint8_t thread_count, const char** thread_names)
 {
     JobContext* context = new JobContext;
 #if defined(DM_HAS_THREADS)
-    context->m_Thread = 0;
     context->m_ThreadContext.m_Mutex = dmMutex::New();
     context->m_ThreadContext.m_WakeupCond = dmConditionVariable::New();
     context->m_ThreadContext.m_Run = 1;
-    context->m_Thread = dmThread::New(JobThread, 0x80000, (void*)&context->m_ThreadContext, thread_name);
+
+    context->m_Threads.SetCapacity(thread_count);
+    context->m_Threads.SetSize(thread_count);
+
+    for (int i = 0; i < thread_count; ++i)
+    {
+        context->m_Threads[i] = dmThread::New(JobThread, 0x80000, (void*)&context->m_ThreadContext, thread_names[i]);
+    }
 #endif
     return context;
 }
@@ -152,11 +158,17 @@ void Destroy(HContext context)
     dmAtomicStore32(&context->m_ThreadContext.m_Run, 0);
     {
         DM_MUTEX_SCOPED_LOCK(context->m_ThreadContext.m_Mutex);
-        // Wake up the worker so it can exit and allow us to join
-        dmConditionVariable::Signal(context->m_ThreadContext.m_WakeupCond);
+        // Wake up the worker threads so it can exit and allow us to join
+        for (int i = 0; i < context->m_Threads.Size(); ++i)
+        {
+            dmConditionVariable::Signal(context->m_ThreadContext.m_WakeupCond);
+        }
     }
 
-    dmThread::Join(context->m_Thread);
+    for (int i = 0; i < context->m_Threads.Size(); ++i)
+    {
+        dmThread::Join(context->m_Threads[i]);
+    }
     dmConditionVariable::Delete(context->m_ThreadContext.m_WakeupCond);
     dmMutex::Delete(context->m_ThreadContext.m_Mutex);
 #endif // DM_HAS_THREADS

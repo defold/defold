@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <stdint.h>
+
 namespace dmJobThread
 {
     typedef struct JobContext* HContext;
@@ -19,7 +21,7 @@ namespace dmJobThread
     typedef int (*FProcess)(void* context, void* data);
     typedef void (*FCallback)(void* context, void* data, int result);
 
-    HContext    Create(const char* thread_name);
+    HContext    Create(uint8_t thread_count, const char** thread_names);
     void        Destroy(HContext context);
     void        Update(HContext context); // Flushes any items and calls PostProcess
     void        PushJob(HContext context, FProcess process, FCallback callback, void* user_context, void* data);

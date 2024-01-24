@@ -16,7 +16,6 @@
 #include "liveupdate_private.h"
 #include "liveupdate_verify.h"
 #include "script_liveupdate.h"
-#include "job_thread.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -29,6 +28,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/sys.h>
+#include <dlib/job_thread.h>
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/extension/extension.h>
 
@@ -946,7 +946,8 @@ namespace dmLiveUpdate
 
         dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
 
-        g_LiveUpdate.m_JobThread = dmJobThread::Create("liveupdate_jobs");
+        const char* thread_name = "liveupdate_jobs";
+        g_LiveUpdate.m_JobThread = dmJobThread::Create(1, &thread_name);
 
         if (g_LiveUpdate.m_JobThread) // Make the liveupdate module `nil` if it isn't available
         {
