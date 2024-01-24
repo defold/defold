@@ -236,8 +236,6 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
             ids.add(anim.getId());
         }
 
-        System.out.printf("ATLAS MESSAGE:\n%s\n", textureSet.toString());
-
         assertEquals(expectedIds, ids);
 
         assertThat(textureSet.getWidth(), is(32));
