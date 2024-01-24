@@ -54,11 +54,6 @@ public class TileSetGenerator {
         public int getEnd() {
             return this.end;
         }
-
-        @Override
-        public String getFrameId(int frameIndex) { // local frame index
-            return ""; // A tile source doesn't support playing single image animations using e.g. "tile0" etc.
-        }
     }
 
     public static class IndexedAnimIterator implements AnimIterator {
@@ -98,6 +93,11 @@ public class TileSetGenerator {
                     return index;
             }
             return null;
+        }
+
+        @Override
+        public String getFrameId() {
+            return ""; // A tile source doesn't support playing single image animations using e.g. "tile0" etc.
         }
 
         @Override

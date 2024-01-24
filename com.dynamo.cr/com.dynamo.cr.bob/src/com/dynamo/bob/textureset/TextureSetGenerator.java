@@ -69,7 +69,7 @@ public class TextureSetGenerator {
         public R right;
     }
 
-    public static abstract class AnimDesc {
+    public static class AnimDesc {
         private String id;
         private final int fps;
         private final boolean flipHorizontally;
@@ -103,13 +103,12 @@ public class TextureSetGenerator {
         public boolean isFlipVertically() {
             return flipVertically;
         }
-
-        abstract public String getFrameId(int index);
     }
 
     public interface AnimIterator {
         public AnimDesc nextAnim();         // Return the next animation
         public Integer nextFrameIndex();    // Return the global index of the image that the frame is using
+        public String getFrameId();         // Returns unique frame id for the current frame
         public void rewind();               // Start iterating from the beginning
     }
 
@@ -641,7 +640,7 @@ public class TextureSetGenerator {
             int localIndex = 0; // 0 .. num_frames(anim)-1
             while ((index = iterator.nextFrameIndex()) != null) {
 
-                String frameId = animDesc.getFrameId(localIndex); // either "id" or "anim./id"
+                String frameId = iterator.getFrameId(); // either "id" or "anim./id"
                 long frameIdHash = MurmurHash.hash64(frameId);
 
                 textureSet.addFrameIndices(index);

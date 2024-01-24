@@ -72,14 +72,6 @@ public class AtlasUtil {
         public List<String> getPaths() {
             return this.paths;
         }
-
-        @Override
-        public String getFrameId(int frameIndex) { // local frame index
-            String prefix = "";
-            if (!this.singleFrame)
-                prefix = this.getId() + "/";
-            return prefix + this.getIds().get(frameIndex);
-        }
     }
 
     public static class MappedAnimIterator implements AnimIterator {
@@ -109,6 +101,15 @@ public class AtlasUtil {
                 return imagePaths.indexOf(anim.getPaths().get(nextFrameIndex++));
             }
             return null;
+        }
+
+        @Override
+        public String getFrameId() {
+            MappedAnimDesc anim = anims.get(nextAnimIndex - 1);
+            String prefix = "";
+            if (!anim.singleFrame)
+                prefix = anim.getId() + "/";
+            return prefix + anim.getIds().get(nextFrameIndex-1);
         }
 
         @Override
