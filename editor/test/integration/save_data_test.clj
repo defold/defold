@@ -204,7 +204,7 @@
 
    'dmGameSystemDDF.SpriteDesc
    {:default
-    {"textures" :unimplemented}} ; Multiple textures for sprites are not supported yet.
+    {"tile_set" :deprecated}} ; Replaced with 'textures'
 
    'dmGraphics.VertexAttribute
    {[["particlefx" "emitters" "[*]" "attributes"]

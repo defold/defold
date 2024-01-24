@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.pipeline.texture-set-gen
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.image-util :as image-util]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -22,6 +23,7 @@
   (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$LayoutResult TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect TextureSetLayout$Layout]
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
            [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet$Builder]
            [com.dynamo.gamesys.proto Tile$ConvexHull Tile$Playback Tile$SpriteTrimmingMode TextureSetProto$SpriteGeometry]
            [editor.types Image]
@@ -83,9 +85,19 @@
   [sprite-trim-mode]
   (protobuf/val->pb-enum Tile$SpriteTrimmingMode sprite-trim-mode))
 
+(defn resource-id [resource rename-patterns]
+  (let [id (-> (resource/proj-path resource)
+               (string/split #"/")
+               last
+               (string/split #"\.(?=[^\.]+$)")
+               first)]
+    (if rename-patterns
+      (try (AtlasUtil/replaceStrings rename-patterns id) (catch Exception _ id))
+      id)))
+
 (defn- texture-set-layout-rect
-  ^TextureSetLayout$Rect [{:keys [path width height]}]
-  (let [id (resource/proj-path path)]
+  ^TextureSetLayout$Rect [{:keys [path width height]} rename-patterns]
+  (let [id (resource-id path rename-patterns)]
     (TextureSetLayout$Rect. id -1 (int width) (int height))))
 
 (defonce ^:private ^TextureSetProto$SpriteGeometry rect-sprite-geometry-template
@@ -124,7 +136,7 @@
           (TextureSetGenerator/buildConvexHull buffered-image (sprite-trim-mode->enum sprite-trim-mode)))))))
 
 (defn atlas->texture-set-data
-  [animations images margin inner-padding extrude-borders max-page-size]
+  [animations images rename-patterns margin inner-padding extrude-borders max-page-size]
   (let [sprite-geometries (mapv make-image-sprite-geometry images)]
     (g/precluding-errors sprite-geometries
       (let [img-to-index (into {}
@@ -148,7 +160,7 @@
                             (rewind [_this]
                               (reset! anims-atom animations)
                               (reset! anim-imgs-atom [])))
-            rects (mapv texture-set-layout-rect images)
+            rects (mapv #(texture-set-layout-rect % rename-patterns) images)
             use-geometries (if (every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) images) 0 1)
             result (TextureSetGenerator/calculateLayout
                      rects sprite-geometries use-geometries anim-iterator margin inner-padding extrude-borders
