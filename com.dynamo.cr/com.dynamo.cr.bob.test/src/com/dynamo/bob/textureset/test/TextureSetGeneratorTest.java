@@ -27,6 +27,8 @@ import java.util.List;
 
 import org.junit.Test;
 
+import com.dynamo.bob.pipeline.AtlasUtil.MappedAnimDesc;
+import com.dynamo.bob.pipeline.AtlasUtil.MappedAnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
@@ -41,67 +43,12 @@ public class TextureSetGeneratorTest {
 
     private static final float EPSILON = 0.000001f;
 
-    public static class MappedAnimDesc extends AnimDesc {
-        public List<String> ids;
-
-        public MappedAnimDesc(String id, List<String> ids, Playback playback, int fps, boolean flipHorizontal,
-                boolean flipVertical) {
-            super(id, playback, fps, flipHorizontal, flipVertical);
-            this.ids = ids;
-        }
-
-        public MappedAnimDesc(String id, List<String> ids) {
-            super(id, Playback.PLAYBACK_NONE, 0, false, false);
-            this.ids = ids;
-        }
-
-        public List<String> getIds() {
-            return this.ids;
-        }
-    }
-
-    public static class MappedAnimIterator implements AnimIterator {
-        final List<MappedAnimDesc> anims;
-        final List<String> imageIds;
-        int nextAnimIndex;
-        int nextFrameIndex;
-
-        public MappedAnimIterator(List<MappedAnimDesc> anims, List<String> imageIds) {
-            this.anims = anims;
-            this.imageIds = imageIds;
-        }
-
-        @Override
-        public AnimDesc nextAnim() {
-            if (nextAnimIndex < anims.size()) {
-                nextFrameIndex = 0;
-                return anims.get(nextAnimIndex++);
-            }
-            return null;
-        }
-
-        @Override
-        public Integer nextFrameIndex() {
-            MappedAnimDesc anim = anims.get(nextAnimIndex - 1);
-            if (nextFrameIndex < anim.getIds().size()) {
-                return imageIds.indexOf(anim.getIds().get(nextFrameIndex++));
-            }
-            return null;
-        }
-
-        @Override
-        public void rewind() {
-            nextAnimIndex = 0;
-            nextFrameIndex = 0;
-        }
-    }
-
     BufferedImage newImage(int w, int h) {
         return new BufferedImage(w, h, BufferedImage.TYPE_4BYTE_ABGR);
     }
 
-    MappedAnimDesc newAnim(String id, List<String> ids) {
-        return new MappedAnimDesc(id, ids, Playback.PLAYBACK_LOOP_BACKWARD, 30, false, false);
+    MappedAnimDesc newAnim(String id, List<String> paths) {
+        return new MappedAnimDesc(id, paths, paths, Playback.PLAYBACK_LOOP_BACKWARD, 30, false, false);
     }
 
     @Test
@@ -154,7 +101,7 @@ public class TextureSetGeneratorTest {
         TextureSet textureSet = result.builder.setTexture("").build();
 
         int sizeOfFloat = 4;
-        int numFrames = ids.size() + animations.get(0).ids.size() + animations.get(1).ids.size();
+        int numFrames = ids.size() + animations.get(0).getIds().size() + animations.get(1).getIds().size();
         assertThat(textureSet.getAnimationsCount(), is(2));
         assertThat(textureSet.getTexDims().size() / sizeOfFloat, is(numFrames * 2)); // frame count * 2 floats (x, y)
     }

@@ -103,12 +103,14 @@ namespace dmGameSystem
         }
 
         // This is a mapping from the single frame image names (animation ids) to the frame number
+        const uint32_t* frame_indices = texture_set_ddf->m_FrameIndices.m_Data;
         uint32_t n_image_name_hashes = texture_set_ddf->m_ImageNameHashes.m_Count;
         tile_set->m_FrameIds.SetCapacity(dmMath::Max(1U, (n_image_name_hashes*2)/3), n_image_name_hashes);
         for (uint32_t i = 0; i < n_image_name_hashes; ++i)
         {
             dmhash_t h = texture_set_ddf->m_ImageNameHashes[i];
-            tile_set->m_FrameIds.Put(h, i);
+            uint32_t frame_index = frame_indices[i];
+            tile_set->m_FrameIds.Put(h, frame_index);
         }
 
         return r;

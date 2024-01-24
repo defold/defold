@@ -15,7 +15,7 @@ message TextureSetAnimation
     required string id              = 1;
     required uint32 width           = 2;
     required uint32 height          = 3;
-    required uint32 start           = 4;    // Frame index. Absolute offset into TextureSet.frame_indices.
+    required uint32 start           = 4;    // Frame index. Absolute offset into TextureSet.frame_indices/TextureSet.image_name_hashes.
     required uint32 end             = 5;    // Frame index (not included in animation)
 
     optional uint32 fps             = 6 [default = 30];
@@ -75,9 +75,10 @@ message TextureSet
     repeated string collision_groups        = 10;
     repeated ConvexHull convex_hulls        = 11;
 
-    // Hash mapping from image name to frame index
-    // { (hash("image_name0") : 0), (hash("image_name1") : 1) ...}
-    repeated uint64 image_name_hashes       = 12; //  (length == tile_count)
+    // Hash mapping from image name to animation index
+    // { hash("animA/image_name0", hash("animA/image_name1"), hash("animB/image_name0", ...}
+    // Usage: Find the hash in this array. Use the index and get the frame index: frame_indices[ find_hash(hash, image_name_hashes) ]
+    repeated uint64 image_name_hashes       = 12; //  (length == tile_count + sum([num_frames(anim) for anim in animations])
 
     // Maps animation frames to frame index
     // It is a flattened array, where each animation has a start and end number of frames
