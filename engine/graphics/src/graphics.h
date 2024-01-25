@@ -20,6 +20,7 @@
 #include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
+#include <dlib/job_thread.h>
 #include <dlib/opaque_handle_container.h>
 
 #include <ddf/ddf.h>
@@ -57,6 +58,8 @@ namespace dmGraphics
     typedef void (*EngineDestroy)(void* engine);
     typedef int (*EngineUpdate)(void* engine);
     typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+
+    typedef void (*TextureComplete)(HTexture texture, void* user_context);
 
     // Decorated asset handle with 21 bits meta | 32 bits opaque handle
     // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
@@ -284,17 +287,18 @@ namespace dmGraphics
     {
         ContextParams();
 
-        dmPlatform::HWindow m_Window;
-        TextureFilter       m_DefaultTextureMinFilter;
-        TextureFilter       m_DefaultTextureMagFilter;
-        uint32_t            m_Width;
-        uint32_t            m_Height;
-        uint32_t            m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
-        uint8_t             m_VerifyGraphicsCalls : 1;
-        uint8_t             m_PrintDeviceInfo : 1;
-        uint8_t             m_RenderDocSupport : 1;           // Vulkan only
-        uint8_t             m_UseValidationLayers : 1;        // Vulkan only
-        uint8_t             : 4;
+        dmPlatform::HWindow   m_Window;
+        dmJobThread::HContext m_JobThread;
+        TextureFilter         m_DefaultTextureMinFilter;
+        TextureFilter         m_DefaultTextureMagFilter;
+        uint32_t              m_Width;
+        uint32_t              m_Height;
+        uint32_t              m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
+        uint8_t               m_VerifyGraphicsCalls : 1;
+        uint8_t               m_PrintDeviceInfo : 1;
+        uint8_t               m_RenderDocSupport : 1;           // Vulkan only
+        uint8_t               m_UseValidationLayers : 1;        // Vulkan only
+        uint8_t               : 4;
     };
 
     struct PipelineState
@@ -610,7 +614,7 @@ namespace dmGraphics
      * @param texture HTexture
      * @param params TextureParams
      */
-    void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
+    void SetTextureAsync(HTexture texture, const TextureParams& paramsa, TextureComplete callback, void* callback_user_data);
 
     void        SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     uint32_t    GetTextureResourceSize(HTexture texture);

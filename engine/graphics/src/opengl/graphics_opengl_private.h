@@ -74,7 +74,9 @@ namespace dmGraphics
 
         // Async queue data and synchronization objects
         dmMutex::HMutex         m_AsyncMutex;
+        dmMutex::HMutex         m_AsyncWorkMutex;
         dmPlatform::HWindow     m_Window;
+        dmJobThread::HContext   m_JobThread;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
 

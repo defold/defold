@@ -15,6 +15,7 @@
 #include <stdarg.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
+#include <dlib/job_thread.h>
 #include "gamesys_private.h"
 #include "components/comp_private.h"
 #include <dmsdk/gamesys/render_constants.h>
@@ -235,4 +236,28 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
+    struct GamesysJobContext
+    {
+        dmOpaqueHandleContainer<JobDesc> m_JobRequests;
+    } g_JobContext;
+
+    HOpaqueHandle dmGameSystem::MakeJobRequest(JobDesc* desc)
+    {
+        if (g_JobContext.m_JobRequests.Full())
+        {
+            g_JobContext.m_JobRequests.Allocate(16);
+        }
+
+        return g_JobContext.m_JobRequests.Put(desc);
+    }
+
+    void ReleaseJobRequest(HOpaqueHandle request_id)
+    {
+        g_JobContext.m_JobRequests.Release(request_id);
+    }
+
+    JobDesc* GetJobDesc(HOpaqueHandle request_id)
+    {
+        return g_JobContext.m_JobRequests.Get(request_id);
+    }
 }

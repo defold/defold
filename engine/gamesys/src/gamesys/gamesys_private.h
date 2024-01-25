@@ -63,6 +63,15 @@ namespace dmGameSystem
     static const dmhash_t PROP_TEXTURES = dmHashString64("textures");
     static const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
 
+    struct JobDesc
+    {
+        dmScript::LuaCallbackInfo* m_CallbackInfo;
+    };
+
+    HOpaqueHandle MakeJobRequest(JobDesc* desc);
+    void          ReleaseJobRequest(HOpaqueHandle request_id);
+    JobDesc*      GetJobDesc(HOpaqueHandle request_id);
+
     struct EmitterStateChangedScriptData
     {
         EmitterStateChangedScriptData()

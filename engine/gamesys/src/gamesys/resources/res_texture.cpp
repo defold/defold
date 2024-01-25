@@ -91,11 +91,12 @@ namespace dmGameSystem
         params.m_Data = blank;
         params.m_DataSize = 4;
         params.m_MipMap = 0;
-        dmGraphics::SetTextureAsync(texture, params);
+        dmGraphics::SetTextureAsync(texture, params, 0, 0);
     }
 
     static dmResource::Result AcquireResources(const char* path, dmResource::SResourceDescriptor* resource_desc, dmGraphics::HContext context, ImageDesc* image_desc,
-        ResTextureUploadParams upload_params, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
+        ResTextureUploadParams upload_params, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out,
+        dmGraphics::TextureComplete complete_callback, void* complete_callback_user_data)
     {
         DM_PROFILE_DYN(path, 0);
 
@@ -222,7 +223,7 @@ namespace dmGameSystem
                     params.m_Data     = image_desc->m_DecompressedData[0];
                     params.m_DataSize = image_desc->m_DecompressedDataSize[0];
                 }
-                dmGraphics::SetTextureAsync(texture, params);
+                dmGraphics::SetTextureAsync(texture, params, complete_callback, complete_callback_user_data);
             }
             else
             {
@@ -240,7 +241,7 @@ namespace dmGameSystem
                     }
 
                     params.m_MipMap = i;
-                    dmGraphics::SetTextureAsync(texture, params);
+                    dmGraphics::SetTextureAsync(texture, params, complete_callback, complete_callback_user_data);
 
                     params.m_Width >>= 1;
                     params.m_Height >>= 1;
@@ -348,7 +349,7 @@ namespace dmGameSystem
         ResTextureUploadParams upload_params = {};
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
         dmGraphics::HTexture texture;
-        dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, (ImageDesc*) params.m_PreloadData, upload_params, 0, &texture);
+        dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, (ImageDesc*) params.m_PreloadData, upload_params, 0, &texture, 0, 0);
         if (r == dmResource::RESULT_OK)
         {
             TextureResource* texture_res = new TextureResource();
@@ -402,14 +403,23 @@ namespace dmGameSystem
         }
 
         // Set up the new texture (version), wait for it to finish before issuing new requests
-        SynchronizeTexture(texture, true);
-        dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, image_desc, upload_params, texture, &texture);
+        if (!recreate_params->m_OnCompleteCallback)
+        {
+            SynchronizeTexture(texture, true);
+        }
+
+        dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, image_desc, upload_params, texture, &texture, recreate_params->m_OnCompleteCallback, recreate_params->m_OnCompleteCallbackUserData);
 
         // Texture might have changed
         texture_res->m_Texture = texture;
 
-        // Wait for any async texture uploads
-        SynchronizeTexture(texture, true);
+        // This doesn't work properly.
+        // Perhaps we could create a new texture ID and upload to that instead?
+        if (!recreate_params->m_OnCompleteCallback)
+        {
+            // Wait for any async texture uploads
+            SynchronizeTexture(texture, true);
+        }
 
         DestroyImage(image_desc);
 
@@ -421,6 +431,7 @@ namespace dmGameSystem
         {
             params.m_Resource->m_ResourceSize = dmGraphics::GetTextureResourceSize(texture);
         }
+
         return r;
     }
 }

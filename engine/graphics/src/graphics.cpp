@@ -1281,9 +1281,9 @@ namespace dmGraphics
     {
         g_functions.m_SetTexture(texture, params);
     }
-    void SetTextureAsync(HTexture texture, const TextureParams& paramsa)
+    void SetTextureAsync(HTexture texture, const TextureParams& paramsa, TextureComplete callback, void* callback_user_data)
     {
-        g_functions.m_SetTextureAsync(texture, paramsa);
+        g_functions.m_SetTextureAsync(texture, paramsa, callback, callback_user_data);
     }
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {

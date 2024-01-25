@@ -852,6 +852,9 @@ namespace dmEngine
             return false;
         }
 
+        const char* thread_names[] = {"DefoldJobThread1", "DefoldJobThread2", "DefoldJobThread3", "DefoldJobThread4", "DefoldJobThread1", "DefoldJobThread2", "DefoldJobThread3", "DefoldJobThread4"};
+        engine->m_JobThreadContext = dmJobThread::Create(DM_ARRAY_SIZE(thread_names), thread_names);
+
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
@@ -863,6 +866,7 @@ namespace dmEngine
         graphics_context_params.m_Width                   = engine->m_Width;
         graphics_context_params.m_Height                  = engine->m_Height;
         graphics_context_params.m_PrintDeviceInfo         = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
+        graphics_context_params.m_JobThread               = engine->m_JobThreadContext;
 
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
@@ -1531,6 +1535,12 @@ bail:
                         return;
                     }
                 }
+
+                {
+                    DM_PROFILE("Job Thread");
+                    dmJobThread::Update(engine->m_JobThreadContext);
+                }
+
                 {
                     DM_PROFILE("Script");
 

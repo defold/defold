@@ -30,6 +30,7 @@
 #include "script_buffer.h"
 
 #include "../gamesys.h"
+#include "../gamesys_private.h"
 #include "../resources/res_buffer.h"
 #include "../resources/res_texture.h"
 #include "../resources/res_textureset.h"
@@ -1107,6 +1108,38 @@ static int FillSetTextureParams(lua_State* L, dmGraphics::TextureImage::Image& i
     return 0;
 }
 
+static void TextureAsyncCompleteFn(dmGraphics::HTexture, void* user_data)
+{
+    HOpaqueHandle request_id        = (HOpaqueHandle) (uintptr_t) user_data;
+    dmGameSystem::JobDesc* job_desc = dmGameSystem::GetJobDesc(request_id);
+
+    if (dmScript::IsCallbackValid(job_desc->m_CallbackInfo))
+    {
+        lua_State* L = dmScript::GetCallbackLuaContext(job_desc->m_CallbackInfo);
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if (dmScript::SetupCallback(job_desc->m_CallbackInfo))
+        {
+            lua_pushnumber(L, request_id);
+
+            // lua_newtable(L);
+            // lua_pushnumber(L, request->m_Status);
+            // lua_setfield(L, -2, "status");
+
+            dmScript::PCall(L, 2, 0);
+            dmScript::TeardownCallback(job_desc->m_CallbackInfo);
+        }
+        else
+        {
+            dmLogError("Failed to setup resource.set_texture_async callback (has the calling script been destroyed?)");
+        }
+    }
+
+    dmScript::DestroyCallback(job_desc->m_CallbackInfo);
+    dmGameSystem::ReleaseJobRequest(request_id);
+    delete job_desc;
+}
+
 static int SetTextureAsync(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -1117,7 +1150,15 @@ static int SetTextureAsync(lua_State* L)
 
     FillSetTextureParams(L, texture_image_image, texture_image, texture_recreate_params);
 
-    dmhash_t path_hash   = dmScript::CheckHashOrString(L, 1);
+    dmhash_t path_hash                       = dmScript::CheckHashOrString(L, 1);
+    dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 4);
+
+    JobDesc* desc            = new JobDesc();
+    desc->m_CallbackInfo     = callback_info;
+    HOpaqueHandle request_id = dmGameSystem::MakeJobRequest(desc);
+
+    texture_recreate_params.m_OnCompleteCallback         = TextureAsyncCompleteFn;
+    texture_recreate_params.m_OnCompleteCallbackUserData = (void*) (uintptr_t) request_id;
     dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) &texture_recreate_params);
 
     if( r != dmResource::RESULT_OK )
@@ -1126,8 +1167,10 @@ static int SetTextureAsync(lua_State* L)
         return ReportPathError(L, r, path_hash);
     }
 
-    assert(top == lua_gettop(L));
-    return 0;
+    lua_pushnumber(L, request_id);
+
+    assert((top+1) == lua_gettop(L));
+    return 1;
 }
 
 static int SetTexture(lua_State* L)
