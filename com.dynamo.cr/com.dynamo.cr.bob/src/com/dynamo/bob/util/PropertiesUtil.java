@@ -19,6 +19,8 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
+import org.apache.commons.io.FilenameUtils;
+
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Project;
@@ -28,6 +30,7 @@ import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.bob.pipeline.CubemapBuilder;
 import com.dynamo.bob.pipeline.ProtoBuilders;
 import com.dynamo.bob.pipeline.TextureBuilder;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
@@ -134,13 +137,17 @@ public class PropertiesUtil {
     }
 
     public static String transformResourcePropertyValue(IResource resource, String value) throws CompileExceptionError {
+        String ext = "." + FilenameUtils.getExtension(value);
         // This is not optimal, but arguably ok for this case.
         value = BuilderUtil.replaceExt(value, ".material", ".materialc");
         value = BuilderUtil.replaceExt(value, ".font", ".fontc");
         value = BuilderUtil.replaceExt(value, ".buffer", ".bufferc");
         value = ProtoBuilders.replaceTextureName(value);
         try {
-            value = ProtoBuilders.replaceTextureSetName(value);
+            if (TextureUtil.isAtlasFileType(ext))
+            {
+                value = ProtoBuilders.replaceTextureSetName(value);
+            }
         } catch (Exception e) {
             throw new CompileExceptionError(resource, -1, e.getMessage(), e);
         }
