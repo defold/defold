@@ -207,6 +207,7 @@ public class TextureSetLayout {
         }
     }
 
+    // Public api for extensions!
     public static class Layout {
         private final List<Rect> rectangles;
         private final int width;
@@ -277,7 +278,7 @@ public class TextureSetLayout {
         for (Rect r : layout.getRectangles()) {
 
             r.setX(x);
-            r.setX(y);
+            r.setY(y);
 
              if (x + cellWidth >= inputWidth - margin) {
                  x = margin;
@@ -399,7 +400,7 @@ public class TextureSetLayout {
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Public api!
+    // Public api for extensions!
 
     public static class Point
     {
@@ -452,27 +453,27 @@ public class TextureSetLayout {
         public List<Integer>   indices;
     }
 
-    // Public api!
+    // Public api for extensions!
     public static class Page {
-        public String               name; // name of texture
-        public Size                 size; // size of the texture
+        public int                  index; // index in the list of pages
+        public String               name;  // name of texture
+        public Size                 size;  // size of the texture
         public List<SourceImage>    images;
     }
 
 
-    // Public api!
+    // Public api for extensions!
     public static List<Layout> createTextureSet(List<Page> pages) {
         List<Layout> layouts = new ArrayList<>();
         int imageCount = 0;
-        int pageCount = 0;
         for (Page page : pages) {
             Layout layout = new Layout((int)page.size.width, (int)page.size.height, new ArrayList<>());
 
             for (SourceImage image : page.images) {
                 // image.rect is the actual rect within the texture, but we want the "orignal" size/placement
                 Rect rect = new Rect(image.name, imageCount++, (int)image.rect.x, (int)image.rect.y, (int)image.rect.width, (int)image.rect.height);
-                rect.page = pageCount;
-                rect.rotated = image.rotated;
+                rect.setPage(page.index);
+                rect.setRotated(image.rotated);
 
                 for (Point vertex : image.vertices) {
                     rect.addVertex(new Pointi((int)vertex.x, (int)vertex.y));
@@ -482,7 +483,6 @@ public class TextureSetLayout {
 
                 layout.rectangles.add(rect);
             }
-            ++pageCount;
             layouts.add(layout);
         }
 

@@ -306,7 +306,11 @@ public class TextureUtil {
         return ATLAS_FILE_TYPES;
     }
 
-    // Public SDK api!
+    public static boolean isAtlasFileType(String srcSuffix) {
+        return ATLAS_FILE_TYPES.containsKey(srcSuffix);
+    }
+
+    // Public SDK api for extensions!
     public static void registerAtlasFileType(String srcSuffix) {
         ATLAS_FILE_TYPES.put(srcSuffix, ATLAS_FILE_TYPES.get(".atlas"));
     }
