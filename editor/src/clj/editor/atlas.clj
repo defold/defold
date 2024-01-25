@@ -47,7 +47,8 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [util.digestable :as digestable])
+            [util.digestable :as digestable]
+            [util.murmur :as murmur])
   (:import [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasImage]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
@@ -163,9 +164,9 @@
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))
 
 (g/defnk produce-image-scene
-  [_node-id image-resource order layout-size image-id->rect animation-updatable rename-patterns]
-  (let [id (texture-set-gen/resource-id image-resource rename-patterns)
-        rect (get image-id->rect id)
+  [_node-id image-resource order layout-size image-path->rect animation-updatable]
+  (let [path (resource/proj-path image-resource)
+        rect (get image-path->rect path)
         editor-rect (atlas-rect->editor-rect rect)
         aabb (geom/rect->aabb editor-rect)
         [layout-width _] layout-size]
@@ -245,7 +246,7 @@
                                                  maybe-image-resource)))
 
   (input maybe-image-size g/Any)
-  (input image-id->rect g/Any)
+  (input image-path->rect g/Any)
   (input rename-patterns g/Str)
 
   (input child->order g/Any)
@@ -309,7 +310,7 @@
     (g/connect atlas-node :layout-size      image-node :layout-size)
     (g/connect atlas-node :child->order     image-node :child->order)
     (g/connect atlas-node :id-counts        image-node :id-counts)
-    (g/connect atlas-node :image-id->rect   image-node :image-id->rect)
+    (g/connect atlas-node :image-path->rect image-node :image-path->rect)
     (g/connect atlas-node :updatable        image-node :animation-updatable)
     (g/connect atlas-node :rename-patterns  image-node :rename-patterns)))
 
@@ -323,7 +324,7 @@
     (g/connect image-node     :node-outline     animation-node :child-outlines)
     (g/connect image-node     :scene            animation-node :child-scenes)
     (g/connect animation-node :child->order     image-node     :child->order)
-    (g/connect animation-node :image-id->rect   image-node     :image-id->rect)
+    (g/connect animation-node :image-path->rect image-node     :image-path->rect)
     (g/connect animation-node :layout-size      image-node     :layout-size)
     (g/connect animation-node :updatable        image-node     :animation-updatable)
     (g/connect animation-node :rename-patterns  image-node     :rename-patterns)))
@@ -343,7 +344,7 @@
     (g/connect atlas-node     :gpu-texture      animation-node :gpu-texture)
     (g/connect atlas-node     :id-counts        animation-node :id-counts)
     (g/connect atlas-node     :layout-size      animation-node :layout-size)
-    (g/connect atlas-node     :image-id->rect   animation-node :image-id->rect)
+    (g/connect atlas-node     :image-path->rect animation-node :image-path->rect)
     (g/connect atlas-node     :rename-patterns  animation-node :rename-patterns)))
 
 (defn render-animation
@@ -407,8 +408,8 @@
   (input image-resources g/Any :array)
   (output image-resources g/Any (gu/passthrough image-resources))
 
-  (input image-id->rect g/Any)
-  (output image-id->rect g/Any (gu/passthrough image-id->rect))
+  (input image-path->rect g/Any)
+  (output image-path->rect g/Any (gu/passthrough image-path->rect))
 
   (input gpu-texture g/Any)
 
@@ -573,27 +574,27 @@
      :children (into child-renderables
                      child-scenes)}))
 
-(defn- generate-texture-set-data [{:keys [_node-id rename-patterns animations all-atlas-images margin inner-padding extrude-borders max-page-size]}]
+(defn- generate-texture-set-data [{:keys [_node-id animations all-atlas-images margin inner-padding extrude-borders max-page-size]}]
   (try
-    (texture-set-gen/atlas->texture-set-data animations all-atlas-images rename-patterns margin inner-padding extrude-borders max-page-size)
+    (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders max-page-size)
     (catch Exception error
       (g/->error _node-id :max-page-size :fatal nil (.getMessage error)))))
 
 (defn- call-generator [generator]
   ((:f generator) (:args generator)))
 
-(defn- generate-packed-page-images [{:keys [_node-id image-resources rename-patterns layout-data-generator]}]
+(defn- generate-packed-page-images [{:keys [_node-id image-resources layout-data-generator]}]
   (let [buffered-images (mapv #(resource-io/with-error-translation % _node-id nil
                                  (image-util/read-image %))
                               image-resources)]
     (g/precluding-errors buffered-images
       (let [layout-data (call-generator layout-data-generator)]
         (g/precluding-errors layout-data
-          (let [id->image (zipmap (map #(texture-set-gen/resource-id % rename-patterns) image-resources) buffered-images)]
+          (let [id->image (zipmap (map resource/proj-path image-resources) buffered-images)]
             (texture-set-gen/layout-atlas-pages (:layout layout-data) id->image)))))))
 
 (g/defnk produce-layout-data-generator
-  [_node-id animation-images rename-patterns all-atlas-images extrude-borders inner-padding margin max-page-size :as args]
+  [_node-id animation-images all-atlas-images extrude-borders inner-padding margin max-page-size :as args]
   ;; The TextureSetGenerator.calculateLayout() method inherited from Bob also
   ;; compiles a TextureSetProto$TextureSet including the animation data in
   ;; addition to generating the layout. This means that modifying a property on
@@ -614,7 +615,7 @@
          :args augmented-args})))
 
 (g/defnk produce-packed-page-images-generator
-  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator rename-patterns]
+  [_node-id extrude-borders image-resources inner-padding margin layout-data-generator]
   (let [flat-image-resources (filterv some? (flatten image-resources))
         image-sha1s (map (fn [resource]
                            (resource-io/with-error-translation resource _node-id nil
@@ -633,7 +634,6 @@
          :sha1 packed-image-sha1
          :args {:_node-id _node-id
                 :image-resources flat-image-resources
-                :rename-patterns rename-patterns
                 :layout-data-generator layout-data-generator}}))))
 
 (defn- complete-ddf-animation [ddf-animation {:keys [flip-horizontal flip-vertical fps id playback] :as _animation}]
@@ -654,7 +654,7 @@
   ;; contain the animation metadata since it was produced from fake animations.
   ;; In order to produce a valid TextureSetResult, we complete the protobuf
   ;; animations inside the embedded TextureSet with our animation properties.
-  [animations layout-data]
+  [animations layout-data all-atlas-images rename-patterns]
   (let [incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
         animation-present-in-ddf? (comp not-empty :images)
@@ -663,8 +663,20 @@
         complete-ddf-animations (map complete-ddf-animation
                                      incomplete-ddf-animations
                                      animations-in-ddf)
+        fixed-image-name-hashes (-> []
+                                    (into
+                                      (map #(-> % :path (texture-set-gen/resource-id rename-patterns) murmur/hash64))
+                                      all-atlas-images)
+                                    (into
+                                      (mapcat
+                                        (fn [{:keys [id images]}]
+                                          (eduction
+                                            (map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64))
+                                            images)))
+                                      animations))
         complete-ddf-texture-set (assoc incomplete-ddf-texture-set
-                                   :animations complete-ddf-animations)]
+                                   :animations complete-ddf-animations
+                                   :image-name-hashes fixed-image-name-hashes)]
     (assoc layout-data
       :texture-set complete-ddf-texture-set)))
 
@@ -680,7 +692,7 @@
    height   :- types/Int32
    page     :- types/Int32])
 
-(g/defnk produce-image-id->rect
+(g/defnk produce-image-path->rect
   [layout-size layout-rects]
   (let [[w h] layout-size]
     (into {} (map (fn [{:keys [path x y width height page]}]
@@ -767,7 +779,7 @@
                                                               :mag-filter gl/nearest}))))
 
   (output anim-data        g/Any               :cached produce-anim-data)
-  (output image-id->rect   g/Any               :cached produce-image-id->rect)
+  (output image-path->rect g/Any               :cached produce-image-path->rect)
   (output anim-ids         g/Any               :cached (g/fnk [animation-ids] (filter some? animation-ids)))
   (output id-counts        NameCounts          :cached (g/fnk [anim-ids] (frequencies anim-ids)))
   (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines own-build-errors]

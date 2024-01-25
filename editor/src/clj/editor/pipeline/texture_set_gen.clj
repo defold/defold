@@ -85,19 +85,23 @@
   [sprite-trim-mode]
   (protobuf/val->pb-enum Tile$SpriteTrimmingMode sprite-trim-mode))
 
-(defn resource-id [resource rename-patterns]
-  (let [id (-> (resource/proj-path resource)
-               (string/split #"/")
-               last
-               (string/split #"\.(?=[^\.]+$)")
-               first)]
-    (if rename-patterns
-      (try (AtlasUtil/replaceStrings rename-patterns id) (catch Exception _ id))
-      id)))
+(defn resource-id
+  ([resource rename-patterns]
+   (resource-id resource nil rename-patterns))
+  ([resource animation-name rename-patterns]
+   (let [id (-> (resource/proj-path resource)
+                (string/split #"/")
+                last
+                (string/split #"\.(?=[^\.]+$)")
+                first)
+         id (cond->> id animation-name (str animation-name "/"))]
+     (if rename-patterns
+       (try (AtlasUtil/replaceStrings rename-patterns id) (catch Exception _ id))
+       id))))
 
 (defn- texture-set-layout-rect
-  ^TextureSetLayout$Rect [{:keys [path width height]} rename-patterns]
-  (let [id (resource-id path rename-patterns)]
+  ^TextureSetLayout$Rect [{:keys [path width height]}]
+  (let [id (resource/proj-path path)]
     (TextureSetLayout$Rect. id -1 (int width) (int height))))
 
 (defonce ^:private ^TextureSetProto$SpriteGeometry rect-sprite-geometry-template
@@ -136,7 +140,7 @@
           (TextureSetGenerator/buildConvexHull buffered-image (sprite-trim-mode->enum sprite-trim-mode)))))))
 
 (defn atlas->texture-set-data
-  [animations images rename-patterns margin inner-padding extrude-borders max-page-size]
+  [animations images margin inner-padding extrude-borders max-page-size]
   (let [sprite-geometries (mapv make-image-sprite-geometry images)]
     (g/precluding-errors sprite-geometries
       (let [img-to-index (into {}
@@ -160,7 +164,7 @@
                             (rewind [_this]
                               (reset! anims-atom animations)
                               (reset! anim-imgs-atom [])))
-            rects (mapv #(texture-set-layout-rect % rename-patterns) images)
+            rects (mapv texture-set-layout-rect images)
             use-geometries (if (every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) images) 0 1)
             result (TextureSetGenerator/calculateLayout
                      rects sprite-geometries use-geometries anim-iterator margin inner-padding extrude-borders
