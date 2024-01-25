@@ -669,7 +669,7 @@ DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash)
     if (s == 0)
     {
         char tmp[64];
-        dmSnPrintf(tmp, sizeof(tmp), "<unknown:%llu>", hash);
+        dmSnPrintf(tmp, sizeof(tmp), "<unknown:%llu>", (unsigned long long)hash);
         return tmp;
     }
     return s;
