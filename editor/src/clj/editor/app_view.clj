@@ -2154,31 +2154,27 @@ If you do not specifically require different script states, consider changing th
                          (when callback!
                            (callback! successful? render-reload-progress! render-save-progress!)))))))
 
-(defn- show-version-control-info-dialog! [icon title header preamble]
-  (dialogs/make-info-dialog
-    {:title title
-     :size :default
-     :icon icon
-     :header header
-     :content {:fx/type fx.text-flow/lifecycle
-               :style-class "dialog-content-padding"
-               :children [{:fx/type fx.text/lifecycle
-                           :text (cond->> (str "A project under Version Control "
-                                               "keeps a history of changes and "
-                                               "enables you to collaborate with "
-                                               "others by pushing changes to a "
-                                               "server.\n\nYou can read about "
-                                               "how to configure Version Control "
-                                               "in the ")
-                                          (not (string/blank? preamble))
-                                          (str preamble "\n\n"))}
-                          {:fx/type fx.hyperlink/lifecycle
-                           :text "Defold Manual"
-                           :on-action (fn [_]
-                                        (ui/open-url "https://www.defold.com/manuals/version-control/"))}
-                          {:fx/type fx.text/lifecycle
-                           :text "."}]}}))
-
+(defn- make-version-control-info-dialog-content
+  ([] (make-version-control-info-dialog-content nil))
+  ([^String preamble]
+   {:fx/type fx.text-flow/lifecycle
+    :style-class "dialog-content-padding"
+    :children [{:fx/type fx.text/lifecycle
+                :text (cond->> (str "A project under Version Control "
+                                    "keeps a history of changes and "
+                                    "enables you to collaborate with "
+                                    "others by pushing changes to a "
+                                    "server.\n\nYou can read about "
+                                    "how to configure Version Control "
+                                    "in the ")
+                               (not (string/blank? preamble))
+                               (str preamble "\n\n"))}
+               {:fx/type fx.hyperlink/lifecycle
+                :text "Defold Manual"
+                :on-action (fn [_]
+                             (ui/open-url "https://www.defold.com/manuals/version-control/"))}
+               {:fx/type fx.text/lifecycle
+                :text "."}]}))
 
 (handler/defhandler :synchronize :global
   (enabled? [] (disk-availability/available?))
@@ -2197,7 +2193,12 @@ If you do not specifically require different script states, consider changing th
 
          ;; The project is not a Git repo.
          ;; Show a dialog with info about how to set this up.
-         (show-version-control-info-dialog! :icon/git "Version Control" "This project does not use Version Control" nil))))
+         (dialogs/make-info-dialog
+           {:title "Version Control"
+            :size :default
+            :icon :icon/git
+            :header "This project does not use Version Control"
+            :content (make-version-control-info-dialog-content)}))))
 
 (handler/defhandler :save-all :global
   (enabled? [] (not (bob/build-in-progress?)))
@@ -2207,47 +2208,71 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :save-and-upgrade-all :global
   (enabled? [] (not (bob/build-in-progress?)))
   (run [app-view changes-view project]
-       (if (not (changes-view/project-is-git-repo? changes-view))
+       (let [git (g/node-value changes-view :git)]
+         (and
 
-         ;; The project is not under version control. Refuse to perform the file
-         ;; format upgrade, and instead show an info dialog on how to set up
-         ;; version control for the project.
-         (show-version-control-info-dialog! :icon/triangle-error "Not Safe to Upgrade File Formats" "Requires Version Control" "Due to potential data-loss concerns, file format upgrades are only allowed for projects under Version Control.")
+           ;; Check if the project is under version control. If not, advise
+           ;; against performing the file format upgrade, and show a dialog on
+           ;; how to set up version control for the project. The user can opt to
+           ;; proceed with the upgrade anyway.
+           (or (some? git)
+               (dialogs/make-confirmation-dialog
+                 {:title "Not Safe to Upgrade File Formats"
+                  :size :default
+                  :icon :icon/triangle-error
+                  :header "Version Control Recommended"
+                  :content (make-version-control-info-dialog-content "Due to potential data-loss concerns, file format upgrades should only be performed on projects under Version Control.")
+                  :buttons [{:text "Abort"
+                             :cancel-button true
+                             :default-button true
+                             :result false}
+                            {:text "Proceed Anyway"
+                             :variant :danger
+                             :result true}]}))
 
-         (let [git (g/node-value changes-view :git)]
-           (if (git/has-local-changes? git)
+           ;; Check if there are uncommitted changes. If so, show a dialog
+           ;; advising against performing the file format upgrade, and instead
+           ;; ask the user to commit their changes before retrying. The user can
+           ;; opt to proceed with the upgrade anyway.
+           (or (nil? git)
+               (not (git/has-local-changes? git))
+               (dialogs/make-confirmation-dialog
+                 {:title "Not Safe to Upgrade File Formats"
+                  :size :default
+                  :icon :icon/triangle-error
+                  :header "Uncommitted changes detected"
+                  :content {:fx/type fxui/label
+                            :style-class "dialog-content-padding"
+                            :text "Due to potential data-loss concerns, file format upgrades should start from a clean working directory.\n\nWe recommend you commit your local changes before retrying the operation."}
+                  :buttons [{:text "Abort"
+                             :cancel-button true
+                             :default-button true
+                             :result false}
+                            {:text "Proceed Anyway"
+                             :variant :danger
+                             :result true}]}))
 
-             ;; The project is under version control, but local changes were
-             ;; detected. Refuse to perform the file format upgrade, and instead
-             ;; ask the user to commit their changes before retrying.
-             (dialogs/make-info-dialog
-               {:title "Not Safe to Upgrade File Formats"
-                :size :default
-                :icon :icon/triangle-error
-                :header "Uncommitted changes detected"
-                :content {:fx/type fxui/label
-                          :style-class "dialog-content-padding"
-                          :text "Due to potential data-loss concerns, file format upgrades must start from a clean working directory.\n\nPlease commit your local changes before retrying the operation."}})
+           ;; We've deemed it safe to proceed with the file format upgrade, or the
+           ;; user has chosen to ignore our warnings. Show one last confirmation
+           ;; dialog before proceeding.
+           (dialogs/make-confirmation-dialog
+             {:title "Save and Upgrade File Formats?"
+              :size :large
+              :icon :icon/circle-question
+              :header "Re-save all files in the latest file format?"
+              :content {:fx/type fxui/label
+                        :style-class "dialog-content-padding"
+                        :text "All files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this."}
+              :buttons [{:text "Cancel"
+                         :cancel-button true
+                         :default-button true
+                         :result false}
+                        {:text "Upgrade File Formats"
+                         :variant :danger
+                         :result true}]})
 
-             ;; The project is under version control, and no local changes were
-             ;; detected. Show a confirmation dialog before proceeding with the
-             ;; file format upgrade.
-             (when (dialogs/make-confirmation-dialog
-                     {:title "Save and Upgrade File Formats?"
-                      :size :large
-                      :icon :icon/circle-question
-                      :header "Re-save all files in the latest file format?"
-                      :content {:fx/type fxui/label
-                                :style-class "dialog-content-padding"
-                                :text "All files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this."}
-                      :buttons [{:text "Cancel"
-                                 :cancel-button true
-                                 :default-button true
-                                 :result false}
-                                {:text "Upgrade File Formats"
-                                 :variant :danger
-                                 :result true}]})
-               (async-save! app-view changes-view project project/all-save-data)))))))
+           ;; The user has opted to proceed with the file format upgrade.
+           (async-save! app-view changes-view project project/all-save-data)))))
 
 (handler/defhandler :async-reload :global
   (active? [prefs] (not (async-reload-on-app-focus? prefs)))
