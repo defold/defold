@@ -1,4 +1,4 @@
--- Copyright 2020-2023 The Defold Foundation
+-- Copyright 2020-2024 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -57,7 +57,9 @@ function test_json_invalid_primitive()
 end
 
 function test_json_valid_primitive()
-    assert(json.decode("null") == json.null)
+    assert(json.decode("null") == nil)
+    assert(json.decode("null", { decode_null_as_userdata = false }) == nil)
+    assert(json.decode("null", { decode_null_as_userdata = true }) == json.null)
     assert(json.decode("true") == true)
     assert(json.decode("false") == false)
 
@@ -115,6 +117,10 @@ function test_json_decode()
     assert(#nested[2] == 1)
     assert(nested[2][1] == 30)
 
+    -- https://github.com/defold/defold/issues/8317 
+    local t = json.decode('{"key":null}')
+    assert(t[key] == nil)
+
     print("Expected parsing errors ->")
     test_syntax_error("[")
     test_syntax_error("]")
@@ -161,6 +167,8 @@ end
 function test_json_encode()
     -- empty table becomes empty dict
     assert(json.encode({}) == "{}")
+    assert(json.encode({}, { encode_empty_table_as_object = true }) == "{}")
+    assert(json.encode({}, { encode_empty_table_as_object = false }) == "[]")
     -- table with nested table(s) becomes array of tables
     assert(json.encode({{}}) == "[{}]")
     -- table with elements becomes array of elements
@@ -169,7 +177,7 @@ function test_json_encode()
     assert(json.encode(nil) == "null")
     -- however, a table with nil becomes empty table
     assert(json.encode({nil}) == "{}")
-    -- interleaved nil becomse a null element (note: not in quotes)
+    -- interleaved nil becomes a null element (note: not in quotes)
     assert(json.encode({1,nil,2}) == "[1,null,2]")
 
     local v3_enc = json.encode(vmath.vector3()) -- user data

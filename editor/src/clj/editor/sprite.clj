@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -95,116 +95,9 @@
       :world-transform world-transform
       :vertex-attribute-bytes vertex-attribute-bytes)))
 
-(defn- renderable-data->world-position-v3 [renderable-data]
-  (let [local-positions (:position-data renderable-data)
-        world-transform (:world-transform renderable-data)]
-    (geom/transf-p world-transform local-positions)))
-
-(defn- renderable-data->world-position-v4 [renderable-data]
-  (let [local-positions (:position-data renderable-data)
-        world-transform (:world-transform renderable-data)]
-    (geom/transf-p4 world-transform local-positions)))
-
-(defn- decorate-attribute-exception [exception attribute vertex]
-  (ex-info "Failed to encode vertex attribute."
-           (-> attribute
-               (select-keys [:name :semantic-type :type :components :normalize :coordinate-space])
-               (assoc :vertex vertex)
-               (assoc :vertex-elements (count vertex)))
-           exception))
-
 (defn- into-vertex-buffer [^VertexBuffer vbuf renderables]
-  (let [renderable-datas (mapv renderable-data renderables)
-        vertex-description (.vertex-description vbuf)
-        vertex-byte-stride (:size vertex-description)
-        ^ByteBuffer buf (.buf vbuf)
-
-        put-bytes!
-        (fn put-bytes!
-          ^long [^long vertex-byte-offset vertices]
-          (reduce (fn [^long vertex-byte-offset attribute-bytes]
-                    (vtx/buf-blit! buf vertex-byte-offset attribute-bytes)
-                    (+ vertex-byte-offset vertex-byte-stride))
-                  vertex-byte-offset
-                  vertices))
-
-        put-doubles!
-        (fn put-doubles!
-          [vertex-byte-offset semantic-type buffer-data-type element-count normalize vertices]
-          (reduce (fn [^long vertex-byte-offset attribute-doubles]
-                    (let [attribute-doubles (graphics/resize-doubles attribute-doubles semantic-type element-count)]
-                      (vtx/buf-put! buf vertex-byte-offset buffer-data-type normalize attribute-doubles))
-                    (+ vertex-byte-offset vertex-byte-stride))
-                  (long vertex-byte-offset)
-                  vertices))
-
-        put-renderables!
-        (fn put-renderables!
-          ^long [^long attribute-byte-offset renderable-data->vertices put-vertices!]
-          (reduce (fn [^long vertex-byte-offset renderable-data]
-                    (let [vertices (renderable-data->vertices renderable-data)]
-                      (put-vertices! vertex-byte-offset vertices)))
-                  attribute-byte-offset
-                  renderable-datas))]
-
-    (reduce (fn [^long attribute-byte-offset attribute]
-              (let [semantic-type (:semantic-type attribute)
-                    buffer-data-type (:type attribute)
-                    element-count (long (:components attribute))
-                    normalize (:normalize attribute)
-                    name-key (:name-key attribute)
-
-                    put-attribute-bytes!
-                    (fn put-attribute-bytes!
-                      ^long [^long vertex-byte-offset vertices]
-                      (try
-                        (put-bytes! vertex-byte-offset vertices)
-                        (catch Exception e
-                          (throw (decorate-attribute-exception e attribute (first vertices))))))
-
-                    put-attribute-doubles!
-                    (fn put-attribute-doubles!
-                      ^long [^long vertex-byte-offset vertices]
-                      (try
-                        (put-doubles! vertex-byte-offset semantic-type buffer-data-type element-count normalize vertices)
-                        (catch Exception e
-                          (throw (decorate-attribute-exception e attribute (first vertices))))))]
-
-                (case semantic-type
-                  :semantic-type-position
-                  (if (= (:coordinate-space attribute) :coordinate-space-local)
-                    (put-renderables! attribute-byte-offset :position-data put-attribute-doubles!)
-                    (let [renderable-data->world-position
-                          (case element-count
-                            3 renderable-data->world-position-v3
-                            4 renderable-data->world-position-v4)]
-                      (put-renderables! attribute-byte-offset renderable-data->world-position put-attribute-doubles!)))
-
-                  :semantic-type-texcoord
-                  (put-renderables! attribute-byte-offset :uv-data put-attribute-doubles!)
-
-                  :semantic-type-page-index
-                  (put-renderables! attribute-byte-offset
-                                    (fn [renderable-data]
-                                      (let [vertex-count (count (:position-data renderable-data))
-                                            page-index (:page-index renderable-data)]
-                                        (repeat vertex-count [(double page-index)])))
-                                    put-attribute-doubles!)
-
-                  ;; Default case.
-                  (put-renderables! attribute-byte-offset
-                                    (fn [renderable-data]
-                                      (let [vertex-count (count (:position-data renderable-data))
-                                            attribute-bytes (get (:vertex-attribute-bytes renderable-data) name-key)]
-                                        (repeat vertex-count attribute-bytes)))
-                                    put-attribute-bytes!))
-
-                (+ attribute-byte-offset
-                   (vtx/attribute-size attribute))))
-            0
-            (:attributes vertex-description))
-    (.position buf (.limit buf))
-    (vtx/flip! vbuf)))
+  (let [renderable-datas (mapv renderable-data renderables)]
+    (graphics/put-attributes! vbuf renderable-datas)))
 
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
   (.set pt x y 0)
@@ -307,7 +200,7 @@
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)
-            shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index])
+            shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index] :coordinate-space-world)
             vertex-description (graphics/make-vertex-description shader-bound-attributes)
             vbuf (into-vertex-buffer (vtx/make-vertex-buffer vertex-description :dynamic (* num-quads 6)) renderables)
             vertex-binding (vtx/use-with ::sprite-trans vbuf shader)
@@ -345,7 +238,7 @@
     :size (v3->v4 manual-size)
     :offset offset
     :playback-rate playback-rate
-    :attributes (graphics/attributes->save-values material-attribute-infos vertex-attribute-overrides)))
+    :attributes (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)))
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader animation blend-mode size-mode size slice9 material-attribute-infos vertex-attribute-bytes]
@@ -411,7 +304,7 @@
                                              :slice9 slice9
                                              :offset offset
                                              :playback-rate playback-rate
-                                             :attributes (graphics/attributes->build-target material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)}
+                                             :attributes (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)}
                                             [:tile-set :material])]))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
@@ -554,13 +447,6 @@
           (nil? (:material sprite))
           (assoc :material default-material-proj-path)))
 
-(defn- attributes->overrides [attributes]
-  (into {}
-        (map (fn [attribute]
-               [(graphics/attribute-name->key (:name attribute))
-                (graphics/attribute->any-doubles attribute)]))
-        attributes))
-
 (defn- load-sprite [project self resource sprite]
   (let [resolve-resource #(workspace/resolve-resource resource %)]
     (concat
@@ -575,7 +461,7 @@
         image (resolve-resource :tile-set)
         offset :offset
         playback-rate :playback-rate
-        vertex-attribute-overrides (attributes->overrides :attributes)))))
+        vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides :attributes)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

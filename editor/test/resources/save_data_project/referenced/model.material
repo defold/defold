@@ -89,3 +89,171 @@ attributes {
     v: 0
   }
 }
+attributes {
+  name: "normalized_byte"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_BYTE
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_unsigned_byte"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_UNSIGNED_BYTE
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_short"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_SHORT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_unsigned_short"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_UNSIGNED_SHORT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_int"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_INT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_unsigned_int"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_UNSIGNED_INT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "normalized_float"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  element_count: 3
+  normalize: true
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "byte"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_BYTE
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "unsigned_byte"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_UNSIGNED_BYTE
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "short"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_SHORT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "unsigned_short"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_UNSIGNED_SHORT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "int"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_INT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "unsigned_int"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_UNSIGNED_INT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  long_values {
+    v: 1
+  }
+}
+attributes {
+  name: "float"
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 1
+  normalize: false
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_WORLD
+  double_values {
+    v: 1.0
+  }
+}

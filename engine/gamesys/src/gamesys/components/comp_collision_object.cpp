@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,6 +19,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/static_assert.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/profile.h>
 
@@ -35,7 +36,6 @@
 
 #include <gamesys/atlas_ddf.h>
 #include <gamesys/texture_set_ddf.h>
-#include <gamesys/physics_ddf.h>
 #include <gamesys/gamesys_ddf.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
@@ -62,7 +62,6 @@ namespace dmGameSystem
     static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashString64("angular_velocity");
     static const dmhash_t PROP_MASS = dmHashString64("mass");
     static const dmhash_t PROP_BULLET = dmHashString64("bullet");
-
 
     struct CollisionComponent;
     struct JointEndPoint;
@@ -107,6 +106,8 @@ namespace dmGameSystem
 
         /// Linked list of joints TO this component.
         JointEndPoint* m_JointEndPoints;
+
+        dmPhysics::HCollisionShape3D* m_ShapeBuffer;
 
         uint16_t m_Mask;
         uint16_t m_ComponentIndex;
@@ -181,6 +182,8 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
+        DM_STATIC_ASSERT(sizeof(ShapeInfo::m_BoxDimensions) <= sizeof(dmVMath::Vector3), Invalid_Struct_Size);
+
         if (params.m_MaxComponentInstances == 0)
         {
             *params.m_World = 0x0;
@@ -457,6 +460,7 @@ namespace dmGameSystem
         component->m_JointEndPoints = 0x0;
         component->m_FlippedX = 0;
         component->m_FlippedY = 0;
+        component->m_ShapeBuffer = 0;
 
         CollisionWorld* world = (CollisionWorld*)params.m_World;
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
@@ -481,6 +485,8 @@ namespace dmGameSystem
         PhysicsContext* physics_context = (PhysicsContext*)params.m_Context;
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
         CollisionWorld* world = (CollisionWorld*)params.m_World;
+
+        delete[] component->m_ShapeBuffer;
 
         // Destroy joint ends
         JointEndPoint* joint_end = component->m_JointEndPoints;
@@ -1674,6 +1680,202 @@ namespace dmGameSystem
         {
             return dmPhysics::GetGravity2D(world->m_World2D);
         }
+    }
+
+    static void CalculateBoxDimensions2D(float* vertices, uint32_t vertex_count, float* dimension2d)
+    {
+        float min_x = INT32_MAX,
+              min_y = INT32_MAX,
+              max_x = -INT32_MAX,
+              max_y = -INT32_MAX;
+
+        for (int i = 0; i < vertex_count * 2; i += 2)
+        {
+            min_x = dmMath::Min(min_x, vertices[i]);
+            max_x = dmMath::Max(max_x, vertices[i]);
+            min_y = dmMath::Min(min_y, vertices[i+1]);
+            max_y = dmMath::Max(max_y, vertices[i+1]);
+        }
+
+        dimension2d[0] = (max_x - min_x) * 0.5f;
+        dimension2d[1] = (max_y - min_y) * 0.5f;
+        dimension2d[2] = 1.0f;
+    }
+
+    bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out)
+    {
+        CollisionComponent* component = (CollisionComponent*) _component;
+        uint32_t shape_count = component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes.m_Count;
+        for (int i = 0; i < shape_count; ++i)
+        {
+            if (component->m_Resource->m_DDF->m_EmbeddedCollisionShape.m_Shapes[i].m_IdHash == shape_name_hash)
+            {
+                *index_out = i;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static inline dmPhysics::HCollisionShape3D GetShape3D(CollisionComponent* component, uint32_t shape_index)
+    {
+        if (component->m_ShapeBuffer)
+            return component->m_ShapeBuffer[shape_index];
+        return dmPhysics::GetCollisionShape3D(component->m_Object3D, shape_index);
+    }
+
+    bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info)
+    {
+        CollisionWorld* world         = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*) _component;
+        uint32_t shape_count          = component->m_Resource->m_ShapeCount;
+
+        if (shape_ix >= shape_count)
+        {
+            return false;
+        }
+
+        shape_info->m_Type = component->m_Resource->m_ShapeTypes[shape_ix];
+
+        if (world->m_3D)
+        {
+            dmPhysics::HCollisionShape3D shape3d = GetShape3D(component, shape_ix);
+
+            switch(shape_info->m_Type)
+            {
+                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
+                {
+                    float sphere_radius;
+                    dmPhysics::GetCollisionShapeRadius3D(shape3d, &sphere_radius);
+                    shape_info->m_SphereDiameter = sphere_radius * 2.0f;
+                } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
+                {
+                    float half_extents[3];
+                    dmPhysics::GetCollisionShapeHalfBoxExtents3D(shape3d, half_extents);
+                    shape_info->m_BoxDimensions[0] = half_extents[0] * 2.0f;
+                    shape_info->m_BoxDimensions[1] = half_extents[1] * 2.0f;
+                    shape_info->m_BoxDimensions[2] = half_extents[2] * 2.0f;
+                } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
+                {
+                    float radius, half_height;
+                    dmPhysics::GetCollisionShapeCapsuleRadiusHeight3D(shape3d, &radius, &half_height);
+                    shape_info->m_CapsuleDiameterHeight[0] = radius * 2.0f;
+                    shape_info->m_CapsuleDiameterHeight[1] = half_height * 2.0f;
+                } break;
+                default: assert(0);
+            }
+        }
+        else
+        {
+            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(component->m_Object2D, shape_ix);
+
+            switch(shape_info->m_Type)
+            {
+                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
+                {
+                    dmPhysics::GetCollisionShapeRadius2D(shape2d, &shape_info->m_SphereDiameter);
+                } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
+                {
+                    float* vertices;
+                    uint32_t vertex_count;
+                    dmPhysics::GetCollisionShapePolygonVertices2D(shape2d, &vertices, &vertex_count);
+                    CalculateBoxDimensions2D(vertices, vertex_count, shape_info->m_BoxDimensions);
+                } break;
+                default: assert(0);
+            }
+        }
+        return true;
+    }
+
+    static void ReplaceAndDeleteShape3D(dmPhysics::HContext3D context,
+        CollisionComponent* component,
+        dmPhysics::HCollisionShape3D old_shape,
+        dmPhysics::HCollisionShape3D new_shape,
+        uint32_t shape_index)
+    {
+        uint32_t shape_count = component->m_Resource->m_ShapeCount;
+
+        // The direction table is needed for component that has a box shape,
+        // because it is the only shape that currently needs to alter the shape hierarchy
+        // of a collision object.
+        if (!component->m_ShapeBuffer)
+        {
+            component->m_ShapeBuffer = new dmPhysics::HCollisionShape3D[shape_count];
+            uint32_t res = dmPhysics::GetCollisionShapes3D(component->m_Object3D, component->m_ShapeBuffer, shape_count);
+            assert(res == shape_count);
+        }
+
+        dmPhysics::ReplaceShape3D(context, old_shape, new_shape);
+        dmPhysics::ReplaceShape3D(component->m_Object3D, old_shape, new_shape);
+        dmPhysics::DeleteCollisionShape3D(old_shape);
+
+        component->m_ShapeBuffer[shape_index] = new_shape;
+    }
+
+    bool SetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info)
+    {
+        CollisionWorld* world         = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*) _component;
+        uint32_t shape_count          = component->m_Resource->m_ShapeCount;
+
+        if (shape_ix >= shape_count)
+        {
+            return false;
+        }
+
+        if (world->m_3D)
+        {
+            dmPhysics::HCollisionShape3D shape3d = GetShape3D(component, shape_ix);
+
+            switch(shape_info->m_Type)
+            {
+                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
+                {
+                    dmPhysics::SetCollisionShapeRadius3D(shape3d, shape_info->m_SphereDiameter * 0.5f);
+                } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
+                {
+                    dmPhysics::HCollisionShape3D new_shape = dmPhysics::NewBoxShape3D(dmPhysics::GetContext3D(world->m_World3D),
+                        dmVMath::Vector3(shape_info->m_BoxDimensions[0] * 0.5f,
+                                         shape_info->m_BoxDimensions[1] * 0.5f,
+                                         shape_info->m_BoxDimensions[2] * 0.5f));
+
+                    ReplaceAndDeleteShape3D(dmPhysics::GetContext3D(world->m_World3D), component, shape3d, new_shape, shape_ix);
+                } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_CAPSULE:
+                {
+                    dmPhysics::HCollisionShape3D new_shape = dmPhysics::NewCapsuleShape3D(dmPhysics::GetContext3D(world->m_World3D),
+                        shape_info->m_CapsuleDiameterHeight[0] * 0.5f,
+                        shape_info->m_CapsuleDiameterHeight[1]);
+
+                    ReplaceAndDeleteShape3D(dmPhysics::GetContext3D(world->m_World3D), component, shape3d, new_shape, shape_ix);
+                } break;
+                default: assert(0);
+            }
+        }
+        else
+        {
+            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(component->m_Object2D, shape_ix);
+
+            switch(shape_info->m_Type)
+            {
+                case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
+                {
+                    dmPhysics::SetCollisionShapeRadius2D(shape2d, shape_info->m_SphereDiameter);
+                    dmPhysics::SynchronizeObject2D(component->m_Object2D);
+                } break;
+                case dmPhysicsDDF::CollisionShape::TYPE_BOX:
+                {
+                    dmPhysics::SetCollisionShapeBoxDimensions2D(shape2d, shape_info->m_BoxDimensions[0], shape_info->m_BoxDimensions[1]);
+                } break;
+                default: assert(0);
+            }
+        }
+
+        return true;
     }
 
     dmhash_t CompCollisionObjectGetIdentifier(void* _component)

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -2840,6 +2840,19 @@ bail:
      *     go.set_position(go.get_position() + dt * self.my_velocity)
      * end
      * ```
+     */
+
+    /*# called at fixed intervals to update the script component
+     *
+     * This is a callback-function, which is called by the engine at fixed intervals to update the state of a script
+     * component. The function will be called if 'Fixed Update Frequency' is enabled in the Engine section of game.project.
+     * It can for instance be used to update game logic with the physics simulation if using a fixed timestep for the
+     * physics (enabled by ticking 'Use Fixed Timestep' in the Physics section of game.project).
+     *
+     * @name fixed_update
+     * @param self [type:object] reference to the script state to be used for storing data
+     * @param dt [type:number] the time-step of the frame update
+     * @examples
      */
 
     /*# called when a message has been sent to the script component

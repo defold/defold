@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -106,6 +106,10 @@
    {:label "New"
     :command :new-file
     :expand? true
+    :icon "icons/64/Icons_29-AT-Unknown.png"}
+   {:label "New File"
+    :command :new-file
+    :user-data {:any-file true}
     :icon "icons/64/Icons_29-AT-Unknown.png"}
    {:label "New Folder"
     :command :new-folder
@@ -430,10 +434,11 @@
                 {:title "Delete Files?"
                  :icon :icon/circle-question
                  :header "Are you sure you want to delete these files?"
-                 :content {:text (str "You are about to delete:\n" (->> selection
-                                                    (map #(str "\u00A0\u00A0\u2022\u00A0"
-                                                              (resource/resource-name %)))
-                                                    (string/join "\n")))}
+                 :content {:text (str "You are about to delete:\n"
+                                      (->> selection
+                                           (map #(str "\u00A0\u00A0\u2022\u00A0"
+                                                      (resource/resource-name %)))
+                                           (string/join "\n")))}
                  :buttons [{:text "Cancel"
                             :cancel-button true
                             :default-button true
@@ -465,35 +470,49 @@
                                                                                             resource/abs-path)))))
   (enabled? [] (disk-availability/available?))
   (run [selection user-data asset-browser app-view prefs workspace project]
-       (let [project-path (workspace/project-path workspace)
-             base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
-                                   first
-                                   resource/abs-path
-                                   (File.))
-                                 project-path)
-                             fs/to-folder)
-             rt (:resource-type user-data)]
-         (when-let [desired-file (dialogs/make-new-file-dialog project-path base-folder (or (:label rt) (:ext rt)) (:ext rt))]
-           (when-let [[[_ new-file]] (resolve-any-conflicts [[nil desired-file]])]
-             (let [template (workspace/template workspace rt)]
-               (create-template-file! template new-file))
-             (workspace/resource-sync! workspace)
-             (let [resource-map (g/node-value workspace :resource-map)
-                   new-resource-path (resource/file->proj-path project-path new-file)
-                   resource (resource-map new-resource-path)]
-               (app-view/open-resource app-view prefs workspace project resource)
-               (select-resource! asset-browser resource))))))
+    (let [project-path (workspace/project-path workspace)
+          base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
+                                first
+                                resource/abs-path
+                                (File.))
+                              project-path)
+                          fs/to-folder)
+          rt (:resource-type user-data)
+          any-file (:any-file user-data false)]
+      (when-let [desired-file (dialogs/make-new-file-dialog
+                                project-path
+                                base-folder
+                                (when-not any-file
+                                  (or (:label rt) (:ext rt)))
+                                (:ext rt))]
+        (when-let [[[_ ^File new-file]] (resolve-any-conflicts [[nil desired-file]])]
+          (let [rt (if (and any-file (not rt))
+                     (when-let [ext (second (re-find #"\.(.+)$" (.getName new-file)))]
+                       (workspace/get-resource-type workspace ext))
+                     rt)
+                template (or (workspace/template workspace rt) "")]
+            (create-template-file! template new-file))
+          (workspace/resource-sync! workspace)
+          (let [resource-map (g/node-value workspace :resource-map)
+                new-resource-path (resource/file->proj-path project-path new-file)
+                resource (resource-map new-resource-path)]
+            (app-view/open-resource app-view prefs workspace project resource)
+            (select-resource! asset-browser resource))))))
   (options [workspace selection user-data]
-           (when (not user-data)
-             (sort-by (comp string/lower-case :label)
-                      (keep (fn [[_ext resource-type]]
-                              (when (workspace/has-template? workspace resource-type)
-                                {:label (or (:label resource-type) (:ext resource-type))
-                                 :icon (:icon resource-type)
-                                 :style (resource/ext-style-classes (:ext resource-type))
-                                 :command :new-file
-                                 :user-data {:resource-type resource-type}}))
-                            (workspace/get-resource-type-map workspace))))))
+    (when (not user-data)
+      (sort-by (comp string/lower-case :label)
+               (into [{:label "File"
+                       :icon "icons/64/Icons_29-AT-Unknown.png"
+                       :command :new-file
+                       :user-data {:any-file true}}]
+                     (keep (fn [[_ext resource-type]]
+                             (when (workspace/has-template? workspace resource-type)
+                               {:label (or (:label resource-type) (:ext resource-type))
+                                :icon (:icon resource-type)
+                                :style (resource/ext-style-classes (:ext resource-type))
+                                :command :new-file
+                                :user-data {:resource-type resource-type}})))
+                     (workspace/get-resource-type-map workspace))))))
 
 (defn- resolve-sub-folder [^File base-folder ^String new-folder-name]
   (.toFile (.resolve (.toPath base-folder) new-folder-name)))

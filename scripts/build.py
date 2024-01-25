@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,10 +15,10 @@
 
 # add build_tools folder to the import search path
 import sys, os, platform
-from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
+from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath, splitext
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
-import shutil, zipfile, re, itertools, json, platform, math, mimetypes
+import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import run
@@ -94,18 +94,18 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.3.261.1".split()
-PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
-PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 moltenvk-1.3.261.1".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslc-40bced4 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-40bced4 moltenvk-1.3.261.1 lipo-9ffdea2".split() # sassc-5472db213ec223a67482df2226622be372921847
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.3.261.1 lipo-9ffdea2".split()
-PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108 lipo-9ffdea2".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.3.261.1".split()
+PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-b0cb4d1".split()
+PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslc-31bddbb moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-2.7.1".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-40bced4 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-2.7.1".split() # sassc-5472db213ec223a67482df2226622be372921847
+PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-2.7.1".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.3.261.1 lipo-9ffdea2 glfw-2.7.1".split()
+PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -132,10 +132,10 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib texc modelc ddf glfw platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+ENGINE_LIBS = "testmain dlib texc modelc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc".split()
 
-EXTERNAL_LIBS = "bullet3d".split()
+EXTERNAL_LIBS = "glfw bullet3d".split()
 
 def get_host_platform():
     return sdk.get_host_platform()
@@ -743,9 +743,26 @@ class Configuration(object):
 
             zip.close()
 
+    def _create_sha256_signature_file(self, input_filepath):
+        file_sha256 = hashlib.sha256()
+        with open(input_filepath, 'rb') as source_archive:
+            for byte_block in iter(lambda: source_archive.read(4096), b""):
+                file_sha256.update(byte_block)
+            source_archive.close()
+
+        print("File {} sha256 signature is {}".format(input_filepath, file_sha256.hexdigest()))
+        sig_filename = None
+        with open(splitext(input_filepath)[0] + '.sha256', 'w') as sig_file:
+            sig_filename = sig_file.name
+            sig_file.write(file_sha256.hexdigest())
+            sig_file.close()
+        return sig_filename
+
     # package the native SDK, return the path to the zip file
+    # and path to zip sha256 signature file
     def _package_platform_sdk(self, platform):
-        with open(join(self.dynamo_home, 'defoldsdk.zip'), 'wb') as outfile:
+        sdk_archive_path = join(self.dynamo_home, 'defoldsdk.zip')
+        with open(sdk_archive_path, 'wb') as outfile:
             zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
 
             topfolder = 'defoldsdk'
@@ -820,7 +837,8 @@ class Configuration(object):
 
                 # Android Jars (external)
                 external_jars = ("android-support-multidex.jar",
-                                 "androidx-multidex.jar")
+                                 "androidx-multidex.jar",
+                                 "glfw_android.jar")
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -834,18 +852,16 @@ class Configuration(object):
             if platform in ['js-web']:
                 # JavaScript files
                 # js-web-pre-x files
-                jsdir = os.path.join(self.dynamo_home, 'share')
-                paths = _findjslibs(jsdir)
-                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-
-                jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
-                paths = _findjslibs(jsdir)
-                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+                for subdir in ['share', 'lib/js-web/js/', 'ext/lib/js-web/js/']:
+                    jsdir = os.path.join(self.dynamo_home, subdir)
+                    paths = _findjslibs(jsdir)
+                    self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             if platform in ['wasm-web']:
-                jsdir = os.path.join(self.dynamo_home, 'lib/wasm-web/js/')
-                paths = _findjslibs(jsdir)
-                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+                for subdir in ['lib/wasm-web/js/', 'ext/lib/wasm-web/js/']:
+                    jsdir = os.path.join(self.dynamo_home, subdir)
+                    paths = _findjslibs(jsdir)
+                    self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             if platform in ['x86_64-ps4', 'x86_64-ps5']:
                 memory_init = os.path.join(self.dynamo_home, 'ext/lib/%s/memory_init.o' % platform)
@@ -907,17 +923,19 @@ class Configuration(object):
                 print(x)
 
             zip.close()
-            return outfile.name
-        return None
+
+            sig_filename = self._create_sha256_signature_file(sdk_archive_path)
+            return outfile.name, sig_filename
+        return None, None
 
     def build_platform_sdk(self):
         # Helper function to make it easier to build a platform sdk locally
         try:
-            path = self._package_platform_sdk(self.target_platform)
+            path, sig_path = self._package_platform_sdk(self.target_platform)
         except Exception as e:
             print ("Failed to package sdk for platform %s: %s" % (self.target_platform, e))
         else:
-            print ("Wrote %s" % path)
+            print ("Wrote %s, %s" % (path, sig_path))
 
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
@@ -1024,8 +1042,9 @@ class Configuration(object):
                 lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
                 self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
-        sdkpath = self._package_platform_sdk(self.target_platform)
+        sdkpath, sdk_sig_path = self._package_platform_sdk(self.target_platform)
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
+        self.upload_to_archive(sdk_sig_path, '%s/defoldsdk.sha256' % full_archive_path)
 
     def _can_run_tests(self):
         supported_tests = {}
@@ -1341,6 +1360,10 @@ class Configuration(object):
 
         sdkurl = join(sha1, 'engine').replace('\\', '/')
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % sdkurl)
+
+        print("Create sdk signature")
+        sig_filename = self._create_sha256_signature_file(sdkpath)
+        self.upload_to_archive(join(dirname(sdkpath), sig_filename), '%s/defoldsdk.sha256' % sdkurl)
 
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)

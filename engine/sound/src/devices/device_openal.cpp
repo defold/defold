@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,7 +36,8 @@ namespace dmDeviceOpenAL
     {
         ALCdevice*      m_Device;
         ALCcontext*     m_Context;
-        dmArray<ALuint> m_Buffers;
+        dmArray<ALuint> m_AllBuffers;   // All original buffers
+        dmArray<ALuint> m_Buffers;      // The pool
         ALuint          m_Source;
         uint32_t        m_MixRate;
 
@@ -90,10 +91,17 @@ namespace dmDeviceOpenAL
         openal->m_Device = al_device;
         openal->m_Context = al_context;
 
-        openal->m_Buffers.SetCapacity(params->m_BufferCount);
-        openal->m_Buffers.SetSize(params->m_BufferCount);
-        alGenBuffers(params->m_BufferCount, openal->m_Buffers.Begin());
+        openal->m_AllBuffers.SetCapacity(params->m_BufferCount);
+        openal->m_AllBuffers.SetSize(params->m_BufferCount);
+        openal->m_Buffers.SetCapacity(openal->m_AllBuffers.Capacity());
+        openal->m_Buffers.SetSize(openal->m_AllBuffers.Capacity());
+        alGenBuffers(params->m_BufferCount, openal->m_AllBuffers.Begin());
         CheckAndPrintError();
+
+        for (uint32_t i = 0; i < params->m_BufferCount; ++i)
+        {
+            openal->m_Buffers[i] = openal->m_AllBuffers[i];
+        }
 
         alGenSources(1, &openal->m_Source);
         CheckAndPrintError();
@@ -120,44 +128,12 @@ namespace dmDeviceOpenAL
         alcProcessContext(openal->m_Context);
 
         alSourceStop(openal->m_Source);
-
-        int iter = 0;
-        while (openal->m_Buffers.Size() != openal->m_Buffers.Capacity())
-        {
-            ALint num_queued = 0;
-            alcProcessContext(openal->m_Context);
-            alGetSourcei(openal->m_Source, AL_BUFFERS_QUEUED, &num_queued);
-            CheckAndPrintError();
-
-            while (num_queued > 0) {
-                ALuint buffer;
-                alSourceUnqueueBuffers(openal->m_Source, 1, &buffer);
-                if (CheckAndPrintError() != AL_NO_ERROR)
-                {
-                    dmLogError("Still buffers in OpenAL. Bailing.");
-                    break;
-                }
-
-                openal->m_Buffers.Push(buffer);
-
-                alGetSourcei(openal->m_Source, AL_BUFFERS_QUEUED, &num_queued);
-            }
-
-            if ((iter + 1) % 10 == 0) {
-                dmLogInfo("Waiting for OpenAL device to complete");
-            }
-            ++iter;
-            dmTime::Sleep(10 * 1000);
-
-            if (iter > 1000) {
-                dmLogError("Still buffers in OpenAL. Bailing.");
-                break;
-            }
-        }
+        CheckAndPrintError();
 
         alDeleteSources(1, &openal->m_Source);
+        CheckAndPrintError();
 
-        alDeleteBuffers(openal->m_Buffers.Size(), openal->m_Buffers.Begin());
+        alDeleteBuffers(openal->m_AllBuffers.Size(), openal->m_AllBuffers.Begin());
         CheckAndPrintError();
 
         bool active = alcMakeContextCurrent(0);

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -77,7 +77,7 @@ public class BundleHelper {
     private Project project;
     private Platform platform;
     private BobProjectProperties projectProperties;
-    private IBundler bundler;
+    private IBundler platformBundler;
     private String title;
     private File buildDir;
     private File appDir;
@@ -99,10 +99,17 @@ public class BundleHelper {
         }
     }
 
+    public IBundler getOrCreateBundler() throws CompileExceptionError {
+        if (this.platformBundler == null) {
+            this.platformBundler = this.project.createBundler(this.platform);
+        }
+        return this.platformBundler;
+    }
+
     public BundleHelper(Project project, Platform platform, File bundleDir, String variant) throws CompileExceptionError {
         this.projectProperties = project.getProjectProperties();
         this.propertiesMap = this.projectProperties.createTypedMap(new BobProjectProperties.PropertyType[]{BobProjectProperties.PropertyType.BOOL});
-        this.bundler = project.createBundler(platform);
+        this.platformBundler = null;
 
         this.project = project;
         this.platform = platform;
@@ -213,6 +220,8 @@ public class BundleHelper {
 
         properties.put("exe-name", exeName);
 
+        IBundler bundler = getOrCreateBundler();
+
         // The new code path we wish to use
         mainManifest = bundler.getManifestResource(project, platform);
         if (mainManifest == null) {
@@ -249,12 +258,14 @@ public class BundleHelper {
         return resolvedManifests;
     }
 
-    private File getAppManifestFile(Platform platform, File appDir) {
+    private File getAppManifestFile(Platform platform, File appDir) throws CompileExceptionError {
+        IBundler bundler = getOrCreateBundler();
         String name = bundler.getMainManifestTargetPath(platform);
         return new File(appDir, name);
     }
 
-    private String getMainManifestName(Platform platform) {
+    private String getMainManifestName(Platform platform) throws CompileExceptionError {
+        IBundler bundler = getOrCreateBundler();
         return bundler.getMainManifestName(platform);
     }
 

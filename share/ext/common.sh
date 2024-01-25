@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -47,7 +47,7 @@ if [ "Darwin" == "$(uname)" ]; then
     fi
 fi
 
-ANDROID_NDK_VERSION=20
+ANDROID_NDK_VERSION=25b
 ANDROID_NDK_ROOT=${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}
 
 ANDROID_VERSION=19 # Android 4.4
@@ -261,7 +261,7 @@ function cmi_setup_cc() {
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch arm64 -isysroot ${IOS_SDK_ROOT}"
-            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++"
+            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} "
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
             export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
@@ -280,7 +280,7 @@ function cmi_setup_cc() {
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch x86_64 -target x86_64-apple-darwin19 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
-            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++"
+            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} "
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
             export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
@@ -298,9 +298,9 @@ function cmi_setup_cc() {
 
             # Note: no-c++11-narrowing is added for the upgrade from NDK 10e to 20. Clang is much more vigilant than gcc,
             #       so to save time by not having to patch bullet (and others presumably) we skip narrowing.
-            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID -Wno-c++11-narrowing"
+            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__ARM_ARCH_5__ -D__ARM_ARCH_5T__ -D__ARM_ARCH_5E__ -D__ARM_ARCH_5TE__  -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -mthumb -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID "
             export CPPFLAGS=${CFLAGS}
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"
+            export CXXFLAGS="${CXXFLAGS} -Wno-c++11-narrowing -stdlib=libc++ ${CFLAGS}"
             export LDFLAGS="-isysroot ${sysroot} -Wl,--fix-cortex-a8  -Wl,--no-undefined -Wl,-z,noexecstack"
 
             export CPP="${llvm}/armv7a-linux-androideabi${ANDROID_VERSION}-clang -E"
@@ -318,9 +318,9 @@ function cmi_setup_cc() {
             local llvm="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
             local sysroot="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
 
-            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID -Wno-c++11-narrowing"
+            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -D__aarch64__  -march=armv8-a -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID "
             export CPPFLAGS=${CFLAGS}
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ ${CFLAGS}"
+            export CXXFLAGS="${CXXFLAGS} -Wno-c++11-narrowing -stdlib=libc++ ${CFLAGS}"
             export CPP="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang -E"
             export CC="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang"
             export CXX="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang++"
@@ -336,7 +336,7 @@ function cmi_setup_cc() {
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export SDKROOT="${OSX_SDK_ROOT}"
             export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
-            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} "
             export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
             export LDFLAGS="${LDFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
 
@@ -355,13 +355,13 @@ function cmi_setup_cc() {
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
             export SDKROOT="${OSX_SDK_ROOT}"
             export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
-            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
-            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
+            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -arch arm64 -target arm64-apple-darwin19 -m64 "
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -arch arm64 -target arm64-apple-darwin19 -m64 -stdlib=libc++ "
             export LDFLAGS="${LDFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION}"
 
-            export CPP="arch -arm64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
-            export CC="arch -arm64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
-            export CXX="arch -arm64 $DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++"
+            export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
+            export CXX="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang++"
             export AR=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;

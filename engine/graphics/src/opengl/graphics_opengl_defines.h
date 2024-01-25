@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -41,6 +41,7 @@
 #include <win32/glut.h>
 
 #include "win32/glext.h"
+#include "win32/glcorearb.h"
 
 #elif defined (ANDROID)
 #define GL_GLEXT_PROTOTYPES
@@ -55,15 +56,15 @@
 #endif
 
 #ifdef __ANDROID__
-	#define DMGRAPHICS_TEX_IMAGE_3D                PFN_glTexImage3D
-	#define DMGRAPHICS_TEX_SUB_IMAGE_3D            PFN_glTexSubImage3D
-	#define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     PFN_glCompressedTexImage3D
-	#define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D PFN_glCompressedTexSubImage3D
+    #define DMGRAPHICS_TEX_IMAGE_3D                PFN_glTexImage3D
+    #define DMGRAPHICS_TEX_SUB_IMAGE_3D            PFN_glTexSubImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     PFN_glCompressedTexImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D PFN_glCompressedTexSubImage3D
 #else
-	#define DMGRAPHICS_TEX_IMAGE_3D                glTexImage3D
-	#define DMGRAPHICS_TEX_SUB_IMAGE_3D            glTexSubImage3D
-	#define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     glCompressedTexImage3D
-	#define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D glCompressedTexSubImage3D
+    #define DMGRAPHICS_TEX_IMAGE_3D                glTexImage3D
+    #define DMGRAPHICS_TEX_SUB_IMAGE_3D            glTexSubImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     glCompressedTexImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D glCompressedTexSubImage3D
 #endif
 
 // Types
@@ -85,9 +86,9 @@
 
 // Texture arrays
 #ifdef GL_SAMPLER_2D_ARRAY
-#define DMGRAPHICS_SAMPLER_2D_ARRAY 						(GL_SAMPLER_2D_ARRAY)
+#define DMGRAPHICS_SAMPLER_2D_ARRAY                         (GL_SAMPLER_2D_ARRAY)
 #else
-#define DMGRAPHICS_SAMPLER_2D_ARRAY 						(0x8DC1)
+#define DMGRAPHICS_SAMPLER_2D_ARRAY                         (0x8DC1)
 #endif
 
 #ifdef GL_DEPTH_STENCIL_OES
@@ -416,6 +417,12 @@
 #define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ALPHA8_ASTC_4x4_KHR (GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ALPHA8_ASTC_4x4_KHR 0x93D0
+#endif
+
+#ifdef GL_COMPUTE_SHADER
+#define DMGRAPHICS_TYPE_COMPUTE_SHADER                      (GL_COMPUTE_SHADER)
+#else
+#define DMGRAPHICS_TYPE_COMPUTE_SHADER                      (0x91B9)
 #endif
 
 #endif // DMGRAPHICS_OPENGL_DEFINES_H

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -764,14 +764,12 @@ namespace dmSound
         int ss_index = (g->m_NextMemorySlot - 1) % GROUP_MEMORY_BUFFER_COUNT;
         float max_peak_left_sq = 0;
         float max_peak_right_sq = 0;
-        int count = 0;
         while (left > 0) {
             max_peak_left_sq = dmMath::Max(max_peak_left_sq, g->m_PeakMemorySq[2 * ss_index + 0]);
             max_peak_right_sq = dmMath::Max(max_peak_right_sq, g->m_PeakMemorySq[2 * ss_index + 1]);
 
             left -= sound->m_FrameCount;
             ss_index = (ss_index - 1) % GROUP_MEMORY_BUFFER_COUNT;
-            count++;
         }
 
         *peak_left = sqrtf(max_peak_left_sq) / 32767.0f;

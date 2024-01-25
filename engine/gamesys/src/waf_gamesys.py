@@ -1,12 +1,12 @@
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -86,6 +86,7 @@ def transform_collisionobject(task, msg):
     import physics_ddf_pb2
     import google.protobuf.text_format
     import ddf.ddf_math_pb2
+    import dlib
     if msg.type != physics_ddf_pb2.COLLISION_OBJECT_TYPE_DYNAMIC:
         msg.mass = 0
 
@@ -108,6 +109,9 @@ def transform_collisionobject(task, msg):
                 msg.embedded_collision_shape.data.append(x)
 
         msg.collision_shape = ''
+
+    for x in msg.embedded_collision_shape.shapes:
+        x.id_hash = dlib.dmHashBuffer64(x.id)
 
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
     msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilemapc')
@@ -253,13 +257,13 @@ waflib.Task.task_factory('computeshader', '${JAVA} -classpath ${CLASSPATH} com.d
                       before='c cxx',
                       shell=False)
 
-@extension('.compute')
+@extension('.cp')
 def fragmentprogram_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
     shader = self.create_task('computeshader')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.set_inputs(node)
-    obj_ext = '.computec'
+    obj_ext = '.cpc'
     out = node.change_ext(obj_ext)
     shader.set_outputs(out)
 
@@ -344,6 +348,10 @@ def transform_sprite(task, msg):
 
     for st in msg.textures:
         st.texture = transform_tilesource_name(st.texture)
+    return msg
+
+def transform_compute_program(task, msg):
+    msg.program = msg.program.replace('.cp', '.cpc')
     return msg
 
 def transform_tilegrid(task, msg):
@@ -500,6 +508,7 @@ proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilema
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilemapc', transform_tilegrid)
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
+proto_compile_task('compute_program', 'render.compute_program_ddf_pb2', 'compute_program_ddf_pb2.ComputeProgramDesc', '.compute_program', '.compute_programc', transform_compute_program)
 
 new_copy_task('project', '.project', '.projectc')
 

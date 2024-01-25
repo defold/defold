@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -167,7 +167,8 @@
     :semantic-type-position Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_POSITION_VALUE
     :semantic-type-texcoord Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_TEXCOORD_VALUE
     :semantic-type-page-index Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_PAGE_INDEX_VALUE
-    :semantic-type-color Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_COLOR_VALUE))
+    :semantic-type-color Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_COLOR_VALUE
+    :semantic-type-normal Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_NORMAL_VALUE))
 
 (defn- coordinate-space->int [coordinate-space]
   (case coordinate-space

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -46,7 +46,9 @@ namespace dmPhysics
         JOINT_TYPE_HINGE,
         JOINT_TYPE_SLIDER,
         JOINT_TYPE_WELD,
-        JOINT_TYPE_COUNT
+        JOINT_TYPE_WHEEL,
+        JOINT_TYPE_COUNT,
+
     };
 
     enum JointResult
@@ -326,6 +328,8 @@ namespace dmPhysics
      * @return 2D world
      */
     HWorld2D NewWorld2D(HContext2D context, const NewWorldParams& params);
+
+    HContext3D GetContext3D(HWorld3D world);
 
     /**
      * Delete a 3D physics world
@@ -1321,6 +1325,18 @@ namespace dmPhysics
                 float m_FrequencyHz;
                 float m_DampingRatio;
             } m_WeldJointParams;
+
+            struct
+            {
+                float m_JointTranslation; // read only
+                float m_JointSpeed; // read only
+                float m_LocalAxisA[3];
+                float m_MaxMotorTorque;
+                float m_MotorSpeed;
+                bool  m_EnableMotor;
+                float m_FrequencyHz;
+                float m_DampingRatio;
+            } m_WheelJointParams;
         };
 
         ConnectJointParams()
@@ -1367,6 +1383,16 @@ namespace dmPhysics
                     m_WeldJointParams.m_FrequencyHz = 0.0f;
                     m_WeldJointParams.m_DampingRatio = 0.0f;
                     break;
+                case JOINT_TYPE_WHEEL:
+                    m_WheelJointParams.m_LocalAxisA[0] = 1.0f;
+                    m_WheelJointParams.m_LocalAxisA[1] = 0.0f;
+                    m_WheelJointParams.m_LocalAxisA[2] = 0.0f;
+                    m_WheelJointParams.m_MaxMotorTorque = 0.0f;
+                    m_WheelJointParams.m_MotorSpeed = 0.0f;
+                    m_WheelJointParams.m_EnableMotor = false;
+                    m_WheelJointParams.m_FrequencyHz = 0.0f;
+                    m_WheelJointParams.m_DampingRatio = 0.0f;
+                    break;
                 default:
                     break;
             }
@@ -1382,6 +1408,20 @@ namespace dmPhysics
     void FlipH2D(HCollisionObject2D collision_object);
     void FlipV2D(HCollisionObject2D collision_object);
 
+    void              ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape);
+    HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index);
+    void              GetCollisionShapeRadius3D(HCollisionShape3D shape, float* radius);
+    void              GetCollisionShapeHalfBoxExtents3D(HCollisionShape3D shape, float* xyz);
+    void              GetCollisionShapeCapsuleRadiusHeight3D(HCollisionShape3D shape, float* radius, float* half_height);
+    void              SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius);
+    void              SetCollisionShapeHalfBoxExtents3D(HCollisionShape2D shape, float w, float h, float d);
+
+    void              GetCollisionShapeRadius2D(HCollisionShape2D shape, float* radius);
+    void              GetCollisionShapePolygonVertices2D(HCollisionShape2D shape, float** vertices, uint32_t* vertex_count);
+    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object, uint32_t shape_index);
+    void              SetCollisionShapeRadius2D(HCollisionShape2D shape, float radius);
+    void              SetCollisionShapeBoxDimensions2D(HCollisionShape2D shape, float w, float h);
+    void              SynchronizeObject2D(HCollisionObject2D collision_object);
 }
 
 #endif // DM_PHYSICS_H

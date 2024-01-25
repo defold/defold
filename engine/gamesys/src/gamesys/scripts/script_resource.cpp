@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -801,8 +801,10 @@ static int CreateTexture(lua_State* L)
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
     dmBuffer::HBuffer buffer = 0;
-    if (dmScript::IsBuffer(L, 3))
+
+    if (lua_gettop(L) > 2)
     {
+        // TODO: Support creating texture from string
         dmScript::LuaHBuffer* l_buffer = dmScript::CheckBuffer(L, 3);
         buffer                         = dmGameSystem::UnpackLuaBuffer(l_buffer);
     }
@@ -1435,7 +1437,7 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
 
 // Creates a texture set from the lua stack, it is expected that the argument
 // table is on top of the stack and that all fields have valid data
-static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, uint32_t num_animation_frames, dmGameSystemDDF::TextureSet* texture_set_ddf)
+static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint32_t num_animations, uint32_t num_animation_frames, dmGameSystemDDF::TextureSet* texture_set_ddf)
 {
     int top = lua_gettop(L);
     texture_set_ddf->m_Texture     = 0;
@@ -2404,7 +2406,7 @@ static int GetBuffer(lua_State* L)
     }
 
     dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
-    dmScript::LuaHBuffer luabuf((void*)buffer_resource);
+    dmScript::LuaHBuffer luabuf(g_ResourceModule.m_Factory, (void*)buffer_resource);
     PushBuffer(L, luabuf);
 
     assert(top + 1 == lua_gettop(L));

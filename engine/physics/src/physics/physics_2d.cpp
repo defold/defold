@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -715,7 +715,7 @@ namespace dmPhysics
         filter.maskBits = mask;
         fixture->SetFilterData(filter, child);
     }
-    
+
     void DeleteCollisionShape2D(HCollisionShape2D shape)
     {
         delete (b2Shape*)shape;
@@ -1016,6 +1016,63 @@ namespace dmPhysics
         return i;
     }
 
+    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object, uint32_t shape_index)
+    {
+        b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
+        uint32_t i = 0;
+        while(i <= shape_index && fixture)
+        {
+            if (i == shape_index)
+                return fixture->GetShape();
+            fixture = fixture->GetNext();
+            i++;
+        }
+        return 0;
+    }
+
+    void GetCollisionShapeRadius2D(HCollisionShape2D _shape, float* radius)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        *radius = shape->m_radius;
+    }
+
+    void SetCollisionShapeRadius2D(HCollisionShape2D _shape, float radius)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        shape->m_radius = radius;
+    }
+
+    void SynchronizeObject2D(HCollisionObject2D collision_object)
+    {
+        ((b2Body*)collision_object)->SynchronizeFixtures();
+    }
+
+    void SetCollisionShapeBoxDimensions2D(HCollisionShape2D _shape, float w, float h)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        if (shape->m_type == b2Shape::e_polygon)
+        {
+            b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
+            polygon_shape->SetAsBox(w, h);
+        }
+    }
+
+    void GetCollisionShapePolygonVertices2D(HCollisionShape2D _shape, float** vertices, uint32_t* vertex_count)
+    {
+        b2Shape* shape = (b2Shape*) _shape;
+        if (shape->m_type == b2Shape::e_polygon)
+        {
+            b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
+            *vertex_count                 = polygon_shape->GetVertexCount();
+            *vertices                     = (float*) polygon_shape->m_vertices;
+        }
+        else
+        {
+            *vertices     = 0;
+            *vertex_count = 0;
+        }
+    }
+
     void SetCollisionObjectUserData2D(HCollisionObject2D collision_object, void* user_data)
     {
         ((b2Body*)collision_object)->SetUserData(user_data);
@@ -1175,7 +1232,7 @@ namespace dmPhysics
         b2Body* body = ((b2Body*)collision_object);
         body->SetBullet(value);
     }
-        
+
     void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
 		while (fixture) {
@@ -1186,9 +1243,9 @@ namespace dmPhysics
 				fixture->SetFilterData(filter, 0);
 			}
 			fixture = fixture->GetNext();	// NOTE: No guard condition in loop. Assumes proper state of Box2D fixture list.
-		}		
+		}
 	}
-	
+
 	uint16_t GetGroup2D(HCollisionObject2D collision_object) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
 		if (fixture) {
@@ -1196,10 +1253,10 @@ namespace dmPhysics
 				b2Filter filter = fixture->GetFilterData(0);
 				return filter.categoryBits;
 			}
-		}	
+		}
 		return 0;
 	}
-	
+
 	// updates a specific group bit of a collision object's current mask
 	void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
@@ -1214,9 +1271,9 @@ namespace dmPhysics
 				fixture->SetFilterData(filter, 0);
 			}
 			fixture = fixture->GetNext();
-		}			
+		}
 	}
-	
+
 	bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit) {
 		b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
 		if (fixture) {
@@ -1224,10 +1281,10 @@ namespace dmPhysics
 				b2Filter filter = fixture->GetFilterData(0);
 				return !!(filter.maskBits & groupbit);
 			}
-		}	
-		return false;		
+		}
+		return false;
 	}
-	
+
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
@@ -1473,6 +1530,26 @@ namespace dmPhysics
                     joint = world->m_World.CreateJoint(&jointDef);
                 }
                 break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    b2WheelJointDef jointDef;
+                    jointDef.bodyA            = b2_obj_a;
+                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    b2Vec2 axis;
+                    Vector3 apa(params.m_WheelJointParams.m_LocalAxisA[0], params.m_WheelJointParams.m_LocalAxisA[1], params.m_WheelJointParams.m_LocalAxisA[2]);
+                    ToB2(apa, axis, 1.0f);
+                    jointDef.localAxisA       = axis;
+                    jointDef.maxMotorTorque   = params.m_WheelJointParams.m_MaxMotorTorque;
+                    jointDef.motorSpeed       = params.m_WheelJointParams.m_MotorSpeed;
+                    jointDef.enableMotor      = params.m_WheelJointParams.m_EnableMotor;
+                    jointDef.frequencyHz      = params.m_WheelJointParams.m_FrequencyHz;
+                    jointDef.dampingRatio     = params.m_WheelJointParams.m_DampingRatio;
+                    jointDef.collideConnected = params.m_CollideConnected;
+                    joint = world->m_World.CreateJoint(&jointDef);
+                }
+                break;
             default:
                 return 0x0;
         }
@@ -1525,6 +1602,16 @@ namespace dmPhysics
                     b2WeldJoint* typed_joint = (b2WeldJoint*)joint;
                     typed_joint->SetFrequency(params.m_WeldJointParams.m_FrequencyHz);
                     typed_joint->SetDampingRatio(params.m_WeldJointParams.m_DampingRatio);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    b2WheelJoint* typed_joint = (b2WheelJoint*)joint;
+                    typed_joint->SetMaxMotorTorque(params.m_WheelJointParams.m_MaxMotorTorque * scale);
+                    typed_joint->SetMotorSpeed(params.m_WheelJointParams.m_MotorSpeed);
+                    typed_joint->EnableMotor(params.m_WheelJointParams.m_EnableMotor);
+                    typed_joint->SetSpringFrequencyHz(params.m_WheelJointParams.m_FrequencyHz);
+                    typed_joint->SetSpringDampingRatio(params.m_WheelJointParams.m_DampingRatio);
                 }
                 break;
             default:
@@ -1603,6 +1690,24 @@ namespace dmPhysics
 
                     // Read only properties
                     params.m_WeldJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    b2WheelJoint* typed_joint = (b2WheelJoint*)joint;
+                    b2Vec2 axis = typed_joint->GetLocalAxisA();
+                    params.m_WheelJointParams.m_LocalAxisA[0] = axis.x;
+                    params.m_WheelJointParams.m_LocalAxisA[1] = axis.y;
+                    params.m_WheelJointParams.m_LocalAxisA[2] = 0.0f;
+                    params.m_WheelJointParams.m_MaxMotorTorque = typed_joint->GetMaxMotorTorque() * inv_scale;
+                    params.m_WheelJointParams.m_MotorSpeed = typed_joint->GetMotorSpeed();
+                    params.m_WheelJointParams.m_EnableMotor = typed_joint->IsMotorEnabled();
+                    params.m_WheelJointParams.m_FrequencyHz = typed_joint->GetSpringFrequencyHz();
+                    params.m_WheelJointParams.m_DampingRatio = typed_joint->GetSpringDampingRatio();
+
+                    // Read only properties
+                    params.m_WheelJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
+                    params.m_WheelJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
                 }
                 break;
             default:

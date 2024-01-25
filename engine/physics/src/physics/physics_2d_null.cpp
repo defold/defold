@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -310,6 +310,31 @@ namespace dmPhysics
     }
 
     void FlipV2D(HCollisionObject2D collision_object)
+    {
+    }
+
+    void GetCollisionShapeRadius2D(HCollisionShape2D shape, float* radius)
+    {
+    }
+
+    void GetCollisionShapePolygonVertices2D(HCollisionShape2D shape, float** vertices, uint32_t* vertex_count)
+    {
+    }
+
+    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object, uint32_t shape_index)
+    {
+        return 0;
+    }
+
+    void SetCollisionShapeRadius2D(HCollisionShape2D shape, float radius)
+    {
+    }
+
+    void SetCollisionShapeBoxDimensions2D(HCollisionShape2D shape, float w, float h)
+    {
+    }
+
+    void SynchronizeObject2D(HCollisionObject2D collision_object)
     {
     }
 }

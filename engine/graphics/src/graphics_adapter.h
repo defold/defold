@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -83,13 +83,18 @@ namespace dmGraphics
     typedef HVertexDeclaration (*NewVertexDeclarationFn)(HContext context, HVertexStreamDeclaration stream_declaration);
     typedef HVertexDeclaration (*NewVertexDeclarationStrideFn)(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride);
     typedef bool (*SetStreamOffsetFn)(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
+
     typedef void (*DeleteVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
-    typedef void (*EnableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
-    typedef void (*EnableVertexDeclarationProgramFn)(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
+    typedef void (*EnableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program);
     typedef void (*DisableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration);
     typedef void (*HashVertexDeclarationFn)(HashState32* state, HVertexDeclaration vertex_declaration);
+    typedef uint32_t (*GetVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
     typedef uint32_t (*GetVertexDeclarationStrideFn)(HVertexDeclaration vertex_declaration);
     typedef uint32_t (*GetVertexStreamOffsetFn)(HVertexDeclaration vertex_declaration, dmhash_t name_hash);
+
+    typedef void (*EnableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
+    typedef void (*DisableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer);
+
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
     typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc::Shader* ddf);
@@ -100,11 +105,13 @@ namespace dmGraphics
     typedef bool (*ReloadFragmentProgramFn)(HFragmentProgram prog, ShaderDesc::Shader* ddf);
     typedef void (*DeleteVertexProgramFn)(HVertexProgram prog);
     typedef void (*DeleteFragmentProgramFn)(HFragmentProgram prog);
+    typedef ShaderDesc::Language (*GetShaderProgramLanguageFn)(HContext context, ShaderDesc::ShaderClass shader_class);
     typedef ShaderDesc::Language (*GetProgramLanguageFn)(HProgram program);
-    typedef ShaderDesc::Language (*GetShaderProgramLanguageFn)(HContext context);
     typedef void (*EnableProgramFn)(HContext context, HProgram program);
     typedef void (*DisableProgramFn)(HContext context);
-    typedef bool (*ReloadProgramFn)(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    typedef bool (*ReloadProgramGraphicsFn)(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    typedef bool (*ReloadComputeProgramFn)(HComputeProgram prog, ShaderDesc::Shader* ddf);
+    typedef bool (*ReloadProgramComputeFn)(HContext context, HProgram program, HComputeProgram compute_program);
     typedef uint32_t (*GetAttributeCountFn)(HProgram prog);
     typedef void (*GetAttributeFn)(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     typedef uint32_t (*GetUniformNameFn)(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
@@ -205,9 +212,10 @@ namespace dmGraphics
         SetStreamOffsetFn m_SetStreamOffset;
         DeleteVertexDeclarationFn m_DeleteVertexDeclaration;
         EnableVertexDeclarationFn m_EnableVertexDeclaration;
-        EnableVertexDeclarationProgramFn m_EnableVertexDeclarationProgram;
         DisableVertexDeclarationFn m_DisableVertexDeclaration;
         HashVertexDeclarationFn m_HashVertexDeclaration;
+        EnableVertexBufferFn m_EnableVertexBuffer;
+        DisableVertexBufferFn m_DisableVertexBuffer;
         GetVertexDeclarationStrideFn m_GetVertexDeclarationStride;
         GetVertexStreamOffsetFn m_GetVertexStreamOffset;
         DrawElementsFn m_DrawElements;
@@ -224,7 +232,7 @@ namespace dmGraphics
         GetShaderProgramLanguageFn m_GetShaderProgramLanguage;
         EnableProgramFn m_EnableProgram;
         DisableProgramFn m_DisableProgram;
-        ReloadProgramFn m_ReloadProgram;
+        ReloadProgramGraphicsFn m_ReloadProgramGraphics;
         GetAttributeCountFn m_GetAttributeCount;
         GetAttributeFn m_GetAttribute;
         GetUniformNameFn m_GetUniformName;
@@ -283,6 +291,10 @@ namespace dmGraphics
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
+
+        // Compute
+        ReloadComputeProgramFn  m_ReloadComputeProgram;
+        ReloadProgramComputeFn  m_ReloadProgramCompute;
         NewComputeProgramFn     m_NewComputeProgram;
         NewProgramFromComputeFn m_NewProgramFromCompute;
         DeleteComputeProgramFn  m_DeleteComputeProgram;
@@ -327,10 +339,11 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStreamOffset); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexDeclaration); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexDeclarationProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, HashVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetVertexDeclarationStride); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetVertexStreamOffset); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElements); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Draw); \
@@ -346,7 +359,9 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetShaderProgramLanguage); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableProgram); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgramGraphics); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgramCompute); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadComputeProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttributeCount); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttribute); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformName); \

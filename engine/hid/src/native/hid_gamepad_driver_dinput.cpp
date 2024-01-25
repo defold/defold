@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,6 +30,8 @@
 #ifndef SAFE_RELEASE
     #define SAFE_RELEASE(p) { if (p) { (p)->Release(); (p) = 0; } }
 #endif
+
+#include <glfw/glfw.h>
 
 // NOTE: This implementation is inspired by both the GLFW3 and SDL sources,
 //       with a heavier emphasis on the GLFW3 setup since we already use GLFW

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,8 @@
 // for scripting
 #include <stdint.h>
 #include <physics/physics.h>
+
+#include <gamesys/physics_ddf.h>
 
 template <typename T> class dmArray;
 
@@ -81,6 +83,20 @@ namespace dmGameSystem
     bool GetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool* maskbit);
     bool SetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool boolvalue);
 
+    struct ShapeInfo
+    {
+        union
+        {
+            float m_BoxDimensions[3];
+            float m_CapsuleDiameterHeight[2];
+            float m_SphereDiameter;
+        };
+        dmPhysicsDDF::CollisionShape::Type m_Type;
+    };
+
+    bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out);
+    bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
+    bool SetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

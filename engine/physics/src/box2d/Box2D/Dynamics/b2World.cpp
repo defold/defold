@@ -1062,6 +1062,7 @@ void b2World::DrawShape(b2Fixture* fixture, const b2Transform& xf, const b2Color
 			b2Vec2 axis = b2Mul(xf.q, b2Vec2(1.0f, 0.0f));
 
 			m_debugDraw->DrawSolidCircle(center, radius, axis, color);
+			m_debugDraw->DrawSegment(center, center + b2Vec2(axis.x * radius, axis.y * radius), b2Color(1.0f - color.r, 1.0f - color.g, 1.0f - color.b));
 		}
 		break;
 

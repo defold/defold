@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,6 +14,8 @@
 
 #ifndef RENDERINTERNAL_H
 #define RENDERINTERNAL_H
+
+#include <string.h> // For memset
 
 #include <dmsdk/dlib/vmath.h>
 
@@ -73,14 +75,9 @@ namespace dmRender
     struct Material
     {
         Material()
-        : m_RenderContext(0)
-        , m_Program(0)
-        , m_VertexProgram(0)
-        , m_FragmentProgram(0)
-        , m_UserData1(0) // used for hot reloading. stores shader name
-        , m_UserData2(0) // used for hot reloading. stores shader name
-        , m_VertexSpace(dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
         {
+            memset(this, 0, sizeof(*this));
+            m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
         }
 
         dmRender::HRenderContext                m_RenderContext;
@@ -94,18 +91,20 @@ namespace dmRender
         dmArray<uint8_t>                        m_MaterialAttributeValues;
         dmArray<RenderConstant>                 m_Constants;
         dmArray<Sampler>                        m_Samplers;
-        uint32_t                                m_TagListKey;      // the key to use with GetMaterialTagList()
-        uint64_t                                m_UserData1;
-        uint64_t                                m_UserData2;
+        uint32_t                                m_TagListKey; // the key to use with GetMaterialTagList()
+        uint64_t                                m_UserData1;  // used for hot reloading. stores shader name
+        uint64_t                                m_UserData2;  // --||–-
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
     };
 
     struct ComputeProgram
     {
+        dmRender::HRenderContext                    m_RenderContext;
         dmGraphics::HComputeProgram                 m_Shader;
         dmGraphics::HProgram                        m_Program;
         dmArray<RenderConstant>                     m_Constants;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
+        uint64_t                                    m_UserData;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered
@@ -267,8 +266,16 @@ namespace dmRender
 
         dmMessage::HSocket          m_Socket;
 
-        uint32_t                    m_OutOfResources : 1;
-        uint32_t                    m_StencilBufferCleared : 1;
+        uint32_t                    m_OutOfResources         : 1;
+        uint32_t                    m_StencilBufferCleared   : 1;
+        uint32_t                    m_MultiBufferingRequired : 1;
+    };
+
+    struct BufferedRenderBuffer
+    {
+        dmArray<HRenderBuffer> m_Buffers;
+        RenderBufferType       m_Type;
+        uint16_t               m_BufferIndex;
     };
 
     void RenderTypeTextBegin(HRenderContext rendercontext, void* user_context);
