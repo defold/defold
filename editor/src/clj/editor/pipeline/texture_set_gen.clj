@@ -142,6 +142,9 @@
                               (let [img (first @anim-imgs-atom)]
                                 (swap! anim-imgs-atom rest)
                                 (img-to-index img)))
+                            ; This generator is run with fake animation (i.e. no valid id's)
+                            ; See atlas.clj produce-texture-set-data for the patchup details
+                            (getFrameId [_this] "")
                             (rewind [_this]
                               (reset! anims-atom animations)
                               (reset! anim-imgs-atom [])))
@@ -249,6 +252,8 @@
                           (let [index (first @anim-indices-atom)]
                             (swap! anim-indices-atom rest)
                             index))
+                        ; The tilesets don't support lookup by image name hash, so we default to ""==0
+                        (getFrameId [_this] "")
                         (rewind [_this]
                           (reset! anims-atom animations)
                           (reset! anim-indices-atom [])))
