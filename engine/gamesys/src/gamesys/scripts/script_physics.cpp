@@ -287,105 +287,6 @@ namespace dmGameSystem
      * end
      * ```
      */
-
-    /*# sets a physics world event listener. If a function is set, physics messages will no longer be sent.
-     *
-     * @name physics.set_listener
-     *
-     * @param callback [type:function(self, event, data)|nil] A callback that receives information about all the physics interactions in this physics world.
-     *
-     * `self`
-     * : [type:object] The calling script
-     *
-     * `event`
-     * : [type:constant] The type of event. Can be one of these messages:
-     *
-     *
-     * - [ref:contact_point_event]
-     * - [ref:collision_event]
-     * - [ref:trigger_event]
-     * - [ref:ray_cast_response]
-     * - [ref:ray_cast_missed]
-     *
-     * `data`
-     * : [type:table] The callback value data is a table that contains event-related data. See the documentation for details on the messages.
-     *
-     * @examples
-     *
-     * ```lua
-     * local function physics_world_listener(self, event, data)
-     *   if event == hash("contact_point_event") then
-     *     pprint(data)
-     *     -- {
-     *     --  distance = 0.0714111328125,
-     *     --  applied_impulse = 310.00769042969,
-     *     --  a = {
-     *     --      position = vmath.vector3(446, 371, 0),
-     *     --      relative_velocity = vmath.vector3(1.1722083854693e-06, -20.667181015015, -0),
-     *     --      mass = 0,
-     *     --      group = hash: [default],
-     *     --      id = hash: [/flat],
-     *     --      normal = vmath.vector3(-0, -1, -0)
-     *     --  },
-     *     --  b = {
-     *     --      position = vmath.vector3(185, 657.92858886719, 0),
-     *     --      relative_velocity = vmath.vector3(-1.1722083854693e-06, 20.667181015015, 0),
-     *     --      mass = 10,
-     *     --      group = hash: [default],
-     *     --      id = hash: [/go2],
-     *     --      normal = vmath.vector3(0, 1, 0)
-     *     --  }
-     *     -- }
-     *   elseif event == hash("collision_event") then
-     *     pprint(data)
-     *     -- {
-     *     --  a = {
-     *     --          group = hash: [default],
-     *     --          position = vmath.vector3(183, 666, 0),
-     *     --          id = hash: [/go1]
-     *     --      },
-     *     --  b = {
-     *     --          group = hash: [default],
-     *     --          position = vmath.vector3(185, 704.05865478516, 0),
-     *     --          id = hash: [/go2]
-     *     --      }
-     *     -- }
-     *   elseif event ==  hash("trigger_event") then
-     *     pprint(data)
-     *     -- {
-     *     --  enter = true,
-     *     --  b = {
-     *     --      group = hash: [default],
-     *     --      id = hash: [/go2]
-     *     --  },
-     *     --  a = {
-     *     --      group = hash: [default],
-     *     --      id = hash: [/go1]
-     *     --  }
-     *     -- },
-     *   elseif event ==  hash("ray_cast_response") then
-     *     pprint(data)
-     *     --{
-     *     --  group = hash: [default],
-     *     --  request_id = 0,
-     *     --  position = vmath.vector3(249.92222595215, 249.92222595215, 0),
-     *     --  fraction = 0.68759721517563,
-     *     --  normal = vmath.vector3(0, 1, 0),
-     *     --  id = hash: [/go]
-     *     -- }
-     *   elseif event ==  hash("ray_cast_missed") then
-     *     pprint(data)
-     *     -- {
-     *     --  request_id = 0
-     *     --},
-     *   end
-     * end
-     *
-     * function init(self)
-     *     physics.set_listener(physics_world_listener)
-     * end
-     * ```
-     */
     int Physics_RayCastAsync(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -1552,10 +1453,121 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# sets a physics world event listener. If a function is set, physics messages will no longer be sent.
+     *
+     * @name physics.set_listener
+     *
+     * @param callback [type:function(self, event, data)|nil] A callback that receives information about all the physics interactions in this physics world.
+     *
+     * `self`
+     * : [type:object] The calling script
+     *
+     * `event`
+     * : [type:constant] The type of event. Can be one of these messages:
+     *
+     *
+     * - [ref:contact_point_event]
+     * - [ref:collision_event]
+     * - [ref:trigger_event]
+     * - [ref:ray_cast_response]
+     * - [ref:ray_cast_missed]
+     *
+     * `data`
+     * : [type:table] The callback value data is a table that contains event-related data. See the documentation for details on the messages.
+     *
+     * @examples
+     *
+     * ```lua
+     * local function physics_world_listener(self, event, data)
+     *   if event == hash("contact_point_event") then
+     *     pprint(data)
+     *     -- {
+     *     --  distance = 0.0714111328125,
+     *     --  applied_impulse = 310.00769042969,
+     *     --  a = {
+     *     --      position = vmath.vector3(446, 371, 0),
+     *     --      relative_velocity = vmath.vector3(1.1722083854693e-06, -20.667181015015, -0),
+     *     --      mass = 0,
+     *     --      group = hash: [default],
+     *     --      id = hash: [/flat],
+     *     --      normal = vmath.vector3(-0, -1, -0)
+     *     --  },
+     *     --  b = {
+     *     --      position = vmath.vector3(185, 657.92858886719, 0),
+     *     --      relative_velocity = vmath.vector3(-1.1722083854693e-06, 20.667181015015, 0),
+     *     --      mass = 10,
+     *     --      group = hash: [default],
+     *     --      id = hash: [/go2],
+     *     --      normal = vmath.vector3(0, 1, 0)
+     *     --  }
+     *     -- }
+     *   elseif event == hash("collision_event") then
+     *     pprint(data)
+     *     -- {
+     *     --  a = {
+     *     --          group = hash: [default],
+     *     --          position = vmath.vector3(183, 666, 0),
+     *     --          id = hash: [/go1]
+     *     --      },
+     *     --  b = {
+     *     --          group = hash: [default],
+     *     --          position = vmath.vector3(185, 704.05865478516, 0),
+     *     --          id = hash: [/go2]
+     *     --      }
+     *     -- }
+     *   elseif event ==  hash("trigger_event") then
+     *     pprint(data)
+     *     -- {
+     *     --  enter = true,
+     *     --  b = {
+     *     --      group = hash: [default],
+     *     --      id = hash: [/go2]
+     *     --  },
+     *     --  a = {
+     *     --      group = hash: [default],
+     *     --      id = hash: [/go1]
+     *     --  }
+     *     -- },
+     *   elseif event ==  hash("ray_cast_response") then
+     *     pprint(data)
+     *     --{
+     *     --  group = hash: [default],
+     *     --  request_id = 0,
+     *     --  position = vmath.vector3(249.92222595215, 249.92222595215, 0),
+     *     --  fraction = 0.68759721517563,
+     *     --  normal = vmath.vector3(0, 1, 0),
+     *     --  id = hash: [/go]
+     *     -- }
+     *   elseif event ==  hash("ray_cast_missed") then
+     *     pprint(data)
+     *     -- {
+     *     --  request_id = 0
+     *     --},
+     *   end
+     * end
+     *
+     * function init(self)
+     *     physics.set_listener(physics_world_listener)
+     * end
+     * ```
+     */
     static int Physics_SetListener(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
+        
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        if (world == 0x0)
+        {
+            return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
+        }
         int functionref = 0;
         if (top >= 1) // completed cb
         {
@@ -1565,17 +1577,6 @@ namespace dmGameSystem
                 // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
                 functionref = dmScript::RefInInstance(L) - LUA_NOREF;
             }
-        }
-        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
-        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
-        if (world == 0x0)
-        {
-            return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
 
         dmMessage::URL listenerReceiver;

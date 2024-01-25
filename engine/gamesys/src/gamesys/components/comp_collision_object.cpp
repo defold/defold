@@ -606,19 +606,17 @@ namespace dmGameSystem
 
             if (world->m_LuaListener != 0)
             {
-                dmPhysicsDDF::Collision a;
+                dmPhysicsDDF::CollisionEvent ddf;
+
+                dmPhysicsDDF::Collision& a = ddf.m_A;
                 a.m_Group =     group_hash_a;
                 a.m_Id =        instance_a_id;
                 a.m_Position =  dmGameObject::GetWorldPosition(instance_a);
 
-                dmPhysicsDDF::Collision b;
+                dmPhysicsDDF::Collision& b = ddf.m_B;
                 b.m_Group =     group_hash_b;
                 b.m_Id =        instance_b_id;
                 b.m_Position =  dmGameObject::GetWorldPosition(instance_b);
-
-                dmPhysicsDDF::CollisionEvent ddf;
-                ddf.m_A = a;
-                ddf.m_B = b;
 
                 dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
                 if (message_result != dmGameObject::RESULT_OK)
@@ -675,7 +673,11 @@ namespace dmGameSystem
 
             if (world->m_LuaListener != 0)
             {
-                dmPhysicsDDF::ContactPoint a;
+                dmPhysicsDDF::ContactPointEvent ddf;
+                ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
+                ddf.m_Distance = contact_point.m_Distance;
+
+                dmPhysicsDDF::ContactPoint& a = ddf.m_A;
                 a.m_Group               = group_hash_a;
                 a.m_Id                  = instance_a_id;
                 a.m_Position            = dmGameObject::GetWorldPosition(instance_a);
@@ -683,19 +685,13 @@ namespace dmGameSystem
                 a.m_RelativeVelocity    = -contact_point.m_RelativeVelocity;
                 a.m_Normal              = -contact_point.m_Normal;
 
-                dmPhysicsDDF::ContactPoint b;
+                dmPhysicsDDF::ContactPoint& b = ddf.m_B;
                 b.m_Group               = group_hash_b;
                 b.m_Id                  = instance_b_id;
                 b.m_Position            = dmGameObject::GetWorldPosition(instance_b);
                 b.m_Mass                = mass_b;
                 b.m_RelativeVelocity    = contact_point.m_RelativeVelocity;
                 b.m_Normal              = contact_point.m_Normal;
-
-                dmPhysicsDDF::ContactPointEvent ddf;
-                ddf.m_A = a;
-                ddf.m_B = b;
-                ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
-                ddf.m_Distance = contact_point.m_Distance;
 
                 dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
                 if (message_result != dmGameObject::RESULT_OK)
@@ -765,18 +761,17 @@ namespace dmGameSystem
 
         if (world->m_LuaListener != 0)
         {
-            dmPhysicsDDF::Trigger a;
-            a.m_Group       = group_hash_a;
-            a.m_Id          = instance_a_id;
-
-            dmPhysicsDDF::Trigger b;
-            b.m_Group       = group_hash_b;
-            b.m_Id          = instance_b_id;
 
             dmPhysicsDDF::TriggerEvent ddf;
             ddf.m_Enter = 1;
-            ddf.m_A = a;
-            ddf.m_B = b;
+
+            dmPhysicsDDF::Trigger& a = ddf.m_A;
+            a.m_Group       = group_hash_a;
+            a.m_Id          = instance_a_id;
+
+            dmPhysicsDDF::Trigger& b = ddf.m_B;
+            b.m_Group       = group_hash_b;
+            b.m_Id          = instance_b_id;
 
             dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
             if (message_result != dmGameObject::RESULT_OK)
@@ -819,19 +814,16 @@ namespace dmGameSystem
 
         if (world->m_LuaListener != 0)
         {
-            dmPhysicsDDF::Trigger a;
+            dmPhysicsDDF::TriggerEvent ddf;
+            ddf.m_Enter = 0;
+
+            dmPhysicsDDF::Trigger& a = ddf.m_A;
             a.m_Group       = group_hash_a;
             a.m_Id          = instance_a_id;
 
-            dmPhysicsDDF::Trigger b;
+            dmPhysicsDDF::Trigger& b = ddf.m_B;
             b.m_Group       = group_hash_b;
             b.m_Id          = instance_b_id;
-
-            dmPhysicsDDF::TriggerEvent ddf;
-            ddf.m_Enter = 0;
-            ddf.m_A = a;
-            ddf.m_B = b;
-
             dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
             if (message_result != dmGameObject::RESULT_OK)
             {
@@ -878,23 +870,23 @@ namespace dmGameSystem
         dmMessage::URL* resultReceiver = lua_listener == 0 ? &receiver : &world->m_LuaListenerReceiver;
         if (response.m_Hit)
         {
-            dmPhysicsDDF::RayCastResponse responsDDF;
+            dmPhysicsDDF::RayCastResponse response_ddf;
             CollisionComponent* component = (CollisionComponent*)response.m_CollisionObjectUserData;
 
-            responsDDF.m_Fraction = response.m_Fraction;
-            responsDDF.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
-            responsDDF.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
-            responsDDF.m_Position = response.m_Position;
-            responsDDF.m_Normal = response.m_Normal;
-            responsDDF.m_RequestId = request.m_UserId & 0xff;
+            response_ddf.m_Fraction = response.m_Fraction;
+            response_ddf.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
+            response_ddf.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
+            response_ddf.m_Position = response.m_Position;
+            response_ddf.m_Normal = response.m_Normal;
+            response_ddf.m_RequestId = request.m_UserId & 0xff;
 
-            message_result = dmGameObject::PostDDF(&responsDDF, 0x0, resultReceiver, lua_listener, false);
+            message_result = dmGameObject::PostDDF(&response_ddf, 0x0, resultReceiver, lua_listener, false);
         }
         else
         {
-            dmPhysicsDDF::RayCastMissed missedDDF;
-            missedDDF.m_RequestId = request.m_UserId & 0xff;
-            message_result = dmGameObject::PostDDF(&missedDDF, 0x0, resultReceiver, lua_listener, false);
+            dmPhysicsDDF::RayCastMissed missed_ddf;
+            missed_ddf.m_RequestId = request.m_UserId & 0xff;
+            message_result = dmGameObject::PostDDF(&missed_ddf, 0x0, resultReceiver, lua_listener, false);
         }
 
         if (message_result != dmGameObject::RESULT_OK)
