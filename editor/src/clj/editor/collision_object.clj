@@ -91,22 +91,23 @@
   (input project-physics-type PhysicsType)
   (input id-counts NameCounts)
 
-  (property shape-type g/Any
+  (property shape-type g/Any ; Required protobuf field.
             (dynamic visible (g/constantly false)))
-  (property node-outline-key g/Str
+  (property node-outline-key g/Str ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
-  (property id g/Str
+  (property id g/Str (default (protobuf/default Physics$CollisionShape$Shape :id))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output shape-data g/Any :abstract)
   (output scene g/Any :abstract)
 
   (output shape g/Any (g/fnk [shape-type position rotation id shape-data]
-                        {:shape-type shape-type
-                         :position position
-                         :rotation rotation
-                         :id id
-                         :data shape-data}))
+                        (-> (protobuf/make-map-without-defaults Physics$CollisionShape$Shape
+                              :shape-type shape-type
+                              :position position
+                              :rotation rotation
+                              :id id)
+                            (assoc :data shape-data))))
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type id node-outline-key]
                                                      {:node-id _node-id
@@ -249,7 +250,7 @@
 (g/defnode SphereShape
   (inherits Shape)
 
-  (property diameter g/Num
+  (property diameter g/Num ; Always assigned in load-fn.
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
 
   (display-order [Shape :diameter])
@@ -275,7 +276,7 @@
 (g/defnode BoxShape
   (inherits Shape)
 
-  (property dimensions types/Vec3
+  (property dimensions types/Vec3 ; Always assigned in load-fn.
             (dynamic error (validation/prop-error-fnk :fatal
                                                       (fn [d _] (when (some #(<= % 0.0) d)
                                                                   "All dimensions must be greater than zero"))
@@ -301,9 +302,9 @@
 (g/defnode CapsuleShape
   (inherits Shape)
 
-  (property diameter g/Num
+  (property diameter g/Num ; Always assigned in load-fn.
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? diameter)))
-  (property height g/Num
+  (property height g/Num ; Always assigned in load-fn.
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? height)))
 
   (display-order [Shape :diameter :height])
@@ -369,36 +370,39 @@
       [shape-node [node-type node-props]]
       (attach-shape-node false parent shape-node))))
 
-(defn- load-embedded-shape [embedded-collision-shape-data {:keys [index count] :as shape}]
+(defn- decode-embedded-shape [embedded-collision-shape-data {:keys [index count] :as shape}]
   (let [shape-data (subvec embedded-collision-shape-data index (+ index count))
         decoded-shape-data (decode-shape-data shape shape-data)]
     (merge shape decoded-shape-data)))
 
 (defn load-collision-object
-  [project self resource co]
-  (concat
-    (g/set-property self
-      :collision-shape (workspace/resolve-resource resource (:collision-shape co))
-      :type (:type co)
-      :mass (:mass co)
-      :friction (:friction co)
-      :restitution (:restitution co)
-      :group (:group co)
-      :mask (some->> (:mask co) (string/join ", "))
-      :linear-damping (:linear-damping co)
-      :angular-damping (:angular-damping co)
-      :locked-rotation (:locked-rotation co)
-      :bullet (:bullet co))
-    (g/connect self :collision-group-node project :collision-group-nodes)
-    (g/connect project :collision-groups-data self :collision-groups-data)
-    (g/connect project :settings self :project-settings)
-    (when-some [{:keys [data shapes]} (:embedded-collision-shape co)]
-      (sequence (comp (map #(assoc %1 :node-outline-key %2))
-                      (map (partial load-embedded-shape data))
-                      (map (partial make-shape-node self)))
-                shapes
-                (outline/gen-node-outline-keys (map (comp shape-type-label :shape-type)
-                                                    shapes))))))
+  [project self resource collision-object-desc]
+  {:pre [(map? collision-object-desc)]} ; Physics$CollisionObjectDesc in map format.
+  (let [resolve-resource #(workspace/resolve-resource resource %)
+        to-comma-separated-string #(some->> % (string/join ", "))]
+    (concat
+      (gu/set-properties-from-map self collision-object-desc
+        collision-shape (resolve-resource :collision-shape)
+        type :type
+        mass :mass
+        friction :friction
+        restitution :restitution
+        group :group
+        mask (to-comma-separated-string :mask)
+        linear-damping :linear-damping
+        angular-damping :angular-damping
+        locked-rotation :locked-rotation
+        bullet :bullet)
+      (g/connect self :collision-group-node project :collision-group-nodes)
+      (g/connect project :collision-groups-data self :collision-groups-data)
+      (g/connect project :settings self :project-settings)
+      (when-some [{:keys [data shapes]} (:embedded-collision-shape collision-object-desc)]
+        (sequence (comp (map #(assoc %1 :node-outline-key %2))
+                        (map #(decode-embedded-shape data %))
+                        (map #(make-shape-node self %)))
+                  shapes
+                  (outline/gen-node-outline-keys (map (comp shape-type-label :shape-type)
+                                                      shapes)))))))
 
 (g/defnk produce-scene
   [_node-id child-scenes]
@@ -441,7 +445,7 @@
                      (into (comp (map string/trim)
                                  (remove string/blank?))
                            (string/split mask #",")))]
-    (-> (protobuf/make-map-with-defaults Physics$CollisionObjectDesc
+    (-> (protobuf/make-map-without-defaults Physics$CollisionObjectDesc
           :collision-shape (resource/resource->proj-path collision-shape-resource)
           :type type
           :mass mass
@@ -543,7 +547,7 @@
   (input collision-groups-data g/Any)
   (input project-settings g/Any)
 
-  (property collision-shape resource/Resource
+  (property collision-shape resource/Resource ; Nil is valid default.
             (value (gu/passthrough collision-shape-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -554,10 +558,10 @@
                                   (when collision-shape
                                     (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")))))
 
-  (property type g/Any
+  (property type g/Any ; Required protobuf field.
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Physics$CollisionObjectType))))
 
-  (property mass g/Num
+  (property mass g/Num ; Required protobuf field.
             (value (g/fnk [mass type]
                      (if (= :collision-object-type-dynamic type) mass 0.0)))
             (dynamic read-only? (g/fnk [type]
@@ -566,19 +570,19 @@
                              (when (= :collision-object-type-dynamic type)
                                (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass "Mass")))))
 
-  (property friction g/Num)
-  (property restitution g/Num)
+  (property friction g/Num) ; Required protobuf field.
+  (property restitution g/Num) ; Required protobuf field.
   (property linear-damping g/Num
-            (default 0))
+            (default (protobuf/default Physics$CollisionObjectDesc :linear-damping)))
   (property angular-damping g/Num
-            (default 0))
+            (default (protobuf/default Physics$CollisionObjectDesc :angular-damping)))
   (property locked-rotation g/Bool
-            (default false))
+            (default (protobuf/default Physics$CollisionObjectDesc :locked-rotation)))
   (property bullet g/Bool
-            (default false))
+            (default (protobuf/default Physics$CollisionObjectDesc :bullet)))
 
-  (property group g/Str)
-  (property mask g/Str)
+  (property group g/Str) ; Required protobuf field.
+  (property mask g/Str) ; Nil is valid default.
 
   (output scene g/Any :cached produce-scene)
   (output project-physics-type PhysicsType (g/fnk [project-settings] (project-physics-type project-settings)))
@@ -591,7 +595,7 @@
                                                       :child-reqs [{:node-type Shape
                                                                     :tx-attach-fn (partial attach-shape-node true)}]}))
 
-  (output id-counts NameCounts :cached (g/fnk [shapes] (frequencies (mapv :id shapes))))
+  (output id-counts NameCounts :cached (g/fnk [shapes] (frequencies (keep :id shapes))))
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
@@ -602,23 +606,24 @@
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
-                                    :ext "collisionobject"
-                                    :node-type CollisionObjectNode
-                                    :ddf-type Physics$CollisionObjectDesc
-                                    :load-fn load-collision-object
-                                    :sanitize-fn sanitize-collision-object
-                                    :icon collision-object-icon
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:grid true}}
-                                    :tags #{:component}
-                                    :tag-opts {:component {:transform-properties #{}}}
-                                    :label "Collision Object"))
+    :ext "collisionobject"
+    :node-type CollisionObjectNode
+    :ddf-type Physics$CollisionObjectDesc
+    :read-defaults false
+    :load-fn load-collision-object
+    :sanitize-fn sanitize-collision-object
+    :icon collision-object-icon
+    :view-types [:scene :text]
+    :view-opts {:scene {:grid true}}
+    :tags #{:component}
+    :tag-opts {:component {:transform-properties #{}}}
+    :label "Collision Object"))
 
 ;; outline context menu
 
 (defn- default-shape
   [shape-type]
-  (merge (protobuf/make-map-with-defaults Physics$CollisionShape$Shape
+  (merge (protobuf/make-map-without-defaults Physics$CollisionShape$Shape
            :shape-type shape-type)
          (case shape-type
            :type-sphere {:diameter 20.0}
