@@ -408,6 +408,11 @@ namespace dmGameSystem
             SynchronizeTexture(texture, true);
         }
 
+        if (dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+        {
+            dmLogInfo("Texture pending before");
+        }
+
         dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, image_desc, upload_params, texture, &texture, recreate_params->m_OnCompleteCallback, recreate_params->m_OnCompleteCallbackUserData);
 
         // Texture might have changed

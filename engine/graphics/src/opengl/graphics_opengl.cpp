@@ -3506,6 +3506,11 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 #endif
 
+        if (GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+        {
+            dmLogInfo("Texture is pending");
+        }
+
         GLenum texture_type = GetOpenGLTextureType(tex->m_Type);
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;

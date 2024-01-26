@@ -852,7 +852,7 @@ namespace dmEngine
             return false;
         }
 
-        const char* thread_names[] = {"DefoldJobThread1", "DefoldJobThread2", "DefoldJobThread3", "DefoldJobThread4", "DefoldJobThread1", "DefoldJobThread2", "DefoldJobThread3", "DefoldJobThread4"};
+        const char* thread_names[] = {"DefoldJobThread1", "DefoldJobThread2", "DefoldJobThread3", "DefoldJobThread4"};
         engine->m_JobThreadContext = dmJobThread::Create(DM_ARRAY_SIZE(thread_names), thread_names);
 
         dmGraphics::ContextParams graphics_context_params;
