@@ -1456,6 +1456,11 @@ namespace dmGameSystem
     static void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data)
     {
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)callback_data;
+        if (!dmScript::IsCallbackValid(cbk))
+        {
+            dmLogError("Physics world listener is invalid.");
+            return;
+        }
         lua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0);
 
