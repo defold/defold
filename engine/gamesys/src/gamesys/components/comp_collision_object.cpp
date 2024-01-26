@@ -131,8 +131,8 @@ namespace dmGameSystem
     {
         uint64_t m_Groups[16];
 
-        uintptr_t m_LuaListener;
-        dmMessage::URL m_LuaListenerReceiver;
+        void* m_CallbackInfo;
+        void (*m_CallbackFunc)(void*, const dmDDF::Descriptor*, const char*);
 
         union
         {
@@ -587,6 +587,11 @@ namespace dmGameSystem
         }
     }
 
+    void RunPhysicsCallback(CollisionWorld* world, const dmDDF::Descriptor* desc, const char* data)
+    {
+        world->m_CallbackFunc(world->m_CallbackInfo, desc, data);
+    }
+
     bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
     {
         CollisionUserData* cud = (CollisionUserData*)user_data;
@@ -604,7 +609,7 @@ namespace dmGameSystem
             uint64_t group_hash_a = GetLSBGroupHash(world, group_a);
             uint64_t group_hash_b = GetLSBGroupHash(world, group_b);
 
-            if (world->m_LuaListener != 0)
+            if (world->m_CallbackInfo != 0x0)
             {
                 dmPhysicsDDF::CollisionEvent ddf;
 
@@ -618,11 +623,7 @@ namespace dmGameSystem
                 b.m_Id =        instance_b_id;
                 b.m_Position =  dmGameObject::GetWorldPosition(instance_b);
 
-                dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
-                if (message_result != dmGameObject::RESULT_OK)
-                {
-                    dmLogError("Error when sending CollisionEvent : %d", message_result);
-                }
+                RunPhysicsCallback(world, dmPhysicsDDF::CollisionEvent::m_DDFDescriptor, (const char*)&ddf);
                 return true;
             }
 
@@ -671,7 +672,7 @@ namespace dmGameSystem
             uint64_t group_hash_a = GetLSBGroupHash(world, contact_point.m_GroupA);
             uint64_t group_hash_b = GetLSBGroupHash(world, contact_point.m_GroupB);
 
-            if (world->m_LuaListener != 0)
+            if (world->m_CallbackInfo != 0x0)
             {
                 dmPhysicsDDF::ContactPointEvent ddf;
                 ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
@@ -693,11 +694,7 @@ namespace dmGameSystem
                 b.m_RelativeVelocity    = contact_point.m_RelativeVelocity;
                 b.m_Normal              = contact_point.m_Normal;
 
-                dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
-                if (message_result != dmGameObject::RESULT_OK)
-                {
-                    dmLogError("Error when sending ContactPointEvent : %d", message_result);
-                }
+                RunPhysicsCallback(world, dmPhysicsDDF::ContactPointEvent::m_DDFDescriptor, (const char*)&ddf);
                 return true;
             }
 
@@ -759,7 +756,7 @@ namespace dmGameSystem
         uint64_t group_hash_a = GetLSBGroupHash(world, trigger_enter.m_GroupA);
         uint64_t group_hash_b = GetLSBGroupHash(world, trigger_enter.m_GroupB);
 
-        if (world->m_LuaListener != 0)
+        if (world->m_CallbackInfo != 0x0)
         {
 
             dmPhysicsDDF::TriggerEvent ddf;
@@ -773,11 +770,7 @@ namespace dmGameSystem
             b.m_Group       = group_hash_b;
             b.m_Id          = instance_b_id;
 
-            dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
-            if (message_result != dmGameObject::RESULT_OK)
-            {
-                dmLogError("Error when sending TriggerEventEntered : %d", message_result);
-            }
+            RunPhysicsCallback(world, dmPhysicsDDF::TriggerEvent::m_DDFDescriptor, (const char*)&ddf);
             return;
         }
 
@@ -812,7 +805,7 @@ namespace dmGameSystem
         uint64_t group_hash_a = GetLSBGroupHash(world, trigger_exit.m_GroupA);
         uint64_t group_hash_b = GetLSBGroupHash(world, trigger_exit.m_GroupB);
 
-        if (world->m_LuaListener != 0)
+        if (world->m_CallbackInfo != 0x0)
         {
             dmPhysicsDDF::TriggerEvent ddf;
             ddf.m_Enter = 0;
@@ -824,11 +817,8 @@ namespace dmGameSystem
             dmPhysicsDDF::Trigger& b = ddf.m_B;
             b.m_Group       = group_hash_b;
             b.m_Id          = instance_b_id;
-            dmGameObject::Result message_result = dmGameObject::PostDDF(&ddf, 0x0, &world->m_LuaListenerReceiver, world->m_LuaListener, false);
-            if (message_result != dmGameObject::RESULT_OK)
-            {
-                dmLogError("Error when sending TriggerEventExited : %d", message_result);
-            }
+
+            RunPhysicsCallback(world, dmPhysicsDDF::TriggerEvent::m_DDFDescriptor, (const char*)&ddf);
             return;
         }
 
@@ -866,8 +856,6 @@ namespace dmGameSystem
         receiver.m_Path = dmGameObject::GetIdentifier(instance);
         dmGameObject::Result message_result = dmGameObject::RESULT_OK;
         CollisionWorld* world = (CollisionWorld*)user_data;
-        uintptr_t lua_listener = world->m_LuaListener;
-        dmMessage::URL* resultReceiver = lua_listener == 0 ? &receiver : &world->m_LuaListenerReceiver;
         if (response.m_Hit)
         {
             dmPhysicsDDF::RayCastResponse response_ddf;
@@ -880,13 +868,27 @@ namespace dmGameSystem
             response_ddf.m_Normal = response.m_Normal;
             response_ddf.m_RequestId = request.m_UserId & 0xff;
 
-            message_result = dmGameObject::PostDDF(&response_ddf, 0x0, resultReceiver, lua_listener, false);
+            if (world->m_CallbackInfo != 0x0)
+            {
+                RunPhysicsCallback(world, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, (const char*)&response_ddf);
+            }
+            else
+            {
+                message_result = dmGameObject::PostDDF(&response_ddf, 0x0, &receiver, 0x0, false);
+            }
         }
         else
         {
             dmPhysicsDDF::RayCastMissed missed_ddf;
             missed_ddf.m_RequestId = request.m_UserId & 0xff;
-            message_result = dmGameObject::PostDDF(&missed_ddf, 0x0, resultReceiver, lua_listener, false);
+            if (world->m_CallbackInfo != 0x0)
+            {
+                RunPhysicsCallback(world, dmPhysicsDDF::RayCastMissed::m_DDFDescriptor, (const char*)&missed_ddf);
+            }
+            else
+            {
+                message_result = dmGameObject::PostDDF(&missed_ddf, 0x0, &receiver, 0x0, false);
+            }
         }
 
         if (message_result != dmGameObject::RESULT_OK)
@@ -2005,11 +2007,17 @@ namespace dmGameSystem
         }
     }
 
-    void SetWorldListener(void* _world, uintptr_t listener, dmMessage::URL* listenerReceiver)
+    void* GetCollisionWorldCallback(void* _world)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
-        world->m_LuaListener = listener;
-        world->m_LuaListenerReceiver = *listenerReceiver;
+        return world->m_CallbackInfo;
+    }
+
+    void SetCollisionWorldCallback(void* _world, void* callback_info, void (*callback_func)(void*, const dmDDF::Descriptor*, const char*))
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        world->m_CallbackInfo = callback_info;
+        world->m_CallbackFunc = callback_func;
     }
 
     dmhash_t GetCollisionGroup(void* _world, void* _component)

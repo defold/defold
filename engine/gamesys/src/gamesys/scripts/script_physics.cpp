@@ -1453,6 +1453,24 @@ namespace dmGameSystem
         return 0;
     }
 
+    static void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data)
+    {
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)callback_data;
+        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if (!dmScript::SetupCallback(cbk))
+        {
+            dmLogError("Failed to setup physics.set_listener() callback");
+            return;
+        }
+        lua_pushstring(L, desc->m_Name);
+        dmScript::PushDDF(L, desc, data, false);
+        int ret = dmScript::PCall(L, 3, 0);
+        (void)ret;
+        dmScript::TeardownCallback(cbk);
+    }
+
     /*# sets a physics world event listener. If a function is set, physics messages will no longer be sent.
      *
      * @name physics.set_listener
@@ -1555,7 +1573,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
-        
+
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
         PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
         lua_pop(L, 1);
@@ -1568,24 +1586,32 @@ namespace dmGameSystem
         {
             return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
         }
-        int functionref = 0;
-        if (top >= 1) // completed cb
+
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)GetCollisionWorldCallback(world);
+
+        int type = lua_type(L, 1);
+        if (type == LUA_TNONE || type == LUA_TNIL)
         {
-            if (lua_isfunction(L, 1))
+            if (cbk != 0x0)
             {
-                lua_pushvalue(L, 1);
-                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
-                functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+                dmScript::DestroyCallback(cbk);
+                SetCollisionWorldCallback(world, 0x0, 0x0);
             }
         }
-
-        dmMessage::URL listenerReceiver;
-        if (!dmScript::GetURL(L, &listenerReceiver))
+        else if (type == LUA_TFUNCTION)
         {
-            return luaL_error(L, "could not find a requesting instance for physics.set_listener()");
+            if (cbk != 0x0)
+            {
+                dmScript::DestroyCallback(cbk);
+                SetCollisionWorldCallback(world, 0x0, 0x0);
+            }
+            cbk = dmScript::CreateCallback(L, 1);
+            SetCollisionWorldCallback(world, cbk, RunCollisionWorldCallback);
         }
-
-        SetWorldListener(world, functionref, &listenerReceiver);
+        else
+        {
+            return DM_LUA_ERROR("argument 1 to physics.set_listener() must be either nil or function");
+        }
         return 0;
     }
 
