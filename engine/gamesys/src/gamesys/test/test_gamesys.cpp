@@ -15,6 +15,7 @@
 #include "test_gamesys.h"
 
 #include "../../../../graphics/src/graphics_private.h"
+#include "../../../../render/src/render/font_renderer_private.h"
 #include "../../../../resource/src/resource_private.h"
 
 #include "gamesys/resources/res_material.h"
@@ -1143,6 +1144,29 @@ TEST_P(CursorTest, Cursor)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(FontTest, GlyphBankTest)
+{
+    const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
+    const char path_font_2[] = "/font/glyph_bank_test_2.fontc";
+    dmRender::HFontMap font_map_1;
+    dmRender::HFontMap font_map_2;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_1, (void**) &font_map_1));
+    ASSERT_NE((void*)0, font_map_1);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_2, (void**) &font_map_2));
+    ASSERT_NE((void*)0, font_map_1);
+
+    const void* glyph_data_1 = dmRender::GetGlyphData(font_map_1);
+    const void* glyph_data_2 = dmRender::GetGlyphData(font_map_2);
+
+    ASSERT_NE((void*)0, glyph_data_1);
+    ASSERT_NE((void*)0, glyph_data_2);
+    ASSERT_NE(glyph_data_1, glyph_data_2);
+
+    dmResource::Release(m_Factory, font_map_1);
+    dmResource::Release(m_Factory, font_map_2);
 }
 
 TEST_F(WindowTest, MouseLock)

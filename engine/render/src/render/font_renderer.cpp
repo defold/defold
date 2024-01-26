@@ -117,9 +117,6 @@ namespace dmRender
 
         ~FontMap()
         {
-            if (m_GlyphData) {
-                free(m_GlyphData);
-            }
             if (m_Cache) {
                 free(m_Cache);
             }
@@ -311,8 +308,7 @@ namespace dmRender
         }
 
         // release previous glyph data bank
-        if (font_map->m_GlyphData) {
-            free(font_map->m_GlyphData);
+        if (font_map->m_Cache) {
             free(font_map->m_Cache);
             free(font_map->m_CellTempData);
         }
@@ -1257,6 +1253,7 @@ namespace dmRender
         return size;
     }
 
+    // Test functions begin
     bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter)
     {
         return font_map->m_MinFilter == filter;
@@ -1266,4 +1263,10 @@ namespace dmRender
     {
         return font_map->m_MagFilter == filter;
     }
+
+    const void* GetGlyphData(HFontMap font_map)
+    {
+        return font_map->m_GlyphData;
+    }
+    // Test functions end
 }
