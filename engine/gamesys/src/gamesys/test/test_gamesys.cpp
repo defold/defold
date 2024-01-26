@@ -2231,6 +2231,56 @@ TEST_F(ComponentTest, JointTest)
 
 }
 
+/* Physics listener */
+TEST_F(ComponentTest, PhysicsListenerTest)
+{
+    /* Setup:
+    ** callback_object
+    ** - [collisionobject] collision_object/callback_object.collisionobject
+    ** - [script] collision_object/callback_object.script
+    ** callback_trigger
+    ** - [collisionobject] collision_object/callback_trigger.collisionobject
+    */
+
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_test_object = "/collision_object/callback_object.goc";
+    const char* path_test_trigger = "/collision_object/callback_trigger.goc";
+
+    dmhash_t hash_go_object = dmHashString64("/test_object");
+    dmhash_t hash_go_trigger = dmHashString64("/test_trigger");
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_b);
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_test_trigger, hash_go_trigger, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_a);
+
+    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+}
+
 /* Camera */
 
 const char* valid_camera_resources[] = {"/camera/valid.camerac"};
