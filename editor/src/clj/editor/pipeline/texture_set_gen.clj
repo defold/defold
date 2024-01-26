@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.pipeline.texture-set-gen
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.image-util :as image-util]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -22,6 +23,7 @@
   (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$LayoutResult TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect TextureSetLayout$Layout]
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
            [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet$Builder]
            [com.dynamo.gamesys.proto Tile$ConvexHull Tile$Playback Tile$SpriteTrimmingMode TextureSetProto$SpriteGeometry]
            [editor.types Image]
@@ -82,6 +84,15 @@
 (defn- sprite-trim-mode->enum
   [sprite-trim-mode]
   (protobuf/val->pb-enum Tile$SpriteTrimmingMode sprite-trim-mode))
+
+(defn resource-id
+  ([resource rename-patterns]
+   (resource-id resource nil rename-patterns))
+  ([resource animation-name rename-patterns]
+   (let [id (cond->> (resource/base-name resource) animation-name (str animation-name "/"))]
+     (if rename-patterns
+       (try (AtlasUtil/replaceStrings rename-patterns id) (catch Exception _ id))
+       id))))
 
 (defn- texture-set-layout-rect
   ^TextureSetLayout$Rect [{:keys [path width height]}]

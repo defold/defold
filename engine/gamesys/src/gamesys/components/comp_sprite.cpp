@@ -981,6 +981,12 @@ namespace dmGameSystem
 
             const dmGameSystemDDF::TextureSet*          texture_set_ddf = data->m_TextureSets[i];
             const dmGameSystemDDF::TextureSetAnimation* animation_ddf = data->m_Animations[i];
+            if (!animation_ddf)
+            {
+                memset(uvs.Begin(), 0, sizeof(float)*uvs.Size());
+                continue;
+            }
+                
             const float* tex_coords     = (const float*) texture_set_ddf->m_TexCoords.m_Data;
             const float* tc             = &tex_coords[frame_index * 4 * 2];
             uint32_t flip_flag          = 0;
