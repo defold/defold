@@ -89,12 +89,7 @@
   ([resource rename-patterns]
    (resource-id resource nil rename-patterns))
   ([resource animation-name rename-patterns]
-   (let [id (-> (resource/proj-path resource)
-                (string/split #"/")
-                last
-                (string/split #"\.(?=[^\.]+$)")
-                first)
-         id (cond->> id animation-name (str animation-name "/"))]
+   (let [id (cond->> (resource/base-name resource) animation-name (str animation-name "/"))]
      (if rename-patterns
        (try (AtlasUtil/replaceStrings rename-patterns id) (catch Exception _ id))
        id))))

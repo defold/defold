@@ -204,7 +204,7 @@
 
    'dmGameSystemDDF.SpriteDesc
    {:default
-    {"tile_set" :deprecated}} ; Replaced with 'textures'
+    {"tile_set" :deprecated}} ; Replaced with 'textures'; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGraphics.VertexAttribute
    {[["particlefx" "emitters" "[*]" "attributes"]
@@ -632,7 +632,13 @@
                             {:sampler "tex1"
                              :texture tex1-resource}]
                  :attributes {}}]
-               (g/node-value legacy-material-and-textures-model :materials)))))))
+               (g/node-value legacy-material-and-textures-model :materials)))))
+
+    (testing "sprite"
+      (let [sprite (project/get-resource-node project "/silently_migrated/legacy_tile_set.sprite")]
+        (is (= [{:sampler "texture_sampler"
+                 :texture (workspace/find-resource workspace "/checked.atlas")}]
+               (g/node-value sprite :textures)))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.

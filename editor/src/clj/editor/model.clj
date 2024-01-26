@@ -90,6 +90,7 @@
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (defn- res-fields->resources [pb-msg deps-by-source fields]
+  ;; TODO: use editor.pipeline/make-resource-props instead?
   (letfn [(fill-from-key-path [acc source acc-path key-path-index key-path]
             (let [end (= key-path-index (count key-path))]
               (if end

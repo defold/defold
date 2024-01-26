@@ -21,6 +21,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
+            [util.coll :refer [pair]]
             [util.digest :as digest])
   (:import [java.io File]))
 
@@ -57,7 +58,7 @@
                                        :value x
                                        :resource-keys resource-keys})))
                     (if-let [build-resource (deps-by-source x)]
-                      [[path build-resource]]
+                      [(pair path build-resource)]
                       (throw (ex-info "deps-by-source is missing a referenced source-resource"
                                       {:path path
                                        :deps-by-source deps-by-source

@@ -598,10 +598,9 @@
 (defn- sanitize-sprite [{:keys [textures tile-set] :as pb}]
   (if (and (zero? (count textures))
            (pos? (count tile-set)))
-    (-> pb
-        (dissoc :tile-set)
-        (assoc :textures [{:sampler "texture_sampler"
-                           :texture tile-set}]))
+    (assoc pb :tile-set ""
+              :textures [{:sampler "texture_sampler"
+                          :texture tile-set}])
     pb))
 
 (defn load-sprite [project self resource sprite]

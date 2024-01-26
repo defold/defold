@@ -662,6 +662,15 @@
         complete-ddf-animations (map complete-ddf-animation
                                      incomplete-ddf-animations
                                      animations-in-ddf)
+        ;; Texture set must contain hashed references to images:
+        ;; - for stand-alone images: as simple `base-name`
+        ;; - for images in animations: as `animation/base-name`
+        ;; Base name might be affected by rename patterns. Since we don't
+        ;; provide animation names to Bob's layout algorithm, we need to fill
+        ;; them here. The same image (i.e. rect) might be referenced multiple
+        ;; times if it's used in different animations, that's fine and this is
+        ;; how Bob does it in TextureSetGenerator. See also: comments in
+        ;; texture_set_ddf.proto about `image_name_hashes` field
         fixed-image-name-hashes (-> []
                                     (into
                                       (map #(-> % :path (texture-set-gen/resource-id rename-patterns) murmur/hash64))
