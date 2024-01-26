@@ -538,8 +538,10 @@
         (g/set-property! node-id label val)))))
 
 (defn prop-clear! [node-id label]
-  (let [[node-id label] (resolve-prop node-id label)]
-    (g/clear-property! node-id label)))
+  (if-let [clear-fn (get-in (g/node-value node-id :_properties) [:properties label :edit-type :clear-fn])]
+    (g/transact (clear-fn node-id label))
+    (let [[node-id label] (resolve-prop node-id label)]
+      (g/clear-property! node-id label))))
 
 (defn prop-read-only? [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :read-only?]))
