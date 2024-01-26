@@ -28,7 +28,7 @@ namespace dmRender
         return c == ' ' || c == '\n' || c == ZERO_WIDTH_SPACE_UNICODE;
     }
 
-    static uint32_t NextBreak(const char** cursor, int* n) {
+    static inline uint32_t NextBreak(const char** cursor, int* n) {
         uint32_t c = 0;
         do {
             c = dmUtf8::NextChar(cursor);
@@ -38,7 +38,7 @@ namespace dmRender
         return c;
     }
 
-    static uint32_t SkipWS(const char** cursor, int* n) {
+    static inline uint32_t SkipWS(const char** cursor, int* n) {
         uint32_t c = 0;
         do {
             c = dmUtf8::NextChar(cursor);
@@ -130,7 +130,7 @@ namespace dmRender
     }
 
     // Helper to calculate horizontal pivot point
-    static float OffsetX(uint32_t align, float width)
+    static inline float OffsetX(uint32_t align, float width)
     {
         switch (align)
         {
@@ -146,7 +146,7 @@ namespace dmRender
     }
 
     // Helper to calculate vertical pivot point
-    static float OffsetY(uint32_t valign, float height, float ascent, float descent, float leading, uint32_t line_count)
+    static inline float OffsetY(uint32_t valign, float height, float ascent, float descent, float leading, uint32_t line_count)
     {
         float line_height = ascent + descent;
         switch (valign)
@@ -165,6 +165,7 @@ namespace dmRender
     // Used in unit tests
     bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
     bool VerifyFontMapMagFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
+    const void* GetGlyphData(dmRender::HFontMap font_map);
 }
 
 #endif // #ifndef DM_FONT_RENDERER_PRIVATE
