@@ -132,7 +132,6 @@ namespace dmGameSystem
         uint64_t m_Groups[16];
 
         void* m_CallbackInfo;
-        void (*m_CallbackFunc)(void*, const dmDDF::Descriptor*, const char*);
 
         union
         {
@@ -589,7 +588,7 @@ namespace dmGameSystem
 
     void RunPhysicsCallback(CollisionWorld* world, const dmDDF::Descriptor* desc, const char* data)
     {
-        world->m_CallbackFunc(world->m_CallbackInfo, desc, data);
+        RunCollisionWorldCallback(world->m_CallbackInfo, desc, data);
     }
 
     bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
@@ -2013,11 +2012,10 @@ namespace dmGameSystem
         return world->m_CallbackInfo;
     }
 
-    void SetCollisionWorldCallback(void* _world, void* callback_info, void (*callback_func)(void*, const dmDDF::Descriptor*, const char*))
+    void SetCollisionWorldCallback(void* _world, void* callback_info)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         world->m_CallbackInfo = callback_info;
-        world->m_CallbackFunc = callback_func;
     }
 
     dmhash_t GetCollisionGroup(void* _world, void* _component)

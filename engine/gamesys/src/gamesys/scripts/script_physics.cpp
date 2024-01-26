@@ -1453,29 +1453,6 @@ namespace dmGameSystem
         return 0;
     }
 
-    static void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data)
-    {
-        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)callback_data;
-        if (!dmScript::IsCallbackValid(cbk))
-        {
-            dmLogError("Physics world listener is invalid.");
-            return;
-        }
-        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
-        DM_LUA_STACK_CHECK(L, 0);
-
-        if (!dmScript::SetupCallback(cbk))
-        {
-            dmLogError("Failed to setup physics.set_listener() callback");
-            return;
-        }
-        lua_pushstring(L, desc->m_Name);
-        dmScript::PushDDF(L, desc, data, false);
-        int ret = dmScript::PCall(L, 3, 0);
-        (void)ret;
-        dmScript::TeardownCallback(cbk);
-    }
-
     /*# sets a physics world event listener. If a function is set, physics messages will no longer be sent.
      *
      * @name physics.set_listener
@@ -1600,7 +1577,7 @@ namespace dmGameSystem
             if (cbk != 0x0)
             {
                 dmScript::DestroyCallback(cbk);
-                SetCollisionWorldCallback(world, 0x0, 0x0);
+                SetCollisionWorldCallback(world, 0x0);
             }
         }
         else if (type == LUA_TFUNCTION)
@@ -1608,16 +1585,39 @@ namespace dmGameSystem
             if (cbk != 0x0)
             {
                 dmScript::DestroyCallback(cbk);
-                SetCollisionWorldCallback(world, 0x0, 0x0);
+                SetCollisionWorldCallback(world, 0x0);
             }
             cbk = dmScript::CreateCallback(L, 1);
-            SetCollisionWorldCallback(world, cbk, RunCollisionWorldCallback);
+            SetCollisionWorldCallback(world, cbk);
         }
         else
         {
             return DM_LUA_ERROR("argument 1 to physics.set_listener() must be either nil or function");
         }
         return 0;
+    }
+
+    void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data)
+    {
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)callback_data;
+        if (!dmScript::IsCallbackValid(cbk))
+        {
+            dmLogError("Physics world listener is invalid.");
+            return;
+        }
+        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if (!dmScript::SetupCallback(cbk))
+        {
+            dmLogError("Failed to setup physics.set_listener() callback");
+            return;
+        }
+        lua_pushstring(L, desc->m_Name);
+        dmScript::PushDDF(L, desc, data, false);
+        int ret = dmScript::PCall(L, 3, 0);
+        (void)ret;
+        dmScript::TeardownCallback(cbk);
     }
 
     static const luaL_reg PHYSICS_FUNCTIONS[] =
