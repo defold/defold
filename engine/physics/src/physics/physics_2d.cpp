@@ -1530,6 +1530,26 @@ namespace dmPhysics
                     joint = world->m_World.CreateJoint(&jointDef);
                 }
                 break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    b2WheelJointDef jointDef;
+                    jointDef.bodyA            = b2_obj_a;
+                    jointDef.bodyB            = b2_obj_b;
+                    jointDef.localAnchorA     = pa;
+                    jointDef.localAnchorB     = pb;
+                    b2Vec2 axis;
+                    Vector3 apa(params.m_WheelJointParams.m_LocalAxisA[0], params.m_WheelJointParams.m_LocalAxisA[1], params.m_WheelJointParams.m_LocalAxisA[2]);
+                    ToB2(apa, axis, 1.0f);
+                    jointDef.localAxisA       = axis;
+                    jointDef.maxMotorTorque   = params.m_WheelJointParams.m_MaxMotorTorque;
+                    jointDef.motorSpeed       = params.m_WheelJointParams.m_MotorSpeed;
+                    jointDef.enableMotor      = params.m_WheelJointParams.m_EnableMotor;
+                    jointDef.frequencyHz      = params.m_WheelJointParams.m_FrequencyHz;
+                    jointDef.dampingRatio     = params.m_WheelJointParams.m_DampingRatio;
+                    jointDef.collideConnected = params.m_CollideConnected;
+                    joint = world->m_World.CreateJoint(&jointDef);
+                }
+                break;
             default:
                 return 0x0;
         }
@@ -1582,6 +1602,16 @@ namespace dmPhysics
                     b2WeldJoint* typed_joint = (b2WeldJoint*)joint;
                     typed_joint->SetFrequency(params.m_WeldJointParams.m_FrequencyHz);
                     typed_joint->SetDampingRatio(params.m_WeldJointParams.m_DampingRatio);
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    b2WheelJoint* typed_joint = (b2WheelJoint*)joint;
+                    typed_joint->SetMaxMotorTorque(params.m_WheelJointParams.m_MaxMotorTorque * scale);
+                    typed_joint->SetMotorSpeed(params.m_WheelJointParams.m_MotorSpeed);
+                    typed_joint->EnableMotor(params.m_WheelJointParams.m_EnableMotor);
+                    typed_joint->SetSpringFrequencyHz(params.m_WheelJointParams.m_FrequencyHz);
+                    typed_joint->SetSpringDampingRatio(params.m_WheelJointParams.m_DampingRatio);
                 }
                 break;
             default:
@@ -1660,6 +1690,24 @@ namespace dmPhysics
 
                     // Read only properties
                     params.m_WeldJointParams.m_ReferenceAngle = typed_joint->GetReferenceAngle();
+                }
+                break;
+            case dmPhysics::JOINT_TYPE_WHEEL:
+                {
+                    b2WheelJoint* typed_joint = (b2WheelJoint*)joint;
+                    b2Vec2 axis = typed_joint->GetLocalAxisA();
+                    params.m_WheelJointParams.m_LocalAxisA[0] = axis.x;
+                    params.m_WheelJointParams.m_LocalAxisA[1] = axis.y;
+                    params.m_WheelJointParams.m_LocalAxisA[2] = 0.0f;
+                    params.m_WheelJointParams.m_MaxMotorTorque = typed_joint->GetMaxMotorTorque() * inv_scale;
+                    params.m_WheelJointParams.m_MotorSpeed = typed_joint->GetMotorSpeed();
+                    params.m_WheelJointParams.m_EnableMotor = typed_joint->IsMotorEnabled();
+                    params.m_WheelJointParams.m_FrequencyHz = typed_joint->GetSpringFrequencyHz();
+                    params.m_WheelJointParams.m_DampingRatio = typed_joint->GetSpringDampingRatio();
+
+                    // Read only properties
+                    params.m_WheelJointParams.m_JointTranslation = typed_joint->GetJointTranslation();
+                    params.m_WheelJointParams.m_JointSpeed = typed_joint->GetJointSpeed();
                 }
                 break;
             default:

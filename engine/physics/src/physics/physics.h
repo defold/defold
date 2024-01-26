@@ -46,7 +46,9 @@ namespace dmPhysics
         JOINT_TYPE_HINGE,
         JOINT_TYPE_SLIDER,
         JOINT_TYPE_WELD,
-        JOINT_TYPE_COUNT
+        JOINT_TYPE_WHEEL,
+        JOINT_TYPE_COUNT,
+
     };
 
     enum JointResult
@@ -1323,6 +1325,18 @@ namespace dmPhysics
                 float m_FrequencyHz;
                 float m_DampingRatio;
             } m_WeldJointParams;
+
+            struct
+            {
+                float m_JointTranslation; // read only
+                float m_JointSpeed; // read only
+                float m_LocalAxisA[3];
+                float m_MaxMotorTorque;
+                float m_MotorSpeed;
+                bool  m_EnableMotor;
+                float m_FrequencyHz;
+                float m_DampingRatio;
+            } m_WheelJointParams;
         };
 
         ConnectJointParams()
@@ -1368,6 +1382,16 @@ namespace dmPhysics
                     m_WeldJointParams.m_ReferenceAngle = 0.0f;
                     m_WeldJointParams.m_FrequencyHz = 0.0f;
                     m_WeldJointParams.m_DampingRatio = 0.0f;
+                    break;
+                case JOINT_TYPE_WHEEL:
+                    m_WheelJointParams.m_LocalAxisA[0] = 1.0f;
+                    m_WheelJointParams.m_LocalAxisA[1] = 0.0f;
+                    m_WheelJointParams.m_LocalAxisA[2] = 0.0f;
+                    m_WheelJointParams.m_MaxMotorTorque = 0.0f;
+                    m_WheelJointParams.m_MotorSpeed = 0.0f;
+                    m_WheelJointParams.m_EnableMotor = false;
+                    m_WheelJointParams.m_FrequencyHz = 0.0f;
+                    m_WheelJointParams.m_DampingRatio = 0.0f;
                     break;
                 default:
                     break;
