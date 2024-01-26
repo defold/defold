@@ -635,10 +635,16 @@
                (g/node-value legacy-material-and-textures-model :materials)))))
 
     (testing "sprite"
-      (let [sprite (project/get-resource-node project "/silently_migrated/legacy_tile_set.sprite")]
+      (let [legacy-tile-set-sprite (project/get-resource-node project "/silently_migrated/legacy_tile_set.sprite")]
         (is (= [{:sampler "texture_sampler"
                  :texture (workspace/find-resource workspace "/checked.atlas")}]
-               (g/node-value sprite :textures)))))))
+               (g/node-value legacy-tile-set-sprite :textures))))
+      (let [legacy-tile-set-sprite-go (project/get-resource-node project "/silently_migrated/legacy_tile_set_sprite.go")
+            embedded-component (:node-id (test-util/outline legacy-tile-set-sprite-go [0]))
+            embedded-sprite (test-util/to-component-resource-node-id embedded-component)]
+        (is (= [{:sampler "texture_sampler"
+                 :texture (workspace/find-resource workspace "/checked.atlas")}]
+               (g/node-value embedded-sprite :textures)))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.

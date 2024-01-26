@@ -27,6 +27,7 @@
             [editor.material :as material]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
@@ -595,13 +596,29 @@
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
                                                  (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
 
-(defn- sanitize-sprite [{:keys [textures tile-set] :as pb}]
-  (if (and (zero? (count textures))
-           (pos? (count tile-set)))
-    (assoc pb :tile-set ""
-              :textures [{:sampler "texture_sampler"
-                          :texture tile-set}])
-    pb))
+(defn- sanitize-sprite [{:keys [offset playback-rate size size-mode slice9 textures tile-set] :as sprite-desc}]
+  {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
+  (cond-> (dissoc sprite-desc :tile-set)
+
+          (= protobuf/vector4-zero slice9)
+          (dissoc :slice9)
+
+          (= protobuf/float-zero offset)
+          (dissoc :offset)
+
+          (= protobuf/float-one playback-rate)
+          (dissoc :playback-rate)
+
+          (= :size-mode-auto size-mode)
+          (dissoc :size-mode)
+
+          (= protobuf/vector4-zero size)
+          (dissoc :size)
+
+          (and (zero? (count textures))
+               (pos? (count tile-set)))
+          (assoc :textures [{:sampler "texture_sampler"
+                             :texture tile-set}])))
 
 (defn load-sprite [project self resource sprite]
   (let [material (workspace/resolve-resource resource (:material sprite))
@@ -611,11 +628,11 @@
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material material)
       (g/set-property self :blend-mode (:blend-mode sprite))
-      (g/set-property self :size-mode (:size-mode sprite))
-      (g/set-property self :manual-size (v4->v3 (:size sprite)))
-      (g/set-property self :slice9 (:slice9 sprite))
-      (g/set-property self :offset (:offset sprite))
-      (g/set-property self :playback-rate (:playback-rate sprite))
+      (g/set-property self :size-mode (:size-mode sprite :size-mode-auto))
+      (g/set-property self :manual-size (v4->v3 (:size sprite protobuf/vector4-zero)))
+      (g/set-property self :slice9 (:slice9 sprite protobuf/vector4-zero))
+      (g/set-property self :offset (:offset sprite protobuf/float-zero))
+      (g/set-property self :playback-rate (:playback-rate sprite protobuf/float-one))
       (g/set-property self :vertex-attribute-overrides vertex-attribute-overrides)
       (for [{:keys [sampler texture]} (:textures sprite)]
         (create-texture-binding-tx self sampler (workspace/resolve-resource resource texture))))))
