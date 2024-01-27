@@ -273,8 +273,8 @@ namespace dmGameSystem
      * through `groups`.
      * The actual ray cast will be performed during the physics-update.
      *
-     * - If an object is hit, the result will be reported via a `ray_cast_response` message.
-     * - If there is no object hit, the result will be reported via a `ray_cast_missed` message.
+     * - If an object is hit, the result will be reported via a [ref:ray_cast_response] message.
+     * - If there is no object hit, the result will be reported via a [ref:ray_cast_missed] message.
      *
      * @name physics.raycast_async
      * @param from [type:vector3] the world position of the start of the ray
@@ -397,7 +397,7 @@ namespace dmGameSystem
      * `all`
      * : [type:boolean] Set to `true` to return all ray cast hits. If `false`, it will only return the closest hit.
      *
-     * @return result [type:table|nil] It returns a list. If missed it returns `nil`. See `ray_cast_response` for details on the returned values.
+     * @return result [type:table|nil] It returns a list. If missed it returns `nil`. See [ref:ray_cast_response] for details on the returned values.
      * @examples
      *
      * How to perform a ray cast synchronously:
@@ -1495,6 +1495,173 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# sets a physics world event listener. If a function is set, physics messages will no longer be sent.
+     *
+     * @name physics.set_listener
+     *
+     * @param callback [type:function(self, event, data)|nil] A callback that receives information about all the physics interactions in this physics world.
+     *
+     * `self`
+     * : [type:object] The calling script
+     *
+     * `event`
+     * : [type:constant] The type of event. Can be one of these messages:
+     *
+     *
+     * - [ref:contact_point_event]
+     * - [ref:collision_event]
+     * - [ref:trigger_event]
+     * - [ref:ray_cast_response]
+     * - [ref:ray_cast_missed]
+     *
+     * `data`
+     * : [type:table] The callback value data is a table that contains event-related data. See the documentation for details on the messages.
+     *
+     * @examples
+     *
+     * ```lua
+     * local function physics_world_listener(self, event, data)
+     *   if event == hash("contact_point_event") then
+     *     pprint(data)
+     *     -- {
+     *     --  distance = 0.0714111328125,
+     *     --  applied_impulse = 310.00769042969,
+     *     --  a = {
+     *     --      position = vmath.vector3(446, 371, 0),
+     *     --      relative_velocity = vmath.vector3(1.1722083854693e-06, -20.667181015015, -0),
+     *     --      mass = 0,
+     *     --      group = hash: [default],
+     *     --      id = hash: [/flat],
+     *     --      normal = vmath.vector3(-0, -1, -0)
+     *     --  },
+     *     --  b = {
+     *     --      position = vmath.vector3(185, 657.92858886719, 0),
+     *     --      relative_velocity = vmath.vector3(-1.1722083854693e-06, 20.667181015015, 0),
+     *     --      mass = 10,
+     *     --      group = hash: [default],
+     *     --      id = hash: [/go2],
+     *     --      normal = vmath.vector3(0, 1, 0)
+     *     --  }
+     *     -- }
+     *   elseif event == hash("collision_event") then
+     *     pprint(data)
+     *     -- {
+     *     --  a = {
+     *     --          group = hash: [default],
+     *     --          position = vmath.vector3(183, 666, 0),
+     *     --          id = hash: [/go1]
+     *     --      },
+     *     --  b = {
+     *     --          group = hash: [default],
+     *     --          position = vmath.vector3(185, 704.05865478516, 0),
+     *     --          id = hash: [/go2]
+     *     --      }
+     *     -- }
+     *   elseif event ==  hash("trigger_event") then
+     *     pprint(data)
+     *     -- {
+     *     --  enter = true,
+     *     --  b = {
+     *     --      group = hash: [default],
+     *     --      id = hash: [/go2]
+     *     --  },
+     *     --  a = {
+     *     --      group = hash: [default],
+     *     --      id = hash: [/go1]
+     *     --  }
+     *     -- },
+     *   elseif event ==  hash("ray_cast_response") then
+     *     pprint(data)
+     *     --{
+     *     --  group = hash: [default],
+     *     --  request_id = 0,
+     *     --  position = vmath.vector3(249.92222595215, 249.92222595215, 0),
+     *     --  fraction = 0.68759721517563,
+     *     --  normal = vmath.vector3(0, 1, 0),
+     *     --  id = hash: [/go]
+     *     -- }
+     *   elseif event ==  hash("ray_cast_missed") then
+     *     pprint(data)
+     *     -- {
+     *     --  request_id = 0
+     *     --},
+     *   end
+     * end
+     *
+     * function init(self)
+     *     physics.set_listener(physics_world_listener)
+     * end
+     * ```
+     */
+    static int Physics_SetListener(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        int top = lua_gettop(L);
+
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        if (world == 0x0)
+        {
+            return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
+        }
+
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)GetCollisionWorldCallback(world);
+
+        int type = lua_type(L, 1);
+        if (type == LUA_TNONE || type == LUA_TNIL)
+        {
+            if (cbk != 0x0)
+            {
+                dmScript::DestroyCallback(cbk);
+                SetCollisionWorldCallback(world, 0x0);
+            }
+        }
+        else if (type == LUA_TFUNCTION)
+        {
+            if (cbk != 0x0)
+            {
+                dmScript::DestroyCallback(cbk);
+                SetCollisionWorldCallback(world, 0x0);
+            }
+            cbk = dmScript::CreateCallback(L, 1);
+            SetCollisionWorldCallback(world, cbk);
+        }
+        else
+        {
+            return DM_LUA_ERROR("argument 1 to physics.set_listener() must be either nil or function");
+        }
+        return 0;
+    }
+
+    void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data)
+    {
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)callback_data;
+        if (!dmScript::IsCallbackValid(cbk))
+        {
+            dmLogError("Physics world listener is invalid.");
+            return;
+        }
+        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if (!dmScript::SetupCallback(cbk))
+        {
+            dmLogError("Failed to setup physics.set_listener() callback");
+            return;
+        }
+        lua_pushstring(L, desc->m_Name);
+        dmScript::PushDDF(L, desc, data, false);
+        int ret = dmScript::PCall(L, 3, 0);
+        (void)ret;
+        dmScript::TeardownCallback(cbk);
+    }
+
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
         {"ray_cast",        Physics_RayCastAsync}, // Deprecated
@@ -1514,10 +1681,11 @@ namespace dmGameSystem
         {"set_hflip",       Physics_SetFlipH},
         {"set_vflip",       Physics_SetFlipV},
         {"wakeup",          Physics_Wakeup},
-        {"get_group",		Physics_GetGroup},
-        {"set_group",		Physics_SetGroup},
-        {"get_maskbit",		Physics_GetMaskBit},
-        {"set_maskbit",		Physics_SetMaskBit},
+        {"get_group",       Physics_GetGroup},
+        {"set_group",       Physics_SetGroup},
+        {"get_maskbit",     Physics_GetMaskBit},
+        {"set_maskbit",     Physics_SetMaskBit},
+        {"set_listener",    Physics_SetListener},
 
         // Shapes
         {"get_shape", Physics_GetShape},
