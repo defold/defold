@@ -1280,20 +1280,20 @@ namespace dmPhysics
             return false;
         }
         b2Fixture* fixture = body->GetFixtureList();
-        float totalArea = 0.0f;
+        float total_area = 0.0f;
         while (fixture) {
             b2MassData mass_data;
             fixture->GetShape()->ComputeMass(&mass_data, 1.0f);
             // Since density is 1.0, massData.mass represents the area.
-            totalArea += mass_data.mass;
+            total_area += mass_data.mass;
             fixture = fixture->GetNext();
 
         }
         fixture = body->GetFixtureList();
-        if (totalArea <= 0.0f) {
+        if (total_area <= 0.0f) {
             return false;
         }
-        float new_density = mass / totalArea;
+        float new_density = mass / total_area;
         while (fixture) {
             fixture->SetDensity(new_density);
             fixture = fixture->GetNext();
