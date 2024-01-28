@@ -1293,9 +1293,9 @@ namespace dmPhysics
         if (totalArea <= 0.0f) {
             return false;
         }
-        float newDensity = mass / totalArea;
+        float new_density = mass / totalArea;
         while (fixture) {
-            fixture->SetDensity(newDensity);
+            fixture->SetDensity(new_density);
             fixture = fixture->GetNext();
         }
         body->ResetMassData();
