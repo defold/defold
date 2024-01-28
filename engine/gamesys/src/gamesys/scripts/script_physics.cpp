@@ -1659,7 +1659,6 @@ namespace dmGameSystem
     static int Physics_UpdateMass(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        int top = lua_gettop(L);
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
         PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
