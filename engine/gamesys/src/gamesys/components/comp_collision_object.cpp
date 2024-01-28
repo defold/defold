@@ -847,8 +847,6 @@ namespace dmGameSystem
 
     static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data)
     {
-        dmhash_t message_id;
-
         dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
         dmMessage::URL receiver;
         receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
@@ -2097,6 +2095,24 @@ namespace dmGameSystem
             dmPhysics::SetMaskBit2D(component->m_Object2D, groupbit, boolvalue);
         }
         return true;
+    }
+
+    void UpdateMass(void* _world, void* _component, float mass)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+
+        if (world->m_3D)
+        {
+            dmLogError("The Update Mass function has not been implemented for 3D yet");
+        }
+        else
+        {
+            if(!dmPhysics::UpdateMass2D(component->m_Object2D, mass))
+            {
+                dmLogError("The Update Mass function can be used only for Dynamic objects with shape area > 0");
+            }
+        }
     }
 
     static bool CompCollisionIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)

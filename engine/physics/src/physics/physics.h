@@ -1080,16 +1080,16 @@ namespace dmPhysics
      */
     void SetBullet2D(HCollisionObject2D collision_object, bool value);
 
-	uint16_t GetGroup2D(HCollisionObject2D collision_object);
+    uint16_t GetGroup2D(HCollisionObject2D collision_object);
     void SetGroup2D(HCollisionObject2D collision_object, uint16_t groupbit);
-	bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit);
-	void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue);
+    bool GetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit);
+    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue);
+    bool UpdateMass2D(HCollisionObject2D collision_object, float mass);
 
-	uint16_t GetGroup3D(HCollisionObject3D collision_object);
-	void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit);
-	bool GetMaskBit3D(HCollisionObject3D collision_object, uint16_t groupbit);
-	void SetMaskBit3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue);
-
+    uint16_t GetGroup3D(HCollisionObject3D collision_object);
+    void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit);
+    bool GetMaskBit3D(HCollisionObject3D collision_object, uint16_t groupbit);
+    void SetMaskBit3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit, bool boolvalue);
 
     /**
      * Container of data for ray cast queries.

@@ -251,6 +251,9 @@ namespace dmPhysics
     void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
     }
 
+    bool UpdateMass2D(HCollisionObject2D collision_object, float mass) {
+    }
+
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
     }
