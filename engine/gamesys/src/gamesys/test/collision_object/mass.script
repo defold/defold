@@ -34,9 +34,13 @@ end
 function update(self)
 	self.frame = self.frame + 1
 	if self.frame == 2 then
-		local expected_mass = 10
-		physics.update_mass("#mass_object", expected_mass)
+		local expected_mass = 1 -- initial mass specified in collision object component
 		local mass = go.get("#mass_object", "mass")
+		assert_near(expected_mass, mass)
+
+		expected_mass = 10
+		physics.update_mass("#mass_object", expected_mass)
+		mass = go.get("#mass_object", "mass")
 		assert_near(expected_mass, mass)
 
 		expected_mass = 99
