@@ -2793,16 +2793,17 @@ static void LogFrameBufferError(GLenum status)
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static int OpenGLDoDeleteTexture(void* context, void* data)
+    static int OpenGLDoDeleteTexture(void* _context, void* data)
     {
-        HTexture texture   = (HTexture) context;
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        HTexture texture       = (HTexture) data;
+        OpenGLTexture* tex     = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
 
         glDeleteTextures(tex->m_NumTextureIds, tex->m_TextureIds);
         CHECK_GL_ERROR;
         free(tex->m_TextureIds);
 
-        g_Context->m_AssetHandleContainer.Release(texture);
+        context->m_AssetHandleContainer.Release(texture);
         delete tex;
         return 0;
     }
@@ -2810,8 +2811,7 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLDeleteTextureAsync(HTexture texture)
     {
         dmJobThread::PushJob(g_Context->m_JobThread,
-            OpenGLDoDeleteTexture,
-            0, (void*) texture, 0);
+            OpenGLDoDeleteTexture, 0, (void*) g_Context, (void*) texture);
     }
 
     static void PostDeleteTextures(bool force_delete)
@@ -2953,12 +2953,13 @@ static void LogFrameBufferError(GLenum status)
     }
 
     // Called on worker thread
-    static int AsyncProcessCallback(void* context, void* data)
+    static int AsyncProcessCallback(void* _context, void* data)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
         TextureParamsAsync ap;
         {
-            dmMutex::ScopedLock lk(g_Context->m_AsyncMutex);
+            dmMutex::ScopedLock lk(context->m_AsyncMutex);
             ap = g_TextureParamsAsyncArray[param_array_index];
         }
 
@@ -2970,7 +2971,7 @@ static void LogFrameBufferError(GLenum status)
         glfwUnacquireAuxContext(aux_context);
 
         // Hm, don't we want to lock the asset container?
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, ap.m_Texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, ap.m_Texture);
         tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
 
         return 0;
@@ -3017,7 +3018,8 @@ static void LogFrameBufferError(GLenum status)
             dmJobThread::PushJob(g_Context->m_JobThread,
                 AsyncProcessCallback,
                 AsyncCompleteCallback,
-                0, (void*) (uintptr_t) param_array_index);
+                (void*) g_Context,
+                (void*) (uintptr_t) param_array_index);
         }
     }
 
