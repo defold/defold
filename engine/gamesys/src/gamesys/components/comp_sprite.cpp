@@ -1717,6 +1717,9 @@ namespace dmGameSystem
                     uint32_t vertex_data_size = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
                     uint32_t index_data_size  = world->m_IndexBufferWritePtr - world->m_IndexBufferData;
 
+                    // JG: The renderer executes the dispatch function for begin/end regardless if something is actually batched or not
+                    //     This behaviour can cause side-effects on certain platforms and non-opengl graphics adapters.
+                    //     We might want to change how that process is setup, but for now this is a safer change.
                     if (vertex_data_size && index_data_size)
                     {
                         dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
