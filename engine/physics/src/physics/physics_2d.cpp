@@ -969,15 +969,14 @@ namespace dmPhysics
             f_def.filter.categoryBits = data.m_Group;
             f_def.filter.maskBits = data.m_Mask;
             f_def.shape = s;
-            b2MassData mass_data;
-            f_def.shape->ComputeMass(&mass_data, 1.0f);
-            f_def.density = data.m_Mass / mass_data.mass;
+            f_def.density = 1.0f;
             f_def.friction = data.m_Friction;
             f_def.restitution = data.m_Restitution;
             f_def.isSensor = data.m_Type == COLLISION_OBJECT_TYPE_TRIGGER;
             b2Fixture* fixture = body->CreateFixture(&f_def);
             (void)fixture;
         }
+        UpdateMass2D(body, data.m_Mass);
         return body;
     }
 
@@ -1412,15 +1411,14 @@ namespace dmPhysics
             for (b2Body* body = context->m_Worlds[i]->m_World.GetBodyList(); body; body = body->GetNext())
             {
                 b2Fixture* fixture = body->GetFixtureList();
+                float mass = body->GetMass();
                 while (fixture)
                 {
                     b2Fixture* next_fixture = fixture->GetNext();
                     if (fixture->GetShape() == old_shape)
                     {
-                        b2MassData mass_data;
-                        ((b2Shape*)new_shape)->ComputeMass(&mass_data, 1.0f);
                         b2FixtureDef def;
-                        def.density = body->GetMass() / mass_data.mass;
+                        def.density = 1.0f;
                         def.filter = fixture->GetFilterData(0);
                         def.friction = fixture->GetFriction();
                         def.isSensor = fixture->IsSensor();
@@ -1460,6 +1458,7 @@ namespace dmPhysics
                     }
                     fixture = next_fixture;
                 }
+                UpdateMass2D(body, mass);
             }
         }
     }
