@@ -204,7 +204,7 @@
 
    'dmGameSystemDDF.SpriteDesc
    {:default
-    {"textures" :unimplemented}} ; Multiple textures for sprites are not supported yet.
+    {"tile_set" :deprecated}} ; Replaced with 'textures'; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGraphics.VertexAttribute
    {[["particlefx" "emitters" "[*]" "attributes"]
@@ -632,7 +632,19 @@
                             {:sampler "tex1"
                              :texture tex1-resource}]
                  :attributes {}}]
-               (g/node-value legacy-material-and-textures-model :materials)))))))
+               (g/node-value legacy-material-and-textures-model :materials)))))
+
+    (testing "sprite"
+      (let [legacy-tile-set-sprite (project/get-resource-node project "/silently_migrated/legacy_tile_set.sprite")]
+        (is (= [{:sampler "texture_sampler"
+                 :texture (workspace/find-resource workspace "/checked.atlas")}]
+               (g/node-value legacy-tile-set-sprite :textures))))
+      (let [legacy-tile-set-sprite-go (project/get-resource-node project "/silently_migrated/legacy_tile_set_sprite.go")
+            embedded-component (:node-id (test-util/outline legacy-tile-set-sprite-go [0]))
+            embedded-sprite (test-util/to-component-resource-node-id embedded-component)]
+        (is (= [{:sampler "texture_sampler"
+                 :texture (workspace/find-resource workspace "/checked.atlas")}]
+               (g/node-value embedded-sprite :textures)))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.

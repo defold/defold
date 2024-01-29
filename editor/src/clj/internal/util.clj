@@ -755,6 +755,57 @@
                          (contains? new-name-index %))))
           old-name-index)))
 
+(defn detect-and-apply-renames
+  "Given 2 collections of maps, detect and apply the renames to first one
+
+  Returns updated first coll
+
+  Args:
+    old-coll        nil or vector of maps
+    old-name-key    key used to extract names from maps in the old-coll
+    new-coll        nil or vector of maps
+    new-name-key    key used to extract names from maps in the new-coll"
+  [old-coll old-name-key new-coll new-name-key]
+  (let [old-index (name-index old-coll old-name-key)
+        new-index (name-index new-coll new-name-key)
+        renames (detect-renames old-index new-index)]
+    (reduce-kv
+      (fn [acc old-name+order new-name+order]
+        (update acc (old-index old-name+order) assoc old-name-key (key new-name+order)))
+      old-coll
+      renames)))
+
+(defn detect-renames-and-update-all
+  "Given 2 collections, update every item in 1st with a matching item form 2nd
+
+  Returns updated first coll
+
+  Args:
+    old-coll        nil or vector of maps
+    old-name-key    key used to extract names from maps in the old-coll
+    new-coll        nil or vector of maps
+    new-name-key    key used to extract names from maps in the new-coll
+    update-fn       fn of 2 args - an item from the old coll and an item from
+                    the new-coll (or nil if there is no match for the old item)
+
+  Optional kv-args:
+    :not-found    fallback value to pass to update-fn when there is no matching
+                  item in the new coll, defaults to nil"
+  [old-coll old-name-key new-coll new-name-key update-fn & {:keys [not-found]}]
+  (let [old-index (name-index old-coll old-name-key)
+        new-index (name-index new-coll new-name-key)
+        renames (detect-renames old-index new-index)]
+    (persistent!
+      (reduce-kv
+        (fn [acc old-name+order old-item-index]
+          (let [old-item (acc old-item-index)
+                new-name+order (renames old-name+order)
+                new-item-index (new-index (or new-name+order old-name+order))
+                new-item (if new-item-index (new-coll new-item-index) not-found)]
+            (assoc! acc old-item-index (update-fn old-item new-item))))
+        (transient old-coll)
+        old-index))))
+
 (defn first-rf
   "first as a reducing function"
   ([] nil)

@@ -83,6 +83,10 @@ namespace dmGameSystem
     bool GetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool* maskbit);
     bool SetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool boolvalue);
 
+    void* GetCollisionWorldCallback(void* _world);
+    void SetCollisionWorldCallback(void* _world, void* callback_info);
+    void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data);
+
     struct ShapeInfo
     {
         union
