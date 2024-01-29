@@ -73,7 +73,7 @@ namespace dmGameObject
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         if (script_world->m_Instances.Full())
         {
-            dmLogError("Could not create script component, out of resources.");
+            dmLogError("Could not create script component, out of resources. Increase the 'collection.max_instances' value in [game.project](defold://open?path=/game.project)");
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
 
