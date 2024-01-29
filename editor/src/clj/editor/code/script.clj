@@ -196,6 +196,8 @@
    "font"        "font"
    "material"    "material"
    "buffer"      "buffer"
+   "gameobject"  "go"
+   "collection"  "collection"
    "texture"     (conj image/exts "cubemap")
    "tile_source" "tilesource"})
 

@@ -130,6 +130,8 @@ public class PropertiesUtil {
         value = BuilderUtil.replaceExt(value, ".material", ".materialc");
         value = BuilderUtil.replaceExt(value, ".font", ".fontc");
         value = BuilderUtil.replaceExt(value, ".buffer", ".bufferc");
+        value = BuilderUtil.replaceExt(value, ".go", ".goc");
+        value = BuilderUtil.replaceExt(value, ".collection", ".collectionc");
         value = ProtoBuilders.replaceTextureName(value);
         value = ProtoBuilders.replaceTextureSetName(value);
         return value;
