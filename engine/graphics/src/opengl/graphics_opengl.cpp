@@ -1228,9 +1228,15 @@ static void LogFrameBufferError(GLenum status)
         context->m_AsyncProcessingSupport = dmJobThread::PlatformHasThreadSupport() && glfwQueryAuxContext();
         if (context->m_AsyncProcessingSupport)
         {
-            if(!ValidateAsyncJobProcessing(context))
+            if (context.m_JobThread == 0x0)
+            {
+                dmLogError("AsyncInitialize: Platform has async support but no job thread. Fallback to single thread processing.");
+                context->m_AsyncProcessingSupport = 0;
+            }
+            else if(!ValidateAsyncJobProcessing(context))
             {
                 dmLogDebug("AsyncInitialize: Failed to verify async job processing. Fallback to single thread processing.");
+                context->m_AsyncProcessingSupport = 0;
             }
         }
 
@@ -2970,7 +2976,6 @@ static void LogFrameBufferError(GLenum status)
         glFlush();
         glfwUnacquireAuxContext(aux_context);
 
-        // Hm, don't we want to lock the asset container?
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, ap.m_Texture);
         tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
 
