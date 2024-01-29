@@ -21,8 +21,7 @@
 #include <stdlib.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
-
-#include "../job_thread.h"
+#include <dlib/job_thread.h>
 
 static volatile bool g_TestAsyncCallbackComplete = false;
 
@@ -35,7 +34,9 @@ class AsyncTestSingleThread : public jc_test_base_class
 public:
     virtual void SetUp()
     {
-        m_JobThread = dmJobThread::Create("test_jobs");
+        dmJobThread::JobThreadCreationParams job_thread_create_param;
+        job_thread_create_param.m_ThreadName = "test_jobs";
+        m_JobThread = dmJobThread::Create(1, &job_thread_create_param);
     }
     virtual void TearDown()
     {

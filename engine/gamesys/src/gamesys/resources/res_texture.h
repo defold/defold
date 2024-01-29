@@ -17,7 +17,6 @@
 
 #include <resource/resource.h>
 #include <dmsdk/gamesys/resources/res_texture.h>
-#include <graphics/graphics.h>
 
 namespace dmGameSystem
 {
@@ -33,10 +32,8 @@ namespace dmGameSystem
 
     struct ResTextureReCreateParams
     {
-        void*                       m_TextureImage;
-        ResTextureUploadParams      m_UploadParams;
-        dmGraphics::TextureComplete m_OnCompleteCallback;
-        void*                       m_OnCompleteCallbackUserData;
+        void*                  m_TextureImage;
+        ResTextureUploadParams m_UploadParams;
     };
 
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params);

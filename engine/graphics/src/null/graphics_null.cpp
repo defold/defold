@@ -1624,7 +1624,7 @@ namespace dmGraphics
         return ((NullContext*) context)->m_PipelineState;
     }
 
-    static void NullSetTextureAsync(HTexture texture, const TextureParams& params, TextureComplete callback, void* callback_user_data)
+    static void NullSetTextureAsync(HTexture texture, const TextureParams& params)
     {
         SetTexture(texture, params);
     }

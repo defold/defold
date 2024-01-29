@@ -30,7 +30,6 @@
 #include "script_buffer.h"
 
 #include "../gamesys.h"
-#include "../gamesys_private.h"
 #include "../resources/res_buffer.h"
 #include "../resources/res_texture.h"
 #include "../resources/res_textureset.h"
@@ -1029,12 +1028,15 @@ static int ReleaseResource(lua_State* L)
  * end
  * ```
  */
-    
-static int FillSetTextureParams(lua_State* L, dmGraphics::TextureImage::Image& image, dmGraphics::TextureImage& texture_image, ResTextureReCreateParams& recreate_params)
+static int SetTexture(lua_State* L)
 {
     // Note: We only support uploading a single mipmap for a single slice at a time
     const uint32_t NUM_MIP_MAPS = 1;
     const int32_t DEFAULT_INT_NOT_SET = -1;
+
+    int top = lua_gettop(L);
+
+    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
     luaL_checktype(L, 2, LUA_TTABLE);
     dmGraphics::TextureType type     = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
@@ -1070,20 +1072,22 @@ static int FillSetTextureParams(lua_State* L, dmGraphics::TextureImage::Image& i
     uint32_t datasize = 0;
     dmBuffer::GetBytes(buffer->m_Buffer, (void**)&data, &datasize);
 
-    image.m_Width            = width;
-    image.m_Height           = height;
-    image.m_OriginalWidth    = width;
-    image.m_OriginalHeight   = height;
-    image.m_Format           = GraphicsTextureFormatToImageFormat(format);
-    image.m_CompressionType  = compression_type;
-    image.m_CompressionFlags = 0;
-    image.m_Data.m_Data      = data;
-    image.m_Data.m_Count     = datasize;
+    dmGraphics::TextureImage::Image image  = {};
+    dmGraphics::TextureImage texture_image = {};
+    texture_image.m_Alternatives.m_Data    = &image;
+    texture_image.m_Alternatives.m_Count   = 1;
+    texture_image.m_Type                   = GraphicsTextureTypeToImageType(type);
+    texture_image.m_Count                  = 1;
 
-    texture_image.m_Alternatives.m_Data  = &image;
-    texture_image.m_Alternatives.m_Count = 1;
-    texture_image.m_Type                 = GraphicsTextureTypeToImageType(type);
-    texture_image.m_Count                = 1;
+    image.m_Width                = width;
+    image.m_Height               = height;
+    image.m_OriginalWidth        = width;
+    image.m_OriginalHeight       = height;
+    image.m_Format               = GraphicsTextureFormatToImageFormat(format);
+    image.m_CompressionType      = compression_type;
+    image.m_CompressionFlags     = 0;
+    image.m_Data.m_Data          = data;
+    image.m_Data.m_Count         = datasize;
 
     // Note: When uploading cubemap faces on OpenGL, we expect that the "data size" is **per** slice
     //       and not the entire data size of the buffer. For vulkan we don't look at this value but instead
@@ -1097,6 +1101,7 @@ static int FillSetTextureParams(lua_State* L, dmGraphics::TextureImage::Image& i
     image.m_MipMapSizeCompressed.m_Data  = &mip_map_sizes;
     image.m_MipMapSizeCompressed.m_Count = NUM_MIP_MAPS;
 
+    ResTextureReCreateParams recreate_params;
     recreate_params.m_TextureImage = &texture_image;
 
     ResTextureUploadParams& upload_params = recreate_params.m_UploadParams;
@@ -1105,86 +1110,8 @@ static int FillSetTextureParams(lua_State* L, dmGraphics::TextureImage::Image& i
     upload_params.m_MipMap                = mipmap;
     upload_params.m_SubUpdate             = sub_update;
     upload_params.m_UploadSpecificMipmap  = 1;
-    return 0;
-}
 
-static void TextureAsyncCompleteFn(dmGraphics::HTexture, void* user_data)
-{
-    HOpaqueHandle request_id        = (HOpaqueHandle) (uintptr_t) user_data;
-    dmGameSystem::JobDesc* job_desc = dmGameSystem::GetJobDesc(request_id);
-
-    if (dmScript::IsCallbackValid(job_desc->m_CallbackInfo))
-    {
-        lua_State* L = dmScript::GetCallbackLuaContext(job_desc->m_CallbackInfo);
-        DM_LUA_STACK_CHECK(L, 0);
-
-        if (dmScript::SetupCallback(job_desc->m_CallbackInfo))
-        {
-            lua_pushnumber(L, request_id);
-
-            // lua_newtable(L);
-            // lua_pushnumber(L, request->m_Status);
-            // lua_setfield(L, -2, "status");
-
-            dmScript::PCall(L, 2, 0);
-            dmScript::TeardownCallback(job_desc->m_CallbackInfo);
-        }
-        else
-        {
-            dmLogError("Failed to setup resource.set_texture_async callback (has the calling script been destroyed?)");
-        }
-    }
-
-    dmScript::DestroyCallback(job_desc->m_CallbackInfo);
-    dmGameSystem::ReleaseJobRequest(request_id);
-    delete job_desc;
-}
-
-static int SetTextureAsync(lua_State* L)
-{
-    int top = lua_gettop(L);
-
-    dmGraphics::TextureImage::Image texture_image_image = {};
-    dmGraphics::TextureImage texture_image              = {};
-    ResTextureReCreateParams texture_recreate_params    = {};
-
-    FillSetTextureParams(L, texture_image_image, texture_image, texture_recreate_params);
-
-    dmhash_t path_hash                       = dmScript::CheckHashOrString(L, 1);
-    dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 4);
-
-    JobDesc* desc            = new JobDesc();
-    desc->m_CallbackInfo     = callback_info;
-    HOpaqueHandle request_id = dmGameSystem::MakeJobRequest(desc);
-
-    texture_recreate_params.m_OnCompleteCallback         = TextureAsyncCompleteFn;
-    texture_recreate_params.m_OnCompleteCallbackUserData = (void*) (uintptr_t) request_id;
-    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) &texture_recreate_params);
-
-    if( r != dmResource::RESULT_OK )
-    {
-        assert(top == lua_gettop(L));
-        return ReportPathError(L, r, path_hash);
-    }
-
-    lua_pushnumber(L, request_id);
-
-    assert((top+1) == lua_gettop(L));
-    return 1;
-}
-
-static int SetTexture(lua_State* L)
-{
-    int top = lua_gettop(L);
-
-    dmGraphics::TextureImage::Image texture_image_image = {};
-    dmGraphics::TextureImage texture_image              = {};
-    ResTextureReCreateParams texture_recreate_params    = {};
-
-    FillSetTextureParams(L, texture_image_image, texture_image, texture_recreate_params);
-
-    dmhash_t path_hash   = dmScript::CheckHashOrString(L, 1);
-    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) &texture_recreate_params);
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) &recreate_params);
 
     if( r != dmResource::RESULT_OK )
     {
@@ -2741,7 +2668,6 @@ static const luaL_reg Module_methods[] =
     {"set_atlas", SetAtlas},
     {"get_atlas", GetAtlas},
     {"set_texture", SetTexture},
-    {"set_texture_async", SetTextureAsync},
     {"get_texture_info", GetTextureInfo},
     {"set_sound", SetSound},
     {"get_buffer", GetBuffer},

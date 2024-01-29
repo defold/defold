@@ -130,7 +130,7 @@ static void UpdateSingleThread(JobThreadContext* ctx)
 }
 #endif
 
-HContext Create(uint8_t thread_count, const char** thread_names)
+HContext Create(uint8_t thread_count, const JobThreadCreationParams* create_params)
 {
     JobContext* context = new JobContext;
 #if defined(DM_HAS_THREADS)
@@ -143,7 +143,7 @@ HContext Create(uint8_t thread_count, const char** thread_names)
 
     for (int i = 0; i < thread_count; ++i)
     {
-        context->m_Threads[i] = dmThread::New(JobThread, 0x80000, (void*)&context->m_ThreadContext, thread_names[i]);
+        context->m_Threads[i] = dmThread::New(JobThread, 0x80000, (void*)&context->m_ThreadContext, create_params[i].m_ThreadName);
     }
 #endif
     return context;
@@ -219,8 +219,18 @@ void Update(HContext context)
     for(uint32_t i = 0; i < size; ++i)
     {
         JobItem& item = items[i];
-        item.m_Callback(item.m_Context, item.m_Data, item.m_Result);
+        if (item.m_Callback)
+            item.m_Callback(item.m_Context, item.m_Data, item.m_Result);
     }
+}
+
+bool PlatformHasThreadSupport()
+{
+#if defined(DM_HAS_THREADS)
+    return true;
+#else
+    return false;
+#endif
 }
 
 } // namespace dmJobThread

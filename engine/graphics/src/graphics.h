@@ -59,8 +59,6 @@ namespace dmGraphics
     typedef int (*EngineUpdate)(void* engine);
     typedef void (*EngineGetResult)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
 
-    typedef void (*TextureComplete)(HTexture texture, void* user_context);
-
     // Decorated asset handle with 21 bits meta | 32 bits opaque handle
     // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
@@ -614,7 +612,7 @@ namespace dmGraphics
      * @param texture HTexture
      * @param params TextureParams
      */
-    void SetTextureAsync(HTexture texture, const TextureParams& paramsa, TextureComplete callback, void* callback_user_data);
+    void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
 
     void        SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     uint32_t    GetTextureResourceSize(HTexture texture);

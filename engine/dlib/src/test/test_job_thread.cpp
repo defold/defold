@@ -33,16 +33,23 @@ void callback(void* context, void* data, int result)
 
 TEST(dmJobThread, PushJobs)
 {
-    const char* thread_name = "TestThread";
-    dmJobThread::HContext ctx = dmJobThread::Create(1, &thread_name);
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadName = "DefoldTestJobThread1";
+
+    dmJobThread::HContext ctx = dmJobThread::Create(1, &job_thread_create_param);
     dmJobThread::PushJob(ctx, process, callback, 0, 0);
     dmJobThread::Destroy(ctx);
 }
 
 TEST(dmJobThread, PushJobsMultipleThreads)
 {
-    const char* thread_names[] = {"TestThread1", "TestThread2", "TestThread3", "TestThread4"};
-    dmJobThread::HContext ctx = dmJobThread::Create(DM_ARRAY_SIZE(thread_names), thread_names);
+    dmJobThread::JobThreadCreationParams job_thread_create_params[4];
+    job_thread_create_params[0].m_ThreadName = "DefoldTestJobThread1";
+    job_thread_create_params[1].m_ThreadName = "DefoldTestJobThread2";
+    job_thread_create_params[2].m_ThreadName = "DefoldTestJobThread3";
+    job_thread_create_params[3].m_ThreadName = "DefoldTestJobThread4";
+
+    dmJobThread::HContext ctx = dmJobThread::Create(DM_ARRAY_SIZE(job_thread_create_params), job_thread_create_params);
 
     uint8_t contexts[8];
     uint8_t datas[8];

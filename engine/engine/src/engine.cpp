@@ -852,8 +852,9 @@ namespace dmEngine
             return false;
         }
 
-        const char* thread_names[] = {"DefoldJobThread1", "DefoldJobThread2", "DefoldJobThread3", "DefoldJobThread4"};
-        engine->m_JobThreadContext = dmJobThread::Create(DM_ARRAY_SIZE(thread_names), thread_names);
+        dmJobThread::JobThreadCreationParams job_thread_create_param;
+        job_thread_create_param.m_ThreadName = "DefoldJobThread1";
+        engine->m_JobThreadContext           = dmJobThread::Create(1, &job_thread_create_param);
 
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
