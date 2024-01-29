@@ -1225,10 +1225,10 @@ static void LogFrameBufferError(GLenum status)
             OpenGLPrintDeviceInfo(context);
         }
 
-        context->m_AsyncProcessingSupport = dmJobThread::PlatformHasThreadSupport() && glfwQueryAuxContext();
+        context->m_AsyncProcessingSupport = dmJobThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_AUX_CONTEXT);
         if (context->m_AsyncProcessingSupport)
         {
-            if (context.m_JobThread == 0x0)
+            if (context->m_JobThread == 0x0)
             {
                 dmLogError("AsyncInitialize: Platform has async support but no job thread. Fallback to single thread processing.");
                 context->m_AsyncProcessingSupport = 0;
@@ -2970,11 +2970,14 @@ static void LogFrameBufferError(GLenum status)
         }
 
         // TODO: If we use multiple workers, we either need more secondary contexts,
-        //       or we need to guard this call with a mutex
-        void* aux_context = glfwAcquireAuxContext();
+        //       or we need to guard this call with a mutex. 
+        //       The window handle (pointer) isn't protected by a mutex either,
+        //       but it is currently not used with our GLFW version (yet) so
+        //       we don't necessarily need to guard it right now.
+        void* aux_context = dmPlatform::AcquireAuxContext(context->m_Window);
         SetTexture(ap.m_Texture, ap.m_Params);
         glFlush();
-        glfwUnacquireAuxContext(aux_context);
+        dmPlatform::UnacquireAuxContext(context->m_Window, aux_context);
 
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, ap.m_Texture);
         tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
