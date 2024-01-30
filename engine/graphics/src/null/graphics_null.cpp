@@ -1702,8 +1702,6 @@ namespace dmGraphics
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
         assert(IsAssetHandleValid(context, ap.m_Texture));
-        Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
-        tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
         return 1;
     }
 
@@ -1715,6 +1713,9 @@ namespace dmGraphics
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
 
         SetTexture(ap.m_Texture, ap.m_Params);
+
+        Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
+        tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
 
         ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
     }
