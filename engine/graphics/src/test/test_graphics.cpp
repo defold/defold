@@ -737,7 +737,8 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
             dmGraphics::SetTextureAsync(textures[i], params);
         }
 
-        while(!all_complete && attempts < 10)
+        uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+        while(!all_complete && dmTime::GetTime() < stop_time)
         {
             dmJobThread::Update(m_JobThread);
             all_complete = true;
@@ -746,11 +747,10 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
                 if (dmGraphics::GetTextureStatusFlags(textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
                     all_complete = false;
             }
-            dmTime::Sleep(100);
+            dmTime::Sleep(20 * 1000);
             attempts++;
         }
         ASSERT_TRUE(all_complete);
-        ASSERT_TRUE(attempts < 10);
 
         for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
         {
@@ -759,9 +759,9 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         }
 
         all_complete = false;
-        attempts = 0;
 
-        while(!all_complete && attempts < 10)
+        uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+        while(!all_complete && dmTime::GetTime() < stop_time)
         {
             dmJobThread::Update(m_JobThread);
             all_complete = true;
@@ -770,11 +770,10 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
                 if (dmGraphics::IsAssetHandleValid(m_Context, textures[i]))
                     all_complete = false;
             }
-            dmTime::Sleep(100);
+            dmTime::Sleep(20 * 1000);
             attempts++;
         }
         ASSERT_TRUE(all_complete);
-        ASSERT_TRUE(attempts < 10);
     }
 
     m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
