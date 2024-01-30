@@ -1639,6 +1639,48 @@ namespace dmGameSystem
         return 0;
     }
 
+     /*# updates the mass of a dynamic 2D collision object in the physics world.
+     *
+     * The function recalculates the density of each shape based on the total area of all shapes and the specified mass, then updates the mass of the body accordingly.
+     *
+     * Note: Currently only supported in 2D physics.
+     *
+     * @name physics.update_mass
+     *
+     * @param collisionobject [type:string|hash|url] the collision object whose mass needs to be updated.
+     * @param mass [type:number] the new mass value to set for the collision object.
+     *
+     * @examples
+     *
+     * ```lua
+     *  physics.update_mass("#collisionobject", 14)
+     * ```
+     */
+    static int Physics_UpdateMass(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        void* world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        if (world == 0x0)
+        {
+            return DM_LUA_ERROR("Physics world doesn't exist. Make sure you have at least one physics component in collection.");
+        }
+        void* comp = 0x0;
+        GetCollisionObject(L, 1, collection, &comp, &world);
+
+        float mass = luaL_checknumber(L, 2);
+        dmGameSystem::UpdateMass(world, comp, mass);
+
+        return 0;
+    }
+
     void RunCollisionWorldCallback(void* callback_data, const dmDDF::Descriptor* desc, const char* data)
     {
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)callback_data;
@@ -1686,6 +1728,7 @@ namespace dmGameSystem
         {"get_maskbit",     Physics_GetMaskBit},
         {"set_maskbit",     Physics_SetMaskBit},
         {"set_listener",    Physics_SetListener},
+        {"update_mass",     Physics_UpdateMass},
 
         // Shapes
         {"get_shape", Physics_GetShape},
