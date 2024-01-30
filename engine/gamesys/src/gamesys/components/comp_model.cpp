@@ -1204,10 +1204,12 @@ namespace dmGameSystem
                     total_count += world->m_VertexBufferVertexCounts[batch_index];
                 }
 
-                world->m_DispatchCount++;
-
-                DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, total_count);
-                DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, total_count * sizeof(dmRig::RigModelVertex));
+                if (total_count > 0)
+                {
+                    world->m_DispatchCount++;
+                    DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, total_count);
+                    DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, total_count * sizeof(dmRig::RigModelVertex));
+                }
                 break;
             }
             default:
