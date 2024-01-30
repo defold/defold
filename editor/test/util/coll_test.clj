@@ -405,27 +405,125 @@
                (when (= "needle" value)
                  value)))))))
 
-(deftest sorted-assoc-in-test
-  (testing "Introduces sorted maps for levels that do not exist"
-    (let [original-map (sorted-map)
-          altered-map (coll/sorted-assoc-in original-map [:a :b] 1)
-          created-level (:a altered-map)]
-      (is (map? created-level))
-      (is (sorted? created-level))
-      (is (= 1 (:b created-level)))))
+(deftest assoc-in-ex-test
+  (testing "Calls empty-fn with the key-path for levels that do not exist."
+    (let [empty-fn (fn empty-fn [parent-coll coll-key nested-key-path]
+                     (is (vector? nested-key-path))
+                     {:parent-coll parent-coll
+                      :coll-key coll-key
+                      :nested-key-path nested-key-path})]
+      (is (= {:parent-coll nil
+              :coll-key nil
+              :nested-key-path [:a]
+              :a 1}
+             (coll/assoc-in-ex nil [:a] 1 empty-fn)))
+      (is (= {:parent-coll nil
+              :coll-key nil
+              :nested-key-path [:a :b]
+              :a {:parent-coll {:parent-coll nil
+                                :coll-key nil
+                                :nested-key-path [:a :b]}
+                  :coll-key :a
+                  :nested-key-path [:b]
+                  :b 1}}
+             (coll/assoc-in-ex nil [:a :b] 1 empty-fn)))
+      (is (= {:parent-coll nil
+              :coll-key nil
+              :nested-key-path [:a :b :c]
+              :a {:parent-coll {:parent-coll nil
+                                :coll-key nil
+                                :nested-key-path [:a :b :c]}
+                  :coll-key :a
+                  :nested-key-path [:b :c]
+                  :b {:parent-coll {:parent-coll {:parent-coll nil
+                                                  :coll-key nil
+                                                  :nested-key-path [:a :b :c]}
+                                    :coll-key :a
+                                    :nested-key-path [:b :c]}
+                      :coll-key :b
+                      :nested-key-path [:c]
+                      :c 1}}}
+             (coll/assoc-in-ex nil [:a :b :c] 1 empty-fn)))))
 
-  (testing "Retains data in existing levels"
-    (let [original-map (sorted-map :a 0 :b (sorted-map :A 1 :B 2))
-          altered-map (coll/sorted-assoc-in original-map [:b :C] 3)]
+  (testing "Retains data in existing levels."
+    (let [empty-fn (fn empty-fn [key-path]
+                     (throw (ex-info "empty-fn called unexpectedly."
+                                     {:key-path key-path})))
+          original-map (sorted-map :a 0 :b (sorted-map :A 1 :B 2))
+          altered-map (coll/assoc-in-ex original-map [:b :C] 3 empty-fn)]
       (is (= {:a 0 :b {:A 1 :B 2 :C 3}} altered-map))))
 
-  (testing "Preserves metadata"
-    (let [original-meta {:meta-key "meta-value"}
+  (testing "Preserves metadata."
+    (let [empty-fn (fn empty-fn [key-path]
+                     (throw (ex-info "empty-fn called unexpectedly."
+                                     {:key-path key-path})))
+          original-meta {:meta-key "meta-value"}
           original-map (with-meta (sorted-map :a (with-meta (sorted-map) original-meta)) original-meta)
-          altered-map (coll/sorted-assoc-in original-map [:a :b] 1)]
+          altered-map (coll/assoc-in-ex original-map [:a :b] 1 empty-fn)]
       (is (identical? original-meta (meta altered-map)))
-      (is (identical? original-meta (meta (:a altered-map)))))))
+      (is (identical? original-meta (meta (:a altered-map))))))
 
+  (testing "Throws on conflict."
+    (let [empty-fn (constantly {})]
+      (is (thrown-with-msg? ClassCastException #"cannot be cast to class clojure.lang.Associative"
+                            (coll/assoc-in-ex {:a "existing"} [:a :b] 1 empty-fn)))
+      (is (thrown-with-msg? ClassCastException #"cannot be cast to class clojure.lang.Associative"
+                            (coll/assoc-in-ex {:a false} [:a :b] 1 empty-fn)))))
+
+  (testing "Existing nil value treated as empty."
+    (let [empty-fn (fn empty-fn [parent-coll coll-key nested-key-path]
+                     {:parent-coll parent-coll
+                      :coll-key coll-key
+                      :nested-key-path nested-key-path})]
+      (is (= {:a {:parent-coll {:a nil}
+                  :coll-key :a
+                  :nested-key-path [:b]
+                  :b 1}}
+             (coll/assoc-in-ex {:a nil} [:a :b] 1 empty-fn))))))
+
+(deftest default-assoc-in-empty-fn-test
+  (letfn [(default-assoc-in [coll key-path value]
+            (coll/assoc-in-ex coll key-path value coll/default-assoc-in-empty-fn))]
+
+    (testing "Introduces hash maps for levels that do not exist."
+      (let [altered-map (default-assoc-in nil [:a] 1)]
+        (is (map? altered-map))
+        (is (not (sorted? altered-map)))
+        (is (= 1 (:a altered-map))))
+      (let [original-map (sorted-map)
+            altered-map (default-assoc-in original-map [:a :b] 1)
+            created-level (:a altered-map)]
+        (is (map? created-level))
+        (is (not (sorted? created-level)))
+        (is (= 1 (:b created-level)))))
+
+    (testing "Introduces vectors for integer-addressed levels that do not exist."
+      (is (= [1] (default-assoc-in nil [0] 1)))
+      (is (= {:a [1]} (default-assoc-in nil [:a 0] 1)))
+      (is (= {:a [{:b 1}]} (default-assoc-in nil [:a 0 :b] 1)))
+      (is (= {:a [{:b [1]}]} (default-assoc-in nil [:a 0 :b 0] 1))))))
+
+(deftest sorted-assoc-in-empty-fn-test
+  (letfn [(sorted-assoc-in [coll key-path value]
+            (coll/assoc-in-ex coll key-path value coll/sorted-assoc-in-empty-fn))]
+
+    (testing "Introduces sorted maps for levels that do not exist."
+      (let [altered-map (sorted-assoc-in nil [:a] 1)]
+        (is (map? altered-map))
+        (is (sorted? altered-map))
+        (is (= 1 (:a altered-map))))
+      (let [original-map (sorted-map)
+            altered-map (sorted-assoc-in original-map [:a :b] 1)
+            created-level (:a altered-map)]
+        (is (map? created-level))
+        (is (sorted? created-level))
+        (is (= 1 (:b created-level)))))
+
+    (testing "Introduces vectors for integer-addressed levels that do not exist."
+      (is (= [1] (sorted-assoc-in nil [0] 1)))
+      (is (= {:a [1]} (sorted-assoc-in nil [:a 0] 1)))
+      (is (= {:a [{:b 1}]} (sorted-assoc-in nil [:a 0 :b] 1)))
+      (is (= {:a [{:b [1]}]} (sorted-assoc-in nil [:a 0 :b 0] 1))))))
 
 (deftest nested-map->path-map-test
   (testing "Transforms nested map to flat map of paths"

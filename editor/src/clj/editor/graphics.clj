@@ -26,7 +26,8 @@
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.google.protobuf ByteString]
+  (:import [com.dynamo.graphics.proto Graphics$VertexAttribute]
+           [com.google.protobuf ByteString]
            [com.jogamp.opengl GL2]
            [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteBuffer]))
@@ -303,7 +304,7 @@
         material-attribute-save-values
         (into []
               (keep (fn [{:keys [data-type element-count name name-key normalize semantic-type]}]
-                      (when-some [override-values (:values (get vertex-attribute-overrides name-key))]
+                      (when-some [override-values (some-> vertex-attribute-overrides (get name-key) :values coll/not-empty)]
                         ;; Ensure our saved values have the expected element-count.
                         ;; If the material has been edited, this might have changed,
                         ;; but specialized widgets like the one we use to edit color
@@ -311,8 +312,9 @@
                         ;; what the material dictates.
                         (let [resized-values (resize-doubles override-values semantic-type element-count)
                               [attribute-value-keyword stored-values] (doubles->storage resized-values data-type normalize)]
-                          {:name name
-                           attribute-value-keyword {:v stored-values}}))))
+                          (protobuf/make-map-without-defaults Graphics$VertexAttribute
+                            :name name
+                            attribute-value-keyword {:v stored-values})))))
               material-attribute-infos)
         orphaned-attribute-save-values
         (into []
@@ -321,7 +323,10 @@
                         (let [attribute-name (:name attribute-info)
                               attribute-value-keyword (:value-keyword attribute-info)
                               attribute-values (:values attribute-info)]
-                          {:name attribute-name attribute-value-keyword {:v attribute-values}})))
+                          (protobuf/make-map-without-defaults Graphics$VertexAttribute
+                            :name attribute-name
+                            attribute-value-keyword (when (coll/not-empty attribute-values)
+                                                      {:v attribute-values})))))
                     vertex-attribute-overrides))]
     (concat material-attribute-save-values orphaned-attribute-save-values)))
 

@@ -33,10 +33,9 @@
             [util.diff :as diff]
             [util.fn :as fn]
             [util.text-util :as text-util])
-  (:import [com.dynamo.proto DdfExtensions]
-           [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Builder Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
-           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$GenericDescriptor Message]
-           [java.io StringReader]))
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Builder Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
+           [com.dynamo.proto DdfExtensions]
+           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$GenericDescriptor Message]))
 
 ;; Note: We use symbol or string representations of protobuf types and values
 ;; instead of the imported classes and enum values when declaring exclusions and
@@ -998,7 +997,7 @@
       (fn nested-map-rf
         ([nested-map] nested-map)
         ([nested-map [path value]]
-         (coll/sorted-assoc-in nested-map path value)))
+         (coll/assoc-in-ex nested-map path value coll/sorted-assoc-in-empty-fn)))
       (sorted-map)
       [meta-settings settings])))
 

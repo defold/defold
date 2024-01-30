@@ -263,12 +263,49 @@
     (when-some [match (match-fn coll)]
       [(pair match init-path)])))
 
-(defn sorted-assoc-in
-  "Like core.assoc-in, but sorted maps will be created for any levels that do not exist."
-  [coll [key & remaining-keys] value]
-  (if remaining-keys
-    (assoc coll key (sorted-assoc-in (get coll key empty-sorted-map) remaining-keys value))
-    (assoc coll key value)))
+(defn sorted-assoc-in-empty-fn
+  "An empty-fn for use with assoc-in-ex. Returns vectors for integer keys and
+  sorted maps for non-integer keys."
+  [_ _ nested-key-path]
+  (if (integer? (first nested-key-path))
+    []
+    (sorted-map)))
+
+(defn default-assoc-in-empty-fn
+  "An empty-fn for use with assoc-in-ex. Returns vectors for integer keys and
+  hash maps for non-integer keys."
+  [_ _ nested-key-path]
+  (if (integer? (first nested-key-path))
+    []
+    {}))
+
+(defn assoc-in-ex
+  "Like core.assoc-in, but the supplied empty-fn will be called whenever an
+  intermediate collection along the key-path does not yet exist. The empty-fn is
+  expected to return an empty collection that we will associate entries into.
+  Supplying (constantly {}) as the empty-fn will mimic the behavior of the
+  core.assoc-in function. The arguments supplied to the empty-fn are the parent
+  collection, the key in the parent collection where we expected to find a
+  nested collection, and the remaining key-path that will address into the
+  missing nested collection. If coll is nil, the empty-fn will be called with
+  nil, nil key-path. If no empty-fn is supplied the default empty-fn that
+  produces vectors for integer keys and hash-maps for other keys will be used."
+  ([coll key-path value]
+   (assoc-in-ex coll key-path value default-assoc-in-empty-fn))
+  ([coll key-path value empty-fn]
+   (let [key (key-path 0)
+         nested-key-path (subvec key-path 1)
+         coll (if (some? coll)
+                coll
+                (empty-fn nil nil key-path))]
+     (assoc coll
+       key
+       (if (zero? (count nested-key-path))
+         value
+         (assoc-in-ex (if-some [nested-coll (get coll key)]
+                        nested-coll
+                        (empty-fn coll key nested-key-path))
+           nested-key-path value empty-fn))))))
 
 (def xform-nested-map->path-map
   "Transducer that takes a nested map and returns a flat map of vector paths to
@@ -296,10 +333,10 @@
   same values."
   [path-map]
   {:pre [(map? path-map)]}
-  (reduce (if (sorted? path-map)
-            (fn [nested-map [path value]]
-              (sorted-assoc-in nested-map path value))
-            (fn [nested-map [path value]]
-              (assoc-in nested-map path value)))
-          (empty path-map)
-          path-map))
+  (let [empty-fn (if (sorted? path-map)
+                   sorted-assoc-in-empty-fn
+                   default-assoc-in-empty-fn)]
+    (reduce (fn [nested-map [path value]]
+              (assoc-in-ex nested-map path value empty-fn))
+            (empty path-map)
+            path-map)))

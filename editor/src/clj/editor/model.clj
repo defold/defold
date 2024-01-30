@@ -39,7 +39,7 @@
             [util.coll :as coll]
             [util.coll :refer [pair]]
             [util.digest :as digest])
-  (:import [com.dynamo.gamesys.proto ModelProto$Model ModelProto$ModelDesc]
+  (:import [com.dynamo.gamesys.proto ModelProto$Material ModelProto$Model ModelProto$ModelDesc ModelProto$Texture]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]))
 
@@ -53,7 +53,7 @@
     (when is-single-anim
       (rig/make-animation-set-build-target (resource/workspace resource) _node-id animation-set))))
 
-(g/defnk produce-animation-ids [_node-id resource animations-resource animation-set-info animation-set animation-ids]
+(g/defnk produce-animation-ids [_node-id animations-resource animation-set-info animation-set animation-ids]
   (let [is-single-anim (or (empty? animation-set)
                            (not (animation-set/is-animation-set? animations-resource)))]
     (if is-single-anim
@@ -63,31 +63,23 @@
       (:animation-ids animation-set-info))))
 
 (g/defnk produce-pb-msg [name mesh materials skeleton animations default-animation]
-  (cond-> (protobuf/make-map-with-defaults ModelProto$ModelDesc
-            :mesh (resource/resource->proj-path mesh)
-            :materials (mapv
-                         (fn [material]
-                           (-> material
-                               (update :material resource/resource->proj-path)
-                               (update :textures
-                                       (fn [textures]
-                                         (mapv #(update % :texture resource/proj-path) textures)))))
-                         materials)
-            :skeleton (resource/resource->proj-path skeleton)
-            :animations (resource/resource->proj-path animations)
-            :default-animation default-animation
-            :name name)
-
-          (str/blank? name)
-          (dissoc :name)
-
-          :always
-          (dissoc :material)))
+  (protobuf/make-map-without-defaults ModelProto$ModelDesc
+    :mesh (resource/resource->proj-path mesh)
+    :materials (mapv
+                 (fn [material]
+                   (-> material
+                       (protobuf/sanitize :material resource/resource->proj-path)
+                       (protobuf/sanitize-repeated :textures #(update % :texture resource/resource->proj-path))))
+                 materials)
+    :skeleton (resource/resource->proj-path skeleton)
+    :animations (resource/resource->proj-path animations)
+    :default-animation default-animation
+    :name name))
 
 (defn- build-pb [resource dep-resources {:keys [pb] :as user-data}]
   (let [pb (reduce-kv
              (fn [acc path res]
-               (assoc-in acc path (resource/resource->proj-path (get dep-resources res))))
+               (coll/assoc-in-ex acc path (resource/resource->proj-path (get dep-resources res))))
              pb
              (:dep-resources user-data))]
     {:resource resource :content (protobuf/map->bytes ModelProto$Model pb)}))
@@ -105,7 +97,7 @@
                     acc
                     (assoc! acc acc-path dep)))
                 (let [k (key-path key-path-index)
-                      v (source k)
+                      v (get source k)
                       acc-path (conj acc-path k)]
                   (if (vector? v)
                     (reduce-kv
@@ -128,7 +120,7 @@
     (validation/prop-error :fatal _node-id :default-animation validation/prop-member-of? default-animation (set animation-ids)
                            (format "Animation '%s' does not exist" default-animation))))
 
-(defn- produce-build-target-vertex-attributes [pb-msg material-binding-infos]
+(defn- update-build-target-vertex-attributes [pb-msg material-binding-infos]
   (let [materials+attribute-build-data (mapv (fn [material+binding-infos]
                                                (let [material (first material+binding-infos)
                                                      material-binding-info (second material+binding-infos)
@@ -136,21 +128,23 @@
                                                                            (:vertex-attribute-overrides material-binding-info)
                                                                            (:vertex-attribute-bytes material-binding-info)
                                                                            (:material-attribute-infos material-binding-info))]
-                                                 (assoc material :attributes material-attributes)))
+                                                 (protobuf/assign-repeated material :attributes material-attributes)))
                                              (map vector (:materials pb-msg) material-binding-infos))]
-    (assoc pb-msg :materials materials+attribute-build-data)))
+    (protobuf/assign-repeated pb-msg :materials materials+attribute-build-data)))
 
 (g/defnk produce-save-value [pb-msg materials material-binding-infos]
-  (assoc pb-msg :materials (mapv (fn [material material-binding-info]
-                                   (let [material-attribute-infos (:material-attribute-infos material-binding-info)
-                                         vertex-attribute-overrides (:vertex-attribute-overrides material-binding-info)
-                                         vertex-attribute-save-values (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)]
-                                     (-> (assoc material :attributes vertex-attribute-save-values)
-                                         (update :material resource/resource->proj-path)
-                                         (update :textures
-                                                 (fn [textures]
-                                                   (mapv #(update % :texture resource/resource->proj-path) textures))))))
-                                 materials material-binding-infos)))
+  (protobuf/assign-repeated pb-msg
+    :materials
+    (mapv (fn [material material-binding-info]
+            (let [material-attribute-infos (:material-attribute-infos material-binding-info)
+                  vertex-attribute-overrides (:vertex-attribute-overrides material-binding-info)
+                  vertex-attribute-save-values (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)]
+              (-> material
+                  (protobuf/sanitize :material resource/resource->proj-path)
+                  (protobuf/sanitize-repeated :textures #(update % :texture resource/resource->proj-path))
+                  (protobuf/assign-repeated :attributes vertex-attribute-save-values))))
+          materials
+          material-binding-infos)))
 
 (g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-set-build-target materials material-binding-infos skeleton-build-target animations mesh skeleton]
   (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh "Mesh")
@@ -178,7 +172,7 @@
             rig-scene-pb-msg {:texture-set ""} ; Set in the ModelProto$Model message. Other field values taken from build targets.
             rig-scene-additional-resource-keys []
             rig-scene-build-targets (rig/make-rig-scene-build-targets _node-id rig-scene-resource rig-scene-pb-msg dep-build-targets rig-scene-additional-resource-keys rig-scene-dep-build-targets)
-            pb-msg (produce-build-target-vertex-attributes (select-keys pb-msg [:materials :default-animation]) material-binding-infos)
+            pb-msg (update-build-target-vertex-attributes (select-keys pb-msg [:materials :default-animation]) material-binding-infos)
             dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))
             deps-by-source (into {}
                                  (map (fn [build-target]
@@ -285,8 +279,8 @@
    :attributes TVertexAttributes})
 
 (g/defnode TextureBinding
-  (property sampler g/Str (default ""))
-  (property texture resource/Resource
+  (property sampler g/Str) ; Required protobuf field.
+  (property texture resource/Resource ; Required protobuf field.
             (value (gu/passthrough texture-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -320,8 +314,8 @@
   (input vertex-space g/Keyword)
   (input samplers g/Any)
 
-  (property name g/Str (default ""))
-  (property material resource/Resource
+  (property name g/Str) ; Required protobuf field.
+  (property material resource/Resource ; Required protobuf field.
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -331,8 +325,7 @@
                                             [:shader :shader]
                                             [:attribute-infos :material-attribute-infos]
                                             [:vertex-space :vertex-space]))))
-  (property vertex-attribute-overrides g/Any
-            (default {})
+  (property vertex-attribute-overrides g/Any ; Always assigned in load-fn.
             (dynamic visible (g/constantly false)))
   (input material-resource resource/Resource)
   (input material-attribute-infos g/Any)
@@ -510,8 +503,10 @@
 (g/defnode ModelNode
   (inherits resource-node/ResourceNode)
 
-  (property name g/Str (dynamic visible (g/constantly false)))
-  (property mesh resource/Resource
+  (property name g/Str
+            (default (protobuf/default ModelProto$ModelDesc :name))
+            (dynamic visible (g/constantly false)))
+  (property mesh resource/Resource ; Required protobuf field.
             (value (gu/passthrough mesh-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -541,7 +536,7 @@
               material-binding-infos)))
   (input scene g/Any)
   (input material-scene-infos g/Any :array)
-  (property skeleton resource/Resource
+  (property skeleton resource/Resource ; Nil is valid default.
             (value (gu/passthrough skeleton-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -552,7 +547,7 @@
                                   (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton "Skeleton")))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types})))
-  (property animations resource/Resource
+  (property animations resource/Resource ; Nil is valid default.
             (value (gu/passthrough animations-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -566,6 +561,7 @@
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/animation-file-types})))
   (property default-animation g/Str
+            (default (protobuf/default ModelProto$ModelDesc :default-animation))
             (dynamic error (g/fnk [_node-id default-animation animation-ids]
                                   (validate-default-animation _node-id default-animation animation-ids)))
             (dynamic edit-type (g/fnk [animation-ids]
@@ -645,24 +641,23 @@
       (create-material-binding-tx self name material textures vertex-attribute-overrides))
     (g/callback-ec detect-and-flag-migrated! self model-desc)))
 
-(defn- sanitize-model [{:keys [material textures materials] :as pb}]
-  (-> pb
+(defn- sanitize-model [{:keys [material textures materials] :as model-desc}]
+  {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.
+  (-> model-desc
       (dissoc :material :textures)
-      (cond-> (str/blank? (:name pb))
-              (dissoc :name)
-
-              (and (zero? (count materials))
+      (cond-> (and (zero? (count materials))
                    (or (pos? (count material))
                        (pos? (count textures))))
-              (assoc :materials [{:name "default"
-                                  :material material
-                                  :textures (into []
-                                                  (map-indexed
-                                                    (fn [i tex-name]
-                                                      {:sampler (str "tex" i)
-                                                       :texture tex-name}))
-                                                  textures)
-                                  :attributes []}]))))
+              (assoc :materials [(protobuf/make-map-without-defaults ModelProto$Material
+                                   :name "default"
+                                   :material material
+                                   :textures (into []
+                                                   (map-indexed
+                                                     (fn [i tex-name]
+                                                       (protobuf/make-map-without-defaults ModelProto$Texture
+                                                         :sampler (.intern (str "tex" i))
+                                                         :texture tex-name)))
+                                                   textures))]))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -670,6 +665,7 @@
     :label "Model"
     :node-type ModelNode
     :ddf-type ModelProto$ModelDesc
+    :read-defaults false
     :load-fn load-model
     :sanitize-fn sanitize-model
     :icon model-icon
