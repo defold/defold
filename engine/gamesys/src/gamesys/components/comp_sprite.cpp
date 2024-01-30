@@ -920,7 +920,7 @@ namespace dmGameSystem
             if (anim_index)
                 data->m_Animations[i] = &texture_set_ddf->m_Animations[*anim_index];
             else
-                data->m_Animations[i]; // If the animation doesn't exist in the atlas, then fallback to the first animation (old behavior)
+                data->m_Animations[i] = &texture_set_ddf->m_Animations[0]; // If the animation doesn't exist in the atlas, then fallback to the first animation (old behavior)
 
             uint32_t frame_index = 0xFFFFFFFF;
             if (frame_anim_id == 0xFFFFFFFFFFFFFFFF)
