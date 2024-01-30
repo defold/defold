@@ -34,7 +34,6 @@ namespace dmLoadQueue
     struct PreloadInfo
     {
         dmResource::FResourcePreload m_CompleteFunction;
-        dmResource::FResourceLoad    m_LoadResourceFunction;
         dmResource::PreloadHintInfo  m_HintInfo;
         void*                        m_Context;
     };
