@@ -760,7 +760,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
 
         all_complete = false;
 
-        uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+        stop_time = dmTime::GetTime() + 1*1e6; // 1 second
         while(!all_complete && dmTime::GetTime() < stop_time)
         {
             dmJobThread::Update(m_JobThread);
