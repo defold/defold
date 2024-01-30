@@ -916,42 +916,34 @@ namespace dmGameSystem
             const uint32_t* page_indices = texture_set_ddf->m_PageIndices.m_Data;
             const dmGameSystemDDF::SpriteGeometry* geometries = texture_set_ddf->m_Geometries.m_Data;
 
+            uint32_t* anim_index = data->m_Resources[i]->m_AnimationIds.Get(anim_id);
+            if (anim_index)
+                data->m_Animations[i] = &texture_set_ddf->m_Animations[*anim_index];
+            else
+                data->m_Animations[i] = &texture_set_ddf->m_Animations[0]; // If the animation doesn't exist in the atlas, then fallback to the first animation (old behavior)
+
             uint32_t frame_index = 0xFFFFFFFF;
             if (frame_anim_id == 0xFFFFFFFFFFFFFFFF)
             {
-                uint32_t invalid_anim_index = 0;
-                uint32_t* anim_index = data->m_Resources[i]->m_AnimationIds.Get(anim_id);
-
-                if (!anim_index) // If the animation doesn't exist in the atlas, then fallback to the first animation (old behavior)
-                    anim_index = &invalid_anim_index;
-
-                data->m_Animations[i] = &texture_set_ddf->m_Animations[*anim_index];
-
                 uint32_t anim_frame_index = data->m_Animations[i]->m_Start + current_anim_frame_index;
                 frame_index = frame_indices[anim_frame_index];
 
                 // The name hash of the current single frame animation
-                // NOTE: Current bug: MakeTextureSetFromLua in script_resource doesn't create valid frames, hence this if-statement
-                if (frame_index < texture_set_ddf->m_ImageNameHashes.m_Count)
-                {
-                    frame_anim_id = texture_set_ddf->m_ImageNameHashes[frame_index];
-                }
+                frame_anim_id = texture_set_ddf->m_ImageNameHashes[frame_index];
             }
             else
             {
                 // Use the name hash of the current single frame animation from the driving atlas
                 // to lookup the frame number in this atlas
-                uint32_t* anim_index = data->m_Resources[i]->m_FrameIds.Get(frame_anim_id);
-                if (!anim_index)
+                uint32_t* resource_frame_index = data->m_Resources[i]->m_FrameIds.Get(frame_anim_id);
+                if (!resource_frame_index)
                 {
                     // Missing image in this atlas, we need to skip this texture slot
-                    data->m_Animations[i] = 0;
                     data->m_Frames[i] = 0xFFFFFFFF;
                     continue;
                 }
 
-                frame_index = *anim_index;
-                data->m_Animations[i] = &texture_set_ddf->m_Animations[frame_index];
+                frame_index = *resource_frame_index;
             }
 
             data->m_Frames[i]       = frame_index;
