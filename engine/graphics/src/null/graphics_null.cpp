@@ -1721,7 +1721,7 @@ namespace dmGraphics
         }
         if (!tex)
         {
-            dmLogError("Unable to set texture with handle '%lu', has it been deleted?", (uint32_t) ap.m_Texture);
+            dmLogError("Unable to set texture with handle '%u', has it been deleted?", (uint32_t) ap.m_Texture);
         }
         ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
     }
