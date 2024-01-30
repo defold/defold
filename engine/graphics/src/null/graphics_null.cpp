@@ -1371,6 +1371,7 @@ namespace dmGraphics
         NullContext* context = (NullContext*)_context;
         HTexture texture = (HTexture) _texture;
         Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
+
         if (tex)
         {
             if (tex->m_Data != 0x0)
@@ -1395,7 +1396,7 @@ namespace dmGraphics
             uint32_t size = context->m_SetTextureAsyncState.m_PostDeleteTextures.Size();
             for (uint32_t i = 0; i < size; ++i)
             {
-                DoDeleteTexture((void*)(size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i], 0);
+                DoDeleteTexture(context, (void*)(size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
             }
             context->m_SetTextureAsyncState.m_PostDeleteTextures.SetSize(0);
             return;
@@ -1712,11 +1713,16 @@ namespace dmGraphics
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
 
-        SetTexture(ap.m_Texture, ap.m_Params);
-
         Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
-        tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
-
+        if (tex)
+        {
+            SetTexture(ap.m_Texture, ap.m_Params);
+            tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
+        }
+        else
+        {
+            dmLogError("Unable to set texture with handle '%llu', has it been deleted?", ap.m_Texture);
+        }
         ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
     }
 
