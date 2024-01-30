@@ -40,7 +40,7 @@
            [com.defold.editor.luart SearchPath]
            [com.dynamo.bob Platform]
            [java.io File]
-           [java.nio.file FileAlreadyExistsException Path]
+           [java.nio.file FileAlreadyExistsException NotDirectoryException Path]
            [org.luaj.vm2 LuaError LuaFunction LuaValue Prototype]))
 
 (set! *warn-on-reflection* true)
@@ -475,10 +475,30 @@
         (vreset! request-sync true)
         nil
         (catch FileAlreadyExistsException e
-          (throw (LuaError. (str "File already exists: " (.getMessage e)))))
+          (throw (LuaError. (str "Directory already exists: " (.getMessage e)))))
         (catch Exception e
           (throw (LuaError. (str (.getMessage e))))))
       (throw (LuaError. (str "Can't create " dir-path ": outside of project directory"))))))
+
+(defn- do-ext-delete-directory [^String proj-path]
+  (ensure-spec-in-api-call "editor.delete_directory()" resource-path? proj-path)
+  (let [{:keys [project evaluation-context request-sync]} *execution-context*
+        root-path (-> project
+                      (project/workspace evaluation-context)
+                      (workspace/project-path evaluation-context)
+                      .toPath
+                      .normalize)
+        dir-path (-> (str root-path proj-path) io/file .toPath .normalize)]
+    (if (.startsWith dir-path root-path)
+      (try
+        (fs/delete-path-directory! dir-path)
+        (vreset! request-sync true)
+        nil
+        (catch NotDirectoryException e
+          (throw (LuaError. (str "Not a directory: " (.getMessage e)))))
+        (catch Exception e
+          (throw (LuaError. (str (.getMessage e))))))
+      (throw (LuaError. (str "Can't delete " dir-path ": outside of project directory"))))))
 
 (defn- transact! [txs execution-context]
   (on-transact-thread (:ui execution-context) #(g/transact txs)))
@@ -832,6 +852,7 @@
                                         "can_get" do-ext-can-get
                                         "can_set" do-ext-can-set
                                         "create_directory" do-ext-create-directory
+                                        "delete_directory" do-ext-delete-directory
                                         "platform" (.getPair (Platform/getHostPlatform))
                                         "version" (system/defold-version)
                                         "engine_sha1" (system/defold-engine-sha1)

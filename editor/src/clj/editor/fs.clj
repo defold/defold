@@ -18,7 +18,7 @@
   (:import [java.util UUID]
            [java.io File FileNotFoundException IOException RandomAccessFile]
            [java.nio.channels OverlappingFileLockException]
-           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException Files FileVisitResult LinkOption NoSuchFileException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
+           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException Files FileVisitResult LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
            [java.nio.file.attribute BasicFileAttributes FileAttribute]))
 
 (set! *warn-on-reflection* true)
@@ -179,6 +179,15 @@
   (^File [^File directory opts]
    (let [opts (merge delete-defaults opts)]
      (maybe-silently (fail-silently? opts) nil (do-delete-directory! directory opts)))))
+
+(defn delete-path-directory!
+  "Deletes a directory tree. Returns the deleted directory as Path if successful."
+  ^Path [^Path path]
+  (let [file (.toFile path)]
+    (if (.exists file)
+      (if (.isDirectory file)
+        (delete-directory! file)
+        (throw (NotDirectoryException. (str file)))))))
 
 (defn delete!
   "Deletes a file or directory tree. Returns the deleted directory or file if successful.
