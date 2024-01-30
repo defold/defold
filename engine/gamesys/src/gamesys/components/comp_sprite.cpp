@@ -939,7 +939,6 @@ namespace dmGameSystem
                 if (!resource_frame_index)
                 {
                     // Missing image in this atlas, we need to skip this texture slot
-                    data->m_Animations[i] = 0;
                     data->m_Frames[i] = 0xFFFFFFFF;
                     continue;
                 }
