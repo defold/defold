@@ -13,9 +13,9 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/opaque_handle_container.h>
+#include <dlib/job_thread.h>
 
 #include <resource/resource.h>
-#include <resource/async/load_queue.h>
 
 #include "../gamesys.h"
 
@@ -44,9 +44,8 @@ namespace dmGameSystem
     {
         REQUEST_STATUS_ERROR_IO_ERROR  = -2,
         REQUEST_STATUS_ERROR_NOT_FOUND = -1,
-        REQUEST_STATUS_INITALIZED      = 1,
-        REQUEST_STATUS_PENDING         = 2,
-        REQUEST_STATUS_FINISHED        = 3,
+        REQUEST_STATUS_PENDING         = 1,
+        REQUEST_STATUS_FINISHED        = 2,
     };
 
     struct LuaRequest
@@ -54,7 +53,7 @@ namespace dmGameSystem
         dmScript::LuaCallbackInfo* m_CallbackInfo;
         HOpaqueHandle              m_Handle;
         dmBuffer::HBuffer          m_Payload;
-        dmLoadQueue::HRequest      m_Request;
+        dmResource::LoadBufferType m_LoadBuffer;
         char*                      m_Path;
         dmhash_t                   m_PathHash;
         RequestStatus              m_Status;
@@ -63,19 +62,16 @@ namespace dmGameSystem
     struct SysModule
     {
         dmResource::HFactory                m_Factory;
-        dmLoadQueue::HQueue                 m_LoadQueue;
+        dmJobThread::HContext               m_JobThread;
         dmOpaqueHandleContainer<LuaRequest> m_LoadRequests;
         dmMutex::HMutex                     m_LoadRequestsMutex;
-        uint8_t                             m_LastUpdateResult : 1;
+        uint8_t                             m_LastUpdateResult : 1; // For tests
     } g_SysModule;
 
     // Assumes the g_SysModule.m_LoadRequestsMutex is held
     static bool HandleRequestCompleted(LuaRequest* request)
     {
-        // The request buffer can not be touched after this call
-        dmLoadQueue::FreeLoad(g_SysModule.m_LoadQueue, request->m_Request);
         bool result = true;
-
         if (dmScript::IsCallbackValid(request->m_CallbackInfo))
         {
             lua_State* L = dmScript::GetCallbackLuaContext(request->m_CallbackInfo);
@@ -121,9 +117,10 @@ namespace dmGameSystem
     }
 
     // Assumes the g_SysModule.m_LoadRequestsMutex is held (if needed)
-    static dmResource::Result HandleRequestLoading(dmResource::HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, dmResource::LoadBufferType* buffer, LuaRequest* request)
+    static dmResource::Result HandleRequestLoading(dmResource::HFactory factory, const char* path, const char* original_name, dmResource::LoadBufferType* buffer, LuaRequest* request)
     {
-        dmResource::Result res = dmResource::LoadResourceFromBuffer(factory, path, original_name, resource_size, buffer);
+        uint32_t resource_size;
+        dmResource::Result res = dmResource::LoadResourceFromBuffer(factory, path, original_name, &resource_size, buffer);
 
         if (res != dmResource::RESULT_OK)
         {
@@ -151,56 +148,47 @@ namespace dmGameSystem
                 request->m_Status = REQUEST_STATUS_ERROR_IO_ERROR;
                 return dmResource::RESULT_IO_ERROR;
             }
-
-            assert(nread == file_size);
-            *resource_size = file_size;
         }
 
         return dmResource::RESULT_OK;
     }
 
-    // Called from load queue thread
-    static dmResource::Result LoadBufferFunctionCallback(dmResource::HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, dmResource::LoadBufferType* buffer, void* context)
+    // Called from job thread
+    static int LoadBufferFunctionCallback(void* context, void* data)
     {
-        dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
-
+        DM_MUTEX_SCOPED_LOCK(g_SysModule.m_LoadRequestsMutex);
         HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
         LuaRequest* request          = g_SysModule.m_LoadRequests.Get(request_handle);
-        return HandleRequestLoading(factory, path, original_name, resource_size, buffer, request);
+        return (int) HandleRequestLoading(g_SysModule.m_Factory,
+            request->m_Path, request->m_Path, &request->m_LoadBuffer, request);
     }
 
-    // Called from load queue thread
-    static dmResource::Result LoadBufferCompleteCallback(const dmResource::ResourcePreloadParams& params)
+    // Called from the main thread
+    static void LoadBufferCompleteCallback(void* context, void* data, int result)
     {
-        dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
+        if (((dmResource::Result) result) == dmResource::RESULT_OK)
+        {
+            DM_MUTEX_SCOPED_LOCK(g_SysModule.m_LoadRequestsMutex);
+            HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
+            LuaRequest* request          = g_SysModule.m_LoadRequests.Get(request_handle);
+            request->m_Status            = REQUEST_STATUS_FINISHED;
+            dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
+            dmBuffer::Create(request->m_LoadBuffer.Size(), streams_decl, 1, &request->m_Payload);
 
-        HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) params.m_Context;
-        LuaRequest* request          = g_SysModule.m_LoadRequests.Get(request_handle);
-        request->m_Status            = REQUEST_STATUS_FINISHED;
-
-        dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
-        dmBuffer::Create(params.m_BufferSize, streams_decl, 1, &request->m_Payload);
-
-        uint8_t* buffer_data     = 0;
-        uint32_t buffer_datasize = 0;
-        dmBuffer::GetBytes(request->m_Payload, (void**) &buffer_data, &buffer_datasize);
-        memcpy(buffer_data, params.m_Buffer, params.m_BufferSize);
-
-        return dmResource::RESULT_OK;
+            uint8_t* buffer_data     = 0;
+            uint32_t buffer_datasize = 0;
+            dmBuffer::GetBytes(request->m_Payload, (void**) &buffer_data, &buffer_datasize);
+            memcpy(buffer_data, request->m_LoadBuffer.Begin(), request->m_LoadBuffer.Size());
+        }
     }
 
     // Assumes the g_SysModule.m_LoadRequestsMutex is held
     static void DispatchRequest(LuaRequest* request)
     {
-        dmLoadQueue::PreloadInfo info = {};
-        info.m_CompleteFunction       = LoadBufferCompleteCallback;
-        info.m_LoadResourceFunction   = LoadBufferFunctionCallback;
-        info.m_Context                = (void*) (uintptr_t) request->m_Handle;
-        request->m_Request            = dmLoadQueue::BeginLoad(g_SysModule.m_LoadQueue, request->m_Path, request->m_Path, &info);
-
-        // Beginload returns zero if a load could not be started
-        if (request->m_Request)
-            request->m_Status = REQUEST_STATUS_PENDING;
+        dmJobThread::PushJob(g_SysModule.m_JobThread,
+            LoadBufferFunctionCallback,
+            LoadBufferCompleteCallback,
+            (void*) (uintptr_t) request->m_Handle, 0);
     }
 
     /*# loads a buffer from a resource or disk path
@@ -243,26 +231,23 @@ namespace dmGameSystem
         const char* filename = luaL_checkstring(L, 1);
 
         LuaRequest request;
-        uint32_t load_buffer_size = 0;
         dmResource::LoadBufferType load_buffer_data;
-        dmResource::Result res = HandleRequestLoading(g_SysModule.m_Factory, filename, filename, &load_buffer_size, &load_buffer_data, &request);
+        dmResource::Result res = HandleRequestLoading(g_SysModule.m_Factory, filename, filename, &load_buffer_data, &request);
 
         if (res != dmResource::RESULT_OK)
         {
             return luaL_error(L, "sys.load_buffer failed to load the resource (code=%d)", (int) res);
         }
 
-        assert(load_buffer_data.Size() == load_buffer_size);
-
         dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
 
         dmBuffer::HBuffer buffer = 0;
-        dmBuffer::Create(load_buffer_size, streams_decl, 1, &buffer);
+        dmBuffer::Create(load_buffer_data.Size(), streams_decl, 1, &buffer);
 
         uint8_t* buffer_data     = 0;
         uint32_t buffer_datasize = 0;
         dmBuffer::GetBytes(buffer, (void**) &buffer_data, &buffer_datasize);
-        memcpy(buffer_data, load_buffer_data.Begin(), load_buffer_size);
+        memcpy(buffer_data, load_buffer_data.Begin(), load_buffer_data.Size());
 
         dmScript::LuaHBuffer luabuf(buffer, dmScript::OWNER_LUA);
         dmScript::PushBuffer(L, luabuf);
@@ -352,7 +337,7 @@ namespace dmGameSystem
 
         dmhash_t path_hash = dmHashString64(path);
         {
-            dmMutex::ScopedLock lk(g_SysModule.m_LoadRequestsMutex);
+            DM_MUTEX_SCOPED_LOCK(g_SysModule.m_LoadRequestsMutex);
 
             // We currently don't do anything about duplicated requests here,
             // it is up to the user to manage this by themselves
@@ -375,7 +360,7 @@ namespace dmGameSystem
             request->m_Path         = strdup(path);
             request->m_PathHash     = path_hash;
             request->m_CallbackInfo = callback_info;
-            request->m_Status       = REQUEST_STATUS_INITALIZED;
+            request->m_Status       = REQUEST_STATUS_PENDING;
             request->m_Handle       = g_SysModule.m_LoadRequests.Put(request);
             request->m_Payload      = 0;
             DispatchRequest(request);
@@ -429,7 +414,7 @@ namespace dmGameSystem
         assert(top == lua_gettop(L));
 
         g_SysModule.m_Factory           = context.m_Factory;
-        g_SysModule.m_LoadQueue         = dmLoadQueue::CreateQueue(context.m_Factory);
+        g_SysModule.m_JobThread         = context.m_JobThread;
         g_SysModule.m_LoadRequestsMutex = dmMutex::New();
     }
 
@@ -442,31 +427,14 @@ namespace dmGameSystem
             for (int i = 0; i < request_count; ++i)
             {
                 LuaRequest* request = g_SysModule.m_LoadRequests.GetByIndex(i);
-
-                if (request)
+                if (request && (request->m_Status == REQUEST_STATUS_FINISHED        ||
+                                request->m_Status == REQUEST_STATUS_ERROR_NOT_FOUND ||
+                                request->m_Status == REQUEST_STATUS_ERROR_IO_ERROR))
                 {
-                    // If we tried to dispatch the request, but the queue was full, we try again
-                    if (request->m_Status == REQUEST_STATUS_INITALIZED)
-                    {
-                        DispatchRequest(request);
-                    }
-                    else if (request->m_Status == REQUEST_STATUS_FINISHED        ||
-                             request->m_Status == REQUEST_STATUS_ERROR_NOT_FOUND ||
-                             request->m_Status == REQUEST_STATUS_ERROR_IO_ERROR)
-                    {
-                        result &= HandleRequestCompleted(request);
-                    }
-                    else
-                    {
-                        void* buf;
-                        uint32_t size;
-                        dmLoadQueue::LoadResult load_result;
-                        if (dmLoadQueue::EndLoad(g_SysModule.m_LoadQueue, request->m_Request, &buf, &size, &load_result) == dmLoadQueue::RESULT_OK)
-                        {
-                            result &= HandleRequestCompleted(request);
-                        }
-                    }
+                    result &= HandleRequestCompleted(request);
                 }
+                // Otherwise, result is REQUEST_STATUS_PENDING
+                // All jobs should always complete eventually, regardless of status
             }
             dmMutex::Unlock(g_SysModule.m_LoadRequestsMutex);
         }
@@ -476,8 +444,6 @@ namespace dmGameSystem
 
     void ScriptSysGameSysFinalize(const ScriptLibContext& context)
     {
-        if (g_SysModule.m_LoadQueue)
-            dmLoadQueue::DeleteQueue(g_SysModule.m_LoadQueue);
         if (g_SysModule.m_LoadRequestsMutex)
             dmMutex::Delete(g_SysModule.m_LoadRequestsMutex);
 
@@ -496,7 +462,6 @@ namespace dmGameSystem
         }
 
         g_SysModule.m_Factory           = 0;
-        g_SysModule.m_LoadQueue         = 0;
         g_SysModule.m_LoadRequestsMutex = 0;
     }
 

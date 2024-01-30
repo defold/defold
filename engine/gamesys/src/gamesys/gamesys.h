@@ -19,6 +19,7 @@
 #include <string.h>
 #include <script/script.h>
 
+#include <dlib/job_thread.h>
 #include <resource/resource.h>
 
 #include <dmsdk/dlib/array.h>
@@ -155,6 +156,7 @@ namespace dmGameSystem
         dmGameObject::HRegister m_Register;
         dmHID::HContext         m_HidContext;
         dmGraphics::HContext    m_GraphicsContext;
+        dmJobThread::HContext   m_JobThread;
     };
 
 

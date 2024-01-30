@@ -4054,6 +4054,7 @@ static bool RunTestLoadBufferASync(lua_State* L, int test_n,
     bool tests_done = false;
     while (dmTime::GetTime() < stop_time && !tests_done)
     {
+        dmJobThread::Update(scriptlibcontext.m_JobThread);
         dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
         if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
             return false;
@@ -4073,11 +4074,15 @@ static bool RunTestLoadBufferASync(lua_State* L, int test_n,
 
 TEST_F(SysTest, LoadBufferASync)
 {
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadName = "test_gamesys_thread";
+
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_JobThread       = dmJobThread::Create(1, &job_thread_create_param);
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -4113,6 +4118,8 @@ TEST_F(SysTest, LoadBufferASync)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+
+    dmJobThread::Destroy(scriptlibcontext.m_JobThread);
 }
 
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT

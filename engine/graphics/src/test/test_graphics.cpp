@@ -632,7 +632,6 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
         dmGraphics::NewTexture(m_Context, creation_params),
     };
 
-    uint32_t attempts = 0;
     bool all_complete = false;
 
     for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
@@ -640,7 +639,8 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
         dmGraphics::SetTextureAsync(textures[i], params);
     }
 
-    while(!all_complete && attempts < 10)
+    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    while(!all_complete && dmTime::GetTime() < stop_time)
     {
         dmJobThread::Update(m_JobThread);
         all_complete = true;
@@ -649,10 +649,9 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
             if (dmGraphics::GetTextureStatusFlags(textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
                 all_complete = false;
         }
-        dmTime::Sleep(100);
-        attempts++;
+        dmTime::Sleep(20 * 1000);
     }
-    ASSERT_TRUE(attempts < 10);
+    ASSERT_TRUE(all_complete);
 
     delete [] (char*)params.m_Data;
 
@@ -729,7 +728,6 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
             dmGraphics::NewTexture(m_Context, creation_params),
         };
 
-        uint32_t attempts = 0;
         bool all_complete = false;
 
         for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
@@ -748,7 +746,6 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
                     all_complete = false;
             }
             dmTime::Sleep(20 * 1000);
-            attempts++;
         }
         ASSERT_TRUE(all_complete);
 
@@ -771,7 +768,6 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
                     all_complete = false;
             }
             dmTime::Sleep(20 * 1000);
-            attempts++;
         }
         ASSERT_TRUE(all_complete);
     }
