@@ -27,6 +27,7 @@
             [editor.image :as image]
             [editor.material :as material]
             [editor.model-scene :as model-scene]
+            [editor.pipeline :as pipeline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -76,44 +77,9 @@
     :default-animation default-animation
     :name name))
 
-(defn- build-pb [resource dep-resources {:keys [pb] :as user-data}]
-  (let [pb (reduce-kv
-             (fn [acc path res]
-               (coll/assoc-in-ex acc path (resource/resource->proj-path (get dep-resources res))))
-             pb
-             (:dep-resources user-data))]
-    {:resource resource :content (protobuf/map->bytes ModelProto$Model pb)}))
-
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
-
-(defn- res-fields->resources [pb-msg deps-by-source fields]
-  (letfn [(fill-from-key-path [acc source acc-path key-path-index key-path]
-            (let [end (= key-path-index (count key-path))]
-              (if end
-                (let [dep (get deps-by-source source ::not-found)]
-                  (if (identical? dep ::not-found)
-                    acc
-                    (assoc! acc acc-path dep)))
-                (let [k (key-path key-path-index)
-                      v (get source k)
-                      acc-path (conj acc-path k)]
-                  (if (vector? v)
-                    (reduce-kv
-                      (fn [acc i item]
-                        (let [acc-path (conj acc-path i)]
-                          (fill-from-key-path acc item acc-path (inc key-path-index) key-path)))
-                      acc
-                      v)
-                    (fill-from-key-path acc v acc-path (inc key-path-index) key-path))))))]
-    (persistent!
-      (reduce
-        (fn [acc field]
-          (let [key-path (if (vector? field) field [field])]
-            (fill-from-key-path acc pb-msg [] 0 key-path)))
-        (transient {})
-        fields))))
 
 (defn- validate-default-animation [_node-id default-animation animation-ids]
   (when (not (str/blank? default-animation))
@@ -169,28 +135,14 @@
             rig-scene-dep-build-targets {:animation-set animation-set-build-target
                                          :mesh-set mesh-set-build-target
                                          :skeleton skeleton-build-target}
-            rig-scene-pb-msg {:texture-set ""} ; Set in the ModelProto$Model message. Other field values taken from build targets.
-            rig-scene-additional-resource-keys []
-            rig-scene-build-targets (rig/make-rig-scene-build-targets _node-id rig-scene-resource rig-scene-pb-msg dep-build-targets rig-scene-additional-resource-keys rig-scene-dep-build-targets)
-            pb-msg (update-build-target-vertex-attributes (select-keys pb-msg [:materials :default-animation]) material-binding-infos)
-            dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))
-            deps-by-source (into {}
-                                 (map (fn [build-target]
-                                        (let [build-resource (:resource build-target)
-                                              source-resource (:resource build-resource)]
-                                          [(resource/proj-path source-resource) build-resource])))
-                                 dep-build-targets)
-            dep-resources (res-fields->resources pb-msg deps-by-source
-                                                 [:rig-scene
-                                                  [:materials :material]
-                                                  [:materials :textures :texture]])]
-        [(bt/with-content-hash
-           {:node-id _node-id
-            :resource (workspace/make-build-resource resource)
-            :build-fn build-pb
-            :user-data {:pb pb-msg
-                        :dep-resources dep-resources}
-            :deps dep-build-targets})])))
+            rig-scene-pb-msg {}
+            rig-scene-build-targets (rig/make-rig-scene-build-targets _node-id rig-scene-resource rig-scene-pb-msg dep-build-targets rig-scene-dep-build-targets)
+            rt-pb-msg (-> {:rig-scene rig-scene-resource
+                           :default-animation (:default-animation pb-msg)
+                           :materials (:materials pb-msg)}
+                          (update-build-target-vertex-attributes material-binding-infos))
+            dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))]
+        [(pipeline/make-protobuf-build-target _node-id resource ModelProto$Model rt-pb-msg dep-build-targets)])))
 
 (g/defnk produce-gpu-textures [_node-id samplers texture-binding-infos :as m]
   (let [sampler-name->gpu-texture-generator (into {}

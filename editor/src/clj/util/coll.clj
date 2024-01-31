@@ -197,12 +197,6 @@
   ([f] (comp (map-indexed f) cat))
   ([f coll] (sequence (mapcat-indexed f) coll)))
 
-(into []
-      (mapcat-indexed (fn [index value]
-                  [[:one index value]
-                   [:two index value]]))
-      [:a :b :c :d])
-
 (defn search
   "Traverses the supplied collection hierarchy recursively, applying the
   specified match-fn to every non-collection value. Records are considered
@@ -288,11 +282,12 @@
   collection, the key in the parent collection where we expected to find a
   nested collection, and the remaining key-path that will address into the
   missing nested collection. If coll is nil, the empty-fn will be called with
-  nil, nil key-path. If no empty-fn is supplied the default empty-fn that
+  nil, nil key-path. If no empty-fn is supplied, the default empty-fn that
   produces vectors for integer keys and hash-maps for other keys will be used."
   ([coll key-path value]
    (assoc-in-ex coll key-path value default-assoc-in-empty-fn))
   ([coll key-path value empty-fn]
+   {:pre [(ifn? empty-fn)]}
    (let [key (key-path 0)
          nested-key-path (subvec key-path 1)
          coll (if (some? coll)

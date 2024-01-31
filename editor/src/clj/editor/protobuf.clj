@@ -27,6 +27,7 @@ Macros currently mean no foreseeable performance gain, however."
             [internal.java :as j]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
+            [util.fn :as fn]
             [util.text-util :as text-util])
   (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector4]
            [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor Message Message$Builder ProtocolMessageEnum TextFormat]
@@ -61,7 +62,10 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- default-instance-raw [^Class cls]
   (j/invoke-no-arg-class-method cls "getDefaultInstance"))
 
-(def ^:private default-instance (memoize default-instance-raw))
+(def ^:private default-instance (fn/memoize default-instance-raw))
+
+(defn pb-class? [value]
+  (isa? value Message))
 
 (defn- new-builder
   ^Message$Builder [^Class cls]
@@ -72,7 +76,7 @@ Macros currently mean no foreseeable performance gain, however."
              (->kebab-case field-name)
              (string/replace field-name "_" "-"))))
 
-(def field-name->key (memoize field-name->key-raw))
+(def field-name->key (fn/memoize field-name->key-raw))
 
 (defn- field->key [^Descriptors$FieldDescriptor field-desc]
   (field-name->key (.getName field-desc)))
@@ -84,13 +88,13 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- enum-name->keyword-raw [^String enum-name]
   (keyword (enum-name->keyword-name enum-name)))
 
-(def ^:private enum-name->keyword (memoize enum-name->keyword-raw))
+(def ^:private enum-name->keyword (fn/memoize enum-name->keyword-raw))
 
 (defn- keyword->enum-name-raw
   ^String [keyword]
   (.intern (string/replace (util/upper-case* (name keyword)) "-" "_")))
 
-(def ^:private keyword->enum-name (memoize keyword->enum-name-raw))
+(def ^:private keyword->enum-name (fn/memoize keyword->enum-name-raw))
 
 (defn pb-enum->val
   [val-or-desc]
@@ -115,7 +119,7 @@ Macros currently mean no foreseeable performance gain, however."
           (mapv pb-value->clj values))))))
 
 (def ^:private methods-by-name
-  (memoize
+  (fn/memoize
     (fn methods-by-name [^Class class]
       (into {}
             (map (fn [^Method m]
@@ -161,7 +165,7 @@ Macros currently mean no foreseeable performance gain, however."
           (.toString)
           (.intern)))))
 
-(def underscores-to-camel-case (memoize underscores-to-camel-case-raw))
+(def underscores-to-camel-case (fn/memoize underscores-to-camel-case-raw))
 
 (defonce ^:private resource-desc (.getDescriptor DdfExtensions/resource))
 
@@ -200,7 +204,7 @@ Macros currently mean no foreseeable performance gain, however."
   (let [get-method-name (str "get" java-name (if repeated "List" ""))]
     (lookup-method cls get-method-name)))
 
-(def ^:private field-get-method (memoize field-get-method-raw))
+(def ^:private field-get-method (fn/memoize field-get-method-raw))
 
 (defn- field-has-value-fn
   ^Method [^Class cls java-name repeated]
@@ -239,7 +243,7 @@ Macros currently mean no foreseeable performance gain, however."
                           :options (options (.getOptions field-desc))}))))
           (.getFields desc))))
 
-(def ^:private field-infos (memoize field-infos-raw))
+(def ^:private field-infos (fn/memoize field-infos-raw))
 
 (defn resource-field? [field-info]
   (and (= :string (:field-type-key field-info))
@@ -250,7 +254,7 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def field-key-set
   "Returns the set of field keywords applicable to the supplied protobuf Class."
-  (memoize (comp set keys field-infos)))
+  (fn/memoize (comp set keys field-infos)))
 
 (defn- declared-default [^Class cls field]
   (if-some [field-info (get (field-infos cls) field)]
@@ -261,9 +265,9 @@ Macros currently mean no foreseeable performance gain, however."
                     {:pb-class cls
                      :field field}))))
 
-(declare resource-field-paths)
+(declare resource-field-path-specs)
 
-(defn resource-field-paths-raw
+(defn- resource-field-path-specs-raw
   "Returns a list of path expressions pointing out all resource fields.
 
   path-expr := '[' elem+ ']'
@@ -307,17 +311,17 @@ Macros currently mean no foreseeable performance gain, however."
       repeated ResourceRepeated repeateds = 1;
   }
 
-  (resource-field-paths-raw ResourceSimple)    => [ [:image] ]
-  (resource-field-paths-raw ResourceDefaulted) => [ [{:image '/default.png'}] ]
-  (resource-field-paths-raw ResourceRepeated)  => [ [[:images]] ]
+  (resource-field-path-specs-raw ResourceSimple)    => [ [:image] ]
+  (resource-field-path-specs-raw ResourceDefaulted) => [ [{:image '/default.png'}] ]
+  (resource-field-path-specs-raw ResourceRepeated)  => [ [[:images]] ]
 
-  (resource-field-paths-raw ResourceSimpleNested)    => [ [:simple :image] ]
-  (resource-field-paths-raw ResourceDefaultedNested) => [ [:defaulted {:image '/default.png'}] ]
-  (resource-field-paths-raw ResourceRepeatedNested)  => [ [:repeated [:images]] ]
+  (resource-field-path-specs-raw ResourceSimpleNested)    => [ [:simple :image] ]
+  (resource-field-path-specs-raw ResourceDefaultedNested) => [ [:defaulted {:image '/default.png'}] ]
+  (resource-field-path-specs-raw ResourceRepeatedNested)  => [ [:repeated [:images]] ]
 
-  (resource-field-paths-raw ResourceSimpleRepeatedlyNested)    => [ [[:simples] :image] ]
-  (resource-field-paths-raw ResourceDefaultedRepeatedlyNested) => [ [[:defaulteds] {:image '/default.png'}] ]
-  (resource-field-paths-raw ResourceRepeatedRepeatedlyNested)  => [ [[:repeateds] [:images]] ]"
+  (resource-field-path-specs-raw ResourceSimpleRepeatedlyNested)    => [ [[:simples] :image] ]
+  (resource-field-path-specs-raw ResourceDefaultedRepeatedlyNested) => [ [[:defaulteds] {:image '/default.png'}] ]
+  (resource-field-path-specs-raw ResourceRepeatedRepeatedlyNested)  => [ [[:repeateds] [:images]] ]"
   [^Class class]
   (into []
         (comp
@@ -332,7 +336,7 @@ Macros currently mean no foreseeable performance gain, however."
                                  [ [key] ]))
 
                    (message-field? field-info)
-                   (let [sub-paths (resource-field-paths (:type field-info))]
+                   (let [sub-paths (resource-field-path-specs (:type field-info))]
                      (when (seq sub-paths)
                        (let [prefix (if (= :repeated (:field-rule field-info))
                                       [[key]]
@@ -342,14 +346,14 @@ Macros currently mean no foreseeable performance gain, however."
           (remove nil?))
         (field-infos class)))
 
-(def resource-field-paths (memoize resource-field-paths-raw))
+(def resource-field-path-specs (fn/memoize resource-field-path-specs-raw))
 
 (declare get-field-fn)
 
-(defn- get-field-fn-raw [path]
-  (if (seq path)
-    (let [elem (first path)
-          sub-path-fn (get-field-fn (rest path))]
+(defn- get-field-fn-raw [field-path-spec]
+  (if (seq field-path-spec)
+    (let [elem (first field-path-spec)
+          sub-path-fn (get-field-fn (rest field-path-spec))]
       (cond
         (keyword? elem)
         (fn [pb]
@@ -366,18 +370,65 @@ Macros currently mean no foreseeable performance gain, however."
             (into [] (mapcat sub-path-fn) (pbs-fn pb))))))
     (fn [pb] [pb])))
 
-(def ^:private get-field-fn (memoize get-field-fn-raw))
+(def ^:private get-field-fn (fn/memoize get-field-fn-raw))
 
-(defn- get-fields-fn-raw [paths]
-  (let [get-field-fns (map get-field-fn paths)]
+(defn- get-fields-fn-raw [field-path-specs]
+  (let [get-field-fns (mapv get-field-fn field-path-specs)]
     (fn [pb]
       (into []
             (mapcat (fn [get-fn]
                       (get-fn pb)))
             get-field-fns))))
 
+(def get-fields-fn (fn/memoize get-fields-fn-raw))
 
-(def get-fields-fn (memoize get-fields-fn-raw))
+(declare get-field-value-path-fn)
+
+(defn- get-field-value-path-fn-raw [field-path-spec]
+  (let [field-path-spec-token (first field-path-spec)]
+    (if (nil? field-path-spec-token)
+      (fn [field-path field-value]
+        [(pair field-path field-value)])
+      (let [sub-path-fn (get-field-value-path-fn (rest field-path-spec))]
+        (cond
+          (keyword? field-path-spec-token)
+          (fn [field-path pb-map]
+            (let [field-value (get pb-map field-path-spec-token ::not-found)]
+              (when (not= ::not-found field-value)
+                (let [field-path (conj field-path field-path-spec-token)]
+                  (sub-path-fn field-path field-value)))))
+
+          (map? field-path-spec-token)
+          (fn [field-path pb-map]
+            (let [[field default-value] (first field-path-spec-token)
+                  field-path (conj field-path field)
+                  field-value (or (get pb-map field) default-value)]
+              (sub-path-fn field-path field-value)))
+
+          (vector? field-path-spec-token)
+          (let [field (first field-path-spec-token)]
+            (fn [field-path pb-map]
+              (let [field-path (conj field-path field)
+                    repeated-field-values (get pb-map field)]
+                (into []
+                      (coll/mapcat-indexed
+                        (fn [index repeated-field-value]
+                          (let [field-path (conj field-path index)]
+                            (sub-path-fn field-path repeated-field-value))))
+                      repeated-field-values)))))))))
+
+(def ^:private get-field-value-path-fn (fn/memoize get-field-value-path-fn-raw))
+
+(defn- get-field-value-paths-fn-raw [field-path-specs]
+  (let [get-field-value-path-fns (mapv get-field-value-path-fn field-path-specs)]
+    (fn [pb-map]
+      {:pre (map? pb-map)} ;; Protobuf Message in map format.
+      (into []
+            (mapcat (fn [get-fn]
+                      (get-fn [] pb-map)))
+            get-field-value-path-fns))))
+
+(def get-field-value-paths-fn (fn/memoize get-field-value-paths-fn-raw))
 
 (defn- make-pb->clj-fn [fields]
   (fn pb->clj [pb]
@@ -394,7 +445,7 @@ Macros currently mean no foreseeable performance gain, however."
   (let [pb->clj (pb->clj-fn class default-included-field-rules)]
     (pb->clj (default-instance class))))
 
-(def ^:private default-message (memoize default-message-raw))
+(def ^:private default-message (fn/memoize default-message-raw))
 
 (defn- pb->clj-fn-raw [^Class class default-included-field-rules]
   {:pre [(set? default-included-field-rules)
@@ -432,11 +483,11 @@ Macros currently mean no foreseeable performance gain, however."
                               (pb-value->clj field-pb-value)))))))))
           (field-infos class))))
 
-(def ^:private pb->clj-fn (memoize pb->clj-fn-raw))
+(def ^:private pb->clj-fn (fn/memoize pb->clj-fn-raw))
 
-(def ^:private pb->clj-with-defaults-fn (memoize #(pb->clj-fn % #{:optional :required})))
+(def ^:private pb->clj-with-defaults-fn (fn/memoize #(pb->clj-fn % #{:optional :required})))
 
-(def ^:private pb->clj-without-defaults-fn (memoize #(pb->clj-fn % #{})))
+(def ^:private pb->clj-without-defaults-fn (fn/memoize #(pb->clj-fn % #{})))
 
 (defn- clear-defaults-from-builder! [^Message$Builder builder]
   (reduce (fn [is-default ^Descriptors$FieldDescriptor field-desc]
@@ -519,7 +570,7 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- default-value-raw [^Class cls]
   (default-message cls #{:optional}))
 
-(def default-value (memoize default-value-raw))
+(def default-value (fn/memoize default-value-raw))
 
 (defn default
   ([^Class cls field]
@@ -615,7 +666,7 @@ Macros currently mean no foreseeable performance gain, however."
       (comp builder-fn vector->map)
       builder-fn)))
 
-(def ^:private pb-builder (memoize pb-builder-raw))
+(def ^:private pb-builder (fn/memoize pb-builder-raw))
 
 (defmacro map->pb [^Class cls m]
   (cond-> `((#'pb-builder ~cls) ~m)
@@ -903,7 +954,7 @@ Macros currently mean no foreseeable performance gain, however."
     (fn parser-fn [^bytes bytes]
       (.invoke parse-method nil (object-array [bytes])))))
 
-(def parser-fn (memoize parser-fn-raw))
+(def parser-fn (fn/memoize parser-fn-raw))
 
 (defmacro bytes->pb [^Class cls bytes]
   (cond-> `((parser-fn ~cls) ~bytes)
@@ -924,7 +975,7 @@ Macros currently mean no foreseeable performance gain, however."
              {:display-name (-> (.getValueDescriptor value) (.getOptions) (.getExtension DdfExtensions/displayName))}])
           values)))
 
-(def enum-values (memoize enum-values-raw))
+(def enum-values (fn/memoize enum-values-raw))
 
 (defn- fields-by-indices-raw [^Class cls]
   (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")]
@@ -934,7 +985,7 @@ Macros currently mean no foreseeable performance gain, however."
                        (field->key field))))
           (.getFields desc))))
 
-(def fields-by-indices (memoize fields-by-indices-raw))
+(def fields-by-indices (fn/memoize fields-by-indices-raw))
 
 (defn pb->hash
   ^bytes [^String algorithm ^Message pb]

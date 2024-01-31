@@ -507,12 +507,9 @@
           workspace         (project/workspace project)
           compress?         (:compress-textures? build-settings false)
           texture-target    (image/make-array-texture-build-target workspace _node-id packed-page-images-generator texture-profile texture-page-count compress?)
-          pb-msg            texture-set
+          pb-map            (assoc texture-set :texture (-> texture-target :resource :resource))
           dep-build-targets [texture-target]]
-      [(pipeline/make-protobuf-build-target resource dep-build-targets
-                                            TextureSetProto$TextureSet
-                                            (assoc pb-msg :texture (-> texture-target :resource :resource))
-                                            [:texture])])))
+      [(pipeline/make-protobuf-build-target _node-id resource TextureSetProto$TextureSet pb-map dep-build-targets)])))
 
 (g/defnk produce-atlas-texture-set-pb [texture-set]
   (let [pb-msg            texture-set

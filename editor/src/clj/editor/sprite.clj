@@ -293,19 +293,19 @@
                              (remove nil?)
                              (seq))]
         (g/error-aggregate errors))
-      [(pipeline/make-protobuf-build-target resource dep-build-targets
-                                            Sprite$SpriteDesc
-                                            {:tile-set image
-                                             :default-animation default-animation
-                                             :material material
-                                             :blend-mode blend-mode
-                                             :size-mode size-mode
-                                             :size (v3->v4 manual-size)
-                                             :slice9 slice9
-                                             :offset offset
-                                             :playback-rate playback-rate
-                                             :attributes (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)}
-                                            [:tile-set :material])]))
+      [(pipeline/make-protobuf-build-target
+         _node-id resource Sprite$SpriteDesc
+         {:tile-set image
+          :default-animation default-animation
+          :material material
+          :blend-mode blend-mode
+          :size-mode size-mode
+          :size (v3->v4 manual-size)
+          :slice9 slice9
+          :offset offset
+          :playback-rate playback-rate
+          :attributes (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)}
+         dep-build-targets)]))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
   (let [attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]

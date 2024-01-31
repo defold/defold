@@ -15,7 +15,7 @@
 (ns editor.protobuf-test
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.test TestAtlasProto$AtlasAnimation TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceFields TestDdf$ResourceRepeated TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceSimple TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
+  (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceRepeated TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSimple TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
            [com.dynamo.proto DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector4]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
@@ -97,14 +97,9 @@
     (is (= m new-m))))
 
 (deftest repeated-msgs
-  (let [m {:id "my_anim"
-           :playback :playback-once-forward
-           :fps 30
-           :flip-horizontal 0
-           :flip-vertical 0
-           :images [{:image "/path/1.png"}
-                    {:image "/path/2.png"}]}
-        new-m (round-trip TestAtlasProto$AtlasAnimation m)]
+  (let [m {:simples [{:image "/path/1.png"}
+                     {:image "/path/2.png"}]}
+        new-m (round-trip TestDdf$ResourceSimpleRepeatedlyNested m)]
     (is (= m new-m))))
 
 (deftest repeated-uints
@@ -225,16 +220,158 @@
                                          :m20 zero :m21 zero :m22 one :m23 zero
                                          :m30 zero :m31 zero :m32 zero :m33 one}))))))
 
-(deftest resource-field-paths-test
-  (is (= [[:image]] (protobuf/resource-field-paths TestDdf$ResourceSimple)))
-  (is (= [[{:image "/default.png"}]] (protobuf/resource-field-paths TestDdf$ResourceDefaulted)))
-  (is (= [[[:images]]] (protobuf/resource-field-paths TestDdf$ResourceRepeated)))
-  (is (= [[:simple :image]] (protobuf/resource-field-paths TestDdf$ResourceSimpleNested)))
-  (is (= [[:defaulted {:image "/default.png"}]] (protobuf/resource-field-paths TestDdf$ResourceDefaultedNested)))
-  (is (= [[:repeated [:images]]] (protobuf/resource-field-paths TestDdf$ResourceRepeatedNested)))
-  (is (= [[[:simples] :image]] (protobuf/resource-field-paths TestDdf$ResourceSimpleRepeatedlyNested)))
-  (is (= [[[:defaulteds] {:image "/default.png"}]] (protobuf/resource-field-paths TestDdf$ResourceDefaultedRepeatedlyNested)))
-  (is (= [[[:repeateds] [:images]]] (protobuf/resource-field-paths TestDdf$ResourceRepeatedRepeatedlyNested))))
+(deftest resource-field-path-specs-test
+  (is (= [[:image]] (protobuf/resource-field-path-specs TestDdf$ResourceSimple)))
+  (is (= [[{:image "/default.png"}]] (protobuf/resource-field-path-specs TestDdf$ResourceDefaulted)))
+  (is (= [[[:images]]] (protobuf/resource-field-path-specs TestDdf$ResourceRepeated)))
+  (is (= [[:simple :image]] (protobuf/resource-field-path-specs TestDdf$ResourceSimpleNested)))
+  (is (= [[:defaulted {:image "/default.png"}]] (protobuf/resource-field-path-specs TestDdf$ResourceDefaultedNested)))
+  (is (= [[:repeated [:images]]] (protobuf/resource-field-path-specs TestDdf$ResourceRepeatedNested)))
+  (is (= [[[:simples] :image]] (protobuf/resource-field-path-specs TestDdf$ResourceSimpleRepeatedlyNested)))
+  (is (= [[[:defaulteds] {:image "/default.png"}]] (protobuf/resource-field-path-specs TestDdf$ResourceDefaultedRepeatedlyNested)))
+  (is (= [[[:repeateds] [:images]]] (protobuf/resource-field-path-specs TestDdf$ResourceRepeatedRepeatedlyNested))))
+
+(deftest get-field-value-paths-fn-test
+  (testing "Simple"
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[:image]])
+            {})))
+    (is (= [[[:image] nil]]
+           ((protobuf/get-field-value-paths-fn [[:image]])
+            {:image nil})))
+    (is (= [[[:image] "/image.png"]]
+           ((protobuf/get-field-value-paths-fn [[:image]])
+            {:image "/image.png"}))))
+
+  (testing "Defaulted"
+    (is (= [[[:image] "/default.png"]]
+           ((protobuf/get-field-value-paths-fn [[{:image "/default.png"}]])
+            {})))
+    (is (= [[[:image] "/default.png"]]
+           ((protobuf/get-field-value-paths-fn [[{:image "/default.png"}]])
+            {:image nil})))
+    (is (= [[[:image] "/image.png"]]
+           ((protobuf/get-field-value-paths-fn [[{:image "/default.png"}]])
+            {:image "/image.png"}))))
+
+  (testing "Repeated"
+    (is (= [[[:images 0] nil]
+            [[:images 1] nil]]
+           ((protobuf/get-field-value-paths-fn [[[:images]]])
+            {:images [nil
+                      nil]})))
+    (is (= [[[:images 0] "/image0.png"]
+            [[:images 1] "/image1.png"]]
+           ((protobuf/get-field-value-paths-fn [[[:images]]])
+            {:images ["/image0.png"
+                      "/image1.png"]}))))
+
+  (testing "Simple nested"
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[:simple :image]])
+            {:simple {}})))
+    (is (= [[[:simple :image] nil]]
+           ((protobuf/get-field-value-paths-fn [[:simple :image]])
+            {:simple {:image nil}})))
+    (is (= [[[:simple :image] "/image.png"]]
+           ((protobuf/get-field-value-paths-fn [[:simple :image]])
+            {:simple {:image "/image.png"}}))))
+
+  (testing "Defaulted nested"
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[:defaulted {:image "/default.png"}]])
+            {})))
+    (is (= [[[:defaulted :image] "/default.png"]]
+           ((protobuf/get-field-value-paths-fn [[:defaulted {:image "/default.png"}]])
+            {:defaulted {}})))
+    (is (= [[[:defaulted :image] "/default.png"]]
+           ((protobuf/get-field-value-paths-fn [[:defaulted {:image "/default.png"}]])
+            {:defaulted {:image nil}})))
+    (is (= [[[:defaulted :image] "/image.png"]]
+           ((protobuf/get-field-value-paths-fn [[:defaulted {:image "/default.png"}]])
+            {:defaulted {:image "/image.png"}}))))
+
+  (testing "Repeated nested"
+    (is (= [[[:repeated :images 0] nil]
+            [[:repeated :images 1] nil]]
+           ((protobuf/get-field-value-paths-fn [[:repeated [:images]]])
+            {:repeated {:images [nil
+                                 nil]}})))
+    (is (= [[[:repeated :images 0] "/image0.png"]
+            [[:repeated :images 1] "/image1.png"]]
+           ((protobuf/get-field-value-paths-fn [[:repeated [:images]]])
+            {:repeated {:images ["/image0.png"
+                                 "/image1.png"]}}))))
+
+  (testing "Simple repeatedly nested"
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[[:simples] :image]])
+            {:simples [{}
+                       {}]})))
+    (is (= [[[:simples 0 :image] nil]
+            [[:simples 1 :image] nil]]
+           ((protobuf/get-field-value-paths-fn [[[:simples] :image]])
+            {:simples [{:image nil}
+                       {:image nil}]})))
+    (is (= [[[:simples 0 :image] "/image0.png"]
+            [[:simples 1 :image] "/image1.png"]]
+           ((protobuf/get-field-value-paths-fn [[[:simples] :image]])
+            {:simples [{:image "/image0.png"}
+                       {:image "/image1.png"}]}))))
+
+  (testing "Defaulted repeatedly nested"
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[[:defaulteds] {:image "/default.png"}]])
+            {:defaulteds []})))
+    (is (= [[[:defaulteds 0 :image] "/default.png"]
+            [[:defaulteds 1 :image] "/default.png"]]
+           ((protobuf/get-field-value-paths-fn [[[:defaulteds] {:image "/default.png"}]])
+            {:defaulteds [{}
+                          {}]})))
+    (is (= [[[:defaulteds 0 :image] "/default.png"]
+            [[:defaulteds 1 :image] "/default.png"]]
+           ((protobuf/get-field-value-paths-fn [[[:defaulteds] {:image "/default.png"}]])
+            {:defaulteds [{:image nil}
+                          {:image nil}]})))
+    (is (= [[[:defaulteds 0 :image] "/image0.png"]
+            [[:defaulteds 1 :image] "/image1.png"]]
+           ((protobuf/get-field-value-paths-fn [[[:defaulteds] {:image "/default.png"}]])
+            {:defaulteds [{:image "/image0.png"}
+                          {:image "/image1.png"}]}))))
+
+  (testing "Repeated repeatedly nested"
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
+            {})))
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
+            {:repeateds []})))
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
+            {:repeateds [{}
+                         {}]})))
+    (is (= []
+           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
+            {:repeateds [{:images []}
+                         {:images []}]})))
+    (is (= [[[:repeateds 0 :images 0] nil]
+            [[:repeateds 0 :images 1] nil]
+            [[:repeateds 1 :images 0] nil]
+            [[:repeateds 1 :images 1] nil]]
+           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
+            {:repeateds [{:images [nil
+                                   nil]}
+                         {:images [nil
+                                   nil]}]})))
+    (is (= [[[:repeateds 0 :images 0] "/image00.png"]
+            [[:repeateds 0 :images 1] "/image01.png"]
+            [[:repeateds 1 :images 0] "/image10.png"]
+            [[:repeateds 1 :images 1] "/image11.png"]]
+           ((protobuf/get-field-value-paths-fn [[[:repeateds] [:images]]])
+            {:repeateds [{:images ["/image00.png"
+                                   "/image01.png"]}
+                         {:images ["/image10.png"
+                                   "/image11.png"]}]})))))
 
 ;; -----------------------------------------------------------------------------
 ;; make-map-with-defaults

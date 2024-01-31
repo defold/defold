@@ -572,18 +572,15 @@
             glyph-bank-build-resource (workspace/make-build-resource glyph-bank-resource)
             glyph-bank-build-target (make-glyph-bank-build-target _node-id glyph-bank-build-resource glyph-bank-user-data)
             dep-build-targets+glyph-bank (conj dep-build-targets glyph-bank-build-target)
-            protobuf-build-target (pipeline/make-protobuf-build-target resource dep-build-targets+glyph-bank
-                                                                       Font$FontMap
-                                                                       {:material (str (:material save-value) "c")
-                                                                        :glyph-bank (resource/proj-path glyph-bank-build-resource)
-                                                                        :shadow-x (:shadow-x save-value)
-                                                                        :shadow-y (:shadow-y save-value)
-                                                                        :alpha (:alpha save-value)
-                                                                        :outline-alpha (:outline-alpha save-value)
-                                                                        :shadow-alpha (:shadow-alpha save-value)
-                                                                        :layer-mask (fontc/font-desc->layer-mask save-value)}
-                                                                       nil)]
-        [(assoc protobuf-build-target :node-id _node-id)])))
+            pb-map {:material material
+                    :glyph-bank glyph-bank-resource
+                    :shadow-x (:shadow-x save-value)
+                    :shadow-y (:shadow-y save-value)
+                    :alpha (:alpha save-value)
+                    :outline-alpha (:outline-alpha save-value)
+                    :shadow-alpha (:shadow-alpha save-value)
+                    :layer-mask (fontc/font-desc->layer-mask save-value)}]
+        [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap pb-map dep-build-targets+glyph-bank)])))
 
 (g/defnode FontSourceNode
   (inherits resource-node/ResourceNode)

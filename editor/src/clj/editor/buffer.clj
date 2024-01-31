@@ -88,11 +88,9 @@
                                   :type (type->pb-value-type v)
                                   v))))
 
-(g/defnk produce-build-targets [streams resource]
-  [(pipeline/make-protobuf-build-target resource nil
-                                        BufferProto$BufferDesc
-                                        {:streams (map json-stream->pb-stream streams)}
-                                        nil)])
+(g/defnk produce-build-targets [_node-id streams resource]
+  (let [pb-map {:streams (mapv json-stream->pb-stream streams)}]
+    [(pipeline/make-protobuf-build-target _node-id resource BufferProto$BufferDesc pb-map)]))
 
 (g/defnk produce-streams [_node-id lines]
   (let [streams (try

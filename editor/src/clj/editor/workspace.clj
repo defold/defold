@@ -135,14 +135,29 @@ ordinary paths."
   io/Coercions
   (as-file [this] (File. (resource/abs-path this))))
 
+(defmethod print-method BuildResource [build-resource ^java.io.Writer w]
+  ;; Avoid evaluating resource-type, since it requires a live system. As a
+  ;; result, the file extension will be taken from the source-resource, and our
+  ;; :build-ext will be ignored.
+  (let [source-resource (:resource build-resource)]
+    (->> (or (resource/proj-path source-resource)
+             (let [prefix (or (:prefix build-resource) "")
+                   suffix (format "%x" (resource/resource-hash source-resource))
+                   source-ext (resource/ext source-resource)]
+               (format "/%s_generated_%s.%s" prefix suffix source-ext)))
+         (pr-str)
+         (format "{:BuildResource %s}")
+         (.write w))))
+
 (def build-resource? (partial instance? BuildResource))
 
 (defn make-build-resource
-  ([resource]
-   (make-build-resource resource nil))
-  ([resource prefix]
-   (assert (resource/resource? resource))
-   (BuildResource. resource prefix)))
+  ([source-resource]
+   (make-build-resource source-resource nil))
+  ([source-resource prefix]
+   {:pre [(resource/resource? source-resource)
+          (not (build-resource? source-resource))]}
+   (BuildResource. source-resource prefix)))
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
   (let [sorted-children (->> children
