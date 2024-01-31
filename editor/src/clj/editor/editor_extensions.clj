@@ -477,7 +477,7 @@
         (vreset! request-sync true)
         nil
         (catch FileAlreadyExistsException e
-          (throw (LuaError. (str "Directory already exists: " (.getMessage e)))))
+          (throw (LuaError. (str "File already exists: " (.getMessage e)))))
         (catch Exception e
           (throw (LuaError. (str (.getMessage e))))))
       (throw (LuaError. (str "Can't create " dir-path ": outside of project directory"))))))
