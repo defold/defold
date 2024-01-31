@@ -466,9 +466,11 @@
         root-path (-> project
                       (project/workspace evaluation-context)
                       (workspace/project-path evaluation-context)
-                      .toPath
-                      .normalize)
-        dir-path (-> (str root-path proj-path) io/file .toPath .normalize)]
+                      (fs/as-path)
+                      (fs/to-real-path))
+        dir-path (-> (str root-path proj-path)
+                     (fs/as-path)
+                     (.normalize))]
     (if (.startsWith dir-path root-path)
       (try
         (fs/create-path-directories! dir-path)
@@ -486,19 +488,36 @@
         root-path (-> project
                       (project/workspace evaluation-context)
                       (workspace/project-path evaluation-context)
-                      .toPath
-                      .normalize)
-        dir-path (-> (str root-path proj-path) io/file .toPath .normalize)]
-    (if (.startsWith dir-path root-path)
+                      (fs/as-path)
+                      (fs/to-real-path))
+        dir-path (-> (str root-path proj-path)
+                     (fs/as-path)
+                     (.normalize))
+        protected-paths (mapv #(.resolve root-path ^String %)
+                              [".git"
+                               ".internal"])
+        protected-path? (fn protected-path? [^Path path]
+                          (some #(.startsWith path ^Path %)
+                                protected-paths))]
+    (cond
+      (not (.startsWith dir-path root-path))
+      (throw (LuaError. (str "Can't delete " dir-path ": outside of project directory")))
+
+      (= (.getNameCount dir-path) (.getNameCount root-path))
+      (throw (LuaError. (str "Can't delete the project directory itself")))
+
+      (protected-path? dir-path)
+      (throw (LuaError. (str "Can't delete " dir-path ": protected by editor")))
+
+      :else
       (try
-        (fs/delete-path-directory! dir-path)
-        (vreset! request-sync true)
+        (when (fs/delete-path-directory! dir-path)
+          (vreset! request-sync true))
         nil
         (catch NotDirectoryException e
           (throw (LuaError. (str "Not a directory: " (.getMessage e)))))
         (catch Exception e
-          (throw (LuaError. (str (.getMessage e))))))
-      (throw (LuaError. (str "Can't delete " dir-path ": outside of project directory"))))))
+          (throw (LuaError. (str (.getMessage e)))))))))
 
 (defn- transact! [txs execution-context]
   (on-transact-thread (:ui execution-context) #(g/transact txs)))
