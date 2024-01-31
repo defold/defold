@@ -353,6 +353,15 @@
                       :description "Create a directory if it does not exist, and all non-existent parent directories. Throws an error if the directory can't be created."
                       :examples "```\neditor.create_directory(\"/assets/gen\")\n```"})]
        [["editor"] (make-completion
+                     {:name "delete_directory"
+                      :type :function
+                      :parameters [{:name "resource_path"
+                                    :types ["string"]
+                                    :doc "Resource path (starting with <code>/</code>) of a directory to delete"}]
+                      :description "Delete a directory if it exists, and all existent child directories and files. Throws an error if the directory can't be deleted."
+                      :examples "```\neditor.delete_directory(\"/assets/gen\")\n```"})]
+
+       [["editor"] (make-completion
                      {:name "platform"
                       :type :variable
                       :description "A `string`, either:\n- `\"x86_64-win32\"`\n- `\"x86_64-macos\"`\n- `\"arm64-macos\"`\n- `\"x86_64-linux\"`"})]
