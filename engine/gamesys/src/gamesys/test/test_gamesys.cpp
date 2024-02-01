@@ -2359,6 +2359,7 @@ namespace dmGameSystem
 {
     extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
     extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
+    extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
 };
 
 TEST_F(ComponentTest, DispatchBuffersTest)
@@ -2382,10 +2383,28 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     void* model_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc")));
     ASSERT_NE((void*) 0, model_world);
 
+    void* particlefx_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("particlefxc")));
+    ASSERT_NE((void*) 0, particlefx_world);
+
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_test/dispatch_buffers_test.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
+    // Play particlefx
+    dmMessage::URL receiver;
+    receiver.m_Socket   = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path     = dmGameObject::GetIdentifier(go);
+    receiver.m_Fragment = 0;
+    dmMessage::Post(
+            0, &receiver,
+            dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash,
+            (uintptr_t) go,
+            (uintptr_t) dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor,
+            0, 0, 0);
+
+    // Update and sleep to force generation of a particle
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmTime::Sleep(16*1000);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     dmRender::RenderListBegin(m_RenderContext);
@@ -2468,12 +2487,13 @@ TEST_F(ComponentTest, DispatchBuffersTest)
         ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER, vx_buffer->m_Type);
         ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_INDEX_BUFFER, ix_buffer->m_Type);
 
-        const uint32_t vertex_padding = vertex_stride_b - (vertex_stride_a * 4) % vertex_stride_b;
-        const uint32_t buffer_size = (vertex_stride_a + vertex_stride_b) * 4 + vertex_padding;
+        const uint32_t vertex_count   = 4;
+        const uint32_t vertex_padding = vertex_stride_b - (vertex_stride_a * vertex_count) % vertex_stride_b;
+        const uint32_t buffer_size    = (vertex_stride_a + vertex_stride_b) * vertex_count + vertex_padding;
         uint8_t buffer[buffer_size];
 
         vs_format_a* sprite_a = (vs_format_a*) &buffer[0];
-        vs_format_b* sprite_b = (vs_format_b*) &buffer[vertex_stride_a * 4 + vertex_padding];
+        vs_format_b* sprite_b = (vs_format_b*) &buffer[vertex_stride_a * vertex_count + vertex_padding];
 
         const float sprite_a_w = 32.0f;
         const float sprite_a_h = 32.0f;
@@ -2498,9 +2518,9 @@ TEST_F(ComponentTest, DispatchBuffersTest)
             ASSERT_EQ(buffer_size, gfx_vx_buffer->m_Size);
 
             vs_format_a* written_sprite_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
-            vs_format_b* written_sprite_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * 4 + vertex_padding];
+            vs_format_b* written_sprite_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
 
-            for (int i = 0; i < 4; ++i)
+            for (int i = 0; i < vertex_count; ++i)
             {
                 ASSERT_VTX_A_EQ(sprite_a[i], written_sprite_a[i]);
                 ASSERT_VTX_B_EQ(sprite_b[i], written_sprite_b[i]);
@@ -2565,6 +2585,60 @@ TEST_F(ComponentTest, DispatchBuffersTest)
             {
                 ASSERT_VTX_A_EQ(model_a[i], written_model_a[i]);
                 ASSERT_VTX_B_EQ(model_b[i], written_model_b[i]);
+            }
+        }
+    }
+
+    ///////////////////////////////////////
+    // Particle
+    ///////////////////////////////////////
+    {
+        dmRender::BufferedRenderBuffer* vx_buffer;
+        dmGameSystem::GetParticleFXWorldRenderBuffers(particlefx_world, &vx_buffer);
+        ASSERT_EQ(num_draws, vx_buffer->m_Buffers.Size());
+        ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER, vx_buffer->m_Type);
+
+        const uint32_t vertex_count   = 6;
+        const uint32_t vertex_padding = vertex_stride_b - (vertex_stride_a * vertex_count) % vertex_stride_b;
+        const uint32_t buffer_size    = (vertex_stride_a + vertex_stride_b) * vertex_count + vertex_padding;
+        uint8_t buffer[buffer_size];
+
+        vs_format_a* pfx_a = (vs_format_a*) &buffer[0];
+        vs_format_b* pfx_b = (vs_format_b*) &buffer[vertex_stride_a * vertex_count + vertex_padding];
+
+        const float pfx_s = 20.0f / 2.0f;
+
+        float p0[] = { -pfx_s, -pfx_s};
+        float p1[] = { -pfx_s,  pfx_s};
+        float p2[] = {  pfx_s, -pfx_s};
+        float p3[] = {  pfx_s,  pfx_s};
+
+        SET_VTX_A(pfx_a[0], p0[0], p0[1], 1.0f, 0.0f, 0.0f);
+        SET_VTX_A(pfx_a[1], p1[0], p1[1], 1.0f, 0.0f, 0.0f);
+        SET_VTX_A(pfx_a[2], p3[0], p3[1], 1.0f, 0.0f, 0.0f);
+        SET_VTX_A(pfx_a[3], p3[0], p3[1], 1.0f, 0.0f, 0.0f);
+        SET_VTX_A(pfx_a[4], p2[0], p2[1], 1.0f, 0.0f, 0.0f);
+        SET_VTX_A(pfx_a[5], p0[0], p0[1], 1.0f, 0.0f, 0.0f);
+
+        SET_VTX_B(pfx_b[0], p0[0], p0[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[1], p1[0], p1[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[2], p3[0], p3[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[3], p3[0], p3[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[4], p2[0], p2[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[5], p0[0], p0[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
+
+        for (int i = 0; i < num_draws; ++i)
+        {
+            dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer->m_Buffers[i];
+            ASSERT_EQ(buffer_size, gfx_vx_buffer->m_Size);
+
+            vs_format_a* written_pfx_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
+            vs_format_b* written_pfx_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
+
+            for (int i = 0; i < vertex_count; ++i)
+            {
+                ASSERT_VTX_A_EQ(pfx_a[i], written_pfx_a[i]);
+                ASSERT_VTX_B_EQ(pfx_b[i], written_pfx_b[i]);
             }
         }
     }

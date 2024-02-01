@@ -46,3 +46,21 @@ components {
     z: 0.0
   }
 }
+components {
+  id: "particlefx_a"
+  component: "/misc/dispatch_buffers_test/particlefx_a.particlefx"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  }
+}
+components {
+  id: "particlefx_b"
+  component: "/misc/dispatch_buffers_test/particlefx_b.particlefx"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+}
