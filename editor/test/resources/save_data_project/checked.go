@@ -60,9 +60,13 @@ components {
 embedded_components {
   id: "embedded_sprite"
   type: "sprite"
-  data: "tile_set: \"/checked.atlas\"\n"
-  "default_animation: \"diamond\"\n"
+  data: "default_animation: \"diamond\"\n"
   "material: \"/checked.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  "textures {\n"
+  "  sampler: \"texture0\"\n"
+  "  texture: \"/checked.atlas\"\n"
+  "}\n"
   ""
   position {
     x: 0.1

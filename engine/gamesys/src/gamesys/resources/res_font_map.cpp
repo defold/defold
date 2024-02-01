@@ -108,10 +108,7 @@ namespace dmGameSystem
         params.m_CacheHeight        = glyph_bank->m_CacheHeight;
         params.m_ImageFormat        = glyph_bank->m_ImageFormat;
         params.m_GlyphChannels      = glyph_bank->m_GlyphChannels;
-        params.m_GlyphData          = malloc(glyph_bank->m_GlyphData.m_Count);
-
-        // Copy and unpack glyphdata
-        memcpy(params.m_GlyphData, glyph_bank->m_GlyphData.m_Data, glyph_bank->m_GlyphData.m_Count);
+        params.m_GlyphData          = glyph_bank->m_GlyphData.m_Data;
 
         if (font_map == 0)
         {
@@ -124,8 +121,7 @@ namespace dmGameSystem
         }
 
         // This is a workaround, ideally we'd have a FontmapResource* // MAWE + JG
-
-        Resources* font_map_resources          = new Resources;
+        Resources* font_map_resources           = new Resources;
         font_map_resources->m_MaterialResource  = material_res;
         font_map_resources->m_GlyphBankResource = glyph_bank_res;
 

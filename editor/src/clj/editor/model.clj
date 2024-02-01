@@ -248,16 +248,7 @@
             (cond-> info (g/error-value? gpu-texture-generator) (dissoc :gpu-texture-generator)))))
 
 (defn- detect-and-apply-renames [texture-binding-infos samplers]
-  (let [texture-binding-info-name-index (util/name-index texture-binding-infos :sampler)
-        sampler-name-index (util/name-index samplers :name)
-        renames (util/detect-renames texture-binding-info-name-index sampler-name-index)]
-    (reduce
-      (fn [texture-binding-infos [texture-binding-name+order [new-name]]]
-        (update texture-binding-infos
-                (texture-binding-info-name-index texture-binding-name+order)
-                assoc :sampler new-name))
-      texture-binding-infos
-      renames)))
+  (util/detect-and-apply-renames texture-binding-infos :sampler samplers :name))
 
 (g/defnode MaterialBinding
   (input copied-nodes g/Any :array :cascade-delete)

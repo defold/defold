@@ -196,9 +196,9 @@
           (g/set-property room-embedded-chair-embedded-sprite :id "room-embedded-chair-embedded-sprite")
           (g/set-property room-referenced-chair :id "room-referenced-chair")
           (g/set-property house-room :id "house-room")))
-      (tu/prop! chair-embedded-sprite :image (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
+      (tu/prop! chair-embedded-sprite :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
       (tu/prop! chair-embedded-sprite :default-animation "from-chair-embedded-sprite")
-      (tu/prop! room-embedded-chair-embedded-sprite :image (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
+      (tu/prop! room-embedded-chair-embedded-sprite :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
       (tu/prop! room-embedded-chair-embedded-sprite :default-animation "from-room-embedded-chair-embedded-sprite")
       {:chair chair
        :chair-referenced-script chair-referenced-script
@@ -320,7 +320,7 @@
           house-referenced-room (tu/add-referenced-collection! house (resource-node/resource room))]
 
       (doto sprite
-        (tu/prop! :image (tu/resource workspace "/assets/from-sprite.atlas"))
+        (tu/prop! :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-sprite.atlas"))
         (tu/prop! :default-animation "from-sprite"))
 
       (doto chair-embedded-sprite
@@ -328,7 +328,7 @@
         (tu/prop! :position [1.1 1.2 1.3])
         (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 1.0)))
         (tu/prop! :scale [1.4 1.5 1.6])
-        (tu/prop! :image (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
+        (tu/prop! :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-chair-embedded-sprite.atlas"))
         (tu/prop! :default-animation "from-chair-embedded-sprite"))
 
       (doto chair-referenced-script
@@ -351,7 +351,7 @@
         (tu/prop! :position [4.1 4.2 4.3])
         (tu/prop! :rotation (math/vecmath->clj (math/euler-z->quat 4.0)))
         (tu/prop! :scale [4.4 4.5 4.6])
-        (tu/prop! :image (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
+        (tu/prop! :__sampler__texture_sampler__0 (tu/resource workspace "/assets/from-room-embedded-chair-embedded-sprite.atlas"))
         (tu/prop! :default-animation "from-room-embedded-chair-embedded-sprite"))
 
       (doto room-embedded-chair-referenced-script

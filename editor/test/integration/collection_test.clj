@@ -261,7 +261,7 @@
             (let [sprite-resource-type (resource/resource-type sprite-resource)
                   embedded-component (test-util/add-embedded-component! game-object sprite-resource-type)
                   referenced-component (test-util/add-referenced-component! game-object sprite-resource)]
-              (test-util/prop! embedded-component :image atlas-resource)
+              (test-util/prop! embedded-component :__sampler__texture_sampler__0 atlas-resource)
               (test-util/prop! embedded-component :default-animation "logo")
               [embedded-component referenced-component]))
 

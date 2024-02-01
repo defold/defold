@@ -516,7 +516,10 @@
                     (let [vertices (semantic-type->data attribute-data-array)]
                       (put-vertices! vertex-byte-offset vertices)))
                   attribute-byte-offset
-                  attribute-data-arrays))]
+                  attribute-data-arrays))
+
+        texcoord-index-vol (volatile! -1)
+        page-index-vol (volatile! -1)]
 
     (reduce (fn [^long attribute-byte-offset attribute]
               (let [semantic-type (:semantic-type attribute)
@@ -552,13 +555,15 @@
                       (put-renderables! attribute-byte-offset renderable-data->world-position put-attribute-doubles!)))
 
                   :semantic-type-texcoord
-                  (put-renderables! attribute-byte-offset :uv-data put-attribute-doubles!)
+                  (let [i (vswap! texcoord-index-vol inc)]
+                    (put-renderables! attribute-byte-offset #(get-in % [:texcoord-datas i :uv-data]) put-attribute-doubles!))
 
                   :semantic-type-page-index
                   (put-renderables! attribute-byte-offset
                                     (fn [attribute-data]
                                       (let [vertex-count (count (:position-data attribute-data))
-                                            page-index (:page-index attribute-data)]
+                                            i (vswap! page-index-vol inc)
+                                            page-index (get-in attribute-data [:texcoord-datas i :page-index])]
                                         (repeat vertex-count [(double page-index)])))
                                     put-attribute-doubles!)
 

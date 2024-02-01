@@ -696,20 +696,20 @@ Macros currently mean no foreseeable performance gain, however."
 (defn val->pb-enum [^Class enum-class val]
   (Enum/valueOf enum-class (keyword->enum-name val)))
 
-(def ^:private float-zero (Float/valueOf 0.0))
-(def ^:private float-one (Float/valueOf 1.0))
+(def float-zero (Float/valueOf 0.0))
+(def float-one (Float/valueOf 1.0))
 
-(def ^:private vector3-zero [float-zero float-zero float-zero])
-(def ^:private vector3-one [float-one float-one float-one])
+(def vector3-zero [float-zero float-zero float-zero])
+(def vector3-one [float-one float-one float-one])
 
-(def ^:private vector4-zero [float-zero float-zero float-zero float-zero])
-(def ^:private vector4-one [float-one float-one float-one float-one])
-(def ^:private vector4-xyz-zero-w-one [float-zero float-zero float-zero float-one])
-(def ^:private vector4-xyz-one-w-zero [float-one float-one float-one float-zero])
+(def vector4-zero [float-zero float-zero float-zero float-zero])
+(def vector4-one [float-one float-one float-one float-one])
+(def vector4-xyz-zero-w-one [float-zero float-zero float-zero float-one])
+(def vector4-xyz-one-w-zero [float-one float-one float-one float-zero])
 
-(def ^:private quat-identity [float-zero float-zero float-zero float-one])
+(def quat-identity [float-zero float-zero float-zero float-one])
 
-(def ^:private matrix4-identity
+(def matrix4-identity
   [float-one float-zero float-zero float-zero
    float-zero float-one float-zero float-zero
    float-zero float-zero float-one float-zero

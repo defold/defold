@@ -117,7 +117,18 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_TileSet);
+        uint32_t num_textures = ddf->m_Textures.m_Count;
+        if (num_textures)
+        {
+            for (uint32_t i = 0; i < num_textures; ++i)
+            {
+                dmResource::PreloadHint(params.m_HintInfo, ddf->m_Textures[i].m_Texture);
+            }
+        }
+        else
+        {
+            dmResource::PreloadHint(params.m_HintInfo, ddf->m_TileSet);
+        }
         dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
 
         *params.m_PreloadData = ddf;

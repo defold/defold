@@ -673,12 +673,19 @@
   (get-in (g/node-value node-id :_properties) [:properties label :error]))
 
 (defn prop! [node-id label val]
-  (let [[node-id label] (resolve-prop node-id label)]
-    (g/set-property! node-id label val)))
+  (let [prop (get-in (g/node-value node-id :_properties) [:properties label])]
+    (if-let [set-fn (-> prop :edit-type :set-fn)]
+      (g/transact
+        (g/with-auto-evaluation-context evaluation-context
+          (set-fn evaluation-context node-id (:value prop) val)))
+      (let [[node-id label] (resolve-prop node-id label)]
+        (g/set-property! node-id label val)))))
 
 (defn prop-clear! [node-id label]
-  (let [[node-id label] (resolve-prop node-id label)]
-    (g/clear-property! node-id label)))
+  (if-let [clear-fn (get-in (g/node-value node-id :_properties) [:properties label :edit-type :clear-fn])]
+    (g/transact (clear-fn node-id label))
+    (let [[node-id label] (resolve-prop node-id label)]
+      (g/clear-property! node-id label))))
 
 (defn prop-read-only? [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :read-only?]))
@@ -746,10 +753,10 @@
 
 (defmacro with-prop [binding & forms]
   (let [[node-id# property# value#] binding]
-    `(let [old-value# (g/node-value ~node-id# ~property#)]
-       (g/set-property! ~node-id# ~property# ~value#)
+    `(let [old-value# (prop ~node-id# ~property#)]
+       (prop! ~node-id# ~property# ~value#)
        ~@forms
-       (g/set-property! ~node-id# ~property# old-value#))))
+       (prop! ~node-id# ~property# old-value#))))
 
 (defn make-call-logger
   "Returns a function that keeps track of its invocations. Every

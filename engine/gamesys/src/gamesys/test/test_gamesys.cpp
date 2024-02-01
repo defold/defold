@@ -15,6 +15,7 @@
 #include "test_gamesys.h"
 
 #include "../../../../graphics/src/graphics_private.h"
+#include "../../../../render/src/render/font_renderer_private.h"
 #include "../../../../resource/src/resource_private.h"
 
 #include "gamesys/resources/res_material.h"
@@ -1145,6 +1146,29 @@ TEST_P(CursorTest, Cursor)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(FontTest, GlyphBankTest)
+{
+    const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
+    const char path_font_2[] = "/font/glyph_bank_test_2.fontc";
+    dmRender::HFontMap font_map_1;
+    dmRender::HFontMap font_map_2;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_1, (void**) &font_map_1));
+    ASSERT_NE((void*)0, font_map_1);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_2, (void**) &font_map_2));
+    ASSERT_NE((void*)0, font_map_1);
+
+    const void* glyph_data_1 = dmRender::GetGlyphData(font_map_1);
+    const void* glyph_data_2 = dmRender::GetGlyphData(font_map_2);
+
+    ASSERT_NE((void*)0, glyph_data_1);
+    ASSERT_NE((void*)0, glyph_data_2);
+    ASSERT_NE(glyph_data_1, glyph_data_2);
+
+    dmResource::Release(m_Factory, font_map_1);
+    dmResource::Release(m_Factory, font_map_2);
+}
+
 TEST_F(WindowTest, MouseLock)
 {
     dmPlatform::WindowParams window_params = {};
@@ -2223,6 +2247,97 @@ TEST_F(ComponentTest, JointTest)
     ASSERT_NE((void*)0, go_a);
 
     // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+}
+
+/* Physics listener */
+TEST_F(ComponentTest, PhysicsListenerTest)
+{
+    /* Setup:
+    ** callback_object
+    ** - [collisionobject] collision_object/callback_object.collisionobject
+    ** - [script] collision_object/callback_object.script
+    ** callback_trigger
+    ** - [collisionobject] collision_object/callback_trigger.collisionobject
+    */
+
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_test_object = "/collision_object/callback_object.goc";
+    const char* path_test_trigger = "/collision_object/callback_trigger.goc";
+
+    dmhash_t hash_go_object = dmHashString64("/test_object");
+    dmhash_t hash_go_trigger = dmHashString64("/test_trigger");
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_b);
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_test_trigger, hash_go_trigger, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_a);
+
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+}
+
+/* Update mass for physics collision object */
+TEST_F(ComponentTest, PhysicsUpdateMassTest)
+{
+    /* Setup:
+    ** mass_object
+    ** - [collisionobject] collision_object/mass_object.collisionobject
+    ** - [script] collision_object/mass_object.script
+    */
+
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_test_object = "/collision_object/mass_object.goc";
+
+    dmhash_t hash_go_object = dmHashString64("/test_object");
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_b);
+
     bool tests_done = false;
     while (!tests_done)
     {
