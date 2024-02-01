@@ -2386,6 +2386,22 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     void* particlefx_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("particlefxc")));
     ASSERT_NE((void*) 0, particlefx_world);
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Test setup
+    // ----------
+    // The idea of this test is to make sure that we produce the correct vertex buffers
+    // when using a "multi-buffered" render approach, which should be the case for
+    // non-opengl graphics adapters.
+    //
+    // To test this, the test .go file contains a bunch of components that support this feature.
+    // We instantiate it and then dispatch a number of draw calls, which should trigger the
+    // multi-buffering of the vertex and index buffers (where applicable).
+    // 
+    // Furthermore, each component type is represented twice, with a different material per
+    // instance. The two materials have different vertex formats, which we also account for
+    // when producing our "expected" data for this test.
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_test/dispatch_buffers_test.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -2421,16 +2437,15 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     // Vertex format for /misc/dispatch_buffers_test/vs_format_a.vp:
     // attribute vec4 position;
     // attribute float page_index;
-    //
-    // Vertex format for /misc/dispatch_buffers_test/vs_format_b.vp:
-    // attribute vec4 position;
-    // attribute vec3 my_custom_attribute;
     struct vs_format_a
     {
         float position[4];
         float page_index;
     };
 
+    // Vertex format for /misc/dispatch_buffers_test/vs_format_b.vp:
+    // attribute vec4 position;
+    // attribute vec3 my_custom_attribute;
     struct vs_format_b
     {
         float position[4];
