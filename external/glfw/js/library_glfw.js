@@ -563,7 +563,7 @@ var LibraryGLFW = {
 
     refreshJoysticks: function(forceUpdate) {
         // Produce a new Gamepad API sample if we are ticking a new game frame, or if not using emscripten_set_main_loop() at all to drive animation.
-        if (forceUpdate || Browser.mainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !Browser.mainLoop.currentFrameNumber) {
+        if (GLFW.isGamepadCallbackSet &&(forceUpdate || Browser.mainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !Browser.mainLoop.currentFrameNumber)) {
           GLFW.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
           if (!GLFW.lastGamepadState) {
             return;
@@ -909,11 +909,19 @@ var LibraryGLFW = {
   glfwSetMouseWheelCallback: function(cbfun) {
     GLFW.mouseWheelFunc = cbfun;
   },
+  
+  isGamepadCallbackSet: false,
 
   glfwSetGamepadCallback: function(cbfun) {
     GLFW.gamepadFunc = cbfun;
-    GLFW.refreshJoysticks();
-    return 1;
+    try {
+      GLFW.refreshJoysticks();
+      GLFW.isGamepadCallbackSet = true;
+      return 1;
+    }
+    catch(e) {
+      return 0;
+    }
   },
 
   glfwSetDeviceChangedCallback: function(cbfun) {
