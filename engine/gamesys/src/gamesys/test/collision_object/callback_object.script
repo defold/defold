@@ -23,6 +23,7 @@ function init(self)
 	self.listener_counter = 0
 	self.message_counter = 0
 	self.expected_count = 3
+	self.total_counter = 0
 end
 
 function update(self)
@@ -34,16 +35,22 @@ function update(self)
 			tests_done = true
 		end
 	end
+	if self.total_counter > 100 then
+		assert(false)
+	end
 end
 
 function on_message(self, message_id, message, sender)
 	self.message_counter = self.message_counter + 1
 	if self.message_counter == self.expected_count then
 		physics.set_listener(function(self, message_id)
-			self.listener_counter = self.listener_counter + 1
-			if self.listener_counter == self.expected_count then
-				physics.set_listener(nil)
-				self.check_next_frame = self.expected_count
+			self.total_counter = self.total_counter + 1
+			if message_id == hash("collision_event") then
+				self.listener_counter = self.listener_counter + 1
+				if self.listener_counter == self.expected_count then
+					physics.set_listener(nil)
+					self.check_next_frame = self.expected_count
+				end
 			end
 		end)
 	end

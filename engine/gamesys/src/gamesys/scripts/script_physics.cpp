@@ -1697,7 +1697,7 @@ namespace dmGameSystem
             dmLogError("Failed to setup physics.set_listener() callback");
             return;
         }
-        lua_pushstring(L, desc->m_Name);
+        dmScript::PushHash(L, desc->m_NameHash);
         dmScript::PushDDF(L, desc, data, false);
         int ret = dmScript::PCall(L, 3, 0);
         (void)ret;
