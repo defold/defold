@@ -87,6 +87,12 @@ namespace dmResource
      */
     //Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path);
 
+    struct PreloadHintInfo
+    {
+        HPreloader m_Preloader;
+        int32_t    m_Parent;
+    };
+
     struct PreloadRequest;
 
     struct TypeCreatorDesc

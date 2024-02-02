@@ -677,6 +677,7 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * - `resource.TEXTURE_FORMAT_RGBA`
  * 
  * These constants might not be available on the device:
+ *
  * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
  * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
  * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
