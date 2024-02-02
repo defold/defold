@@ -2360,6 +2360,7 @@ namespace dmGameSystem
     extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
     extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
     extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
+    extern void GetTileGridWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
 };
 
 TEST_F(ComponentTest, DispatchBuffersTest)
@@ -2385,6 +2386,9 @@ TEST_F(ComponentTest, DispatchBuffersTest)
 
     void* particlefx_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("particlefxc")));
     ASSERT_NE((void*) 0, particlefx_world);
+
+    void* tilegrid_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("tilemapc")));
+    ASSERT_NE((void*) 0, tilegrid_world);
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     // Test setup
@@ -2654,6 +2658,19 @@ TEST_F(ComponentTest, DispatchBuffersTest)
                 ASSERT_VTX_B_EQ(pfx_b[i], written_pfx_b[i]);
             }
         }
+    }
+
+    ///////////////////////////////////////
+    // Tilegrid
+    ///////////////////////////////////////
+    {
+        dmRender::BufferedRenderBuffer* vx_buffer;
+        dmGameSystem::GetTileGridWorldRenderBuffers(tilegrid_world, &vx_buffer);
+        ASSERT_EQ(num_draws, vx_buffer->m_Buffers.Size());
+        ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER, vx_buffer->m_Type);
+
+        // Note: Tilegrids does not support custom vertex formats, so for the sake of this test
+        //       we only care about the buffer dispatching part.
     }
 
     #undef SET_VTX_A

@@ -64,3 +64,12 @@ components {
     z: 0.0
   }
 }
+components {
+  id: "tilegrid_a"
+  component: "/misc/dispatch_buffers_test/tilegrid_a.tilegrid"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+}
