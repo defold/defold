@@ -44,13 +44,14 @@ TEST(dmJobThread, PushJobs)
 
 TEST(dmJobThread, PushJobsMultipleThreads)
 {
-    dmJobThread::JobThreadCreationParams job_thread_create_params[4];
-    job_thread_create_params[0].m_ThreadName = "DefoldTestJobThread1";
-    job_thread_create_params[1].m_ThreadName = "DefoldTestJobThread2";
-    job_thread_create_params[2].m_ThreadName = "DefoldTestJobThread3";
-    job_thread_create_params[3].m_ThreadName = "DefoldTestJobThread4";
+    dmJobThread::JobThreadCreationParams job_thread_create_params;
+    job_thread_create_params.m_ThreadNames[0] = "DefoldTestJobThread1";
+    job_thread_create_params.m_ThreadNames[1] = "DefoldTestJobThread2";
+    job_thread_create_params.m_ThreadNames[2] = "DefoldTestJobThread3";
+    job_thread_create_params.m_ThreadNames[3] = "DefoldTestJobThread4";
+    job_thread_create_params.m_ThreadCount    = 4;
 
-    dmJobThread::HContext ctx = dmJobThread::Create(DM_ARRAY_SIZE(job_thread_create_params), job_thread_create_params);
+    dmJobThread::HContext ctx = dmJobThread::Create(job_thread_create_params);
 
     uint8_t contexts[8];
     uint8_t datas[8];
