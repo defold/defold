@@ -549,9 +549,9 @@ var LibraryGLFW = {
       EPL.apply(document, []);
     },
     disconnectJoystick: function (joy) {
-      _free(GLFW.joys[joy].id);
-      delete GLFW.joys[joy];
       if (GLFW.gamepadFunc) {
+        _free(GLFW.joys[joy].id);
+        delete GLFW.joys[joy];
         {{{ makeDynCall('vii', 'GLFW.gamepadFunc') }}}(joy, 0);
       }
     },
@@ -563,38 +563,38 @@ var LibraryGLFW = {
 
     refreshJoysticks: function(forceUpdate) {
         // Produce a new Gamepad API sample if we are ticking a new game frame, or if not using emscripten_set_main_loop() at all to drive animation.
-        if (forceUpdate || Browser.mainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !Browser.mainLoop.currentFrameNumber) {
-          GLFW.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
-          if (!GLFW.lastGamepadState) {
-            return;
-          }
-          GLFW.lastGamepadStateFrame = Browser.mainLoop.currentFrameNumber;
-          for (var joy = 0; joy < GLFW.lastGamepadState.length; ++joy) {
-            var gamepad = GLFW.lastGamepadState[joy];
+        if (GLFW.gamepadFunc) {
+          if (forceUpdate || Browser.mainLoop.currentFrameNumber !== GLFW.lastGamepadStateFrame || !Browser.mainLoop.currentFrameNumber) {
+            GLFW.lastGamepadState = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : null);
+            if (!GLFW.lastGamepadState) {
+              return;
+            }
+            GLFW.lastGamepadStateFrame = Browser.mainLoop.currentFrameNumber;
+            for (var joy = 0; joy < GLFW.lastGamepadState.length; ++joy) {
+              var gamepad = GLFW.lastGamepadState[joy];
 
-            if (gamepad) {
-              var gamepad_id = (gamepad.mapping == "standard") ? "Standard Gamepad" : gamepad.id;
-              if (!GLFW.joys[joy] || GLFW.joys[joy].id_string != gamepad_id) {
-                if (GLFW.joys[joy]) {
-                  //In case when user change gamepad while browser in background (minimized)
-                  GLFW.disconnectJoystick(joy);
-                }
-                GLFW.joys[joy] = {
-                  id: allocate(intArrayFromString(gamepad_id), ALLOC_NORMAL),
-                  id_string: gamepad_id,
-                  axesCount: gamepad.axes.length,
-                  buttonsCount: gamepad.buttons.length
-                };
-                if (GLFW.gamepadFunc) {
+              if (gamepad) {
+                var gamepad_id = (gamepad.mapping == "standard") ? "Standard Gamepad" : gamepad.id;
+                if (!GLFW.joys[joy] || GLFW.joys[joy].id_string != gamepad_id) {
+                  if (GLFW.joys[joy]) {
+                    //In case when user change gamepad while browser in background (minimized)
+                    GLFW.disconnectJoystick(joy);
+                  }
+                  GLFW.joys[joy] = {
+                    id: allocate(intArrayFromString(gamepad_id), ALLOC_NORMAL),
+                    id_string: gamepad_id,
+                    axesCount: gamepad.axes.length,
+                    buttonsCount: gamepad.buttons.length
+                  };
                   {{{ makeDynCall('vii', 'GLFW.gamepadFunc') }}}(joy, 1);
                 }
-              }
-              GLFW.joys[joy].buttons = gamepad.buttons;
-              GLFW.joys[joy].axes = gamepad.axes;
-            } else {
-              if (GLFW.joys[joy]) {
-                GLFW.disconnectJoystick(joy);
-              }
+                GLFW.joys[joy].buttons = gamepad.buttons;
+                GLFW.joys[joy].axes = gamepad.axes;
+              } else {
+                if (GLFW.joys[joy]) {
+                  GLFW.disconnectJoystick(joy);
+                }
+            }
           }
         }
       }
@@ -912,8 +912,14 @@ var LibraryGLFW = {
 
   glfwSetGamepadCallback: function(cbfun) {
     GLFW.gamepadFunc = cbfun;
-    GLFW.refreshJoysticks();
-    return 1;
+    try {
+      GLFW.refreshJoysticks();
+      return 1;
+    }
+    catch(e) {
+      GLFW.gamepadFunc = null;
+      return 0;
+    }
   },
 
   glfwSetDeviceChangedCallback: function(cbfun) {

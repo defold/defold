@@ -761,9 +761,16 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < textures->m_NumTextures; ++i)
         {
-            uint32_t frame_index = textures->m_Frames[i];
             dmArray<float>& uvs = scratch_uvs[i];
             EnsureSize(uvs, SPRITE_VERTEX_COUNT_SLICE9*2);
+
+            uint32_t frame_index = textures->m_Frames[i];
+            if (frame_index == 0xFFFFFFFF)
+            {
+                // The animation frame wasn't found in the textureset.
+                memset(uvs.Begin(), 0, uvs.Size());
+                continue;
+            }
 
             const dmGameSystemDDF::TextureSet*          texture_set_ddf = textures->m_TextureSets[i];
             const float* tex_coords     = (const float*) texture_set_ddf->m_TexCoords.m_Data;
@@ -967,9 +974,16 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < data->m_NumTextures; ++i)
         {
-            uint32_t frame_index = data->m_Frames[i];
             dmArray<float>& uvs = scratch_uvs[i];
             EnsureSize(uvs, 4*2);
+
+            uint32_t frame_index = data->m_Frames[i];
+            if (frame_index == 0xFFFFFFFF)
+            {
+                // The animation frame wasn't found in the textureset.
+                memset(uvs.Begin(), 0, uvs.Size());
+                continue;
+            }
 
             const dmGameSystemDDF::TextureSet*          texture_set_ddf = data->m_TextureSets[i];
             const dmGameSystemDDF::TextureSetAnimation* animation_ddf = data->m_Animations[i];
