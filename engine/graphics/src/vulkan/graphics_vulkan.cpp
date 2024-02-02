@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -114,6 +114,12 @@ namespace dmGraphics
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
 
+        // We need to have some sort of valid default filtering
+        if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
+            m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
+        if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
+            m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
+
         assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
@@ -207,6 +213,11 @@ namespace dmGraphics
         VkSamplerAddressMode vk_wrap_u = GetVulkanSamplerAddressMode(uwrap);
         VkSamplerAddressMode vk_wrap_v = GetVulkanSamplerAddressMode(vwrap);
 
+        if (magfilter == TEXTURE_FILTER_DEFAULT)
+            magfilter = g_VulkanContext->m_DefaultTextureMagFilter;
+        if (minfilter == TEXTURE_FILTER_DEFAULT)
+            minfilter = g_VulkanContext->m_DefaultTextureMinFilter;
+
         // Convert mag filter to Vulkan type
         if (magfilter == TEXTURE_FILTER_NEAREST)
         {
@@ -284,6 +295,11 @@ namespace dmGraphics
     static int16_t GetTextureSamplerIndex(dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter,
         TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
+        if (minfilter == TEXTURE_FILTER_DEFAULT)
+            minfilter = g_VulkanContext->m_DefaultTextureMinFilter;
+        if (magfilter == TEXTURE_FILTER_DEFAULT)
+            magfilter = g_VulkanContext->m_DefaultTextureMagFilter;
+
         for (uint32_t i=0; i < texture_samplers.Size(); i++)
         {
             TextureSampler& sampler = texture_samplers[i];

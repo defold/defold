@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -90,6 +90,7 @@
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (defn- res-fields->resources [pb-msg deps-by-source fields]
+  ;; TODO: use editor.pipeline/make-resource-props instead?
   (letfn [(fill-from-key-path [acc source acc-path key-path-index key-path]
             (let [end (= key-path-index (count key-path))]
               (if end
@@ -295,16 +296,7 @@
             (cond-> info (g/error-value? gpu-texture-generator) (dissoc :gpu-texture-generator)))))
 
 (defn- detect-and-apply-renames [texture-binding-infos samplers]
-  (let [texture-binding-info-name-index (util/name-index texture-binding-infos :sampler)
-        sampler-name-index (util/name-index samplers :name)
-        renames (util/detect-renames texture-binding-info-name-index sampler-name-index)]
-    (reduce
-      (fn [texture-binding-infos [texture-binding-name+order [new-name]]]
-        (update texture-binding-infos
-                (texture-binding-info-name-index texture-binding-name+order)
-                assoc :sampler new-name))
-      texture-binding-infos
-      renames)))
+  (util/detect-and-apply-renames texture-binding-infos :sampler samplers :name))
 
 (g/defnode MaterialBinding
   (input copied-nodes g/Any :array :cascade-delete)

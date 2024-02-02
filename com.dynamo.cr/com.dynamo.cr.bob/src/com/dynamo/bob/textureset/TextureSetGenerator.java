@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -103,14 +103,14 @@ public class TextureSetGenerator {
         public boolean isFlipVertically() {
             return flipVertically;
         }
-
     }
 
     // Public Api: AnimIterator
     public interface AnimIterator {
-        public AnimDesc nextAnim();
-        public Integer nextFrameIndex();
-        public void rewind();
+        public AnimDesc nextAnim();         // Return the next animation
+        public Integer nextFrameIndex();    // Return the global index of the image that the frame is using
+        public String getFrameId();         // Returns unique frame id for the current frame
+        public void rewind();               // Start iterating from the beginning
     }
 
     public static class UVTransform {
@@ -670,11 +670,6 @@ public class TextureSetGenerator {
         int tileCount = rects.size();
         textureSet.setTileCount(tileCount);
 
-        for (Rect rect : rects) {
-            long hash = MurmurHash.hash64(rect.getId());
-            textureSet.addImageNameHashes(hash);
-        }
-
         int quadCount = tileCount;
         while (iterator.nextAnim() != null) {
             while (iterator.nextFrameIndex() != null) {
@@ -692,12 +687,13 @@ public class TextureSetGenerator {
         float oneOverHeight = 1.0f / height;
         int quadIndex = 0;
 
-        // Populate all tiles i.e. rects
+        // Populate all single frame image animations
         for (Rect r : rects) {
             putRect(r, oneOverWidth, oneOverHeight, texCoordsBuffer, texDimsBuffer);
 
             uvTransforms.add(genUVTransform(r, oneOverWidth, oneOverHeight));
 
+            textureSet.addImageNameHashes(MurmurHash.hash64(r.getId()));
             textureSet.addFrameIndices(quadIndex);
             textureSet.addPageIndices(r.getPage());
             ++quadIndex;
@@ -705,11 +701,19 @@ public class TextureSetGenerator {
 
         AnimDesc animDesc = null;
         while ((animDesc = iterator.nextAnim()) != null) {
+            String animId = animDesc.getId();
+
             Rect ref = null;
             Integer index = null;
             int startIndex = quadIndex;
+            int localIndex = 0; // 0 .. num_frames(anim)-1
             while ((index = iterator.nextFrameIndex()) != null) {
+
+                String frameId = iterator.getFrameId(); // either "id" or "anim./id"
+                long frameIdHash = MurmurHash.hash64(frameId);
+
                 textureSet.addFrameIndices(index);
+                textureSet.addImageNameHashes(frameIdHash);
 
                 Rect r = rects.get(index);
                 if (ref == null) {
@@ -720,6 +724,7 @@ public class TextureSetGenerator {
                 textureSet.addPageIndices(r.getPage());
 
                 ++quadIndex;
+                ++localIndex;
             }
             if (ref == null) {
                 continue;
@@ -751,6 +756,8 @@ public class TextureSetGenerator {
 
             textureSet.addAnimations(anim);
         }
+
+        assert(textureSet.getFrameIndicesList().size() == textureSet.getImageNameHashesList().size());
 
         texCoordsBuffer.rewind();
         texDimsBuffer.rewind();

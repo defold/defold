@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -133,10 +133,11 @@
                  :world-transform world-transform
                  :vertex-attribute-bytes vertex-attribute-bytes}
                 indices)]
-    (if (= vertex-space :vertex-space-world)
-      (assoc mesh-data-out :position-data (geom/transf-p world-transform (:position-data mesh-data-out))
-                           :normal-data (transf-n normal-transform (:normal-data mesh-data-out)))
-      mesh-data-out)))
+    (-> mesh-data-out
+        (cond-> (= vertex-space :vertex-space-world)
+                (assoc :position-data (geom/transf-p world-transform (:position-data mesh-data-out))
+                       :normal-data (transf-n normal-transform (:normal-data mesh-data-out))))
+        (assoc :texcoord-datas [{:uv-data (:uv-data mesh-data-out)}]))))
 
 (defn mesh->vb! [^VertexBuffer vbuf ^Matrix4d world-transform vertex-space vertex-attribute-bytes mesh]
   (let [normal-transform (let [tmp (Matrix3f.)]

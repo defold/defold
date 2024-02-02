@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -204,7 +204,7 @@
 
    'dmGameSystemDDF.SpriteDesc
    {:default
-    {"textures" :unimplemented}} ; Multiple textures for sprites are not supported yet.
+    {"tile_set" :deprecated}} ; Replaced with 'textures'; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGraphics.VertexAttribute
    {[["particlefx" "emitters" "[*]" "attributes"]
@@ -632,7 +632,19 @@
                             {:sampler "tex1"
                              :texture tex1-resource}]
                  :attributes {}}]
-               (g/node-value legacy-material-and-textures-model :materials)))))))
+               (g/node-value legacy-material-and-textures-model :materials)))))
+
+    (testing "sprite"
+      (let [legacy-tile-set-sprite (project/get-resource-node project "/silently_migrated/legacy_tile_set.sprite")]
+        (is (= [{:sampler "texture_sampler"
+                 :texture (workspace/find-resource workspace "/checked.atlas")}]
+               (g/node-value legacy-tile-set-sprite :textures))))
+      (let [legacy-tile-set-sprite-go (project/get-resource-node project "/silently_migrated/legacy_tile_set_sprite.go")
+            embedded-component (:node-id (test-util/outline legacy-tile-set-sprite-go [0]))
+            embedded-sprite (test-util/to-component-resource-node-id embedded-component)]
+        (is (= [{:sampler "texture_sampler"
+                 :texture (workspace/find-resource workspace "/checked.atlas")}]
+               (g/node-value embedded-sprite :textures)))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.

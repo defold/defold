@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -39,6 +39,7 @@ import render.material_ddf_pb2
 import render.font_ddf_pb2
 import particle.particle_ddf_pb2
 import gamesys.sprite_ddf_pb2
+import gamesys.physics_ddf_pb2
 
 BUILDERS = {}
 BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
@@ -59,6 +60,8 @@ BUILDERS['.fontc']          = render.font_ddf_pb2.FontMap
 BUILDERS['.glyph_bankc']    = render.font_ddf_pb2.GlyphBank
 BUILDERS['.particlefxc']    = particle.particle_ddf_pb2.ParticleFX
 BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
+BUILDERS['.convexshapec']   = gamesys.physics_ddf_pb2.ConvexShape
+BUILDERS['.collisionobjectc'] = gamesys.physics_ddf_pb2.CollisionObjectDesc
 
 proto_type_to_string_map = {}
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BOOL]    = 'TYPE_BOOL'

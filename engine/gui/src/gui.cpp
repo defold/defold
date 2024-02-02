@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1360,10 +1360,11 @@ namespace dmGui
             render_entries.Push(e);
 
         uint16_t index = start_index;
-
+        uint32_t active_nodes = 0;
         while (index != INVALID_INDEX) {
             InternalNode* n = &scene->m_Nodes[index];
             if (n->m_Node.m_Enabled) {
+                ++active_nodes;
                 HNode node = GetNodeHandle(n);
                 uint16_t layer = GetLayerIndex(scene, n);
                 if (n->m_ClipperIndex != INVALID_INDEX) {
@@ -1436,6 +1437,7 @@ namespace dmGui
         }
         #undef PUSH_RENDER_ENTRY
 
+        DM_PROPERTY_ADD_U32(rmtp_GuiActiveNodes, active_nodes);
         return order;
     }
 
@@ -2187,7 +2189,6 @@ namespace dmGui
         UpdateAnimations(scene, dt);
 
         uint32_t total_nodes = 0;
-        uint32_t active_nodes = 0;
         node_count = scene->m_Nodes.Size();
         nodes      = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < node_count; ++i)
@@ -2204,9 +2205,6 @@ namespace dmGui
             else if (node->m_Index != INVALID_INDEX)
             {
                 ++total_nodes;
-                if (node->m_Node.m_Enabled)
-                    ++active_nodes;
-
                 if (node->m_Node.m_CustomType != 0)
                 {
                     scene->m_UpdateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(node),
@@ -2261,7 +2259,6 @@ namespace dmGui
         }
 
         DM_PROPERTY_ADD_U32(rmtp_GuiNodes, total_nodes);
-        DM_PROPERTY_ADD_U32(rmtp_GuiActiveNodes, active_nodes);
         DM_PROPERTY_ADD_U32(rmtp_GuiStaticTextures, scene->m_Textures.Size());
         DM_PROPERTY_ADD_U32(rmtp_GuiDynamicTextures, scene->m_DynamicTextures.Size());
         DM_PROPERTY_ADD_U32(rmtp_GuiTextures, scene->m_Textures.Size() + scene->m_DynamicTextures.Size());

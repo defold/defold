@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -108,10 +108,7 @@ namespace dmGameSystem
         params.m_CacheHeight        = glyph_bank->m_CacheHeight;
         params.m_ImageFormat        = glyph_bank->m_ImageFormat;
         params.m_GlyphChannels      = glyph_bank->m_GlyphChannels;
-        params.m_GlyphData          = malloc(glyph_bank->m_GlyphData.m_Count);
-
-        // Copy and unpack glyphdata
-        memcpy(params.m_GlyphData, glyph_bank->m_GlyphData.m_Data, glyph_bank->m_GlyphData.m_Count);
+        params.m_GlyphData          = glyph_bank->m_GlyphData.m_Data;
 
         if (font_map == 0)
         {
@@ -124,8 +121,7 @@ namespace dmGameSystem
         }
 
         // This is a workaround, ideally we'd have a FontmapResource* // MAWE + JG
-
-        Resources* font_map_resources          = new Resources;
+        Resources* font_map_resources           = new Resources;
         font_map_resources->m_MaterialResource  = material_res;
         font_map_resources->m_GlyphBankResource = glyph_bank_res;
 

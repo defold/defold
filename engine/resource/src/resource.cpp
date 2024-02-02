@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -522,7 +522,7 @@ dmResourceProvider::HArchive GetBaseArchive(HFactory factory)
 }
 
 // Assumes m_LoadMutex is already held
-static Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
+static Result LoadResourceFromBufferLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
     DM_PROFILE(__FUNCTION__);
 
@@ -554,11 +554,11 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
 }
 
 // Takes the lock.
-Result DoLoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
+Result LoadResourceFromBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
     // Called from async queue so we wrap around a lock
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
-    return DoLoadResourceLocked(factory, path, original_name, resource_size, buffer);
+    return LoadResourceFromBufferLocked(factory, path, original_name, resource_size, buffer);
 }
 
 // Assumes m_LoadMutex is already held
@@ -568,7 +568,7 @@ Result LoadResource(HFactory factory, const char* path, const char* original_nam
         factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
     }
     factory->m_Buffer.SetSize(0);
-    Result r = DoLoadResourceLocked(factory, path, original_name, resource_size, &factory->m_Buffer);
+    Result r = LoadResourceFromBufferLocked(factory, path, original_name, resource_size, &factory->m_Buffer);
     if (r == RESULT_OK)
     {
         *buffer = factory->m_Buffer.Begin();
