@@ -1,5 +1,5 @@
-attribute vec4 position;
-attribute vec3 my_custom_attribute;
+attribute vec3 position;
+attribute vec4 my_custom_attribute;
 
 void main()
 {

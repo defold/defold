@@ -2439,7 +2439,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     // attribute float page_index;
     struct vs_format_a
     {
-        float position[4];
+        float position[3];
         float page_index;
     };
 
@@ -2448,8 +2448,8 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     // attribute vec3 my_custom_attribute;
     struct vs_format_b
     {
-        float position[4];
-        float my_custom_attribute[3];
+        float position[3];
+        float my_custom_attribute[4];
     };
 
     const uint32_t vertex_stride_a = sizeof(vs_format_a);
@@ -2457,36 +2457,34 @@ TEST_F(ComponentTest, DispatchBuffersTest)
 
     const float EPSILON = 0.0001;
 
-    #define SET_VTX_A(vtx, x,y,z,w, pi) \
+    #define SET_VTX_A(vtx, x,y,z, pi) \
         vtx.position[0] = x; \
         vtx.position[1] = y; \
         vtx.position[2] = z; \
-        vtx.position[3] = w; \
         vtx.page_index = pi;
-    #define SET_VTX_B(vtx, x,y,z,w, c0,c1,c2) \
+    #define SET_VTX_B(vtx, x,y,z, c0,c1,c2,c3) \
         vtx.position[0] = x; \
         vtx.position[1] = y; \
         vtx.position[2] = z; \
-        vtx.position[3] = w; \
         vtx.my_custom_attribute[0] = c0; \
         vtx.my_custom_attribute[1] = c1; \
-        vtx.my_custom_attribute[2] = c2;
+        vtx.my_custom_attribute[2] = c2; \
+        vtx.my_custom_attribute[3] = c3;
 
     #define ASSERT_VTX_A_EQ(vtx_1, vtx_2) \
         ASSERT_NEAR(vtx_1.position[0], vtx_2.position[0], EPSILON); \
         ASSERT_NEAR(vtx_1.position[1], vtx_2.position[1], EPSILON); \
         ASSERT_NEAR(vtx_1.position[2], vtx_2.position[2], EPSILON); \
-        ASSERT_NEAR(vtx_1.position[3], vtx_2.position[3], EPSILON); \
         ASSERT_NEAR(vtx_1.page_index, vtx_2.page_index, EPSILON);
 
     #define ASSERT_VTX_B_EQ(vtx_1, vtx_2) \
         ASSERT_NEAR(vtx_1.position[0], vtx_2.position[0], EPSILON); \
         ASSERT_NEAR(vtx_1.position[1], vtx_2.position[1], EPSILON); \
         ASSERT_NEAR(vtx_1.position[2], vtx_2.position[2], EPSILON); \
-        ASSERT_NEAR(vtx_1.position[3], vtx_2.position[3], EPSILON); \
         ASSERT_NEAR(vtx_1.my_custom_attribute[0], vtx_2.my_custom_attribute[0], EPSILON); \
         ASSERT_NEAR(vtx_1.my_custom_attribute[1], vtx_2.my_custom_attribute[1], EPSILON); \
-        ASSERT_NEAR(vtx_1.my_custom_attribute[2], vtx_2.my_custom_attribute[2], EPSILON);
+        ASSERT_NEAR(vtx_1.my_custom_attribute[2], vtx_2.my_custom_attribute[2], EPSILON); \
+        ASSERT_NEAR(vtx_1.my_custom_attribute[3], vtx_2.my_custom_attribute[3], EPSILON);
 
     ///////////////////////////////////////
     // Sprite
@@ -2516,15 +2514,15 @@ TEST_F(ComponentTest, DispatchBuffersTest)
         const float sprite_b_h = 16.0f;
 
         // Notice: z value is 1.0f here to make the sorting stable
-        SET_VTX_A(sprite_a[0], -sprite_a_w / 2.0f, -sprite_a_h / 2.0f, 1.0f, 1.0f, 0.0f);
-        SET_VTX_A(sprite_a[1], -sprite_a_w / 2.0f,  sprite_a_h / 2.0f, 1.0f, 1.0f, 0.0f);
-        SET_VTX_A(sprite_a[2],  sprite_a_w / 2.0f,  sprite_a_h / 2.0f, 1.0f, 1.0f, 0.0f);
-        SET_VTX_A(sprite_a[3],  sprite_a_w / 2.0f, -sprite_a_h / 2.0f, 1.0f, 1.0f, 0.0f);
+        SET_VTX_A(sprite_a[0], -sprite_a_w / 2.0f, -sprite_a_h / 2.0f, 1.0f, 0.0f);
+        SET_VTX_A(sprite_a[1], -sprite_a_w / 2.0f,  sprite_a_h / 2.0f, 1.0f, 0.0f);
+        SET_VTX_A(sprite_a[2],  sprite_a_w / 2.0f,  sprite_a_h / 2.0f, 1.0f, 0.0f);
+        SET_VTX_A(sprite_a[3],  sprite_a_w / 2.0f, -sprite_a_h / 2.0f, 1.0f, 0.0f);
 
-        SET_VTX_B(sprite_b[0], -sprite_b_w / 2.0f, -sprite_b_h / 2.0f, 0.0f, 1.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(sprite_b[1], -sprite_b_w / 2.0f,  sprite_b_h / 2.0f, 0.0f, 1.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(sprite_b[2],  sprite_b_w / 2.0f,  sprite_b_h / 2.0f, 0.0f, 1.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(sprite_b[3],  sprite_b_w / 2.0f, -sprite_b_h / 2.0f, 0.0f, 1.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(sprite_b[0], -sprite_b_w / 2.0f, -sprite_b_h / 2.0f, 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(sprite_b[1], -sprite_b_w / 2.0f,  sprite_b_h / 2.0f, 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(sprite_b[2],  sprite_b_w / 2.0f,  sprite_b_h / 2.0f, 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(sprite_b[3],  sprite_b_w / 2.0f, -sprite_b_h / 2.0f, 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
 
         for (int i = 0; i < num_draws; ++i)
         {
@@ -2573,19 +2571,19 @@ TEST_F(ComponentTest, DispatchBuffersTest)
         float p2[] = { -1.0, -1.0 };
         float p3[] = {  1.0, -1.0 };
 
-        SET_VTX_A(model_a[0], p0[0], p0[1], 1.0f, 0.0f, 0.0f);
-        SET_VTX_A(model_a[1], p1[0], p1[1], 1.0f, 0.0f, 0.0f);
-        SET_VTX_A(model_a[2], p2[0], p2[1], 1.0f, 0.0f, 0.0f);
-        SET_VTX_A(model_a[3], p0[0], p0[1], 1.0f, 0.0f, 0.0f);
-        SET_VTX_A(model_a[4], p2[0], p2[1], 1.0f, 0.0f, 0.0f);
-        SET_VTX_A(model_a[5], p3[0], p3[1], 1.0f, 0.0f, 0.0f);
+        SET_VTX_A(model_a[0], p0[0], p0[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[1], p1[0], p1[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[2], p2[0], p2[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[3], p0[0], p0[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[4], p2[0], p2[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[5], p3[0], p3[1], 1.0f, 0.0f);
 
-        SET_VTX_B(model_b[0], p0[0], p0[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(model_b[1], p1[0], p1[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(model_b[2], p2[0], p2[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(model_b[3], p0[0], p0[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(model_b[4], p2[0], p2[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(model_b[5], p3[0], p3[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[0], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[1], p1[0], p1[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[2], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[3], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[4], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[5], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
 
         for (int i = 0; i < num_draws; ++i)
         {
@@ -2628,19 +2626,19 @@ TEST_F(ComponentTest, DispatchBuffersTest)
         float p2[] = {  pfx_s, -pfx_s};
         float p3[] = {  pfx_s,  pfx_s};
 
-        SET_VTX_A(pfx_a[0], p0[0], p0[1], 1.0f, 0.0f, 0.0f);
-        SET_VTX_A(pfx_a[1], p1[0], p1[1], 1.0f, 0.0f, 0.0f);
-        SET_VTX_A(pfx_a[2], p3[0], p3[1], 1.0f, 0.0f, 0.0f);
-        SET_VTX_A(pfx_a[3], p3[0], p3[1], 1.0f, 0.0f, 0.0f);
-        SET_VTX_A(pfx_a[4], p2[0], p2[1], 1.0f, 0.0f, 0.0f);
-        SET_VTX_A(pfx_a[5], p0[0], p0[1], 1.0f, 0.0f, 0.0f);
+        SET_VTX_A(pfx_a[0], p0[0], p0[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[1], p1[0], p1[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[2], p3[0], p3[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[3], p3[0], p3[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[4], p2[0], p2[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[5], p0[0], p0[1], 1.0f, 0.0f);
 
-        SET_VTX_B(pfx_b[0], p0[0], p0[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(pfx_b[1], p1[0], p1[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(pfx_b[2], p3[0], p3[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(pfx_b[3], p3[0], p3[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(pfx_b[4], p2[0], p2[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
-        SET_VTX_B(pfx_b[5], p0[0], p0[1], 0.0f, 0.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[0], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[1], p1[0], p1[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[2], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[3], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[4], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[5], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
 
         for (int i = 0; i < num_draws; ++i)
         {
@@ -3436,6 +3434,8 @@ bool RunFile(lua_State* L, const char* filename)
 
     dmLuaDDF::LuaModule* ddf = 0;
     dmDDF::Result res = dmDDF::LoadMessageFromFile(path, dmLuaDDF::LuaModule::m_DDFDescriptor, (void**) &ddf);
+    if (res != dmDDF::RESULT_OK)
+        return false;
 
     char* buffer = (char*) malloc(ddf->m_Source.m_Script.m_Count + 1);
     memcpy((void*) buffer, ddf->m_Source.m_Script.m_Data, ddf->m_Source.m_Script.m_Count);
@@ -4517,8 +4517,9 @@ TEST_F(ShaderTest, ComputeResource)
     ASSERT_NE((dmRender::HComputeProgram) 0, compute_program_res);
 
     dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program_res);
-    dmGraphics::HProgram graphics_compute_program       = dmRender::GetComputeProgram(compute_program_res);
+    ASSERT_NE((dmGraphics::HComputeProgram) 0, graphics_compute_shader);
 
+    dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program_res);
     ASSERT_EQ(2, dmGraphics::GetUniformCount(graphics_compute_program));
 
     char buffer[128] = {};
