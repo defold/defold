@@ -21,7 +21,9 @@
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/dlib/log.h>
-#include <dmsdk/dlib/thread.h>
+#include <dlib/thread.h>
+#include <dlib/math.h>
+#include <dlib/dstrings.h>
 
 #if defined(DM_HAS_THREADS)
     #include <dmsdk/dlib/condition_variable.h>
