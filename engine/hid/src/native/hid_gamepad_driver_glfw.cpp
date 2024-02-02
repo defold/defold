@@ -204,7 +204,6 @@ namespace dmHID
     {
         if (glfwSetGamepadCallback(GLFWGamepadCallback) == 0)
         {
-            dmLogFatal("could not set glfw gamepad callback.");
             return false;
         }
 

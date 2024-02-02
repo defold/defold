@@ -226,10 +226,15 @@
 
 ;; create directories, files
 
+(defn create-path-directories!
+  "Creates the directory path up to and including directory. Returns the directory as Path."
+  ^Path [^Path path]
+  (Files/createDirectories path empty-file-attrs))
+
 (defn create-directories!
-  "Creates the directory path up to and including directory. Returns the directory."
+  "Creates the directory path up to and including directory. Returns the directory as File."
   ^File [^File directory]
-  (.toFile (Files/createDirectories (.toPath directory) empty-file-attrs)))
+  (.toFile (create-path-directories! (.toPath directory))))
 
 (defn create-parent-directories!
   "Creates the directory path (if any) up to the parent directory of file. Returns the parent directory."

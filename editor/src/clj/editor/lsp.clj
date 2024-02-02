@@ -842,27 +842,30 @@
                    results so far"
   [lsp resource cursor context result-callback & {:keys [timeout-ms]
                                                   :or {timeout-ms 1000}}]
-  (lsp (bound-fn [state]
-         (let [ch (a/chan 1)]
-           (a/go (result-callback (<! (a/reduce
-                                        (fn [acc {:keys [complete items]}]
-                                          (-> acc
-                                              (update :complete and-fn complete)
-                                              (update :items into items)))
-                                        {:complete true
-                                         :items []}
-                                        ch))))
-           (send-requests!
-             state ch
-             :capabilities-pred :completion
-             :language (resource/language resource)
-             :timeout-ms timeout-ms
-             :requests-fn (fn [_ {:keys [out]}]
-                            [(lsp.server/completion
-                               resource
-                               cursor
-                               context
-                               #(vary-meta % assoc :editor.lsp.server-state/out out))]))))))
+  (if (resource/file-resource? resource)
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1)]
+             (a/go (result-callback (<! (a/reduce
+                                          (fn [acc {:keys [complete items]}]
+                                            (-> acc
+                                                (update :complete and-fn complete)
+                                                (update :items into items)))
+                                          {:complete true
+                                           :items []}
+                                          ch))))
+             (send-requests!
+               state ch
+               :capabilities-pred :completion
+               :language (resource/language resource)
+               :timeout-ms timeout-ms
+               :requests-fn (fn [_ {:keys [out]}]
+                              [(lsp.server/completion
+                                 resource
+                                 cursor
+                                 context
+                                 #(vary-meta % assoc :editor.lsp.server-state/out out))])))))
+    ;; Don't ask the servers about dependency (zip) resources
+    (do (result-callback {:complete true :items []}) nil)))
 
 (defn resolve-completion! [lsp completion result-callback & {:keys [timeout-ms]
                                                              :or {timeout-ms 5000}}]

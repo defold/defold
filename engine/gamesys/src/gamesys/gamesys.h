@@ -19,6 +19,7 @@
 #include <string.h>
 #include <script/script.h>
 
+#include <dlib/job_thread.h>
 #include <resource/resource.h>
 
 #include <dmsdk/dlib/array.h>
@@ -153,6 +154,7 @@ namespace dmGameSystem
         dmGameObject::HRegister m_Register;
         dmHID::HContext         m_HidContext;
         dmGraphics::HContext    m_GraphicsContext;
+        dmJobThread::HContext   m_JobThread;
     };
 
 
@@ -190,6 +192,7 @@ namespace dmGameSystem
 
     bool InitializeScriptLibs(const ScriptLibContext& context);
     void FinalizeScriptLibs(const ScriptLibContext& context);
+    void UpdateScriptLibs(const ScriptLibContext& context);
 
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,

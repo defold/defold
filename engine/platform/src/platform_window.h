@@ -80,6 +80,7 @@ namespace dmPlatform
         WINDOW_STATE_FSAA_SAMPLES       = 19,
         WINDOW_STATE_SAMPLE_COUNT       = 20,
         WINDOW_STATE_HIGH_DPI           = 21,
+        WINDOW_STATE_AUX_CONTEXT        = 22,
     };
 
     struct WindowParams
@@ -156,6 +157,9 @@ namespace dmPlatform
     void           SetKeyboardDeviceChangedCallback(HWindow window, WindowDeviceChangedCallback cb, void* user_data);
     void           IconifyWindow(HWindow window);
     void           PollEvents(HWindow window);
+
+    void*          AcquireAuxContext(HWindow window);
+    void           UnacquireAuxContext(HWindow window, void* aux_context);
 
     // For tests
     int32_t TriggerCloseCallback(HWindow window);

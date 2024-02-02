@@ -350,6 +350,12 @@ public:
     virtual ~CursorTest() {}
 };
 
+class FontTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~FontTest() {}
+};
+
 class GuiTest : public GamesysTest<const char*>
 {
 public:
@@ -378,6 +384,12 @@ class ShaderTest : public GamesysTest<const char*>
 {
 public:
     virtual ~ShaderTest() {}
+};
+
+class SysTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~SysTest() {}
 };
 
 bool CopyResource(const char* src, const char* dst);

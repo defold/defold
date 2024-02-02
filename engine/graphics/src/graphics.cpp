@@ -246,7 +246,8 @@ namespace dmGraphics
     #undef SHADERDESC_ENUM_TO_STR_CASE
 
     ContextParams::ContextParams()
-    : m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+    : m_JobThread(0)
+    , m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
     , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
     , m_GraphicsMemorySize(0)
     , m_VerifyGraphicsCalls(false)
@@ -868,6 +869,56 @@ namespace dmGraphics
         }
 
         return false;
+    }
+
+    void InitializeSetTextureAsyncState(SetTextureAsyncState& state)
+    {
+        state.m_Mutex = dmMutex::New();
+    }
+
+    void ResetSetTextureAsyncState(SetTextureAsyncState& state)
+    {
+        if(state.m_Mutex)
+        {
+            dmMutex::Delete(state.m_Mutex);
+        }
+    }
+
+    uint16_t PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params)
+    {
+        DM_MUTEX_SCOPED_LOCK(state.m_Mutex);
+        if (state.m_Indices.Remaining() == 0)
+        {
+            state.m_Indices.SetCapacity(state.m_Indices.Capacity()+64);
+            state.m_Params.SetCapacity(state.m_Indices.Capacity());
+            state.m_Params.SetSize(state.m_Params.Capacity());
+        }
+        uint16_t param_array_index = state.m_Indices.Pop();
+        SetTextureAsyncParams& ap  = state.m_Params[param_array_index];
+        ap.m_Texture               = texture;
+        ap.m_Params                = params;
+        return param_array_index;
+    }
+
+    void PushSetTextureAsyncDeleteTexture(SetTextureAsyncState& state, HTexture texture)
+    {
+        if (state.m_PostDeleteTextures.Full())
+        {
+            state.m_PostDeleteTextures.OffsetCapacity(64);
+        }
+        state.m_PostDeleteTextures.Push(texture);
+    }
+
+    SetTextureAsyncParams GetSetTextureAsyncParams(SetTextureAsyncState& state, uint16_t index)
+    {
+        DM_MUTEX_SCOPED_LOCK(state.m_Mutex);
+        return state.m_Params[index];
+    }
+
+    void ReturnSetTextureAsyncIndex(SetTextureAsyncState& state, uint16_t index)
+    {
+        DM_MUTEX_SCOPED_LOCK(state.m_Mutex);
+        state.m_Indices.Push(index);
     }
 
     void DeleteContext(HContext context)

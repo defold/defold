@@ -92,6 +92,7 @@
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
 (defn- res-fields->resources [pb-msg deps-by-source fields]
+  ;; TODO: use editor.pipeline/make-resource-props instead?
   (letfn [(fill-from-key-path [acc source acc-path key-path-index key-path]
             (let [end (= key-path-index (count key-path))]
               (if end
@@ -297,16 +298,7 @@
             (cond-> info (g/error-value? gpu-texture-generator) (dissoc :gpu-texture-generator)))))
 
 (defn- detect-and-apply-renames [texture-binding-infos samplers]
-  (let [texture-binding-info-name-index (util/name-index texture-binding-infos :sampler)
-        sampler-name-index (util/name-index samplers :name)
-        renames (util/detect-renames texture-binding-info-name-index sampler-name-index)]
-    (reduce
-      (fn [texture-binding-infos [texture-binding-name+order [new-name]]]
-        (update texture-binding-infos
-                (texture-binding-info-name-index texture-binding-name+order)
-                assoc :sampler new-name))
-      texture-binding-infos
-      renames)))
+  (util/detect-and-apply-renames texture-binding-infos :sampler samplers :name))
 
 (g/defnode MaterialBinding
   (input copied-nodes g/Any :array :cascade-delete)

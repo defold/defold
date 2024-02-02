@@ -247,5 +247,4 @@ namespace dmGameSystem
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
-
 }

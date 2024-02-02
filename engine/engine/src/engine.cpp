@@ -852,6 +852,11 @@ namespace dmEngine
             return false;
         }
 
+        dmJobThread::JobThreadCreationParams job_thread_create_param;
+        job_thread_create_param.m_ThreadNames[0] = "DefoldJobThread1";
+        job_thread_create_param.m_ThreadCount    = 1;
+        engine->m_JobThreadContext               = dmJobThread::Create(job_thread_create_param);
+
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
@@ -863,6 +868,7 @@ namespace dmEngine
         graphics_context_params.m_Width                   = engine->m_Width;
         graphics_context_params.m_Height                  = engine->m_Height;
         graphics_context_params.m_PrintDeviceInfo         = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
+        graphics_context_params.m_JobThread               = engine->m_JobThreadContext;
 
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
@@ -1281,6 +1287,7 @@ namespace dmEngine
         script_lib_context.m_Register        = engine->m_Register;
         script_lib_context.m_HidContext      = engine->m_HidContext;
         script_lib_context.m_GraphicsContext = engine->m_GraphicsContext;
+        script_lib_context.m_JobThread       = engine->m_JobThreadContext;
 
         if (engine->m_SharedScriptContext) {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
@@ -1531,20 +1538,39 @@ bail:
                         return;
                     }
                 }
+
+                dmJobThread::Update(engine->m_JobThreadContext);
+
                 {
                     DM_PROFILE("Script");
 
                     // Script context updates
-                    if (engine->m_SharedScriptContext) {
+                    dmGameSystem::ScriptLibContext script_lib_context;
+                    script_lib_context.m_Factory  = engine->m_Factory;
+                    script_lib_context.m_Register = engine->m_Register;
+
+                    if (engine->m_SharedScriptContext)
+                    {
+                        script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                        dmGameSystem::UpdateScriptLibs(script_lib_context);
                         dmScript::Update(engine->m_SharedScriptContext);
-                    } else {
-                        if (engine->m_GOScriptContext) {
+                    }
+                     else
+                     {
+                        if (engine->m_GOScriptContext)
+                        {
+                            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
+                            dmGameSystem::UpdateScriptLibs(script_lib_context);
                             dmScript::Update(engine->m_GOScriptContext);
                         }
-                        if (engine->m_RenderScriptContext) {
+                        if (engine->m_RenderScriptContext)
+                        {
                             dmScript::Update(engine->m_RenderScriptContext);
                         }
-                        if (engine->m_GuiScriptContext) {
+                        if (engine->m_GuiScriptContext)
+                        {
+                            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
+                            dmGameSystem::UpdateScriptLibs(script_lib_context);
                             dmScript::Update(engine->m_GuiScriptContext);
                         }
                     }

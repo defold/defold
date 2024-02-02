@@ -76,10 +76,10 @@ namespace dmGameSystem
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
         uint32_t                    m_BoneIndex;
-        uint32_t                    m_MaterialIndex : 4; // current max 16 materials per model
+        uint32_t                    m_MaterialIndex;
         uint32_t                    m_Enabled : 1;
         uint32_t                    m_AttributeRenderDataIndex : 16;
-        uint32_t                    : 11;
+        uint32_t                    : 15;
     };
 
     struct ModelComponent
@@ -121,7 +121,6 @@ namespace dmGameSystem
         dmRig::HRigContext              m_RigContext;
         uint32_t                        m_MaxElementsVertices;
         uint32_t                        m_MaxBatchIndex;
-        uint32_t                        m_DispatchCount;
     };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
@@ -1143,7 +1142,6 @@ namespace dmGameSystem
         }
 
         world->m_MaxBatchIndex = 0;
-        world->m_DispatchCount = 0;
 
         update_result.m_TransformsUpdated = rig_res == dmRig::RESULT_UPDATED_POSE;
         return dmGameObject::UPDATE_RESULT_OK;
@@ -1203,8 +1201,6 @@ namespace dmGameSystem
 
                     total_count += world->m_VertexBufferVertexCounts[batch_index];
                 }
-
-                world->m_DispatchCount++;
 
                 DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, total_count);
                 DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, total_count * sizeof(dmRig::RigModelVertex));

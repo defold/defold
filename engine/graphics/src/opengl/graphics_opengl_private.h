@@ -16,7 +16,6 @@
 #define __GRAPHICS_DEVICE_OPENGL__
 
 #include <dlib/math.h>
-#include <dlib/mutex.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
 #include <platform/platform_window.h>
@@ -72,9 +71,9 @@ namespace dmGraphics
     {
         OpenGLContext(const ContextParams& params);
 
-        // Async queue data and synchronization objects
-        dmMutex::HMutex         m_AsyncMutex;
+        SetTextureAsyncState    m_SetTextureAsyncState;
         dmPlatform::HWindow     m_Window;
+        dmJobThread::HContext   m_JobThread;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
 
@@ -96,6 +95,7 @@ namespace dmGraphics
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
         float                   m_MaxAnisotropy;
+        uint32_t                m_AsyncProcessingSupport           : 1;
         uint32_t                m_AnisotropySupport                : 1;
         uint32_t                m_TextureArraySupport              : 1;
         uint32_t                m_MultiTargetRenderingSupport      : 1;

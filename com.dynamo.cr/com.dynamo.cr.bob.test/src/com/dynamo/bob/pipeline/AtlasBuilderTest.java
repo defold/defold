@@ -16,9 +16,13 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.hamcrest.CoreMatchers.is;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.HashSet;
 
 import org.junit.Test;
@@ -27,6 +31,8 @@ import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
+
+import com.dynamo.bob.util.MurmurHash;
 
 public class AtlasBuilderTest extends AbstractProtoBuilderTest {
 
@@ -184,6 +190,73 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
             caught = true;
         }
         assertTrue(caught);
+    }
+
+
+    @Test
+    public void testAtlasFrameIndices() throws Exception {
+        addImage("/a/1.png", 16, 16);
+        addImage("/a/2.png", 16, 16);
+        addImage("/b/1.png", 16, 16);
+        addImage("/b/2.png", 16, 16);
+
+        StringBuilder src = new StringBuilder();
+        src.append("animations: {");
+        src.append("  id: \"a\"");
+        src.append("  images: {");
+        src.append("    image: \"/a/1.png\"");
+        src.append("  }");
+        src.append("  images: {");
+        src.append("    image: \"/a/2.png\"");
+        src.append("  }");
+        src.append("}");
+
+        src.append("animations: {");
+        src.append("  id: \"b\"");
+        src.append("  images: {");
+        src.append("    image: \"/b/1.png\"");
+        src.append("  }");
+        src.append("  images: {");
+        src.append("    image: \"/b/2.png\"");
+        src.append("  }");
+        src.append("}");
+
+
+        List<Message> outputs = build("/test.atlas", src.toString());
+        TextureSet textureSet = (TextureSet)outputs.get(0);
+
+        assertNotNull(textureSet);
+
+        HashSet<String> expectedIds = new HashSet<>();
+        expectedIds.add("a");
+        expectedIds.add("b");
+
+        HashSet<String> ids = new HashSet<>();
+        for (TextureSetAnimation anim : textureSet.getAnimationsList()) {
+            ids.add(anim.getId());
+        }
+
+        assertEquals(expectedIds, ids);
+
+        assertThat(textureSet.getWidth(), is(32));
+        assertThat(textureSet.getHeight(), is(32));
+        assertThat(textureSet.getAnimationsCount(), is(2));
+
+        List<Integer> frameIndices = Arrays.asList(0,1,2,3, 0,1,2,3); // Single frame images + frames in the animations
+        assertEquals(frameIndices, textureSet.getFrameIndicesList());
+
+        List<Long> imageNameHashes = new ArrayList<>();
+        imageNameHashes.add(MurmurHash.hash64("1"));
+        imageNameHashes.add(MurmurHash.hash64("2"));
+        imageNameHashes.add(MurmurHash.hash64("1")); // I'm not sure where the tilecount is 4 / MAWE
+        imageNameHashes.add(MurmurHash.hash64("2"));
+
+        imageNameHashes.add(MurmurHash.hash64("a/1"));
+        imageNameHashes.add(MurmurHash.hash64("a/2"));
+        imageNameHashes.add(MurmurHash.hash64("b/1"));
+        imageNameHashes.add(MurmurHash.hash64("b/2"));
+
+        assertEquals(imageNameHashes, textureSet.getImageNameHashesList());
     }
 
 }

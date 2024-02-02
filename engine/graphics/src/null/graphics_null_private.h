@@ -34,16 +34,17 @@ namespace dmGraphics
 
     struct Texture
     {
-        void*          m_Data;
-        TextureFormat  m_Format;
-        TextureType    m_Type;
-        TextureSampler m_Sampler;
-        uint32_t       m_Width;
-        uint32_t       m_Height;
-        uint32_t       m_Depth;
-        uint32_t       m_OriginalWidth;
-        uint32_t       m_OriginalHeight;
-        uint8_t        m_MipMapCount;
+        void*             m_Data;
+        TextureFormat     m_Format;
+        TextureType       m_Type;
+        TextureSampler    m_Sampler;
+        uint32_t          m_Width;
+        uint32_t          m_Height;
+        uint32_t          m_Depth;
+        uint32_t          m_OriginalWidth;
+        uint32_t          m_OriginalHeight;
+        volatile uint16_t m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
+        uint8_t           m_MipMapCount;
     };
 
     struct VertexStreamBuffer
@@ -103,7 +104,9 @@ namespace dmGraphics
     {
         NullContext(const ContextParams& params);
 
+        dmJobThread::HContext              m_JobThread;
         dmPlatform::HWindow                m_Window;
+        SetTextureAsyncState               m_SetTextureAsyncState;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         VertexStreamBuffer                 m_VertexStreams[MAX_VERTEX_STREAM_COUNT];
         dmVMath::Vector4                   m_ProgramRegisters[MAX_REGISTER_COUNT];
@@ -123,8 +126,10 @@ namespace dmGraphics
         uint32_t                           m_TextureFormatSupport;
         uint32_t                           m_TextureUnit;
         // Only use for testing
-        uint32_t                           m_RequestWindowClose : 1;
-        uint32_t                           m_PrintDeviceInfo    : 1;
+        uint32_t                           m_AsyncProcessingSupport : 1;
+        uint32_t                           m_UseAsyncTextureLoad    : 1;
+        uint32_t                           m_RequestWindowClose     : 1;
+        uint32_t                           m_PrintDeviceInfo        : 1;
     };
 }
 

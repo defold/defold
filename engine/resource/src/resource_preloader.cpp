@@ -854,10 +854,10 @@ namespace dmResource
             return false;
         }
 
-        dmLoadQueue::PreloadInfo info;
+        dmLoadQueue::PreloadInfo info = {};
         info.m_HintInfo.m_Preloader = preloader;
         info.m_HintInfo.m_Parent    = index;
-        info.m_Function             = req->m_PathDescriptor.m_ResourceType->m_PreloadFunction;
+        info.m_CompleteFunction     = req->m_PathDescriptor.m_ResourceType->m_PreloadFunction;
         info.m_Context              = req->m_PathDescriptor.m_ResourceType->m_Context;
 
         // If we can't add the request to the load queue it is because the queue is full
