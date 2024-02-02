@@ -1503,7 +1503,7 @@
   (-> visual-base-node-msg
       (merge (protobuf/make-map-without-defaults Gui$NodeDesc
                :particlefx particlefx
-               :size [1.0 1.0 0.0 0.0] ; TODO(save-value): Can we remove this now?
+               :size [1.0 1.0 0.0 0.0] ; TODO(save-value): Remove once the runtime can handle zero-sized objects.
                :size-mode :size-mode-auto))))
 
 (g/defnode ParticleFXNode
@@ -3165,7 +3165,7 @@
 
 (defn- sanitize-one-v4 [v4]
   (let [v3 (v4->v3 v4)]
-    (when (not-every? #(= 0.0 %) v3) ; TODO(save-value): Change to 1.0 once we use Vector4One in proto file.
+    (when (not-every? #(= protobuf/float-one %) v3)
       (v3->one-v4 v3))))
 
 (defn- sanitize-euler-v4 [euler-v4]

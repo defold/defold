@@ -87,8 +87,7 @@
     false
 
     (vector? value)
-    (and (not= default-scale value)
-         (not (protobuf/default-read-scale-value? value)))
+    (not= default-scale value)
 
     (number? value)
     (not= 1.0 value)

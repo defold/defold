@@ -183,7 +183,7 @@
                     (is (= 1 (count main-gui-nodes)))
                     (is (= [701.0 0.0 0.0] (take 3 (:position spine-gui-node))))
                     (is (not (contains? spine-gui-node :rotation)))
-                    (is (= [1.0 1.0 1.0] (take 3 (:scale spine-gui-node))))
+                    (is (not (contains? spine-gui-node :scale)))
                     (is (= [1.0 1.0 0.0] (take 3 (:size spine-gui-node))))
                     (is (= [1.0 1.0 1.0 1.0] (:color spine-gui-node)))
                     (is (= :type-custom (:type spine-gui-node)))

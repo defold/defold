@@ -282,4 +282,4 @@
   (is (= [0.0 180.0 90.0] (pose/euler-rotation-v3 (pose/euler-rotation-pose 0.0 180.0 90.0))))
   (is (= [0.0 180.0 90.0 0.0] (pose/euler-rotation-v4 (pose/euler-rotation-pose 0.0 180.0 90.0))))
   (is (= [1.0 2.0 3.0] (pose/scale-v3 (pose/scale-pose 1.0 2.0 3.0))))
-  (is (= [1.0 2.0 3.0 0.0] (pose/scale-v4 (pose/scale-pose 1.0 2.0 3.0)))))
+  (is (= [1.0 2.0 3.0 1.0] (pose/scale-v4 (pose/scale-pose 1.0 2.0 3.0)))))

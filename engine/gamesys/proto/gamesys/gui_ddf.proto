@@ -96,7 +96,7 @@ message NodeDesc
 
     optional dmMath.Vector4 position = 1;
     optional dmMath.Vector4 rotation = 2;
-    optional dmMath.Vector4 scale    = 3;
+    optional dmMath.Vector4One scale = 3;
     optional dmMath.Vector4 size     = 4;
     optional dmMath.Vector4 color    = 5;
     optional Type       type         = 6;

@@ -43,6 +43,7 @@ import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.proto.DdfMath.Vector4;
+import com.dynamo.proto.DdfMath.Vector4One;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
 import com.dynamo.gamesys.proto.Gui.NodeDesc.AdjustMode;
 import com.dynamo.gamesys.proto.Gui.NodeDesc.Type;
@@ -186,7 +187,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         Vector3d parentScale = new Vector3d(parentNode.getScale().getX(), parentNode.getScale().getY(), parentNode.getScale().getZ());
         Point3d scale = new Point3d(b.getScale().getX(), b.getScale().getY(), b.getScale().getZ());
         scale.set(scale.getX() * parentScale.getX(), scale.getY() * parentScale.getY(), scale.getZ() * parentScale.getZ());
-        b.setScale(Vector4.newBuilder().setX((float) scale.getX()).setY((float) scale.getY()).setZ((float) scale.getZ()).setW(1.0f).build());
+        b.setScale(Vector4One.newBuilder().setX((float) scale.getX()).setY((float) scale.getY()).setZ((float) scale.getZ()).setW(1.0f).build());
 
         // Apply parent position
         Vector3d parentRot = new Vector3d(parentNode.getRotation().getX(), parentNode.getRotation().getY(), parentNode.getRotation().getZ());

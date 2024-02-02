@@ -129,7 +129,7 @@
                 :test-fn (fn [pb targets]
                            (is (= {:color [1.0 1.0 1.0 1.0],
                                    :line-break false,
-                                   :scale [0.0 0.0 0.0 0.0], ; Default from legacy field added by editor.protobuf/field-desc-default. Not in actual Label$LabelDesc.
+                                   :scale [1.0 1.0 1.0 1.0], ; Default from legacy field added by editor.protobuf/field-desc-default. Not in actual Label$LabelDesc.
                                    :blend-mode :blend-mode-alpha,
                                    :leading 1.0,
                                    :font "/builtins/fonts/system_font.fontc",
@@ -609,7 +609,7 @@
       (let [sub (get-in desc [:nodes 2])]
         (is (= "layer" (:layer sub)))
         (is (= 0.5 (:alpha sub)))
-        (is (= [1.0 1.0 1.0 0.0] (:scale sub)))
+        (is (= [1.0 1.0 1.0 1.0] (:scale sub)))
         (is (= [0.0 0.0 0.0 0.0] (:rotation sub)))
         (is (= [1100.0 640.0 0.0 0.0] (:position sub))))
       (is (contains? content-by-source "/graphics/atlas.atlas"))

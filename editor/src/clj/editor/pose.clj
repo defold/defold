@@ -316,4 +316,4 @@
   `(.-scale ~(with-meta pose-expr {:tag `Pose})))
 
 (defmacro scale-v4 [pose-expr]
-  `(conj (scale-v3 ~pose-expr) 0.0)) ; TODO(save-value): Change to 1.0 once we use Vector4One in proto file.
+  `(conj (scale-v3 ~pose-expr) 1.0))

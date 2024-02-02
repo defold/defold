@@ -29,7 +29,7 @@ Macros currently mean no foreseeable performance gain, however."
             [util.digest :as digest]
             [util.fn :as fn]
             [util.text-util :as text-util])
-  (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector4]
+  (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One]
            [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor Message Message$Builder ProtocolMessageEnum TextFormat]
            [java.io ByteArrayOutputStream StringReader]
            [java.lang.reflect Method]
@@ -696,8 +696,8 @@ Macros currently mean no foreseeable performance gain, however."
 (defn val->pb-enum [^Class enum-class val]
   (Enum/valueOf enum-class (keyword->enum-name val)))
 
-(def float-zero (Float/valueOf 0.0))
-(def float-one (Float/valueOf 1.0))
+(def float-zero (Float/valueOf (float 0.0)))
+(def float-one (Float/valueOf (float 1.0)))
 
 (def vector3-zero [float-zero float-zero float-zero])
 (def vector3-one [float-one float-one float-one])
@@ -755,6 +755,26 @@ Macros currently mean no foreseeable performance gain, however."
         :else
         [x y z])))
 
+  DdfMath$Vector3One
+  (msg->vecmath [_pb v] (Vector3d. (:x v float-one) (:y v float-one) (:z v float-one)))
+  (msg->clj [_pb v]
+    (let [x (intern-float (:x v float-one))
+          y (intern-float (:y v float-one))
+          z (intern-float (:z v float-one))]
+      (cond
+        (and (identical? float-one x)
+             (identical? float-one y)
+             (identical? float-one z))
+        vector3-one
+
+        (and (identical? float-zero x)
+             (identical? float-zero y)
+             (identical? float-zero z))
+        vector3-zero
+
+        :else
+        [x y z])))
+
   DdfMath$Vector4
   (msg->vecmath [_pb v] (Vector4d. (:x v float-zero) (:y v float-zero) (:z v float-zero) (:w v float-zero)))
   (msg->clj [_pb v]
@@ -786,6 +806,41 @@ Macros currently mean no foreseeable performance gain, however."
              (identical? float-one z)
              (identical? float-zero w))
         vector4-xyz-one-w-zero
+
+        :else
+        [x y z w])))
+
+  DdfMath$Vector4One
+  (msg->vecmath [_pb v] (Vector4d. (:x v float-one) (:y v float-one) (:z v float-one) (:w v float-one)))
+  (msg->clj [_pb v]
+    (let [x (intern-float (:x v float-one))
+          y (intern-float (:y v float-one))
+          z (intern-float (:z v float-one))
+          w (intern-float (:w v float-one))]
+      (cond
+        (and (identical? float-one x)
+             (identical? float-one y)
+             (identical? float-one z)
+             (identical? float-one w))
+        vector4-one
+
+        (and (identical? float-zero x)
+             (identical? float-zero y)
+             (identical? float-zero z)
+             (identical? float-zero w))
+        vector4-zero
+
+        (and (identical? float-one x)
+             (identical? float-one y)
+             (identical? float-one z)
+             (identical? float-zero w))
+        vector4-xyz-one-w-zero
+
+        (and (identical? float-zero x)
+             (identical? float-zero y)
+             (identical? float-zero z)
+             (identical? float-one w))
+        vector4-xyz-zero-w-one
 
         :else
         [x y z w])))
@@ -855,53 +910,6 @@ Macros currently mean no foreseeable performance gain, however."
   Message
   (msg->vecmath [_pb v] v)
   (msg->clj [_pb v] v))
-
-(defprotocol VecmathConverter
-  (vecmath->pb [v] "Return the Protocol Buffer equivalent for the given javax.vecmath value"))
-
-(extend-protocol VecmathConverter
-  Point3d
-  (vecmath->pb [v]
-    (-> (DdfMath$Point3/newBuilder)
-        (.setX (.getX v))
-        (.setY (.getY v))
-        (.setZ (.getZ v))
-        (.build)))
-
-  Vector3d
-  (vecmath->pb [v]
-    (-> (DdfMath$Vector3/newBuilder)
-        (.setX (.getX v))
-        (.setY (.getY v))
-        (.setZ (.getZ v))
-        (.build)))
-
-  Vector4d
-  (vecmath->pb [v]
-    (-> (DdfMath$Vector4/newBuilder)
-        (.setX (.getX v))
-        (.setY (.getY v))
-        (.setZ (.getZ v))
-        (.setW (.getW v))
-        (.build)))
-
-  Quat4d
-  (vecmath->pb [v]
-    (-> (DdfMath$Quat/newBuilder)
-        (.setX (.getX v))
-        (.setY (.getY v))
-        (.setZ (.getZ v))
-        (.setW (.getW v))
-        (.build)))
-
-  Matrix4d
-  (vecmath->pb [v]
-    (-> (DdfMath$Matrix4/newBuilder)
-        (.setM00 (.getElement v 0 0)) (.setM01 (.getElement v 0 1)) (.setM02 (.getElement v 0 2)) (.setM03 (.getElement v 0 3))
-        (.setM10 (.getElement v 1 0)) (.setM11 (.getElement v 1 1)) (.setM12 (.getElement v 1 2)) (.setM13 (.getElement v 1 3))
-        (.setM20 (.getElement v 2 0)) (.setM21 (.getElement v 2 1)) (.setM22 (.getElement v 2 2)) (.setM23 (.getElement v 2 3))
-        (.setM30 (.getElement v 3 0)) (.setM31 (.getElement v 3 1)) (.setM32 (.getElement v 3 2)) (.setM33 (.getElement v 3 3))
-        (.build))))
 
 (extend-protocol GenericDescriptor
   Descriptors$Descriptor
@@ -997,23 +1005,12 @@ Macros currently mean no foreseeable performance gain, however."
   ^String [^Class cls m]
   (digest/bytes->hex (pb->hash "SHA-1" (map->pb cls m))))
 
-(defn default-read-scale-value? [value]
-  ;; The default value of the Vector3 type is zero, and protobuf does not
-  ;; support custom default values for message-type fields. That means
-  ;; everything read from protobuf will be scaled down to zero. However, we
-  ;; might change the behavior of the protobuf reader in the future to have it
-  ;; return [1.0 1.0 1.0] or even nil for default scale fields. In some way, nil
-  ;; would make sense as a default for message-type fields as that is what
-  ;; protobuf does without our wrapper. We could then decide on sensible default
-  ;; values on a case-by-case basis. Related to all this, there has been some
-  ;; discussion around perhaps omitting default values from the project data.
-  (= [0.0 0.0 0.0] value))
-
 (def ^:private vector-to-map-conversions
-  ;; TODO(save-value): Introduce Vector4One for identity scale and white color default.
   (->> {DdfMath$Point3 [:x :y :z]
         DdfMath$Vector3 [:x :y :z]
+        DdfMath$Vector3One [:x :y :z]
         DdfMath$Vector4 [:x :y :z :w]
+        DdfMath$Vector4One [:x :y :z :w]
         DdfMath$Quat [:x :y :z :w]
         DdfMath$Matrix4 [:m00 :m01 :m02 :m03
                          :m10 :m11 :m12 :m13
@@ -1028,11 +1025,9 @@ Macros currently mean no foreseeable performance gain, however."
                                    (reduce-kv
                                      (fn [result index key]
                                        (let [value (component-values index)]
-                                         ;; TODO(save-value): Strip out components with default values once we have Vector4One.
-                                         (assoc! result key value)
-                                         #_(if (= (default-values index) value)
-                                             result
-                                             (assoc! result key value))))
+                                         (if (= (default-values index) value)
+                                           result
+                                           (assoc! result key value))))
                                      (transient {}))
                                    (persistent!))))))))))
 

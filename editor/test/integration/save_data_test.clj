@@ -414,6 +414,10 @@
    {:default
     {"d" :padding}}
 
+   'dmMath.Vector3One
+   {:default
+    {"d" :padding}}
+
    'dmMath.Vector4
    {[["label" "size"]
      ["sprite" "size"]]
@@ -423,16 +427,19 @@
      ["gui" "nodes" "[*]" "outline"]
      ["gui" "nodes" "[*]" "position"]
      ["gui" "nodes" "[*]" "rotation"]
-     ["gui" "nodes" "[*]" "scale"]
      ["gui" "nodes" "[*]" "size"]
      ["gui" "nodes" "[*]" "shadow"]
      ["gui" "layouts" "nodes" "[*]" "color"]
      ["gui" "layouts" "nodes" "[*]" "outline"]
      ["gui" "layouts" "nodes" "[*]" "position"]
      ["gui" "layouts" "nodes" "[*]" "rotation"]
-     ["gui" "layouts" "nodes" "[*]" "scale"]
      ["gui" "layouts" "nodes" "[*]" "size"]
      ["gui" "layouts" "nodes" "[*]" "shadow"]]
+    {"w" :padding}}
+
+   'dmMath.Vector4One
+   {[["gui" "nodes" "[*]" "scale"]
+     ["gui" "layouts" "nodes" "[*]" "scale"]]
     {"w" :padding}}
 
    'dmModelDDF.ModelDesc

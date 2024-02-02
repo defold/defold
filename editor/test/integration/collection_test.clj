@@ -29,7 +29,7 @@
             [internal.graph.types :as gt]
             [support.test-support :refer [graph-dependencies with-clean-system]])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.proto DdfMath$Vector3]))
+           [com.dynamo.proto DdfMath$Vector3One]))
 
 (deftest hierarchical-outline
   (testing "Hierarchical outline"
@@ -248,9 +248,9 @@
                      (is (g/error? (test-util/prop-error inst-id :id)))
                      (is (build-error? coll-id)))))))))
 
-(defn- vector3-pb
-  ^DdfMath$Vector3 [^double x ^double y ^double z]
-  (-> (DdfMath$Vector3/newBuilder)
+(defn- vector3-one-pb
+  ^DdfMath$Vector3One [^double x ^double y ^double z]
+  (-> (DdfMath$Vector3One/newBuilder)
       (.setX x)
       (.setY y)
       (.setZ z)
@@ -286,8 +286,14 @@
                     referenced-component-built-pb (.getComponents game-object-built-pb 1)]
                 (is (.hasScale embedded-component-built-pb))
                 (is (.hasScale referenced-component-built-pb))
-                (is (= (vector3-pb 1.0 1.0 1.0) (.getScale embedded-component-built-pb)))
-                (is (= (vector3-pb 1.0 1.0 1.0) (.getScale referenced-component-built-pb))))))
+                (let [scale (.getScale embedded-component-built-pb)]
+                  (is (= (float 1.0) (.getX scale)))
+                  (is (= (float 1.0) (.getY scale)))
+                  (is (= (float 1.0) (.getZ scale))))
+                (let [scale (.getScale referenced-component-built-pb)]
+                  (is (= (float 1.0) (.getX scale)))
+                  (is (= (float 1.0) (.getY scale)))
+                  (is (= (float 1.0) (.getZ scale)))))))
 
           (scale-components! [embedded-component referenced-component]
             (g/transact
@@ -302,8 +308,8 @@
                     referenced-component-saved-pb (.getComponents game-object-saved-pb 0)]
                 (is (.hasScale embedded-component-saved-pb))
                 (is (.hasScale referenced-component-saved-pb))
-                (is (= (vector3-pb 2.0 3.0 4.0) (.getScale embedded-component-saved-pb)))
-                (is (= (vector3-pb 5.0 6.0 7.0) (.getScale referenced-component-saved-pb))))))
+                (is (= (vector3-one-pb 2.0 3.0 4.0) (.getScale embedded-component-saved-pb)))
+                (is (= (vector3-one-pb 5.0 6.0 7.0) (.getScale referenced-component-saved-pb))))))
 
           (test-scaled-built-pb [game-object-built-pb]
             (testing "Scaled components include assigned scale in built binaries."
@@ -312,8 +318,8 @@
                     referenced-component-built-pb (.getComponents game-object-built-pb 1)]
                 (is (.hasScale embedded-component-built-pb))
                 (is (.hasScale referenced-component-built-pb))
-                (is (= (vector3-pb 2.0 3.0 4.0) (.getScale embedded-component-built-pb)))
-                (is (= (vector3-pb 5.0 6.0 7.0) (.getScale referenced-component-built-pb))))))
+                (is (= (vector3-one-pb 2.0 3.0 4.0) (.getScale embedded-component-built-pb)))
+                (is (= (vector3-one-pb 5.0 6.0 7.0) (.getScale referenced-component-built-pb))))))
 
           (game-object-saved-pb [game-object]
             (test-util/saved-pb game-object GameObject$PrototypeDesc))
