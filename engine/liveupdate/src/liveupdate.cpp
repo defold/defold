@@ -947,9 +947,10 @@ namespace dmLiveUpdate
         dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
 
         dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadName = "liveupdate_jobs";
+        job_thread_create_param.m_ThreadNames[0] = "liveupdate_jobs";
+        job_thread_create_param.m_ThreadCount    = 1;
 
-        g_LiveUpdate.m_JobThread = dmJobThread::Create(1, &job_thread_create_param);
+        g_LiveUpdate.m_JobThread = dmJobThread::Create(job_thread_create_param);
 
         if (g_LiveUpdate.m_JobThread) // Make the liveupdate module `nil` if it isn't available
         {

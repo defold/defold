@@ -20,6 +20,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/thread.h>
 
 #include <platform/platform_window.h>
 
@@ -152,7 +153,7 @@ namespace dmGraphics
         context->m_CurrentFrameBuffer                   = &context->m_MainFrameBuffer;
         context->m_Program                              = 0x0;
         context->m_PipelineState                        = GetDefaultPipelineState();
-        context->m_AsyncProcessingSupport               = context->m_JobThread && dmJobThread::PlatformHasThreadSupport();
+        context->m_AsyncProcessingSupport               = context->m_JobThread && dmThread::PlatformHasThreadSupport();
 
         if (context->m_AsyncProcessingSupport)
         {

@@ -84,8 +84,9 @@ protected:
         dmPlatform::OpenWindow(m_Window, params);
 
         dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadName = "test_job_thread";
-        m_JobThread = dmJobThread::Create(1, &job_thread_create_param);
+        job_thread_create_param.m_ThreadNames[0] = "test_jobs";
+        job_thread_create_param.m_ThreadCount    = 1;
+        m_JobThread = dmJobThread::Create(job_thread_create_param);
 
         dmGraphics::ContextParams context_params = dmGraphics::ContextParams();
         context_params.m_Window                  = m_Window;

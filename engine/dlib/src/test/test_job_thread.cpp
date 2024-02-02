@@ -34,9 +34,10 @@ void callback(void* context, void* data, int result)
 TEST(dmJobThread, PushJobs)
 {
     dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadName = "DefoldTestJobThread1";
+    job_thread_create_param.m_ThreadNames[0] = "DefoldTestJobThread1";
+    job_thread_create_param.m_ThreadCount    = 1;
 
-    dmJobThread::HContext ctx = dmJobThread::Create(1, &job_thread_create_param);
+    dmJobThread::HContext ctx = dmJobThread::Create(job_thread_create_param);
     dmJobThread::PushJob(ctx, process, callback, 0, 0);
     dmJobThread::Destroy(ctx);
 }

@@ -4116,14 +4116,15 @@ static bool RunTestLoadBufferASync(lua_State* L, int test_n,
 TEST_F(SysTest, LoadBufferASync)
 {
     dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadName = "test_gamesys_thread";
+    job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
+    job_thread_create_param.m_ThreadCount    = 1;
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
-    scriptlibcontext.m_JobThread       = dmJobThread::Create(1, &job_thread_create_param);
+    scriptlibcontext.m_JobThread       = dmJobThread::Create(job_thread_create_param);
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 

@@ -35,8 +35,9 @@ public:
     virtual void SetUp()
     {
         dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadName = "test_jobs";
-        m_JobThread = dmJobThread::Create(1, &job_thread_create_param);
+        job_thread_create_param.m_ThreadNames[0] = "test_jobs";
+        job_thread_create_param.m_ThreadCount    = 1;
+        m_JobThread = dmJobThread::Create(job_thread_create_param);
     }
     virtual void TearDown()
     {

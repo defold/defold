@@ -21,6 +21,7 @@
 #include <dlib/hash.h>
 #include <dlib/align.h>
 #include <dlib/array.h>
+#include <dlib/thread.h>
 #include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/dstrings.h>
@@ -1212,7 +1213,7 @@ static void LogFrameBufferError(GLenum status)
             OpenGLPrintDeviceInfo(context);
         }
 
-        context->m_AsyncProcessingSupport = dmJobThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_AUX_CONTEXT);
+        context->m_AsyncProcessingSupport = dmThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_AUX_CONTEXT);
         if (context->m_AsyncProcessingSupport)
         {
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);

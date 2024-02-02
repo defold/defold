@@ -23,12 +23,15 @@ namespace dmJobThread
     typedef int (*FProcess)(void* context, void* data);
     typedef void (*FCallback)(void* context, void* data, int result);
 
+    static const uint8_t DM_MAX_JOB_THREAD_COUNT = 8;
+
     struct JobThreadCreationParams
     {
-        const char* m_ThreadName;
+        const char* m_ThreadNames[DM_MAX_JOB_THREAD_COUNT];
+        uint8_t     m_ThreadCount;
     };
 
-    HContext Create(uint8_t thread_count, const JobThreadCreationParams* create_params);
+    HContext Create(const JobThreadCreationParams& create_params);
     void     Destroy(HContext context);
     void     Update(HContext context); // Flushes any items and calls PostProcess
     void     PushJob(HContext context, FProcess process, FCallback callback, void* user_context, void* data);

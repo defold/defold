@@ -17,26 +17,15 @@
 
 #include <dmsdk/dlib/array.h>
 
-
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/dlib/log.h>
-
-#if !defined(__EMSCRIPTEN__)
-    #define DM_HAS_THREADS
-#endif
-
-#if defined(DM_USE_SINGLE_THREAD)
-    #if defined(DM_HAS_THREADS)
-        #undef DM_HAS_THREADS
-    #endif
-#endif
+#include <dmsdk/dlib/thread.h>
 
 #if defined(DM_HAS_THREADS)
     #include <dmsdk/dlib/condition_variable.h>
     #include <dmsdk/dlib/mutex.h>
-    #include <dmsdk/dlib/thread.h>
 #endif
 
 #include "jc/ringbuffer.h"
@@ -113,8 +102,11 @@ static void JobThread(void* _ctx)
             item = ctx->m_Work.Pop();
         }
 
-        item.m_Result = item.m_Process(item.m_Context, item.m_Data);
-        PutDone(ctx, &item);
+        {
+            DM_PROFILE("JobThread");
+            item.m_Result = item.m_Process(item.m_Context, item.m_Data);
+            PutDone(ctx, &item);
+        }
     }
 }
 #else
@@ -130,7 +122,7 @@ static void UpdateSingleThread(JobThreadContext* ctx)
 }
 #endif
 
-HContext Create(uint8_t thread_count, const JobThreadCreationParams* create_params)
+HContext Create(const JobThreadCreationParams& create_params)
 {
     JobContext* context = new JobContext;
 #if defined(DM_HAS_THREADS)
@@ -138,12 +130,15 @@ HContext Create(uint8_t thread_count, const JobThreadCreationParams* create_para
     context->m_ThreadContext.m_WakeupCond = dmConditionVariable::New();
     context->m_ThreadContext.m_Run = 1;
 
+    uint32_t thread_count = dmMath::Min(create_params.m_ThreadCount, DM_MAX_JOB_THREAD_COUNT);
     context->m_Threads.SetCapacity(thread_count);
     context->m_Threads.SetSize(thread_count);
 
     for (int i = 0; i < thread_count; ++i)
     {
-        context->m_Threads[i] = dmThread::New(JobThread, 0x80000, (void*)&context->m_ThreadContext, create_params[i].m_ThreadName);
+        char name_buf[128];
+        dmSnPrintf(name_buf, sizeof(name_buf), "%s_%d", create_params.m_ThreadNames[i], i);
+        context->m_Threads[i] = dmThread::New(JobThread, 0x80000, (void*)&context->m_ThreadContext, name_buf);
     }
 #endif
     return context;
@@ -222,15 +217,6 @@ void Update(HContext context)
         if (item.m_Callback)
             item.m_Callback(item.m_Context, item.m_Data, item.m_Result);
     }
-}
-
-bool PlatformHasThreadSupport()
-{
-#if defined(DM_HAS_THREADS)
-    return true;
-#else
-    return false;
-#endif
 }
 
 } // namespace dmJobThread
