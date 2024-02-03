@@ -16,6 +16,9 @@
 #include "res_model.h"
 #include "res_meshset.h"
 #include "res_material.h"
+#include "res_render_target.h"
+
+#include "gamesys_private.h"
 
 #include <gamesys/model_ddf.h>
 
@@ -267,12 +270,24 @@ namespace dmGameSystem
             for (uint32_t t = 0; t < info.m_TexturesCount; ++t)
             {
                 dmModelDDF::Texture* texture = &model_material->m_Textures[t];
-
                 MaterialTextureInfo* texture_info = &info.m_Textures[t];
-                result = dmResource::Get(factory, texture->m_Texture, (void**) &texture_info->m_Texture);
+
+                TextureResource* resource;
+                result = dmResource::Get(factory, texture->m_Texture, (void**) &resource);
+
                 if (result != dmResource::RESULT_OK)
                 {
                     return result;
+                }
+
+                if (ResourcePathToRenderResourceType(texture->m_Texture) == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET)
+                {
+                    RenderTargetResource* rt_res = (RenderTargetResource*) resource;
+                    texture_info->m_Texture = rt_res->m_TextureResource;
+                }
+                else
+                {
+                    texture_info->m_Texture = resource;
                 }
 
                 texture_info->m_SamplerNameHash = dmHashString64(texture->m_Sampler);

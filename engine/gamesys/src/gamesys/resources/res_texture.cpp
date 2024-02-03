@@ -355,7 +355,7 @@ namespace dmGameSystem
         {
             TextureResource* texture_res = new TextureResource();
             texture_res->m_Texture = texture;
-            params.m_Resource->m_Resource = texture_res;
+            params.m_Resource->m_Resource = (void*) texture_res;
         }
         return r;
     }

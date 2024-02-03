@@ -352,7 +352,7 @@ namespace dmGameSystem
                 texture_res = GetTextureFromSamplerNameHash(&component->m_Resource->m_Materials[material_index], material, i, material->m_SamplerNames[i]);
             }
 
-            ro->m_Textures[i] = GetTexture(texture_res);
+            ro->m_Textures[i] = texture_res->m_Texture;
         }
     }
     static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)

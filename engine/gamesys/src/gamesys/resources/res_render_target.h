@@ -15,10 +15,17 @@
 #ifndef DM_GAMESYS_RES_RENDER_TARGET_H
 #define DM_GAMESYS_RES_RENDER_TARGET_H
 
+#include "res_texture.h"
 #include <resource/resource.h>
 
 namespace dmGameSystem
 {
+    struct RenderTargetResource
+    {
+        TextureResource*          m_TextureResource;
+        dmGraphics::HRenderTarget m_RenderTarget;
+    };
+
     dmResource::Result ResRenderTargetPreload(const dmResource::ResourcePreloadParams& params);
     dmResource::Result ResRenderTargetCreate(const dmResource::ResourceCreateParams& params);
     dmResource::Result ResRenderTargetDestroy(const dmResource::ResourceDestroyParams& params);

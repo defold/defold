@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,7 +18,6 @@
 #include "gamesys_private.h"
 #include "components/comp_private.h"
 #include <dmsdk/gamesys/render_constants.h>
-#include <dmsdk/gamesys/resources/res_texture.h>
 
 namespace dmGameSystem
 {
@@ -73,16 +72,18 @@ namespace dmGameSystem
             object_name, max_count, config_key);
     }
 
-    // res_texture.h (dmsdk)
-    dmGraphics::HTexture GetTexture(TextureResource* texture_resource)
+    dmRender::RenderResourceType ResourcePathToRenderResourceType(const char* path)
     {
-        if (texture_resource)
+        const char* path_ext = dmResource::GetExtFromPath(path);
+        if (strcmp(path_ext, ".materialc") == 0)
         {
-            if (dmGraphics::GetAssetType(texture_resource->m_Texture) == dmGraphics::ASSET_TYPE_RENDER_TARGET)
-                return dmGraphics::GetRenderTargetTexture(texture_resource->m_Texture, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
-            return texture_resource->m_Texture;
+            return dmRender::RENDER_RESOURCE_TYPE_MATERIAL;
         }
-        return 0;
+        else if (strcmp(path_ext, ".render_targetc") == 0)
+        {
+            return dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET;
+        }
+        return dmRender::RENDER_RESOURCE_TYPE_INVALID;
     }
 
     dmGameObject::PropertyResult GetMaterialConstant(dmRender::HMaterial material, dmhash_t name_hash, int32_t value_index, dmGameObject::PropertyDesc& out_desc,

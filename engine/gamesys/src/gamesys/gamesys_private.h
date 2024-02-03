@@ -93,6 +93,8 @@ namespace dmGameSystem
      * @param format printf-style format string
      */
     void LogMessageError(dmMessage::Message* message, const char* format, ...);
+
+    dmRender::RenderResourceType ResourcePathToRenderResourceType(const char* path);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

@@ -330,12 +330,21 @@ def transform_collectionfactory(task, msg):
     return msg
 
 def transform_render(task, msg):
+    import render.render_ddf_pb2
     msg.script = msg.script.replace('.render_script', '.render_scriptc')
+
+    # Migrate from the old format to the new format for render prototypes
     for m in msg.materials:
-        m.material = m.material.replace('.material', '.materialc')
+        entry = render.render_ddf_pb2.RenderPrototypeDesc.RenderResourceDesc()
+        entry.name = m.name
+        entry.path = m.material
+        msg.render_resources.append(entry)
+
     for r in msg.render_resources:
         r.path = r.path.replace('.material', '.materialc')
         r.path = r.path.replace('.render_target', '.render_targetc')
+
+    msg.materials.clear()
     return msg
 
 def transform_render_target(task, msg):

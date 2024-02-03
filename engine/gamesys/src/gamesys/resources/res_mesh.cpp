@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_mesh.h"
+#include "res_render_target.h"
 
 #include <dlib/log.h>
 #include <dlib/path.h>
@@ -21,6 +22,7 @@
 #include <dlib/buffer.h>
 
 #include "gamesys.h"
+#include "gamesys_private.h"
 
 namespace dmGameSystem
 {
@@ -197,7 +199,18 @@ namespace dmGameSystem
             {
                 TextureResource* texture_res;
                 dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &texture_res);
-                textures[i] = texture_res;
+
+                dmRender::RenderResourceType render_res_type = ResourcePathToRenderResourceType(texture_path);
+
+                if (render_res_type == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET)
+                {
+                    RenderTargetResource* rt_res = (RenderTargetResource*) texture_res;
+                    textures[i] = rt_res->m_TextureResource;
+                }
+                else
+                {
+                    textures[i] = texture_res;
+                }
 
                 if (r != dmResource::RESULT_OK)
                 {

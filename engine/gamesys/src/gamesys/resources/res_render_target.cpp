@@ -21,6 +21,7 @@
 
 #include <resource/resource.h>
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 
 #include <render/render.h>
 #include <render/render_target_ddf.h>
@@ -132,9 +133,30 @@ namespace dmGameSystem
 
         dmDDF::FreeMessage(ddf);
 
-        dmGraphics::HRenderTarget rt = dmGraphics::NewRenderTarget(dmRender::GetGraphicsContext(render_context), buffer_type_flags, rt_params);
-        TextureResource* rt_resource = new TextureResource();
-        rt_resource->m_Texture       = rt;
+        RenderTargetResource* rt_resource = new RenderTargetResource();
+        rt_resource->m_RenderTarget       = dmGraphics::NewRenderTarget(dmRender::GetGraphicsContext(render_context), buffer_type_flags, rt_params);
+
+        char path_buffer[256];
+        dmSnPrintf(path_buffer, sizeof(path_buffer), "%s.texturec", params.m_Filename);
+
+        dmGraphics::TextureImage texture_image = {};
+
+        dmArray<uint8_t> ddf_buffer;
+        dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
+        assert(ddf_result == dmDDF::RESULT_OK);
+
+        void* resource = 0x0;
+        dmResource::Result res = dmResource::CreateResource(params.m_Factory, path_buffer, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
+
+        if (res != dmResource::RESULT_OK)
+        {
+            delete rt_resource;
+            return res;
+        }
+
+        dmResource::Get(params.m_Factory, path_buffer, (void**) &rt_resource->m_TextureResource);
+        dmGraphics::DeleteTexture(rt_resource->m_TextureResource->m_Texture);
+        rt_resource->m_TextureResource->m_Texture = dmGraphics::GetRenderTargetTexture(rt_resource->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
 
         dmResource::SetResource(params.m_Resource, (void*) rt_resource);
         return dmResource::RESULT_OK;
@@ -142,9 +164,10 @@ namespace dmGameSystem
 
     dmResource::Result ResRenderTargetDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        TextureResource* rt_resource = (TextureResource*) dmResource::GetResource(params.m_Resource);
-        assert(dmGraphics::GetAssetType(rt_resource->m_Texture) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        dmGraphics::DeleteRenderTarget(rt_resource->m_Texture);
+        RenderTargetResource* rt_resource = (RenderTargetResource*) dmResource::GetResource(params.m_Resource);
+        assert(dmGraphics::GetAssetType(rt_resource->m_RenderTarget) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        dmGraphics::DeleteRenderTarget(rt_resource->m_RenderTarget);
+        dmResource::Release(params.m_Factory, rt_resource->m_TextureResource);
 
         delete rt_resource;
         return dmResource::RESULT_OK;
@@ -159,24 +182,22 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        TextureResource* rt_resource = (TextureResource*) dmResource::GetResource(params.m_Resource);
+        RenderTargetResource* rt_resource = (RenderTargetResource*) dmResource::GetResource(params.m_Resource);
 
         uint32_t buffer_type_flags = 0;
         dmGraphics::RenderTargetCreationParams rt_params = {};
         GetRenderTargetParams(ddf, buffer_type_flags, rt_params);
         dmDDF::FreeMessage(ddf);
 
-        if (rt_resource->m_Texture)
+        if (rt_resource->m_RenderTarget)
         {
-            dmGraphics::DeleteRenderTarget(rt_resource->m_Texture);
+            dmGraphics::DeleteRenderTarget(rt_resource->m_RenderTarget);
         }
 
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
-
-        rt_resource->m_Texture = dmGraphics::NewRenderTarget(
-            dmRender::GetGraphicsContext(render_context),
-            buffer_type_flags,
-            rt_params);
+        dmRender::HRenderContext render_context  = (dmRender::HRenderContext) params.m_Context;
+        rt_resource->m_RenderTarget              = dmGraphics::NewRenderTarget(dmRender::GetGraphicsContext(render_context), buffer_type_flags, rt_params);
+        
+        //rt_resource->m_TextureResource.m_Texture = dmGraphics::GetRenderTargetTexture(rt_resource->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
 
         return dmResource::RESULT_OK;
     }

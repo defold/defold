@@ -21,13 +21,8 @@ namespace dmGameSystem
 {
     struct TextureResource
     {
-        // A generic asset handle that can be either a HTexture or a HRenderTarget,
-        // use dmGameSystem::GetTexture(texture_resource) to extract an actual texture
-        // from the handle
-        dmGraphics::HAssetHandle m_Texture;
+        dmGraphics::HTexture m_Texture;
     };
-
-    dmGraphics::HTexture GetTexture(TextureResource* texture_resource);
 }
 
 #endif
