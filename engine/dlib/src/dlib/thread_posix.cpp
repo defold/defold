@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
+#include <string.h>
 #include <dlib/profile/profile.h>
 #include <dmsdk/dlib/thread.h>
 
@@ -26,7 +27,7 @@ namespace dmThread
     struct ThreadData
     {
         ThreadStart m_Start;
-        const char* m_Name;
+        char*       m_Name;
         void*       m_Arg;
     };
 
@@ -37,6 +38,7 @@ namespace dmThread
         dmProfile::SetThreadName(data->m_Name);
 
         data->m_Start(data->m_Arg);
+        free(data->m_Name);
         delete data;
     }
 
@@ -69,7 +71,7 @@ namespace dmThread
 
         ThreadData* thread_data = new ThreadData;
         thread_data->m_Start = thread_start;
-        thread_data->m_Name = name;
+        thread_data->m_Name = strdup(name);
         thread_data->m_Arg = arg;
 
         ret = pthread_create(&thread, &attr, (void* (*)(void*)) ThreadStartProxy, thread_data);
