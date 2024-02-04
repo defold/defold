@@ -680,7 +680,7 @@ DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash)
     const char* s = (const char*)dmHashReverse32(hash, 0);
     if (s == 0)
     {
-        char tmp[32];
+        char tmp[64];
         dmSnPrintf(tmp, sizeof(tmp), "<unknown:%u>", hash);
         return tmp;
     }
