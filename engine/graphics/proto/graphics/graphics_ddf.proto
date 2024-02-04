@@ -38,13 +38,14 @@ message VertexAttribute
 
     enum SemanticType
     {
-        SEMANTIC_TYPE_NONE       = 1;
-        SEMANTIC_TYPE_POSITION   = 2;
-        SEMANTIC_TYPE_TEXCOORD   = 3;
-        SEMANTIC_TYPE_PAGE_INDEX = 4;
-        SEMANTIC_TYPE_COLOR      = 5;
-        SEMANTIC_TYPE_NORMAL     = 6;
-        SEMANTIC_TYPE_TANGENT    = 7;
+        SEMANTIC_TYPE_NONE         = 1;
+        SEMANTIC_TYPE_POSITION     = 2;
+        SEMANTIC_TYPE_TEXCOORD     = 3;
+        SEMANTIC_TYPE_PAGE_INDEX   = 4;
+        SEMANTIC_TYPE_COLOR        = 5;
+        SEMANTIC_TYPE_NORMAL       = 6;
+        SEMANTIC_TYPE_TANGENT      = 7;
+        SEMANTIC_TYPE_WORLD_MATRIX = 8;
     }
 
     message LongValues

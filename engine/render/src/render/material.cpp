@@ -31,13 +31,14 @@ namespace dmRender
 
     static dmGraphics::VertexAttribute::SemanticType GetAttributeSemanticType(dmhash_t from_hash)
     {
-        if      (from_hash == VERTEX_STREAM_POSITION)   return dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
-        else if (from_hash == VERTEX_STREAM_TEXCOORD0)  return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
-        else if (from_hash == VERTEX_STREAM_TEXCOORD1)  return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
-        else if (from_hash == VERTEX_STREAM_COLOR)      return dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
-        else if (from_hash == VERTEX_STREAM_PAGE_INDEX) return dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX;
-        else if (from_hash == VERTEX_STREAM_NORMAL)     return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
-        else if (from_hash == VERTEX_STREAM_TANGENT)    return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
+        if      (from_hash == VERTEX_STREAM_POSITION)     return dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
+        else if (from_hash == VERTEX_STREAM_TEXCOORD0)    return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
+        else if (from_hash == VERTEX_STREAM_TEXCOORD1)    return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
+        else if (from_hash == VERTEX_STREAM_COLOR)        return dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
+        else if (from_hash == VERTEX_STREAM_PAGE_INDEX)   return dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX;
+        else if (from_hash == VERTEX_STREAM_NORMAL)       return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
+        else if (from_hash == VERTEX_STREAM_TANGENT)      return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
+        else if (from_hash == VERTEX_STREAM_WORLD_MATRIX) return dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
         return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
     }
 

@@ -827,13 +827,11 @@ namespace dmGameSystem
             }
 
             // These should be named "element" or "index" (as opposed to vertex)
-            ro.m_VertexStart = 0;
-            ro.m_VertexCount = buffers->m_IndexCount;
-
+            ro.m_VertexStart    = 0;
+            ro.m_VertexCount    = buffers->m_IndexCount;
+            ro.m_IndexBuffer    = buffers->m_IndexBuffer;              // May be 0
+            ro.m_IndexType      = buffers->m_IndexBufferElementType;
             ro.m_WorldTransform = render_item->m_World;
-
-            ro.m_IndexBuffer = buffers->m_IndexBuffer;              // May be 0
-            ro.m_IndexType = buffers->m_IndexBufferElementType;
 
             DM_PROPERTY_ADD_U32(rmtp_ModelIndexCount, buffers->m_IndexCount);
             DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, buffers->m_VertexCount);
@@ -886,6 +884,7 @@ namespace dmGameSystem
 
         uint32_t vertex_count = 0;
         uint32_t index_count = 0;
+        uint32_t instance_count = 0;
         uint32_t batchIndex = buf[*begin].m_MinorOrder;
 
         world->m_MaxBatchIndex = dmMath::Max(batchIndex, world->m_MaxBatchIndex);
@@ -900,6 +899,8 @@ namespace dmGameSystem
             vertex_count += count;
             index_count += icount;
         }
+
+        dmLogInfo("%d", (uint32_t) (end - begin));
 
         // Early exit if there is nothing to render
         if (vertex_count == 0 || index_count == 0) {
@@ -999,6 +1000,7 @@ namespace dmGameSystem
         ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart       = vx_start;
         ro.m_VertexCount       = vx_count;
+        //ro.m_InstanceCount     = instance_count;
         ro.m_WorldTransform    = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
 
         FillTextures(&ro, component, material_index);
