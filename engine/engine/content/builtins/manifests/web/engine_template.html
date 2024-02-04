@@ -110,6 +110,7 @@
 		}
 	}
 
+	Module['persistentStorage'] = !!(window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB);
 	Module['INITIAL_MEMORY'] = extra_params.custom_heap_size;
 
 	Module['onRuntimeInitialized'] = function() {
