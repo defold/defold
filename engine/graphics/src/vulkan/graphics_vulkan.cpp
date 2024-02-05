@@ -1467,7 +1467,7 @@ bail:
     template <typename T>
     static void DestroyResourceDeferred(ResourcesToDestroyList* resource_list, T* resource)
     {
-        if (resource->m_Destroyed)
+        if (resource == 0x0 || resource->m_Destroyed)
         {
             return;
         }

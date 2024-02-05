@@ -145,8 +145,8 @@ namespace dmGameSystem
         dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
         assert(ddf_result == dmDDF::RESULT_OK);
 
-        void* resource = 0x0;
-        dmResource::Result res = dmResource::CreateResource(params.m_Factory, path_buffer, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
+        // CreateResource will set ref to 1, no need to call Get on the path again
+        dmResource::Result res = dmResource::CreateResource(params.m_Factory, path_buffer, ddf_buffer.Begin(), ddf_buffer.Size(), (void**) &rt_resource->m_TextureResource);
 
         if (res != dmResource::RESULT_OK)
         {
@@ -154,10 +154,7 @@ namespace dmGameSystem
             return res;
         }
 
-        dmResource::Get(params.m_Factory, path_buffer, (void**) &rt_resource->m_TextureResource);
-        dmGraphics::DeleteTexture(rt_resource->m_TextureResource->m_Texture);
         rt_resource->m_TextureResource->m_Texture = dmGraphics::GetRenderTargetTexture(rt_resource->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
-
         dmResource::SetResource(params.m_Resource, (void*) rt_resource);
         return dmResource::RESULT_OK;
     }
@@ -196,8 +193,8 @@ namespace dmGameSystem
 
         dmRender::HRenderContext render_context  = (dmRender::HRenderContext) params.m_Context;
         rt_resource->m_RenderTarget              = dmGraphics::NewRenderTarget(dmRender::GetGraphicsContext(render_context), buffer_type_flags, rt_params);
-        
-        //rt_resource->m_TextureResource.m_Texture = dmGraphics::GetRenderTargetTexture(rt_resource->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+        // The texture is owned by the RT, so no need to delete the old one.
+        rt_resource->m_TextureResource->m_Texture = dmGraphics::GetRenderTargetTexture(rt_resource->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
 
         return dmResource::RESULT_OK;
     }

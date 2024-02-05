@@ -192,6 +192,9 @@ namespace dmGameSystem
         TextureResource* textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(TextureResource*));
 
+        RenderTargetResource* render_targets[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        memset(render_targets, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(RenderTargetResource*));
+
         for (uint32_t i = 0; i < resource->m_MeshDDF->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             const char* texture_path = resource->m_MeshDDF->m_Textures[i];
@@ -204,8 +207,8 @@ namespace dmGameSystem
 
                 if (render_res_type == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET)
                 {
-                    RenderTargetResource* rt_res = (RenderTargetResource*) texture_res;
-                    textures[i] = rt_res->m_TextureResource;
+                    render_targets[i] = (RenderTargetResource*) texture_res;
+                    textures[i]       = render_targets[i]->m_TextureResource;
                 }
                 else
                 {
@@ -234,10 +237,23 @@ namespace dmGameSystem
             dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Material);
             dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Vertices);
             for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-                if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
+            {
+                if (textures[i])
+                {
+                    if (render_targets[i])
+                    {
+                        dmResource::Release(factory, (void*) render_targets[i]);
+                    }
+                    else
+                    {
+                        dmResource::Release(factory, (void*) textures[i]);
+                    }
+                }
+            }
             return result;
         }
         memcpy(resource->m_Textures, textures, sizeof(TextureResource*) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
+        memcpy(resource->m_RenderTargets, render_targets, sizeof(RenderTargetResource*) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
         // Buffer resources can be created with zero elements, in such case
         // the buffer will be null and we cannot create vertices.
@@ -291,7 +307,16 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             if (resource->m_Textures[i])
-                dmResource::Release(factory, (void*)resource->m_Textures[i]);
+            {
+                if (resource->m_RenderTargets[i])
+                {
+                    dmResource::Release(factory, (void*)resource->m_RenderTargets[i]);
+                }
+                else
+                {
+                    dmResource::Release(factory, (void*)resource->m_Textures[i]);
+                }
+            }
         }
     }
 

@@ -272,8 +272,8 @@ namespace dmGameSystem
                 dmModelDDF::Texture* texture = &model_material->m_Textures[t];
                 MaterialTextureInfo* texture_info = &info.m_Textures[t];
 
-                TextureResource* resource;
-                result = dmResource::Get(factory, texture->m_Texture, (void**) &resource);
+                void* resource;
+                result = dmResource::Get(factory, texture->m_Texture, &resource);
 
                 if (result != dmResource::RESULT_OK)
                 {
@@ -282,12 +282,13 @@ namespace dmGameSystem
 
                 if (ResourcePathToRenderResourceType(texture->m_Texture) == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET)
                 {
-                    RenderTargetResource* rt_res = (RenderTargetResource*) resource;
-                    texture_info->m_Texture = rt_res->m_TextureResource;
+                    texture_info->m_RenderTarget = (RenderTargetResource*) resource;
+                    texture_info->m_Texture      = texture_info->m_RenderTarget->m_TextureResource;
                 }
                 else
                 {
-                    texture_info->m_Texture = resource;
+                    texture_info->m_RenderTarget = 0;
+                    texture_info->m_Texture      = (TextureResource*) resource;
                 }
 
                 texture_info->m_SamplerNameHash = dmHashString64(texture->m_Sampler);
@@ -358,8 +359,14 @@ namespace dmGameSystem
 
             for (uint32_t t = 0; t < material->m_TexturesCount; ++t)
             {
-                if (material->m_Textures[t].m_Texture)
+                if (material->m_Textures[t].m_RenderTarget)
+                {
+                    dmResource::Release(factory, (void*) material->m_Textures[t].m_RenderTarget);
+                }
+                else if (material->m_Textures[t].m_Texture)
+                {
                     dmResource::Release(factory, (void*) material->m_Textures[t].m_Texture);
+                }
             }
             delete[] material->m_Textures;
             material->m_TexturesCount = 0;
