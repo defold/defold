@@ -439,10 +439,17 @@ namespace dmGraphics
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = 14,
     };
 
+    /*#
+     * Vertex step function. Dictates how the data for a vertex attribute should be read in a vertex shader.
+     * @enum
+     * @name VertexStepFunction
+     * @member VERTEX_STEP_FUNCTION_VERTEX
+     * @member VERTEX_STEP_FUNCTION_INSTANCE
+     */
     enum VertexStepFunction
     {
-        VERTEX_STEP_VERTEX,
-        VERTEX_STEP_INSTANCE,
+        VERTEX_STEP_FUNCTION_VERTEX,
+        VERTEX_STEP_FUNCTION_INSTANCE,
     };
 
     /*#

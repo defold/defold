@@ -131,29 +131,6 @@ namespace dmGraphics
         void     Reset(VkDevice vk_device);
     };
 
-    /*
-    struct VertexDeclaration
-    {
-        struct Stream
-        {
-            uint64_t m_NameHash;
-            uint16_t m_Location;
-            uint16_t m_Offset;
-            VkFormat m_Format;
-
-            // TODO: Not sure how to deal with normalizing
-            //       a vertex stream in VK.
-            // bool        m_Normalize;
-        };
-
-        uint64_t           m_Hash;
-        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
-        VertexStepFunction m_StepFunction;
-        uint16_t           m_StreamCount;
-        uint16_t           m_Stride;
-    };
-    */
-
     struct ScratchBuffer
     {
         ScratchBuffer()

@@ -482,21 +482,6 @@ namespace dmGraphics
         return vd;
     }
 
-    bool NullSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
-    {
-        if (stream_index > vertex_declaration->m_StreamCount)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    static void NullDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
-    {
-        delete vertex_declaration;
-    }
-
     static void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
     {
         assert(context);
@@ -576,21 +561,6 @@ namespace dmGraphics
             if (vertex_declaration->m_Streams[i].m_Size > 0)
                 DisableVertexStream(context, i);
     }
-
-    /*
-    static void NullHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
-    {
-        for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
-        {
-            VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
-            dmHashUpdateBuffer32(state, &stream.m_NameHash,  sizeof(dmhash_t));
-            dmHashUpdateBuffer32(state, &stream.m_Stream,    sizeof(stream.m_Stream));
-            dmHashUpdateBuffer32(state, &stream.m_Size,      sizeof(stream.m_Size));
-            dmHashUpdateBuffer32(state, &stream.m_Type,      sizeof(stream.m_Type));
-            dmHashUpdateBuffer32(state, &stream.m_Normalize, sizeof(stream.m_Normalize));
-        }
-    }
-    */
 
     static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
     {

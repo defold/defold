@@ -491,9 +491,23 @@ namespace dmGraphics
         delete stream_declaration;
     }
 
+    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
+    {
+        delete vertex_declaration;
+    }
+
     void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
     {
         dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+    }
+
+    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    {
+        if (stream_index >= vertex_declaration->m_StreamCount) {
+            return false;
+        }
+        vertex_declaration->m_Streams[stream_index].m_Offset = offset;
+        return true;
     }
 
     uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
@@ -1115,14 +1129,6 @@ namespace dmGraphics
     HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
         return g_functions.m_NewVertexDeclarationStride(context, stream_declaration, stride);
-    }
-    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
-    {
-        return g_functions.m_SetStreamOffset(vertex_declaration, stream_index, offset);
-    }
-    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
-    {
-        g_functions.m_DeleteVertexDeclaration(vertex_declaration);
     }
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {

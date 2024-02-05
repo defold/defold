@@ -1104,8 +1104,8 @@ bail:
 
             vk_vx_input_descriptions[i].binding   = i;
             vk_vx_input_descriptions[i].stride    = vertexDeclarations[i]->m_Stride;
-            vk_vx_input_descriptions[i].inputRate = vertexDeclarations[i]->m_StepFunction == VERTEX_STEP_VERTEX ?
-                                                    VK_VERTEX_INPUT_RATE_VERTEX : VK_VERTEX_INPUT_RATE_INSTANCE;
+            vk_vx_input_descriptions[i].inputRate = vertexDeclarations[i]->m_StepFunction == VERTEX_STEP_FUNCTION_VERTEX ?
+                                                        VK_VERTEX_INPUT_RATE_VERTEX : VK_VERTEX_INPUT_RATE_INSTANCE;
         }
 
         assert(active_attributes != 0);

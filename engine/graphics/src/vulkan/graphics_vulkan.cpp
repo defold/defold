@@ -1781,7 +1781,7 @@ bail:
         VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, stream_declaration);
         dmHashUpdateBuffer64(&decl_hash_state, &vd->m_Stride, sizeof(vd->m_Stride));
         vd->m_PipelineHash = dmHashFinal64(&decl_hash_state);
-        vd->m_StepFunction = VERTEX_STEP_VERTEX;
+        vd->m_StepFunction = VERTEX_STEP_FUNCTION_VERTEX;
         return vd;
     }
 
@@ -1793,22 +1793,8 @@ bail:
         dmHashUpdateBuffer64(&decl_hash_state, &stride, sizeof(stride));
         vd->m_Stride       = stride;
         vd->m_PipelineHash = dmHashFinal64(&decl_hash_state);
-        vd->m_StepFunction = VERTEX_STEP_VERTEX;
+        vd->m_StepFunction = VERTEX_STEP_FUNCTION_VERTEX;
         return vd;
-    }
-
-    bool VulkanSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
-    {
-        if (stream_index >= vertex_declaration->m_StreamCount) {
-            return false;
-        }
-        vertex_declaration->m_Streams[stream_index].m_Offset = offset;
-        return true;
-    }
-
-    static void VulkanDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
-    {
-        delete (VertexDeclaration*) vertex_declaration;
     }
 
     static void VulkanEnableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer, uint32_t binding_index)
