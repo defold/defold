@@ -3349,8 +3349,7 @@
 
 ;; SDK api
 (def gui-base-node-defaults
-  {:color [1.0 1.0 1.0 1.0]
-   :inherit-alpha true})
+  {:inherit-alpha true})
 
 ;; SDK api
 (def visual-base-node-defaults gui-base-node-defaults)
@@ -3358,7 +3357,7 @@
 ;; SDK api
 (def shape-base-node-defaults
   (assoc visual-base-node-defaults
-    :size [200.0 100.0 0.0]
+    :manual-size [200.0 100.0 0.0]
     :size-mode :size-mode-auto))
 
 (def ^:private base-node-type-infos
@@ -3380,9 +3379,7 @@
     :custom-type 0
     :icon text-icon
     :defaults (assoc visual-base-node-defaults
-                :outline [1.0 1.0 1.0 1.0]
-                :size [200.0 100.0 0.0]
-                :shadow [1.0 1.0 1.0 1.0]
+                :manual-size [200.0 100.0 0.0]
                 :text "<text>")}
    {:node-type :type-template
     :node-cls TemplateNode

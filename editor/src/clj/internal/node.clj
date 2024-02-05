@@ -351,7 +351,7 @@
           (str "You have given values for properties "
                (args-without-properties node-type-ref args)
                ", but those don't exist on nodes of type "
-               (:name node-type-ref)))
+               (:k node-type-ref)))
   (merge (->NodeImpl node-type-ref)
          (defaults node-type-ref)
          args))
