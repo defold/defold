@@ -2789,24 +2789,29 @@ static void LogFrameBufferError(GLenum status)
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static int OpenGLDoDeleteTexture(void* _context, void* data)
+    static void DoDeleteTexture(OpenGLContext* context, HTexture texture)
     {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        HTexture texture       = (HTexture) data;
-        OpenGLTexture* tex     = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
         glDeleteTextures(tex->m_NumTextureIds, tex->m_TextureIds);
         CHECK_GL_ERROR;
         free(tex->m_TextureIds);
 
         context->m_AssetHandleContainer.Release(texture);
         delete tex;
+    }
+
+    static int AsyncDeleteTextureProcess(void* _context, void* data)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        void* aux_context = dmPlatform::AcquireAuxContext(context->m_Window);
+        DoDeleteTexture(context, (HTexture) data);
+        dmPlatform::UnacquireAuxContext(context->m_Window, aux_context);
         return 0;
     }
 
     static void OpenGLDeleteTextureAsync(HTexture texture)
     {
-        dmJobThread::PushJob(g_Context->m_JobThread, OpenGLDoDeleteTexture, 0, (void*) g_Context, (void*) texture);
+        dmJobThread::PushJob(g_Context->m_JobThread, AsyncDeleteTextureProcess, 0, (void*) g_Context, (void*) texture);
     }
 
     static void PostDeleteTextures(OpenGLContext* context, bool force_delete)
@@ -2818,7 +2823,7 @@ static void LogFrameBufferError(GLenum status)
             uint32_t size = context->m_SetTextureAsyncState.m_PostDeleteTextures.Size();
             for (uint32_t i = 0; i < size; ++i)
             {
-                OpenGLDoDeleteTexture((void*)(size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i], 0);
+                DoDeleteTexture(context, context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
             }
             return;
         }
