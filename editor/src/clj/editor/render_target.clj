@@ -128,7 +128,6 @@
   (output gpu-texture-generator g/Any {:f generate-gpu-texture })
   (output build-targets g/Any :cached produce-build-targets)
   (output build-errors g/Any (g/fnk [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
-                               (println (and (> depth-stencil-attachment-width 0) (= 0 depth-stencil-attachment-height)) (and (> depth-stencil-attachment-height 0) (= 0 depth-stencil-attachment-width)) depth-stencil-attachment-width depth-stencil-attachment-height)
                                (g/package-errors _node-id
                                                  (validation/prop-error :fatal _node-id :color-attachments validate-color-attachment-count color-attachments "Color Attachments")
                                                  (into [] (map-indexed
