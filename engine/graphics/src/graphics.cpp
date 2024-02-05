@@ -491,6 +491,30 @@ namespace dmGraphics
         delete stream_declaration;
     }
 
+    void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
+    {
+        dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+    }
+
+    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
+    {
+        uint32_t count = vertex_declaration->m_StreamCount;
+        VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
+        for (int i = 0; i < count; ++i)
+        {
+            if (streams[i].m_NameHash == name_hash)
+            {
+                return streams[i].m_Offset;
+            }
+        }
+        return dmGraphics::INVALID_STREAM_OFFSET;
+    }
+
+    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return vertex_declaration->m_Stride;
+    }
+
     #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
     const char* TextureFormatToString(TextureFormat format)
     {
@@ -1108,14 +1132,6 @@ namespace dmGraphics
     {
         g_functions.m_DisableVertexDeclaration(context, vertex_declaration);
     }
-    void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
-    {
-        g_functions.m_HashVertexDeclaration(state, vertex_declaration);
-    }
-    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
-    {
-        return g_functions.m_GetVertexDeclarationStride(vertex_declaration);
-    }
     void EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index)
     {
         return g_functions.m_EnableVertexBuffer(context, vertex_buffer, binding_index);
@@ -1123,10 +1139,6 @@ namespace dmGraphics
     void DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer)
     {
         g_functions.m_DisableVertexBuffer(context, vertex_buffer);
-    }
-    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash)
-    {
-        return g_functions.m_GetVertexStreamOffset(vertex_declaration, name_hash);
     }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {

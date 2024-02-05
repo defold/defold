@@ -131,6 +131,7 @@ namespace dmGraphics
         void     Reset(VkDevice vk_device);
     };
 
+    /*
     struct VertexDeclaration
     {
         struct Stream
@@ -151,6 +152,7 @@ namespace dmGraphics
         uint16_t           m_StreamCount;
         uint16_t           m_Stride;
     };
+    */
 
     struct ScratchBuffer
     {

@@ -55,21 +55,113 @@ namespace dmGraphics
         memset(this, 0, sizeof(*this));
     }
 
+    static inline VkFormat GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
+    {
+        if (type == TYPE_FLOAT)
+        {
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_SFLOAT;
+                case 2: return VK_FORMAT_R32G32_SFLOAT;
+                case 3: return VK_FORMAT_R32G32B32_SFLOAT;
+                case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_INT)
+        {
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_SINT;
+                case 2: return VK_FORMAT_R32G32_SINT;
+                case 3: return VK_FORMAT_R32G32B32_SINT;
+                case 4: return VK_FORMAT_R32G32B32A32_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_INT)
+        {
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_UINT;
+                case 2: return VK_FORMAT_R32G32_UINT;
+                case 3: return VK_FORMAT_R32G32B32_UINT;
+                case 4: return VK_FORMAT_R32G32B32A32_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_BYTE)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R8_SNORM : VK_FORMAT_R8_SINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_SINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_BYTE)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R8_UNORM : VK_FORMAT_R8_UINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_UNORM : VK_FORMAT_R8G8_UINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_SHORT)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R16_SNORM : VK_FORMAT_R16_SINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_SINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_SHORT)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R16_UNORM : VK_FORMAT_R16_UINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R16G16_UINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_FLOAT_MAT4)
+        {
+            return VK_FORMAT_R32_SFLOAT;
+        }
+        else if (type == TYPE_FLOAT_VEC4)
+        {
+            return VK_FORMAT_R32G32B32A32_SFLOAT;
+        }
+
+        assert(0 && "Unable to deduce type from dmGraphics::Type");
+        return VK_FORMAT_UNDEFINED;
+    }
+
     static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs, uint32_t binding)
     {
         uint16_t num_attributes = 0;
         for (uint16_t i = 0; i < vertexDeclaration->m_StreamCount; ++i)
         {
-            if (vertexDeclaration->m_Streams[i].m_Location == 0xffff)
+            if (vertexDeclaration->m_Streams[i].m_Location == -1)
             {
                 continue;
             }
 
-            VertexDeclaration::Stream& stream_in           = vertexDeclaration->m_Streams[i];
+            VertexDeclaration::Stream& stream              = vertexDeclaration->m_Streams[i];
             vk_vertex_input_descs[num_attributes].binding  = binding;
-            vk_vertex_input_descs[num_attributes].location = stream_in.m_Location;
-            vk_vertex_input_descs[num_attributes].format   = stream_in.m_Format;
-            vk_vertex_input_descs[num_attributes].offset   = stream_in.m_Offset;
+            vk_vertex_input_descs[num_attributes].location = stream.m_Location;
+            vk_vertex_input_descs[num_attributes].format   = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
+            vk_vertex_input_descs[num_attributes].offset   = stream.m_Offset;
 
             num_attributes++;
         }

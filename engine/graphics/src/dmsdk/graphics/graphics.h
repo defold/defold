@@ -439,6 +439,12 @@ namespace dmGraphics
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = 14,
     };
 
+    enum VertexStepFunction
+    {
+        VERTEX_STEP_VERTEX,
+        VERTEX_STEP_INSTANCE,
+    };
+
     /*#
      * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
      * that should be used to create a vertex declaration from.

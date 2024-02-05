@@ -70,11 +70,6 @@ namespace dmGraphics
         uint32_t    m_StencilTextureBufferSize;
     };
 
-    struct VertexDeclaration
-    {
-        VertexStreamDeclaration m_StreamDeclaration;
-    };
-
     struct VertexBuffer
     {
         char*    m_Buffer;
