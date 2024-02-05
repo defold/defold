@@ -16,7 +16,7 @@
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
   (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceRepeated TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSimple TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
-           [com.dynamo.proto DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One]
+           [com.dynamo.proto DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
 
@@ -149,6 +149,7 @@
         vector3-one (DdfMath$Vector3One/getDefaultInstance)
         vector4 (DdfMath$Vector4/getDefaultInstance)
         vector4-one (DdfMath$Vector4One/getDefaultInstance)
+        vector4-w-one (DdfMath$Vector4WOne/getDefaultInstance)
         quat (DdfMath$Quat/getDefaultInstance)
         matrix4 (DdfMath$Matrix4/getDefaultInstance)]
 
@@ -163,6 +164,8 @@
              (protobuf/msg->clj vector4 {:x (float 1.0) :y (float 2.0) :z (float 3.0) :w (float 4.0)})))
       (is (= [(float 2.0) (float 3.0) (float 4.0) (float 5.0)]
              (protobuf/msg->clj vector4-one {:x (float 2.0) :y (float 3.0) :z (float 4.0) :w (float 5.0)})))
+      (is (= [(float 2.0) (float 3.0) (float 4.0) (float 5.0)]
+             (protobuf/msg->clj vector4-w-one {:x (float 2.0) :y (float 3.0) :z (float 4.0) :w (float 5.0)})))
       (is (= [(float 1.0) (float 2.0) (float 3.0) (float 4.0)]
              (protobuf/msg->clj quat {:x (float 1.0) :y (float 2.0) :z (float 3.0) :w (float 4.0)})))
       (is (= [(float 0.0) (float 0.1) (float 0.2) (float 0.3)
@@ -201,6 +204,14 @@
                       (protobuf/msg->clj vector4-one {:x one :y one :z one :w one})))
       (is (identical? (protobuf/msg->clj vector4-one {:x one :y one :z one :w zero})
                       (protobuf/msg->clj vector4-one {:x one :y one :z one :w zero})))
+      (is (identical? (protobuf/msg->clj vector4-w-one {:x zero :y zero :z zero :w zero})
+                      (protobuf/msg->clj vector4-w-one {:x zero :y zero :z zero :w zero})))
+      (is (identical? (protobuf/msg->clj vector4-w-one {:x zero :y zero :z zero :w one})
+                      (protobuf/msg->clj vector4-w-one {:x zero :y zero :z zero :w one})))
+      (is (identical? (protobuf/msg->clj vector4-w-one {:x one :y one :z one :w one})
+                      (protobuf/msg->clj vector4-w-one {:x one :y one :z one :w one})))
+      (is (identical? (protobuf/msg->clj vector4-w-one {:x one :y one :z one :w zero})
+                      (protobuf/msg->clj vector4-w-one {:x one :y one :z one :w zero})))
       (is (identical? (protobuf/msg->clj quat {:x zero :y zero :z zero :w one})
                       (protobuf/msg->clj quat {:x zero :y zero :z zero :w one})))
       (is (identical? (protobuf/msg->clj matrix4 {:m00 one :m01 zero :m02 zero :m03 zero
@@ -239,6 +250,14 @@
              (protobuf/msg->clj vector4-one {:x one :y one :z one :w one})))
       (is (= [one one one zero]
              (protobuf/msg->clj vector4-one {:x one :y one :z one :w zero})))
+      (is (= [zero zero zero zero]
+             (protobuf/msg->clj vector4-w-one {:x zero :y zero :z zero :w zero})))
+      (is (= [zero zero zero one]
+             (protobuf/msg->clj vector4-w-one {:x zero :y zero :z zero :w one})))
+      (is (= [one one one one]
+             (protobuf/msg->clj vector4-w-one {:x one :y one :z one :w one})))
+      (is (= [one one one zero]
+             (protobuf/msg->clj vector4-w-one {:x one :y one :z one :w zero})))
       (is (= [zero zero zero one]
              (protobuf/msg->clj quat {:x zero :y zero :z zero :w one})))
       (is (= [one zero zero zero

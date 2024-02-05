@@ -423,23 +423,26 @@
      ["sprite" "size"]]
     {"w" :padding}
 
-    [["gui" "nodes" "[*]" "color"]
-     ["gui" "nodes" "[*]" "outline"]
-     ["gui" "nodes" "[*]" "position"]
+    [["gui" "nodes" "[*]" "position"]
      ["gui" "nodes" "[*]" "rotation"]
      ["gui" "nodes" "[*]" "size"]
-     ["gui" "nodes" "[*]" "shadow"]
-     ["gui" "layouts" "nodes" "[*]" "color"]
-     ["gui" "layouts" "nodes" "[*]" "outline"]
      ["gui" "layouts" "nodes" "[*]" "position"]
      ["gui" "layouts" "nodes" "[*]" "rotation"]
-     ["gui" "layouts" "nodes" "[*]" "size"]
-     ["gui" "layouts" "nodes" "[*]" "shadow"]]
+     ["gui" "layouts" "nodes" "[*]" "size"]]
     {"w" :padding}}
 
    'dmMath.Vector4One
-   {[["gui" "nodes" "[*]" "scale"]
+   {[["gui" "nodes" "[*]" "color"]
+     ["gui" "nodes" "[*]" "scale"]
+     ["gui" "layouts" "nodes" "[*]" "color"]
      ["gui" "layouts" "nodes" "[*]" "scale"]]
+    {"w" :padding}}
+
+   'dmMath.Vector4WOne
+   {[["gui" "nodes" "[*]" "outline"]
+     ["gui" "nodes" "[*]" "shadow"]
+     ["gui" "layouts" "nodes" "[*]" "outline"]
+     ["gui" "layouts" "nodes" "[*]" "shadow"]]
     {"w" :padding}}
 
    'dmModelDDF.ModelDesc

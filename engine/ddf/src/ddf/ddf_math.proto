@@ -59,6 +59,16 @@ message Vector4One
     optional float w = 4 [default = 1.0];
 }
 
+message Vector4WOne
+{
+    option (alias) = "dmVMath::Vector4";
+
+    optional float x = 1 [default = 0.0];
+    optional float y = 2 [default = 0.0];
+    optional float z = 3 [default = 0.0];
+    optional float w = 4 [default = 1.0];
+}
+
 message Quat
 {
     option (alias) = "dmVMath::Quat";

@@ -37,12 +37,11 @@ message LabelDesc
         PIVOT_NW     = 8 [(displayName) = "North West"];
     };
 
-
     required dmMath.Vector4 size        = 1;
     optional dmMath.Vector4One scale    = 2; // Deprecated
-    required dmMath.Vector4 color       = 3;
-    required dmMath.Vector4 outline     = 4;
-    required dmMath.Vector4 shadow      = 5;
+    required dmMath.Vector4One color    = 3;
+    required dmMath.Vector4WOne outline = 4;
+    required dmMath.Vector4WOne shadow  = 5;
 
     required float          leading     = 6;
     required float          tracking    = 7;

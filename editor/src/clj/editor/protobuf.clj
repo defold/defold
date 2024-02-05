@@ -29,7 +29,7 @@ Macros currently mean no foreseeable performance gain, however."
             [util.digest :as digest]
             [util.fn :as fn]
             [util.text-util :as text-util])
-  (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One]
+  (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
            [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor Message Message$Builder ProtocolMessageEnum TextFormat]
            [java.io ByteArrayOutputStream StringReader]
            [java.lang.reflect Method]
@@ -845,6 +845,41 @@ Macros currently mean no foreseeable performance gain, however."
         :else
         [x y z w])))
 
+  DdfMath$Vector4WOne
+  (msg->vecmath [_pb v] (Vector4d. (:x v float-zero) (:y v float-zero) (:z v float-zero) (:w v float-one)))
+  (msg->clj [_pb v]
+    (let [x (intern-float (:x v float-zero))
+          y (intern-float (:y v float-zero))
+          z (intern-float (:z v float-zero))
+          w (intern-float (:w v float-one))]
+      (cond
+        (and (identical? float-zero x)
+             (identical? float-zero y)
+             (identical? float-zero z)
+             (identical? float-one w))
+        vector4-xyz-zero-w-one
+
+        (and (identical? float-one x)
+             (identical? float-one y)
+             (identical? float-one z)
+             (identical? float-one w))
+        vector4-one
+
+        (and (identical? float-zero x)
+             (identical? float-zero y)
+             (identical? float-zero z)
+             (identical? float-zero w))
+        vector4-zero
+
+        (and (identical? float-one x)
+             (identical? float-one y)
+             (identical? float-one z)
+             (identical? float-zero w))
+        vector4-xyz-one-w-zero
+
+        :else
+        [x y z w])))
+
   DdfMath$Quat
   (msg->vecmath [_pb v] (Quat4d. (:x v float-zero) (:y v float-zero) (:z v float-zero) (:w v float-one)))
   (msg->clj [_pb v]
@@ -1011,6 +1046,7 @@ Macros currently mean no foreseeable performance gain, however."
         DdfMath$Vector3One [:x :y :z]
         DdfMath$Vector4 [:x :y :z :w]
         DdfMath$Vector4One [:x :y :z :w]
+        DdfMath$Vector4WOne [:x :y :z :w]
         DdfMath$Quat [:x :y :z :w]
         DdfMath$Matrix4 [:m00 :m01 :m02 :m03
                          :m10 :m11 :m12 :m13
