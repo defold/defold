@@ -319,6 +319,11 @@ namespace dmPhysics
     {
     }
 
+    bool IsWorldLocked(HWorld2D world)
+    {
+        return false;
+    }
+
     void GetCollisionShapeRadius2D(HCollisionShape2D shape, float* radius)
     {
     }
