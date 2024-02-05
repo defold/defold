@@ -174,7 +174,7 @@ Macros currently mean no foreseeable performance gain, however."
           (.getField field-options resource-desc)
           (assoc :resource true)))
 
-(defn- field-type [^Class class ^Descriptors$FieldDescriptor field-desc]
+(defn field-value-class [^Class class ^Descriptors$FieldDescriptor field-desc]
   (let [java-name (underscores-to-camel-case (.getName field-desc))
         field-accessor-name (str "get" java-name)]
     (.getReturnType (lookup-method class field-accessor-name))))
@@ -220,8 +220,13 @@ Macros currently mean no foreseeable performance gain, however."
         ;; instances that cannot evaluate to false in if-expressions.
         (boolean (.invoke has-method pb j/no-args-array))))))
 
+(defn pb-class->descriptor
+  ^Descriptors$Descriptor [^Class cls]
+  {:pre [(pb-class? cls)]}
+  (j/invoke-no-arg-class-method cls "getDescriptor"))
+
 (defn- field-infos-raw [^Class cls]
-  (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")]
+  (let [desc (pb-class->descriptor cls)]
     (into {}
           (map (fn [^Descriptors$FieldDescriptor field-desc]
                  (let [field-key (field->key field-desc)
@@ -234,7 +239,7 @@ Macros currently mean no foreseeable performance gain, however."
                        declared-default (when (.hasDefaultValue field-desc)
                                           default)]
                    (pair field-key
-                         {:type (field-type cls field-desc)
+                         {:type (field-value-class cls field-desc)
                           :java-name (underscores-to-camel-case (.getName field-desc))
                           :field-type-key (field-type->key (.getType field-desc))
                           :field-rule field-rule
@@ -623,7 +628,7 @@ Macros currently mean no foreseeable performance gain, however."
 (declare ^:private pb-builder ^:private vector-to-map-conversions)
 
 (defn- pb-builder-raw [^Class class]
-  (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method class "getDescriptor")
+  (let [desc (pb-class->descriptor class)
         ^Method new-builder-method (j/get-declared-method class "newBuilder" [])
         builder-class (.getReturnType new-builder-method)
         ;; All methods relevant to us
@@ -1021,7 +1026,7 @@ Macros currently mean no foreseeable performance gain, however."
 (def enum-values (fn/memoize enum-values-raw))
 
 (defn- fields-by-indices-raw [^Class cls]
-  (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")]
+  (let [desc (pb-class->descriptor cls)]
     (into {}
           (map (fn [^Descriptors$FieldDescriptor field]
                  (pair (.getNumber field)

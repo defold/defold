@@ -25,14 +25,18 @@
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
+            [editor.protobuf :as protobuf]
             [editor.util :as eutil]
+            [editor.workspace :as workspace]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
             [internal.util :as util]
             [jfx :as jfx]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.fn :as fn])
   (:import [com.defold.util WeakInterner]
+           [com.google.protobuf Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType]
            [internal.graph.types Arc]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
@@ -757,3 +761,63 @@
   (System/gc)
   (Thread/sleep 500)
   (weak-interner-stats gt/endpoint-interner))
+
+(defn pb-class-info
+  ([^Class pb-class]
+   (pb-class-info pb-class fn/constantly-true))
+  ([^Class pb-class field-info-predicate]
+   (into (sorted-map)
+         (keep (fn [^Descriptors$FieldDescriptor field-desc]
+                 (let [field-name (.getName field-desc)
+                       field-value-class (protobuf/field-value-class pb-class field-desc)
+                       field-rule (cond (.isRepeated field-desc) :repeated
+                                        (.isRequired field-desc) :required
+                                        (.isOptional field-desc) :optional
+                                        :else (assert false))
+                       field-info (cond-> {:value-type field-value-class
+                                           :field-rule field-rule}
+
+                                          (= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
+                                          (assoc :message (pb-class-info field-value-class field-info-predicate)))]
+                   (when (field-info-predicate field-info)
+                     (pair field-name field-info)))))
+         (.getFields (protobuf/pb-class->descriptor pb-class)))))
+
+(defn pb-resource-type-info
+  ([workspace]
+   (pb-resource-type-info workspace fn/constantly-true))
+  ([workspace field-info-predicate]
+   (into (sorted-map)
+         (keep (fn [[ext resource-type]]
+                 (when-let [pb-class (-> resource-type :test-info :ddf-type)]
+                   (let [read-defaults (:read-defaults resource-type true)
+                         pb-class-info (pb-class-info pb-class field-info-predicate)]
+                     (pair ext {:read-defaults read-defaults
+                                :value-type pb-class
+                                :message pb-class-info})))))
+         (workspace/get-resource-type-map workspace))))
+
+(def class-name-comparator #(compare (.getName ^Class %1) (.getName ^Class %2)))
+
+(defn resource-pb-classes [workspace]
+  (letfn [(info->value-types [{:keys [message value-type]}]
+            (cond->> (mapcat info->value-types (vals message))
+                     (and message value-type) (cons value-type)))]
+    (into (sorted-set-by class-name-comparator)
+          (mapcat info->value-types)
+          (vals (pb-resource-type-info workspace)))))
+
+(defn resource-pb-class-field-types
+  ([workspace]
+   (resource-pb-class-field-types workspace fn/constantly-true))
+  ([workspace field-info-predicate]
+   (into (sorted-map-by class-name-comparator)
+         (keep (fn [^Class pb-class]
+                 (some->> (into (sorted-map)
+                                (keep (fn [[field-name {:keys [^Class value-type] :as field-info}]]
+                                        (when (field-info-predicate field-info)
+                                          (pair field-name value-type))))
+                                (pb-class-info pb-class))
+                          (not-empty)
+                          (pair pb-class))))
+         (resource-pb-classes workspace))))

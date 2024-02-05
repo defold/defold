@@ -143,10 +143,12 @@
   ([key-fn]
    {:pre [(ifn? key-fn)]}
    (map (pair-fn key-fn)))
-  ([key-fn coll]
-   (into {}
-         (map (pair-fn key-fn))
-         coll))
+  ([key-fn value-fn-or-coll]
+   (if (fn? value-fn-or-coll)
+     (map (pair-fn key-fn value-fn-or-coll))
+     (into {}
+           (map (pair-fn key-fn))
+           value-fn-or-coll)))
   ([key-fn value-fn coll]
    (into {}
          (map (pair-fn key-fn value-fn))

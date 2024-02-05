@@ -192,12 +192,19 @@
     (is (returns-input? (repeatedly 1 rand)))))
 
 (deftest pair-map-by-test
-  (testing "Works as a transducer"
+  (testing "Works as a transducer with key-fn"
     (let [result (into (sorted-map)
                        (coll/pair-map-by keyword)
                        ["one" "two"])]
       (is (sorted? result))
       (is (= {:one "one" :two "two"} result))))
+
+  (testing "Works as a transducer with key-fn and value-fn"
+    (let [result (into (sorted-map)
+                       (coll/pair-map-by symbol keyword)
+                       ["one" "two"])]
+      (is (sorted? result))
+      (is (= {'one :one 'two :two} result))))
 
   (testing "Applies key-fn on input sequence"
     (let [result (coll/pair-map-by keyword ["one" "two"])]
