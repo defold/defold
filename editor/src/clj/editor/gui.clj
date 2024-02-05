@@ -317,15 +317,6 @@
       corners? (cornify max-angle)
       cut-off? (into (geom/rotate [0 0 max-angle] ps)))))
 
-(defn- v3->zero-v4 [v3]
-  (conj v3 (float 0.0)))
-
-(defn- v3->one-v4 [v3]
-  (conj v3 (float 1.0)))
-
-(defn- v4->v3 [v4]
-  (subvec v4 0 3))
-
 (def ^:private euler-v4->clj-quat (comp math/vecmath->clj math/euler->quat))
 
 (defn- clj-quat->euler-v4 [clj-quat]
@@ -333,25 +324,25 @@
         (math/clj->vecmath clj-quat))
       math/quat->euler
       properties/round-vec-coarse
-      (conj 0.0)))
+      (conj protobuf/float-zero)))
 
 (def ^:private property-conversions
   [{:pb-field :position
     :prop-key :position
-    :pb->prop v4->v3
-    :prop->pb v3->zero-v4}
+    :pb->prop protobuf/vector4->vector3
+    :prop->pb protobuf/vector3->vector4-zero}
    {:pb-field :rotation
     :prop-key :rotation
     :pb->prop euler-v4->clj-quat
     :prop->pb clj-quat->euler-v4}
    {:pb-field :scale
     :prop-key :scale
-    :pb->prop v4->v3
-    :prop->pb v3->one-v4}
+    :pb->prop protobuf/vector4->vector3
+    :prop->pb protobuf/vector3->vector4-one}
    {:pb-field :size
     :prop-key :manual-size
-    :pb->prop v4->v3
-    :prop->pb v3->zero-v4}
+    :pb->prop protobuf/vector4->vector3
+    :prop->pb protobuf/vector3->vector4-zero}
    {:pb-field :xanchor
     :prop-key :x-anchor}
    {:pb-field :yanchor
@@ -636,9 +627,9 @@
   (-> (protobuf/make-map-without-defaults Gui$NodeDesc
         :custom-type custom-type
         :template-node-child false
-        :position (v3->zero-v4 position)
+        :position (protobuf/vector3->vector4-zero position)
         :rotation (clj-quat->euler-v4 rotation)
-        :scale (v3->one-v4 scale)
+        :scale (protobuf/vector3->vector4-one scale)
         :id (if (g/node-override? _this) generated-id id)
         :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
         :alpha alpha
@@ -981,7 +972,7 @@
 (g/defnk produce-shape-base-node-msg [visual-base-node-msg manual-size size-mode texture clipping-mode clipping-visible clipping-inverted]
   (-> visual-base-node-msg
       (merge (protobuf/make-map-without-defaults Gui$NodeDesc
-               :size (v3->zero-v4 manual-size)
+               :size (protobuf/vector3->vector4-zero manual-size)
                :size-mode size-mode
                :texture texture
                :clipping-mode clipping-mode
@@ -992,7 +983,7 @@
 (g/defnode ShapeNode
   (inherits VisualNode)
 
-  (property manual-size types/Vec3 (default (v4->v3 (protobuf/default Gui$NodeDesc :size)))
+  (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size)))
             (dynamic visible (g/constantly false)))
   (property size types/Vec3 ; Just for presentation.
             (value (g/fnk [manual-size size-mode texture-size]
@@ -1204,7 +1195,7 @@
 (g/defnk produce-text-node-msg [visual-base-node-msg manual-size text line-break font text-leading text-tracking outline outline-alpha shadow shadow-alpha]
   (merge visual-base-node-msg
          (protobuf/make-map-without-defaults Gui$NodeDesc
-           :size (v3->zero-v4 manual-size)
+           :size (protobuf/vector3->vector4-zero manual-size)
            :text text
            :line-break line-break
            :font font
@@ -1219,7 +1210,7 @@
   (inherits VisualNode)
 
   ; Text
-  (property manual-size types/Vec3 (default (v4->v3 (protobuf/default Gui$NodeDesc :size)))
+  (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size)))
             (dynamic label (g/constantly "Size")))
   (property text g/Str (default (protobuf/default Gui$NodeDesc :text))
             (dynamic edit-type (g/constantly {:type :multi-line-text})))
@@ -3158,16 +3149,6 @@
                                          (or color-alpha default-pb-read-node-alpha)
                                          node-alpha)))))))))
 
-(defn- sanitize-zero-v4 [v4]
-  (let [v3 (v4->v3 v4)]
-    (when (not-every? zero? v3)
-      (v3->zero-v4 v3))))
-
-(defn- sanitize-one-v4 [v4]
-  (let [v3 (v4->v3 v4)]
-    (when (not-every? #(= protobuf/float-one %) v3)
-      (v3->one-v4 v3))))
-
 (defn- sanitize-euler-v4 [euler-v4]
   (let [clj-quat (euler-v4->clj-quat euler-v4)
         euler-v4 (clj-quat->euler-v4 clj-quat)]
@@ -3176,10 +3157,10 @@
 
 (defn- sanitize-node-geometry [node]
   (-> node
-      (protobuf/sanitize :position sanitize-zero-v4)
+      (protobuf/sanitize :position protobuf/sanitize-vector4-zero-as-vector3)
       (protobuf/sanitize :rotation sanitize-euler-v4)
-      (protobuf/sanitize :scale sanitize-one-v4)
-      (protobuf/sanitize :size sanitize-zero-v4)))
+      (protobuf/sanitize :scale protobuf/sanitize-vector4-one-as-vector3)
+      (protobuf/sanitize :size protobuf/sanitize-vector4-zero-as-vector3)))
 
 (defn- sanitize-node-specifics [node-desc]
   (case (:type node-desc)

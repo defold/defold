@@ -720,6 +720,25 @@ Macros currently mean no foreseeable performance gain, however."
    float-zero float-zero float-one float-zero
    float-zero float-zero float-zero float-one])
 
+(defn vector3->vector4-zero [vector3]
+  (conj vector3 float-zero))
+
+(defn vector3->vector4-one [vector3]
+  (conj vector3 float-one))
+
+(defn vector4->vector3 [vector4]
+  (subvec vector4 0 3))
+
+(defn sanitize-vector4-zero-as-vector3 [vector4]
+  (let [vector3 (vector4->vector3 vector4)]
+    (when (not-every? zero? vector3)
+      (vector3->vector4-zero vector3))))
+
+(defn sanitize-vector4-one-as-vector3 [vector4]
+  (let [vector3 (vector4->vector3 vector4)]
+    (when (not-every? #(= float-one %) vector3)
+      (vector3->vector4-one vector3))))
+
 (definline intern-float [num]
   `(let [float# ~num]
      (cond

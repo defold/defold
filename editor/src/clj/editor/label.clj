@@ -179,30 +179,20 @@
              :bottom 0.0)]
     (mapv * size [xs ys 1])))
 
-(defn- v3->v4 [v]
-  ;; DdfMath$Vector4 uses 0.0 as the default for the W component.
-  (conj v (float 0.0)))
-
-(defn- v4->v3 [v4]
-  (subvec v4 0 3))
-
-(def ^:private default-scale-value-v3 [(float 1.0) (float 1.0) (float 1.0)])
-
 (g/defnk produce-save-value [text size color outline shadow leading tracking pivot blend-mode line-break font material]
-  (-> (protobuf/make-map-with-defaults Label$LabelDesc
-        :text text
-        :size (v3->v4 size)
-        :color color
-        :outline outline
-        :shadow shadow
-        :leading leading
-        :tracking tracking
-        :pivot pivot
-        :blend-mode blend-mode
-        :line-break line-break
-        :font (resource/resource->proj-path font)
-        :material (resource/resource->proj-path material))
-      (dissoc :scale))) ; Legacy field. Migrated to ComponentDesc or EmbeddedComponentDesc in PrototypeDesc when saving.
+  (protobuf/make-map-without-defaults Label$LabelDesc
+    :text text
+    :size (protobuf/vector3->vector4-zero size)
+    :color color
+    :outline outline
+    :shadow shadow
+    :leading leading
+    :tracking tracking
+    :pivot pivot
+    :blend-mode blend-mode
+    :line-break line-break
+    :font (resource/resource->proj-path font)
+    :material (resource/resource->proj-path material)))
 
 (g/defnk produce-scene
   [_node-id aabb size gpu-texture material-shader blend-mode pivot text-data]
@@ -261,25 +251,25 @@
   (inherits resource-node/ResourceNode)
 
   ;; Ignored, except data during migration. See details below.
-  (property legacy-scale types/Vec3
+  (property legacy-scale types/Vec3 ; Nil is valid default.
             (dynamic visible (g/constantly false)))
 
-  (property text g/Str
+  (property text g/Str (default (protobuf/default Label$LabelDesc :text))
             (dynamic edit-type (g/constantly {:type :multi-line-text})))
-  (property size types/Vec3)
-  (property color types/Color)
-  (property outline types/Color)
-  (property shadow types/Color)
-  (property leading g/Num)
-  (property tracking g/Num)
-  (property pivot g/Keyword (default :pivot-center)
+  (property size types/Vec3) ; Required protobuf field.
+  (property color types/Color (default (protobuf/default Label$LabelDesc :color)))
+  (property outline types/Color (default (protobuf/default Label$LabelDesc :outline)))
+  (property shadow types/Color (default (protobuf/default Label$LabelDesc :shadow)))
+  (property leading g/Num (default (protobuf/default Label$LabelDesc :leading)))
+  (property tracking g/Num (default (protobuf/default Label$LabelDesc :tracking)))
+  (property pivot g/Keyword (default (protobuf/default Label$LabelDesc :pivot))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$Pivot))))
-  (property blend-mode g/Any (default :blend-mode-alpha)
+  (property blend-mode g/Any (default (protobuf/default Label$LabelDesc :blend-mode))
             (dynamic tip (validation/blend-mode-tip blend-mode Label$LabelDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Label$LabelDesc$BlendMode))))
-  (property line-break g/Bool)
+  (property line-break g/Bool (default (protobuf/default Label$LabelDesc :line-break)))
 
-  (property font resource/Resource
+  (property font resource/Resource ; Always assigned in load-fn.
             (value (gu/passthrough font-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -294,7 +284,7 @@
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["font"]})))
-  (property material resource/Resource
+  (property material resource/Resource ; Always assigned in load-fn.
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -346,33 +336,27 @@
                                       (texture/set-params gpu-texture tex-params))))
 
 (defn load-label [_project self resource label]
-  (let [size-v3 (v4->v3 (:size label))
-        legacy-scale-v3 (some-> label :scale v4->v3) ; Legacy field. Migrated to ComponentDesc or EmbeddedComponentDesc in PrototypeDesc when saving.
-        font (workspace/resolve-resource resource (:font label))
-        material (workspace/resolve-resource resource (:material label))]
-    (concat
-      (g/set-property self
-                      :text (:text label)
-                      :size size-v3
-                      :legacy-scale legacy-scale-v3
-                      :color (:color label)
-                      :outline (:outline label)
-                      :shadow (:shadow label)
-                      :leading (:leading label)
-                      :tracking (:tracking label)
-                      :pivot (:pivot label)
-                      :blend-mode (:blend-mode label)
-                      :line-break (:line-break label)
-                      :font font
-                      :material material))))
-
-(def ^:private sanitize-v4 (comp v3->v4 v4->v3))
+  (let [resolve-resource #(workspace/resolve-resource resource %)]
+    (gu/set-properties-from-map self label
+      text :text
+      size (protobuf/vector4->vector3 :size)
+      legacy-scale (protobuf/vector4->vector3 :scale) ; Legacy field. Migrated to ComponentDesc or EmbeddedComponentDesc in PrototypeDesc when saving.
+      color :color
+      outline :outline
+      shadow :shadow
+      leading :leading
+      tracking :tracking
+      pivot :pivot
+      blend-mode :blend-mode
+      line-break :line-break
+      font (resolve-resource :font)
+      material (resolve-resource :material))))
 
 (defn- sanitize-label [label-desc]
-  (let [legacy-scale-v3 (some-> label-desc :scale v4->v3)
-        sanitized-label (update label-desc :size sanitize-v4)
+  (let [legacy-scale-v3 (some-> label-desc :scale protobuf/vector4->vector3)
+        sanitized-label (protobuf/sanitize label-desc :size protobuf/sanitize-vector4-zero-as-vector3)
         sanitized-label (if (scene/significant-scale? legacy-scale-v3)
-                          (assoc sanitized-label :scale (v3->v4 legacy-scale-v3))
+                          (assoc sanitized-label :scale (protobuf/vector3->vector4-one legacy-scale-v3))
                           (dissoc sanitized-label :scale))]
     sanitized-label))
 
@@ -380,7 +364,7 @@
   (let [sanitized-embedded-component-desc
         (if (scene/significant-scale? (:scale embedded-component-desc))
           embedded-component-desc
-          (let [label-legacy-scale-v3 (some-> label-desc :scale v4->v3)]
+          (let [label-legacy-scale-v3 (some-> label-desc :scale protobuf/vector4->vector3)]
             (if (scene/significant-scale? label-legacy-scale-v3)
               (assoc embedded-component-desc :scale label-legacy-scale-v3)
               (dissoc embedded-component-desc :scale))))
@@ -436,6 +420,7 @@
     :ext "label"
     :node-type LabelNode
     :ddf-type Label$LabelDesc
+    :read-defaults false
     :load-fn load-label
     :sanitize-fn sanitize-label
     :icon label-icon
