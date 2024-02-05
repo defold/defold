@@ -542,6 +542,7 @@ namespace dmGraphics
             VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
             if (stream.m_Size > 0)
             {
+                stream.m_Location = i;
                 EnableVertexStream(context, i, stream.m_Size, stream.m_Type, stride, &vb->m_Buffer[offset]);
                 offset += stream.m_Size * TYPE_SIZE[stream.m_Type - dmGraphics::TYPE_BYTE];
             }
