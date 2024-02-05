@@ -1366,7 +1366,7 @@ static int GetRenderTargetInfo(lua_State* L)
     lua_newtable(L);
 
     uint32_t attachment_count = 0;
-    for (int i = 0; i < dmGraphics::MAX_ATTACHMENT_COUNT + 2; ++i)
+    for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 2; ++i)
     {
         dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, color_buffer_flags[i]);
         if (t)

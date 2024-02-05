@@ -43,7 +43,7 @@ namespace dmGameSystem
 
     static void GetRenderTargetParams(dmRenderDDF::RenderTargetDesc* ddf, uint32_t& buffer_type_flags, dmGraphics::RenderTargetCreationParams& params)
     {
-        assert(ddf->m_ColorAttachments.m_Count < dmGraphics::MAX_ATTACHMENT_COUNT);
+        assert(ddf->m_ColorAttachments.m_Count <= dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS);
 
         const dmGraphics::BufferType color_buffer_flags[] = {
             dmGraphics::BUFFER_TYPE_COLOR0_BIT,
