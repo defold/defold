@@ -37,16 +37,6 @@ namespace dmGraphics
     typedef void* HContext;
 
     /*#
-     * Asset handle
-     * A generic asset handle with 21 bits of metadata and a 32 bits opaque handle
-     * Note that we can only use a total of 53 bits out of the 64 due to the handles are exposed
-     * to the users via lua: http://lua-users.org/wiki/NumbersTutorial
-     * @typedef
-     * @name HAssetHandle
-     */
-    typedef uint64_t HAssetHandle;
-
-    /*#
      * Texture handle
      * @typedef
      * @name HTexture
