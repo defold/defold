@@ -15,15 +15,41 @@
 (ns editor.fs
   (:require [clojure.java.io :as io]
             [clojure.string :as string])
-  (:import [java.util UUID]
-           [java.io File FileNotFoundException IOException RandomAccessFile]
+  (:import [java.io File FileNotFoundException IOException RandomAccessFile]
            [java.nio.channels OverlappingFileLockException]
-           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException Files FileVisitResult LinkOption NoSuchFileException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
-           [java.nio.file.attribute BasicFileAttributes FileAttribute]))
+           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileVisitResult Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
+           [java.nio.file.attribute BasicFileAttributes FileAttribute]
+           [java.util UUID]))
 
 (set! *warn-on-reflection* true)
 
 ;; util
+
+(defonce ^:private empty-link-option-array (make-array LinkOption 0))
+(defonce ^:private empty-string-array (make-array String 0))
+
+(defprotocol PathCoercions
+  "Convert to Path objects."
+  (^Path as-path [this] "Coerce argument to a Path."))
+
+(extend-protocol PathCoercions
+  nil
+  (as-path [_this] nil)
+
+  File
+  (as-path [this] (.toPath this))
+
+  Path
+  (as-path [this] this)
+
+  String
+  (as-path [this] (Path/of this empty-string-array)))
+
+(defn to-real-path
+  "Returns the canonical, real path to an existing file system entry. Throws an
+  IOException if there was no matching entry in the file system."
+  ^Path [^Path path]
+  (.toRealPath path empty-link-option-array))
 
 (defn with-leading-slash
   ^String [^String path]
@@ -180,6 +206,21 @@
    (let [opts (merge delete-defaults opts)]
      (maybe-silently (fail-silently? opts) nil (do-delete-directory! directory opts)))))
 
+(defn delete-path-directory!
+  "Deletes a directory tree. Returns true if the directory was deleted by us.
+  Throws NotDirectoryException if the path does not refer to a directory."
+  [^Path path]
+  (let [file (.toFile path)]
+    (cond
+      (not (.exists file))
+      false
+
+      (.isDirectory file)
+      (some? (delete-directory! file))
+
+      :else
+      (throw (NotDirectoryException. (str path))))))
+
 (defn delete!
   "Deletes a file or directory tree. Returns the deleted directory or file if successful.
   Options:
@@ -226,10 +267,15 @@
 
 ;; create directories, files
 
+(defn create-path-directories!
+  "Creates the directory path up to and including directory. Returns the directory as Path."
+  ^Path [^Path path]
+  (Files/createDirectories path empty-file-attrs))
+
 (defn create-directories!
-  "Creates the directory path up to and including directory. Returns the directory."
+  "Creates the directory path up to and including directory. Returns the directory as File."
   ^File [^File directory]
-  (.toFile (Files/createDirectories (.toPath directory) empty-file-attrs)))
+  (.toFile (create-path-directories! (.toPath directory))))
 
 (defn create-parent-directories!
   "Creates the directory path (if any) up to the parent directory of file. Returns the parent directory."

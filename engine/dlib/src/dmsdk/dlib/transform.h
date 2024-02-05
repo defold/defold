@@ -288,7 +288,7 @@ namespace dmTransform
 
     /*#
      * Convert a transform into a 4-dim matrix
-     * @name ToMatrix
+     * @name ToMatrix4
      * @param t Transform to convert
      * @return Matrix representing the same transform
      */

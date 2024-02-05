@@ -425,15 +425,23 @@
                               :wrap-mode-mirrored-repeat GL2/GL_MIRRORED_REPEAT
                               :wrap-mode-clamp-to-edge GL2/GL_CLAMP_TO_EDGE})
 
-(def ^:private filter-mode-min->gl {:filter-mode-min-nearest GL2/GL_NEAREST
-                                    :filter-mode-min-linear GL2/GL_LINEAR
-                                    :filter-mode-min-nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST
-                                    :filter-mode-min-nearest-mipmap-linear GL2/GL_NEAREST_MIPMAP_LINEAR
-                                    :filter-mode-min-linear-mipmap-nearest GL2/GL_LINEAR_MIPMAP_NEAREST
-                                    :filter-mode-min-linear-mipmap-linear GL2/GL_LINEAR_MIPMAP_LINEAR})
+(defn- filter-mode-min->gl [filter-min default-tex-params]
+  (case filter-min
+    :filter-mode-min-default (:min-filter default-tex-params)
+    :filter-mode-min-nearest GL2/GL_NEAREST
+    :filter-mode-min-linear GL2/GL_LINEAR
+    :filter-mode-min-nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST
+    :filter-mode-min-nearest-mipmap-linear GL2/GL_NEAREST_MIPMAP_LINEAR
+    :filter-mode-min-linear-mipmap-nearest GL2/GL_LINEAR_MIPMAP_NEAREST
+    :filter-mode-min-linear-mipmap-linear GL2/GL_LINEAR_MIPMAP_LINEAR
+    nil))
 
-(def ^:private filter-mode-mag->gl {:filter-mode-mag-nearest GL2/GL_NEAREST
-                                    :filter-mode-mag-linear GL2/GL_LINEAR})
+(defn- filter-mode-mag->gl [filter-mag default-tex-params]
+  (case filter-mag
+    :filter-mode-mag-default (:mag-filter default-tex-params)
+    :filter-mode-mag-nearest GL2/GL_NEAREST
+    :filter-mode-mag-linear GL2/GL_LINEAR
+    nil))
 
 (def ^:private default-sampler {:wrap-u :wrap-mode-clamp-to-edge
                                 :wrap-v :wrap-mode-clamp-to-edge
@@ -448,8 +456,8 @@
    (let [s (or sampler default-sampler)
          params {:wrap-s (wrap-mode->gl (:wrap-u s))
                  :wrap-t (wrap-mode->gl (:wrap-v s))
-                 :min-filter (filter-mode-min->gl (:filter-min s))
-                 :mag-filter (filter-mode-mag->gl (:filter-mag s))
+                 :min-filter (filter-mode-min->gl (:filter-min s) default-tex-params)
+                 :mag-filter (filter-mode-mag->gl (:filter-mag s) default-tex-params)
                  :name (:name s)
                  :default-tex-params default-tex-params}]
      (if (and (not sampler) default-tex-params)

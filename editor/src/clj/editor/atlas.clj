@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.atlas
-  (:require [clojure.string :as str]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.colors :as colors]
             [editor.core :as core]
@@ -47,7 +46,8 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
-            [util.digestable :as digestable])
+            [util.digestable :as digestable]
+            [util.murmur :as murmur])
   (:import [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasImage]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
@@ -188,13 +188,6 @@
                               :passes [pass/selection]}}]
      :updatable animation-updatable}))
 
-(defn- path->id [path]
-  (-> path
-      (str/split #"/")
-      last
-      (str/split #"\.(?=[^\.]+$)")
-      first))
-
 (defn make-animation [id images]
   (types/map->Animation {:id              id
                          :images          images
@@ -219,14 +212,7 @@
 
   (property id g/Str
             (value (g/fnk [maybe-image-resource rename-patterns]
-                     (let [rename-patterns (if (nil? rename-patterns) "" rename-patterns)
-                           id (some-> maybe-image-resource resource/proj-path path->id)]
-                       (if (nil? id)
-                         nil
-                         (try
-                           (AtlasUtil/replaceStrings rename-patterns id)
-                           (catch Exception _
-                             id))))))
+                     (some-> maybe-image-resource (texture-set-gen/resource-id rename-patterns))))
             (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
 
@@ -565,17 +551,17 @@
 
 (defn- produce-page-renderables
   [aabb layout-width layout-height page-index page-rects gpu-texture]
-    {:aabb aabb
-     :transform (get-rect-transform layout-width page-index)
-     :renderable {:render-fn render-atlas
-                  :user-data {:gpu-texture gpu-texture
-                              :vbuf        (gen-renderable-vertex-buffer layout-width layout-height page-index)}
-                  :tags #{:atlas}
-                  :passes [pass/transparent]}
-     :children [{:aabb aabb
-                 :renderable {:render-fn render-atlas-outline
-                              :tags #{:atlas :outline}
-                              :passes [pass/outline]}}]})
+  {:aabb aabb
+   :transform (get-rect-transform layout-width page-index)
+   :renderable {:render-fn render-atlas
+                :user-data {:gpu-texture gpu-texture
+                            :vbuf (gen-renderable-vertex-buffer layout-width layout-height page-index)}
+                :tags #{:atlas}
+                :passes [pass/transparent]}
+   :children [{:aabb aabb
+               :renderable {:render-fn render-atlas-outline
+                            :tags #{:atlas :outline}
+                            :passes [pass/outline]}}]})
 
 (g/defnk produce-scene
   [_node-id aabb layout-rects layout-size gpu-texture child-scenes texture-profile]
@@ -667,7 +653,7 @@
   ;; contain the animation metadata since it was produced from fake animations.
   ;; In order to produce a valid TextureSetResult, we complete the protobuf
   ;; animations inside the embedded TextureSet with our animation properties.
-  [animations layout-data]
+  [animations layout-data all-atlas-images rename-patterns]
   (let [incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
         animation-present-in-ddf? (comp not-empty :images)
@@ -676,8 +662,29 @@
         complete-ddf-animations (map complete-ddf-animation
                                      incomplete-ddf-animations
                                      animations-in-ddf)
+        ;; Texture set must contain hashed references to images:
+        ;; - for stand-alone images: as simple `base-name`
+        ;; - for images in animations: as `animation/base-name`
+        ;; Base name might be affected by rename patterns. Since we don't
+        ;; provide animation names to Bob's layout algorithm, we need to fill
+        ;; them here. The same image (i.e. rect) might be referenced multiple
+        ;; times if it's used in different animations, that's fine and this is
+        ;; how Bob does it in TextureSetGenerator. See also: comments in
+        ;; texture_set_ddf.proto about `image_name_hashes` field
+        fixed-image-name-hashes (-> []
+                                    (into
+                                      (map #(-> % :path (texture-set-gen/resource-id rename-patterns) murmur/hash64))
+                                      all-atlas-images)
+                                    (into
+                                      (mapcat
+                                        (fn [{:keys [id images]}]
+                                          (eduction
+                                            (map #(-> % :path (texture-set-gen/resource-id id rename-patterns) murmur/hash64))
+                                            images)))
+                                      animations))
         complete-ddf-texture-set (assoc incomplete-ddf-texture-set
-                                   :animations complete-ddf-animations)]
+                                   :animations complete-ddf-animations
+                                   :image-name-hashes fixed-image-name-hashes)]
     (assoc layout-data
       :texture-set complete-ddf-texture-set)))
 

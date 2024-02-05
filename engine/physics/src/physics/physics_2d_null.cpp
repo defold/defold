@@ -248,7 +248,13 @@ namespace dmPhysics
         return false;
     }
 
-    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
+    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue)
+    {
+    }
+
+    bool UpdateMass2D(HCollisionObject2D collision_object, float mass)
+    {
+        return false;
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
@@ -311,6 +317,11 @@ namespace dmPhysics
 
     void FlipV2D(HCollisionObject2D collision_object)
     {
+    }
+
+    bool IsWorldLocked(HWorld2D world)
+    {
+        return false;
     }
 
     void GetCollisionShapeRadius2D(HCollisionShape2D shape, float* radius)

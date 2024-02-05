@@ -199,6 +199,9 @@ namespace dmPlatform
     void           AndroidBeginFrame(HWindow window);
     void           iOSSetViewTypeOpenGL(HWindow window);
 
+    void*          AcquireAuxContext(HWindow window);
+    void           UnacquireAuxContext(HWindow window, void* aux_context);
+
     // For tests
     int32_t TriggerCloseCallback(HWindow window);
 };

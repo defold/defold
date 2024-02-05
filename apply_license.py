@@ -94,6 +94,7 @@ excluded_paths = [
     "./engine/dlib/src/lz4",
     "./engine/dlib/src/mbedtls",
     "./engine/dlib/src/stb",
+    "./engine/dlib/src/jc",
     "./engine/dlib/src/zlib",
     "./engine/dlib/src/zip",
     "./engine/glfw/tests",

@@ -379,14 +379,36 @@ namespace dmPlatform
         return -1;
     }
 
+    #ifndef __EMSCRIPTEN__
+        #define GLFW_AUX_CONTEXT_SUPPORTED
+    #endif
+
     static inline int32_t QueryAuxContextImpl()
     {
-    #if defined(__EMSCRIPTEN__)
-        return 0;
-    #else
+    #if defined(GLFW_AUX_CONTEXT_SUPPORTED)
         return glfwQueryAuxContext();
+    #else
+        return 0;
     #endif
     }
+
+    void* AcquireAuxContext(HWindow window)
+    {
+    #if defined(GLFW_AUX_CONTEXT_SUPPORTED)
+        return glfwAcquireAuxContext();
+    #else
+        return 0;
+    #endif
+    }
+
+    void UnacquireAuxContext(HWindow window, void* aux_context)
+    {
+    #if defined(GLFW_AUX_CONTEXT_SUPPORTED)
+        glfwUnacquireAuxContext(aux_context);
+    #endif
+    }
+
+    #undef GLFW_AUX_CONTEXT_SUPPORTED
 
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {

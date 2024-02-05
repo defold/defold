@@ -246,8 +246,9 @@
             (let [script-intelligence (g/node-value project :script-intelligence evaluation-context)
                   completions (g/node-value script-intelligence :lua-completions evaluation-context)]
               {:runtime {:version "Lua 5.1" :pathStrict true}
-               :diagnostics {:globals (into lua/defined-globals
-                                            (lua/extract-globals-from-completions completions))}})
+               :diagnostics {:globals (-> lua/defined-globals
+                                          (into (lua/extract-globals-from-completions completions))
+                                          (into (lua/extract-globals-from-completions lua/editor-completions)))}})
 
             "files.associations"
             (let [workspace (g/node-value project :workspace evaluation-context)

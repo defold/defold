@@ -350,6 +350,12 @@ public:
     virtual ~CursorTest() {}
 };
 
+class FontTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~FontTest() {}
+};
+
 class GuiTest : public GamesysTest<const char*>
 {
 public:

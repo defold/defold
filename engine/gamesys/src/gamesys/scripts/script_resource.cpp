@@ -677,6 +677,7 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * - `resource.TEXTURE_FORMAT_RGBA`
  * 
  * These constants might not be available on the device:
+ *
  * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
  * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
  * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
@@ -1437,7 +1438,7 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
 
 // Creates a texture set from the lua stack, it is expected that the argument
 // table is on top of the stack and that all fields have valid data
-static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, uint32_t num_animation_frames, dmGameSystemDDF::TextureSet* texture_set_ddf)
+static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint32_t num_animations, uint32_t num_animation_frames, dmGameSystemDDF::TextureSet* texture_set_ddf)
 {
     int top = lua_gettop(L);
     texture_set_ddf->m_Texture     = 0;

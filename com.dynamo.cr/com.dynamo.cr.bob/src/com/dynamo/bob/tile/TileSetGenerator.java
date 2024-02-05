@@ -96,6 +96,11 @@ public class TileSetGenerator {
         }
 
         @Override
+        public String getFrameId() {
+            return ""; // A tile source doesn't support playing single image animations using e.g. "tile0" etc.
+        }
+
+        @Override
         public void rewind() {
             nextAnimIndex = 0;
             nextFrameIndex = 0;

@@ -21,7 +21,7 @@
 #include <dlib/hash.h>
 #include <dlib/align.h>
 #include <dlib/array.h>
-#include <dlib/index_pool.h>
+#include <dlib/thread.h>
 #include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/dstrings.h>
@@ -37,7 +37,6 @@
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
-#include "async/job_queue.h"
 #include "graphics_opengl_private.h"
 
 #if defined(DM_PLATFORM_MACOS)
@@ -383,15 +382,7 @@ static void LogFrameBufferError(GLenum status)
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, g_null_adapter_priority);
 
-    struct TextureParamsAsync
-    {
-        HTexture m_Texture;
-        TextureParams m_Params;
-    };
-    dmArray<TextureParamsAsync> g_TextureParamsAsyncArray;
-    dmIndexPool16 g_TextureParamsAsyncArrayIndices;
-    dmArray<HTexture> g_PostDeleteTexturesArray;
-    static void PostDeleteTextures(bool);
+    static void PostDeleteTextures(OpenGLContext*, bool);
     static bool OpenGLInitialize(HContext context);
 
     extern GLenum TEXTURE_UNIT_NAMES[32];
@@ -435,6 +426,7 @@ static void LogFrameBufferError(GLenum status)
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_Window                  = params.m_Window;
+        m_JobThread               = params.m_JobThread;
 
         // We need to have some sort of valid default filtering
         if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -552,8 +544,7 @@ static void LogFrameBufferError(GLenum status)
     {
         if (g_Context == 0x0)
         {
-            g_Context               = new OpenGLContext(params);
-            g_Context->m_AsyncMutex = dmMutex::New();
+            g_Context = new OpenGLContext(params);
 
             if (OpenGLInitialize(g_Context))
             {
@@ -570,10 +561,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context != 0x0)
         {
-            if(g_Context->m_AsyncMutex)
-            {
-                dmMutex::Delete(g_Context->m_AsyncMutex);
-            }
+            ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
             delete context;
             g_Context = 0x0;
         }
@@ -1255,13 +1243,20 @@ static void LogFrameBufferError(GLenum status)
             OpenGLPrintDeviceInfo(context);
         }
 
-        JobQueueInitialize(context->m_Window);
-        if(JobQueueIsAsync())
+        context->m_AsyncProcessingSupport = dmThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_AUX_CONTEXT);
+        if (context->m_AsyncProcessingSupport)
         {
-            if(!ValidateAsyncJobProcessing(context))
+            InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
+
+            if (context->m_JobThread == 0x0)
+            {
+                dmLogError("AsyncInitialize: Platform has async support but no job thread. Fallback to single thread processing.");
+                context->m_AsyncProcessingSupport = 0;
+            }
+            else if(!ValidateAsyncJobProcessing(context))
             {
                 dmLogDebug("AsyncInitialize: Failed to verify async job processing. Fallback to single thread processing.");
-                JobQueueFinalize();
+                context->m_AsyncProcessingSupport = 0;
             }
         }
 
@@ -1289,8 +1284,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
-            JobQueueFinalize();
-            PostDeleteTextures(true);
+            PostDeleteTextures(context, true);
 
             context->m_Width = 0;
             context->m_Height = 0;
@@ -1404,7 +1398,7 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLFlip(HContext context)
     {
         DM_PROFILE(__FUNCTION__);
-        PostDeleteTextures(false);
+        PostDeleteTextures((OpenGLContext*) context, false);
         dmPlatform::SwapBuffers(((OpenGLContext*) context)->m_Window);
         CHECK_GL_ERROR;
     }
@@ -2825,50 +2819,53 @@ static void LogFrameBufferError(GLenum status)
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static void OpenGLDoDeleteTexture(void* context)
+    static void DoDeleteTexture(OpenGLContext* context, HTexture texture)
     {
-        HTexture texture   = (HTexture) context;
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
-
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
         glDeleteTextures(tex->m_NumTextureIds, tex->m_TextureIds);
         CHECK_GL_ERROR;
         free(tex->m_TextureIds);
 
-        g_Context->m_AssetHandleContainer.Release(texture);
+        context->m_AssetHandleContainer.Release(texture);
         delete tex;
+    }
+
+    static int AsyncDeleteTextureProcess(void* _context, void* data)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        void* aux_context = dmPlatform::AcquireAuxContext(context->m_Window);
+        DoDeleteTexture(context, (HTexture) data);
+        dmPlatform::UnacquireAuxContext(context->m_Window, aux_context);
+        return 0;
     }
 
     static void OpenGLDeleteTextureAsync(HTexture texture)
     {
-        JobDesc j;
-        j.m_Context = (void*)texture;
-        j.m_Func = OpenGLDoDeleteTexture;
-        j.m_FuncComplete = 0;
-        JobQueuePush(j);
+        dmJobThread::PushJob(g_Context->m_JobThread, AsyncDeleteTextureProcess, 0, (void*) g_Context, (void*) texture);
     }
 
-    static void PostDeleteTextures(bool force_delete)
+    static void PostDeleteTextures(OpenGLContext* context, bool force_delete)
     {
         DM_PROFILE("OpenGLPostDeleteTextures");
 
         if (force_delete)
         {
-            uint32_t size = g_PostDeleteTexturesArray.Size();
+            uint32_t size = context->m_SetTextureAsyncState.m_PostDeleteTextures.Size();
             for (uint32_t i = 0; i < size; ++i)
             {
-                OpenGLDoDeleteTexture((void*)(size_t) g_PostDeleteTexturesArray[i]);
+                DoDeleteTexture(context, context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
             }
             return;
         }
 
         uint32_t i = 0;
-        while(i < g_PostDeleteTexturesArray.Size())
+        while(i < context->m_SetTextureAsyncState.m_PostDeleteTextures.Size())
         {
-            HTexture texture = g_PostDeleteTexturesArray[i];
+            HTexture texture = context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
             if(!(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
             {
                 OpenGLDeleteTextureAsync(texture);
-                g_PostDeleteTexturesArray.EraseSwap(i);
+                context->m_SetTextureAsyncState.m_PostDeleteTextures.EraseSwap(i);
             }
             else
             {
@@ -2880,18 +2877,16 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLDeleteTexture(HTexture texture)
     {
         assert(texture);
+
         // If they're not uploaded yet, we cannot delete them
         if(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
         {
-            if (g_PostDeleteTexturesArray.Full())
-            {
-                g_PostDeleteTexturesArray.OffsetCapacity(64);
-            }
-            g_PostDeleteTexturesArray.Push(texture);
-            return;
+            PushSetTextureAsyncDeleteTexture(g_Context->m_SetTextureAsyncState, texture);
         }
-
-        OpenGLDeleteTextureAsync(texture);
+        else
+        {
+            OpenGLDeleteTextureAsync(texture);
+        }
     }
 
     static GLenum GetOpenGLTextureWrap(TextureWrap wrap)
@@ -2977,7 +2972,7 @@ static void LogFrameBufferError(GLenum status)
     static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)
     {
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
-        uint32_t flags = TEXTURE_STATUS_OK;
+        uint32_t flags     = TEXTURE_STATUS_OK;
         if(tex->m_DataState)
         {
             flags |= TEXTURE_STATUS_DATA_PENDING;
@@ -2985,48 +2980,55 @@ static void LogFrameBufferError(GLenum status)
         return flags;
     }
 
-    static void OpenGLDoSetTextureAsync(void* context)
+    // Called on worker thread
+    static int AsyncProcessCallback(void* _context, void* data)
     {
-        uint16_t param_array_index = (uint16_t) (size_t) context;
-        TextureParamsAsync ap;
-        {
-            dmMutex::ScopedLock lk(g_Context->m_AsyncMutex);
-            ap = g_TextureParamsAsyncArray[param_array_index];
-            g_TextureParamsAsyncArrayIndices.Push(param_array_index);
-        }
+        OpenGLContext* context     = (OpenGLContext*) _context;
+        uint16_t param_array_index = (uint16_t) (size_t) data;
+        SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
+
+        // TODO: If we use multiple workers, we either need more secondary contexts,
+        //       or we need to guard this call with a mutex. 
+        //       The window handle (pointer) isn't protected by a mutex either,
+        //       but it is currently not used with our GLFW version (yet) so
+        //       we don't necessarily need to guard it right now.
+        void* aux_context = dmPlatform::AcquireAuxContext(context->m_Window);
         SetTexture(ap.m_Texture, ap.m_Params);
         glFlush();
+        dmPlatform::UnacquireAuxContext(context->m_Window, aux_context);
 
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, ap.m_Texture);
-
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, ap.m_Texture);
         tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
+
+        return 0;
+    }
+
+    // Called on thread where we update (which should be the main thread)
+    static void AsyncCompleteCallback(void* _context, void* data, int result)
+    {
+        OpenGLContext* context     = (OpenGLContext*) _context;
+        uint16_t param_array_index = (uint16_t) (size_t) data;
+        ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
     }
 
     static void OpenGLSetTextureAsync(HTexture texture, const TextureParams& params)
     {
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
-
-        tex->m_DataState |= 1<<params.m_MipMap;
-        uint16_t param_array_index;
+        if (g_Context->m_AsyncProcessingSupport)
         {
-            dmMutex::ScopedLock lk(g_Context->m_AsyncMutex);
-            if (g_TextureParamsAsyncArrayIndices.Remaining() == 0)
-            {
-                g_TextureParamsAsyncArrayIndices.SetCapacity(g_TextureParamsAsyncArrayIndices.Capacity()+64);
-                g_TextureParamsAsyncArray.SetCapacity(g_TextureParamsAsyncArrayIndices.Capacity());
-                g_TextureParamsAsyncArray.SetSize(g_TextureParamsAsyncArray.Capacity());
-            }
-            param_array_index = g_TextureParamsAsyncArrayIndices.Pop();
-            TextureParamsAsync& ap = g_TextureParamsAsyncArray[param_array_index];
-            ap.m_Texture = texture;
-            ap.m_Params = params;
-        }
+            OpenGLTexture* tex         = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+            tex->m_DataState          |= 1<<params.m_MipMap;
+            uint16_t param_array_index = PushSetTextureAsyncState(g_Context->m_SetTextureAsyncState, texture, params);
 
-        JobDesc j;
-        j.m_Context = (void*)(size_t)param_array_index;
-        j.m_Func = OpenGLDoSetTextureAsync;
-        j.m_FuncComplete = 0;
-        JobQueuePush(j);
+            dmJobThread::PushJob(g_Context->m_JobThread,
+                AsyncProcessCallback,
+                AsyncCompleteCallback,
+                (void*) g_Context,
+                (void*) (uintptr_t) param_array_index);
+        }
+        else
+        {
+            SetTexture(texture, params);
+        }
     }
 
     static HandleResult OpenGLGetTextureHandle(HTexture texture, void** out_handle)

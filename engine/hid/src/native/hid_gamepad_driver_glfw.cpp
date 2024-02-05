@@ -205,7 +205,6 @@ namespace dmHID
     {
         if (!dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
-            dmLogFatal("could not set glfw gamepad callback.");
             return false;
         }
 
