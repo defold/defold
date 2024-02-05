@@ -2449,7 +2449,7 @@ static void LogFrameBufferError(GLenum status)
             dmLogWarning("Stencil textures are not supported on the OpenGL adapter, defaulting to render buffer.");
         }
 
-        if (use_depth_attachment && use_stencil_attachment)
+        if (use_depth_attachment && use_stencil_attachment && stencil_texture != depth_texture)
         {
             dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
                 (depth_texture ? "texture" : "buffer"),
