@@ -20,6 +20,7 @@
 
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_textureset.h"
+#include "gamesys/resources/res_render_target.h"
 
 #include <stdio.h>
 
@@ -212,8 +213,8 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
     dmResource::SResourceDescriptor* rd_rt = dmResource::FindByHash(m_Factory, dmHashString64("/render_target/valid.render_targetc"));
     ASSERT_NE((void*)0, rd_rt);
 
-    dmResource::ResourceType types[] = { res_type_material, res_type_material, res_type_render_target };
-    void* resources[] = { rd_mat->m_Resource, rd_mat->m_Resource, rd_rt->m_Resource };
+    dmResource::ResourceType types[] = { res_type_material, res_type_render_target, res_type_material };
+    void* resources[] = { rd_mat->m_Resource, rd_rt->m_Resource, rd_mat->m_Resource };
 
     for (int i = 0; i < render_prototype->m_RenderResources.Size(); ++i)
     {
@@ -224,12 +225,12 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
         ASSERT_EQ(resources[i], render_prototype->m_RenderResources[i]);
     }
 
-    dmGameSystem::TextureResource* rt = (dmGameSystem::TextureResource*) rd_rt->m_Resource;
-    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, rt->m_Texture));
-    ASSERT_EQ(dmGraphics::ASSET_TYPE_RENDER_TARGET, dmGraphics::GetAssetType(rt->m_Texture));
+    dmGameSystem::RenderTargetResource* rt = (dmGameSystem::RenderTargetResource*) rd_rt->m_Resource;
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, rt->m_RenderTarget));
+    ASSERT_EQ(dmGraphics::ASSET_TYPE_RENDER_TARGET, dmGraphics::GetAssetType(rt->m_RenderTarget));
 
-    dmGraphics::HTexture attachment_0 = dmGraphics::GetRenderTargetTexture(rt->m_Texture, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
-    dmGraphics::HTexture attachment_1 = dmGraphics::GetRenderTargetTexture(rt->m_Texture, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
+    dmGraphics::HTexture attachment_0 = dmGraphics::GetRenderTargetTexture(rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    dmGraphics::HTexture attachment_1 = dmGraphics::GetRenderTargetTexture(rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
 
     ASSERT_EQ(128, dmGraphics::GetTextureWidth(attachment_0));
     ASSERT_EQ(128, dmGraphics::GetTextureHeight(attachment_0));
