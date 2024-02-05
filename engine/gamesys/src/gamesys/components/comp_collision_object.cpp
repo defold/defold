@@ -847,10 +847,6 @@ namespace dmGameSystem
 
     static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data)
     {
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
-        dmMessage::URL receiver;
-        receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
-        receiver.m_Path = dmGameObject::GetIdentifier(instance);
         dmGameObject::Result message_result = dmGameObject::RESULT_OK;
         CollisionWorld* world = (CollisionWorld*)user_data;
         if (response.m_Hit)
@@ -871,7 +867,7 @@ namespace dmGameSystem
             }
             else
             {
-                message_result = dmGameObject::PostDDF(&response_ddf, 0x0, &receiver, 0x0, false);
+                message_result = dmGameObject::PostDDF(&response_ddf, 0x0, (dmMessage::URL*)request.m_UserData, 0x0, false);
             }
         }
         else
@@ -884,10 +880,10 @@ namespace dmGameSystem
             }
             else
             {
-                message_result = dmGameObject::PostDDF(&missed_ddf, 0x0, &receiver, 0x0, false);
+                message_result = dmGameObject::PostDDF(&missed_ddf, 0x0, (dmMessage::URL*)request.m_UserData, 0x0, false);
             }
         }
-
+        free(request.m_UserData);
         if (message_result != dmGameObject::RESULT_OK)
         {
             dmLogError("Error when sending ray cast response: %d", message_result);
@@ -931,14 +927,18 @@ namespace dmGameSystem
                     // Give that the assumption above holds, this assert will hold too.
                     assert(world->m_ComponentTypeIndex == context->m_World->m_ComponentTypeIndex);
 
+                    dmMessage::URL* receiver = (dmMessage::URL*)malloc(sizeof(dmMessage::URL));
+                    dmMessage::ResetURL(receiver);
+                    receiver->m_Socket = dmGameObject::GetMessageSocket(collection);
+                    receiver->m_Path = dmGameObject::GetIdentifier(sender_instance);
+                    
                     dmPhysics::RayCastRequest request;
                     request.m_From = ddf->m_From;
                     request.m_To = ddf->m_To;
                     request.m_IgnoredUserData = sender_instance;
                     request.m_Mask = ddf->m_Mask;
                     request.m_UserId = component_index << 16 | (ddf->m_RequestId & 0xff);
-                    request.m_UserData = (void*)sender_instance;
-
+                    request.m_UserData = (void*)receiver;
                     if (world->m_3D)
                     {
                         dmPhysics::RequestRayCast3D(world->m_World3D, request);
