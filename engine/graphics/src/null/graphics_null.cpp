@@ -464,21 +464,22 @@ namespace dmGraphics
     {
         VertexDeclaration* vd = new VertexDeclaration;
         memset(vd, 0, sizeof(VertexDeclaration));
-
-        vd->m_Stride = 0;
-        for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
+        if (stream_declaration)
         {
-            VertexStream& stream = stream_declaration->m_Streams[i];
-            vd->m_Streams[i].m_NameHash  = stream.m_NameHash;
-            vd->m_Streams[i].m_Location  = -1;
-            vd->m_Streams[i].m_Size      = stream.m_Size;
-            vd->m_Streams[i].m_Type      = stream.m_Type;
-            vd->m_Streams[i].m_Normalize = stream.m_Normalize;
-            vd->m_Streams[i].m_Offset    = vd->m_Stride;
+            for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
+            {
+                VertexStream& stream = stream_declaration->m_Streams[i];
+                vd->m_Streams[i].m_NameHash  = stream.m_NameHash;
+                vd->m_Streams[i].m_Location  = -1;
+                vd->m_Streams[i].m_Size      = stream.m_Size;
+                vd->m_Streams[i].m_Type      = stream.m_Type;
+                vd->m_Streams[i].m_Normalize = stream.m_Normalize;
+                vd->m_Streams[i].m_Offset    = vd->m_Stride;
 
-            vd->m_Stride += stream.m_Size * GetTypeSize(stream.m_Type);
+                vd->m_Stride += stream.m_Size * GetTypeSize(stream.m_Type);
+            }
+            vd->m_StreamCount = stream_declaration->m_StreamCount;
         }
-        vd->m_StreamCount = stream_declaration->m_StreamCount;
         return vd;
     }
 
