@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -713,21 +713,20 @@ namespace dmGameSystem
             world->m_VertexBufferWritePtr = world->m_VertexBufferData;
             world->m_RenderObjects.SetSize(0);
             break;
-
         case dmRender::RENDER_LIST_OPERATION_END:
             {
                 uint32_t vertex_count = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
                 uint32_t vertex_data_size = sizeof(TileGridVertex) * vertex_count;
-                dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
-                DM_PROPERTY_ADD_U32(rmtp_TilemapTileCount, vertex_count/6);
-                DM_PROPERTY_ADD_U32(rmtp_TilemapVertexCount, vertex_count);
-                DM_PROPERTY_ADD_U32(rmtp_TilemapVertexSize, vertex_count * sizeof(TileGridVertex));
-
-                world->m_DispatchCount++;
-            }
-            break;
-
+                if (vertex_data_size > 0)
+                {
+                    dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                    DM_PROPERTY_ADD_U32(rmtp_TilemapTileCount, vertex_count/6);
+                    DM_PROPERTY_ADD_U32(rmtp_TilemapVertexCount, vertex_count);
+                    DM_PROPERTY_ADD_U32(rmtp_TilemapVertexSize, vertex_count * sizeof(TileGridVertex));
+                    world->m_DispatchCount++;
+                }
+            } break;
         case dmRender::RENDER_LIST_OPERATION_BATCH:
             assert(params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH);
             RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);

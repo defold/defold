@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -422,7 +422,11 @@ namespace dmGameSystem
 
     static inline TextureSetResource* GetTextureSet(const SpriteComponent* component, uint32_t index) {
         const SpriteResourceOverrides* overrides = component->m_Overrides;
-        const SpriteTexture* texture = (overrides && !overrides->m_Textures.Empty()) ? &overrides->m_Textures[index] : &component->m_Resource->m_Textures[index];
+        const SpriteTexture* texture = 0;
+        if (overrides && !overrides->m_Textures.Empty())
+            texture = &overrides->m_Textures[index];
+        if (!texture || !texture->m_TextureSet)
+            texture = &component->m_Resource->m_Textures[index];
         return texture->m_TextureSet;
     }
 
@@ -548,6 +552,8 @@ namespace dmGameSystem
         }
 
         dmHashUpdateBuffer32(&state, resource->m_Textures, sizeof(SpriteTexture) * resource->m_NumTextures);
+        dmHashUpdateBuffer32(&state, resource->m_Material, sizeof(MaterialResource*));
+
         HashResourceOverrides(&state, component->m_Overrides);
 
         component->m_MixedHash = dmHashFinal32(&state);
@@ -755,9 +761,16 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < textures->m_NumTextures; ++i)
         {
-            uint32_t frame_index = textures->m_Frames[i];
             dmArray<float>& uvs = scratch_uvs[i];
             EnsureSize(uvs, SPRITE_VERTEX_COUNT_SLICE9*2);
+
+            uint32_t frame_index = textures->m_Frames[i];
+            if (frame_index == 0xFFFFFFFF)
+            {
+                // The animation frame wasn't found in the textureset.
+                memset(uvs.Begin(), 0, uvs.Size());
+                continue;
+            }
 
             const dmGameSystemDDF::TextureSet*          texture_set_ddf = textures->m_TextureSets[i];
             const float* tex_coords     = (const float*) texture_set_ddf->m_TexCoords.m_Data;
@@ -800,22 +813,21 @@ namespace dmGameSystem
                 vs[vI[3]] = tc[3];
             }
 
-            // store the full list of uv coords
-            float* us_p = us;
-            float* vs_p = vs;
-            if (uv_rotated)
-            {
-                us_p = vs;
-                vs_p = us;
-            }
-
             int index = 0;
             for (int y=0; y<4; ++y)
             {
                 for (int x=0; x<4; ++x, ++index)
                 {
-                    uvs[index*2+0] = us_p[x];
-                    uvs[index*2+1] = vs_p[y];
+                    if (uv_rotated)
+                    {
+                        uvs[index*2+0] = us[y];
+                        uvs[index*2+1] = vs[x];
+                    }
+                    else
+                    {
+                        uvs[index*2+0] = us[x];
+                        uvs[index*2+1] = vs[y];
+                    }
                 }
             }
         }
@@ -911,12 +923,15 @@ namespace dmGameSystem
             const uint32_t* page_indices = texture_set_ddf->m_PageIndices.m_Data;
             const dmGameSystemDDF::SpriteGeometry* geometries = texture_set_ddf->m_Geometries.m_Data;
 
+            uint32_t* anim_index = data->m_Resources[i]->m_AnimationIds.Get(anim_id);
+            if (anim_index)
+                data->m_Animations[i] = &texture_set_ddf->m_Animations[*anim_index];
+            else
+                data->m_Animations[i] = &texture_set_ddf->m_Animations[0]; // If the animation doesn't exist in the atlas, then fallback to the first animation (old behavior)
+
             uint32_t frame_index = 0xFFFFFFFF;
             if (frame_anim_id == 0xFFFFFFFFFFFFFFFF)
             {
-                uint32_t* anim_index = data->m_Resources[i]->m_AnimationIds.Get(anim_id);
-                data->m_Animations[i] = &texture_set_ddf->m_Animations[*anim_index];
-
                 uint32_t anim_frame_index = data->m_Animations[i]->m_Start + current_anim_frame_index;
                 frame_index = frame_indices[anim_frame_index];
 
@@ -927,17 +942,15 @@ namespace dmGameSystem
             {
                 // Use the name hash of the current single frame animation from the driving atlas
                 // to lookup the frame number in this atlas
-                uint32_t* anim_index = data->m_Resources[i]->m_FrameIds.Get(frame_anim_id);
-                if (!anim_index)
+                uint32_t* resource_frame_index = data->m_Resources[i]->m_FrameIds.Get(frame_anim_id);
+                if (!resource_frame_index)
                 {
                     // Missing image in this atlas, we need to skip this texture slot
-                    data->m_Animations[i] = 0;
                     data->m_Frames[i] = 0xFFFFFFFF;
                     continue;
                 }
 
-                frame_index = *anim_index;
-                data->m_Animations[i] = &texture_set_ddf->m_Animations[frame_index];
+                frame_index = *resource_frame_index;
             }
 
             data->m_Frames[i]       = frame_index;
@@ -961,12 +974,25 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < data->m_NumTextures; ++i)
         {
-            uint32_t frame_index = data->m_Frames[i];
             dmArray<float>& uvs = scratch_uvs[i];
             EnsureSize(uvs, 4*2);
 
+            uint32_t frame_index = data->m_Frames[i];
+            if (frame_index == 0xFFFFFFFF)
+            {
+                // The animation frame wasn't found in the textureset.
+                memset(uvs.Begin(), 0, uvs.Size());
+                continue;
+            }
+
             const dmGameSystemDDF::TextureSet*          texture_set_ddf = data->m_TextureSets[i];
             const dmGameSystemDDF::TextureSetAnimation* animation_ddf = data->m_Animations[i];
+            if (!animation_ddf)
+            {
+                memset(uvs.Begin(), 0, sizeof(float)*uvs.Size());
+                continue;
+            }
+                
             const float* tex_coords     = (const float*) texture_set_ddf->m_TexCoords.m_Data;
             const float* tc             = &tex_coords[frame_index * 4 * 2];
             uint32_t flip_flag          = 0;
@@ -1571,8 +1597,6 @@ namespace dmGameSystem
                 continue;
             }
 
-            TextureSetResource* texture_set = GetFirstTextureSet(component);
-
             dmRender::HMaterial material           = GetMaterial(component);
             dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
             uint32_t vertex_stride                 = dmGraphics::GetVertexDeclarationStride(vx_decl);
@@ -1580,8 +1604,20 @@ namespace dmGameSystem
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
             vertex_memsize += vertex_stride - vertex_memsize % vertex_stride;
 
-            if (texture_set->m_TextureSet->m_UseGeometries != 0)
+            TexturesData textures = {};
+            textures.m_NumTextures = GetNumTextures(component);
+            for (uint32_t i = 0; i < textures.m_NumTextures; ++i)
             {
+                textures.m_Resources[i] = GetTextureSet(component, i);
+                textures.m_TextureSets[i] = textures.m_Resources[i]->m_TextureSet;
+            }
+
+            // Get the correct animation frames, and other meta data
+            ResolveAnimationData(&textures, component->m_CurrentAnimation, component->m_CurrentAnimationFrame);
+
+            if (!CanUseQuads(&textures))
+            {
+                TextureSetResource* texture_set                     = GetFirstTextureSet(component);
                 dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
                 dmGameSystemDDF::TextureSetAnimation* animations    = texture_set_ddf->m_Animations.m_Data;
                 dmGameSystemDDF::TextureSetAnimation* animation_ddf = &animations[component->m_AnimationID];
@@ -1685,24 +1721,22 @@ namespace dmGameSystem
             case dmRender::RENDER_LIST_OPERATION_END:
                 {
                     uint32_t vertex_data_size = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
+                    uint32_t index_data_size  = world->m_IndexBufferWritePtr - world->m_IndexBufferData;
 
-                    if (vertex_data_size)
+                    // JG: The renderer executes the dispatch function for begin/end regardless if something is actually batched or not
+                    //     This behaviour can cause side-effects on certain platforms and non-opengl graphics adapters.
+                    //     We might want to change how that process is setup, but for now this is a safer change.
+                    if (vertex_data_size && index_data_size)
                     {
                         dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                        dmRender::SetBufferData(params.m_Context, world->m_IndexBuffer, index_data_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
 
                         DM_PROPERTY_ADD_U32(rmtp_SpriteVertexCount, world->m_VertexCount);
                         DM_PROPERTY_ADD_U32(rmtp_SpriteVertexSize, vertex_data_size);
+                        DM_PROPERTY_ADD_U32(rmtp_SpriteIndexSize, index_data_size);
 
+                        world->m_DispatchCount++;
                     }
-                    uint32_t index_size = (world->m_IndexBufferWritePtr - world->m_IndexBufferData);
-                    if (index_size)
-                    {
-                        dmRender::SetBufferData(params.m_Context, world->m_IndexBuffer, index_size, world->m_IndexBufferData, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-
-                        DM_PROPERTY_ADD_U32(rmtp_SpriteIndexSize, index_size);
-                    }
-
-                    world->m_DispatchCount++;
                 }
                 break;
             default:

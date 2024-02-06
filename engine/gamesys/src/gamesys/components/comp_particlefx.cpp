@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -408,24 +408,25 @@ namespace dmGameSystem
     static void RenderListDispatch(dmRender::RenderListDispatchParams const &params)
     {
         ParticleFXWorld* pfx_world = (ParticleFXWorld*)params.m_UserData;
-
-        if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BEGIN)
+        switch(params.m_Operation)
         {
-            pfx_world->m_VertexBufferData.SetSize(0);
-            pfx_world->m_RenderObjects.SetSize(0);
-        }
-        else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
-        {
-            RenderBatch(pfx_world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
-        }
-        else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_END)
-        {
-            dmRender::SetBufferData(params.m_Context, pfx_world->m_VertexBuffer, pfx_world->m_VertexBufferData.Size(), pfx_world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-
-            DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VerticesWritten);
-            DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSize, pfx_world->m_VertexBufferData.Size());
-
-            pfx_world->m_DispatchCount++;
+            case dmRender::RENDER_LIST_OPERATION_BEGIN:
+                pfx_world->m_VertexBufferData.SetSize(0);
+                pfx_world->m_RenderObjects.SetSize(0);
+                break;
+            case dmRender::RENDER_LIST_OPERATION_BATCH:
+                RenderBatch(pfx_world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
+                break;
+            case dmRender::RENDER_LIST_OPERATION_END:
+                if (pfx_world->m_VertexBufferData.Size() > 0)
+                {
+                    dmRender::SetBufferData(params.m_Context, pfx_world->m_VertexBuffer, pfx_world->m_VertexBufferData.Size(), pfx_world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                    DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VerticesWritten);
+                    DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSize, pfx_world->m_VertexBufferData.Size());
+                    pfx_world->m_DispatchCount++;
+                }
+                break;
+            default:break;
         }
     }
 

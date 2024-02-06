@@ -1,4 +1,3 @@
-tile_set: "/checked.atlas"
 default_animation: "diamond"
 material: "/checked.material"
 blend_mode: BLEND_MODE_ADD
@@ -114,4 +113,8 @@ attributes {
   double_values {
     v: 2.0
   }
+}
+textures {
+  sampler: "texture0"
+  texture: "/checked.atlas"
 }

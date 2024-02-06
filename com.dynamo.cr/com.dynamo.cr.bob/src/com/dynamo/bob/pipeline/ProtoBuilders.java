@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -108,16 +108,6 @@ public class ProtoBuilders {
         MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
         materialBuilder.mergeFrom(materialBuildResource.getContent());
         return materialBuilder;
-    }
-
-    private static VertexAttribute GetAttributeByName(List<VertexAttribute> attributes, String attributeName)
-    {
-        for (VertexAttribute attr : attributes) {
-            if (attr.getName().equals(attributeName)) {
-                return attr;
-            }
-        }
-        return null;
     }
 
     // TODO: Should we move this to a build resource?
@@ -398,7 +388,7 @@ public class ProtoBuilders {
 
                 for (int i=0; i < messageBuilder.getAttributesCount(); i++) {
                     VertexAttribute spriteAttribute = messageBuilder.getAttributes(i);
-                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, spriteAttribute.getName());
+                    VertexAttribute materialAttribute = GraphicsUtil.getAttributeByName(materialAttributes, spriteAttribute.getName());
 
                     if (materialAttribute != null) {
                         spriteAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(spriteAttribute, materialAttribute));
@@ -519,7 +509,7 @@ public class ProtoBuilders {
 
                 for (int j=0; j < emitterBuilder.getAttributesCount(); j++) {
                     VertexAttribute emitterAttribute  = emitterBuilder.getAttributes(j);
-                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, emitterAttribute.getName());
+                    VertexAttribute materialAttribute = GraphicsUtil.getAttributeByName(materialAttributes, emitterAttribute.getName());
 
                     if (materialAttribute != null) {
                         emitterAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(emitterAttribute, materialAttribute));

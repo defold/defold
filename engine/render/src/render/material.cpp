@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,17 +29,15 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    static const dmhash_t VERTEX_STREAM_POSITION   = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_COLOR      = dmHashString64("color");
-    static const dmhash_t VERTEX_STREAM_PAGE_INDEX = dmHashString64("page_index");
-
     static dmGraphics::VertexAttribute::SemanticType GetAttributeSemanticType(dmhash_t from_hash)
     {
         if      (from_hash == VERTEX_STREAM_POSITION)   return dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
         else if (from_hash == VERTEX_STREAM_TEXCOORD0)  return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
+        else if (from_hash == VERTEX_STREAM_TEXCOORD1)  return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
         else if (from_hash == VERTEX_STREAM_COLOR)      return dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
         else if (from_hash == VERTEX_STREAM_PAGE_INDEX) return dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX;
+        else if (from_hash == VERTEX_STREAM_NORMAL)     return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
+        else if (from_hash == VERTEX_STREAM_TANGENT)    return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
         return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
     }
 
@@ -337,6 +335,15 @@ namespace dmRender
         return 0x0;
     }
 
+    dmhash_t GetMaterialSamplerNameHash(HMaterial material, uint32_t unit)
+    {
+        if (unit < material->m_Samplers.Size())
+        {
+            return material->m_Samplers[unit].m_NameHash;
+        }
+        return 0;
+    }
+
     uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash)
     {
         for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
@@ -361,12 +368,7 @@ namespace dmRender
         if (s->m_Location != -1)
         {
             dmGraphics::SetSampler(graphics_context, s->m_Location, unit);
-
-            if (s->m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
-                s->m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
-            {
-                dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
-            }
+            dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
         }
     }
 

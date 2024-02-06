@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -83,13 +83,18 @@ namespace dmGraphics
     typedef HVertexDeclaration (*NewVertexDeclarationFn)(HContext context, HVertexStreamDeclaration stream_declaration);
     typedef HVertexDeclaration (*NewVertexDeclarationStrideFn)(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride);
     typedef bool (*SetStreamOffsetFn)(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
+
     typedef void (*DeleteVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
-    typedef void (*EnableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
-    typedef void (*EnableVertexDeclarationProgramFn)(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
+    typedef void (*EnableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program);
     typedef void (*DisableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration);
     typedef void (*HashVertexDeclarationFn)(HashState32* state, HVertexDeclaration vertex_declaration);
+    typedef uint32_t (*GetVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
     typedef uint32_t (*GetVertexDeclarationStrideFn)(HVertexDeclaration vertex_declaration);
     typedef uint32_t (*GetVertexStreamOffsetFn)(HVertexDeclaration vertex_declaration, dmhash_t name_hash);
+
+    typedef void (*EnableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
+    typedef void (*DisableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer);
+
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
     typedef void (*DispatchComputeFn)(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
@@ -208,9 +213,10 @@ namespace dmGraphics
         SetStreamOffsetFn m_SetStreamOffset;
         DeleteVertexDeclarationFn m_DeleteVertexDeclaration;
         EnableVertexDeclarationFn m_EnableVertexDeclaration;
-        EnableVertexDeclarationProgramFn m_EnableVertexDeclarationProgram;
         DisableVertexDeclarationFn m_DisableVertexDeclaration;
         HashVertexDeclarationFn m_HashVertexDeclaration;
+        EnableVertexBufferFn m_EnableVertexBuffer;
+        DisableVertexBufferFn m_DisableVertexBuffer;
         GetVertexDeclarationStrideFn m_GetVertexDeclarationStride;
         GetVertexStreamOffsetFn m_GetVertexStreamOffset;
         DrawElementsFn m_DrawElements;
@@ -335,10 +341,11 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStreamOffset); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexDeclaration); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexDeclarationProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, HashVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetVertexDeclarationStride); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetVertexStreamOffset); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElements); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Draw); \

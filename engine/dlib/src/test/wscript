@@ -203,3 +203,4 @@ def build(bld):
     create_test(bld, 'test_objectpool')
     create_test(bld, 'test_opaque_handle_container')
     create_test(bld, 'test_crypt')
+    create_test(bld, 'test_job_thread')

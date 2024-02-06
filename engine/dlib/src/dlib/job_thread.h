@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,15 +12,30 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#ifndef DM_JOB_THREAD_H
+#define DM_JOB_THREAD_H
+
+#include <stdint.h>
+
 namespace dmJobThread
 {
     typedef struct JobContext* HContext;
-
     typedef int (*FProcess)(void* context, void* data);
     typedef void (*FCallback)(void* context, void* data, int result);
 
-    HContext    Create(const char* thread_name);
-    void        Destroy(HContext context);
-    void        Update(HContext context); // Flushes any items and calls PostProcess
-    void        PushJob(HContext context, FProcess process, FCallback callback, void* user_context, void* data);
+    static const uint8_t DM_MAX_JOB_THREAD_COUNT = 8;
+
+    struct JobThreadCreationParams
+    {
+        const char* m_ThreadNames[DM_MAX_JOB_THREAD_COUNT];
+        uint8_t     m_ThreadCount;
+    };
+
+    HContext Create(const JobThreadCreationParams& create_params);
+    void     Destroy(HContext context);
+    void     Update(HContext context); // Flushes any items and calls PostProcess
+    void     PushJob(HContext context, FProcess process, FCallback callback, void* user_context, void* data);
+    bool     PlatformHasThreadSupport();
 }
+
+#endif // DM_JOB_THREAD_H

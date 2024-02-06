@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,6 +19,7 @@
 #include <string.h>
 #include <script/script.h>
 
+#include <dlib/job_thread.h>
 #include <resource/resource.h>
 
 #include <dmsdk/dlib/array.h>
@@ -155,6 +156,7 @@ namespace dmGameSystem
         dmGameObject::HRegister m_Register;
         dmHID::HContext         m_HidContext;
         dmGraphics::HContext    m_GraphicsContext;
+        dmJobThread::HContext   m_JobThread;
     };
 
 
@@ -192,6 +194,7 @@ namespace dmGameSystem
 
     bool InitializeScriptLibs(const ScriptLibContext& context);
     void FinalizeScriptLibs(const ScriptLibContext& context);
+    void UpdateScriptLibs(const ScriptLibContext& context);
 
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,

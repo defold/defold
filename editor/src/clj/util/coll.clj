@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,16 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (def empty-sorted-map (sorted-map))
+
+(defn ascending-order
+  "Comparator that orders items in ascending order."
+  [a b]
+  (compare a b))
+
+(defn descending-order
+  "Comparator that orders items in descending order."
+  [a b]
+  (compare b a))
 
 (defn supports-transient?
   "Returns true if the supplied persistent collection can be made into a

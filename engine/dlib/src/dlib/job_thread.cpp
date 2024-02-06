@@ -1,31 +1,36 @@
+// Copyright 2020-2024 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 
 #include <stdio.h> // printf
 
 #include <dmsdk/dlib/array.h>
 
-
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/dlib/log.h>
-
-#if !defined(__EMSCRIPTEN__)
-    #define DM_HAS_THREADS
-#endif
-
-#if defined(DM_USE_SINGLE_THREAD)
-    #if defined(DM_HAS_THREADS)
-        #undef DM_HAS_THREADS
-    #endif
-#endif
+#include <dlib/thread.h>
+#include <dlib/math.h>
+#include <dlib/dstrings.h>
 
 #if defined(DM_HAS_THREADS)
     #include <dmsdk/dlib/condition_variable.h>
     #include <dmsdk/dlib/mutex.h>
-    #include <dmsdk/dlib/thread.h>
 #endif
 
-#include "ringbuffer.h"
+#include "jc/ringbuffer.h"
 #include "job_thread.h"
 
 namespace dmJobThread
@@ -55,7 +60,7 @@ struct JobThreadContext
 struct JobContext
 {
 #if defined(DM_HAS_THREADS)
-    dmThread::Thread    m_Thread;
+    dmArray<dmThread::Thread> m_Threads;
 #endif
     JobThreadContext    m_ThreadContext;
 };
@@ -99,8 +104,11 @@ static void JobThread(void* _ctx)
             item = ctx->m_Work.Pop();
         }
 
-        item.m_Result = item.m_Process(item.m_Context, item.m_Data);
-        PutDone(ctx, &item);
+        {
+            DM_PROFILE("JobThread");
+            item.m_Result = item.m_Process(item.m_Context, item.m_Data);
+            PutDone(ctx, &item);
+        }
     }
 }
 #else
@@ -116,15 +124,24 @@ static void UpdateSingleThread(JobThreadContext* ctx)
 }
 #endif
 
-HContext Create(const char* thread_name)
+HContext Create(const JobThreadCreationParams& create_params)
 {
     JobContext* context = new JobContext;
 #if defined(DM_HAS_THREADS)
-    context->m_Thread = 0;
     context->m_ThreadContext.m_Mutex = dmMutex::New();
     context->m_ThreadContext.m_WakeupCond = dmConditionVariable::New();
     context->m_ThreadContext.m_Run = 1;
-    context->m_Thread = dmThread::New(JobThread, 0x80000, (void*)&context->m_ThreadContext, thread_name);
+
+    uint32_t thread_count = dmMath::Min(create_params.m_ThreadCount, DM_MAX_JOB_THREAD_COUNT);
+    context->m_Threads.SetCapacity(thread_count);
+    context->m_Threads.SetSize(thread_count);
+
+    for (int i = 0; i < thread_count; ++i)
+    {
+        char name_buf[128];
+        dmSnPrintf(name_buf, sizeof(name_buf), "%s_%d", create_params.m_ThreadNames[i], i);
+        context->m_Threads[i] = dmThread::New(JobThread, 0x80000, (void*)&context->m_ThreadContext, name_buf);
+    }
 #endif
     return context;
 }
@@ -138,11 +155,17 @@ void Destroy(HContext context)
     dmAtomicStore32(&context->m_ThreadContext.m_Run, 0);
     {
         DM_MUTEX_SCOPED_LOCK(context->m_ThreadContext.m_Mutex);
-        // Wake up the worker so it can exit and allow us to join
-        dmConditionVariable::Signal(context->m_ThreadContext.m_WakeupCond);
+        // Wake up the worker threads so it can exit and allow us to join
+        for (int i = 0; i < context->m_Threads.Size(); ++i)
+        {
+            dmConditionVariable::Signal(context->m_ThreadContext.m_WakeupCond);
+        }
     }
 
-    dmThread::Join(context->m_Thread);
+    for (int i = 0; i < context->m_Threads.Size(); ++i)
+    {
+        dmThread::Join(context->m_Threads[i]);
+    }
     dmConditionVariable::Delete(context->m_ThreadContext.m_WakeupCond);
     dmMutex::Delete(context->m_ThreadContext.m_Mutex);
 #endif // DM_HAS_THREADS
@@ -193,7 +216,8 @@ void Update(HContext context)
     for(uint32_t i = 0; i < size; ++i)
     {
         JobItem& item = items[i];
-        item.m_Callback(item.m_Context, item.m_Data, item.m_Result);
+        if (item.m_Callback)
+            item.m_Callback(item.m_Context, item.m_Data, item.m_Result);
     }
 }
 

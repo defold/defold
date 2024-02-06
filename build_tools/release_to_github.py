@@ -1,12 +1,12 @@
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -154,6 +154,7 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
         return os.path.basename(path) in filenames \
             or is_editor_file(path) \
             or 'engine/defoldsdk.zip' in path \
+            or 'engine/defoldsdk.sha256' in path \
             or 'engine/defoldsdk_headers.zip' in path
 
     def is_platform_file(path):
