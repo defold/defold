@@ -71,6 +71,9 @@ namespace dmGraphics
             vk_vertex_input_descs[num_attributes].format   = stream_in.m_Format;
             vk_vertex_input_descs[num_attributes].offset   = stream_in.m_Offset;
 
+            /////////////////////////////////////////////////////////////////////////////////
+            // TODO: For matrix support, we need multiple attributes (4 for a mat4 and so on)
+
             num_attributes++;
         }
 
