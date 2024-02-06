@@ -1712,11 +1712,10 @@ namespace dmGraphics
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
-        Texture* tex               = 0;
+        Texture* tex               = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
 
-        if (result)
+        if (result && tex)
         {
-            tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
             SetTexture(ap.m_Texture, ap.m_Params);
             tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
         }

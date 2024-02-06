@@ -51,6 +51,7 @@ namespace dmPhysics
 
     };
 
+    // Matches PhysicsResultString in script_physics.cpp
     enum JointResult
     {
         RESULT_OK = 0,
@@ -58,7 +59,8 @@ namespace dmPhysics
         RESULT_ID_EXISTS = 2,
         RESULT_ID_NOT_FOUND = 3,
         RESULT_NOT_CONNECTED = 4,
-        RESULT_UNKNOWN_ERROR = 5,
+        RESULT_PHYSICS_WORLD_LOCKED = 5,
+        RESULT_UNKNOWN_ERROR = 6,
     };
 
     /// 3D context handle.
@@ -1407,6 +1409,7 @@ namespace dmPhysics
     bool GetJointReactionTorque2D(HWorld2D world, HJoint joint, float& torque, float inv_dt);
     void FlipH2D(HCollisionObject2D collision_object);
     void FlipV2D(HCollisionObject2D collision_object);
+    bool IsWorldLocked(HWorld2D world);
 
     void              ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape);
     HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index);

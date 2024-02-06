@@ -724,8 +724,6 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
             dmGraphics::SetTextureAsync(textures[i], params);
         }
 
-        delete [] (char*) params.m_Data;
-
         // Flag all textures for deletion, since we allow async deletion, these will put on a post-delete queue
         for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
         {
@@ -781,7 +779,6 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
         {
             dmGraphics::DeleteTexture(textures[i]);
-            ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, textures[i]));
         }
 
         all_complete = false;
@@ -805,6 +802,8 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
             ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, textures[i]));
         }
     }
+
+    delete [] (char*) params.m_Data;
 
     m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
 }
