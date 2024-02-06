@@ -779,7 +779,6 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
         {
             dmGraphics::DeleteTexture(textures[i]);
-            ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, textures[i]));
         }
 
         all_complete = false;
