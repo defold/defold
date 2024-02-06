@@ -58,7 +58,7 @@ namespace dmScript
 
     const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)
     {
-        char tmp[256];
+        char tmp[32];
         *buffer = '\0';
 
         const char* unknown = "<unknown>";
@@ -95,7 +95,7 @@ namespace dmScript
     static int URL_tostring(lua_State *L)
     {
         dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, 1);
-        char buffer[512];
+        char buffer[64];
         UrlToString(url, buffer, sizeof(buffer));
         lua_pushfstring(L, "%s: [%s]", SCRIPT_TYPE_NAME_URL, buffer);
         return 1;
@@ -105,7 +105,7 @@ namespace dmScript
     {
         const char* s = luaL_checkstring(L, 1);
         dmMessage::URL* url = CheckURL(L, 2);
-        char buffer[512];
+        char buffer[64];
         UrlToString(url, buffer, sizeof(buffer));
         lua_pushfstring(L, "%s[%s]", s, buffer);
         return 1;

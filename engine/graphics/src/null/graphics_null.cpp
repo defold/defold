@@ -21,6 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/thread.h>
+#include <dlib/hash.h>
 
 #include <platform/platform_window.h>
 
@@ -461,28 +462,25 @@ namespace dmGraphics
 
     static HVertexDeclaration NullNewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
     {
-        VertexDeclaration* vd = new VertexDeclaration();
-        if (stream_declaration == 0)
+        VertexDeclaration* vd = new VertexDeclaration;
+        memset(vd, 0, sizeof(VertexDeclaration));
+        if (stream_declaration)
         {
-            memset(vd, 0, sizeof(*vd));
-            return vd;
+            for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
+            {
+                VertexStream& stream = stream_declaration->m_Streams[i];
+                vd->m_Streams[i].m_NameHash  = stream.m_NameHash;
+                vd->m_Streams[i].m_Location  = -1;
+                vd->m_Streams[i].m_Size      = stream.m_Size;
+                vd->m_Streams[i].m_Type      = stream.m_Type;
+                vd->m_Streams[i].m_Normalize = stream.m_Normalize;
+                vd->m_Streams[i].m_Offset    = vd->m_Stride;
+
+                vd->m_Stride += stream.m_Size * GetTypeSize(stream.m_Type);
+            }
+            vd->m_StreamCount = stream_declaration->m_StreamCount;
         }
-        memcpy(&vd->m_StreamDeclaration, stream_declaration, sizeof(VertexStreamDeclaration));
         return vd;
-    }
-
-    bool NullSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
-    {
-        if (stream_index > vertex_declaration->m_StreamDeclaration.m_StreamCount) {
-            return false;
-        }
-
-        return true;
-    }
-
-    static void NullDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
-    {
-        delete vertex_declaration;
     }
 
     static void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
@@ -534,17 +532,18 @@ namespace dmGraphics
 
         uint16_t stride = 0;
 
-        for (uint32_t i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
+        for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
-            stride += vertex_declaration->m_StreamDeclaration.m_Streams[i].m_Size * TYPE_SIZE[vertex_declaration->m_StreamDeclaration.m_Streams[i].m_Type - dmGraphics::TYPE_BYTE];
+            stride += vertex_declaration->m_Streams[i].m_Size * TYPE_SIZE[vertex_declaration->m_Streams[i].m_Type - dmGraphics::TYPE_BYTE];
         }
 
         uint32_t offset = 0;
-        for (uint16_t i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
+        for (uint16_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
-            VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
+            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
             if (stream.m_Size > 0)
             {
+                stream.m_Location = i;
                 EnableVertexStream(context, i, stream.m_Size, stream.m_Type, stride, &vb->m_Buffer[offset]);
                 offset += stream.m_Size * TYPE_SIZE[stream.m_Type - dmGraphics::TYPE_BYTE];
             }
@@ -560,22 +559,9 @@ namespace dmGraphics
     {
         assert(context);
         assert(vertex_declaration);
-        for (uint32_t i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
-            if (vertex_declaration->m_StreamDeclaration.m_Streams[i].m_Size > 0)
+        for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
+            if (vertex_declaration->m_Streams[i].m_Size > 0)
                 DisableVertexStream(context, i);
-    }
-
-    static void NullHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
-    {
-        for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
-        {
-            VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
-            dmHashUpdateBuffer32(state, &stream.m_NameHash,  sizeof(dmhash_t));
-            dmHashUpdateBuffer32(state, &stream.m_Stream,    sizeof(stream.m_Stream));
-            dmHashUpdateBuffer32(state, &stream.m_Size,      sizeof(stream.m_Size));
-            dmHashUpdateBuffer32(state, &stream.m_Type,      sizeof(stream.m_Type));
-            dmHashUpdateBuffer32(state, &stream.m_Normalize, sizeof(stream.m_Normalize));
-        }
     }
 
     static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
@@ -953,6 +939,7 @@ namespace dmGraphics
             case TYPE_SAMPLER_2D:       return 1;
             case TYPE_SAMPLER_CUBE:     return 1;
             case TYPE_SAMPLER_2D_ARRAY: return 1;
+            case TYPE_IMAGE_2D:         return 1;
             case TYPE_FLOAT_VEC2:       return 2;
             case TYPE_FLOAT_VEC3:       return 3;
             case TYPE_FLOAT_MAT2:       return 4;
@@ -976,36 +963,6 @@ namespace dmGraphics
     static uint32_t NullGetUniformCount(HProgram prog)
     {
         return ((Program*)prog)->m_Uniforms.Size();
-    }
-
-    static uint32_t NullGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
-    {
-        // TODO: We don't take alignment into account here. It is assumed to be tightly packed
-        //       as opposed to other graphic adapters which requires a 4 byte minumum alignment per stream.
-        //       Might need some investigation on impact, or adjustment in the future..
-        uint32_t stride = 0;
-        for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
-        {
-            VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
-            stride += GetTypeSize(stream.m_Type) * stream.m_Size;
-        }
-        return stride;
-    }
-
-    static uint32_t NullGetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
-    {
-        uint32_t count = vertex_declaration->m_StreamDeclaration.m_StreamCount;
-        VertexStream* streams = vertex_declaration->m_StreamDeclaration.m_Streams;
-        uint32_t offset = 0;
-        for (int i = 0; i < count; ++i)
-        {
-            if (streams[i].m_NameHash == name_hash)
-            {
-                return offset;
-            }
-            offset += GetTypeSize(streams[i].m_Type) * streams[i].m_Size;
-        }
-        return dmGraphics::INVALID_STREAM_OFFSET;
     }
 
     static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
