@@ -27,7 +27,7 @@
 
 (def ^:const texture-icon "icons/32/Icons_36-Texture.png")
 
-; This must match 'MAX_BUFFER_COLOR_ATTACHMENTS' in graphics.h
+; This must match 'MAX_BUFFER_COLOR_ATTACHMENTS' in engine/graphics/src/graphics.h
 (def ^:private max-color-attachment-count 4)
 
 (defn- set-form-op [{:keys [node-id]} [property] value]
@@ -45,10 +45,12 @@
                :type :table
                :columns [{:path [:width]
                           :label "width"
-                          :type :integer}
+                          :type :integer
+                          :default 128}
                          {:path [:height]
                           :label "height"
-                          :type :integer}
+                          :type :integer
+                          :default 128}
                          {:path [:format]
                           :label "format"
                           :type :choicebox
@@ -155,11 +157,11 @@
 (defn register-resource-types
   [workspace]
   (resource-node/register-ddf-resource-type workspace
-                                            :ext "render_target"
-                                            :node-type RenderTargetNode
-                                            :ddf-type RenderTarget$RenderTargetDesc
-                                            :load-fn load-render-target
-                                            :icon texture-icon
-                                            :view-types [:cljfx-form-view :text]
-                                            :view-opts {}
-                                            :label "Render Target"))
+    :ext "render_target"
+    :node-type RenderTargetNode
+    :ddf-type RenderTarget$RenderTargetDesc
+    :load-fn load-render-target
+    :icon texture-icon
+    :view-types [:cljfx-form-view :text]
+    :view-opts {}
+    :label "Render Target"))
