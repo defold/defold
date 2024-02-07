@@ -900,8 +900,6 @@ namespace dmGameSystem
             index_count += icount;
         }
 
-        dmLogInfo("%d", (uint32_t) (end - begin));
-
         // Early exit if there is nothing to render
         if (vertex_count == 0 || index_count == 0) {
             return;
