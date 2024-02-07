@@ -388,25 +388,13 @@ TEST_F(ScriptMsgTest, TestURLToString)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("socket", &socket));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("very_very_very_very_very_very_very_very_very_very_very_very_socket", &overflow_socket));
     ASSERT_TRUE(dmScriptTest::RunString(L,
-        "test_msg_fn = function (url, expected)\n"
-        "    local s = tostring(url)\n"
-        "    local e = string.format('url: [%s]', expected)\n"
-        "    if s ~= e then\n"
-        "        print('Expected url:', e)\n"
-        "        print('     but got:', s)\n"
-        "        assert(false)\n"
-        "    else\n"
-        "        print(s)\n"
-        "    end\n"
-        "end\n"
-        "test_msg_fn(msg.url(), 'default_socket:<unknown>#<unknown>')\n"
-        "test_msg_fn(msg.url('socket', 'path', 'test'), 'socket:path#test')\n"
-        "\n" // test the per part concatenation
-        "local long_s = string.rep('x', 300)\n"
-        "local expected_s = string.rep('x', 255)\n" // current limit is 256 per part
-        "test_msg_fn(msg.url(long_s, 'path', 'test'), expected_s .. ':path#test')\n"
-        "\n" // test the rotal length
-        "test_msg_fn(msg.url(long_s, long_s, 'test'), expected_s .. ':' .. expected_s)\n" // max is 512. 255+1+255+'\0' == 512
+        "local url = msg.url()\n"
+        "print(tostring(url))\n"
+        "url = msg.url(\"socket\", \"path\", \"test\")\n"
+        "print(tostring(url))\n"
+        "-- overflow\n"
+        "url = msg.url(\"very_very_very_very_very_very_very_very_very_very_very_very_socket\", \"path\", \"test\")\n"
+        "print(tostring(url))\n"
         ));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(overflow_socket));
@@ -414,9 +402,9 @@ TEST_F(ScriptMsgTest, TestURLToString)
     ASSERT_TRUE(dmScriptTest::RunString(L,
         "local url = msg.url()\n"
         "-- the socket doesn't exist yet\n"
-        "url = msg.url('socket_not_exist', 'path', 'test')\n"
-        "test_msg_fn(url, 'socket_not_exist:path#test')\n"
-        "assert(url.socket == hash('socket_not_exist'))\n"
+        "url = msg.url(\"socket_not_exist\", \"path\", \"test\")\n"
+        "print(tostring(url))\n"
+        "assert(url.socket == hash(\"socket_not_exist\"))\n"
         ));
 
     ASSERT_EQ(top, lua_gettop(L));

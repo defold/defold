@@ -1128,7 +1128,6 @@ static void LogFrameBufferError(GLenum status)
         // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
         // The below seems to be the reported sweet spot for modern or semi-modern hardware
         context->m_MaxElementVertices = 1024*1024;
-        context->m_MaxElementIndices = 1024*1024;
 #else
         // We don't accept values lower than 65k. It's a trade-off on drawcalls vs bufferdata upload
         GLint gl_max_elem_verts = 65536;
@@ -1143,7 +1142,6 @@ static void LogFrameBufferError(GLenum status)
         if (!legacy) {
             glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_max_elem_indices);
         }
-        context->m_MaxElementIndices = dmMath::Max(65536, gl_max_elem_indices);
         CLEAR_GL_ERROR;
 #endif
 
@@ -1488,11 +1486,6 @@ static void LogFrameBufferError(GLenum status)
         return (((OpenGLContext*) context)->m_IndexBufferFormatSupport & (1 << format)) != 0;
     }
 
-    static uint32_t OpenGLGetMaxElementIndices(HContext context)
-    {
-        return ((OpenGLContext*) context)->m_MaxElementIndices;
-    }
-
     // NOTE: This function doesn't seem to be used anywhere?
     static uint32_t OpenGLGetMaxElementsIndices(HContext context)
     {
@@ -1512,36 +1505,20 @@ static void LogFrameBufferError(GLenum status)
         memset(vd, 0, sizeof(VertexDeclaration));
 
         vd->m_Stride = 0;
-
         for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
         {
-            vd->m_Streams[i].m_NameHash      = stream_declaration->m_Streams[i].m_NameHash;
-            vd->m_Streams[i].m_LogicalIndex  = i;
-            vd->m_Streams[i].m_PhysicalIndex = -1;
-            vd->m_Streams[i].m_Size          = stream_declaration->m_Streams[i].m_Size;
-            vd->m_Streams[i].m_Type          = stream_declaration->m_Streams[i].m_Type;
-            vd->m_Streams[i].m_Normalize     = stream_declaration->m_Streams[i].m_Normalize;
-            vd->m_Streams[i].m_Offset        = vd->m_Stride;
+            vd->m_Streams[i].m_NameHash  = stream_declaration->m_Streams[i].m_NameHash;
+            vd->m_Streams[i].m_Location  = -1;
+            vd->m_Streams[i].m_Size      = stream_declaration->m_Streams[i].m_Size;
+            vd->m_Streams[i].m_Type      = stream_declaration->m_Streams[i].m_Type;
+            vd->m_Streams[i].m_Normalize = stream_declaration->m_Streams[i].m_Normalize;
+            vd->m_Streams[i].m_Offset    = vd->m_Stride;
 
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
         vd->m_StreamCount = stream_declaration->m_StreamCount;
 
         return vd;
-    }
-
-    static bool OpenGLSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
-    {
-        if (stream_index >= vertex_declaration->m_StreamCount) {
-            return false;
-        }
-        vertex_declaration->m_Streams[stream_index].m_Offset = offset;
-        return true;
-    }
-
-    static void OpenGLDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
-    {
-        delete vertex_declaration;
     }
 
     static void BindVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HProgram program)
@@ -1563,14 +1540,14 @@ static void LogFrameBufferError(GLenum status)
 
             if (location != -1)
             {
-                streams[i].m_PhysicalIndex = location;
+                streams[i].m_Location = location;
             }
             else
             {
                 CLEAR_GL_ERROR
                 // TODO: Disabled irritating warning? Should we care about not used streams?
                 //dmLogWarning("Vertex attribute %s is not active or defined", streams[i].m_Name);
-                streams[i].m_PhysicalIndex = -1;
+                streams[i].m_Location = -1;
             }
         }
 
@@ -1605,12 +1582,12 @@ static void LogFrameBufferError(GLenum status)
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
-            if (vertex_declaration->m_Streams[i].m_PhysicalIndex != -1)
+            if (vertex_declaration->m_Streams[i].m_Location != -1)
             {
-                glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_PhysicalIndex);
+                glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_Location);
                 CHECK_GL_ERROR;
                 glVertexAttribPointer(
-                        vertex_declaration->m_Streams[i].m_PhysicalIndex,
+                        vertex_declaration->m_Streams[i].m_Location,
                         vertex_declaration->m_Streams[i].m_Size,
                         GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
                         vertex_declaration->m_Streams[i].m_Normalize,
@@ -1631,9 +1608,9 @@ static void LogFrameBufferError(GLenum status)
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
-            if (vertex_declaration->m_Streams[i].m_PhysicalIndex != -1)
+            if (vertex_declaration->m_Streams[i].m_Location != -1)
             {
-                glDisableVertexAttribArray(vertex_declaration->m_Streams[i].m_PhysicalIndex);
+                glDisableVertexAttribArray(vertex_declaration->m_Streams[i].m_Location);
                 CHECK_GL_ERROR;
             }
         }
@@ -1643,30 +1620,6 @@ static void LogFrameBufferError(GLenum status)
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR;
-    }
-
-    static void OpenGLHashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
-    {
-        dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
-    }
-
-    static uint32_t OpenGLGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
-    {
-        return vertex_declaration->m_Stride;
-    }
-
-    static uint32_t OpenGLGetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash)
-    {
-        uint32_t count = vertex_declaration->m_StreamCount;
-        VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
-        for (int i = 0; i < count; ++i)
-        {
-            if (streams[i].m_NameHash == name_hash)
-            {
-                return streams[i].m_Offset;
-            }
-        }
-        return dmGraphics::INVALID_STREAM_OFFSET;
     }
 
     static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
