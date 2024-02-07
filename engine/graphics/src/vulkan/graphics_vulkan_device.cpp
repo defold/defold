@@ -65,7 +65,7 @@ namespace dmGraphics
                 case 2:  return VK_FORMAT_R32G32_SFLOAT;
                 case 3:  return VK_FORMAT_R32G32B32_SFLOAT;
                 case 4:  return VK_FORMAT_R32G32B32A32_SFLOAT;
-                case 16: return VK_FORMAT_R32_SFLOAT;
+                case 16: return VK_FORMAT_R32G32B32A32_SFLOAT;
                 default:break;
             }
         }

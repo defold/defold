@@ -1781,7 +1781,7 @@ bail:
         VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, stream_declaration);
         dmHashUpdateBuffer64(&decl_hash_state, &vd->m_Stride, sizeof(vd->m_Stride));
         vd->m_PipelineHash = dmHashFinal64(&decl_hash_state);
-        vd->m_StepFunction = VERTEX_STEP_FUNCTION_VERTEX;
+        vd->m_StepFunction = stream_declaration->m_StepFunction;
         return vd;
     }
 
@@ -1793,7 +1793,7 @@ bail:
         dmHashUpdateBuffer64(&decl_hash_state, &stride, sizeof(stride));
         vd->m_Stride       = stride;
         vd->m_PipelineHash = dmHashFinal64(&decl_hash_state);
-        vd->m_StepFunction = VERTEX_STEP_FUNCTION_VERTEX;
+        vd->m_StepFunction = stream_declaration->m_StepFunction;
         return vd;
     }
 

@@ -84,7 +84,8 @@ namespace dmRender
         dmGraphics::HProgram                    m_Program;
         dmGraphics::HVertexProgram              m_VertexProgram;
         dmGraphics::HFragmentProgram            m_FragmentProgram;
-        dmGraphics::HVertexDeclaration          m_VertexDeclaration;
+        dmGraphics::HVertexDeclaration          m_VertexDeclarationPerVertex;
+        dmGraphics::HVertexDeclaration          m_VertexDeclarationPerInstance;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
         dmArray<dmGraphics::VertexAttribute>    m_VertexAttributes;
         dmArray<MaterialAttribute>              m_MaterialAttributes;

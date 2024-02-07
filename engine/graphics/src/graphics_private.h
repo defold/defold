@@ -45,8 +45,9 @@ namespace dmGraphics
 
     struct VertexStreamDeclaration
     {
-        VertexStream m_Streams[MAX_VERTEX_STREAM_COUNT];
-        uint8_t      m_StreamCount;
+        VertexStream       m_Streams[MAX_VERTEX_STREAM_COUNT];
+        VertexStepFunction m_StepFunction;
+        uint8_t            m_StreamCount;
     };
 
     struct VertexDeclaration

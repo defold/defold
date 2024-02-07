@@ -463,6 +463,13 @@ namespace dmGraphics
         return sd;
     }
 
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context, VertexStepFunction step_function)
+    {
+        VertexStreamDeclaration* sd = NewVertexStreamDeclaration(context);
+        sd->m_StepFunction = step_function;
+        return sd;
+    }
+
     void AddVertexStream(HVertexStreamDeclaration stream_declaration, const char* name, uint32_t size, Type type, bool normalize)
     {
         AddVertexStream(stream_declaration, dmHashString64(name), size, type, normalize);

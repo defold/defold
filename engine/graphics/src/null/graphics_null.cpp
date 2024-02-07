@@ -480,6 +480,8 @@ namespace dmGraphics
             }
             vd->m_StreamCount = stream_declaration->m_StreamCount;
         }
+
+        vd->m_StepFunction = stream_declaration->m_StepFunction;
         return vd;
     }
 

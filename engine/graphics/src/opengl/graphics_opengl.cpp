@@ -1517,7 +1517,7 @@ static void LogFrameBufferError(GLenum status)
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
         vd->m_StreamCount = stream_declaration->m_StreamCount;
-
+        vd->m_StepFunction = stream_declaration->m_StepFunction;
         return vd;
     }
 

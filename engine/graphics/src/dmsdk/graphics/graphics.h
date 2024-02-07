@@ -462,6 +462,16 @@ namespace dmGraphics
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context);
 
     /*#
+     * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
+     * that should be used to create a vertex declaration from.
+     * @name NewVertexStreamDeclaration
+     * @param context [type: dmGraphics::HContext] the context
+     * @param step_function [type: dmGraphics::VertexStepFunction] the vertex step function to use
+     * @return declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex declaration
+     */
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context, VertexStepFunction step_function);
+
+    /*#
      * Adds a stream to a stream declaration
      * @name AddVertexStream
      * @param context [type: dmGraphics::HContext] the context
