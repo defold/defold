@@ -14,8 +14,8 @@ def build(bld):
     if platform_glfw_version(bld.env.PLATFORM) == 3:
         glfw_source = ['platform_window_glfw3.cpp']
 
-    if waflib.Options.options.with_vulkan:
-        glfw_defines = ['GLFW_INCLUDE_VULKAN']
+        if waflib.Options.options.with_vulkan:
+            glfw_source.append('platform_window_glfw3_vulkan.cpp')
 
     lib = bld.stlib(features = 'cxx c ddf',
                     includes = '.',

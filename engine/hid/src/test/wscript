@@ -22,22 +22,22 @@ def build(bld):
                       source   = 'test_hid.cpp')
 
     graphics_lib = ['GRAPHICS', 'DMGLFW']
-    graphics_lib_symbols = 'GraphicsAdapterOpenGL'
+    graphics_lib_symbols = []
+
     if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
         graphics_lib += ['OPENGL']
+        graphics_lib_symbols += ['GraphicsAdapterOpenGL']
 
-    elif platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) or Options.options.with_vulkan:
-        graphics_lib_symbols = 'GraphicsAdapterVulkan'
-        graphics_lib = ['GRAPHICS_VULKAN', 'VULKAN']
+    if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and Options.options.with_vulkan:
+        graphics_lib_symbols += ['GraphicsAdapterVulkan']
+        graphics_lib += ['GRAPHICS_VULKAN', 'VULKAN']
 
-    else:
+    if len(graphics_lib_symbols) == 0:
         graphics_lib = ['GRAPHICS_NULL']
-        graphics_lib_symbols = 'GraphicsAdapterNull'
+        graphics_lib_symbols = ['GraphicsAdapterNull']
 
     if bld.env.PLATFORM in ('arm64-nx64') and 'DMGLFW' in graphics_lib:
         graphics_lib.remove('DMGLFW')
-
-    exported_symbols = [graphics_lib_symbols]
 
     glfw_js = '%s/ext/lib/%s/js/library_glfw.js' % (bld.env.DYNAMO_HOME, bld.env.PLATFORM)
 
@@ -47,6 +47,6 @@ def build(bld):
         includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
         use = 'TESTMAIN APP DLIB DINPUT PROFILE_NULL PLATFORM SOCKET HID hid'.split() + graphics_lib,
         web_libs = web_libs,
-        exported_symbols = exported_symbols,
+        exported_symbols = graphics_lib_symbols,
         target = 'test_app_hid',
         source = 'test_app_hid.cpp')

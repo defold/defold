@@ -164,6 +164,7 @@ namespace dmPlatform
                 dmLogWarning("Unable to set device state (%d), unknown state.", (int) state);
                 break;
         }
+        return false;
     }
 
     int32_t TriggerCloseCallback(HWindow window)

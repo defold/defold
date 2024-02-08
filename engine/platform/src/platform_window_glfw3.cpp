@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,8 +16,7 @@
 
 #include "platform_window.h"
 #include "platform_window_constants.h"
-
-#include <vulkan/vulkan.h>
+#include "platform_window_glfw3_private.h"
 
 #include <glfw/glfw3.h>
 
@@ -27,35 +26,6 @@
 
 namespace dmPlatform
 {
-    struct Window
-    {
-        GLFWwindow*                   m_Window;
-        GLFWwindow*                   m_AuxWindow;
-
-        WindowResizeCallback          m_ResizeCallback;
-        void*                         m_ResizeCallbackUserData;
-        WindowCloseCallback           m_CloseCallback;
-        void*                         m_CloseCallbackUserData;
-        WindowFocusCallback           m_FocusCallback;
-        void*                         m_FocusCallbackUserData;
-        WindowIconifyCallback         m_IconifyCallback;
-        void*                         m_IconifyCallbackUserData;
-        WindowAddKeyboardCharCallback m_AddKeyboarCharCallBack;
-        void*                         m_AddKeyboarCharCallBackUserData;
-        WindowSetMarkedTextCallback   m_SetMarkedTextCallback;
-        void*                         m_SetMarkedTextCallbackUserData;
-        WindowDeviceChangedCallback   m_DeviceChangedCallback;
-        void*                         m_DeviceChangedCallbackUserData;
-        double                        m_MouseScrollX;
-        double                        m_MouseScrollY;
-        int32_t                       m_Width;
-        int32_t                       m_Height;
-        uint32_t                      m_Samples               : 8;
-        uint32_t                      m_HighDPI               : 1;
-        uint32_t                      m_SwapIntervalSupported : 1;
-        uint32_t                      m_WindowOpened          : 1;
-    };
-
     // Gamepad callbacks are shared across all windows, so we need a
     // shared struct to store 'global' data
     struct Context
@@ -206,16 +176,6 @@ namespace dmPlatform
         wnd->m_AuxWindow = glfwCreateWindow(1, 1, "aux_window", NULL, wnd->m_Window);
 
         return PLATFORM_RESULT_OK;
-    }
-
-    VkResult VulkanCreateWindowSurface(VkInstance instance, HWindow window, VkSurfaceKHR* surface_out)
-    {
-        return glfwCreateWindowSurface(instance, window->m_Window, NULL, surface_out);
-    }
-
-    const char** VulkanGetRequiredInstanceExtensions(uint32_t* count)
-    {
-        return glfwGetRequiredInstanceExtensions(count);
     }
 
     PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
