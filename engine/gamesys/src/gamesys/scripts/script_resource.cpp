@@ -2356,8 +2356,9 @@ static int CreateBuffer(lua_State* L)
             dmResource::IncRef(g_ResourceModule.m_Factory, resource);
         }
 
-        lua_buffer->m_Owner     = dmScript::OWNER_RES;
-        lua_buffer->m_BufferRes = resource;
+        lua_buffer->m_Owner             = dmScript::OWNER_RES;
+        lua_buffer->m_BufferRes         = resource;
+        lua_buffer->m_BufferResPathHash = canonical_path_hash;
     }
 
     dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
@@ -2516,8 +2517,9 @@ static int SetBuffer(lua_State* L)
             dmResource::IncRef(g_ResourceModule.m_Factory, resource);
         }
 
-        luabuf->m_Owner     = dmScript::OWNER_RES;
-        luabuf->m_BufferRes = resource;
+        luabuf->m_Owner             = dmScript::OWNER_RES;
+        luabuf->m_BufferRes         = resource;
+        luabuf->m_BufferResPathHash = path_hash;
     }
     else
     {
