@@ -440,6 +440,19 @@ namespace dmGraphics
     };
 
     /*#
+     * Vertex step function. Dictates how the data for a vertex attribute should be read in a vertex shader.
+     * @enum
+     * @name VertexStepFunction
+     * @member VERTEX_STEP_FUNCTION_VERTEX
+     * @member VERTEX_STEP_FUNCTION_INSTANCE
+     */
+    enum VertexStepFunction
+    {
+        VERTEX_STEP_FUNCTION_VERTEX,
+        VERTEX_STEP_FUNCTION_INSTANCE,
+    };
+
+    /*#
      * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
      * that should be used to create a vertex declaration from.
      * @name NewVertexStreamDeclaration

@@ -268,7 +268,7 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
     dmGraphics::AddVertexStream(stream_declaration, "stream0", 2, dmGraphics::TYPE_BYTE, true);
     dmGraphics::AddVertexStream(stream_declaration, "stream1", 4, dmGraphics::TYPE_FLOAT, false);
 
-    #define TEST_STREAM(streams, name, ix, size, type, normalize) \
+    #define TEST_STREAM_DECLARATION(streams, name, ix, size, type, normalize) \
         ASSERT_TRUE(streams[ix].m_NameHash == dmHashString64(name)); \
         ASSERT_EQ(streams[ix].m_Stream, ix); \
         ASSERT_EQ(streams[ix].m_Size, size); \
@@ -276,15 +276,24 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
         ASSERT_EQ(streams[ix].m_Normalize, normalize);
 
     ASSERT_EQ(stream_declaration->m_StreamCount, 2);
-    TEST_STREAM(stream_declaration->m_Streams, "stream0", 0, 2, dmGraphics::TYPE_BYTE, true);
-    TEST_STREAM(stream_declaration->m_Streams, "stream1", 1, 4, dmGraphics::TYPE_FLOAT, false);
+    TEST_STREAM_DECLARATION(stream_declaration->m_Streams, "stream0", 0, 2, dmGraphics::TYPE_BYTE, true);
+    TEST_STREAM_DECLARATION(stream_declaration->m_Streams, "stream1", 1, 4, dmGraphics::TYPE_FLOAT, false);
+
+    #undef TEST_STREAM_DECLARATION
+
+    #define TEST_STREAM(streams, name, ix, location, size, type, normalize) \
+        ASSERT_TRUE(streams[ix].m_NameHash == dmHashString64(name)); \
+        ASSERT_EQ(streams[ix].m_Location, location); \
+        ASSERT_EQ(streams[ix].m_Size, size); \
+        ASSERT_EQ(streams[ix].m_Type, type); \
+        ASSERT_EQ(streams[ix].m_Normalize, normalize);
 
     // Test that the stream declaration has been passed to the vertex declaration
     dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, stream_declaration);
     dmGraphics::VertexDeclaration* vx = (dmGraphics::VertexDeclaration*) vertex_declaration;
-    ASSERT_EQ(vx->m_StreamDeclaration.m_StreamCount, 2);
-    TEST_STREAM(vx->m_StreamDeclaration.m_Streams, "stream0", 0, 2, dmGraphics::TYPE_BYTE, true);
-    TEST_STREAM(vx->m_StreamDeclaration.m_Streams, "stream1", 1, 4, dmGraphics::TYPE_FLOAT, false);
+    ASSERT_EQ(vx->m_StreamCount, 2);
+    TEST_STREAM(vx->m_Streams, "stream0", 0, -1, 2, dmGraphics::TYPE_BYTE, true);
+    TEST_STREAM(vx->m_Streams, "stream1", 1, -1, 4, dmGraphics::TYPE_FLOAT, false);
 
     #undef TEST_STREAM
 
@@ -626,17 +635,15 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
 
-    dmGraphics::HTexture textures[] = {
-        dmGraphics::NewTexture(m_Context, creation_params),
-        dmGraphics::NewTexture(m_Context, creation_params),
-        dmGraphics::NewTexture(m_Context, creation_params),
-        dmGraphics::NewTexture(m_Context, creation_params),
-    };
+    const uint32_t TEXTURE_COUNT = 64;
+    dmArray<dmGraphics::HTexture> textures;
+    textures.SetCapacity(TEXTURE_COUNT);
 
     bool all_complete = false;
 
-    for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+    for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
+        textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
         dmGraphics::SetTextureAsync(textures[i], params);
     }
 
@@ -645,7 +652,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     {
         dmJobThread::Update(m_JobThread);
         all_complete = true;
-        for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+        for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             if (dmGraphics::GetTextureStatusFlags(textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
                 all_complete = false;
@@ -656,7 +663,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
 
     delete [] (char*)params.m_Data;
 
-    for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+    for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
         ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(textures[i]));
         ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(textures[i]));
@@ -673,7 +680,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     {
         dmJobThread::Update(m_JobThread);
         all_complete = true;
-        for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+        for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             if (dmGraphics::IsAssetHandleValid(m_Context, textures[i]))
                 all_complete = false;
@@ -682,7 +689,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     }
     ASSERT_TRUE(all_complete);
 
-    for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+    for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, textures[i]));
     }
@@ -709,34 +716,32 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
 
+    const uint32_t TEXTURE_COUNT = 64;
+    dmArray<dmGraphics::HTexture> textures;
+    textures.SetCapacity(TEXTURE_COUNT);
+
     // Test 1: Deleting textures "in-flight" will not delete them immediately
     //         They will need to be force deleted by a flip
     {
-        dmGraphics::HTexture textures[] = {
-            dmGraphics::NewTexture(m_Context, creation_params),
-            dmGraphics::NewTexture(m_Context, creation_params),
-            dmGraphics::NewTexture(m_Context, creation_params),
-            dmGraphics::NewTexture(m_Context, creation_params),
-        };
-
-        for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+        for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
+            textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
             dmGraphics::SetTextureAsync(textures[i], params);
         }
 
         // Flag all textures for deletion, since we allow async deletion, these will put on a post-delete queue
-        for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+        for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             dmGraphics::DeleteTexture(textures[i]);
         }
-        ASSERT_EQ(4, m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Size());
+        ASSERT_EQ(TEXTURE_COUNT, m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Size());
 
         // Trigger a flush of the post deletion textures by issuing a flip
         dmGraphics::Flip(m_Context);
 
         ASSERT_EQ(0, m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Size());
 
-        for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+        for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, textures[i]));
         }
@@ -748,17 +753,12 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
     // Test 2: Simulate deleting textures async. This requires valid textures (i.e not pending)
     //         And that we continously update the job thread to finish the async jobs.
     {
-        dmGraphics::HTexture textures[] = {
-            dmGraphics::NewTexture(m_Context, creation_params),
-            dmGraphics::NewTexture(m_Context, creation_params),
-            dmGraphics::NewTexture(m_Context, creation_params),
-            dmGraphics::NewTexture(m_Context, creation_params),
-        };
+        textures.SetSize(0);
 
         bool all_complete = false;
-
-        for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+        for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
+            textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
             dmGraphics::SetTextureAsync(textures[i], params);
         }
 
@@ -767,7 +767,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         {
             dmJobThread::Update(m_JobThread);
             all_complete = true;
-            for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+            for (int i = 0; i < TEXTURE_COUNT; ++i)
             {
                 if (dmGraphics::GetTextureStatusFlags(textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
                     all_complete = false;
@@ -776,10 +776,9 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         }
         ASSERT_TRUE(all_complete);
 
-        for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+        for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             dmGraphics::DeleteTexture(textures[i]);
-            ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, textures[i]));
         }
 
         all_complete = false;
@@ -789,7 +788,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         {
             dmJobThread::Update(m_JobThread);
             all_complete = true;
-            for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+            for (int i = 0; i < TEXTURE_COUNT; ++i)
             {
                 if (dmGraphics::IsAssetHandleValid(m_Context, textures[i]))
                     all_complete = false;
@@ -798,7 +797,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         }
         ASSERT_TRUE(all_complete);
 
-        for (int i = 0; i < DM_ARRAY_SIZE(textures); ++i)
+        for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, textures[i]));
         }

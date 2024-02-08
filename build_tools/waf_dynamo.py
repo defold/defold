@@ -1133,16 +1133,22 @@ def create_android_package(self):
 
     self.android_package_task = android_package_task
 
-def copy_stub(task):
-    with open(task.outputs[0].abspath(), 'w') as out_f:
+def copy_glue(task):
+    with open(task.glue_file, 'rb') as in_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
+            out_f.write(in_f.read())
+
+    with open(task.outputs[1].abspath(), 'w') as out_f:
         out_f.write(ANDROID_STUB)
 
     return 0
 
-task = Task.task_factory('copy_stub',
-                                func  = copy_stub,
-                                color = 'PINK',
-                                before  = 'c cxx')
+task = Task.task_factory('copy_glue',
+                            func  = copy_glue,
+                            color = 'PINK',
+                            before  = 'c cxx')
+
+task.runnable_status = lambda self: RUN_ME
 
 task.runnable_status = lambda self: RUN_ME
 
@@ -1153,10 +1159,13 @@ def create_copy_glue(self):
     if not re.match('arm.*?android', self.env['PLATFORM']):
         return
 
+    glue = self.path.find_or_declare('android_native_app_glue.c')
+    self.source.append(glue)
     stub = self.path.get_bld().find_or_declare('android_stub.c')
     self.source.append(stub)
-    task = self.create_task('copy_stub')
-    task.set_outputs([stub])
+    task = self.create_task('copy_glue')
+    task.glue_file = '%s/sources/android/native_app_glue/android_native_app_glue.c' % (ANDROID_NDK_ROOT)
+    task.set_outputs([glue, stub])
 
 def embed_build(task):
     symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_').replace('@', 'at')

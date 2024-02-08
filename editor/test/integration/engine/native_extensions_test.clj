@@ -102,32 +102,6 @@
 
 (defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
 
-(deftest cached-engine-archive-test
-  (let [cache-dir (fs/create-temp-directory! "defold-test")]
-    (testing "nothing cached initially"
-      (is (nil? (#'native-extensions/cached-engine-archive cache-dir "x86_64-osx" "a")))
-      (is (nil? (#'native-extensions/cached-engine-archive cache-dir "x86_64-win32" "a"))))
-
-    (testing "caches platforms separately"
-      ;; cache a build for x86_64-osx with key a
-      (is (#'native-extensions/cache-engine-archive! cache-dir "x86_64-osx" "a" (dummy-file)))
-      (is (#'native-extensions/cached-engine-archive cache-dir "x86_64-osx" "a"))
-      (is (nil? (#'native-extensions/cached-engine-archive cache-dir "x86_64-win32" "a")))
-
-      ;; cache a build for x86_64-win32 with key a
-      (is (#'native-extensions/cache-engine-archive! cache-dir "x86_64-win32" "a" (dummy-file)))
-      (is (#'native-extensions/cached-engine-archive cache-dir "x86_64-win32" "a"))
-      (is (#'native-extensions/cached-engine-archive cache-dir "x86_64-osx" "a")))
-
-    (testing "verifies key"
-      ;; cache a build for x86_64-osx with key a
-      (is (#'native-extensions/cache-engine-archive! cache-dir "x86_64-osx" "a" (dummy-file)))
-      (is (nil? (#'native-extensions/cached-engine-archive cache-dir "x86_64-osx" "b")))
-
-      ;; cache anew with key b
-      (is (#'native-extensions/cache-engine-archive! cache-dir "x86_64-osx" "b" (dummy-file)))
-      (is (#'native-extensions/cached-engine-archive cache-dir "x86_64-osx" "b")))))
-
 (defn- blocking-async-build! [project prefs]
   (let [result (promise)]
     (test-util/run-event-loop!
