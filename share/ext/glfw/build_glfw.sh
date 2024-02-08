@@ -62,6 +62,8 @@ pushd $SOURCE_DIR
 
 cmi_unpack
 
+cmi_patch
+
 ## BUILD
 echo "CMAKE_FLAGS: '${CMAKE_FLAGS}"
 cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
@@ -92,4 +94,6 @@ popd
 
 ## FINALIZE
 mv $SOURCE_DIR/$PACKAGE .
+
+rm -rf $SOURCE_DIR
 

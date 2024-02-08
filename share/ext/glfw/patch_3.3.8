@@ -1,0 +1,100 @@
+diff --git a/include/GLFW/glfw3.h b/include/GLFW/glfw3.h
+index 31b201a..b8b726a 100644
+--- a/include/GLFW/glfw3.h
++++ b/include/GLFW/glfw3.h
+@@ -5877,6 +5877,15 @@ GLFWAPI VkResult glfwCreateWindowSurface(VkInstance instance, GLFWwindow* window
+ #endif /*VK_VERSION_1_0*/
+ 
+ 
++// DEFOLD CHANGE BEGIN
++
++typedef void (* GLFWwindowmarkedtextfun)(GLFWwindow* window, char* str);
++
++GLFWAPI GLFWwindowmarkedtextfun glfwSetMarkedTextCallback(GLFWwindow* window, GLFWwindowmarkedtextfun callback);
++
++// DEFOLD CHANGE END
++
++
+ /*************************************************************************
+  * Global definition cleanup
+  *************************************************************************/
+diff --git a/src/cocoa_window.m b/src/cocoa_window.m
+index bbab6c4..f5153ec 100644
+--- a/src/cocoa_window.m
++++ b/src/cocoa_window.m
+@@ -671,11 +671,19 @@ - (void)setMarkedText:(id)string
+         markedText = [[NSMutableAttributedString alloc] initWithAttributedString:string];
+     else
+         markedText = [[NSMutableAttributedString alloc] initWithString:string];
++
++    // DEFOLD CHANGE BEGIN
++    _glfwSetMarkedText(window, (char*)[[markedText string] UTF8String]);
++    // DEFOLD CHANGE END
+ }
+ 
+ - (void)unmarkText
+ {
+     [[markedText mutableString] setString:@""];
++
++    // DEFOLD CHANGE BEGIN
++    _glfwSetMarkedText(window, "");
++    // DEFOLD CHANGE END
+ }
+ 
+ - (NSArray*)validAttributesForMarkedText
+diff --git a/src/internal.h b/src/internal.h
+index 7734caa..8d1f0f8 100644
+--- a/src/internal.h
++++ b/src/internal.h
+@@ -414,6 +414,11 @@ struct _GLFWwindow
+         GLFWcharfun               character;
+         GLFWcharmodsfun           charmods;
+         GLFWdropfun               drop;
++
++        // DEFOLD CHANGE BEGIN
++        GLFWwindowmarkedtextfun markedText;
++        // DEFOLD CHANGE END
++
+     } callbacks;
+ 
+     // This is defined in the window API's platform.h
+@@ -740,6 +745,10 @@ void _glfwInputError(int code, const char* format, ...)
+ void _glfwInputError(int code, const char* format, ...);
+ #endif
+ 
++// DEFOLD CHANGE BEGIN
++void _glfwSetMarkedText(_GLFWwindow* window, char* str);
++// DEFOLD CHANGE END
++
+ 
+ //////////////////////////////////////////////////////////////////////////
+ //////                       GLFW internal API                      //////
+diff --git a/src/window.c b/src/window.c
+index 5d80e43..d03edb4 100644
+--- a/src/window.c
++++ b/src/window.c
+@@ -1099,3 +1099,24 @@ GLFWAPI void glfwPostEmptyEvent(void)
+     _glfwPlatformPostEmptyEvent();
+ }
+ 
++
++// DEFOLD CHANGE BEGIN
++void _glfwSetMarkedText(_GLFWwindow* window, char* str)
++{
++    if (window->callbacks.markedText)
++        window->callbacks.markedText((GLFWwindow*) window, str);
++}
++
++GLFWAPI GLFWwindowmarkedtextfun glfwSetMarkedTextCallback(GLFWwindow* handle,
++                                                          GLFWwindowmarkedtextfun cbfun)
++{
++    _GLFWwindow* window = (_GLFWwindow*) handle;
++    assert(window != NULL);
++
++    _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
++    _GLFW_SWAP_POINTERS(window->callbacks.markedText, cbfun);
++    return cbfun;
++}
++
++// DEFOLD CHANGE END
++

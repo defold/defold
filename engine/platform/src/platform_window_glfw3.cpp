@@ -88,6 +88,15 @@ namespace dmPlatform
         }
     }
 
+    static void OnMarkedTextCallback(GLFWwindow* glfw_window, char* text)
+    {
+        HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        if (window->m_SetMarkedTextCallback)
+        {
+            window->m_SetMarkedTextCallback(window->m_SetMarkedTextCallbackUserData, text);
+        }
+    }
+
     static void OnMouseScroll(GLFWwindow* glfw_window, double xoffset, double yoffset)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
@@ -222,6 +231,7 @@ namespace dmPlatform
             glfwSetWindowIconifyCallback(window->m_Window, OnWindowIconify);
             glfwSetScrollCallback(window->m_Window, OnMouseScroll);
             glfwSetCharCallback(window->m_Window, OnAddCharacterCallback);
+            glfwSetMarkedTextCallback(window->m_Window, OnMarkedTextCallback);
 
             glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
             glfwSetJoystickCallback(OnJoystick);
