@@ -1059,7 +1059,6 @@ namespace dmGameSystem
 
             const float* vertices = reverse ? orig_vertices + num_vertices*2 - 2 : orig_vertices;
 
-            //for (uint32_t j = 0; j < num_vertices; ++j)
             for (uint32_t j = 0; j < num_vertices; ++j, vertices += step)
             {
                 float px = vertices[0];
