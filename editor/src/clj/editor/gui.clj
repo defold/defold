@@ -3086,10 +3086,8 @@
         child-indices (g/node-value parent :child-indices)
         before? (partial > node-index)
         after? (partial < node-index)
-        ascending-order #(compare %1 %2)
-        descending-order #(compare %2 %1)
         neighbour (first (sort-by second
-                                  (if (= offset -1) descending-order ascending-order)
+                                  (if (= offset -1) coll/descending-order coll/ascending-order)
                                   (filter (comp (if (= offset -1) before? after?) second)
                                           child-indices)))]
     (when neighbour

@@ -200,7 +200,14 @@
                         (render-progress! (swap! progress progress/with-message message))
                         (let [result (or cached-artifact
                                          (let [dep-resources (make-dep-resources deps build-targets-by-content-hash)
-                                               build-result (build-fn resource dep-resources user-data)]
+                                               build-result (try
+                                                              (build-fn resource dep-resources user-data)
+                                                              (catch OutOfMemoryError error
+                                                                (g/error-aggregate
+                                                                  [(g/error-fatal
+                                                                     (format "Failed to allocate memory while building '%s': %s."
+                                                                             (resource/proj-path resource)
+                                                                             (.getMessage error)))])))]
                                            ;; Error results are assumed to be error-aggregates.
                                            ;; We need to inject the node-id of the source build
                                            ;; target into the causes, since the build-fn will
