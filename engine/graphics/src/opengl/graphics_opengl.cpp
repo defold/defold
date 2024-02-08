@@ -3366,6 +3366,11 @@ static void LogFrameBufferError(GLenum status)
     static uint32_t OpenGLGetTextureResourceSize(HTexture texture)
     {
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        if (!tex)
+        {
+            return 0;
+        }
+
         uint32_t size_total = 0;
         uint32_t size = tex->m_ResourceSize; // Size for mip 0
         for(uint32_t i = 0; i < tex->m_MipMapCount; ++i)

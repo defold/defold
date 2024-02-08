@@ -350,14 +350,31 @@ namespace dmGameSystem
         ResTextureUploadParams upload_params = {};
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
         dmGraphics::HTexture texture;
-        dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, (ImageDesc*) params.m_PreloadData, upload_params, 0, &texture);
-        if (r == dmResource::RESULT_OK)
+
+        ImageDesc* image_desc = (ImageDesc*) params.m_PreloadData;
+
+        if (image_desc->m_DDFImage->m_Alternatives.m_Count > 0)
         {
-            TextureResource* texture_res = new TextureResource();
-            texture_res->m_Texture = texture;
+            dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, image_desc, upload_params, 0, &texture);
+            if (r == dmResource::RESULT_OK)
+            {
+                TextureResource* texture_res = new TextureResource();
+                texture_res->m_Texture = texture;
+                params.m_Resource->m_Resource = (void*) texture_res;
+            }
+            return r;
+        }
+        else
+        {
+            // This allows us to create a texture resource that can contain an empty texture handle,
+            // which is needed in some cases where we don't want to have to create a small texture that then
+            // has to be removed, e.g render target resources.
+            TextureResource* texture_res  = new TextureResource();
+            texture_res->m_Texture        = 0;
             params.m_Resource->m_Resource = (void*) texture_res;
         }
-        return r;
+
+        return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams& params)

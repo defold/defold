@@ -1457,6 +1457,10 @@ namespace dmGraphics
     static uint32_t NullGetTextureResourceSize(HTexture texture)
     {
         Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
+        if (!tex)
+        {
+            return 0;
+        }
 
         uint32_t size_total = 0;
         uint32_t size = tex->m_Width * tex->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_Format)/8);
