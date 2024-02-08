@@ -20,7 +20,7 @@
 
 namespace dmPlatform
 {
-	VkResult VulkanCreateWindowSurface(VkInstance instance, HWindow window, VkSurfaceKHR* surface_out)
+    VkResult VulkanCreateWindowSurface(VkInstance instance, HWindow window, VkSurfaceKHR* surface_out)
     {
         return glfwCreateWindowSurface(instance, window->m_Window, NULL, surface_out);
     }

@@ -17,7 +17,7 @@
 
 namespace dmPlatform
 {
-	int32_t OpenGLGetDefaultFramebufferId();
+    int32_t OpenGLGetDefaultFramebufferId();
 }
 
 #endif // DM_PLATFORM_WINDOW_OPENGL_H

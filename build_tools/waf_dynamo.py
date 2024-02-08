@@ -86,7 +86,6 @@ def platform_setup_vars(ctx, build_util):
 def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
 
-# Remove once migration is complete
 def platform_glfw_version(platform):
     if platform in ['x86_64-macos', 'arm64-macos']:
         return 3

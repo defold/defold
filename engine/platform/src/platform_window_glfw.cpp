@@ -664,16 +664,6 @@ namespace dmPlatform
     #endif
     }
 
-    void* AcquireAuxContext(HWindow window)
-    {
-        return glfwAcquireAuxContext();
-    }
-
-    void UnacquireAuxContext(HWindow window, void* aux_context)
-    {
-        glfwUnacquireAuxContext(aux_context);
-    }
-
     const int PLATFORM_JOYSTICK_LAST       = GLFW_JOYSTICK_LAST;
     const int PLATFORM_KEY_ESC             = GLFW_KEY_ESC;
     const int PLATFORM_KEY_F1              = GLFW_KEY_F1;

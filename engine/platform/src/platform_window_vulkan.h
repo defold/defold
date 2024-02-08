@@ -23,4 +23,4 @@ namespace dmPlatform
     const char** VulkanGetRequiredInstanceExtensions(uint32_t* count);
 }
 
-#endif // DM_PLATFORM_WINDOW_OPENGL_H
+#endif // DM_PLATFORM_WINDOW_VULKAN_H
