@@ -83,6 +83,15 @@ message VertexAttribute
     }
 }
 
+enum DepthStencilFormat
+{
+    DEPTH_STENCIL_FORMAT_D32F     = 1;
+    DEPTH_STENCIL_FORMAT_D32F_S8U = 2;
+    DEPTH_STENCIL_FORMAT_D16U_S8U = 3;
+    DEPTH_STENCIL_FORMAT_D24U_S8U = 4;
+    DEPTH_STENCIL_FORMAT_S8U      = 5;
+}
+
 message TextureImage
 {
     enum Type

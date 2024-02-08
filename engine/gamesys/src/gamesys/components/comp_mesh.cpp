@@ -541,7 +541,7 @@ namespace dmGameSystem
         {
             if (textures_component[i])
             {
-                ro.m_Textures[i] = textures_component[i]->m_Texture;
+                ro.m_Textures[i] = textures_component[i]->m_Texture;;
             }
             else if (textures_resource[i])
             {

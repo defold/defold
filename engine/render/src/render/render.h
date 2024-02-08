@@ -63,6 +63,13 @@ namespace dmRender
         RENDER_SCRIPT_RESULT_OK = 1
     };
 
+    enum RenderResourceType
+    {
+        RENDER_RESOURCE_TYPE_INVALID       = 0,
+        RENDER_RESOURCE_TYPE_MATERIAL      = 1,
+        RENDER_RESOURCE_TYPE_RENDER_TARGET = 2,
+    };
+
     enum RenderBufferType
     {
         RENDER_BUFFER_TYPE_VERTEX_BUFFER = 0,
@@ -208,8 +215,10 @@ namespace dmRender
     HRenderScriptInstance   NewRenderScriptInstance(HRenderContext render_context, HRenderScript render_script);
     void                    DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance);
     void                    SetRenderScriptInstanceRenderScript(HRenderScriptInstance render_script_instance, HRenderScript render_script);
-    void                    AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material);
-    void                    ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance);
+
+    void                    AddRenderScriptInstanceRenderResource(HRenderScriptInstance render_script_instance, const char* name, uint64_t resource, RenderResourceType type);
+    void                    ClearRenderScriptInstanceRenderResources(HRenderScriptInstance render_script_instance);
+
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      DispatchRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance, float dt);

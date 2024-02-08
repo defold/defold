@@ -1326,12 +1326,9 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static int DoDeleteTexture(void* _context, void* _texture)
+    static int DoDeleteTexture(void* _h_texture, void* _texture)
     {
-        NullContext* context = (NullContext*)_context;
-        HTexture texture = (HTexture) _texture;
-        Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
-
+        Texture* tex = (Texture*) _texture;
         if (tex)
         {
             if (tex->m_Data != 0x0)
@@ -1340,13 +1337,19 @@ namespace dmGraphics
             }
             delete tex;
         }
-        context->m_AssetHandleContainer.Release(texture);
         return 0;
+    }
+
+    static void DoDeleteTextureComplete(void* _h_texture, void* _texture, int result)
+    {
+        HTexture texture = (HTexture) _h_texture;
+        g_NullContext->m_AssetHandleContainer.Release(texture);
     }
 
     static void NullDeleteTextureAsync(NullContext* context, HTexture texture)
     {
-        dmJobThread::PushJob(context->m_JobThread, DoDeleteTexture, 0, (void*) context, (void*) texture);
+        Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
+        dmJobThread::PushJob(context->m_JobThread, DoDeleteTexture, DoDeleteTextureComplete, (void*) texture, (void*) tex);
     }
 
     static void PostDeleteTextures(NullContext* context, bool force_delete)
@@ -1356,7 +1359,10 @@ namespace dmGraphics
             uint32_t size = context->m_SetTextureAsyncState.m_PostDeleteTextures.Size();
             for (uint32_t i = 0; i < size; ++i)
             {
-                DoDeleteTexture(context, (void*)(size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
+                void* texture = (void*) (size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
+                void* tex     = (void*) GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
+                DoDeleteTexture(texture, tex);
+                DoDeleteTextureComplete(texture, tex, 0);
             }
             context->m_SetTextureAsyncState.m_PostDeleteTextures.SetSize(0);
             return;
@@ -1394,7 +1400,10 @@ namespace dmGraphics
         }
         else
         {
-            DoDeleteTexture((void*) g_NullContext, (void*) texture);
+            void* htexture = (void*) texture;
+            void* tex = GetAssetFromContainer<void*>(g_NullContext->m_AssetHandleContainer, texture);
+            DoDeleteTexture(htexture, tex);
+            DoDeleteTextureComplete(htexture, tex, 0);
         }
     }
 
@@ -1459,6 +1468,10 @@ namespace dmGraphics
     static uint32_t NullGetTextureResourceSize(HTexture texture)
     {
         Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
+        if (!tex)
+        {
+            return 0;
+        }
 
         uint32_t size_total = 0;
         uint32_t size = tex->m_Width * tex->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_Format)/8);
@@ -1662,7 +1675,7 @@ namespace dmGraphics
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
-        return (int) IsAssetHandleValid(context, ap.m_Texture);
+        return 0;
     }
 
     // Called on thread where we update (which should be the main thread)
@@ -1673,12 +1686,12 @@ namespace dmGraphics
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
         Texture* tex               = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
 
-        if (result && tex)
+        if (tex)
         {
             SetTexture(ap.m_Texture, ap.m_Params);
             tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
         }
-        if (!tex)
+        else
         {
             dmLogError("Unable to set texture with handle '%u', has it been deleted?", (uint32_t) ap.m_Texture);
         }
@@ -1709,7 +1722,7 @@ namespace dmGraphics
     {
         Texture* tex   = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         uint32_t flags = TEXTURE_STATUS_OK;
-        if(tex->m_DataState)
+        if(tex && tex->m_DataState)
         {
             flags |= TEXTURE_STATUS_DATA_PENDING;
         }
