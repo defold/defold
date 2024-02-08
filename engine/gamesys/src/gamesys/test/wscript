@@ -33,6 +33,7 @@ def build(bld):
             'material/*',
             'mesh/*',
             'meshset/*',
+            'misc/**',
             'model/*',
             'particlefx/*',
             'render/*',

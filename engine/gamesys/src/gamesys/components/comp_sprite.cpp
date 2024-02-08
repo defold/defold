@@ -1339,6 +1339,10 @@ namespace dmGameSystem
         {
             dmRender::AddRenderBuffer(render_context, sprite_world->m_VertexBuffer);
         }
+        if (dmRender::GetBufferIndex(render_context, sprite_world->m_IndexBuffer) < sprite_world->m_DispatchCount)
+        {
+            dmRender::AddRenderBuffer(render_context, sprite_world->m_IndexBuffer);
+        }
 
         ro.Init();
         ro.m_VertexDeclaration = vx_decl;
@@ -2182,5 +2186,13 @@ namespace dmGameSystem
         pit->m_Node = node;
         pit->m_Next = 0;
         pit->m_FnIterateNext = CompSpriteIterPropertiesGetNext;
+    }
+
+    // For tests
+    void GetSpriteWorldRenderBuffers(void* sprite_world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer)
+    {
+        SpriteWorld* world = (SpriteWorld*) sprite_world;
+        *vx_buffer = world->m_VertexBuffer;
+        *ix_buffer = world->m_IndexBuffer;
     }
 }
