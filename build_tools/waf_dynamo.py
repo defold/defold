@@ -1844,10 +1844,7 @@ def detect(conf):
     conf.env['STLIB_PLATFORM_NULL'] = ['platform_null']
 
     if platform_glfw_version(platform) == 3:
-        if Options.options.with_vulkan:
-            conf.env['STLIB_DMGLFW'] = 'glfw3-vulkan'
-        else:
-            conf.env['STLIB_DMGLFW'] = 'glfw3'
+        conf.env['STLIB_DMGLFW'] = 'glfw3'
     else:
         conf.env['STLIB_DMGLFW'] = 'dmglfw'
 

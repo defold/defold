@@ -80,9 +80,6 @@ def configure(conf):
 
         # For Vulkan/MoltenVK
         if waflib.Options.options.with_vulkan:
-
-            glfw_lib = "glfw3-vulkan"
-
             if architecture == 'x86_64':
                 conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
 
