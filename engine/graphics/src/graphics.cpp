@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -248,7 +248,8 @@ namespace dmGraphics
     #undef SHADERDESC_ENUM_TO_STR_CASE
 
     ContextParams::ContextParams()
-    : m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+    : m_JobThread(0)
+    , m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
     , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
     , m_GraphicsMemorySize(0)
     , m_VerifyGraphicsCalls(false)
@@ -490,6 +491,44 @@ namespace dmGraphics
     void DeleteVertexStreamDeclaration(HVertexStreamDeclaration stream_declaration)
     {
         delete stream_declaration;
+    }
+
+    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
+    {
+        delete vertex_declaration;
+    }
+
+    void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
+    {
+        dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+    }
+
+    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    {
+        if (stream_index >= vertex_declaration->m_StreamCount) {
+            return false;
+        }
+        vertex_declaration->m_Streams[stream_index].m_Offset = offset;
+        return true;
+    }
+
+    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
+    {
+        uint32_t count = vertex_declaration->m_StreamCount;
+        VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
+        for (int i = 0; i < count; ++i)
+        {
+            if (streams[i].m_NameHash == name_hash)
+            {
+                return streams[i].m_Offset;
+            }
+        }
+        return dmGraphics::INVALID_STREAM_OFFSET;
+    }
+
+    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return vertex_declaration->m_Stride;
     }
 
     #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
@@ -872,6 +911,56 @@ namespace dmGraphics
         return false;
     }
 
+    void InitializeSetTextureAsyncState(SetTextureAsyncState& state)
+    {
+        state.m_Mutex = dmMutex::New();
+    }
+
+    void ResetSetTextureAsyncState(SetTextureAsyncState& state)
+    {
+        if(state.m_Mutex)
+        {
+            dmMutex::Delete(state.m_Mutex);
+        }
+    }
+
+    uint16_t PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params)
+    {
+        DM_MUTEX_SCOPED_LOCK(state.m_Mutex);
+        if (state.m_Indices.Remaining() == 0)
+        {
+            state.m_Indices.SetCapacity(state.m_Indices.Capacity()+64);
+            state.m_Params.SetCapacity(state.m_Indices.Capacity());
+            state.m_Params.SetSize(state.m_Params.Capacity());
+        }
+        uint16_t param_array_index = state.m_Indices.Pop();
+        SetTextureAsyncParams& ap  = state.m_Params[param_array_index];
+        ap.m_Texture               = texture;
+        ap.m_Params                = params;
+        return param_array_index;
+    }
+
+    void PushSetTextureAsyncDeleteTexture(SetTextureAsyncState& state, HTexture texture)
+    {
+        if (state.m_PostDeleteTextures.Full())
+        {
+            state.m_PostDeleteTextures.OffsetCapacity(64);
+        }
+        state.m_PostDeleteTextures.Push(texture);
+    }
+
+    SetTextureAsyncParams GetSetTextureAsyncParams(SetTextureAsyncState& state, uint16_t index)
+    {
+        DM_MUTEX_SCOPED_LOCK(state.m_Mutex);
+        return state.m_Params[index];
+    }
+
+    void ReturnSetTextureAsyncIndex(SetTextureAsyncState& state, uint16_t index)
+    {
+        DM_MUTEX_SCOPED_LOCK(state.m_Mutex);
+        state.m_Indices.Push(index);
+    }
+
     void DeleteContext(HContext context)
     {
         g_functions.m_DeleteContext(context);
@@ -1043,37 +1132,21 @@ namespace dmGraphics
     {
         return g_functions.m_NewVertexDeclarationStride(context, stream_declaration, stride);
     }
-    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
-        return g_functions.m_SetStreamOffset(vertex_declaration, stream_index, offset);
-    }
-    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
-    {
-        g_functions.m_DeleteVertexDeclaration(vertex_declaration);
-    }
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
-    {
-        g_functions.m_EnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
-    }
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
-    {
-        g_functions.m_EnableVertexDeclarationProgram(context, vertex_declaration, vertex_buffer, program);
+        g_functions.m_EnableVertexDeclaration(context, vertex_declaration, binding_index, program);
     }
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
         g_functions.m_DisableVertexDeclaration(context, vertex_declaration);
     }
-    void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
+    void EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index)
     {
-        g_functions.m_HashVertexDeclaration(state, vertex_declaration);
+        return g_functions.m_EnableVertexBuffer(context, vertex_buffer, binding_index);
     }
-    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    void DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer)
     {
-        return g_functions.m_GetVertexDeclarationStride(vertex_declaration);
-    }
-    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash)
-    {
-        return g_functions.m_GetVertexStreamOffset(vertex_declaration, name_hash);
+        g_functions.m_DisableVertexBuffer(context, vertex_buffer);
     }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {

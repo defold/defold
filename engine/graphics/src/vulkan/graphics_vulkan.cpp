@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -114,6 +114,12 @@ namespace dmGraphics
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
 
+        // We need to have some sort of valid default filtering
+        if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
+            m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
+        if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
+            m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
+
         assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
@@ -207,6 +213,11 @@ namespace dmGraphics
         VkSamplerAddressMode vk_wrap_u = GetVulkanSamplerAddressMode(uwrap);
         VkSamplerAddressMode vk_wrap_v = GetVulkanSamplerAddressMode(vwrap);
 
+        if (magfilter == TEXTURE_FILTER_DEFAULT)
+            magfilter = g_VulkanContext->m_DefaultTextureMagFilter;
+        if (minfilter == TEXTURE_FILTER_DEFAULT)
+            minfilter = g_VulkanContext->m_DefaultTextureMinFilter;
+
         // Convert mag filter to Vulkan type
         if (magfilter == TEXTURE_FILTER_NEAREST)
         {
@@ -284,6 +295,11 @@ namespace dmGraphics
     static int16_t GetTextureSamplerIndex(dmArray<TextureSampler>& texture_samplers, TextureFilter minfilter, TextureFilter magfilter,
         TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
+        if (minfilter == TEXTURE_FILTER_DEFAULT)
+            minfilter = g_VulkanContext->m_DefaultTextureMinFilter;
+        if (magfilter == TEXTURE_FILTER_DEFAULT)
+            magfilter = g_VulkanContext->m_DefaultTextureMagFilter;
+
         for (uint32_t i=0; i < texture_samplers.Size(); i++)
         {
             TextureSampler& sampler = texture_samplers[i];
@@ -654,7 +670,7 @@ namespace dmGraphics
         default_texture_creation_params.m_OriginalWidth  = default_texture_creation_params.m_Width;
         default_texture_creation_params.m_OriginalHeight = default_texture_creation_params.m_Height;
 
-        const uint8_t default_texture_data[4 * 6] = {0}; // RGBA * 6 (for cubemap)
+        const uint8_t default_texture_data[4 * 6] = {}; // RGBA * 6 (for cubemap)
 
         TextureParams default_texture_params;
         default_texture_params.m_Width  = 1;
@@ -1451,7 +1467,7 @@ bail:
     template <typename T>
     static void DestroyResourceDeferred(ResourcesToDestroyList* resource_list, T* resource)
     {
-        if (resource->m_Destroyed)
+        if (resource == 0x0 || resource->m_Destroyed)
         {
             return;
         }
@@ -1502,7 +1518,7 @@ bail:
 
         for (int i = 0; i < vertexDeclarationCount; ++i)
         {
-            dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration[i]->m_Hash, sizeof(vertexDeclaration[i]->m_Hash));
+            dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration[i]->m_PipelineHash, sizeof(vertexDeclaration[i]->m_PipelineHash));
             dmHashUpdateBuffer64(&pipeline_hash_state, &vertexDeclaration[i]->m_StepFunction, sizeof(vertexDeclaration[i]->m_StepFunction));
         }
 
@@ -1703,98 +1719,6 @@ bail:
         return 0;
     }
 
-    static inline VkFormat GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
-    {
-        if (type == TYPE_FLOAT)
-        {
-            switch(size)
-            {
-                case 1: return VK_FORMAT_R32_SFLOAT;
-                case 2: return VK_FORMAT_R32G32_SFLOAT;
-                case 3: return VK_FORMAT_R32G32B32_SFLOAT;
-                case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
-                default:break;
-            }
-        }
-        else if (type == TYPE_INT)
-        {
-            switch(size)
-            {
-                case 1: return VK_FORMAT_R32_SINT;
-                case 2: return VK_FORMAT_R32G32_SINT;
-                case 3: return VK_FORMAT_R32G32B32_SINT;
-                case 4: return VK_FORMAT_R32G32B32A32_SINT;
-                default:break;
-            }
-        }
-        else if (type == TYPE_UNSIGNED_INT)
-        {
-            switch(size)
-            {
-                case 1: return VK_FORMAT_R32_UINT;
-                case 2: return VK_FORMAT_R32G32_UINT;
-                case 3: return VK_FORMAT_R32G32B32_UINT;
-                case 4: return VK_FORMAT_R32G32B32A32_UINT;
-                default:break;
-            }
-        }
-        else if (type == TYPE_BYTE)
-        {
-            switch(size)
-            {
-                case 1: return normalized ? VK_FORMAT_R8_SNORM : VK_FORMAT_R8_SINT;
-                case 2: return normalized ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_SINT;
-                case 3: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
-                case 4: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
-                default:break;
-            }
-        }
-        else if (type == TYPE_UNSIGNED_BYTE)
-        {
-            switch(size)
-            {
-                case 1: return normalized ? VK_FORMAT_R8_UNORM : VK_FORMAT_R8_UINT;
-                case 2: return normalized ? VK_FORMAT_R8G8_UNORM : VK_FORMAT_R8G8_UINT;
-                case 3: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
-                case 4: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
-                default:break;
-            }
-        }
-        else if (type == TYPE_SHORT)
-        {
-            switch(size)
-            {
-                case 1: return normalized ? VK_FORMAT_R16_SNORM : VK_FORMAT_R16_SINT;
-                case 2: return normalized ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_SINT;
-                case 3: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
-                case 4: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
-                default:break;
-            }
-        }
-        else if (type == TYPE_UNSIGNED_SHORT)
-        {
-            switch(size)
-            {
-                case 1: return normalized ? VK_FORMAT_R16_UNORM : VK_FORMAT_R16_UINT;
-                case 2: return normalized ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R16G16_UINT;
-                case 3: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
-                case 4: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
-                default:break;
-            }
-        }
-        else if (type == TYPE_FLOAT_MAT4)
-        {
-            return VK_FORMAT_R32_SFLOAT;
-        }
-        else if (type == TYPE_FLOAT_VEC4)
-        {
-            return VK_FORMAT_R32G32B32A32_SFLOAT;
-        }
-
-        assert(0 && "Unable to deduce type from dmGraphics::Type");
-        return VK_FORMAT_UNDEFINED;
-    }
-
     static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, HVertexStreamDeclaration stream_declaration)
     {
         VertexDeclaration* vd = new VertexDeclaration();
@@ -1832,15 +1756,17 @@ bail:
             }
         #endif
 
-            vd->m_Streams[i].m_NameHash = stream.m_NameHash;
-            vd->m_Streams[i].m_Format   = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
-            vd->m_Streams[i].m_Offset   = vd->m_Stride;
-            vd->m_Streams[i].m_Location = 0;
-            vd->m_Stride               += stream.m_Size * GetGraphicsTypeSize(stream.m_Type);
+            vd->m_Streams[i].m_NameHash  = stream.m_NameHash;
+            vd->m_Streams[i].m_Type      = stream.m_Type;
+            vd->m_Streams[i].m_Size      = stream.m_Size;
+            vd->m_Streams[i].m_Normalize = stream.m_Normalize;
+            vd->m_Streams[i].m_Offset    = vd->m_Stride;
+            vd->m_Streams[i].m_Location  = -1;
+            vd->m_Stride                += stream.m_Size * GetGraphicsTypeSize(stream.m_Type);
 
             dmHashUpdateBuffer64(hash, &stream.m_Size, sizeof(stream.m_Size));
             dmHashUpdateBuffer64(hash, &stream.m_Type, sizeof(stream.m_Type));
-            dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Format, sizeof(vd->m_Streams[i].m_Format));
+            dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Type, sizeof(vd->m_Streams[i].m_Type));
         }
 
         vd->m_Stride = DM_ALIGN(vd->m_Stride, 4);
@@ -1854,8 +1780,8 @@ bail:
         dmHashInit64(&decl_hash_state, false);
         VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, stream_declaration);
         dmHashUpdateBuffer64(&decl_hash_state, &vd->m_Stride, sizeof(vd->m_Stride));
-        vd->m_Hash         = dmHashFinal64(&decl_hash_state);
-        vd->m_StepFunction = VERTEX_STEP_VERTEX;
+        vd->m_PipelineHash = dmHashFinal64(&decl_hash_state);
+        vd->m_StepFunction = VERTEX_STEP_FUNCTION_VERTEX;
         return vd;
     }
 
@@ -1865,95 +1791,76 @@ bail:
         dmHashInit64(&decl_hash_state, false);
         VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, stream_declaration);
         dmHashUpdateBuffer64(&decl_hash_state, &stride, sizeof(stride));
-        vd->m_Stride          = stride;
-        vd->m_Hash            = dmHashFinal64(&decl_hash_state);
-        vd->m_StepFunction    = VERTEX_STEP_VERTEX;
+        vd->m_Stride       = stride;
+        vd->m_PipelineHash = dmHashFinal64(&decl_hash_state);
+        vd->m_StepFunction = VERTEX_STEP_FUNCTION_VERTEX;
         return vd;
     }
 
-    bool VulkanSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    static void VulkanEnableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer, uint32_t binding_index)
     {
-        if (stream_index >= vertex_declaration->m_StreamCount) {
-            return false;
+        VulkanContext* context                        = (VulkanContext*) _context;
+        context->m_CurrentVertexBuffer[binding_index] = (DeviceBuffer*) vertex_buffer;
+    }
+
+    static void VulkanDisableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_CurrentVertexBuffer[i] == (DeviceBuffer*) vertex_buffer)
+                context->m_CurrentVertexBuffer[i] = 0;
         }
-        vertex_declaration->m_Streams[stream_index].m_Offset = offset;
-        return true;
     }
 
-    static void VulkanDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
-    {
-        delete (VertexDeclaration*) vertex_declaration;
-    }
-
-    static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
-    {
-        VulkanContext* context                 = (VulkanContext*) _context;
-        context->m_CurrentVertexBuffer[0]      = (DeviceBuffer*) vertex_buffer;
-        context->m_CurrentVertexDeclaration[0] = (VertexDeclaration*) vertex_declaration;
-    }
-
-    static void VulkanEnableVertexDeclarationProgram(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
         VulkanContext* context      = (VulkanContext*) _context;
         Program* program_ptr        = (Program*) program;
         ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
-        VulkanEnableVertexDeclaration(_context, &context->m_MainVertexDeclaration[0], vertex_buffer);
+        context->m_MainVertexDeclaration[binding_index]                = {};
+        context->m_MainVertexDeclaration[binding_index].m_Stride       = vertex_declaration->m_Stride;
+        context->m_MainVertexDeclaration[binding_index].m_StepFunction = vertex_declaration->m_StepFunction;
+        context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
-        // JG: This is a bit of a whacky doodle doo, but it's required to avoid a soft crash when creating the pipeline on MVK.
-        //     Basically we create fake bindings if a stream isn't defined in the vertex declaration, because otherwise
-        //     the MVK driver will complain that we haven't defined all bindings in the shader.
-        //     This means that we might get side-effects since we are basically binding the first data buffer
-        //     to the stream as an R8 value, but uh yeah not sure what do to about that right now.
-        context->m_MainVertexDeclaration[0] = {0};
-        context->m_MainVertexDeclaration[0].m_StreamCount  = vertex_shader->m_Inputs.Size();
-        context->m_MainVertexDeclaration[0].m_Stride       = vertex_declaration->m_Stride;
-        context->m_MainVertexDeclaration[0].m_StepFunction = vertex_declaration->m_StepFunction;
-        context->m_MainVertexDeclaration[0].m_Hash         = vertex_declaration->m_Hash;
+        context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
 
-        for (uint32_t i = 0; i < vertex_shader->m_Inputs.Size(); i++)
+        uint32_t stream_ix = 0;
+        uint32_t num_inputs = vertex_shader->m_Inputs.Size();
+
+        for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
-            ShaderResourceBinding& input      = vertex_shader->m_Inputs[i];
-            VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[0].m_Streams[i];
-
-            stream.m_NameHash = input.m_NameHash;
-            stream.m_Location = input.m_Binding;
-            stream.m_Format   = VK_FORMAT_R8_UNORM;
-
-            for (int j = 0; j < vertex_declaration->m_StreamCount; ++j)
+            for (int j = 0; j < num_inputs; ++j)
             {
-                if (vertex_declaration->m_Streams[j].m_NameHash == input.m_NameHash)
+                ShaderResourceBinding& input = vertex_shader->m_Inputs[j];
+
+                if (input.m_NameHash == vertex_declaration->m_Streams[i].m_NameHash)
                 {
-                    stream.m_Offset = vertex_declaration->m_Streams[j].m_Offset;
-                    stream.m_Format = vertex_declaration->m_Streams[j].m_Format;
+                    VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[binding_index].m_Streams[stream_ix];
+                    stream.m_NameHash  = input.m_NameHash;
+                    stream.m_Location  = input.m_Binding;
+                    stream.m_Type      = vertex_declaration->m_Streams[i].m_Type;
+                    stream.m_Offset    = vertex_declaration->m_Streams[i].m_Offset;
+                    stream.m_Size      = vertex_declaration->m_Streams[i].m_Size;
+                    stream.m_Normalize = vertex_declaration->m_Streams[i].m_Normalize;
+                    stream_ix++;
+
+                    context->m_MainVertexDeclaration[binding_index].m_StreamCount++;
                     break;
                 }
             }
         }
     }
 
-    static void VulkanDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
+    static void VulkanDisableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration)
     {
-        memset(((VulkanContext*) context)->m_CurrentVertexDeclaration, 0, sizeof(VertexDeclaration*) * MAX_VERTEX_BUFFERS);
-    }
-
-    static uint32_t VulkanGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
-    {
-        return vertex_declaration->m_Stride;
-    }
-
-    static uint32_t VulkanGetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
-    {
-        uint32_t count = vertex_declaration->m_StreamCount;
-        VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
-        for (int i = 0; i < count; ++i)
+        VulkanContext* context = (VulkanContext*) _context;
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
-            if (streams[i].m_NameHash == name_hash)
-            {
-                return streams[i].m_Offset;
-            }
+            if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
+                context->m_CurrentVertexDeclaration[i] = 0;
         }
-        return dmGraphics::INVALID_STREAM_OFFSET;
     }
 
     static inline bool IsUniformTextureSampler(const ShaderResourceBinding& uniform)
@@ -2273,11 +2180,6 @@ bail:
         }
 
         vkCmdBindVertexBuffers(vk_command_buffer, 0, num_vx_buffers, vk_buffers, vk_buffer_offsets);
-    }
-
-    static void VulkanHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
-    {
-        dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
     }
 
     static void VulkanDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
@@ -4000,6 +3902,10 @@ bail:
     static uint32_t VulkanGetTextureResourceSize(HTexture texture)
     {
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        if (!tex)
+        {
+            return 0;
+        }
         uint32_t size_total = 0;
         uint32_t size = tex->m_Width * tex->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_GraphicsFormat)/8);
         for(uint32_t i = 0; i < tex->m_MipMapCount; ++i)
@@ -4601,11 +4507,11 @@ bail:
         DeviceBuffer* vertex_buffer                  = (DeviceBuffer*) _vertex_buffer;
         VertexDeclaration* vertex_declaration        = (VertexDeclaration*) _vertex_declaration;
 
-        context->m_MainVertexDeclaration[binding]                = {0};
+        context->m_MainVertexDeclaration[binding]                = {};
         context->m_MainVertexDeclaration[binding].m_StreamCount  = vertex_declaration->m_StreamCount;
         context->m_MainVertexDeclaration[binding].m_Stride       = vertex_declaration->m_Stride;
         context->m_MainVertexDeclaration[binding].m_StepFunction = vertex_declaration->m_StepFunction;
-        context->m_MainVertexDeclaration[binding].m_Hash         = vertex_declaration->m_Hash;
+        context->m_MainVertexDeclaration[binding].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
         context->m_CurrentVertexBuffer[binding]                  = vertex_buffer;
         context->m_CurrentVertexDeclaration[binding]             = &context->m_MainVertexDeclaration[binding];
@@ -4623,7 +4529,7 @@ bail:
                     VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[binding].m_Streams[stream_ix];
                     stream.m_NameHash = input.m_NameHash;
                     stream.m_Location = input.m_Binding;
-                    stream.m_Format   = vertex_declaration->m_Streams[i].m_Format;
+                    stream.m_Type     = vertex_declaration->m_Streams[i].m_Type;
                     stream.m_Offset   = vertex_declaration->m_Streams[i].m_Offset;
                     stream_ix++;
                     break;
@@ -4711,7 +4617,6 @@ bail:
     void VulkanMemorybarrier(HContext _context, HTexture _texture, uint32_t src_stage_flags, uint32_t dst_stage_flags, uint32_t src_access_flags, uint32_t dst_access_flags)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, _texture);
         assert(context->m_FrameBegun);
 
         const uint8_t image_ix            = context->m_SwapChain->m_ImageIndex;
@@ -4733,9 +4638,7 @@ bail:
     void VulkanGetUniformBinding(HContext context, HProgram prog, uint32_t index, uint32_t* set_out, uint32_t* binding_out, uint32_t* member_index_out)
     {
         assert(prog);
-        Program* program     = (Program*) prog;
-        ShaderModule* module = 0;
-
+        Program* program = (Program*) prog;
         uint32_t search_index = 0;
 
         for (int set = 0; set < program->m_MaxSet; ++set)

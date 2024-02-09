@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -468,20 +468,20 @@ Macros currently mean no foreseeable performance gain however."
 (defn val->pb-enum [^Class enum-class val]
   (Enum/valueOf enum-class (s/replace (util/upper-case* (name val)) "-" "_")))
 
-(def ^:private float-zero (Float/valueOf 0.0))
-(def ^:private float-one (Float/valueOf 1.0))
+(def float-zero (Float/valueOf 0.0))
+(def float-one (Float/valueOf 1.0))
 
-(def ^:private vector3-zero [float-zero float-zero float-zero])
-(def ^:private vector3-one [float-one float-one float-one])
+(def vector3-zero [float-zero float-zero float-zero])
+(def vector3-one [float-one float-one float-one])
 
-(def ^:private vector4-zero [float-zero float-zero float-zero float-zero])
-(def ^:private vector4-one [float-one float-one float-one float-one])
-(def ^:private vector4-xyz-zero-w-one [float-zero float-zero float-zero float-one])
-(def ^:private vector4-xyz-one-w-zero [float-one float-one float-one float-zero])
+(def vector4-zero [float-zero float-zero float-zero float-zero])
+(def vector4-one [float-one float-one float-one float-one])
+(def vector4-xyz-zero-w-one [float-zero float-zero float-zero float-one])
+(def vector4-xyz-one-w-zero [float-one float-one float-one float-zero])
 
-(def ^:private quat-identity [float-zero float-zero float-zero float-one])
+(def quat-identity [float-zero float-zero float-zero float-one])
 
-(def ^:private matrix4-identity
+(def matrix4-identity
   [float-one float-zero float-zero float-zero
    float-zero float-one float-zero float-zero
    float-zero float-zero float-one float-zero

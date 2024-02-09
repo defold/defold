@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,6 +23,8 @@
 
 #include <script/script.h>
 #include <algorithm> // std::stable_sort
+
+#include "../../../graphics/src/graphics_private.h"
 
 #include "render/render.h"
 #include "render/render_private.h"
@@ -53,8 +55,10 @@ protected:
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, win_params);
 
-        dmGraphics::ContextParams graphics_context_params;
-        graphics_context_params.m_Window = m_Window;
+        dmGraphics::ContextParams graphics_context_params = {};
+        graphics_context_params.m_Window                  = m_Window;
+        graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
+        graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
 
         m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         dmRender::RenderContextParams params;
@@ -445,6 +449,177 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
     dmGraphics::DeleteFragmentProgram(fp);
     dmRender::DeleteMaterial(m_Context, material);
 
+    dmGraphics::DeleteVertexBuffer(vx_buffer);
+    dmGraphics::DeleteVertexDeclaration(vx_decl);
+}
+
+struct TestDefaultSamplerFiltersDispatchCtx
+{
+    dmRender::HRenderContext        m_Context;
+    dmRender::RenderObject          m_RenderObjects[2];
+    dmRender::HMaterial             m_Material[2];
+    dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+    dmGraphics::HVertexBuffer       m_VertexBuffer;
+    dmGraphics::HTexture            m_Texture;
+    uint8_t                         m_Dispatch;
+};
+
+static void TestDefaultSamplerFiltersDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
+        TestDefaultSamplerFiltersDispatchCtx* user_ctx = (TestDefaultSamplerFiltersDispatchCtx*) params.m_UserData;
+        dmRender::RenderObject* ro = &user_ctx->m_RenderObjects[user_ctx->m_Dispatch];
+
+        ro->Init();
+        ro->m_Material          = user_ctx->m_Material[user_ctx->m_Dispatch];
+        ro->m_VertexCount       = 1;
+        ro->m_VertexDeclaration = user_ctx->m_VertexDeclaration;
+        ro->m_VertexBuffer      = user_ctx->m_VertexBuffer;
+        ro->m_Textures[0]       = user_ctx->m_Texture;
+        ro->m_Textures[1]       = user_ctx->m_Texture;
+        ro->m_Textures[2]       = user_ctx->m_Texture;
+
+        AddToRender(user_ctx->m_Context, ro);
+    }
+}
+
+TEST_F(dmRenderTest, TestDefaultSamplerFilters)
+{
+    dmGraphics::TextureFilter gfx_min_filter_default;
+    dmGraphics::TextureFilter gfx_mag_filter_default;
+    dmGraphics::GetDefaultTextureFilters(m_GraphicsContext, gfx_min_filter_default, gfx_mag_filter_default);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR, gfx_min_filter_default);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR, gfx_mag_filter_default);
+
+    const char* shader_src = "uniform lowp sampler2D texture_sampler_1;\n"
+                             "uniform lowp sampler2D texture_sampler_2;\n"
+                             "uniform lowp sampler2D texture_sampler_3;\n";
+
+    dmGraphics::ShaderDesc::Shader shader    = MakeDDFShader(shader_src, strlen(shader_src));
+    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
+    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
+    dmRender::HMaterial material             = dmRender::NewMaterial(m_Context, vp, fp);
+    dmRender::HMaterial material_no_samplers = dmRender::NewMaterial(m_Context, vp, fp);
+
+    dmhash_t tag = dmHashString64("tag");
+    dmRender::SetMaterialTags(material, 1, &tag);
+
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Width          = 2;
+    creation_params.m_Height         = 2;
+    creation_params.m_OriginalWidth  = 2;
+    creation_params.m_OriginalHeight = 2;
+    dmGraphics::HTexture texture     = dmGraphics::NewTexture(m_GraphicsContext, creation_params);
+
+    uint8_t tex_data[2 * 2];
+    dmGraphics::TextureParams params;
+    params.m_DataSize  = sizeof(tex_data);
+    params.m_Data      = tex_data;
+    params.m_Width     = creation_params.m_Width;
+    params.m_Height    = creation_params.m_Height;
+    params.m_Format    = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
+    params.m_MagFilter = dmGraphics::TEXTURE_FILTER_DEFAULT;
+    dmGraphics::SetTexture(texture, params);
+
+    ASSERT_TRUE(dmRender::SetMaterialSampler(material,
+        dmHashString64("texture_sampler_1"), 0,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_FILTER_NEAREST,
+        dmGraphics::TEXTURE_FILTER_NEAREST,
+        1.0f));
+
+    ASSERT_TRUE(dmRender::SetMaterialSampler(material,
+        dmHashString64("texture_sampler_2"), 1,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_FILTER_DEFAULT,
+        dmGraphics::TEXTURE_FILTER_NEAREST,
+        1.0f));
+
+    ASSERT_TRUE(dmRender::SetMaterialSampler(material,
+        dmHashString64("texture_sampler_3"), 2,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_WRAP_REPEAT,
+        dmGraphics::TEXTURE_FILTER_DEFAULT,
+        dmGraphics::TEXTURE_FILTER_DEFAULT,
+        1.0f));
+
+    dmGraphics::HVertexDeclaration vx_decl = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
+    dmGraphics::HVertexBuffer vx_buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+    TestDefaultSamplerFiltersDispatchCtx user_ctx;
+    user_ctx.m_Context           = m_Context;
+    user_ctx.m_Dispatch          = 0;
+    user_ctx.m_Material[0]       = material;
+    user_ctx.m_Material[1]       = material_no_samplers;
+    user_ctx.m_Texture           = texture;
+    user_ctx.m_VertexDeclaration = vx_decl;
+    user_ctx.m_VertexBuffer      = vx_buffer;
+
+    dmRender::RenderListBegin(m_Context);
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestDefaultSamplerFiltersDispatch, 0, &user_ctx);
+
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, 1);
+    dmRender::RenderListEntry& entry = out[0];
+    entry.m_WorldPosition             = Point3(0,0,0);
+    entry.m_MajorOrder                = 0;
+    entry.m_MinorOrder                = 0;
+    entry.m_TagListKey                = 0;
+    entry.m_Order                     = 1;
+    entry.m_BatchKey                  = 0;
+    entry.m_Dispatch                  = dispatch;
+    entry.m_UserData                  = 0;
+
+    dmGraphics::TextureFilter gfx_min_filter_active;
+    dmGraphics::TextureFilter gfx_mag_filter_active;
+
+    {
+        dmRender::RenderListSubmit(m_Context, out, out + 1);
+        dmRender::RenderListEnd(m_Context);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 0, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, gfx_min_filter_active);
+        ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, gfx_mag_filter_active);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 1, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
+        ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, gfx_mag_filter_active);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 2, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
+        ASSERT_EQ(gfx_mag_filter_default, gfx_mag_filter_active);
+    }
+
+    user_ctx.m_Dispatch++;
+
+    {
+        dmRender::RenderListSubmit(m_Context, out, out + 1);
+        dmRender::RenderListEnd(m_Context);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 0, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
+        ASSERT_EQ(gfx_mag_filter_default, gfx_mag_filter_active);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 1, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
+        ASSERT_EQ(gfx_mag_filter_default, gfx_mag_filter_active);
+
+        dmGraphics::GetTextureFilters(m_GraphicsContext, 2, gfx_min_filter_active, gfx_mag_filter_active);
+        ASSERT_EQ(gfx_min_filter_default, gfx_min_filter_active);
+        ASSERT_EQ(gfx_mag_filter_default, gfx_mag_filter_active);
+    }
+
+    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmRender::DeleteMaterial(m_Context, material_no_samplers);
+
+    dmGraphics::DeleteTexture(texture);
     dmGraphics::DeleteVertexBuffer(vx_buffer);
     dmGraphics::DeleteVertexDeclaration(vx_decl);
 }

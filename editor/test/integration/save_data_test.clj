@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -204,11 +204,12 @@
 
    'dmGameSystemDDF.SpriteDesc
    {:default
-    {"textures" :unimplemented}} ; Multiple textures for sprites are not supported yet.
+    {"tile_set" :deprecated}} ; Replaced with 'textures'; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGraphics.VertexAttribute
    {[["particlefx" "emitters" "[*]" "attributes"]
-     ["sprite" "attributes"]]
+     ["sprite" "attributes"]
+     ["model" "materials" "attributes"]]
     {"coordinate_space" :unused
      "data_type" :unused
      "element_count" :unused
@@ -469,7 +470,15 @@
 
    'dmRenderDDF.MaterialDesc.Sampler
    {:default
-    {"texture" :unimplemented}}}) ; Default texture resources not supported yet.
+    {"texture" :unimplemented}} ; Default texture resources not supported yet.
+
+   'dmRenderDDF.RenderPrototypeDesc
+   {:default
+    {"materials" :deprecated}}
+
+   'dmRenderDDF.RenderTargetDesc.DepthStencilAttachment
+   {:default
+    {"format" :unimplemented}}}) ; Non-default depth/stencil format not supported yet.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))
@@ -619,6 +628,12 @@
                  :wrap-v :wrap-mode-clamp-to-edge}]
                (g/node-value legacy-textures-material :samplers)))))
 
+    (testing "render"
+      (let [legacy-render-prototype (project/get-resource-node project "/silently_migrated/legacy_render_prototype.render")]
+        (is (= [{:name "test"
+                 :path "/builtins/materials/sprite.material"}]
+               (:render-resources (g/node-value legacy-render-prototype :pb-msg))))))
+
     (testing "model"
       (let [legacy-material-and-textures-model (project/get-resource-node project "/silently_migrated/legacy_material_and_textures.model")
             material-resource (workspace/find-resource workspace "/builtins/materials/model.material")
@@ -629,8 +644,21 @@
                  :textures [{:sampler "tex0"
                              :texture tex0-resource}
                             {:sampler "tex1"
-                             :texture tex1-resource}]}]
-               (g/node-value legacy-material-and-textures-model :materials)))))))
+                             :texture tex1-resource}]
+                 :attributes {}}]
+               (g/node-value legacy-material-and-textures-model :materials)))))
+
+    (testing "sprite"
+      (let [legacy-tile-set-sprite (project/get-resource-node project "/silently_migrated/legacy_tile_set.sprite")]
+        (is (= [{:sampler "texture_sampler"
+                 :texture (workspace/find-resource workspace "/checked.atlas")}]
+               (g/node-value legacy-tile-set-sprite :textures))))
+      (let [legacy-tile-set-sprite-go (project/get-resource-node project "/silently_migrated/legacy_tile_set_sprite.go")
+            embedded-component (:node-id (test-util/outline legacy-tile-set-sprite-go [0]))
+            embedded-sprite (test-util/to-component-resource-node-id embedded-component)]
+        (is (= [{:sampler "texture_sampler"
+                 :texture (workspace/find-resource workspace "/checked.atlas")}]
+               (g/node-value embedded-sprite :textures)))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.

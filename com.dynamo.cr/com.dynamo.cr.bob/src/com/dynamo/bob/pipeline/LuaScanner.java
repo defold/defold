@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -203,16 +203,6 @@ public class LuaScanner extends LuaParserBaseListener {
                     rewriter.replace(token, System.lineSeparator().repeat(token.getText().split("\r\n|\r|\n").length - 1));
                 }
              }
-             else {
-                 /**
-                 * We use this to remove any semicolon statements.
-                 * The semicolon may cause problems if it is at the end of a go.property call
-                 * as it will be removed after it has been parsed.
-                 */
-                if (token.getType() == LuaLexer.SEMICOLON) {
-                    rewriter.replace(token, " ");
-                }
-             }
         }
 
         // parse code
@@ -273,6 +263,23 @@ public class LuaScanner extends LuaParserBaseListener {
     private void removeTokens(List<Token> tokens) {
         for (Token token : tokens) {
             removeToken(token);
+        }
+    }
+
+    private void removeTokens(List<Token> tokens, boolean shouldRemoveSemicolonAfter) {
+        int lastTokenIndex = tokens.get(tokens.size() - 1).getTokenIndex();
+        removeTokens(tokens);
+        if (shouldRemoveSemicolonAfter) {
+            int nextTokenIndex = lastTokenIndex + 1;
+            Token token = rewriter.getTokenStream().get(nextTokenIndex);
+             /**
+             * We use this to remove semicolon statements in the end of line;
+             * The semicolon may cause problems if it is at the end of a go.property call
+             * as it will be removed after it has been parsed.
+             */
+            if (token != null && token.getType() == LuaLexer.SEMICOLON) {
+                removeToken(token);
+            }
         }
     }
 
@@ -368,7 +375,7 @@ public class LuaScanner extends LuaParserBaseListener {
             properties.add(property);
 
             // strip property from code
-            removeTokens(tokens);
+            removeTokens(tokens, true);
         }
     }
 

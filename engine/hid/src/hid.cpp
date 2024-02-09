@@ -1,28 +1,29 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
-#include <dlib/log.h>
-#include "hid.h"
-#include "hid_private.h"
-
-#include <platform/platform_window_constants.h>
-
 #include <string.h>
 
+#include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dlib/utf8.h>
+
+#include <platform/platform_window.h>
+#include <platform/platform_window_constants.h>
+
+#include "hid.h"
+#include "hid_private.h"
 
 namespace dmHID
 {
@@ -510,5 +511,55 @@ namespace dmHID
         };
         assert((int) button < DM_ARRAY_SIZE(translation_table));
         return translation_table[(int) button];
+    }
+
+    void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
+    {
+        dmPlatform::DeviceState device_state;
+
+        switch (type)
+        {
+            case KEYBOARD_TYPE_DEFAULT:
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT;
+                break;
+            case KEYBOARD_TYPE_NUMBER_PAD:
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_NUMBER_PAD;
+                break;
+            case KEYBOARD_TYPE_EMAIL:
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_EMAIL;
+                break;
+            case KEYBOARD_TYPE_PASSWORD:
+                device_state = dmPlatform::DEVICE_STATE_KEYBOARD_PASSWORD;
+                break;
+            default:
+                dmLogWarning("Unknown keyboard type %d\n", type);
+        }
+
+        dmPlatform::SetDeviceState(context->m_Window, device_state, true, autoclose);
+    }
+
+    void HideKeyboard(HContext context)
+    {
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_DEFAULT, false);
+    }
+
+    void EnableAccelerometer(HContext context)
+    {
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_ACCELEROMETER, true);
+    }
+
+    void ShowMouseCursor(HContext context)
+    {
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR, true);
+    }
+
+    void HideMouseCursor(HContext context)
+    {
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR, false);
+    }
+
+    bool GetCursorVisible(HContext context)
+    {
+        return !dmPlatform::GetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_CURSOR_LOCK);
     }
 }

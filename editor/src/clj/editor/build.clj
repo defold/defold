@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -49,6 +49,9 @@
         step-count (count @steps)
         progress-tracer (project/make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10) 5))
         evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
+        _ (doseq [node-id (rseq @steps)]
+            (g/node-value node-id :build-targets evaluation-context-with-progress-trace))
+        #_#_#_#_
         prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (rseq @steps))
         _ (batched-pmap (fn [node-id] (g/node-value node-id :build-targets evaluation-context-with-progress-trace)) prewarm-partitions)
         node-build-targets (g/node-value node :build-targets evaluation-context)

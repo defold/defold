@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,6 +42,8 @@ namespace dmResource
     // This is both for the total resource path, ie m_UriParts.X concatenated with relative path
     const uint32_t RESOURCE_PATH_MAX = 1024;
 
+    const uint16_t RESOURCE_VERSION_INVALID = 0xFFFF;
+
     /**
      * Configuration key used to tweak the max number of resources allowed.
      */
@@ -71,7 +73,7 @@ namespace dmResource
     #define RESOURCE_FACTORY_FLAGS_LIVE_UPDATE    (1 << 3)
 
     typedef uintptr_t ResourceType;
-
+    typedef dmArray<char> LoadBufferType;
 
     Result RegisterTypes(HFactory factory, dmHashTable64<void*>* contexts);
     Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts);
@@ -278,6 +280,15 @@ namespace dmResource
     void IncRef(HFactory factory, void* resource);
 
     /**
+     * Get the resource version. The resource version is a sequential serial number
+     * that increases with every resource insertion into the resource system.
+     * This is useful for checking resource validity for resource pointers.
+     * @param factory Factory handle
+     * @param resource Resource
+     */
+    uint16_t GetVersion(HFactory factory, void* resource);
+
+    /**
      * Create a new preloader
      * @param factory Factory handle
      * @param name Resource to load
@@ -395,6 +406,10 @@ namespace dmResource
      */
     const char* ResultToString(Result result);
 
+    // load with default internal buffer and its management, returns buffer ptr in 'buffer'
+    Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);
+    // load with own buffer
+    Result LoadResourceFromBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
 }
 
 #endif // RESOURCE_H

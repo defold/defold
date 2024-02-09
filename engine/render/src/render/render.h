@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -32,6 +32,14 @@ namespace dmRender
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
 
+    static const dmhash_t VERTEX_STREAM_POSITION   = dmHashString64("position");
+    static const dmhash_t VERTEX_STREAM_NORMAL     = dmHashString64("normal");
+    static const dmhash_t VERTEX_STREAM_TANGENT    = dmHashString64("tangent");
+    static const dmhash_t VERTEX_STREAM_COLOR      = dmHashString64("color");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD1  = dmHashString64("texcoord1");
+    static const dmhash_t VERTEX_STREAM_PAGE_INDEX = dmHashString64("page_index");
+
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
     typedef uint64_t                        HSampler;
@@ -52,6 +60,13 @@ namespace dmRender
         RENDER_SCRIPT_RESULT_FAILED = -1,
         RENDER_SCRIPT_RESULT_NO_FUNCTION = 0,
         RENDER_SCRIPT_RESULT_OK = 1
+    };
+
+    enum RenderResourceType
+    {
+        RENDER_RESOURCE_TYPE_INVALID       = 0,
+        RENDER_RESOURCE_TYPE_MATERIAL      = 1,
+        RENDER_RESOURCE_TYPE_RENDER_TARGET = 2,
     };
 
     enum RenderBufferType
@@ -199,8 +214,10 @@ namespace dmRender
     HRenderScriptInstance   NewRenderScriptInstance(HRenderContext render_context, HRenderScript render_script);
     void                    DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance);
     void                    SetRenderScriptInstanceRenderScript(HRenderScriptInstance render_script_instance, HRenderScript render_script);
-    void                    AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material);
-    void                    ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance);
+
+    void                    AddRenderScriptInstanceRenderResource(HRenderScriptInstance render_script_instance, const char* name, uint64_t resource, RenderResourceType type);
+    void                    ClearRenderScriptInstanceRenderResources(HRenderScriptInstance render_script_instance);
+
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      DispatchRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance, float dt);
@@ -210,6 +227,7 @@ namespace dmRender
     HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
     HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
+    dmhash_t                        GetMaterialSamplerNameHash(HMaterial material, uint32_t unit);
     uint32_t                        GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash);
     void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
     void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);

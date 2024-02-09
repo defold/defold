@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,8 +15,7 @@
 #ifndef RESOURCE_LOAD_QUEUE
 #define RESOURCE_LOAD_QUEUE
 
-#include "resource.h"
-#include "resource_private.h"
+#include "../resource.h"
 
 namespace dmLoadQueue
 {
@@ -34,9 +33,9 @@ namespace dmLoadQueue
 
     struct PreloadInfo
     {
-        dmResource::FResourcePreload m_Function;
-        dmResource::PreloadHintInfo m_HintInfo;
-        void* m_Context;
+        dmResource::FResourcePreload m_CompleteFunction;
+        dmResource::PreloadHintInfo  m_HintInfo;
+        void*                        m_Context;
     };
 
     struct LoadResult

@@ -1,12 +1,12 @@
-;; Copyright 2020-2022 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -842,27 +842,30 @@
                    results so far"
   [lsp resource cursor context result-callback & {:keys [timeout-ms]
                                                   :or {timeout-ms 1000}}]
-  (lsp (bound-fn [state]
-         (let [ch (a/chan 1)]
-           (a/go (result-callback (<! (a/reduce
-                                        (fn [acc {:keys [complete items]}]
-                                          (-> acc
-                                              (update :complete and-fn complete)
-                                              (update :items into items)))
-                                        {:complete true
-                                         :items []}
-                                        ch))))
-           (send-requests!
-             state ch
-             :capabilities-pred :completion
-             :language (resource/language resource)
-             :timeout-ms timeout-ms
-             :requests-fn (fn [_ {:keys [out]}]
-                            [(lsp.server/completion
-                               resource
-                               cursor
-                               context
-                               #(vary-meta % assoc :editor.lsp.server-state/out out))]))))))
+  (if (resource/file-resource? resource)
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1)]
+             (a/go (result-callback (<! (a/reduce
+                                          (fn [acc {:keys [complete items]}]
+                                            (-> acc
+                                                (update :complete and-fn complete)
+                                                (update :items into items)))
+                                          {:complete true
+                                           :items []}
+                                          ch))))
+             (send-requests!
+               state ch
+               :capabilities-pred :completion
+               :language (resource/language resource)
+               :timeout-ms timeout-ms
+               :requests-fn (fn [_ {:keys [out]}]
+                              [(lsp.server/completion
+                                 resource
+                                 cursor
+                                 context
+                                 #(vary-meta % assoc :editor.lsp.server-state/out out))])))))
+    ;; Don't ask the servers about dependency (zip) resources
+    (do (result-callback {:complete true :items []}) nil)))
 
 (defn resolve-completion! [lsp completion result-callback & {:keys [timeout-ms]
                                                              :or {timeout-ms 5000}}]

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,13 +14,13 @@
 
 #include <assert.h>
 
-#include "platform_window.h"
-#include "platform_window_constants.h"
+#include <dlib/platform.h>
+#include <dlib/log.h>
 
 #include <glfw/glfw.h>
 
-#include <dlib/platform.h>
-#include <dlib/log.h>
+#include "platform_window.h"
+#include "platform_window_constants.h"
 
 namespace dmPlatform
 {
@@ -363,20 +363,45 @@ namespace dmPlatform
         return -1;
     }
 
+    #ifndef __EMSCRIPTEN__
+        #define GLFW_AUX_CONTEXT_SUPPORTED
+    #endif
+    static inline int32_t QueryAuxContextImpl()
+    {
+    #if defined(GLFW_AUX_CONTEXT_SUPPORTED)
+        return glfwQueryAuxContext();
+    #else
+        return 0;
+    #endif
+    }
+
+    void* AcquireAuxContext(HWindow window)
+    {
+    #if defined(GLFW_AUX_CONTEXT_SUPPORTED)
+        return glfwAcquireAuxContext();
+    #else
+        return 0;
+    #endif
+    }
+
+    void UnacquireAuxContext(HWindow window, void* aux_context)
+    {
+    #if defined(GLFW_AUX_CONTEXT_SUPPORTED)
+        glfwUnacquireAuxContext(aux_context);
+    #endif
+    }
+
+    #undef GLFW_AUX_CONTEXT_SUPPORTED
+
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
-        // JG: Not sure this is needed, or if it's already supported via the glfwGetWindowParam fn
-        if (state == WINDOW_STATE_REFRESH_RATE)
+        switch(state)
         {
-            return glfwGetWindowRefreshRate();
-        }
-        else if (state == WINDOW_STATE_SAMPLE_COUNT)
-        {
-            return window->m_Samples;
-        }
-        else if (state == WINDOW_STATE_HIGH_DPI)
-        {
-            return window->m_HighDPI;
+            case WINDOW_STATE_REFRESH_RATE: return glfwGetWindowRefreshRate();
+            case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
+            case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
+            case WINDOW_STATE_AUX_CONTEXT:  return QueryAuxContextImpl();
+            default:break;
         }
 
         return window->m_WindowOpened ? glfwGetWindowParam(WindowStateToGLFW(state)) : 0;
@@ -454,7 +479,9 @@ namespace dmPlatform
             case DEVICE_STATE_KEYBOARD_PASSWORD:
                 glfwShowKeyboard(op1, GLFW_KEYBOARD_PASSWORD, op2);
                 break;
-            default:break;
+            default:
+                dmLogWarning("Unable to get device state (%d), unknown state.", (int) state);
+                break;
         }
     }
 
@@ -464,8 +491,17 @@ namespace dmPlatform
         {
             return glfwGetMouseLocked();
         }
-        assert(0 && "Not supported.");
+        dmLogWarning("Unable to get device state (%d), unknown state.", (int) state);
         return false;
+    }
+
+    int32_t TriggerCloseCallback(HWindow window)
+    {
+        if (window->m_CloseCallback)
+        {
+            return window->m_CloseCallback(window->m_CloseCallbackUserData);
+        }
+        return 0;
     }
 
     void PollEvents(HWindow window)

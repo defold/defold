@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,6 +42,7 @@ namespace dmGameSystem
     EXT_CONSTANTS(TEXTURE, "texturec")
     EXT_CONSTANTS(TEXTURE_SET, "texturesetc")
     EXT_CONSTANTS(TILE_MAP, "tilemapc")
+    EXT_CONSTANTS(RENDER_TARGET, "render_targetc")
 
 #undef EXT_CONSTANTS
 
@@ -92,6 +93,8 @@ namespace dmGameSystem
      * @param format printf-style format string
      */
     void LogMessageError(dmMessage::Message* message, const char* format, ...);
+
+    dmRender::RenderResourceType ResourcePathToRenderResourceType(const char* path);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

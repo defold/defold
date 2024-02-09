@@ -1,12 +1,12 @@
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1129,16 +1129,22 @@ def create_android_package(self):
 
     self.android_package_task = android_package_task
 
-def copy_stub(task):
-    with open(task.outputs[0].abspath(), 'w') as out_f:
+def copy_glue(task):
+    with open(task.glue_file, 'rb') as in_f:
+        with open(task.outputs[0].abspath(), 'wb') as out_f:
+            out_f.write(in_f.read())
+
+    with open(task.outputs[1].abspath(), 'w') as out_f:
         out_f.write(ANDROID_STUB)
 
     return 0
 
-task = Task.task_factory('copy_stub',
-                                func  = copy_stub,
-                                color = 'PINK',
-                                before  = 'c cxx')
+task = Task.task_factory('copy_glue',
+                            func  = copy_glue,
+                            color = 'PINK',
+                            before  = 'c cxx')
+
+task.runnable_status = lambda self: RUN_ME
 
 task.runnable_status = lambda self: RUN_ME
 
@@ -1149,10 +1155,13 @@ def create_copy_glue(self):
     if not re.match('arm.*?android', self.env['PLATFORM']):
         return
 
+    glue = self.path.find_or_declare('android_native_app_glue.c')
+    self.source.append(glue)
     stub = self.path.get_bld().find_or_declare('android_stub.c')
     self.source.append(stub)
-    task = self.create_task('copy_stub')
-    task.set_outputs([stub])
+    task = self.create_task('copy_glue')
+    task.glue_file = '%s/sources/android/native_app_glue/android_native_app_glue.c' % (ANDROID_NDK_ROOT)
+    task.set_outputs([glue, stub])
 
 def embed_build(task):
     symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_').replace('@', 'at')

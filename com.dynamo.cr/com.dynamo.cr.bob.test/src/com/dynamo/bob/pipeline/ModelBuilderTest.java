@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -38,8 +38,20 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test_skeleton.dae", "");
         addFile("/test_animationset.dae", "");
         addFile("/test.material", "");
+        addFile("/test.vp", "");
+        addFile("/test.fp", "");
+
+        build("/test.vp", "");
+        build("/test.fp", "");
 
         StringBuilder src = new StringBuilder();
+        src.append("name: \"test_material\"\n");
+        src.append("vertex_program: \"/test.vp\"\n");
+        src.append("fragment_program: \"/test.fp\"\n");
+
+        build("/test.material", src.toString());
+
+        src = new StringBuilder();
         src.append(" mesh: \"/test_meshset.dae\"");
         src.append(" skeleton: \"/test_skeleton.dae\"");
         src.append(" animations: \"/test_animationset.dae\"");
@@ -73,8 +85,20 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test_skeleton.gltf", "");
         addFile("/test_animation.gltf", "");
         addFile("/test.material", "");
+        addFile("/test.vp", "");
+        addFile("/test.fp", "");
+
+        build("/test.vp", "");
+        build("/test.fp", "");
 
         StringBuilder src = new StringBuilder();
+        src.append("name: \"test_material\"\n");
+        src.append("vertex_program: \"/test.vp\"\n");
+        src.append("fragment_program: \"/test.fp\"\n");
+
+        build("/test.material", src.toString());
+
+        src = new StringBuilder();
         src.append(" mesh: \"/test_meshset.gltf\"");
         src.append(" skeleton: \"/test_skeleton.gltf\"");
         src.append(" animations: \"/test_animation.gltf\"");
