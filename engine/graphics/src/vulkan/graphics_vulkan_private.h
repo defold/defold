@@ -30,12 +30,11 @@ namespace dmGraphics
     typedef dmHashTable64<Pipeline>    PipelineCache;
     typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
 
-    const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
-    const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
-    const static uint8_t DM_MAX_FRAMES_IN_FLIGHT       = 2; // In flight frames - number of concurrent frames being processed
-    const static uint8_t MAX_VERTEX_BUFFERS            = 2;
-    const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 16;
-    const static uint8_t MAX_SET_COUNT                 = 4;
+    const static uint8_t DM_MAX_TEXTURE_UNITS       = 32;
+    const static uint8_t DM_MAX_FRAMES_IN_FLIGHT    = 2; // In flight frames - number of concurrent frames being processed
+    const static uint8_t MAX_VERTEX_BUFFERS         = 2;
+    const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 16;
+    const static uint8_t MAX_SET_COUNT              = 4;
 
     enum VulkanResourceType
     {

@@ -24,5 +24,5 @@ import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public interface IShaderCompiler {
-    public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean soft_fail) throws IOException, CompileExceptionError;
+    public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean outputHlsl, boolean soft_fail) throws IOException, CompileExceptionError;
 }

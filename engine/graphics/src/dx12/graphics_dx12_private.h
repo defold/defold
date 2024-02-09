@@ -37,14 +37,31 @@ namespace dmGraphics
         uint16_t          m_MipMapCount         : 5;
     };
 
+    struct DX12ShaderModule
+    {
+        ID3DBlob*                      m_ShaderBlob;
+        dmArray<ShaderResourceBinding> m_Uniforms;
+        dmArray<ShaderResourceBinding> m_Inputs;
+    };
+
+
+    struct DX12ShaderProgram
+    {
+        DX12ShaderModule* m_VertexModule;
+        DX12ShaderModule* m_FragmentModule;
+        DX12ShaderModule* m_ComputeModule;
+    };
+
     struct DX12RenderTarget
     {
-        int dummy;
+        ID3D12Resource* m_Resource;
+        uint16_t        m_Id;
+        uint32_t        m_IsBound              : 1;
     };
 
     struct DX12FrameResource
     {
-        ID3D12Resource*         m_RenderTarget;
+        DX12RenderTarget        m_RenderTarget;
         ID3D12CommandAllocator* m_CommandAllocator;
         ID3D12Fence*            m_Fence;
         uint64_t                m_FenceValue;
@@ -54,23 +71,30 @@ namespace dmGraphics
     {
         DX12Context(const ContextParams& params);
 
-        ID3D12Device*              m_Device;
-        IDXGISwapChain3*           m_SwapChain;
-        ID3D12CommandQueue*        m_CommandQueue;
-        ID3D12DescriptorHeap*      m_RtvDescriptorHeap;
-        ID3D12GraphicsCommandList* m_CommandList;
-        ID3D12Debug*               m_DebugInterface;
-        HANDLE                     m_FenceEvent;
-
-        DX12FrameResource          m_FrameResources[MAX_FRAMEBUFFERS];
+        ID3D12Device*                      m_Device;
+        IDXGISwapChain3*                   m_SwapChain;
+        ID3D12CommandQueue*                m_CommandQueue;
+        ID3D12DescriptorHeap*              m_RtvDescriptorHeap;
+        ID3D12GraphicsCommandList*         m_CommandList;
+        ID3D12Debug*                       m_DebugInterface;
+        HANDLE                             m_FenceEvent;
+        DX12FrameResource                  m_FrameResources[MAX_FRAMEBUFFERS];
+        CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;
 
         dmPlatform::HWindow                m_Window;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
+
+        HRenderTarget                      m_MainRenderTarget;
+
+        HRenderTarget                      m_CurrentRenderTarget;
+
         TextureFilter                      m_DefaultTextureMinFilter;
         TextureFilter                      m_DefaultTextureMagFilter;
+        uint64_t                           m_TextureFormatSupport;
         uint32_t                           m_Width;
         uint32_t                           m_Height;
         uint32_t                           m_CurrentFrameIndex;
+        uint32_t                           m_RtvDescriptorSize;
         uint32_t                           m_NumFramesInFlight    : 2;
         uint32_t                           m_VerifyGraphicsCalls  : 1;
         uint32_t                           m_UseValidationLayers  : 1;

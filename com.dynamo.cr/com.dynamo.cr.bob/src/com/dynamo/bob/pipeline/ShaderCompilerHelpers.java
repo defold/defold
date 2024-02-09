@@ -23,6 +23,8 @@ import java.io.PrintWriter;
 
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -434,6 +436,56 @@ public class ShaderCompilerHelpers {
             }
 
             builder.addResources(resourceBlockBuilder);
+        }
+
+        return new ShaderProgramBuilder.ShaderBuildResult(builder);
+    }
+
+    static public ShaderProgramBuilder.ShaderBuildResult buildHLSLFromSpirv(ShaderDesc.Shader.Builder spirvBuilder, ES2ToES3Converter.ShaderType shaderType, String resourceOutput, boolean isDebug, boolean soft_fail) throws IOException, CompileExceptionError {
+        if (spirvBuilder == null) {
+            return new ShaderProgramBuilder.ShaderBuildResult("HLSL not built due to previous errors from SPIR-v compilation.");
+        }
+
+        File fileOutHLSL = File.createTempFile(FilenameUtils.getName(resourceOutput), ".hlsl");
+        File fileOutSpv  = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
+
+        final boolean fileDebug = true;
+
+        // For debugging remove these
+
+        if (!fileDebug) {
+            fileOutHLSL.deleteOnExit();
+            fileOutSpv.deleteOnExit();
+        }
+
+        FileUtils.writeByteArrayToFile(fileOutSpv, spirvBuilder.getSource().toByteArray());
+
+        // Generate HLSL from spirv
+        Result result = Exec.execResult(
+            Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
+            fileOutSpv.getAbsolutePath(),
+            "--output", fileOutHLSL.getAbsolutePath(),
+            "--hlsl",
+            "--shader-model", "50");
+
+        ShaderCompilerHelpers.checkResult(ShaderCompilerHelpers.getResultString(result), null, resourceOutput);
+
+        byte[] hlslResult = Files.readAllBytes(Paths.get(fileOutHLSL.getAbsolutePath()));
+
+        // Create PSSL builder from the spv-cross result file
+        ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
+        builder.setLanguage(ShaderDesc.Language.LANGUAGE_HLSL);
+        builder.setSource(ByteString.copyFrom(hlslResult));
+        builder.setName(FilenameUtils.getName(resourceOutput));
+
+        builder.addAllInputs(spirvBuilder.getInputsList());
+        builder.addAllOutputs(spirvBuilder.getOutputsList());
+        builder.addAllResources(spirvBuilder.getResourcesList());
+
+        if (fileDebug) {
+            System.out.println("FILES");
+            System.out.println(fileOutHLSL.getAbsolutePath());
+            System.out.println(fileOutSpv.getAbsolutePath());
         }
 
         return new ShaderProgramBuilder.ShaderBuildResult(builder);

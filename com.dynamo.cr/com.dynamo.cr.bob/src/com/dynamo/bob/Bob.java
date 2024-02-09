@@ -549,6 +549,7 @@ public class Bob {
         // debug options
         addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
         addOption(options, null, "debug-output-spirv", true, "Force build SPIR-V shaders", false);
+        addOption(options, null, "debug-output-hlsl", true, "Force build HLSL shaders", false);
 
         return options;
     }
@@ -601,7 +602,7 @@ public class Bob {
         return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
     }
 
-    private static boolean getSpirvRequired(Project project) throws IOException, CompileExceptionError {
+    private static boolean getShaderTypeRequired(Project project, String requiredSymbol, String requiredLib) throws IOException, CompileExceptionError {
         IResource appManifestResource = project.getResource("native_extension", "app_manifest", false);
         if (appManifestResource != null && appManifestResource.exists()) {
             Map<String, Object> yamlAppManifest = ExtenderUtil.readYaml(appManifestResource);
@@ -615,27 +616,27 @@ public class Bob {
                     Map<String, Object> yamlPlatformContext = (Map<String, Object>) yamlPlatform.getOrDefault("context", null);
 
                     if (yamlPlatformContext != null) {
-                        boolean vulkanSymbolFound = false;
-                        boolean vulkanLibraryFound = false;
+                        boolean symbolFound = false;
+                        boolean libraryFound = false;
 
                         List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
                         List<String> libs = (List<String>) yamlPlatformContext.getOrDefault("libs", new ArrayList<String>());
 
                         for (String symbol : symbols) {
-                            if (symbol.equals("GraphicsAdapterVulkan")) {
-                                vulkanSymbolFound = true;
+                            if (symbol.equals(requiredSymbol)) {
+                                symbolFound = true;
                                 break;
                             }
                         }
 
                         for (String lib : libs) {
-                            if (lib.equals("graphics_vulkan")) {
-                                vulkanLibraryFound = true;
+                            if (lib.equals(requiredLib)) {
+                                libraryFound = true;
                                 break;
                             }
                         }
 
-                        return vulkanLibraryFound && vulkanSymbolFound;
+                        return libraryFound && symbolFound;
                     }
                 }
             }
@@ -937,7 +938,13 @@ public class Bob {
         if (project.hasOption("debug-output-spirv")) {
             project.setOption("output-spirv", project.option("debug-output-spirv", "false"));
         } else {
-            project.setOption("output-spirv", getSpirvRequired(project) ? "true" : "false");
+            project.setOption("output-spirv", getShaderTypeRequired(project, "GraphicsAdapterVulkan", "graphics_vulkan") ? "true" : "false");
+        }
+
+        if (project.hasOption("debug-output-hlsl")) {
+            project.setOption("output-hlsl", project.option("debug-output-hlsl", "false"));
+        } else {
+            project.setOption("output-hlsl", getShaderTypeRequired(project, "GraphicsAdapterDX12", "graphics_dx12") ? "true" : "false");
         }
 
         boolean ret = true;

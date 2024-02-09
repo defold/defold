@@ -22,6 +22,8 @@
 
 namespace dmGraphics
 {
+    const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
+
     // In OpenGL, there is a single global resource identifier between
     // fragment and vertex uniforms for a single program. In Vulkan,
     // a uniform can be present in both shaders so we have to keep track

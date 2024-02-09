@@ -17,6 +17,8 @@
 
 #include <d3d12.h>
 #include <d3dx12.h>
+#include <D3DCompiler.h>
+
 #include <dxgi1_6.h>
 
 #include <dmsdk/dlib/vmath.h>
@@ -68,6 +70,13 @@ namespace dmGraphics
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
         m_UseValidationLayers     = params.m_UseValidationLayers;
+
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_LUMINANCE_ALPHA;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
+        m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
 
         assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
     }
@@ -151,6 +160,25 @@ namespace dmGraphics
         }
     }
 
+    static void SetupMainRenderTarget(DX12Context* context)
+    {
+        // Initialize the dummy rendertarget for the main framebuffer
+        // The m_Framebuffer construct will be rotated sequentially
+        // with the framebuffer objects created per swap chain.
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+        assert(rt == 0x0);
+
+        rt       = new DX12RenderTarget();
+        rt->m_Id = DM_RENDERTARGET_BACKBUFFER_ID;
+
+        context->m_MainRenderTarget = StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+
+        // rt->m_Handle.m_RenderPass  = context->m_MainRenderPass;
+        // rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[0];
+        // rt->m_Extent               = context->m_SwapChain->m_ImageExtent;
+        // rt->m_ColorAttachmentCount = 1;
+    }
+
     static bool DX12Initialize(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
@@ -209,7 +237,7 @@ namespace dmGraphics
         hr = context->m_Device->CreateDescriptorHeap(&rt_view_heap_desc, IID_PPV_ARGS(&context->m_RtvDescriptorHeap));
         CHECK_HR_ERROR(hr);
 
-        uint32_t rtv_descriptor_size = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        context->m_RtvDescriptorSize = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
         // get a handle to the first descriptor in the descriptor heap. a handle is basically a pointer,
         // but we cannot literally use it like a c++ pointer.
@@ -219,14 +247,14 @@ namespace dmGraphics
         {
             // first we get the n'th buffer in the swap chain and store it in the n'th
             // position of our ID3D12Resource array
-            hr = context->m_SwapChain->GetBuffer(i, IID_PPV_ARGS(&context->m_FrameResources[i].m_RenderTarget));
+            hr = context->m_SwapChain->GetBuffer(i, IID_PPV_ARGS(&context->m_FrameResources[i].m_RenderTarget.m_Resource));
             CHECK_HR_ERROR(hr);
 
             // the we "create" a render target view which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
-            context->m_Device->CreateRenderTargetView(context->m_FrameResources[i].m_RenderTarget, NULL, rtv_handle);
+            context->m_Device->CreateRenderTargetView(context->m_FrameResources[i].m_RenderTarget.m_Resource, NULL, rtv_handle);
 
             // we increment the rtv handle by the rtv descriptor size we got above
-            rtv_handle.Offset(1, rtv_descriptor_size);
+            rtv_handle.Offset(1, context->m_RtvDescriptorSize);
 
             hr = context->m_Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&context->m_FrameResources[i].m_CommandAllocator));
             CHECK_HR_ERROR(hr);
@@ -252,6 +280,10 @@ namespace dmGraphics
         CHECK_HR_ERROR(hr);
 
         context->m_CommandList->Close();
+
+        SetupMainRenderTarget(context);
+
+        context->m_CurrentRenderTarget = context->m_MainRenderTarget;
 
         if (context->m_PrintDeviceInfo)
         {
@@ -332,6 +364,13 @@ namespace dmGraphics
     static void DX12Clear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
     {
         DX12Context* context = (DX12Context*) _context;
+
+        const float r = ((float)red)/255.0f;
+        const float g = ((float)green)/255.0f;
+        const float b = ((float)blue)/255.0f;
+        const float a = ((float)alpha)/255.0f;
+        const float cc[] = { r, g, b, a };
+        context->m_CommandList->ClearRenderTargetView(context->m_RtvHandle, cc, 0, NULL);
     }
 
     static void SyncronizeFrame(DX12Context* context)
@@ -361,6 +400,58 @@ namespace dmGraphics
         current_frame_resource.m_FenceValue++;
     }
 
+    static bool EndRenderPass(DX12Context* context)
+    {
+        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+
+        if (!current_rt->m_IsBound)
+        {
+            return false;
+        }
+
+        if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(current_rt->m_Resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+        }
+
+        current_rt->m_IsBound = 0;
+        return true;
+    }
+
+    static void BeginRenderPass(DX12Context* context, HRenderTarget render_target)
+    {
+        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        DX12RenderTarget* rt         = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, render_target);
+
+        if (current_rt->m_Id == rt->m_Id &&
+            current_rt->m_IsBound)
+        {
+            return;
+        }
+
+        if (current_rt->m_IsBound)
+        {
+            EndRenderPass(context);
+        }
+
+        if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(current_rt->m_Resource, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+        }
+
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(context->m_RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), context->m_CurrentFrameIndex, context->m_RtvDescriptorSize);
+        context->m_RtvHandle = rtvHandle;
+        context->m_CommandList->OMSetRenderTargets(1, &context->m_RtvHandle, false, NULL);
+
+        rt->m_IsBound          = 1;
+        // rt->m_SubPassIndex     = 0;
+        // rt->m_Scissor.extent   = rt->m_Extent;
+        // rt->m_Scissor.offset.x = 0;
+        // rt->m_Scissor.offset.y = 0;
+
+        context->m_CurrentRenderTarget = render_target;
+    }
+
     static void DX12BeginFrame(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
@@ -371,14 +462,20 @@ namespace dmGraphics
         HRESULT hr = current_frame_resource.m_CommandAllocator->Reset();
         CHECK_HR_ERROR(hr);
 
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
+        rt->m_Resource = current_frame_resource.m_RenderTarget.m_Resource;
+
         // Enter "record" mode
         hr = context->m_CommandList->Reset(current_frame_resource.m_CommandAllocator, NULL); // Second argument is a pipeline object (TODO)
         CHECK_HR_ERROR(hr);
+
+        BeginRenderPass(context, context->m_MainRenderTarget);
     }
 
     static void DX12Flip(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
+        EndRenderPass(context);
 
         DX12FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameIndex];
 
@@ -447,14 +544,33 @@ namespace dmGraphics
         return 65536;
     }
 
-    static HVertexDeclaration DX12NewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
-    {
-        return NewVertexDeclaration(context, stream_declaration);
-    }
-
     static HVertexDeclaration DX12NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
     {
-        return 0;
+        VertexDeclaration* vd = new VertexDeclaration;
+        memset(vd, 0, sizeof(VertexDeclaration));
+
+        vd->m_Stride = 0;
+        for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
+        {
+            vd->m_Streams[i].m_NameHash  = stream_declaration->m_Streams[i].m_NameHash;
+            vd->m_Streams[i].m_Location  = -1;
+            vd->m_Streams[i].m_Size      = stream_declaration->m_Streams[i].m_Size;
+            vd->m_Streams[i].m_Type      = stream_declaration->m_Streams[i].m_Type;
+            vd->m_Streams[i].m_Normalize = stream_declaration->m_Streams[i].m_Normalize;
+            vd->m_Streams[i].m_Offset    = vd->m_Stride;
+
+            vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
+        }
+        vd->m_StreamCount = stream_declaration->m_StreamCount;
+
+        return vd;
+    }
+
+    static HVertexDeclaration DX12NewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
+    {
+        HVertexDeclaration vd = DX12NewVertexDeclaration(context, stream_declaration);
+        vd->m_Stride = stride;
+        return vd;
     }
 
     static void DX12EnableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer, uint32_t binding_index)
@@ -508,21 +624,58 @@ namespace dmGraphics
 
     static HProgram DX12NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-        return 0;
+        DX12ShaderProgram* program = new DX12ShaderProgram();
+        program->m_VertexModule    = (DX12ShaderModule*) vertex_program;
+        program->m_FragmentModule  = (DX12ShaderModule*) fragment_program;
+        program->m_ComputeModule   = 0;
+        return (HProgram) program;
     }
 
     static void DX12DeleteProgram(HContext context, HProgram program)
     {
     }
 
-    static HVertexProgram DX12NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HRESULT CreateShaderModule(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader)
     {
-        return 0;
+        ID3DBlob* error_blob;
+        uint32_t flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+
+        HRESULT hr = D3DCompile(data, data_size, NULL, NULL, NULL, "main", target, flags, 0, &shader->m_ShaderBlob, &error_blob);
+        if (FAILED(hr))
+        {
+            dmLogError("%s", error_blob->GetBufferPointer());
+            return hr;
+        }
+
+        /*
+        D3D12_SHADER_BYTECODE vertexShaderBytecode = {};
+        vertexShaderBytecode.BytecodeLength = vertexShader->GetBufferSize();
+        vertexShaderBytecode.pShaderBytecode = vertexShader->GetBufferPointer();
+        */
+
+        return S_OK;
     }
 
-    static HFragmentProgram DX12NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HVertexProgram DX12NewVertexProgram(HContext _context, ShaderDesc::Shader* ddf)
     {
-        return 0;
+        DX12ShaderModule* shader = new DX12ShaderModule;
+        memset(shader, 0, sizeof(*shader));
+        DX12Context* context = (DX12Context*) _context;
+
+        HRESULT hr = CreateShaderModule(context, "vs_5_0", ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
+        CHECK_HR_ERROR(hr);
+        return (HVertexProgram) shader;
+    }
+
+    static HFragmentProgram DX12NewFragmentProgram(HContext _context, ShaderDesc::Shader* ddf)
+    {
+        DX12ShaderModule* shader = new DX12ShaderModule;
+        memset(shader, 0, sizeof(*shader));
+        DX12Context* context = (DX12Context*) _context;
+
+        HRESULT hr = CreateShaderModule(context, "ps_5_0", ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
+        CHECK_HR_ERROR(hr);
+        return (HVertexProgram) shader;
     }
 
     static bool DX12ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
@@ -550,7 +703,7 @@ namespace dmGraphics
 
     static ShaderDesc::Language DX12GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
     {
-        return ShaderDesc::LANGUAGE_GLSL_SM140;
+        return ShaderDesc::LANGUAGE_HLSL;
     }
 
     static void DX12EnableProgram(HContext context, HProgram program)
@@ -648,9 +801,10 @@ namespace dmGraphics
     {
     }
 
-    static bool DX12IsTextureFormatSupported(HContext context, TextureFormat format)
+    static bool DX12IsTextureFormatSupported(HContext _context, TextureFormat format)
     {
-        return 0;
+        DX12Context* context = (DX12Context*) _context;
+        return (context->m_TextureFormatSupport & (1 << format)) != 0;
     }
 
     static uint32_t DX12GetMaxTextureSize(HContext context)

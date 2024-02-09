@@ -61,10 +61,21 @@ public class ShaderCompilers {
             String spirvTargetProfile, boolean isDebug, boolean softFail) throws IOException, CompileExceptionError {
 
         ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<ShaderProgramBuilder.ShaderBuildResult>();
+        ShaderProgramBuilder.ShaderBuildResult spirvBuilder = null;
 
         for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
             if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
-                shaderBuildResults.add(ShaderCompilerHelpers.buildSpirvFromGLSL(fullShaderSource, shaderType, resourceOutputPath, spirvTargetProfile, isDebug, softFail));
+                if (spirvBuilder == null) {
+                    spirvBuilder = ShaderCompilerHelpers.buildSpirvFromGLSL(fullShaderSource, shaderType, resourceOutputPath, spirvTargetProfile, isDebug, softFail);
+                }
+                shaderBuildResults.add(spirvBuilder);
+            } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
+                if (spirvBuilder == null) {
+                    spirvBuilder = ShaderCompilerHelpers.buildSpirvFromGLSL(fullShaderSource, shaderType, resourceOutputPath, spirvTargetProfile, isDebug, softFail);
+                }
+
+                shaderBuildResults.add(ShaderCompilerHelpers.buildHLSLFromSpirv(spirvBuilder.shaderBuilder, shaderType, resourceOutputPath, isDebug, softFail));
+
             } else {
                 shaderBuildResults.add(ShaderCompilerHelpers.buildGLSL(fullShaderSource, shaderType, shaderLanguage, isDebug));
             }
@@ -74,7 +85,7 @@ public class ShaderCompilers {
     }
 
     public static class MacOSShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean outputHlsl, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
 
             // Compute shaders not supported on osx for OpenGL
@@ -92,7 +103,7 @@ public class ShaderCompilers {
     }
 
     public static class Win32ShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean outputHlsl, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
 
             if (shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
@@ -106,12 +117,17 @@ public class ShaderCompilers {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
             }
 
+            if (outputHlsl)
+            {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL);
+            }
+
             return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
         }
     }
 
     public static class LinuxShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean outputHlsl, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
 
             if (shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
@@ -130,7 +146,7 @@ public class ShaderCompilers {
     }
 
     public static class IOSShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean outputHlsl, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
 
             if (shaderType != ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
@@ -147,7 +163,7 @@ public class ShaderCompilers {
     }
 
     public static class AndroidShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean outputHlsl, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
 
             if (shaderType != ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
@@ -165,7 +181,7 @@ public class ShaderCompilers {
     }
 
     public static class WebShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean outputHlsl, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
 
             if (shaderType != ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
@@ -178,7 +194,7 @@ public class ShaderCompilers {
     }
 
     public static class NXShaderCompiler implements IShaderCompiler {
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean outputHlsl, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
             return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);

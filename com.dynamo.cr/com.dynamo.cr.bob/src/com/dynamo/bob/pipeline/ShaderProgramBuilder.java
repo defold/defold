@@ -88,10 +88,10 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         }
 
         // Include the spir-v flag into the cache key so we can invalidate the output results accordingly
-        String spirvCacheKey = "output_spirv=" + getOutputSpirvFlag();
+        String shaderTypesCacheKey = "output_spirv=" + getOutputSpirvFlag() + ":output_hlsl=" + getOutputHlslFlag();
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.setData(shaderPreprocessor);
-        taskBuilder.addExtraCacheKey(spirvCacheKey);
+        taskBuilder.addExtraCacheKey(shaderTypesCacheKey);
 
         Task<ShaderPreprocessor> tsk = taskBuilder.build();
         return tsk;
@@ -101,6 +101,10 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         boolean fromProjectOptions    = this.project.option("output-spirv", "false").equals("true");
         boolean fromProjectProperties = this.project.getProjectProperties().getBooleanValue("shader", "output_spirv", false);
         return fromProjectOptions || fromProjectProperties;
+    }
+
+    private boolean getOutputHlslFlag() {
+        return this.project.option("output-hlsl", "false").equals("true");
     }
 
     static private ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults, ES2ToES3Converter.ShaderType shaderType) {
@@ -163,7 +167,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
     // Called from bob
     public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ES2ToES3Converter.ShaderType shaderType,
-            String platform, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+            String platform, boolean isDebug, boolean outputSpirv, boolean outputHlsl, boolean softFail) throws IOException, CompileExceptionError {
         Platform platformKey = Platform.get(platform);
         if(platformKey == null) {
             throw new CompileExceptionError("Unknown platform for shader program '" + resourceOutputPath + "'': " + platform);
@@ -171,7 +175,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
         String finalShaderSource                          = shaderPreprocessor.getCompiledSource();
         IShaderCompiler shaderCompiler                    = project.getShaderCompiler(platformKey);
-        ArrayList<ShaderBuildResult> shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, resourceOutputPath, isDebug, outputSpirv, false);
+        ArrayList<ShaderBuildResult> shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, resourceOutputPath, isDebug, outputSpirv, outputHlsl, false);
         return buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
     }
 
@@ -206,10 +210,11 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         ShaderPreprocessor shaderPreprocessor = task.getData();
         boolean isDebug                       = (this.project.hasOption("debug") || (this.project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
         boolean outputSpirv                   = getOutputSpirvFlag();
+        boolean outputHlsl                    = getOutputHlslFlag();
         String resourceOutputPath             = task.getOutputs().get(0).getPath();
 
         ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor,
-            shaderType, this.project.getPlatformStrings()[0], isDebug, outputSpirv, false);
+            shaderType, this.project.getPlatformStrings()[0], isDebug, outputSpirv, outputHlsl, false);
 
         handleShaderDescBuildResult(shaderDescBuildResult, resourceOutputPath);
 
@@ -247,12 +252,13 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, args[0], source);
 
             boolean outputSpirv = true;
+            boolean outputHlsl = true;
             boolean softFail = false;
 
             ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(args[1], shaderPreprocessor,
                 shaderType, cmd.getOptionValue("platform", ""),
                 cmd.getOptionValue("variant", "").equals("debug") ? true : false,
-                outputSpirv, softFail);
+                outputSpirv, outputHlsl, softFail);
 
             handleShaderDescBuildResult(shaderDescBuildResult, args[1]);
 

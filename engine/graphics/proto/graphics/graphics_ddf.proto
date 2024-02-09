@@ -244,6 +244,7 @@ message ShaderDesc
         LANGUAGE_SPIRV      = 5; // Vulkan / MoltenVK
         LANGUAGE_PSSL       = 6; // Playstation
         LANGUAGE_GLSL_SM430 = 7; // OpenGL 4.3+ compatible
+        LANGUAGE_HLSL       = 8; // Windows / XBox compatible
     }
 
     enum ShaderClass
