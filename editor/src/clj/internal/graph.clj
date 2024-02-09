@@ -1158,7 +1158,7 @@
                                                        ([]
                                                         (pair {} []))
                                                        ([[new-acc remove-acc] [node-id labels old-node-successors]]
-                                                        (let [new-node-successors (if-some [node (gt/node-by-id-at basis node-id)]
+                                                        (let [new-node-successors (when-some [node (gt/node-by-id-at basis node-id)]
                                                                                     (let [node-type (gt/node-type node)
                                                                                           deps-by-label (or (in/input-dependencies node-type) {})
                                                                                           overrides (node-id->overrides node-id)
@@ -1188,13 +1188,14 @@
                                                                                                                       conj!
                                                                                                                       deps
                                                                                                                       (arcs-by-source basis node-id label))]
-                                                                                                  (assoc new-node-successors label (persistent! deps))))
-                                                                                              (or old-node-successors {})
-                                                                                              labels))
-                                                                                    nil)]
-                                                          (if (nil? new-node-successors)
-                                                            (pair new-acc (conj remove-acc node-id))
-                                                            (pair (assoc new-acc node-id new-node-successors) remove-acc)))))
+                                                                                                  (if (pos? (count deps))
+                                                                                                    (assoc new-node-successors label (persistent! deps))
+                                                                                                    (dissoc new-node-successors label))))
+                                                                                              old-node-successors
+                                                                                              labels)))]
+                                                          (if (pos? (count new-node-successors))
+                                                            (pair (assoc new-acc node-id new-node-successors) remove-acc)
+                                                            (pair new-acc (conj remove-acc node-id))))))
                                                      changes+old-node-successors)]
     (persistent!
       (reduce dissoc!
