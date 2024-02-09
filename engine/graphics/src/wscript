@@ -112,8 +112,6 @@ def build(bld):
 
         dx12_header_includes = [build_util.get_dynamo_ext('include', 'directx')]
 
-        print("JHONNY??", dx12_header_includes)
-
         obj = bld.stlib(features        = 'cxx',
                         includes        = ['.', 'dx12'] + proto_cpp_includes + dx12_header_includes,
                         use             = 'DDF DLIB',

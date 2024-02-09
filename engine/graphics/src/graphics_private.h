@@ -34,6 +34,13 @@ namespace dmGraphics
     #define UNIFORM_LOCATION_GET_FS(loc)        ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
     #define UNIFORM_LOCATION_GET_FS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
 
+    // Fence values to indicate frame ready or in-use state
+    enum RenderContextState
+    {
+        RENDER_CONTEXT_STATE_FREE = 0,
+        RENDER_CONTEXT_STATE_IN_USE = 1,
+    };
+
     struct VertexStream
     {
         dmhash_t m_NameHash;

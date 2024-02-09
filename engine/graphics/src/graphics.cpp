@@ -119,6 +119,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
             default:break;
         }
         return "<unknown dmGraphics::AdapterFamily>";

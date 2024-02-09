@@ -59,6 +59,8 @@ namespace dmGraphics
         ID3D12CommandQueue*        m_CommandQueue;
         ID3D12DescriptorHeap*      m_RtvDescriptorHeap;
         ID3D12GraphicsCommandList* m_CommandList;
+        ID3D12Debug*               m_DebugInterface;
+        HANDLE                     m_FenceEvent;
 
         DX12FrameResource          m_FrameResources[MAX_FRAMEBUFFERS];
 
@@ -68,8 +70,10 @@ namespace dmGraphics
         TextureFilter                      m_DefaultTextureMagFilter;
         uint32_t                           m_Width;
         uint32_t                           m_Height;
+        uint32_t                           m_CurrentFrameIndex;
         uint32_t                           m_NumFramesInFlight    : 2;
         uint32_t                           m_VerifyGraphicsCalls  : 1;
+        uint32_t                           m_UseValidationLayers  : 1;
         uint32_t                           m_PrintDeviceInfo      : 1;
     };
 }

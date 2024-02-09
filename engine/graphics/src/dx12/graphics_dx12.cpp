@@ -67,6 +67,7 @@ namespace dmGraphics
         m_Window                  = params.m_Window;
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
+        m_UseValidationLayers     = params.m_UseValidationLayers;
 
         assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
     }
@@ -154,10 +155,21 @@ namespace dmGraphics
     {
         DX12Context* context = (DX12Context*) _context;
 
+        HRESULT hr = S_OK;
+
+        // This needs to be created before the device
+        if (context->m_UseValidationLayers)
+        {
+            hr = D3D12GetDebugInterface(IID_PPV_ARGS(&context->m_DebugInterface));
+            CHECK_HR_ERROR(hr);
+
+            context->m_DebugInterface->EnableDebugLayer(); // TODO: Release
+        }
+
         IDXGIFactory4* factory = CreateDXGIFactory();
         IDXGIAdapter1* adapter = CreateDeviceAdapter(factory);
 
-        HRESULT hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&context->m_Device));
+        hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&context->m_Device));
         CHECK_HR_ERROR(hr);
 
         D3D12_COMMAND_QUEUE_DESC cmd_queue_desc = {};
@@ -218,7 +230,28 @@ namespace dmGraphics
 
             hr = context->m_Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&context->m_FrameResources[i].m_CommandAllocator));
             CHECK_HR_ERROR(hr);
+
+            // Create the frame fence that will be signaled when we can render to this frame
+            hr = context->m_Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&context->m_FrameResources[i].m_Fence));
+            CHECK_HR_ERROR(hr);
+
+            context->m_FrameResources[i].m_FenceValue = RENDER_CONTEXT_STATE_FREE;
         }
+
+
+        context->m_FenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+        if (!context->m_FenceEvent)
+        {
+            dmLogFatal("Unable to create fence event");
+            return false;
+        }
+
+        // command buffer / command list
+        // TODO: We should create one of these for every thread we have that are recording commands
+        hr = context->m_Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, context->m_FrameResources[0].m_CommandAllocator, NULL, IID_PPV_ARGS(&context->m_CommandList));
+        CHECK_HR_ERROR(hr);
+
+        context->m_CommandList->Close();
 
         if (context->m_PrintDeviceInfo)
         {
@@ -301,13 +334,68 @@ namespace dmGraphics
         DX12Context* context = (DX12Context*) _context;
     }
 
-    static void DX12BeginFrame(HContext context)
+    static void SyncronizeFrame(DX12Context* context)
     {
-        // NOP
+        // swap the current rtv buffer index so we draw on the correct buffer
+        context->m_CurrentFrameIndex = context->m_SwapChain->GetCurrentBackBufferIndex();
+
+        DX12FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameIndex];
+
+        // if the current fence value is still less than "fenceValue", then we know the GPU has not finished executing
+        // the command queue since it has not reached the "commandQueue->Signal(fence, fenceValue)" command
+
+        HRESULT hr = S_OK;
+
+        if (current_frame_resource.m_Fence->GetCompletedValue() < current_frame_resource.m_FenceValue)
+        {
+            // we have the fence create an event which is signaled once the fence's current value is "fenceValue"
+            hr = current_frame_resource.m_Fence->SetEventOnCompletion(current_frame_resource.m_FenceValue, context->m_FenceEvent);
+            CHECK_HR_ERROR(hr);
+
+            // We will wait until the fence has triggered the event that it's current value has reached "fenceValue". once it's value
+            // has reached "fenceValue", we know the command queue has finished executing
+            WaitForSingleObject(context->m_FenceEvent, INFINITE);
+        }
+
+        // increment fenceValue for next frame
+        current_frame_resource.m_FenceValue++;
+    }
+
+    static void DX12BeginFrame(HContext _context)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        SyncronizeFrame(context);
+
+        DX12FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameIndex];
+
+        HRESULT hr = current_frame_resource.m_CommandAllocator->Reset();
+        CHECK_HR_ERROR(hr);
+
+        // Enter "record" mode
+        hr = context->m_CommandList->Reset(current_frame_resource.m_CommandAllocator, NULL); // Second argument is a pipeline object (TODO)
+        CHECK_HR_ERROR(hr);
     }
 
     static void DX12Flip(HContext _context)
     {
+        DX12Context* context = (DX12Context*) _context;
+
+        DX12FrameResource& current_frame_resource = context->m_FrameResources[context->m_CurrentFrameIndex];
+
+        // Close the command list for recording
+        HRESULT hr = context->m_CommandList->Close();
+
+        // create an array of command lists (only one command list here)
+        ID3D12CommandList* execute_cmd_lists[] = { context->m_CommandList };
+
+        // execute the array of command lists
+        context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
+
+        hr = context->m_CommandQueue->Signal(current_frame_resource.m_Fence, current_frame_resource.m_FenceValue);
+        CHECK_HR_ERROR(hr);
+
+        hr = context->m_SwapChain->Present(0, 0);
+        CHECK_HR_ERROR(hr);
     }
 
     static HVertexBuffer DX12NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -369,35 +457,21 @@ namespace dmGraphics
         return 0;
     }
 
-    bool DX12SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
-    {
-        return true;
-    }
-
-    static void DX12DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
+    static void DX12EnableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer, uint32_t binding_index)
     {
     }
 
-    static void DX12EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
+    static void DX12DisableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer)
     {
     }
 
-    static void DX12EnableVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void DX12EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
-        DX12EnableVertexDeclaration(context, vertex_declaration, vertex_buffer);
+
     }
 
     static void DX12DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
-    }
-
-    static void DX12HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
-    {
-    }
-
-    static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
-    {
-        return ~0;
     }
 
     static void DX12DrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)

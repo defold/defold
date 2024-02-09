@@ -142,6 +142,7 @@ struct EngineCtx
     int m_WasRun;
     int m_WasDestroyed;
     int m_WasResultCalled;
+    int m_Running;
 
     uint64_t m_TimeStart;
 
@@ -150,6 +151,17 @@ struct EngineCtx
 
     ITest* m_Test;
 } g_EngineCtx;
+
+struct ClearBackbufferTest : ITest
+{
+    void Initialize(EngineCtx* engine) override
+    {
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+    }
+};
 
 struct CopyToBufferTest : ITest
 {
@@ -377,17 +389,25 @@ struct ComputeTest : ITest
     }
 };
 
+static bool OnWindowClose(void* user_data)
+{
+    EngineCtx* engine = (EngineCtx*)user_data;
+    engine->m_Running = 0;
+    return false;
+}
+
 static void* EngineCreate(int argc, char** argv)
 {
     EngineCtx* engine = &g_EngineCtx;
-
     engine->m_Window = dmPlatform::NewWindow();
 
     dmPlatform::WindowParams window_params = {};
-    window_params.m_Width       = 512;
-    window_params.m_Height      = 512;
-    window_params.m_Title       = "Vulkan Test App";
-    window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_Width                  = 512;
+    window_params.m_Height                 = 512;
+    window_params.m_Title                  = "Vulkan Test App";
+    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_CloseCallback          = OnWindowClose;
+    window_params.m_CloseCallbackUserData  = (void*) engine;
 
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
@@ -405,12 +425,14 @@ static void* EngineCreate(int argc, char** argv)
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
-    engine->m_Test = new ComputeTest();
+    // engine->m_Test = new ComputeTest();
+    engine->m_Test = new ClearBackbufferTest();
 
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
     engine->m_TimeStart = dmTime::GetTime();
+    engine->m_Running = 1;
     return &g_EngineCtx;
 }
 
@@ -434,14 +456,18 @@ static UpdateResult EngineUpdate(void* _engine)
         return RESULT_EXIT;
     */
 
+    if (!engine->m_Running)
+    {
+        return RESULT_EXIT;
+    }
+
     dmPlatform::PollEvents(engine->m_Window);
 
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
-    dmGraphics::Flip(engine->m_GraphicsContext);
+    engine->m_Test->Execute(engine);
 
-    // color_b += 2;
-    // color_g += 1;
+    dmGraphics::Flip(engine->m_GraphicsContext);
 
     return RESULT_OK;
 }
