@@ -38,9 +38,11 @@ CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_EXAMPLES=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_TESTS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DGLFW_VULKAN_STATIC=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DGLFW_VULKAN_STATIC=OFF ${CMAKE_FLAGS}"
 
-# TODO: With GLFW 3.4 we could use this and a set a default loader instead of linking statically
+CMAKE_FLAGS_VULKAN="-DGLFW_VULKAN_STATIC=ON"
+
+# TODO: Investigate if we want this or our own loader.
 # CMAKE_FLAGS="-DGLFW_VULKAN_STATIC=OFF ${CMAKE_FLAGS}"
 
 case $PLATFORM in
@@ -76,6 +78,13 @@ rm -rf ./lib/
 mkdir -p $TARGET_LIB
 
 cp -v ${SRC_LIB} ${TARGET_LIB}
+
+## BUILD with vulkan support
+echo "CMAKE_FLAGS: '${CMAKE_FLAGS} ${CMAKE_FLAGS_VULKAN}"
+cmake ${CMAKE_FLAGS} ${CMAKE_FLAGS_VULKAN} ${SOURCE_DIR}
+cmake --build . --config Release
+
+cp -v ${SRC_LIB} ${TARGET_LIB}/libglfw3-vulkan.a
 
 PACKAGE=glfw-${VERSION}-${PLATFORM}.tar.gz
 
