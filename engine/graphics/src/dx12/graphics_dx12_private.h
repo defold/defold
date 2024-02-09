@@ -17,14 +17,21 @@
 
 #include <dlib/math.h>
 #include <dlib/mutex.h>
-#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+#include <dlib/hashtable.h>
 #include <dlib/opaque_handle_container.h>
+
+#include <dmsdk/vectormath/cpp/vectormath_aos.h>
+
 #include <platform/platform_window.h>
 
 namespace dmGraphics
 {
     const static uint8_t MAX_FRAMES_IN_FLIGHT = 2;
     const static uint8_t MAX_FRAMEBUFFERS     = 3;
+    const static uint8_t MAX_VERTEX_BUFFERS   = 2;
+
+    typedef ID3D12PipelineState*          DX12Pipeline;
+    typedef dmHashTable64<DX12Pipeline>   DX12PipelineCache;
 
     struct DX12Texture
     {
@@ -37,11 +44,21 @@ namespace dmGraphics
         uint16_t          m_MipMapCount         : 5;
     };
 
+    struct DX12VertexBuffer
+    {
+        ID3D12Resource*          m_Resource;
+        D3D12_VERTEX_BUFFER_VIEW m_View;
+        uint32_t                 m_DataSize;
+    };
+
     struct DX12ShaderModule
     {
         ID3DBlob*                      m_ShaderBlob;
         dmArray<ShaderResourceBinding> m_Uniforms;
         dmArray<ShaderResourceBinding> m_Inputs;
+        uint16_t                       m_UniformBufferCount;
+        uint16_t                       m_TextureSamplerCount;
+        uint16_t                       m_TotalUniformCount;
     };
 
 
@@ -54,9 +71,11 @@ namespace dmGraphics
 
     struct DX12RenderTarget
     {
-        ID3D12Resource* m_Resource;
-        uint16_t        m_Id;
-        uint32_t        m_IsBound              : 1;
+        ID3D12Resource*  m_Resource;
+        DXGI_FORMAT      m_Format;
+        DXGI_SAMPLE_DESC m_SampleDesc;
+        uint16_t         m_Id;
+        uint32_t         m_IsBound : 1;
     };
 
     struct DX12FrameResource
@@ -77,16 +96,24 @@ namespace dmGraphics
         ID3D12DescriptorHeap*              m_RtvDescriptorHeap;
         ID3D12GraphicsCommandList*         m_CommandList;
         ID3D12Debug*                       m_DebugInterface;
+        ID3D12RootSignature*               m_RootSignature;
         HANDLE                             m_FenceEvent;
         DX12FrameResource                  m_FrameResources[MAX_FRAMEBUFFERS];
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;
 
         dmPlatform::HWindow                m_Window;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
+        DX12PipelineCache                  m_PipelineCache;
+        PipelineState                      m_PipelineState;
 
         HRenderTarget                      m_MainRenderTarget;
+        VertexDeclaration                  m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
 
         HRenderTarget                      m_CurrentRenderTarget;
+        DX12ShaderProgram*                 m_CurrentProgram;
+        DX12Pipeline*                      m_CurrentPipeline;
+        DX12VertexBuffer*                  m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
+        VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
 
         TextureFilter                      m_DefaultTextureMinFilter;
         TextureFilter                      m_DefaultTextureMagFilter;
@@ -96,6 +123,7 @@ namespace dmGraphics
         uint32_t                           m_CurrentFrameIndex;
         uint32_t                           m_RtvDescriptorSize;
         uint32_t                           m_NumFramesInFlight    : 2;
+        uint32_t                           m_FrameBegun           : 1;
         uint32_t                           m_VerifyGraphicsCalls  : 1;
         uint32_t                           m_UseValidationLayers  : 1;
         uint32_t                           m_PrintDeviceInfo      : 1;

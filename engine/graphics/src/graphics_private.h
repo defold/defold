@@ -129,7 +129,7 @@ namespace dmGraphics
     void                 SetForceVertexReloadFail(bool should_fail);
     void                 SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
     bool                 IsTextureFormatCompressed(TextureFormat format);
-    bool                 IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
+    bool                 IsUniformTextureSampler(const ShaderResourceBinding& uniform);
     void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
     const char*          TextureFormatToString(TextureFormat format);
     bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);

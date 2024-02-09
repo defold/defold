@@ -27,6 +27,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/profile.h>
 
 #include <platform/platform_window.h>
 
@@ -155,12 +156,30 @@ namespace dmGraphics
         if (g_DX12Context)
         {
             DX12Context* context = (DX12Context*) _context;
+
+            // SAFE_RELEASE(pipelineStateObject);
+            // SAFE_RELEASE(rootSignature);
+            // SAFE_RELEASE(vertexBuffer);
+
             delete (DX12Context*) context;
             g_DX12Context = 0x0;
         }
     }
 
-    static void SetupMainRenderTarget(DX12Context* context)
+    static void SetupRootSignature(DX12Context* context)
+    {
+        CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
+        rootSignatureDesc.Init(0, NULL, 0, NULL, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+        ID3DBlob* signature;
+        HRESULT hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, NULL);
+        CHECK_HR_ERROR(hr);
+
+        hr = context->m_Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&context->m_RootSignature));
+        CHECK_HR_ERROR(hr);
+    }
+
+    static void SetupMainRenderTarget(DX12Context* context, DXGI_SAMPLE_DESC sample_desc)
     {
         // Initialize the dummy rendertarget for the main framebuffer
         // The m_Framebuffer construct will be rotated sequentially
@@ -168,10 +187,13 @@ namespace dmGraphics
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
         assert(rt == 0x0);
 
-        rt       = new DX12RenderTarget();
-        rt->m_Id = DM_RENDERTARGET_BACKBUFFER_ID;
+        rt               = new DX12RenderTarget();
+        rt->m_Id         = DM_RENDERTARGET_BACKBUFFER_ID;
+        rt->m_Format     = DXGI_FORMAT_R8G8B8A8_UNORM;
+        rt->m_SampleDesc = sample_desc;
 
-        context->m_MainRenderTarget = StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+        context->m_MainRenderTarget    = StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
+        context->m_CurrentRenderTarget = context->m_MainRenderTarget;
 
         // rt->m_Handle.m_RenderPass  = context->m_MainRenderPass;
         // rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[0];
@@ -267,7 +289,7 @@ namespace dmGraphics
         }
 
 
-        context->m_FenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+        context->m_FenceEvent = CreateEvent(NULL, false, false, NULL);
         if (!context->m_FenceEvent)
         {
             dmLogFatal("Unable to create fence event");
@@ -281,9 +303,8 @@ namespace dmGraphics
 
         context->m_CommandList->Close();
 
-        SetupMainRenderTarget(context);
-
-        context->m_CurrentRenderTarget = context->m_MainRenderTarget;
+        SetupMainRenderTarget(context, sample_desc);
+        SetupRootSignature(context);
 
         if (context->m_PrintDeviceInfo)
         {
@@ -469,7 +490,11 @@ namespace dmGraphics
         hr = context->m_CommandList->Reset(current_frame_resource.m_CommandAllocator, NULL); // Second argument is a pipeline object (TODO)
         CHECK_HR_ERROR(hr);
 
+        context->m_FrameBegun = 1;
+
         BeginRenderPass(context, context->m_MainRenderTarget);
+
+        context->m_CommandList->SetGraphicsRootSignature(context->m_RootSignature);
     }
 
     static void DX12Flip(HContext _context)
@@ -493,19 +518,127 @@ namespace dmGraphics
 
         hr = context->m_SwapChain->Present(0, 0);
         CHECK_HR_ERROR(hr);
+
+        context->m_FrameBegun = 0;
     }
 
-    static HVertexBuffer DX12NewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static void VertexBufferUploadHelper(DX12Context* context, DX12VertexBuffer* vx_buffer, const void* data, uint32_t data_size)
     {
-        return 0;
+        if (data == 0 || data_size == 0)
+            return;
+
+        // create upload heap
+        // upload heaps are used to upload data to the GPU. CPU can write to it, GPU can read from it
+        // We will upload the vertex buffer using this heap to the default heap
+        ID3D12Resource* upload_heap;
+        HRESULT hr = context->m_Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),   // upload heap
+            D3D12_HEAP_FLAG_NONE,                               // no flags
+            &CD3DX12_RESOURCE_DESC::Buffer(data_size),               // resource description for a buffer
+            D3D12_RESOURCE_STATE_GENERIC_READ,                  // GPU will read from this buffer and copy its contents to the default heap
+            NULL,
+            IID_PPV_ARGS(&upload_heap));
+        CHECK_HR_ERROR(hr);
+
+        upload_heap->SetName(L"Vertex Buffer Upload Resource Heap");
+
+        // store vertex buffer in upload heap
+        D3D12_SUBRESOURCE_DATA vx_data = {};
+        vx_data.pData      = data; // pointer to our vertex array
+        vx_data.RowPitch   = data_size; // size of all our vertex data
+        vx_data.SlicePitch = data_size; // also the size of our vertex data
+
+        if (!context->m_FrameBegun)
+        {
+            hr = context->m_CommandList->Reset(context->m_FrameResources[0].m_CommandAllocator, NULL); // Second argument is a pipeline object (TODO)
+            CHECK_HR_ERROR(hr);
+        }
+
+        UpdateSubresources(context->m_CommandList, vx_buffer->m_Resource, upload_heap, 0, 0, 1, &vx_data);
+
+        // transition the vertex buffer data from copy destination state to vertex buffer state
+        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(vx_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
+
+        if (!context->m_FrameBegun)
+        {
+            context->m_CommandList->Close(); // THis might be wrong!
+            ID3D12CommandList* execute_cmd_lists[] = { context->m_CommandList };
+            context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
+        }
+
+        vx_buffer->m_DataSize = data_size;
+
+        // Now we execute the command list to upload the initial assets (triangle data)
+        // context->m_CommandList->Close(); // THis might be wrong!
+        // ID3D12CommandList* execute_cmd_lists[] = { context->m_CommandList };
+        // commandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
+
+        // increment the fence value now, otherwise the buffer might not be uploaded by the time we start drawing
+        // fenceValue[frameIndex]++;
+        // hr = commandQueue->Signal(fence[frameIndex], fenceValue[frameIndex]);
+        // if (FAILED(hr))
+        // {
+        //     Running = false;
+        // }
+    }
+
+    static void CreateVertexBuffer(DX12Context* context, DX12VertexBuffer* vx_buffer, uint32_t size)
+    {
+        assert(vx_buffer->m_Resource == 0x0);
+
+        // create default heap
+        // default heap is memory on the GPU. Only the GPU has access to this memory
+        // To get data into this heap, we will have to upload the data using
+        // an upload heap
+        HRESULT hr = context->m_Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), // a default heap
+            D3D12_HEAP_FLAG_NONE,                              // no flags
+            &CD3DX12_RESOURCE_DESC::Buffer(size),              // resource description for a buffer
+            D3D12_RESOURCE_STATE_COPY_DEST,                    // we will start this heap in the copy destination state since we will copy data from the upload heap to this heap
+            NULL,                                              // optimized clear value must be null for this type of resource. used for render targets and depth/stencil buffers
+            IID_PPV_ARGS(&vx_buffer->m_Resource));
+        CHECK_HR_ERROR(hr);
+
+        vx_buffer->m_Resource->SetName(L"Vertex Buffer Resource Heap");
+    }
+
+    static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        DX12Context* context = (DX12Context*) _context;
+
+        DX12VertexBuffer* vx_buffer = new DX12VertexBuffer();
+        memset(vx_buffer, 0, sizeof(DX12VertexBuffer));
+
+        if (size > 0)
+        {
+            CreateVertexBuffer(context, vx_buffer, size);
+            VertexBufferUploadHelper(context, vx_buffer, data, size);
+        }
+
+        return (HVertexBuffer) vx_buffer;
     }
 
     static void DX12DeleteVertexBuffer(HVertexBuffer buffer)
     {
     }
 
-    static void DX12SetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static void DX12SetVertexBufferData(HVertexBuffer _buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        DM_PROFILE(__FUNCTION__);
+
+        if (size == 0)
+        {
+            return;
+        }
+
+        DX12VertexBuffer* buffer = (DX12VertexBuffer*) _buffer;
+
+        if (buffer->m_Resource == 0x0)
+        {
+            CreateVertexBuffer(g_DX12Context, buffer, size);
+        }
+
+        VertexBufferUploadHelper(g_DX12Context, buffer, data, size);
     }
 
     static void DX12SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -575,27 +708,331 @@ namespace dmGraphics
 
     static void DX12EnableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer, uint32_t binding_index)
     {
+        DX12Context* context                          = (DX12Context*) _context;
+        context->m_CurrentVertexBuffer[binding_index] = (DX12VertexBuffer*) vertex_buffer;
     }
 
     static void DX12DisableVertexBuffer(HContext _context, HVertexBuffer vertex_buffer)
     {
+        DX12Context* context = (DX12Context*) _context;
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_CurrentVertexBuffer[i] == (DX12VertexBuffer*) vertex_buffer)
+                context->m_CurrentVertexBuffer[i] = 0;
+        }
     }
 
     static void DX12EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
+        DX12Context* context            = (DX12Context*) _context;
+        DX12ShaderProgram* program_ptr  = (DX12ShaderProgram*) program;
+        DX12ShaderModule* vertex_shader = program_ptr->m_VertexModule;
 
+        context->m_MainVertexDeclaration[binding_index]                = {};
+        context->m_MainVertexDeclaration[binding_index].m_Stride       = vertex_declaration->m_Stride;
+        context->m_MainVertexDeclaration[binding_index].m_StepFunction = vertex_declaration->m_StepFunction;
+        context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
+
+        context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
+
+        uint32_t stream_ix = 0;
+        uint32_t num_inputs = vertex_shader->m_Inputs.Size();
+
+        for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
+        {
+            for (int j = 0; j < num_inputs; ++j)
+            {
+                ShaderResourceBinding& input = vertex_shader->m_Inputs[j];
+
+                if (input.m_NameHash == vertex_declaration->m_Streams[i].m_NameHash)
+                {
+                    VertexDeclaration::Stream& stream = context->m_MainVertexDeclaration[binding_index].m_Streams[stream_ix];
+                    stream.m_NameHash  = input.m_NameHash;
+                    stream.m_Location  = input.m_Binding;
+                    stream.m_Type      = vertex_declaration->m_Streams[i].m_Type;
+                    stream.m_Offset    = vertex_declaration->m_Streams[i].m_Offset;
+                    stream.m_Size      = vertex_declaration->m_Streams[i].m_Size;
+                    stream.m_Normalize = vertex_declaration->m_Streams[i].m_Normalize;
+                    stream_ix++;
+
+                    context->m_MainVertexDeclaration[binding_index].m_StreamCount++;
+                    break;
+                }
+            }
+        }
     }
 
-    static void DX12DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
+    static void DX12DisableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration)
     {
+        DX12Context* context = (DX12Context*) _context;
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
+                context->m_CurrentVertexDeclaration[i] = 0;
+        }
+    }
+
+    static inline D3D_PRIMITIVE_TOPOLOGY GetPrimitiveTopology(PrimitiveType prim_type)
+    {
+        switch(prim_type)
+        {
+            case PRIMITIVE_LINES:          return D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+            case PRIMITIVE_TRIANGLES:      return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+            case PRIMITIVE_TRIANGLE_STRIP: return D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+            default:break;
+        }
+        return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
+    }
+
+    static inline DXGI_FORMAT GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
+    {
+        /*
+        // undefined formats:
+        // DXGI_FORMAT_R8G8B8_SNORM
+        // DXGI_FORMAT_R8G8B8_SINT
+        // DXGI_FORMAT_R8G8B8_UNORM
+        // DXGI_FORMAT_R8G8B8_UINT
+        // DXGI_FORMAT_R16G16B16_SNORM
+        // DXGI_FORMAT_R16G16B16_SINT
+        // DXGI_FORMAT_R16G16B16_UNORM
+        // DXGI_FORMAT_R16G16B16_UINT
+        */
+        if (type == TYPE_FLOAT)
+        {
+            switch(size)
+            {
+                case 1: return DXGI_FORMAT_R32_FLOAT;
+                case 2: return DXGI_FORMAT_R32G32_FLOAT;
+                case 3: return DXGI_FORMAT_R32G32B32_FLOAT;
+                case 4: return DXGI_FORMAT_R32G32B32A32_FLOAT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_INT)
+        {
+            switch(size)
+            {
+                case 1: return DXGI_FORMAT_R32_SINT;
+                case 2: return DXGI_FORMAT_R32G32_SINT;
+                case 3: return DXGI_FORMAT_R32G32B32_SINT;
+                case 4: return DXGI_FORMAT_R32G32B32A32_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_INT)
+        {
+            switch(size)
+            {
+                case 1: return DXGI_FORMAT_R32_UINT;
+                case 2: return DXGI_FORMAT_R32G32_UINT;
+                case 3: return DXGI_FORMAT_R32G32B32_UINT;
+                case 4: return DXGI_FORMAT_R32G32B32A32_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_BYTE)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? DXGI_FORMAT_R8_SNORM : DXGI_FORMAT_R8_SINT;
+                case 2: return normalized ? DXGI_FORMAT_R8G8_SNORM : DXGI_FORMAT_R8G8_SINT;
+                // case 3: return normalized ? DXGI_FORMAT_R8G8B8_SNORM : DXGI_FORMAT_R8G8B8_SINT;
+                case 4: return normalized ? DXGI_FORMAT_R8G8B8A8_SNORM : DXGI_FORMAT_R8G8B8A8_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_BYTE)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? DXGI_FORMAT_R8_UNORM : DXGI_FORMAT_R8_UINT;
+                case 2: return normalized ? DXGI_FORMAT_R8G8_UNORM : DXGI_FORMAT_R8G8_UINT;
+                // case 3: return normalized ? DXGI_FORMAT_R8G8B8_UNORM : DXGI_FORMAT_R8G8B8_UINT;
+                case 4: return normalized ? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R8G8B8A8_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_SHORT)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? DXGI_FORMAT_R16_SNORM : DXGI_FORMAT_R16_SINT;
+                case 2: return normalized ? DXGI_FORMAT_R16G16_SNORM : DXGI_FORMAT_R16G16_SINT;
+                //case 3: return normalized ? DXGI_FORMAT_R16G16B16_SNORM : DXGI_FORMAT_R16G16B16_SINT;
+                case 4: return normalized ? DXGI_FORMAT_R16G16B16A16_SNORM : DXGI_FORMAT_R16G16B16A16_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_SHORT)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R16_UINT;
+                case 2: return normalized ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R16G16_UINT;
+                //case 3: return normalized ? DXGI_FORMAT_R16G16B16_UNORM : DXGI_FORMAT_R16G16B16_UINT;
+                case 4: return normalized ? DXGI_FORMAT_R16G16B16A16_UNORM : DXGI_FORMAT_R16G16B16A16_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_FLOAT_MAT4)
+        {
+            return DXGI_FORMAT_R32_FLOAT;
+        }
+        else if (type == TYPE_FLOAT_VEC4)
+        {
+            return DXGI_FORMAT_R32G32B32A32_FLOAT;
+        }
+
+        assert(0 && "Unable to deduce type from dmGraphics::Type");
+        return DXGI_FORMAT_UNKNOWN;
+    }
+
+    static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, DX12Pipeline* pipeline)
+    {
+        D3D12_SHADER_BYTECODE vs_byte_code = {};
+        vs_byte_code.BytecodeLength        = context->m_CurrentProgram->m_VertexModule->m_ShaderBlob->GetBufferSize();
+        vs_byte_code.pShaderBytecode       = context->m_CurrentProgram->m_VertexModule->m_ShaderBlob->GetBufferPointer();
+
+        D3D12_SHADER_BYTECODE fs_byte_code = {};
+        fs_byte_code.BytecodeLength        = context->m_CurrentProgram->m_FragmentModule->m_ShaderBlob->GetBufferSize();
+        fs_byte_code.pShaderBytecode       = context->m_CurrentProgram->m_FragmentModule->m_ShaderBlob->GetBufferPointer();
+
+        uint32_t stream_count = 0;
+        D3D12_INPUT_ELEMENT_DESC input_layout[MAX_VERTEX_STREAM_COUNT];
+
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_CurrentVertexDeclaration[i])
+            {
+                for (int j = 0; j < context->m_CurrentVertexDeclaration[i]->m_StreamCount; ++j)
+                {
+                    VertexDeclaration::Stream& stream = context->m_CurrentVertexDeclaration[i]->m_Streams[j];
+                    D3D12_INPUT_ELEMENT_DESC& desc    = input_layout[stream_count];
+
+                    desc.SemanticName         = "TEXCOORD";
+                    desc.SemanticIndex        = stream.m_Location;
+                    desc.Format               = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
+                    desc.InputSlot            = i;
+                    desc.AlignedByteOffset    = stream.m_Offset;
+                    desc.InputSlotClass       = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+                    desc.InstanceDataStepRate = 0;
+
+                    stream_count++;
+                }
+            }
+        }
+
+        D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
+        inputLayoutDesc.NumElements             = stream_count;
+        inputLayoutDesc.pInputElementDescs      = input_layout;
+
+        /*
+        typedef struct D3D12_INPUT_ELEMENT_DESC {
+          LPCSTR                     SemanticName;
+          UINT                       SemanticIndex;
+          DXGI_FORMAT                Format;
+          UINT                       InputSlot;
+          UINT                       AlignedByteOffset;
+          D3D12_INPUT_CLASSIFICATION InputSlotClass;
+          UINT                       InstanceDataStepRate;
+        } D3D12_INPUT_ELEMENT_DESC;
+        */
+
+        // D3D12_INPUT_ELEMENT_DESC inputLayout[] =
+        // {
+        //     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+        // };
+
+
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {}; // a structure to define a pso
+        psoDesc.InputLayout           = inputLayoutDesc; // the structure describing our input layout
+        psoDesc.pRootSignature        = context->m_RootSignature;
+        psoDesc.VS                    = vs_byte_code;
+        psoDesc.PS                    = fs_byte_code;
+        psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // SHould we support points?
+        psoDesc.RTVFormats[0]         = rt->m_Format;
+        psoDesc.SampleDesc            = rt->m_SampleDesc; // must be the same sample description as the swapchain and depth/stencil buffer
+        psoDesc.SampleMask            = 0xffffffff; // TODO: sample mask has to do with multi-sampling. 0xffffffff means point sampling is done
+        psoDesc.RasterizerState       = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT); // TODO
+        psoDesc.BlendState            = CD3DX12_BLEND_DESC(D3D12_DEFAULT); // TODO
+        psoDesc.NumRenderTargets      = 1; // TODO
+
+        HRESULT hr = context->m_Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(pipeline));
+        CHECK_HR_ERROR(hr);
+    }
+
+    static DX12Pipeline* GetOrCreatePipeline(DX12Context* context)
+    {
+        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+
+        HashState64 pipeline_hash_state;
+        dmHashInit64(&pipeline_hash_state, false);
+        //dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_PipelineState,          sizeof(context->m_PipelineState));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_Id,                  sizeof(current_rt->m_Id));
+        // dmHashUpdateBuffer64(&pipeline_hash_state, &vk_sample_count,  sizeof(vk_sample_count));
+
+        // for (int i = 0; i < vertexDeclarationCount; ++i)
+        // {
+        //     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentVertexDeclaration[i]->m_PipelineHash, sizeof(context->m_CurrentVertexDeclaration[i]->m_PipelineHash));
+        //     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentVertexDeclaration[i]->m_StepFunction, sizeof(context->m_CurrentVertexDeclaration[i]->m_StepFunction));
+        // }
+
+        dmhash_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
+        DX12Pipeline* cached_pipeline = context->m_PipelineCache.Get(pipeline_hash);
+
+        if (!cached_pipeline)
+        {
+            if (context->m_PipelineCache.Full())
+            {
+                context->m_PipelineCache.SetCapacity(32, context->m_PipelineCache.Capacity() + 4);
+            }
+
+            context->m_PipelineCache.Put(pipeline_hash, {});
+            cached_pipeline = context->m_PipelineCache.Get(pipeline_hash);
+            CreatePipeline(context, current_rt, cached_pipeline);
+
+            dmLogDebug("Created new DX12 Pipeline with hash %llu", (unsigned long long) pipeline_hash);
+        }
+
+        return cached_pipeline;
+    }
+
+    static void DrawSetup(DX12Context* context, PrimitiveType prim_type)
+    {
+        assert(context->m_CurrentProgram);
+
+        D3D12_VERTEX_BUFFER_VIEW vx_buffer_views[MAX_VERTEX_BUFFERS];
+        uint32_t num_vx_buffers = 0;
+
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_CurrentVertexBuffer[i] && context->m_CurrentVertexDeclaration[i])
+            {
+                vx_buffer_views[num_vx_buffers].BufferLocation = context->m_CurrentVertexBuffer[i]->m_Resource->GetGPUVirtualAddress();
+                vx_buffer_views[num_vx_buffers].StrideInBytes  = context->m_CurrentVertexDeclaration[i]->m_Stride;
+                vx_buffer_views[num_vx_buffers].SizeInBytes    = context->m_CurrentVertexBuffer[i]->m_DataSize;
+                num_vx_buffers++;
+            }
+        }
+
+        DX12Pipeline* pipeline = GetOrCreatePipeline(context);
+
+        context->m_CommandList->SetPipelineState(*pipeline);
+        context->m_CommandList->IASetPrimitiveTopology(GetPrimitiveTopology(prim_type));
+        context->m_CommandList->IASetVertexBuffers(0, num_vx_buffers, vx_buffer_views); // set the vertex buffer (using the vertex buffer view)
     }
 
     static void DX12DrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
     }
 
-    static void DX12Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+    static void DX12Draw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
+        DX12Context* context = (DX12Context*) _context;
+        DrawSetup(context, prim_type);
+
+        context->m_CommandList->DrawInstanced(count, 1, first, 0);
     }
 
     static HComputeProgram DX12NewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
@@ -646,35 +1083,106 @@ namespace dmGraphics
             dmLogError("%s", error_blob->GetBufferPointer());
             return hr;
         }
-
-        /*
-        D3D12_SHADER_BYTECODE vertexShaderBytecode = {};
-        vertexShaderBytecode.BytecodeLength = vertexShader->GetBufferSize();
-        vertexShaderBytecode.pShaderBytecode = vertexShader->GetBufferPointer();
-        */
-
         return S_OK;
+    }
+
+    static void CreateShaderResourceBindings(DX12ShaderModule* shader, ShaderDesc::Shader* ddf)
+    {
+        if (ddf->m_Resources.m_Count > 0)
+        {
+            shader->m_Uniforms.SetCapacity(ddf->m_Resources.m_Count);
+            shader->m_Uniforms.SetSize(ddf->m_Resources.m_Count);
+            memset(shader->m_Uniforms.Begin(), 0, sizeof(ShaderResourceBinding) * ddf->m_Resources.m_Count);
+
+            uint32_t texture_sampler_count = 0;
+            uint32_t uniform_buffer_count  = 0;
+            uint32_t total_uniform_count   = 0;
+
+            for (uint32_t i=0; i < ddf->m_Resources.m_Count; i++)
+            {
+                ShaderResourceBinding& res = shader->m_Uniforms[i];
+                res.m_Binding              = ddf->m_Resources[i].m_Binding;
+                res.m_Set                  = ddf->m_Resources[i].m_Set;
+                res.m_Type                 = ddf->m_Resources[i].m_Type;
+                res.m_ElementCount         = ddf->m_Resources[i].m_ElementCount;
+                res.m_Name                 = strdup(ddf->m_Resources[i].m_Name);
+                res.m_NameHash             = ddf->m_Resources[i].m_NameHash;
+
+                if (IsUniformTextureSampler(res))
+                {
+                    res.m_TextureUnit = texture_sampler_count;
+                    texture_sampler_count++;
+                }
+                else
+                {
+                    res.m_BlockMembers.SetCapacity(ddf->m_Resources[i].m_Bindings.m_Count);
+                    res.m_BlockMembers.SetSize(ddf->m_Resources[i].m_Bindings.m_Count);
+
+                    uint32_t uniform_size = 0;
+                    for (uint32_t j = 0; j < ddf->m_Resources[i].m_Bindings.m_Count; ++j)
+                    {
+                        ShaderDesc::ResourceBinding& member  = ddf->m_Resources[i].m_Bindings[j];
+                        res.m_BlockMembers[j].m_Name         = strdup(member.m_Name);
+                        res.m_BlockMembers[j].m_NameHash     = member.m_NameHash;
+                        res.m_BlockMembers[j].m_Type         = member.m_Type;
+                        res.m_BlockMembers[j].m_ElementCount = member.m_ElementCount;
+                        res.m_BlockMembers[j].m_Offset       = uniform_size;
+                        uniform_size += GetShaderTypeSize(member.m_Type) * member.m_ElementCount;
+                    }
+
+                    res.m_UniformDataIndex = uniform_buffer_count;
+                    res.m_DataSize         = uniform_size;
+                    uniform_buffer_count++;
+                }
+
+                total_uniform_count += ddf->m_Resources[i].m_Bindings.m_Count;
+            }
+
+            shader->m_UniformBufferCount  = uniform_buffer_count;
+            shader->m_TextureSamplerCount = texture_sampler_count;
+            shader->m_TotalUniformCount   = total_uniform_count;
+        }
+
+        if (ddf->m_Inputs.m_Count > 0)
+        {
+            shader->m_Inputs.SetCapacity(ddf->m_Inputs.m_Count);
+            shader->m_Inputs.SetSize(ddf->m_Inputs.m_Count);
+
+            for (uint32_t i=0; i < ddf->m_Inputs.m_Count; i++)
+            {
+                ShaderResourceBinding& res = shader->m_Inputs[i];
+                res.m_Binding              = ddf->m_Inputs[i].m_Binding;
+                res.m_Set                  = ddf->m_Inputs[i].m_Set;
+                res.m_Type                 = ddf->m_Inputs[i].m_Type;
+                res.m_NameHash             = ddf->m_Inputs[i].m_NameHash;
+                res.m_ElementCount         = ddf->m_Inputs[i].m_ElementCount;
+                res.m_Name                 = strdup(ddf->m_Inputs[i].m_Name);
+            }
+        }
     }
 
     static HVertexProgram DX12NewVertexProgram(HContext _context, ShaderDesc::Shader* ddf)
     {
+        DX12Context* context = (DX12Context*) _context;
         DX12ShaderModule* shader = new DX12ShaderModule;
         memset(shader, 0, sizeof(*shader));
-        DX12Context* context = (DX12Context*) _context;
 
         HRESULT hr = CreateShaderModule(context, "vs_5_0", ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_HR_ERROR(hr);
+
+        CreateShaderResourceBindings(shader, ddf);
         return (HVertexProgram) shader;
     }
 
     static HFragmentProgram DX12NewFragmentProgram(HContext _context, ShaderDesc::Shader* ddf)
     {
+        DX12Context* context = (DX12Context*) _context;
         DX12ShaderModule* shader = new DX12ShaderModule;
         memset(shader, 0, sizeof(*shader));
-        DX12Context* context = (DX12Context*) _context;
 
         HRESULT hr = CreateShaderModule(context, "ps_5_0", ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_HR_ERROR(hr);
+        CreateShaderResourceBindings(shader, ddf);
         return (HVertexProgram) shader;
     }
 
@@ -698,7 +1206,7 @@ namespace dmGraphics
 
     static ShaderDesc::Language DX12GetProgramLanguage(HProgram program)
     {
-        return (ShaderDesc::Language) 0;
+        return ShaderDesc::LANGUAGE_HLSL;
     }
 
     static ShaderDesc::Language DX12GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
@@ -708,10 +1216,12 @@ namespace dmGraphics
 
     static void DX12EnableProgram(HContext context, HProgram program)
     {
+        ((DX12Context*) context)->m_CurrentProgram = (DX12ShaderProgram*) program;
     }
 
     static void DX12DisableProgram(HContext context)
     {
+        ((DX12Context*) context)->m_CurrentProgram = 0;
     }
 
     static bool DX12ReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
@@ -758,8 +1268,26 @@ namespace dmGraphics
         return INVALID_UNIFORM_LOCATION;
     }
 
-    static void DX12SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
+    static void DX12SetViewport(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
+        DX12Context* context = (DX12Context*) _context;
+
+        D3D12_VIEWPORT viewport;
+        viewport.TopLeftX = (float) x;
+        viewport.TopLeftY = (float) y;
+        viewport.Width    = (float) width;
+        viewport.Height   = (float) height;
+        viewport.MinDepth = 0.0f;
+        viewport.MaxDepth = 1.0f;
+
+        D3D12_RECT scissor;
+        scissor.left   = (float) x;
+        scissor.top    = (float) y;
+        scissor.right  = (float) width;
+        scissor.bottom = (float) height;
+
+        context->m_CommandList->RSSetViewports(1, &viewport);
+        context->m_CommandList->RSSetScissorRects(1, &scissor);
     }
 
     static void DX12SetConstantV4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)

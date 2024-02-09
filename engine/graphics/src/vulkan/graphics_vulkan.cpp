@@ -1863,20 +1863,6 @@ bail:
         }
     }
 
-    static inline bool IsUniformTextureSampler(const ShaderResourceBinding& uniform)
-    {
-        return uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D       ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER3D       ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE    ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_TEXTURE2D       ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_UTEXTURE2D      ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_UIMAGE2D        ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_IMAGE2D         ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER         ||
-               uniform.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT;
-    }
-
     static inline VulkanTexture* GetDefaultTexture(VulkanContext* context, ShaderDesc::ShaderDataType type)
     {
         switch(type)
