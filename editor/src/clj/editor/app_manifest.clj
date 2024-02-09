@@ -345,6 +345,8 @@
 
 (def vulkan-toggles
   (concat
+    (exclude-libs-toggles [:x86_64-osx :arm64-osx] ["glfw3"])
+    (libs-toggles [:x86_64-osx :arm64-osx] ["glfw3-vulkan"])
     (libs-toggles [:x86_64-osx :arm64-osx :arm64-ios] ["graphics_vulkan" "MoltenVK"])
     (libs-toggles android ["graphics_vulkan"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
