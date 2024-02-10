@@ -108,7 +108,7 @@ DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash);
  *
  * Returns the original string used to produce a hash.
  * Always returns a null terminated string. Returns "<unknown:value>" if the original string wasn't found.
- * @name dmHashReverseSafe64
+ * @name dmHashReverseSafeBuffer64
  * @param hash [type:uint64_t] hash value
  * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found.
  * @note Do not store this pointer
@@ -144,7 +144,7 @@ DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash);
  *
  * Returns the original string used to produce a hash.
  * Always returns a null terminated string. Returns "<unknown:value>" if the original string wasn't found.
- * @name dmHashReverseSafe32
+ * @name dmHashReverseSafeBuffer32
  * @param hash [type:uint32_t] hash value
  * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found.
  * @note Do not store this pointer
