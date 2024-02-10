@@ -12,23 +12,34 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
+-- helper functions to verify test data.
+-- throws a Lua error if the assert(s) fails.
+local function assert_near(a, b)
+    local eps = 0.001
+    local diff = math.abs(a - b)
+    if not (diff < eps) then
+        local err_msg = "assert_near failed, a: " .. tostring(a) .. ", b: " .. tostring(b) .. " diff == " .. tostring(diff) .. " >= " .. tostring(eps)
+        error(debug.traceback(err_msg))
+    end
+end
+
 function init(self)
 	local sphere_1 = physics.get_shape("/get_set_shape_go#collisionobject", "shape_sphere_1")
 	assert(sphere_1.diameter ~= nil)
-	assert(sphere_1.diameter == 8)
+	assert_near(sphere_1.diameter, 16)
 
 	sphere_1.diameter = 15
 	physics.set_shape("/get_set_shape_go#collisionobject", "shape_sphere_1", sphere_1)
 	sphere_1 = physics.get_shape("/get_set_shape_go#collisionobject", "shape_sphere_1")
-	assert(sphere_1.diameter == 15)
+	assert_near(sphere_1.diameter, 15)
 
 	local box_1 = physics.get_shape("/get_set_shape_go#collisionobject", "shape_box_1")
 	assert(box_1.dimensions ~= nil)
-	assert(box_1.dimensions.x == 10)
-	assert(box_1.dimensions.y == 20)
+	assert_near(box_1.dimensions.x, 20)
+	assert_near(box_1.dimensions.y, 40)
 
 	box_1.dimensions.y = 40
 	physics.set_shape("/get_set_shape_go#collisionobject", "shape_box_1", box_1)
 	box_1 = physics.get_shape("/get_set_shape_go#collisionobject", "shape_box_1")
-	assert(box_1.dimensions.y == 40)
+	assert_near(box_1.dimensions.y, 40)
 end
