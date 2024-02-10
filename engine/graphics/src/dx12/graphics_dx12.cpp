@@ -306,6 +306,8 @@ namespace dmGraphics
         SetupMainRenderTarget(context, sample_desc);
         SetupRootSignature(context);
 
+        context->m_PipelineState = GetDefaultPipelineState();
+
         if (context->m_PrintDeviceInfo)
         {
             dmLogInfo("Device: DirectX 12");
@@ -464,11 +466,7 @@ namespace dmGraphics
         context->m_RtvHandle = rtvHandle;
         context->m_CommandList->OMSetRenderTargets(1, &context->m_RtvHandle, false, NULL);
 
-        rt->m_IsBound          = 1;
-        // rt->m_SubPassIndex     = 0;
-        // rt->m_Scissor.extent   = rt->m_Extent;
-        // rt->m_Scissor.offset.x = 0;
-        // rt->m_Scissor.offset.y = 0;
+        rt->m_IsBound = 1;
 
         context->m_CurrentRenderTarget = render_target;
     }
@@ -887,6 +885,19 @@ namespace dmGraphics
         return DXGI_FORMAT_UNKNOWN;
     }
 
+    static inline D3D12_CULL_MODE GetCullMode(const PipelineState& state)
+    {
+        if (state.m_CullFaceEnabled)
+        {
+            if (state.m_CullFaceType == FACE_TYPE_BACK)
+                return D3D12_CULL_MODE_BACK;
+            else if (state.m_CullFaceType == FACE_TYPE_FRONT)
+                return D3D12_CULL_MODE_FRONT;
+            // FRONT_AND_BACK not supported
+        }
+        return D3D12_CULL_MODE_NONE;
+    }
+
     static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, DX12Pipeline* pipeline)
     {
         D3D12_SHADER_BYTECODE vs_byte_code = {};
@@ -926,22 +937,19 @@ namespace dmGraphics
         inputLayoutDesc.NumElements             = stream_count;
         inputLayoutDesc.pInputElementDescs      = input_layout;
 
-        /*
-        typedef struct D3D12_INPUT_ELEMENT_DESC {
-          LPCSTR                     SemanticName;
-          UINT                       SemanticIndex;
-          DXGI_FORMAT                Format;
-          UINT                       InputSlot;
-          UINT                       AlignedByteOffset;
-          D3D12_INPUT_CLASSIFICATION InputSlotClass;
-          UINT                       InstanceDataStepRate;
-        } D3D12_INPUT_ELEMENT_DESC;
-        */
+        CD3DX12_RASTERIZER_DESC rasterizerState = CD3DX12_RASTERIZER_DESC(
+            D3D12_FILL_MODE_SOLID,
+            GetCullMode(context->m_PipelineState),
+            true,                                       // FrontCounterClockwise
+            D3D12_DEFAULT_DEPTH_BIAS,
+            D3D12_DEFAULT_DEPTH_BIAS_CLAMP,
+            D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS,
+            true,                                       // DepthClipEnable
+            false,                                      // MultisampleEnable
+            false,                                      // AntialiasedLineEnable: TODO
+            0,                                          // forcedSampleCount
+            D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF); // conservativeRaster
 
-        // D3D12_INPUT_ELEMENT_DESC inputLayout[] =
-        // {
-        //     { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-        // };
 
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {}; // a structure to define a pso
@@ -953,7 +961,7 @@ namespace dmGraphics
         psoDesc.RTVFormats[0]         = rt->m_Format;
         psoDesc.SampleDesc            = rt->m_SampleDesc; // must be the same sample description as the swapchain and depth/stencil buffer
         psoDesc.SampleMask            = 0xffffffff; // TODO: sample mask has to do with multi-sampling. 0xffffffff means point sampling is done
-        psoDesc.RasterizerState       = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT); // TODO
+        psoDesc.RasterizerState       = rasterizerState;
         psoDesc.BlendState            = CD3DX12_BLEND_DESC(D3D12_DEFAULT); // TODO
         psoDesc.NumRenderTargets      = 1; // TODO
 
@@ -961,10 +969,8 @@ namespace dmGraphics
         CHECK_HR_ERROR(hr);
     }
 
-    static DX12Pipeline* GetOrCreatePipeline(DX12Context* context)
+    static DX12Pipeline* GetOrCreatePipeline(DX12Context* context, DX12RenderTarget* current_rt)
     {
-        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
-
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
         //dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
@@ -998,9 +1004,32 @@ namespace dmGraphics
         return cached_pipeline;
     }
 
+    static inline void SetViewportAndScissorHelper(DX12Context* context, int32_t x, int32_t y, int32_t width, int32_t height)
+    {
+        D3D12_VIEWPORT viewport;
+        D3D12_RECT scissor;
+
+        viewport.TopLeftX = (float) x;
+        viewport.TopLeftY = (float) y;
+        viewport.Width    = (float) width;
+        viewport.Height   = (float) height;
+        viewport.MinDepth = 0.0f;
+        viewport.MaxDepth = 1.0f;
+
+        scissor.left   = (float) x;
+        scissor.top    = (float) y;
+        scissor.right  = (float) width;
+        scissor.bottom = (float) height;
+
+        context->m_CommandList->RSSetViewports(1, &viewport);
+        context->m_CommandList->RSSetScissorRects(1, &scissor);
+    }
+
     static void DrawSetup(DX12Context* context, PrimitiveType prim_type)
     {
         assert(context->m_CurrentProgram);
+
+        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
         D3D12_VERTEX_BUFFER_VIEW vx_buffer_views[MAX_VERTEX_BUFFERS];
         uint32_t num_vx_buffers = 0;
@@ -1016,7 +1045,52 @@ namespace dmGraphics
             }
         }
 
-        DX12Pipeline* pipeline = GetOrCreatePipeline(context);
+        // If the culling, or viewport has changed, make sure to flip the
+        // culling flag if we are rendering to the backbuffer.
+        // This is needed because we are rendering with a negative viewport
+        // which means that the face direction is inverted.
+        if (context->m_CullFaceChanged || context->m_ViewportChanged)
+        {
+            if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+            {
+                if (context->m_PipelineState.m_CullFaceType == FACE_TYPE_BACK)
+                {
+                    context->m_PipelineState.m_CullFaceType = FACE_TYPE_FRONT;
+                }
+                else if (context->m_PipelineState.m_CullFaceType == FACE_TYPE_FRONT)
+                {
+                    context->m_PipelineState.m_CullFaceType = FACE_TYPE_BACK;
+                }
+            }
+            context->m_CullFaceChanged = 0;
+        }
+
+        // Update the viewport
+        if (context->m_ViewportChanged)
+        {
+            DX12Viewport& vp = context->m_CurrentViewport;
+
+            /*
+            // If we are rendering to the backbuffer, we must invert the viewport on
+            // the y axis. Otherwise we just use the values as-is.
+            // If we don't, all FBO rendering will be upside down.
+            if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+            {
+                //SetViewportAndScissorHelper(context, vp.m_X, (context->m_WindowHeight - vp.m_Y), vp.m_W, -vp.m_H);
+                SetViewportAndScissorHelper(context, vp.m_X, (context->m_Height - vp.m_Y), vp.m_W, -vp.m_H);
+            }
+            else
+            {
+                SetViewportAndScissorHelper(context, vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
+            }
+            */
+
+            SetViewportAndScissorHelper(context, vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
+
+            context->m_ViewportChanged = 0;
+        }
+
+        DX12Pipeline* pipeline = GetOrCreatePipeline(context, current_rt);
 
         context->m_CommandList->SetPipelineState(*pipeline);
         context->m_CommandList->IASetPrimitiveTopology(GetPrimitiveTopology(prim_type));
@@ -1231,31 +1305,27 @@ namespace dmGraphics
 
     static uint32_t DX12GetAttributeCount(HProgram prog)
     {
-        return 0;
-    }
-
-    static uint32_t GetElementCount(Type type)
-    {
-        return 0;
+        DX12ShaderProgram* program_ptr = (DX12ShaderProgram*) prog;
+        return program_ptr->m_VertexModule->m_Inputs.Size();
     }
 
     static void DX12GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
+        DX12ShaderProgram* program_ptr = (DX12ShaderProgram*) prog;
+        assert(index < program_ptr->m_VertexModule->m_Inputs.Size());
+        ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_Inputs[index];
+
+        *name_hash     = attr.m_NameHash;
+        *type          = ShaderDataTypeToGraphicsType(attr.m_Type);
+        *num_values    = attr.m_ElementCount;
+        *location      = attr.m_Binding;
+        *element_count = GetShaderTypeSize(attr.m_Type) / sizeof(float);
     }
 
     static uint32_t DX12GetUniformCount(HProgram prog)
     {
-        return 0;
-    }
-
-    static uint32_t DX12GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
-    {
-        return 0;
-    }
-
-    static uint32_t DX12GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
-    {
-        return dmGraphics::INVALID_STREAM_OFFSET;
+        DX12ShaderProgram* program_ptr = (DX12ShaderProgram*) prog;
+        return program_ptr->m_TotalUniformCount;
     }
 
     static uint32_t DX12GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
@@ -1272,22 +1342,12 @@ namespace dmGraphics
     {
         DX12Context* context = (DX12Context*) _context;
 
-        D3D12_VIEWPORT viewport;
-        viewport.TopLeftX = (float) x;
-        viewport.TopLeftY = (float) y;
-        viewport.Width    = (float) width;
-        viewport.Height   = (float) height;
-        viewport.MinDepth = 0.0f;
-        viewport.MaxDepth = 1.0f;
-
-        D3D12_RECT scissor;
-        scissor.left   = (float) x;
-        scissor.top    = (float) y;
-        scissor.right  = (float) width;
-        scissor.bottom = (float) height;
-
-        context->m_CommandList->RSSetViewports(1, &viewport);
-        context->m_CommandList->RSSetScissorRects(1, &scissor);
+        DX12Viewport& viewport = context->m_CurrentViewport;
+        viewport.m_X = (uint16_t) x;
+        viewport.m_Y = (uint16_t) y;
+        viewport.m_W = (uint16_t) width;
+        viewport.m_H = (uint16_t) height;
+        context->m_ViewportChanged = 1;
     }
 
     static void DX12SetConstantV4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
@@ -1403,26 +1463,39 @@ namespace dmGraphics
 
     static void DX12EnableState(HContext context, State state)
     {
+        SetPipelineStateValue(g_DX12Context->m_PipelineState, state, 1);
     }
 
     static void DX12DisableState(HContext context, State state)
     {
+        SetPipelineStateValue(g_DX12Context->m_PipelineState, state, 0);
     }
 
     static void DX12SetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)
     {
+        g_DX12Context->m_PipelineState.m_BlendSrcFactor = source_factor;
+        g_DX12Context->m_PipelineState.m_BlendDstFactor = destinaton_factor;
     }
 
     static void DX12SetColorMask(HContext context, bool red, bool green, bool blue, bool alpha)
     {
+        assert(context);
+        uint8_t write_mask = red   ? DM_GRAPHICS_STATE_WRITE_R : 0;
+        write_mask        |= green ? DM_GRAPHICS_STATE_WRITE_G : 0;
+        write_mask        |= blue  ? DM_GRAPHICS_STATE_WRITE_B : 0;
+        write_mask        |= alpha ? DM_GRAPHICS_STATE_WRITE_A : 0;
+
+        g_DX12Context->m_PipelineState.m_WriteColorMask = write_mask;
     }
 
     static void DX12SetDepthMask(HContext context, bool mask)
     {
+        g_DX12Context->m_PipelineState.m_WriteDepth = mask;
     }
 
     static void DX12SetDepthFunc(HContext context, CompareFunc func)
     {
+        g_DX12Context->m_PipelineState.m_DepthTestFunc = func;
     }
 
     static void DX12SetScissor(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -1431,44 +1504,81 @@ namespace dmGraphics
 
     static void DX12SetStencilMask(HContext context, uint32_t mask)
     {
+        g_DX12Context->m_PipelineState.m_StencilWriteMask = mask;
     }
 
     static void DX12SetStencilFunc(HContext _context, CompareFunc func, uint32_t ref, uint32_t mask)
     {
+        g_DX12Context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        g_DX12Context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        g_DX12Context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        g_DX12Context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void DX12SetStencilOp(HContext _context, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
+        g_DX12Context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+        g_DX12Context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+        g_DX12Context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        g_DX12Context->m_PipelineState.m_StencilBackOpFail       = sfail;
+        g_DX12Context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+        g_DX12Context->m_PipelineState.m_StencilBackOpPass       = dppass;
     }
 
     static void DX12SetStencilFuncSeparate(HContext _context, FaceType face_type, CompareFunc func, uint32_t ref, uint32_t mask)
     {
+        if (face_type == FACE_TYPE_BACK)
+        {
+            g_DX12Context->m_PipelineState.m_StencilBackTestFunc  = (uint8_t) func;
+        }
+        else
+        {
+            g_DX12Context->m_PipelineState.m_StencilFrontTestFunc = (uint8_t) func;
+        }
+        g_DX12Context->m_PipelineState.m_StencilReference     = (uint8_t) ref;
+        g_DX12Context->m_PipelineState.m_StencilCompareMask   = (uint8_t) mask;
     }
 
     static void DX12SetStencilOpSeparate(HContext _context, FaceType face_type, StencilOp sfail, StencilOp dpfail, StencilOp dppass)
     {
+        if (face_type == FACE_TYPE_BACK)
+        {
+            g_DX12Context->m_PipelineState.m_StencilBackOpFail       = sfail;
+            g_DX12Context->m_PipelineState.m_StencilBackOpDepthFail  = dpfail;
+            g_DX12Context->m_PipelineState.m_StencilBackOpPass       = dppass;
+        }
+        else
+        {
+            g_DX12Context->m_PipelineState.m_StencilFrontOpFail      = sfail;
+            g_DX12Context->m_PipelineState.m_StencilFrontOpDepthFail = dpfail;
+            g_DX12Context->m_PipelineState.m_StencilFrontOpPass      = dppass;
+        }
     }
 
     static void DX12SetFaceWinding(HContext context, FaceWinding face_winding)
     {
+        // TODO: Add this to the DX12 pipeline handle aswell, for now it's a NOP
     }
 
     static void DX12SetCullFace(HContext context, FaceType face_type)
     {
+        g_DX12Context->m_PipelineState.m_CullFaceType = face_type;
+        g_DX12Context->m_CullFaceChanged              = true;
     }
 
     static void DX12SetPolygonOffset(HContext context, float factor, float units)
     {
+        // TODO: Add this to the DX12 pipeline handle aswell, for now it's a NOP
     }
 
     static PipelineState DX12GetPipelineState(HContext context)
     {
-        PipelineState s = {};
-        return s;
+        return ((DX12Context*) context)->m_PipelineState;
     }
 
     static void DX12SetTextureAsync(HTexture texture, const TextureParams& params)
     {
+        // TODO
     }
 
     static uint32_t DX12GetTextureStatusFlags(HTexture texture)

@@ -61,12 +61,20 @@ namespace dmGraphics
         uint16_t                       m_TotalUniformCount;
     };
 
+    struct DX12Viewport
+    {
+        uint16_t m_X;
+        uint16_t m_Y;
+        uint16_t m_W;
+        uint16_t m_H;
+    };
 
     struct DX12ShaderProgram
     {
         DX12ShaderModule* m_VertexModule;
         DX12ShaderModule* m_FragmentModule;
         DX12ShaderModule* m_ComputeModule;
+        uint16_t          m_TotalUniformCount;
     };
 
     struct DX12RenderTarget
@@ -114,6 +122,7 @@ namespace dmGraphics
         DX12Pipeline*                      m_CurrentPipeline;
         DX12VertexBuffer*                  m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
+        DX12Viewport                       m_CurrentViewport;
 
         TextureFilter                      m_DefaultTextureMinFilter;
         TextureFilter                      m_DefaultTextureMagFilter;
@@ -124,6 +133,8 @@ namespace dmGraphics
         uint32_t                           m_RtvDescriptorSize;
         uint32_t                           m_NumFramesInFlight    : 2;
         uint32_t                           m_FrameBegun           : 1;
+        uint32_t                           m_CullFaceChanged      : 1;
+        uint32_t                           m_ViewportChanged      : 1;
         uint32_t                           m_VerifyGraphicsCalls  : 1;
         uint32_t                           m_UseValidationLayers  : 1;
         uint32_t                           m_PrintDeviceInfo      : 1;
