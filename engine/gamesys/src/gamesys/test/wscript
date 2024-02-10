@@ -38,6 +38,7 @@ def build(bld):
             'particlefx/*',
             'render/*',
             'render_script/*',
+            'render_target/*',
             'display_profiles/*',
             'resource/*',
             'script/*',

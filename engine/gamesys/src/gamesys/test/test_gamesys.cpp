@@ -22,6 +22,7 @@
 
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_textureset.h"
+#include "gamesys/resources/res_render_target.h"
 
 #include <stdio.h>
 
@@ -194,6 +195,55 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     dmResource::Release(m_Factory, (void**) resource);
 }
 
+TEST_F(ResourceTest, TestRenderPrototypeResources)
+{
+    dmGameSystem::RenderScriptPrototype* render_prototype = NULL;
+    const char* render_path = "/render/resources.renderc";
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, render_path, (void**) &render_prototype));
+    ASSERT_NE((void*)0, render_prototype);
+    ASSERT_EQ(3, render_prototype->m_RenderResources.Size());
+
+    dmResource::ResourceType res_type_render_target;
+    dmResource::ResourceType res_type_material;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "materialc", &res_type_material));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "render_targetc", &res_type_render_target));
+
+    dmResource::SResourceDescriptor* rd_mat = dmResource::FindByHash(m_Factory, dmHashString64("/material/valid.materialc"));
+    ASSERT_NE((void*)0, rd_mat);
+
+    dmResource::SResourceDescriptor* rd_rt = dmResource::FindByHash(m_Factory, dmHashString64("/render_target/valid.render_targetc"));
+    ASSERT_NE((void*)0, rd_rt);
+
+    dmResource::ResourceType types[] = { res_type_material, res_type_render_target, res_type_material };
+    void* resources[] = { rd_mat->m_Resource, rd_rt->m_Resource, rd_mat->m_Resource };
+
+    for (int i = 0; i < render_prototype->m_RenderResources.Size(); ++i)
+    {
+        ASSERT_NE((void*)0, render_prototype->m_RenderResources[i]);
+        dmResource::ResourceType res_type;
+        dmResource::GetType(m_Factory, render_prototype->m_RenderResources[i], &res_type);
+        ASSERT_EQ(types[i], res_type);
+        ASSERT_EQ(resources[i], render_prototype->m_RenderResources[i]);
+    }
+
+    dmGameSystem::RenderTargetResource* rt = (dmGameSystem::RenderTargetResource*) rd_rt->m_Resource;
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, rt->m_RenderTarget));
+    ASSERT_EQ(dmGraphics::ASSET_TYPE_RENDER_TARGET, dmGraphics::GetAssetType(rt->m_RenderTarget));
+
+    dmGraphics::HTexture attachment_0 = dmGraphics::GetRenderTargetTexture(rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    dmGraphics::HTexture attachment_1 = dmGraphics::GetRenderTargetTexture(rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
+
+    ASSERT_EQ(128, dmGraphics::GetTextureWidth(attachment_0));
+    ASSERT_EQ(128, dmGraphics::GetTextureHeight(attachment_0));
+    ASSERT_EQ(128, dmGraphics::GetTextureWidth(attachment_1));
+    ASSERT_EQ(128, dmGraphics::GetTextureHeight(attachment_1));
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(attachment_0));
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(attachment_1));
+
+    dmResource::Release(m_Factory, (void**) render_prototype);
+}
+
 TEST_F(ResourceTest, TestCreateTextureFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -310,6 +360,25 @@ TEST_F(ResourceTest, TestResourceScriptBuffer)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_buffer.goc", dmHashString64("/script_buffer"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(ResourceTest, TestResourceScriptRenderTarget)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_render_target.goc", dmHashString64("/script_render_target"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));

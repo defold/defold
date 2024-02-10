@@ -37,6 +37,7 @@ import resource.liveupdate_ddf_pb2
 import rig.rig_ddf_pb2
 import render.material_ddf_pb2
 import render.font_ddf_pb2
+import render.render_ddf_pb2
 import particle.particle_ddf_pb2
 import gamesys.sprite_ddf_pb2
 import gamesys.physics_ddf_pb2
@@ -60,6 +61,7 @@ BUILDERS['.fontc']          = render.font_ddf_pb2.FontMap
 BUILDERS['.glyph_bankc']    = render.font_ddf_pb2.GlyphBank
 BUILDERS['.particlefxc']    = particle.particle_ddf_pb2.ParticleFX
 BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
+BUILDERS['.renderc']        = render.render_ddf_pb2.RenderPrototypeDesc
 BUILDERS['.convexshapec']   = gamesys.physics_ddf_pb2.ConvexShape
 BUILDERS['.collisionobjectc'] = gamesys.physics_ddf_pb2.CollisionObjectDesc
 
