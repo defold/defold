@@ -399,13 +399,24 @@ TEST_F(ScriptMsgTest, TestURLToString)
         "        print(s)\n"
         "    end\n"
         "end\n"
-        "test_msg_fn(msg.url(), 'default_socket:#')\n"
+        "test_msg_regex_fn = function (url, pattern)\n"
+        "    local s = tostring(url)\n"
+        "    local e = string.format('url: [%s]', pattern)\n"
+        "    if string.match(s, e) == nil then\n"
+        "        print('Expected url:', e)\n"
+        "        print('     but got:', s)\n"
+        "        assert(false)\n"
+        "    else\n"
+        "        print(s)\n"
+        "    end\n"
+        "end\n"
+        "test_msg_regex_fn(msg.url(), 'default_socket:<unknown:[0-9]*>#<unknown:[0-9]*>')\n"
         "test_msg_fn(msg.url('socket', 'path', 'test'), 'socket:path#test')\n"
         "\n" // test the per part concatenation
         "local long_s = string.rep('x', 300)\n"
         "local expected_s = string.rep('x', 255)\n" // current limit is 256 per part
         "test_msg_fn(msg.url(long_s, 'path', 'test'), expected_s .. ':path#test')\n"
-        "\n" // test the rotal length
+        "\n" // test the total length
         "test_msg_fn(msg.url(long_s, long_s, 'test'), expected_s .. ':' .. expected_s)\n" // max is 512. 255+1+255+'\0' == 512
         ));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));

@@ -80,13 +80,13 @@ namespace dmScript
         dmStrlCat(buffer, ":", buffer_size);
         if (url->m_Path != 0)
         {
-            dmSnPrintf(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Path));
+            dmStrlCpy(tmp, dmHashReverseSafe64(url->m_Path), sizeof(tmp));
             dmStrlCat(buffer, tmp, buffer_size);
         }
         if (url->m_Fragment != 0)
         {
             dmStrlCat(buffer, "#", buffer_size);
-            dmSnPrintf(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Fragment));
+            dmStrlCpy(tmp, dmHashReverseSafe64(url->m_Fragment), sizeof(tmp));
             dmStrlCat(buffer, tmp, buffer_size);
         }
         return buffer;
