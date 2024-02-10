@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -106,6 +106,17 @@ DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash);
 
 /*# get string value from hash
  *
+ * Returns the original string used to produce a hash.
+ * Always returns a null terminated string. Returns "<unknown:value>" if the original string wasn't found.
+ * @name dmHashReverseSafe64
+ * @param hash [type:uint64_t] hash value
+ * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found.
+ * @note Do not store this pointer
+ */
+DM_DLLEXPORT const char* dmHashReverseSafeBuffer64(uint64_t hash, char* buffer, uint32_t buffer_size);
+
+/*# get string value from hash
+ *
  * Reverse hash lookup. Maps hash to original data. It is guaranteed that the returned
  * buffer is null-terminated. If the buffer contains a valid c-string
  * it can safely be used in printf and friends.
@@ -128,6 +139,17 @@ DM_DLLEXPORT const void* dmHashReverse64(uint64_t hash, uint32_t* length);
  * @note Do not store this pointer
  */
 DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash);
+
+/*# get string value from hash
+ *
+ * Returns the original string used to produce a hash.
+ * Always returns a null terminated string. Returns "<unknown:value>" if the original string wasn't found.
+ * @name dmHashReverseSafe32
+ * @param hash [type:uint32_t] hash value
+ * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found.
+ * @note Do not store this pointer
+ */
+DM_DLLEXPORT const char* dmHashReverseSafeBuffer32(uint32_t hash, char* buffer, uint32_t buffer_size);
 
 /*# get string value from hash
  *

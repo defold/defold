@@ -72,7 +72,7 @@ namespace dmScript
 
         if( !socketname )
         {
-            dmSnPrintf(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Socket));
+            dmHashReverseSafeBuffer64(url->m_Socket, tmp, sizeof(tmp));
             socketname = tmp;
         }
 
@@ -80,13 +80,13 @@ namespace dmScript
         dmStrlCat(buffer, ":", buffer_size);
         if (url->m_Path != 0)
         {
-            dmStrlCpy(tmp, dmHashReverseSafe64(url->m_Path), sizeof(tmp));
+            dmHashReverseSafeBuffer64(url->m_Path, tmp, sizeof(tmp));
             dmStrlCat(buffer, tmp, buffer_size);
         }
         if (url->m_Fragment != 0)
         {
             dmStrlCat(buffer, "#", buffer_size);
-            dmStrlCpy(tmp, dmHashReverseSafe64(url->m_Fragment), sizeof(tmp));
+            dmHashReverseSafeBuffer64(url->m_Fragment, tmp, sizeof(tmp));
             dmStrlCat(buffer, tmp, buffer_size);
         }
         return buffer;

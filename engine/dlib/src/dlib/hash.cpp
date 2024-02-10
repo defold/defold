@@ -20,8 +20,8 @@
 #include "array.h"
 #include "index_pool.h"
 #include "align.h"
-#include <dlib/mutex.h>
 #include <dlib/dstrings.h>
+#include <dlib/mutex.h>
 #include <dlib/hashtable.h>
 
 struct ReverseHashEntry
@@ -666,23 +666,31 @@ DM_DLLEXPORT void dmHashReverseErase64(uint64_t hash)
 DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash)
 {
     const char* s = (const char*)dmHashReverse64(hash, 0);
-    if (s == 0)
-    {
-        static char tmp[64];
-        dmSnPrintf(tmp, sizeof(tmp), "<unknown:%llu>", (unsigned long long)hash);
-        return tmp;
-    }
-    return s;
+    return s != 0 ? s : "<unknown>";
 }
 
 DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash)
 {
     const char* s = (const char*)dmHashReverse32(hash, 0);
-    if (s == 0)
-    {
-        static char tmp[32];
-        dmSnPrintf(tmp, sizeof(tmp), "<unknown:%u>", hash);
-        return tmp;
-    }
-    return s;
+    return s != 0 ? s : "<unknown>";
+}
+
+DM_DLLEXPORT const char* dmHashReverseSafeBuffer64(uint64_t hash, char* buffer, uint32_t buffer_size)
+{
+    const char* s = (const char*)dmHashReverse64(hash, 0);
+    if (s)
+        dmStrlCpy(buffer, s, buffer_size);
+    else
+        dmSnPrintf(buffer, buffer_size, "<unknown:%llu>", hash);
+    return buffer;
+}
+
+DM_DLLEXPORT const char* dmHashReverseSafeBuffer32(uint32_t hash, char* buffer, uint32_t buffer_size)
+{
+    const char* s = (const char*)dmHashReverse32(hash, 0);
+    if (s)
+        dmStrlCpy(buffer, s, buffer_size);
+    else
+        dmSnPrintf(buffer, buffer_size, "<unknown:%u>", hash);
+    return buffer;
 }

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -181,7 +181,42 @@ TEST_F(dlib, HashToString64)
         ASSERT_TRUE(memcmp(iter->first.c_str(), reverse, len) == 0);
         // Check that the buffer is null-terminated
         ASSERT_STREQ(iter->first.c_str(), reverse);
+
+        const char* reverse_safe = (const char*) dmHashReverseSafe64(iter->second.first);
+        ASSERT_NE((void*) 0, reverse_safe);
+        ASSERT_STREQ(iter->first.c_str(), reverse_safe);
+
         ++iter;
+    }
+}
+
+TEST_F(dlib, ReverseHashSafe)
+{
+    {
+        const char* test_string = "TestString1";
+        uint64_t h = dmHashString64(test_string);
+        ASSERT_STREQ(test_string, dmHashReverseSafe64(h));
+        char tmp[256];
+        ASSERT_STREQ(test_string, dmHashReverseSafeBuffer64(h, tmp, sizeof(tmp)));
+        ASSERT_STREQ(test_string, tmp);
+    }
+
+    {
+        dmHashEnableReverseHash(false);
+        const char* test_string = "TestString2";
+        uint64_t h64 = dmHashString64(test_string);
+        uint64_t h32 = dmHashString64(test_string);
+        dmHashEnableReverseHash(true);
+
+        char tmp[256];
+
+        ASSERT_STREQ("<unknown>", dmHashReverseSafe64(h64));
+        ASSERT_STREQ("<unknown:13766936562963415115>", dmHashReverseSafeBuffer64(h64, tmp, sizeof(tmp)));
+        ASSERT_STREQ("<unknown:13766936562963415115>", tmp);
+
+        ASSERT_STREQ("<unknown>", dmHashReverseSafe32(h32));
+        ASSERT_STREQ("<unknown:415596619>", dmHashReverseSafeBuffer32(h32, tmp, sizeof(tmp)));
+        ASSERT_STREQ("<unknown:415596619>", tmp);
     }
 }
 
