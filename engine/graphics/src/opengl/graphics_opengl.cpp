@@ -2866,9 +2866,11 @@ static void LogFrameBufferError(GLenum status)
     {
         switch (filter)
         {
+            case GL_LINEAR:
             case GL_NEAREST_MIPMAP_NEAREST:
             case GL_NEAREST_MIPMAP_LINEAR:
                 return GL_NEAREST;
+            case GL_NEAREST:
             case GL_LINEAR_MIPMAP_NEAREST:
             case GL_LINEAR_MIPMAP_LINEAR:
                 return GL_LINEAR;
