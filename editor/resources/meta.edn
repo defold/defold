@@ -252,12 +252,12 @@
    :path ["physics" "max_fixed_timesteps"]},
   {:type :string,
    :help
-   "which filtering to use for min filtering, linear (default) or nearest",
+   "which filtering to use for min filtering, linear by default",
    :default "linear",
    :path ["graphics" "default_texture_min_filter"]
-   :options [["linear" "linear"] ["nearest" "nearest"] ["nearest_mipmap_nearest" "nearest_mipmap_nearest"]
-   									["nearest_mipmap_linear" "nearest_mipmap_linear"] ["linear_mipmap_nearest" "linear_mipmap_nearest"]
-   									["linear_mipmap_linear" "linear_mipmap_linear"]]}
+   :options [["linear" "linear"] ["nearest" "nearest"] ["nearest_mipmap_nearest" "nearest mipmap nearest"]
+   									["nearest_mipmap_linear" "nearest mipmap linear"] ["linear_mipmap_nearest" "linear mipmap nearest"]
+   									["linear_mipmap_linear" "linear mipmap linear"]]}
   {:type :string,
    :help
    "which filtering to use for mag filtering, linear (default) or nearest",
