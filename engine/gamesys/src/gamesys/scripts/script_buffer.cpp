@@ -733,7 +733,6 @@ namespace dmGameSystem
                     dmResource::Release(g_Factory, buffer->m_BufferRes);
                 }
             }
-
         }
         return 0;
     }
@@ -1210,12 +1209,15 @@ namespace dmScript
     LuaHBuffer::LuaHBuffer(dmBuffer::HBuffer buffer, LuaBufferOwnership ownership)
     : m_Buffer(buffer)
     , m_Owner(ownership)
+    , m_BufferResPathHash(0)
+    , m_BufferResVersion(dmResource::RESOURCE_VERSION_INVALID)
     {
     }
 
     LuaHBuffer::LuaHBuffer(dmResource::HFactory factory, void* buffer_resource)
     : m_BufferRes(buffer_resource)
     , m_Owner(OWNER_RES)
+    , m_BufferResPathHash(0)
     , m_BufferResVersion(dmResource::RESOURCE_VERSION_INVALID)
     {
         if (factory)
