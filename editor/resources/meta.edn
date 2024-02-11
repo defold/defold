@@ -255,7 +255,9 @@
    "which filtering to use for min filtering, linear (default) or nearest",
    :default "linear",
    :path ["graphics" "default_texture_min_filter"]
-   :options [["linear" "linear"] ["nearest" "nearest"]]}
+   :options [["linear" "linear"] ["nearest" "nearest"] ["nearest_mipmap_nearest" "nearest_mipmap_nearest"]
+   									["nearest_mipmap_linear" "nearest_mipmap_linear"] ["linear_mipmap_nearest" "linear_mipmap_nearest"]
+   									["linear_mipmap_linear" "linear_mipmap_linear"]]}
   {:type :string,
    :help
    "which filtering to use for mag filtering, linear (default) or nearest",
