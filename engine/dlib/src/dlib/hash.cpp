@@ -675,22 +675,34 @@ DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash)
     return s != 0 ? s : "<unknown>";
 }
 
-DM_DLLEXPORT const char* dmHashReverseSafeBuffer64(uint64_t hash, char* buffer, uint32_t buffer_size)
+DM_DLLEXPORT const char* dmHashReverseSafeBuffer64(uint64_t hash, char* buffer, uint32_t* buffer_size)
 {
     const char* s = (const char*)dmHashReverse64(hash, 0);
+    int len;
     if (s)
-        dmStrlCpy(buffer, s, buffer_size);
+        len = dmStrlCpy(buffer, s, *buffer_size);
     else
-        dmSnPrintf(buffer, buffer_size, "<unknown:%llu>", hash);
+        len = dmSnPrintf(buffer, *buffer_size, "<unknown:%llu>", hash);
+
+    if ((len < 0) || (len > (int)*buffer_size))
+        *buffer_size = 0xFFFFFFFF;
+    else
+        *buffer_size = (uint32_t)len;
     return buffer;
 }
 
-DM_DLLEXPORT const char* dmHashReverseSafeBuffer32(uint32_t hash, char* buffer, uint32_t buffer_size)
+DM_DLLEXPORT const char* dmHashReverseSafeBuffer32(uint32_t hash, char* buffer, uint32_t* buffer_size)
 {
     const char* s = (const char*)dmHashReverse32(hash, 0);
+    int len;
     if (s)
-        dmStrlCpy(buffer, s, buffer_size);
+        len = dmStrlCpy(buffer, s, *buffer_size);
     else
-        dmSnPrintf(buffer, buffer_size, "<unknown:%u>", hash);
+        len = dmSnPrintf(buffer, *buffer_size, "<unknown:%u>", hash);
+
+    if ((len < 0) || (len > (int)*buffer_size))
+        *buffer_size = 0xFFFFFFFF;
+    else
+        *buffer_size = (uint32_t)len;
     return buffer;
 }

@@ -15,6 +15,7 @@
 #ifndef DMSDK_HASH_H
 #define DMSDK_HASH_H
 
+#include <assert.h>
 #include <stdint.h>
 #include "shared_library.h"
 
@@ -110,10 +111,11 @@ DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash);
  * Always returns a null terminated string. Returns "<unknown:value>" if the original string wasn't found.
  * @name dmHashReverseSafeBuffer64
  * @param hash [type:uint64_t] hash value
+ * @param buffer [type:char*] buffer that receives the string
+ * @param buffer_size [type:uint32_t*] (in) size of the buffer, (out) length of the string, or 0xFFFFFFFF if it was truncated
  * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found.
- * @note Do not store this pointer
  */
-DM_DLLEXPORT const char* dmHashReverseSafeBuffer64(uint64_t hash, char* buffer, uint32_t buffer_size);
+DM_DLLEXPORT const char* dmHashReverseSafeBuffer64(uint64_t hash, char* buffer, uint32_t* buffer_size);
 
 /*# get string value from hash
  *
@@ -146,10 +148,11 @@ DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash);
  * Always returns a null terminated string. Returns "<unknown:value>" if the original string wasn't found.
  * @name dmHashReverseSafeBuffer32
  * @param hash [type:uint32_t] hash value
+ * @param buffer [type:char*] buffer that receives the string
+ * @param buffer_size [type:uint32_t*] (in) size of the buffer, (out) length of the string, or 0xFFFFFFFF if it was truncated
  * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found.
- * @note Do not store this pointer
  */
-DM_DLLEXPORT const char* dmHashReverseSafeBuffer32(uint32_t hash, char* buffer, uint32_t buffer_size);
+DM_DLLEXPORT const char* dmHashReverseSafeBuffer32(uint32_t hash, char* buffer, uint32_t* buffer_size);
 
 /*# get string value from hash
  *
@@ -300,6 +303,83 @@ DM_DLLEXPORT uint64_t dmHashFinal64(HashState64* hash_state);
  * @param hash_state [type: HashState64*] Hash state
  */
 DM_DLLEXPORT void dmHashRelease64(HashState64* hash_state);
+
+template<uint32_t N>
+struct dmReverseHashStackContext
+{
+    char            m_Memory[N];
+    const uint32_t  m_CheckSum;
+    const uint32_t  m_Capacity;
+    uint32_t        m_Used;
+    dmReverseHashStackContext() : m_CheckSum(0x12345678), m_Capacity(N), m_Used(0) {}
+    ~dmReverseHashStackContext()
+    {
+        assert(m_CheckSum == 0x12345678); // Check for overwrite
+    }
+
+    char*       Ptr()                  { return m_Memory+m_Used; }
+    uint32_t    Remaining()            { return m_Capacity - m_Used; }
+    void        Consume(uint32_t sz)
+    {
+        m_Used += sz;
+        if (m_Used > m_Capacity)
+            m_Used = m_Capacity;
+    }
+};
+
+/*# get string value from hash
+ *
+ * Returns the original string used to produce a hash.
+ * Always returns a null terminated string. Returns "<unknown:value>" if the original string wasn't found.
+ * @name dmHashReverseSafe64C
+ * @param hash [type:dmReverseHashStackContext*] stack allocation context
+ * @param hash [type:uint64_t] hash value
+ * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found.
+ * @note Do not store this pointer, it it only valid during the scope of the dmReverseHashStackContext
+ */
+template<typename Allocator>
+const char* dmHashReverseSafe64C(Allocator* ctx, uint64_t hash)
+{
+    uint32_t remaining = ctx->Remaining();
+    uint32_t len = remaining;
+
+    char* tmp = ctx->Ptr();
+    dmHashReverseSafeBuffer64(hash, tmp, &len);
+    if (len != 0xFFFFFFFF && ((len+1) <= remaining))
+    {
+        // not truncated, and the string fits in the allocator
+        ctx->Consume(len+1);
+        return tmp;
+    }
+    return dmHashReverseSafe64(hash);
+}
+
+/*# get string value from hash
+ *
+ * Returns the original string used to produce a hash.
+ * Always returns a null terminated string. Returns "<unknown:value>" if the original string wasn't found.
+ * @name dmHashReverseSafe32C
+ * @param hash [type:dmReverseHashStackContext*] stack allocation context
+ * @param hash [type:uint32_t] hash value
+ * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found.
+ * @note Do not store this pointer, it it only valid during the scope of the dmReverseHashStackContext
+ */
+template<typename Allocator>
+const char* dmHashReverseSafe32C(Allocator* ctx, uint32_t hash)
+{
+    uint32_t remaining = ctx->Remaining();
+    uint32_t len = remaining;
+
+    char* tmp = ctx->Ptr();
+    dmHashReverseSafeBuffer32(hash, tmp, &len);
+    if (len != 0xFFFFFFFF && ((len+1) <= remaining))
+    {
+        // not truncated, and the string fits in the allocator
+        ctx->Consume(len+1);
+        return tmp;
+    }
+    return dmHashReverseSafe32(hash);
+}
 
 #endif // __cplusplus
 

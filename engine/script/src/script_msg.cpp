@@ -58,7 +58,7 @@ namespace dmScript
 
     const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)
     {
-        char tmp[256];
+        dmReverseHashStackContext<512> hash_ctx;
         *buffer = '\0';
 
         const char* unknown = "<unknown>";
@@ -72,21 +72,20 @@ namespace dmScript
 
         if( !socketname )
         {
-            dmHashReverseSafeBuffer64(url->m_Socket, tmp, sizeof(tmp));
-            socketname = tmp;
+            socketname = dmHashReverseSafe64C(&hash_ctx, url->m_Socket);
         }
 
         dmStrlCpy(buffer, socketname ? socketname : unknown, buffer_size);
         dmStrlCat(buffer, ":", buffer_size);
         if (url->m_Path != 0)
         {
-            dmHashReverseSafeBuffer64(url->m_Path, tmp, sizeof(tmp));
+            const char* tmp = dmHashReverseSafe64C(&hash_ctx, url->m_Path);
             dmStrlCat(buffer, tmp, buffer_size);
         }
         if (url->m_Fragment != 0)
         {
+            const char* tmp = dmHashReverseSafe64C(&hash_ctx, url->m_Fragment);
             dmStrlCat(buffer, "#", buffer_size);
-            dmHashReverseSafeBuffer64(url->m_Fragment, tmp, sizeof(tmp));
             dmStrlCat(buffer, tmp, buffer_size);
         }
         return buffer;
@@ -536,9 +535,9 @@ namespace dmScript
         dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) desc, data, data_size, 0);
         if (result == dmMessage::RESULT_SOCKET_NOT_FOUND)
         {
-            char receiver_buffer[64];
+            char receiver_buffer[512];
             UrlToString(&receiver, receiver_buffer, sizeof(receiver_buffer));
-            char sender_buffer[64];
+            char sender_buffer[512];
             UrlToString(&sender, sender_buffer, sizeof(sender_buffer));
             return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
         }

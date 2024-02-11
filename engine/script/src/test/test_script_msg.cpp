@@ -414,10 +414,10 @@ TEST_F(ScriptMsgTest, TestURLToString)
         "test_msg_fn(msg.url('socket', 'path', 'test'), 'socket:path#test')\n"
         "\n" // test the per part concatenation
         "local long_s = string.rep('x', 300)\n"
-        "local expected_s = string.rep('x', 255)\n" // current limit is 256 per part
-        "test_msg_fn(msg.url(long_s, 'path', 'test'), expected_s .. ':path#test')\n"
+        "local expected_s = string.rep('x', 255)\n" // current limit is 512 in total
+        "test_msg_fn(msg.url(long_s, 'path', 'test'), long_s .. ':path#test')\n"
         "\n" // test the total length
-        "test_msg_fn(msg.url(long_s, long_s, 'test'), expected_s .. ':' .. expected_s)\n" // max is 512. 255+1+255+'\0' == 512
+        "test_msg_fn(msg.url(long_s, long_s, 'test'), long_s .. ':' .. string.rep('x', 210))\n" // max is: 300+1+210+'\0' == 512
         ));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(overflow_socket));
