@@ -449,7 +449,7 @@ public class ShaderCompilerHelpers {
         File fileOutHLSL = File.createTempFile(FilenameUtils.getName(resourceOutput), ".hlsl");
         File fileOutSpv  = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
 
-        final boolean fileDebug = true;
+        final boolean fileDebug = false;
 
         // For debugging remove these
 

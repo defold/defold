@@ -28,10 +28,11 @@ namespace dmGraphics
 {
     const static uint8_t MAX_FRAMES_IN_FLIGHT = 2;
     const static uint8_t MAX_FRAMEBUFFERS     = 3;
-    const static uint8_t MAX_VERTEX_BUFFERS   = 2;
 
     typedef ID3D12PipelineState*          DX12Pipeline;
     typedef dmHashTable64<DX12Pipeline>   DX12PipelineCache;
+
+    struct DX12Context;
 
     struct DX12Texture
     {
@@ -44,11 +45,22 @@ namespace dmGraphics
         uint16_t          m_MipMapCount         : 5;
     };
 
+    struct DX12DeviceBuffer
+    {
+        ID3D12Resource* m_Resource;
+        uint32_t        m_DataSize;
+    };
+
     struct DX12VertexBuffer
     {
-        ID3D12Resource*          m_Resource;
+        DX12DeviceBuffer         m_DeviceBuffer;
         D3D12_VERTEX_BUFFER_VIEW m_View;
-        uint32_t                 m_DataSize;
+    };
+
+    struct DX12IndexBuffer
+    {
+        DX12DeviceBuffer        m_DeviceBuffer;
+        D3D12_INDEX_BUFFER_VIEW m_View;
     };
 
     struct DX12ShaderModule
@@ -71,10 +83,44 @@ namespace dmGraphics
 
     struct DX12ShaderProgram
     {
-        DX12ShaderModule* m_VertexModule;
-        DX12ShaderModule* m_FragmentModule;
-        DX12ShaderModule* m_ComputeModule;
-        uint16_t          m_TotalUniformCount;
+        enum ModuleType
+        {
+            MODULE_TYPE_VERTEX   = 1,
+            MODULE_TYPE_FRAGMENT = 2,
+            MODULE_TYPE_COUNT    = 4,
+        };
+
+        struct ProgramResourceBinding
+        {
+            ShaderResourceBinding* m_Res;
+            uint32_t               m_DataOffset;
+            uint8_t                m_StageFlags;
+
+            union
+            {
+                uint16_t m_DynamicOffsetIndex;
+                uint16_t m_TextureUnit;
+            };
+        };
+
+        ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+
+        uint8_t*               m_UniformData;
+
+        ID3D12RootSignature*   m_RootSignature;
+
+        DX12ShaderModule*      m_VertexModule;
+        DX12ShaderModule*      m_FragmentModule;
+        DX12ShaderModule*      m_ComputeModule;
+
+        ShaderDesc::Language   m_Language;
+        uint32_t               m_UniformDataSizeAligned;
+        uint16_t               m_UniformBufferCount;
+        uint16_t               m_TextureSamplerCount;
+        uint16_t               m_TotalUniformCount;
+        uint16_t               m_TotalResourcesCount;
+        uint8_t                m_MaxSet;
+        uint8_t                m_MaxBinding;
     };
 
     struct DX12RenderTarget
@@ -86,11 +132,40 @@ namespace dmGraphics
         uint32_t         m_IsBound : 1;
     };
 
+
+    // Per frame scratch buffer for dynamic constant memory
+    struct DX12ScratchBuffer
+    {
+        static const uint32_t DESCRIPTORS_PER_POOL = 256;
+        static const uint32_t BLOCK_STEP_SIZE      = 256;
+        static const uint32_t MAX_BLOCK_SIZE       = 1024;
+
+        struct BlockSizedPool
+        {
+            // TODO: Pool these!
+            ID3D12DescriptorHeap* m_DescriptorHeap;
+            ID3D12Resource*       m_MemoryHeap;
+            void*                 m_MappedDataPtr;
+            uint32_t              m_BlockSize;
+            uint32_t              m_DescriptorCursor;
+            uint32_t              m_MemoryCursor;
+        };
+
+        dmArray<BlockSizedPool> m_MemoryPools;
+        uint32_t m_FrameIndex;
+
+        void  Initialize(DX12Context* context, uint32_t frame_index);
+        void* AllocateConstantBuffer(DX12Context* context, uint32_t non_aligned_byte_size);
+        void  Reset(DX12Context* context);
+        void  Bind(DX12Context* context);
+    };
+
     struct DX12FrameResource
     {
         DX12RenderTarget        m_RenderTarget;
         ID3D12CommandAllocator* m_CommandAllocator;
         ID3D12Fence*            m_Fence;
+        DX12ScratchBuffer       m_ScratchBuffer;
         uint64_t                m_FenceValue;
     };
 
@@ -104,7 +179,6 @@ namespace dmGraphics
         ID3D12DescriptorHeap*              m_RtvDescriptorHeap;
         ID3D12GraphicsCommandList*         m_CommandList;
         ID3D12Debug*                       m_DebugInterface;
-        ID3D12RootSignature*               m_RootSignature;
         HANDLE                             m_FenceEvent;
         DX12FrameResource                  m_FrameResources[MAX_FRAMEBUFFERS];
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;

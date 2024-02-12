@@ -166,16 +166,13 @@ namespace dmGraphics
         }
     }
 
-    static void SetupRootSignature(DX12Context* context)
+    static void CreateRootSignature(DX12Context* context, CD3DX12_ROOT_SIGNATURE_DESC* desc, DX12ShaderProgram* program)
     {
-        CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-        rootSignatureDesc.Init(0, NULL, 0, NULL, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
         ID3DBlob* signature;
-        HRESULT hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, NULL);
+        HRESULT hr = D3D12SerializeRootSignature(desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, NULL);
         CHECK_HR_ERROR(hr);
 
-        hr = context->m_Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&context->m_RootSignature));
+        hr = context->m_Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&program->m_RootSignature));
         CHECK_HR_ERROR(hr);
     }
 
@@ -201,6 +198,86 @@ namespace dmGraphics
         // rt->m_ColorAttachmentCount = 1;
     }
 
+    void DX12ScratchBuffer::Initialize(DX12Context* context, uint32_t frame_index)
+    {
+        uint32_t pool_block_count = MAX_BLOCK_SIZE / BLOCK_STEP_SIZE;
+        m_MemoryPools.SetCapacity(pool_block_count);
+        m_MemoryPools.SetSize(pool_block_count);
+
+        m_FrameIndex = frame_index;
+
+        for (int i = 0; i < m_MemoryPools.Size(); ++i)
+        {
+            m_MemoryPools[i].m_BlockSize        = (i+1) * BLOCK_STEP_SIZE;
+            m_MemoryPools[i].m_DescriptorCursor = 0;
+            m_MemoryPools[i].m_MemoryCursor     = 0;
+
+            D3D12_DESCRIPTOR_HEAP_DESC heap_Desc = {};
+            heap_Desc.NumDescriptors             = DESCRIPTORS_PER_POOL;
+            heap_Desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+            heap_Desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+
+            HRESULT hr = context->m_Device->CreateDescriptorHeap(&heap_Desc, IID_PPV_ARGS(&m_MemoryPools[i].m_DescriptorHeap));
+            CHECK_HR_ERROR(hr);
+
+            const uint32_t memory_heap_alignment = 1024 * 64;
+            const uint32_t memory_heap_size      = memory_heap_alignment; // TODO: Some other memory metric here
+
+            hr = context->m_Device->CreateCommittedResource(
+                &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // this heap will be used to upload the constant buffer data
+                D3D12_HEAP_FLAG_NONE,                             // no flags
+                &CD3DX12_RESOURCE_DESC::Buffer(memory_heap_size), // size of the resource heap. Must be a multiple of 64KB for single-textures and constant buffers
+                D3D12_RESOURCE_STATE_GENERIC_READ,                // will be data that is read from so we keep it in the generic read state
+                NULL,                                             // we do not have use an optimized clear value for constant buffers
+                IID_PPV_ARGS(&m_MemoryPools[i].m_MemoryHeap));
+            CHECK_HR_ERROR(hr);
+
+            CD3DX12_RANGE readRange(0, 0);    // We do not intend to read from this resource on the CPU. (End is less than or equal to begin)
+            hr = m_MemoryPools[i].m_MemoryHeap->Map(0, &readRange, &m_MemoryPools[i].m_MappedDataPtr);
+            CHECK_HR_ERROR(hr);
+
+            D3D12_CONSTANT_BUFFER_VIEW_DESC view_desc = {};
+            view_desc.BufferLocation = m_MemoryPools[i].m_MemoryHeap->GetGPUVirtualAddress(); // + cursor;
+            view_desc.SizeInBytes    = m_MemoryPools[i].m_BlockSize;
+
+            context->m_Device->CreateConstantBufferView(&view_desc, m_MemoryPools[i].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+            // m_MemoryPools[i].m_DescriptorCursor++;
+        }
+    }
+
+    void* DX12ScratchBuffer::AllocateConstantBuffer(DX12Context* context, uint32_t non_aligned_byte_size)
+    {
+        assert(non_aligned_byte_size < MAX_BLOCK_SIZE);
+        uint32_t pool_index = non_aligned_byte_size / BLOCK_STEP_SIZE;
+        uint32_t cursor = m_MemoryPools[pool_index].m_MemoryCursor;
+
+        uint8_t* base_ptr = ((uint8_t*) m_MemoryPools[pool_index].m_MappedDataPtr) + cursor;
+        m_MemoryPools[pool_index].m_MemoryCursor += BLOCK_STEP_SIZE;
+
+        // dmLogInfo("AllocateConstantBuffer: ptr: %p, frame: %d, pool: %d, descriptor: %d, offset: %d", base_ptr, m_FrameIndex, pool_index, m_MemoryPools[pool_index].m_DescriptorCursor, cursor);
+
+        return (void*) base_ptr;
+    }
+
+    void DX12ScratchBuffer::Reset(DX12Context* context)
+    {
+        for (int i = 0; i < m_MemoryPools.Size(); ++i)
+        {
+            m_MemoryPools[i].m_DescriptorCursor = 0;
+            m_MemoryPools[i].m_MemoryCursor     = 0;
+        }
+    }
+
+    void DX12ScratchBuffer::Bind(DX12Context* context)
+    {
+        // TODO: multiple heaps needs to be bound here
+        ID3D12DescriptorHeap* heaps[] = { m_MemoryPools[0].m_DescriptorHeap };
+        context->m_CommandList->SetDescriptorHeaps(1, heaps);
+
+        // set the root descriptor table 0 to the constant buffer descriptor heap
+        context->m_CommandList->SetGraphicsRootDescriptorTable(0, m_MemoryPools[0].m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+    }
+
     static bool DX12Initialize(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
@@ -208,7 +285,8 @@ namespace dmGraphics
         HRESULT hr = S_OK;
 
         // This needs to be created before the device
-        if (context->m_UseValidationLayers)
+        // if (context->m_UseValidationLayers)
+        if (true)
         {
             hr = D3D12GetDebugInterface(IID_PPV_ARGS(&context->m_DebugInterface));
             CHECK_HR_ERROR(hr);
@@ -286,6 +364,7 @@ namespace dmGraphics
             CHECK_HR_ERROR(hr);
 
             context->m_FrameResources[i].m_FenceValue = RENDER_CONTEXT_STATE_FREE;
+            context->m_FrameResources[i].m_ScratchBuffer.Initialize(context, i);
         }
 
 
@@ -304,7 +383,6 @@ namespace dmGraphics
         context->m_CommandList->Close();
 
         SetupMainRenderTarget(context, sample_desc);
-        SetupRootSignature(context);
 
         context->m_PipelineState = GetDefaultPipelineState();
 
@@ -356,6 +434,45 @@ namespace dmGraphics
         DX12Context* context = (DX12Context*) _context;
         return context->m_Height;
     }
+
+    /*
+    void VulkanSetWindowSize(HContext _context, uint32_t width, uint32_t height)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        {
+            context->m_Width  = width;
+            context->m_Height = height;
+
+            dmPlatform::SetWindowSize(context->m_Window, width, height);
+
+            context->m_WindowWidth  = dmPlatform::GetWindowWidth(context->m_Window);
+            context->m_WindowHeight = dmPlatform::GetWindowHeight(context->m_Window);
+
+            SwapChainChanged(g_VulkanContext, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
+        }
+    }
+
+    /*
+    HRESULT ResizeBuffers(
+  UINT        BufferCount,
+  UINT        Width,
+  UINT        Height,
+  DXGI_FORMAT NewFormat,
+  UINT        SwapChainFlags
+);
+*/
+    /*
+    void VulkanResizeWindow(HContext _context, uint32_t width, uint32_t height)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
+        {
+            VulkanSetWindowSize(_context, width, height);
+        }
+    }
+    */
 
     static void DX12SetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
@@ -488,11 +605,11 @@ namespace dmGraphics
         hr = context->m_CommandList->Reset(current_frame_resource.m_CommandAllocator, NULL); // Second argument is a pipeline object (TODO)
         CHECK_HR_ERROR(hr);
 
+        current_frame_resource.m_ScratchBuffer.Reset(context);
+
         context->m_FrameBegun = 1;
 
         BeginRenderPass(context, context->m_MainRenderTarget);
-
-        context->m_CommandList->SetGraphicsRootSignature(context->m_RootSignature);
     }
 
     static void DX12Flip(HContext _context)
@@ -520,7 +637,7 @@ namespace dmGraphics
         context->m_FrameBegun = 0;
     }
 
-    static void VertexBufferUploadHelper(DX12Context* context, DX12VertexBuffer* vx_buffer, const void* data, uint32_t data_size)
+    static void DeviceBufferUploadHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, const void* data, uint32_t data_size)
     {
         if (data == 0 || data_size == 0)
             return;
@@ -552,10 +669,10 @@ namespace dmGraphics
             CHECK_HR_ERROR(hr);
         }
 
-        UpdateSubresources(context->m_CommandList, vx_buffer->m_Resource, upload_heap, 0, 0, 1, &vx_data);
+        UpdateSubresources(context->m_CommandList, device_buffer->m_Resource, upload_heap, 0, 0, 1, &vx_data);
 
         // transition the vertex buffer data from copy destination state to vertex buffer state
-        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(vx_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
+        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
 
         if (!context->m_FrameBegun)
         {
@@ -564,25 +681,12 @@ namespace dmGraphics
             context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
         }
 
-        vx_buffer->m_DataSize = data_size;
-
-        // Now we execute the command list to upload the initial assets (triangle data)
-        // context->m_CommandList->Close(); // THis might be wrong!
-        // ID3D12CommandList* execute_cmd_lists[] = { context->m_CommandList };
-        // commandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
-
-        // increment the fence value now, otherwise the buffer might not be uploaded by the time we start drawing
-        // fenceValue[frameIndex]++;
-        // hr = commandQueue->Signal(fence[frameIndex], fenceValue[frameIndex]);
-        // if (FAILED(hr))
-        // {
-        //     Running = false;
-        // }
+        device_buffer->m_DataSize = data_size;
     }
 
-    static void CreateVertexBuffer(DX12Context* context, DX12VertexBuffer* vx_buffer, uint32_t size)
+    static void CreateDeviceBuffer(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t size)
     {
-        assert(vx_buffer->m_Resource == 0x0);
+        assert(device_buffer->m_Resource == 0x0);
 
         // create default heap
         // default heap is memory on the GPU. Only the GPU has access to this memory
@@ -594,23 +698,22 @@ namespace dmGraphics
             &CD3DX12_RESOURCE_DESC::Buffer(size),              // resource description for a buffer
             D3D12_RESOURCE_STATE_COPY_DEST,                    // we will start this heap in the copy destination state since we will copy data from the upload heap to this heap
             NULL,                                              // optimized clear value must be null for this type of resource. used for render targets and depth/stencil buffers
-            IID_PPV_ARGS(&vx_buffer->m_Resource));
+            IID_PPV_ARGS(&device_buffer->m_Resource));
         CHECK_HR_ERROR(hr);
 
-        vx_buffer->m_Resource->SetName(L"Vertex Buffer Resource Heap");
+        device_buffer->m_Resource->SetName(L"Vertex Buffer Resource Heap");
     }
 
     static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        DX12Context* context = (DX12Context*) _context;
-
+        DX12Context* context        = (DX12Context*) _context;
         DX12VertexBuffer* vx_buffer = new DX12VertexBuffer();
         memset(vx_buffer, 0, sizeof(DX12VertexBuffer));
 
         if (size > 0)
         {
-            CreateVertexBuffer(context, vx_buffer, size);
-            VertexBufferUploadHelper(context, vx_buffer, data, size);
+            CreateDeviceBuffer(context, &vx_buffer->m_DeviceBuffer, size);
+            DeviceBufferUploadHelper(context, &vx_buffer->m_DeviceBuffer, data, size);
         }
 
         return (HVertexBuffer) vx_buffer;
@@ -629,14 +732,13 @@ namespace dmGraphics
             return;
         }
 
-        DX12VertexBuffer* buffer = (DX12VertexBuffer*) _buffer;
-
-        if (buffer->m_Resource == 0x0)
+        DX12VertexBuffer* vx_buffer = (DX12VertexBuffer*) _buffer;
+        if (vx_buffer->m_DeviceBuffer.m_Resource == 0x0)
         {
-            CreateVertexBuffer(g_DX12Context, buffer, size);
+            CreateDeviceBuffer(g_DX12Context, &vx_buffer->m_DeviceBuffer, size);
         }
 
-        VertexBufferUploadHelper(g_DX12Context, buffer, data, size);
+        DeviceBufferUploadHelper(g_DX12Context, &vx_buffer->m_DeviceBuffer, data, size);
     }
 
     static void DX12SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -648,9 +750,19 @@ namespace dmGraphics
         return 65536;
     }
 
-    static HIndexBuffer DX12NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    static HIndexBuffer DX12NewIndexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        return 0;
+        DX12Context* context       = (DX12Context*) _context;
+        DX12IndexBuffer* ix_buffer = new DX12IndexBuffer();
+        memset(ix_buffer, 0, sizeof(DX12IndexBuffer));
+
+        if (size > 0)
+        {
+            CreateDeviceBuffer(context, &ix_buffer->m_DeviceBuffer, size);
+            DeviceBufferUploadHelper(context, &ix_buffer->m_DeviceBuffer, data, size);
+        }
+
+        return (HIndexBuffer) ix_buffer;
     }
 
     static void DX12DeleteIndexBuffer(HIndexBuffer buffer)
@@ -659,6 +771,20 @@ namespace dmGraphics
 
     static void DX12SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        DM_PROFILE(__FUNCTION__);
+
+        if (size == 0)
+        {
+            return;
+        }
+
+        DX12IndexBuffer* ix_buffer = (DX12IndexBuffer*) buffer;
+        if (ix_buffer->m_DeviceBuffer.m_Resource == 0x0)
+        {
+            CreateDeviceBuffer(g_DX12Context, &ix_buffer->m_DeviceBuffer, size);
+        }
+
+        DeviceBufferUploadHelper(g_DX12Context, &ix_buffer->m_DeviceBuffer, data, size);
     }
 
     static void DX12SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -954,7 +1080,7 @@ namespace dmGraphics
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {}; // a structure to define a pso
         psoDesc.InputLayout           = inputLayoutDesc; // the structure describing our input layout
-        psoDesc.pRootSignature        = context->m_RootSignature;
+        psoDesc.pRootSignature        = context->m_CurrentProgram->m_RootSignature;
         psoDesc.VS                    = vs_byte_code;
         psoDesc.PS                    = fs_byte_code;
         psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // SHould we support points?
@@ -974,8 +1100,9 @@ namespace dmGraphics
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
         //dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_PipelineState,          sizeof(context->m_PipelineState));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_Id,                  sizeof(current_rt->m_Id));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_PipelineState,                   sizeof(context->m_PipelineState));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_Id,                           sizeof(current_rt->m_Id));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_RootSignature, sizeof(context->m_CurrentProgram->m_RootSignature));
         // dmHashUpdateBuffer64(&pipeline_hash_state, &vk_sample_count,  sizeof(vk_sample_count));
 
         // for (int i = 0; i < vertexDeclarationCount; ++i)
@@ -1025,9 +1152,31 @@ namespace dmGraphics
         context->m_CommandList->RSSetScissorRects(1, &scissor);
     }
 
+    static void CommitUniforms(DX12Context* context, DX12FrameResource& frame_resources)
+    {
+        DX12ShaderProgram* program = context->m_CurrentProgram;
+
+        for (int set = 0; set < program->m_MaxSet; ++set)
+        {
+            for (int binding = 0; binding < program->m_MaxBinding; ++binding)
+            {
+                DX12ShaderProgram::ProgramResourceBinding& res = program->m_ResourceBindings[set][binding];
+
+                if (res.m_Res == 0x0)
+                    continue;
+
+                const uint32_t uniform_size_nonalign = res.m_Res->m_DataSize;
+                void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, uniform_size_nonalign);
+                memcpy(gpu_mapped_memory, &program->m_UniformData[res.m_DataOffset], uniform_size_nonalign);
+            }
+        }
+    }
+
     static void DrawSetup(DX12Context* context, PrimitiveType prim_type)
     {
         assert(context->m_CurrentProgram);
+
+        DX12FrameResource& frame_resources = context->m_FrameResources[context->m_CurrentFrameIndex];
 
         DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
@@ -1038,67 +1187,47 @@ namespace dmGraphics
         {
             if (context->m_CurrentVertexBuffer[i] && context->m_CurrentVertexDeclaration[i])
             {
-                vx_buffer_views[num_vx_buffers].BufferLocation = context->m_CurrentVertexBuffer[i]->m_Resource->GetGPUVirtualAddress();
+                vx_buffer_views[num_vx_buffers].BufferLocation = context->m_CurrentVertexBuffer[i]->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
+                vx_buffer_views[num_vx_buffers].SizeInBytes    = context->m_CurrentVertexBuffer[i]->m_DeviceBuffer.m_DataSize;
                 vx_buffer_views[num_vx_buffers].StrideInBytes  = context->m_CurrentVertexDeclaration[i]->m_Stride;
-                vx_buffer_views[num_vx_buffers].SizeInBytes    = context->m_CurrentVertexBuffer[i]->m_DataSize;
                 num_vx_buffers++;
             }
-        }
-
-        // If the culling, or viewport has changed, make sure to flip the
-        // culling flag if we are rendering to the backbuffer.
-        // This is needed because we are rendering with a negative viewport
-        // which means that the face direction is inverted.
-        if (context->m_CullFaceChanged || context->m_ViewportChanged)
-        {
-            if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
-            {
-                if (context->m_PipelineState.m_CullFaceType == FACE_TYPE_BACK)
-                {
-                    context->m_PipelineState.m_CullFaceType = FACE_TYPE_FRONT;
-                }
-                else if (context->m_PipelineState.m_CullFaceType == FACE_TYPE_FRONT)
-                {
-                    context->m_PipelineState.m_CullFaceType = FACE_TYPE_BACK;
-                }
-            }
-            context->m_CullFaceChanged = 0;
         }
 
         // Update the viewport
         if (context->m_ViewportChanged)
         {
             DX12Viewport& vp = context->m_CurrentViewport;
-
-            /*
-            // If we are rendering to the backbuffer, we must invert the viewport on
-            // the y axis. Otherwise we just use the values as-is.
-            // If we don't, all FBO rendering will be upside down.
-            if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
-            {
-                //SetViewportAndScissorHelper(context, vp.m_X, (context->m_WindowHeight - vp.m_Y), vp.m_W, -vp.m_H);
-                SetViewportAndScissorHelper(context, vp.m_X, (context->m_Height - vp.m_Y), vp.m_W, -vp.m_H);
-            }
-            else
-            {
-                SetViewportAndScissorHelper(context, vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
-            }
-            */
-
             SetViewportAndScissorHelper(context, vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
-
             context->m_ViewportChanged = 0;
         }
 
+        CommitUniforms(context, frame_resources);
+
         DX12Pipeline* pipeline = GetOrCreatePipeline(context, current_rt);
 
+        context->m_CommandList->SetGraphicsRootSignature(context->m_CurrentProgram->m_RootSignature);
         context->m_CommandList->SetPipelineState(*pipeline);
         context->m_CommandList->IASetPrimitiveTopology(GetPrimitiveTopology(prim_type));
         context->m_CommandList->IASetVertexBuffers(0, num_vx_buffers, vx_buffer_views); // set the vertex buffer (using the vertex buffer view)
+
+        frame_resources.m_ScratchBuffer.Bind(context);
     }
 
     static void DX12DrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
+        DX12Context* context = (DX12Context*) _context;
+        DrawSetup(context, prim_type);
+
+        DX12IndexBuffer* ix_buffer   = (DX12IndexBuffer*) index_buffer;
+        D3D12_INDEX_BUFFER_VIEW view = {};
+        view.BufferLocation          = ix_buffer->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
+        view.SizeInBytes             = ix_buffer->m_DeviceBuffer.m_DataSize;
+        view.Format                  = type == dmGraphics::TYPE_UNSIGNED_SHORT ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT;
+        uint32_t index_offset        = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
+
+        context->m_CommandList->IASetIndexBuffer(&view);
+        context->m_CommandList->DrawIndexedInstanced(count, 1, index_offset, 0, 0); // draw first quad
     }
 
     static void DX12Draw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count)
@@ -1133,12 +1262,114 @@ namespace dmGraphics
         return true;
     }
 
+    static void FillProgramResourceBindings(
+        DX12ShaderProgram* program,
+        DX12ShaderModule* module,
+        DX12ShaderProgram::ModuleType module_type,
+        uint32_t& buffer_count,
+        uint32_t& sampler_count,
+        uint32_t& uniform_count,
+        uint32_t& data_size,
+        uint32_t& data_size_aligned,
+        uint32_t& max_set,
+        uint32_t& max_binding)
+    {
+        for (int i = 0; i < module->m_Uniforms.Size(); ++i)
+        {
+            ShaderResourceBinding& res = module->m_Uniforms[i];
+            DX12ShaderProgram::ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
+
+            if (program_resource_binding.m_Res == 0)
+            {
+                program_resource_binding.m_DataOffset = data_size;
+                program_resource_binding.m_Res        = &res;
+
+                if (!IsUniformTextureSampler(res))
+                {
+                    program_resource_binding.m_DataOffset         = data_size;
+                    program_resource_binding.m_DynamicOffsetIndex = buffer_count;
+                    buffer_count++;
+                    uniform_count += res.m_BlockMembers.Size();
+
+                    data_size         += res.m_DataSize;
+                    data_size_aligned += DM_ALIGN(res.m_DataSize, 256); // Constant buffers needs 256 byte alignment
+                }
+                else
+                {
+                    // TODO
+                }
+
+                max_set     = dmMath::Max(max_set, (uint32_t) (res.m_Set + 1));
+                max_binding = dmMath::Max(max_binding, (uint32_t) (res.m_Binding + 1));
+
+            #if 0
+                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset);
+            #endif
+            }
+
+            program_resource_binding.m_StageFlags |= (int) module_type;
+        }
+    }
+
     static HProgram DX12NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         DX12ShaderProgram* program = new DX12ShaderProgram();
         program->m_VertexModule    = (DX12ShaderModule*) vertex_program;
         program->m_FragmentModule  = (DX12ShaderModule*) fragment_program;
         program->m_ComputeModule   = 0;
+
+        uint32_t buffer_count      = 0;
+        uint32_t sampler_count     = 0;
+        uint32_t uniform_count     = 0;
+        uint32_t data_size         = 0;
+        uint32_t data_size_aligned = 0;
+        uint32_t max_set           = 0;
+        uint32_t max_binding       = 0;
+
+        uint32_t num_buffers = program->m_VertexModule->m_UniformBufferCount + program->m_FragmentModule->m_UniformBufferCount;
+        if (num_buffers > 0)
+        {
+            FillProgramResourceBindings(program, program->m_VertexModule, DX12ShaderProgram::MODULE_TYPE_VERTEX, buffer_count, sampler_count, uniform_count, data_size, data_size_aligned, max_set, max_binding);
+            FillProgramResourceBindings(program, program->m_FragmentModule, DX12ShaderProgram::MODULE_TYPE_FRAGMENT, buffer_count, sampler_count, uniform_count, data_size, data_size_aligned, max_set, max_binding);
+
+            program->m_UniformData = new uint8_t[data_size];
+            memset(program->m_UniformData, 0, data_size);
+        }
+
+        // TODO: We should hash the data needed to generate this signature
+        D3D12_DESCRIPTOR_RANGE desc_range;
+        desc_range.RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+        desc_range.NumDescriptors                    = num_buffers;
+        desc_range.BaseShaderRegister                = 0;
+        desc_range.RegisterSpace                     = 0;
+        desc_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+        D3D12_ROOT_DESCRIPTOR_TABLE desc_table;
+        desc_table.NumDescriptorRanges = 1;
+        desc_table.pDescriptorRanges   = &desc_range;
+
+        D3D12_ROOT_PARAMETER  root_param;
+        root_param.ParameterType    = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        root_param.DescriptorTable  = desc_table;
+        root_param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+        CD3DX12_ROOT_SIGNATURE_DESC root_signature_desc;
+        root_signature_desc.Init(1, &root_param,
+            0, nullptr,
+            D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | // we can deny shader stages here for better performance
+            D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+            D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+            D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS);
+
+        CreateRootSignature((DX12Context*) context, &root_signature_desc, program);
+
+        program->m_UniformBufferCount  = buffer_count;
+        program->m_TextureSamplerCount = sampler_count;
+        program->m_TotalUniformCount   = uniform_count; // num buffer members + samplers
+        program->m_TotalResourcesCount = buffer_count + sampler_count; // num actual descriptors
+        program->m_MaxSet              = max_set;
+        program->m_MaxBinding          = max_binding;
+
         return (HProgram) program;
     }
 
@@ -1330,33 +1561,131 @@ namespace dmGraphics
 
     static uint32_t DX12GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
+        assert(prog);
+        DX12ShaderProgram* program = (DX12ShaderProgram*) prog;
+        uint32_t search_index = 0;
+
+        for (int set = 0; set < program->m_MaxSet; ++set)
+        {
+            for (int binding = 0; binding < program->m_MaxBinding; ++binding)
+            {
+                DX12ShaderProgram::ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[set][binding];
+
+                if (program_resource_binding.m_Res == 0x0)
+                    continue;
+
+                if (IsUniformTextureSampler(*program_resource_binding.m_Res))
+                {
+                    if (search_index == index)
+                    {
+                        ShaderResourceBinding* res = program_resource_binding.m_Res;
+                        *type = ShaderDataTypeToGraphicsType(res->m_Type);
+                        *size = res->m_ElementCount;
+                        return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
+                    }
+                    search_index++;
+                }
+                else
+                {
+                    for (int i = 0; i < program_resource_binding.m_Res->m_BlockMembers.Size(); ++i)
+                    {
+                        if (search_index == index)
+                        {
+                            UniformBlockMember& member = program_resource_binding.m_Res->m_BlockMembers[i];
+                            *type = ShaderDataTypeToGraphicsType(member.m_Type);
+                            *size = member.m_ElementCount;
+                            return (uint32_t) dmStrlCpy(buffer, member.m_Name, buffer_size);
+                        }
+
+                        search_index++;
+                    }
+                }
+            }
+        }
+
+        assert(0);
         return 0;
     }
 
     static HUniformLocation DX12GetUniformLocation(HProgram prog, const char* name)
     {
+        assert(prog);
+        DX12ShaderProgram* program_ptr = (DX12ShaderProgram*) prog;
+        dmhash_t name_hash = dmHashString64(name);
+
+        for (int set = 0; set < program_ptr->m_MaxSet; ++set)
+        {
+            for (int binding = 0; binding < program_ptr->m_MaxBinding; ++binding)
+            {
+                DX12ShaderProgram::ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
+
+                if (pgm_res.m_Res == 0x0)
+                    continue;
+
+                if (pgm_res.m_Res->m_NameHash == name_hash)
+                {
+                    return set | binding << 16;
+                }
+                else
+                {
+                    for (uint32_t i = 0; i < pgm_res.m_Res->m_BlockMembers.Size(); ++i)
+                    {
+                        if (pgm_res.m_Res->m_BlockMembers[i].m_NameHash == name_hash)
+                        {
+                            return set | binding << 16 | ((uint64_t) i) << 32;
+                        }
+                    }
+                }
+            }
+        }
+
         return INVALID_UNIFORM_LOCATION;
     }
 
-    static void DX12SetViewport(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)
+    static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
     {
-        DX12Context* context = (DX12Context*) _context;
-
-        DX12Viewport& viewport = context->m_CurrentViewport;
-        viewport.m_X = (uint16_t) x;
-        viewport.m_Y = (uint16_t) y;
-        viewport.m_W = (uint16_t) width;
-        viewport.m_H = (uint16_t) height;
-        context->m_ViewportChanged = 1;
+        memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
     }
 
     static void DX12SetConstantV4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
+        DX12Context* context = (DX12Context*) _context;
+        assert(context->m_CurrentProgram);
+        assert(base_location != INVALID_UNIFORM_LOCATION);
+
+        DX12ShaderProgram* program_ptr = (DX12ShaderProgram*) context->m_CurrentProgram;
+        uint32_t set                   = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding               = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t member                = UNIFORM_LOCATION_GET_FS(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        DX12ShaderProgram::ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
+        WriteConstantData(
+            pgm_res.m_DataOffset + pgm_res.m_Res->m_BlockMembers[member].m_Offset,
+            program_ptr->m_UniformData,
+            (uint8_t*) data,
+            sizeof(dmVMath::Vector4) * count);
     }
 
     static void DX12SetConstantM4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
-    }
+        DX12Context* context = (DX12Context*) _context;
+        assert(context->m_CurrentProgram);
+        assert(base_location != INVALID_UNIFORM_LOCATION);
+
+        DX12ShaderProgram* program_ptr = (DX12ShaderProgram*) context->m_CurrentProgram;
+        uint32_t set                   = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding               = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t member                = UNIFORM_LOCATION_GET_FS(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        DX12ShaderProgram::ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
+        WriteConstantData(
+            pgm_res.m_DataOffset + pgm_res.m_Res->m_BlockMembers[member].m_Offset,
+            program_ptr->m_UniformData,
+            (uint8_t*) data,
+            sizeof(dmVMath::Vector4) * 4 * count);
+     }
 
     static void DX12SetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
@@ -1402,7 +1731,29 @@ namespace dmGraphics
 
     static HTexture DX12NewTexture(HContext _context, const TextureCreationParams& params)
     {
-        return 0;
+        DX12Context* context = (DX12Context*) _context;
+
+        DX12Texture* tex = new DX12Texture;
+        // InitializeVulkanTexture(tex);
+
+        tex->m_Type        = params.m_Type;
+        tex->m_Width       = params.m_Width;
+        tex->m_Height      = params.m_Height;
+        tex->m_Depth       = params.m_Depth;
+        tex->m_MipMapCount = params.m_MipMapCount;
+        // tex->m_UsageFlags  = GetVulkanUsageFromHints(params.m_UsageHintBits);
+
+        if (params.m_OriginalWidth == 0)
+        {
+            tex->m_OriginalWidth  = params.m_Width;
+            tex->m_OriginalHeight = params.m_Height;
+        }
+        else
+        {
+            tex->m_OriginalWidth  = params.m_OriginalWidth;
+            tex->m_OriginalHeight = params.m_OriginalHeight;
+        }
+        return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
     static void DX12DeleteTexture(HTexture texture)
@@ -1459,6 +1810,18 @@ namespace dmGraphics
 
     static void DX12ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
     {
+    }
+
+    static void DX12SetViewport(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)
+    {
+        DX12Context* context = (DX12Context*) _context;
+
+        DX12Viewport& viewport = context->m_CurrentViewport;
+        viewport.m_X = (uint16_t) x;
+        viewport.m_Y = (uint16_t) y;
+        viewport.m_W = (uint16_t) width;
+        viewport.m_H = (uint16_t) height;
+        context->m_ViewportChanged = 1;
     }
 
     static void DX12EnableState(HContext context, State state)
