@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +15,7 @@
 #include "test_gamesys.h"
 
 #include "../../../../graphics/src/graphics_private.h"
+#include "../../../../render/src/render/font_renderer_private.h"
 #include "../../../../resource/src/resource_private.h"
 
 #include "gamesys/resources/res_material.h"
@@ -31,9 +32,11 @@
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
+#include <gameobject/lua_ddf.h>
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
+#include "../scripts/script_sys_gamesys.h"
 
 #include <dmsdk/gamesys/render_constants.h>
 
@@ -953,17 +956,7 @@ TEST_F(SpriteTest, FlipbookAnim)
 
     lua_State* L = scriptlibcontext.m_LuaState;
 
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
+    WaitForTestsDone(10000, true, 0);
 
     lua_getglobal(L, "num_finished");
     int num_finished = lua_tointeger(L, -1);
@@ -992,7 +985,7 @@ TEST_F(SpriteTest, FrameCount)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
-    WaitForTestsDone(100, 0);
+    WaitForTestsDone(100, false, 0);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1013,7 +1006,7 @@ TEST_F(ParticleFxTest, PlayAnim)
     ASSERT_NE((void*)0, go);
 
     bool tests_done = false;
-    WaitForTestsDone(100, &tests_done);
+    WaitForTestsDone(100, true, &tests_done);
 
     if (!tests_done)
     {
@@ -1099,7 +1092,7 @@ TEST_F(GuiTest, GuiFlipbookAnim)
     m_UpdateContext.m_DT = 1.0f;
 
     bool tests_done = false;
-    WaitForTestsDone(100, &tests_done);
+    WaitForTestsDone(100, true, &tests_done);
 
     if (!tests_done)
     {
@@ -1153,11 +1146,41 @@ TEST_P(CursorTest, Cursor)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(FontTest, GlyphBankTest)
+{
+    const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
+    const char path_font_2[] = "/font/glyph_bank_test_2.fontc";
+    dmRender::HFontMap font_map_1;
+    dmRender::HFontMap font_map_2;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_1, (void**) &font_map_1));
+    ASSERT_NE((void*)0, font_map_1);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_2, (void**) &font_map_2));
+    ASSERT_NE((void*)0, font_map_1);
+
+    const void* glyph_data_1 = dmRender::GetGlyphData(font_map_1);
+    const void* glyph_data_2 = dmRender::GetGlyphData(font_map_2);
+
+    ASSERT_NE((void*)0, glyph_data_1);
+    ASSERT_NE((void*)0, glyph_data_2);
+    ASSERT_NE(glyph_data_1, glyph_data_2);
+
+    dmResource::Release(m_Factory, font_map_1);
+    dmResource::Release(m_Factory, font_map_2);
+}
+
 TEST_F(WindowTest, MouseLock)
 {
+    dmPlatform::WindowParams window_params = {};
+    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+
     dmHID::NewContextParams hid_params = {};
     dmHID::HContext hid_context = dmHID::NewContext(hid_params);
     dmHID::Init(hid_context);
+
+    dmPlatform::HWindow window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(window, window_params);
+    dmHID::SetWindow(hid_context, window);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -1186,6 +1209,7 @@ TEST_F(WindowTest, MouseLock)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 
     dmHID::DeleteContext(hid_context);
+    dmPlatform::DeleteWindow(window);
 }
 
 TEST_F(WindowTest, Events)
@@ -1807,6 +1831,14 @@ TEST_P(BoxRenderTest, BoxRender)
     const BoxRenderParams& p = GetParam();
     const char* go_path = p.m_GOPath;
 
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
@@ -1842,6 +1874,8 @@ TEST_P(BoxRenderTest, BoxRender)
     dmGraphics::Flip(m_GraphicsContext);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 /* Gamepad connected */
@@ -2181,6 +2215,8 @@ TEST_F(ComponentTest, JointTest)
     ** - [script] collision_object/joint_test.script
     ** joint_test_b
     ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
+    ** joint_test_c
+    ** - [collisionobject] collision_object/joint_test_static_floor.collisionobject
     */
 
     dmHashEnableReverseHash(true);
@@ -2195,9 +2231,14 @@ TEST_F(ComponentTest, JointTest)
 
     const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
     const char* path_joint_test_b = "/collision_object/joint_test_b.goc";
+    const char* path_joint_test_c = "/collision_object/joint_test_c.goc";
 
     dmhash_t hash_go_joint_test_a = dmHashString64("/joint_test_a");
     dmhash_t hash_go_joint_test_b = dmHashString64("/joint_test_b");
+    dmhash_t hash_go_joint_test_c = dmHashString64("/joint_test_c");
+
+    dmGameObject::HInstance go_c = Spawn(m_Factory, m_Collection, path_joint_test_c, hash_go_joint_test_c, 0, 0, Point3(0, -100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_c);
 
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_b);
@@ -2206,6 +2247,97 @@ TEST_F(ComponentTest, JointTest)
     ASSERT_NE((void*)0, go_a);
 
     // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+}
+
+/* Physics listener */
+TEST_F(ComponentTest, PhysicsListenerTest)
+{
+    /* Setup:
+    ** callback_object
+    ** - [collisionobject] collision_object/callback_object.collisionobject
+    ** - [script] collision_object/callback_object.script
+    ** callback_trigger
+    ** - [collisionobject] collision_object/callback_trigger.collisionobject
+    */
+
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_test_object = "/collision_object/callback_object.goc";
+    const char* path_test_trigger = "/collision_object/callback_trigger.goc";
+
+    dmhash_t hash_go_object = dmHashString64("/test_object");
+    dmhash_t hash_go_trigger = dmHashString64("/test_trigger");
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_b);
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_test_trigger, hash_go_trigger, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_a);
+
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+}
+
+/* Update mass for physics collision object */
+TEST_F(ComponentTest, PhysicsUpdateMassTest)
+{
+    /* Setup:
+    ** mass_object
+    ** - [collisionobject] collision_object/mass_object.collisionobject
+    ** - [script] collision_object/mass_object.script
+    */
+
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_test_object = "/collision_object/mass_object.goc";
+
+    dmhash_t hash_go_object = dmHashString64("/test_object");
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_b);
+
     bool tests_done = false;
     while (!tests_done)
     {
@@ -2983,6 +3115,81 @@ const CursorTestParams cursor_properties[] = {
 INSTANTIATE_TEST_CASE_P(Cursor, CursorTest, jc_test_values_in(cursor_properties));
 #undef F1T3
 #undef F2T3
+
+bool RunFile(lua_State* L, const char* filename)
+{
+    char path[1024];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", filename);
+
+    dmLuaDDF::LuaModule* ddf = 0;
+    dmDDF::Result res = dmDDF::LoadMessageFromFile(path, dmLuaDDF::LuaModule::m_DDFDescriptor, (void**) &ddf);
+
+    char* buffer = (char*) malloc(ddf->m_Source.m_Script.m_Count + 1);
+    memcpy((void*) buffer, ddf->m_Source.m_Script.m_Data, ddf->m_Source.m_Script.m_Count);
+    buffer[ddf->m_Source.m_Script.m_Count] = '\0';
+
+    int ret = luaL_dostring(L, buffer);
+    free(buffer);
+
+    if (ret != 0)
+    {
+        dmLogError("%s", lua_tolstring(L, -1, 0));
+        return false;
+    }
+    return true;
+}
+
+TEST_F(ScriptImageTest, TestImage)
+{
+    int top = lua_gettop(L);
+
+    ASSERT_TRUE(RunFile(L, "image/test_image.luac"));
+
+    lua_getglobal(L, "functions");
+    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
+    lua_getfield(L, -1, "test_images");
+    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
+
+    char hostfs[64] = {};
+    if (strlen(DM_HOSTFS) != 0)
+        dmSnPrintf(hostfs, sizeof(hostfs), "%s/", DM_HOSTFS);
+    lua_pushstring(L, hostfs);
+    int result = dmScript::PCall(L, 1, LUA_MULTRET);
+    if (result == LUA_ERRRUN)
+    {
+        ASSERT_TRUE(false);
+    }
+    else
+    {
+        ASSERT_EQ(0, result);
+    }
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptImageTest, TestImageBuffer)
+{
+    int top = lua_gettop(L);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/image/test_image_buffer.goc", dmHashString64("/test_image"));
+    ASSERT_NE((void*)0, go);
+
+    if (DM_HOSTFS)
+    {
+        char run_str[128];
+        dmSnPrintf(run_str, sizeof(run_str), "set_host_fs(%s)", DM_HOSTFS);
+        ASSERT_TRUE(RunString(L, run_str));
+    }
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
 
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
@@ -3834,12 +4041,127 @@ TEST_F(MaterialTest, GoGetSetConstants)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+TEST_F(ComponentTest, GetSetCollisionShape)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_shape.goc", dmHashString64("/get_set_shape_go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_base);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SysTest, LoadBufferSync)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_sync.goc", dmHashString64("/load_buffer_sync"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+static bool RunTestLoadBufferASync(lua_State* L, int test_n,
+    dmGameSystem::ScriptLibContext& scriptlibcontext,
+    dmGameObject::HCollection collection,
+    const dmGameObject::UpdateContext* update_context,
+    bool ignore_script_update_fail)
+{
+    char buffer[256];
+    dmSnPrintf(buffer, sizeof(buffer), "test_n = %d", test_n);
+
+    if (!RunString(L, buffer))
+        return false;
+
+    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    bool tests_done = false;
+    while (dmTime::GetTime() < stop_time && !tests_done)
+    {
+        dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
+        if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
+            return false;
+        if (!dmGameObject::Update(collection, update_context))
+            return false;
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+
+        dmTime::Sleep(30*1000);
+    }
+
+    return tests_done;
+}
+
+TEST_F(SysTest, LoadBufferASync)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async.goc", dmHashString64("/load_buffer_async"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Test 1
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 1, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+
+    // Test 2
+    uint32_t large_buffer_size = 16 * 1024 * 1024;
+    uint8_t* large_buffer = new uint8_t[large_buffer_size];
+    memset(large_buffer, 0, large_buffer_size);
+
+    large_buffer[0]                   = 127;
+    large_buffer[large_buffer_size-1] = 255;
+
+    dmResource::AddFile(m_Factory, "/sys/non_disk_content/large_file.raw", large_buffer_size, large_buffer);
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 2, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+    dmResource::RemoveFile(m_Factory, "/sys/non_disk_content/large_file.raw");
+    free(large_buffer);
+
+    // Test 3
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 3, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
+    // Test 4
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 4, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
+    // Test 5
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 5, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
 
 TEST_F(ShaderTest, Compute)
 {
     dmGraphics::ShaderDesc* ddf;
-    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.computec", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.cpc", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
     ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, ddf->m_ShaderClass);
     ASSERT_NE(0, ddf->m_Shaders.m_Count);
 
@@ -3871,6 +4193,36 @@ TEST_F(ShaderTest, Compute)
     }
 }
 
+TEST_F(ShaderTest, ComputeResource)
+{
+    dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
+
+    dmRender::HComputeProgram compute_program_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/shader/valid.compute_programc", (void**) &compute_program_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((dmRender::HComputeProgram) 0, compute_program_res);
+
+    dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program_res);
+    dmGraphics::HProgram graphics_compute_program       = dmRender::GetComputeProgram(compute_program_res);
+
+    ASSERT_EQ(2, dmGraphics::GetUniformCount(graphics_compute_program));
+
+    char buffer[128] = {};
+    dmGraphics::Type type;
+    int32_t size;
+    dmGraphics::GetUniformName(graphics_compute_program, 0, buffer, 128, &type, &size);
+
+    ASSERT_STREQ("color", buffer);
+    ASSERT_EQ(0, dmGraphics::GetUniformLocation(graphics_compute_program, "color"));
+
+    dmGraphics::GetUniformName(graphics_compute_program, 1, buffer, 128, &type, &size);
+
+    ASSERT_STREQ("texture_out", buffer);
+    ASSERT_EQ(1, dmGraphics::GetUniformLocation(graphics_compute_program, "texture_out"));
+
+    dmResource::Release(m_Factory, (void*) compute_program_res);
+}
 #endif
 
 int main(int argc, char **argv)

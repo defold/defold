@@ -1,39 +1,32 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "hid.h"
-
 #include <string.h>
 
 #include <dlib/hashtable.h>
-
 #include <dlib/dstrings.h>
 
 #include "hid_private.h"
+#include "hid.h"
 
 namespace dmHID
 {
     // detect sloppy init/final usage
     dmHashTable<uintptr_t, char*>* g_DummyData = 0x0;
 
-    // Mostly used for tests
-    static uint8_t g_MouseVisible = 0;
-
     bool Init(HContext context)
     {
-        g_MouseVisible = 1;
-
         if (g_DummyData == 0x0)
         {
             g_DummyData = new dmHashTable<uintptr_t, char*>();
@@ -78,40 +71,13 @@ namespace dmHID
         dmStrlCpy(buffer, "null_device", buffer_length);
     }
 
-    void ShowKeyboard(HContext context, KeyboardType type, bool autoclose)
-    {
-    }
-
-    void HideKeyboard(HContext context)
-    {
-    }
-
-    void ResetKeyboard(HContext context)
-    {
-    }
-
-    void EnableAccelerometer(HContext context)
-    {
-    }
-
-    void ShowMouseCursor(HContext context)
-    {
-        g_MouseVisible = 1;
-    }
-
-    void HideMouseCursor(HContext context)
-    {
-        g_MouseVisible = 0;
-    }
-
-    bool GetCursorVisible(HContext context)
-    {
-        return g_MouseVisible;
-    }
-
     // platform implementations
     bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out)
     {
         return false;
+    }
+
+    void ResetKeyboard(HContext context)
+    {
     }
 }

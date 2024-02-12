@@ -107,25 +107,23 @@ var EngineLoader = {
 
     stream_wasm: false,
 
-    loadAndInstantiateWasmAsync: function(src, fromProgress, toProgress, callback) {
+    // load and instantiate .wasm file using XMLHttpRequest
+    loadAndInstantiateWasmAsync: function(src, fromProgress, toProgress, imports, successCallback) {
         FileLoader.load(src, "arraybuffer", EngineLoader.wasm_size,
             function(loaded, total) { Progress.calculateProgress(fromProgress, toProgress, loaded, total); },
             function(error) { throw error; },
             function(wasm) {
-                Module.instantiateWasm = function(imports, successCallback) {
-                    var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
-                        successCallback(output.instance);
-                    }).catch(function(e) {
-                        console.log('wasm instantiation failed! ' + e);
-                        throw e;
-                    });
-                    return {}; // Compiling asynchronously, no exports.
-                }
-                callback();
+                var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
+                    successCallback(output.instance);
+                }).catch(function(e) {
+                    console.log('wasm instantiation failed! ' + e);
+                    throw e;
+                });
             });
     },
 
-    setupWasmStreamAsync: async function(src, fromProgress, toProgress) {
+    // stream and instantiate .wasm file
+    streamAndInstantiateWasmAsync: async function(src, fromProgress, toProgress, imports, successCallback) {
         // https://stackoverflow.com/a/69179454
         var fetchFn = fetch;
         if (typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough) {
@@ -143,7 +141,7 @@ var EngineLoader = {
                     transform (chunk, controller) {
                         bytesLoaded += chunk.byteLength;
                         Progress.calculateProgress(fromProgress, toProgress, bytesLoaded, total);
-                        controller.enqueue(chunk)
+                        controller.enqueue(chunk);
                     }
                 });
 
@@ -152,30 +150,29 @@ var EngineLoader = {
             fetchFn = fetchWithProgress;
         }
 
-        Module.instantiateWasm = function(imports, successCallback) {
-            WebAssembly.instantiateStreaming(fetchFn(src), imports).then(function(output) {
-                Progress.calculateProgress(fromProgress, toProgress, 1, 1);
-                successCallback(output.instance);
-            }).catch(function(e) {
-                console.log('wasm streaming instantiation failed! ' + e);
-                throw e;
-            });
-            return {}; // Compiling asynchronously, no exports.
-        }
+        WebAssembly.instantiateStreaming(fetchFn(src), imports).then(function(output) {
+            Progress.calculateProgress(fromProgress, toProgress, 1, 1);
+            successCallback(output.instance);
+        }).catch(function(e) {
+            console.log('wasm streaming instantiation failed! ' + e);
+            console.log('Fallback to wasm loading');
+            EngineLoader.loadAndInstantiateWasmAsync(src, fromProgress, toProgress, imports, successCallback);
+        });
     },
 
     // instantiate the .wasm file either by streaming it or first loading and then instantiate it
-    // https://github.com/emscripten-core/emscripten/blob/master/tests/manual_wasm_instantiate.html#L170
+    // https://github.com/emscripten-core/emscripten/blob/main/test/manual_wasm_instantiate.html
     loadWasmAsync: function(exeName) {
-        if (EngineLoader.stream_wasm && (typeof WebAssembly.instantiateStreaming === "function")) {
-            EngineLoader.setupWasmStreamAsync(exeName + ".wasm", 10, 50);
-            EngineLoader.loadAndRunScriptAsync(exeName + '_wasm.js', EngineLoader.wasmjs_size, 0, 10);
-        }
-        else {
-            EngineLoader.loadAndInstantiateWasmAsync(exeName + ".wasm", 0, 40, function() {
-                EngineLoader.loadAndRunScriptAsync(exeName + '_wasm.js', EngineLoader.wasmjs_size, 40, 50);
-            });
-        }
+        Module.instantiateWasm = function(imports, successCallback) {
+            if (EngineLoader.stream_wasm && (typeof WebAssembly.instantiateStreaming === "function")) {
+                EngineLoader.streamAndInstantiateWasmAsync(exeName + ".wasm", 10, 50, imports, successCallback);
+            }
+            else {
+                EngineLoader.loadAndInstantiateWasmAsync(exeName + ".wasm", 10, 50, imports, successCallback);
+            }
+            return {}; // Compiling asynchronously, no exports.
+        };
+        EngineLoader.loadAndRunScriptAsync(exeName + '_wasm.js', EngineLoader.wasmjs_size, 0, 10);
     },
 
     loadAsmJsAsync: function(exeName) {

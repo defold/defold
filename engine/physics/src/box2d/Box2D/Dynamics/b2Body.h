@@ -387,6 +387,10 @@ public:
     /// Get the total force
     const b2Vec2& GetForce() const;
 
+    void SynchronizeSingle(b2Shape* shape, int32 index);
+
+    void SynchronizeFixtures();
+
 private:
 
 	friend class b2World;
@@ -423,9 +427,7 @@ private:
 	b2Body(const b2BodyDef* bd, b2World* world);
 	~b2Body();
 
-    void SynchronizeFixtures();
     // Defold mod
-    void SynchronizeSingle(b2Shape* shape, int32 index);
     void SynchronizeTransform();
 
 	// This is used to prevent connected bodies from colliding.

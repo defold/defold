@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1018,16 +1018,16 @@ namespace dmEngine
 
         dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, dmInput::GamepadConnectivityCallback, engine->m_InputContext);
 
-        if (use_accelerometer)
-        {
-            dmHID::EnableAccelerometer(engine->m_HidContext); // Creates and enables the accelerometer
-        }
-
         // JG: Q - Can we create the graphics context before HID and pass in the context to the Hid insteaD?
         dmHID::SetWindow(engine->m_HidContext, dmGraphics::GetWindow(engine->m_GraphicsContext));
 
         // Any connected devices are registered here.
         dmHID::Init(engine->m_HidContext);
+
+        if (use_accelerometer)
+        {
+            dmHID::EnableAccelerometer(engine->m_HidContext); // Creates and enables the accelerometer
+        }
 
         dmMessage::Result mr = dmMessage::NewSocket(SYSTEM_SOCKET_NAME, &engine->m_SystemSocket);
         if (mr != dmMessage::RESULT_OK)
@@ -1050,7 +1050,7 @@ namespace dmEngine
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
         gui_params.m_GetTextMetricsCallback = dmGameSystem::GuiGetTextMetricsCallback;
 
-      // If an extension changes window size at extensions initialization phase, engine should read that.
+        // If an extension changes window size at extensions initialization phase, engine should read that.
         physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
 
@@ -1535,16 +1535,32 @@ bail:
                     DM_PROFILE("Script");
 
                     // Script context updates
-                    if (engine->m_SharedScriptContext) {
+                    dmGameSystem::ScriptLibContext script_lib_context;
+                    script_lib_context.m_Factory  = engine->m_Factory;
+                    script_lib_context.m_Register = engine->m_Register;
+
+                    if (engine->m_SharedScriptContext)
+                    {
+                        script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                        dmGameSystem::UpdateScriptLibs(script_lib_context);
                         dmScript::Update(engine->m_SharedScriptContext);
-                    } else {
-                        if (engine->m_GOScriptContext) {
+                    }
+                     else
+                     {
+                        if (engine->m_GOScriptContext)
+                        {
+                            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
+                            dmGameSystem::UpdateScriptLibs(script_lib_context);
                             dmScript::Update(engine->m_GOScriptContext);
                         }
-                        if (engine->m_RenderScriptContext) {
+                        if (engine->m_RenderScriptContext)
+                        {
                             dmScript::Update(engine->m_RenderScriptContext);
                         }
-                        if (engine->m_GuiScriptContext) {
+                        if (engine->m_GuiScriptContext)
+                        {
+                            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
+                            dmGameSystem::UpdateScriptLibs(script_lib_context);
                             dmScript::Update(engine->m_GuiScriptContext);
                         }
                     }

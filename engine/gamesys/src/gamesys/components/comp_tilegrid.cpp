@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -122,14 +122,14 @@ namespace dmGameSystem
         dmArray<TileGridComponent*>     m_Components;
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-
-        dmGraphics::HVertexBuffer       m_VertexBuffer;
+        dmRender::HBufferedRenderBuffer m_VertexBuffer;
         TileGridVertex*                 m_VertexBufferData;
         TileGridVertex*                 m_VertexBufferDataEnd;
         TileGridVertex*                 m_VertexBufferWritePtr;
 
         uint32_t                        m_MaxTilemapCount;
         uint32_t                        m_MaxTileCount;
+        uint32_t                        m_DispatchCount;
     };
 
     static void TileGridWorldAllocate(TileGridWorld* world)
@@ -146,7 +146,7 @@ namespace dmGameSystem
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(world->m_RenderContext), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(world->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         uint32_t vcount = 6 * world->m_MaxTileCount;
         world->m_VertexBufferData = (TileGridVertex*) malloc(sizeof(TileGridVertex) * vcount);
         world->m_VertexBufferDataEnd = world->m_VertexBufferData + vcount;
@@ -175,7 +175,7 @@ namespace dmGameSystem
         if (world->m_VertexDeclaration)
         {
             dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
-            dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
+            dmRender::DeleteBufferedRenderBuffer(world->m_RenderContext, world->m_VertexBuffer);
             free(world->m_VertexBufferData);
         }
         delete world;
@@ -511,6 +511,12 @@ namespace dmGameSystem
             }
         }
         DM_PROPERTY_ADD_U32(rmtp_Tilemap, world->m_Components.Size());
+
+        TilemapContext* context = (TilemapContext*)params.m_Context;
+        dmRender::TrimBuffer(context->m_RenderContext, world->m_VertexBuffer);
+        dmRender::RewindBuffer(context->m_RenderContext, world->m_VertexBuffer);
+        world->m_DispatchCount = 0;
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -644,9 +650,14 @@ namespace dmGameSystem
         TileGridVertex* vb_begin = world->m_VertexBufferWritePtr;
         world->m_VertexBufferWritePtr = CreateVertexData(world, vb_begin, texture_set, buf, begin, end);
 
+        if (dmRender::GetBufferIndex(render_context, world->m_VertexBuffer) < world->m_DispatchCount)
+        {
+            dmRender::AddRenderBuffer(render_context, world->m_VertexBuffer);
+        }
+
         ro.Init();
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
-        ro.m_VertexBuffer = world->m_VertexBuffer;
+        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_VertexBuffer);
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - world->m_VertexBufferData;
         ro.m_VertexCount = (world->m_VertexBufferWritePtr - vb_begin);
@@ -702,20 +713,20 @@ namespace dmGameSystem
             world->m_VertexBufferWritePtr = world->m_VertexBufferData;
             world->m_RenderObjects.SetSize(0);
             break;
-
         case dmRender::RENDER_LIST_OPERATION_END:
             {
                 uint32_t vertex_count = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(TileGridVertex) * vertex_count,
-                                                world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                uint32_t vertex_data_size = sizeof(TileGridVertex) * vertex_count;
 
-                DM_PROPERTY_ADD_U32(rmtp_TilemapTileCount, vertex_count/6);
-                DM_PROPERTY_ADD_U32(rmtp_TilemapVertexCount, vertex_count);
-                DM_PROPERTY_ADD_U32(rmtp_TilemapVertexSize, vertex_count * sizeof(TileGridVertex));
-            }
-            break;
-
+                if (vertex_data_size > 0)
+                {
+                    dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                    DM_PROPERTY_ADD_U32(rmtp_TilemapTileCount, vertex_count/6);
+                    DM_PROPERTY_ADD_U32(rmtp_TilemapVertexCount, vertex_count);
+                    DM_PROPERTY_ADD_U32(rmtp_TilemapVertexSize, vertex_count * sizeof(TileGridVertex));
+                    world->m_DispatchCount++;
+                }
+            } break;
         case dmRender::RENDER_LIST_OPERATION_BATCH:
             assert(params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH);
             RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);

@@ -43,6 +43,8 @@ message VertexAttribute
         SEMANTIC_TYPE_TEXCOORD   = 3;
         SEMANTIC_TYPE_PAGE_INDEX = 4;
         SEMANTIC_TYPE_COLOR      = 5;
+        SEMANTIC_TYPE_NORMAL     = 6;
+        SEMANTIC_TYPE_TANGENT    = 7;
     }
 
     message LongValues
@@ -56,7 +58,7 @@ message VertexAttribute
     }
 
     required string          name             = 1;
-    optional uint64          name_hash        = 2;
+    optional uint64          name_hash        = 2 [(runtime_only) = true];
     optional SemanticType    semantic_type    = 3 [default = SEMANTIC_TYPE_NONE];
     optional int32           element_count    = 4 [default = 0];
     optional bool            normalize        = 5 [default = false];
@@ -69,7 +71,7 @@ message VertexAttribute
     {
         LongValues   long_values   = 8;  // Saved integer values (project files only)
         DoubleValues double_values = 9;  // Saved floating point values (project files only)
-        bytes        binary_values = 10; // Packed binary representation of the input values (engine only)
+        bytes        binary_values = 10 [(runtime_only) = true]; // Packed binary representation of the input values (engine only)
     }
 }
 

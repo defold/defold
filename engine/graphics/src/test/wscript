@@ -19,7 +19,7 @@ def build(bld):
 
         bld.program(features = 'cxx cprogram test skip_test',
                     includes = ['../../src', '../../proto'],
-                    exported_symbols = ['GraphicsAdapterVulkan'],
-                    source = 'test_app_vulkan.cpp',
-                    use = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE PLATFORM VULKAN graphics_vulkan_experimental graphics_transcoder_basisu'.split() + extra_libs,
-                    target = 'test_app_vulkan')
+                    exported_symbols = ['GraphicsAdapterVulkan', 'GraphicsAdapterOpenGL'],
+                    source = 'test_app_graphics.cpp',
+                    use = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE PLATFORM VULKAN GRAPHICS graphics_vulkan_experimental graphics_transcoder_basisu'.split() + extra_libs,
+                    target = 'test_app_graphics')

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -801,8 +801,10 @@ static int CreateTexture(lua_State* L)
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
     dmBuffer::HBuffer buffer = 0;
-    if (dmScript::IsBuffer(L, 3))
+
+    if (lua_gettop(L) > 2)
     {
+        // TODO: Support creating texture from string
         dmScript::LuaHBuffer* l_buffer = dmScript::CheckBuffer(L, 3);
         buffer                         = dmGameSystem::UnpackLuaBuffer(l_buffer);
     }
@@ -1435,7 +1437,7 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
 
 // Creates a texture set from the lua stack, it is expected that the argument
 // table is on top of the stack and that all fields have valid data
-static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint8_t num_animations, uint32_t num_animation_frames, dmGameSystemDDF::TextureSet* texture_set_ddf)
+static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGraphics::HTexture texture, uint32_t num_geometries, uint32_t num_animations, uint32_t num_animation_frames, dmGameSystemDDF::TextureSet* texture_set_ddf)
 {
     int top = lua_gettop(L);
     texture_set_ddf->m_Texture     = 0;
@@ -2186,6 +2188,24 @@ static int SetSound(lua_State* L) {
     return 0;
 }
 
+#if 0 // debug print a buffer
+void PrintBuffer(const char* label, const dmScript::LuaHBuffer& buffer)
+{
+    switch(buffer.m_Owner)
+    {
+    case dmScript::OWNER_RES:
+        dmLogInfo("%s: Handle=%d, Owner=OWNER_RES, Path=%s (%llu), Version=%d", label, buffer.m_Buffer, dmHashReverseSafe64(buffer.m_BufferResPathHash), buffer.m_BufferResPathHash, buffer.m_BufferResVersion);
+        break;
+    case dmScript::OWNER_LUA:
+        dmLogInfo("%s: Handle=%d, Owner=OWNER_LUA", label, buffer.m_Buffer);
+        break;
+    case dmScript::OWNER_C:
+        dmLogInfo("%s: Handle=%d, Owner=OWNER_C", label, buffer.m_Buffer);
+        break;
+    }
+}
+#endif
+
 /*# create a buffer resource
  * This function creates a new buffer resource that can be used in the same way as any buffer created during build time.
  * The function requires a valid buffer created from either [ref:buffer.create] or another pre-existing buffer resource.
@@ -2354,8 +2374,10 @@ static int CreateBuffer(lua_State* L)
             dmResource::IncRef(g_ResourceModule.m_Factory, resource);
         }
 
-        lua_buffer->m_Owner     = dmScript::OWNER_RES;
-        lua_buffer->m_BufferRes = resource;
+        lua_buffer->m_Owner             = dmScript::OWNER_RES;
+        lua_buffer->m_BufferRes         = resource;
+        lua_buffer->m_BufferResPathHash = canonical_path_hash;
+        lua_buffer->m_BufferResVersion  = dmResource::GetVersion(g_ResourceModule.m_Factory, resource);
     }
 
     dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
@@ -2404,7 +2426,7 @@ static int GetBuffer(lua_State* L)
     }
 
     dmResource::IncRef(g_ResourceModule.m_Factory, buffer_resource);
-    dmScript::LuaHBuffer luabuf((void*)buffer_resource);
+    dmScript::LuaHBuffer luabuf(g_ResourceModule.m_Factory, (void*)buffer_resource);
     PushBuffer(L, luabuf);
 
     assert(top + 1 == lua_gettop(L));
@@ -2514,8 +2536,10 @@ static int SetBuffer(lua_State* L)
             dmResource::IncRef(g_ResourceModule.m_Factory, resource);
         }
 
-        luabuf->m_Owner     = dmScript::OWNER_RES;
-        luabuf->m_BufferRes = resource;
+        luabuf->m_Owner             = dmScript::OWNER_RES;
+        luabuf->m_BufferRes         = resource;
+        luabuf->m_BufferResPathHash = path_hash;
+        luabuf->m_BufferResVersion  = dmResource::GetVersion(g_ResourceModule.m_Factory, resource);
     }
     else
     {

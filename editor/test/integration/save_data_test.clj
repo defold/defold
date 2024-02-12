@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,8 +30,10 @@
             [lambdaisland.deep-diff2 :as deep-diff]
             [util.coll :as coll :refer [pair]]
             [util.diff :as diff]
+            [util.fn :as fn]
             [util.text-util :as text-util])
-  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
+  (:import [com.dynamo.proto DdfExtensions]
+           [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
            [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$GenericDescriptor Message]
            [java.io StringReader]))
 
@@ -59,7 +61,7 @@
     :non-editable    ; The field is expected to be read and written to the file, but cannot be edited by the user.
     :non-overridable ; The field is expected to be read and written to the file, but cannot be overridden from its base value by the user.
     :padding         ; The field is only present in the protobuf declaration to ensure consecutive values are byte-aligned to a desired boundary in the compiled binaries for the runtime.
-    :runtime-only    ; The field is only present in the compiled binaries for the runtime.
+    :runtime-only    ; The field is only present in the compiled binaries for the runtime. This also happens if you annotate a field with [(runtime_only)=true] in a .proto file.
     :unimplemented   ; The field was added to support a new feature in the runtime, but is not yet fully implemented in the editor. We don't need to load it, as it cannot be in the project files yet. This will eventually lead to a file format change, deprecated fields, and a test that covers the migration.
     :unused})        ; The field is not expected to have a value in either the project files or the compiled binaries for the runtime. Typically used with union-style protobuf types such as dmGuiDDF.NodeDesc, where the expected fields are dictated by the value of the "type" field.
 
@@ -168,22 +170,9 @@
     {\"data_type\" :allowed-default
      \"long_values\" :unused}}"
 
-  {'dmGameObjectDDF.CollectionDesc
-   {:default
-    {"component_types" :runtime-only
-     "property_resources" :runtime-only}}
-
-   'dmGameObjectDDF.CollectionInstanceDesc
+  {'dmGameObjectDDF.CollectionInstanceDesc
    {:default
     {"scale" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
-
-   'dmGameObjectDDF.ComponentDesc
-   {:default
-    {"property_decls" :runtime-only}}
-
-   'dmGameObjectDDF.ComponentPropertyDesc
-   {:default
-    {"property_decls" :runtime-only}}
 
    'dmGameObjectDDF.EmbeddedInstanceDesc
    {:default
@@ -197,10 +186,6 @@
    ['dmGameObjectDDF.PropertyDesc "[PROPERTY_TYPE_NUMBER]"]
    {:default
     {"type" :allowed-default}}
-
-   'dmGameObjectDDF.PrototypeDesc
-   {:default
-    {"property_resources" :runtime-only}}
 
    'dmGameSystemDDF.LabelDesc
    {:default
@@ -219,23 +204,12 @@
 
    'dmGameSystemDDF.SpriteDesc
    {:default
-    {"textures" :unimplemented}} ; Multiple textures for sprites are not supported yet.
-
-   'dmGameSystemDDF.TileLayer
-   {:default
-    {"id_hash" :runtime-only}}
-
-   'dmGameSystemDDF.TileSet
-   {:default
-    {"convex_hull_points" :runtime-only}}
+    {"tile_set" :deprecated}} ; Replaced with 'textures'; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGraphics.VertexAttribute
-   {:default
-    {"binary_values" :runtime-only
-     "name_hash" :runtime-only}
-
-    [["particlefx" "emitters" "[*]" "attributes"]
-     ["sprite" "attributes"]]
+   {[["particlefx" "emitters" "[*]" "attributes"]
+     ["sprite" "attributes"]
+     ["model" "materials" "attributes"]]
     {"coordinate_space" :unused
      "data_type" :unused
      "element_count" :unused
@@ -496,9 +470,7 @@
 
    'dmRenderDDF.MaterialDesc.Sampler
    {:default
-    {"name_hash" :runtime-only
-     "name_indirections" :runtime-only
-     "texture" :unimplemented}}}) ; Default texture resources not supported yet.
+    {"texture" :unimplemented}}}) ; Default texture resources not supported yet.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))
@@ -515,17 +487,34 @@
                     pb-path
                     pb-filter-path))))
 
-(defn- pb-field-ignore-reasons [pb-desc-key type-token pb-path]
-  (s/assert ::pb-desc-key pb-desc-key)
+(defn- pb-field-option-ignore-rules-raw [^Descriptors$Descriptor pb-desc]
+  (let [runtime-only-field-option-field-desc (.getDescriptor DdfExtensions/runtimeOnly)]
+    {:default
+     (into {}
+           (keep (fn [^Descriptors$FieldDescriptor field-desc]
+                   (let [field-name (.getName field-desc)
+                         field-options (.getOptions field-desc)]
+                     (when (.getField field-options runtime-only-field-option-field-desc)
+                       (pair field-name :runtime-only)))))
+           (.getFields pb-desc))}))
+
+(def ^:private pb-field-option-ignore-rules (fn/memoize pb-field-option-ignore-rules-raw))
+
+(defn- pb-field-ignore-rules-raw [^Descriptors$Descriptor pb-desc type-token]
+  (let [pb-desc-key (pb-descriptor-key pb-desc)]
+    (merge-with
+      merge
+      (pb-field-option-ignore-rules pb-desc)
+      (get pb-ignored-fields pb-desc-key)
+      (when type-token
+        (get pb-ignored-fields [pb-desc-key type-token])))))
+
+(def ^:private pb-field-ignore-rules (fn/memoize pb-field-ignore-rules-raw))
+
+(defn- pb-field-ignore-reasons [^Descriptors$Descriptor pb-desc type-token pb-path]
   (s/assert (s/nilable ::pb-type-token) type-token)
   (s/assert ::pb-path pb-path)
-  (let [pb-filter->pb-field->ignore-reason
-        (if (nil? type-token)
-          (get pb-ignored-fields pb-desc-key)
-          (merge-with
-            merge
-            (get pb-ignored-fields pb-desc-key)
-            (get pb-ignored-fields [pb-desc-key type-token])))
+  (let [pb-filter->pb-field->ignore-reason (pb-field-ignore-rules pb-desc type-token)
 
         matched
         (filterv (fn [[pb-filter]]
@@ -641,8 +630,21 @@
                  :textures [{:sampler "tex0"
                              :texture tex0-resource}
                             {:sampler "tex1"
-                             :texture tex1-resource}]}]
-               (g/node-value legacy-material-and-textures-model :materials)))))))
+                             :texture tex1-resource}]
+                 :attributes {}}]
+               (g/node-value legacy-material-and-textures-model :materials)))))
+
+    (testing "sprite"
+      (let [legacy-tile-set-sprite (project/get-resource-node project "/silently_migrated/legacy_tile_set.sprite")]
+        (is (= [{:sampler "texture_sampler"
+                 :texture (workspace/find-resource workspace "/checked.atlas")}]
+               (g/node-value legacy-tile-set-sprite :textures))))
+      (let [legacy-tile-set-sprite-go (project/get-resource-node project "/silently_migrated/legacy_tile_set_sprite.go")
+            embedded-component (:node-id (test-util/outline legacy-tile-set-sprite-go [0]))
+            embedded-sprite (test-util/to-component-resource-node-id embedded-component)]
+        (is (= [{:sampler "texture_sampler"
+                 :texture (workspace/find-resource workspace "/checked.atlas")}]
+               (g/node-value embedded-sprite :textures)))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.
@@ -797,7 +799,7 @@
                 value)))
           values)))
 
-(def ^:private pb-enum-desc-usable-values (memoize pb-enum-desc-usable-values-raw))
+(def ^:private pb-enum-desc-usable-values (fn/memoize pb-enum-desc-usable-values-raw))
 
 (defn- pb-enum-desc-empty-frequencies-raw [^Descriptors$EnumDescriptor enum-desc]
   (let [type-token->ignore-reason (get pb-enum-ignored-values (pb-descriptor-key enum-desc))]
@@ -810,7 +812,7 @@
                       nil))))
           (pb-enum-desc-usable-values enum-desc))))
 
-(def ^:private pb-enum-desc-empty-frequencies (memoize pb-enum-desc-empty-frequencies-raw))
+(def ^:private pb-enum-desc-empty-frequencies (fn/memoize pb-enum-desc-empty-frequencies-raw))
 
 (defn- pb-field-has-single-valid-value? [^Descriptors$FieldDescriptor field-desc]
   ;; For protobuf fields that have a single valid value, we don't enforce the
@@ -846,8 +848,7 @@
   (s/assert (s/nilable ::pb-type-token) type-token)
   (s/assert ::pb-path pb-path)
   (s/assert ::ignore-reason-set disregarded-ignore-reasons)
-  (let [pb-desc-key (pb-descriptor-key pb-desc)
-        pb-field->ignore-reason (pb-field-ignore-reasons pb-desc-key type-token pb-path)
+  (let [pb-field->ignore-reason (pb-field-ignore-reasons pb-desc type-token pb-path)
         ignored-field? (fn [^Descriptors$FieldDescriptor field-desc]
                          (let [field-name (.getName field-desc)
                                ignore-reason (get pb-field->ignore-reason field-name)]
@@ -857,13 +858,12 @@
           (remove ignored-field?)
           (.getFields pb-desc))))
 
-(def ^:private pb-descriptor-expected-fields (memoize pb-descriptor-expected-fields-raw))
+(def ^:private pb-descriptor-expected-fields (fn/memoize pb-descriptor-expected-fields-raw))
 
-(defn- pb-type-field-name [pb-desc-key pb-path]
-  (s/assert ::pb-desc-key pb-desc-key)
+(defn- pb-type-field-name [^Descriptors$Descriptor pb-desc pb-path]
   (s/assert ::pb-path pb-path)
-  (when-let [type-field-name (pb-type-field-names pb-desc-key)]
-    (let [pb-field->ignore-reason (pb-field-ignore-reasons pb-desc-key nil pb-path)
+  (when-let [type-field-name (-> pb-desc pb-descriptor-key pb-type-field-names)]
+    (let [pb-field->ignore-reason (pb-field-ignore-reasons pb-desc nil pb-path)
           ignore-reason (get pb-field->ignore-reason type-field-name)]
       (case ignore-reason
         (nil :allowed-default :non-editable :non-overridable) type-field-name
@@ -872,8 +872,7 @@
 (defn- pb-nested-field-frequencies [^Message pb pb-path count-field-value?]
   (s/assert ::pb-path pb-path)
   (let [pb-desc (.getDescriptorForType pb)
-        pb-desc-key (pb-descriptor-key pb-desc)
-        type-field-name (pb-type-field-name pb-desc-key pb-path)
+        type-field-name (pb-type-field-name pb-desc pb-path)
         type-field-desc (some->> type-field-name (.findFieldByName pb-desc))
         type-field-value (some->> type-field-desc (.getField pb))
         type-token (some->> type-field-value pb-type-token)
@@ -1003,7 +1002,9 @@
   ;; fields to the protobuf messages used by the editor, you must either add a
   ;; field ignore rule to the `pb-ignored-fields` map at the top of this file,
   ;; or set the field to a non-default value in a root-level file in the save
-  ;; data test project.
+  ;; data test project. Alternatively, if the field is only for the compiled
+  ;; binaries read by the runtime, you can annotate it [(runtime_only)=true]
+  ;; directly in the .proto file.
   (test-util/with-loaded-project project-path
     (let [uncovered-value-paths-by-ext
           (->> (checked-resources workspace)
@@ -1097,8 +1098,7 @@
                      (.getDescriptorForType altered-pb))]}
   (s/assert ::pb-path pb-path)
   (let [pb-desc (.getDescriptorForType original-pb)
-        pb-desc-key (pb-descriptor-key pb-desc)
-        type-field-name (pb-type-field-name pb-desc-key pb-path)
+        type-field-name (pb-type-field-name pb-desc pb-path)
         type-field-desc (some->> type-field-name (.findFieldByName pb-desc))
         type-field-value (some->> type-field-desc (.getField original-pb))
         type-token (some->> type-field-value pb-type-token)
@@ -1215,7 +1215,7 @@
   ;; the top of this file.
   (test-util/with-loaded-project project-path
     (let [proj-path->resource #(workspace/find-resource workspace %)
-          resource->gui-scene-pb (memoize #(protobuf/read-pb Gui$SceneDesc %))
+          resource->gui-scene-pb (fn/memoize #(protobuf/read-pb Gui$SceneDesc %))
           gui-scene-pb->node-pbs #(.getNodesList ^Gui$SceneDesc %)
           gui-proj-path->node-pbs (comp gui-scene-pb->node-pbs resource->gui-scene-pb proj-path->resource)
 

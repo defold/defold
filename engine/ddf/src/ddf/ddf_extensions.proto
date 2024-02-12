@@ -14,6 +14,7 @@ extend google.protobuf.MessageOptions
 extend google.protobuf.FieldOptions
 {
     optional bool resource = 50100;
+    optional bool runtime_only = 50101;
     optional bool field_align = 50004;
 }
 

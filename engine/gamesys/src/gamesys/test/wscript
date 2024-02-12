@@ -26,6 +26,7 @@ def build(bld):
             'font/*',
             'fragment_program/*',
             'gui/*',
+            'image/*',
             'input/*',
             'label/*',
             'light/*',
@@ -42,16 +43,18 @@ def build(bld):
             'shader/*',
             'sound/*',
             'sprite/**',
+            'sys/**',
             'tile/*',
             'texture/*',
             'textureset/*',
             'vertex_program/*',
             'window/*']
 
-    excl_pattern = ['**/*.ttf', '**/*.basis']
+    excl_pattern = ['**/*.ttf', '**/*.basis', '**/*.psd']
 
     if not platform_supports_feature(bld.env.PLATFORM, 'compute', None):
-        excl_pattern.append('**/*.compute')
+        excl_pattern.append('**/*.cp')
+        excl_pattern.append('**/*.compute_program')
 
     exported_symbols = ['ResourceTypeGameObject',
                         'ResourceTypeCollection',

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,12 +14,13 @@
 
 #include <assert.h>
 
-#include "platform_window.h"
-
-#include <dmsdk/graphics/glfw/glfw.h>
-
 #include <dlib/platform.h>
 #include <dlib/log.h>
+
+#include <glfw/glfw.h>
+
+#include "platform_window.h"
+#include "platform_window_constants.h"
 
 namespace dmPlatform
 {
@@ -452,7 +453,9 @@ namespace dmPlatform
             case DEVICE_STATE_KEYBOARD_PASSWORD:
                 glfwShowKeyboard(op1, GLFW_KEYBOARD_PASSWORD, op2);
                 break;
-            default:break;
+            default:
+                dmLogWarning("Unable to get device state (%d), unknown state.", (int) state);
+                break;
         }
     }
 
@@ -462,7 +465,7 @@ namespace dmPlatform
         {
             return glfwGetMouseLocked();
         }
-        assert(0 && "Not supported.");
+        dmLogWarning("Unable to get device state (%d), unknown state.", (int) state);
         return false;
     }
 
@@ -500,4 +503,74 @@ namespace dmPlatform
         window->m_DeviceChangedCallback         = cb;
         window->m_DeviceChangedCallbackUserData = user_data;
     }
+
+    const int PLATFORM_JOYSTICK_LAST       = GLFW_JOYSTICK_LAST;
+    const int PLATFORM_KEY_ESC             = GLFW_KEY_ESC;
+    const int PLATFORM_KEY_F1              = GLFW_KEY_F1;
+    const int PLATFORM_KEY_F2              = GLFW_KEY_F2;
+    const int PLATFORM_KEY_F3              = GLFW_KEY_F3;
+    const int PLATFORM_KEY_F4              = GLFW_KEY_F4;
+    const int PLATFORM_KEY_F5              = GLFW_KEY_F5;
+    const int PLATFORM_KEY_F6              = GLFW_KEY_F6;
+    const int PLATFORM_KEY_F7              = GLFW_KEY_F7;
+    const int PLATFORM_KEY_F8              = GLFW_KEY_F8;
+    const int PLATFORM_KEY_F9              = GLFW_KEY_F9;
+    const int PLATFORM_KEY_F10             = GLFW_KEY_F10;
+    const int PLATFORM_KEY_F11             = GLFW_KEY_F11;
+    const int PLATFORM_KEY_F12             = GLFW_KEY_F12;
+    const int PLATFORM_KEY_UP              = GLFW_KEY_UP;
+    const int PLATFORM_KEY_DOWN            = GLFW_KEY_DOWN;
+    const int PLATFORM_KEY_LEFT            = GLFW_KEY_LEFT;
+    const int PLATFORM_KEY_RIGHT           = GLFW_KEY_RIGHT;
+    const int PLATFORM_KEY_LSHIFT          = GLFW_KEY_LSHIFT;
+    const int PLATFORM_KEY_RSHIFT          = GLFW_KEY_RSHIFT;
+    const int PLATFORM_KEY_LCTRL           = GLFW_KEY_LCTRL;
+    const int PLATFORM_KEY_RCTRL           = GLFW_KEY_RCTRL;
+    const int PLATFORM_KEY_LALT            = GLFW_KEY_LALT;
+    const int PLATFORM_KEY_RALT            = GLFW_KEY_RALT;
+    const int PLATFORM_KEY_TAB             = GLFW_KEY_TAB;
+    const int PLATFORM_KEY_ENTER           = GLFW_KEY_ENTER;
+    const int PLATFORM_KEY_BACKSPACE       = GLFW_KEY_BACKSPACE;
+    const int PLATFORM_KEY_INSERT          = GLFW_KEY_INSERT;
+    const int PLATFORM_KEY_DEL             = GLFW_KEY_DEL;
+    const int PLATFORM_KEY_PAGEUP          = GLFW_KEY_PAGEUP;
+    const int PLATFORM_KEY_PAGEDOWN        = GLFW_KEY_PAGEDOWN;
+    const int PLATFORM_KEY_HOME            = GLFW_KEY_HOME;
+    const int PLATFORM_KEY_END             = GLFW_KEY_END;
+    const int PLATFORM_KEY_KP_0            = GLFW_KEY_KP_0;
+    const int PLATFORM_KEY_KP_1            = GLFW_KEY_KP_1;
+    const int PLATFORM_KEY_KP_2            = GLFW_KEY_KP_2;
+    const int PLATFORM_KEY_KP_3            = GLFW_KEY_KP_3;
+    const int PLATFORM_KEY_KP_4            = GLFW_KEY_KP_4;
+    const int PLATFORM_KEY_KP_5            = GLFW_KEY_KP_5;
+    const int PLATFORM_KEY_KP_6            = GLFW_KEY_KP_6;
+    const int PLATFORM_KEY_KP_7            = GLFW_KEY_KP_7;
+    const int PLATFORM_KEY_KP_8            = GLFW_KEY_KP_8;
+    const int PLATFORM_KEY_KP_9            = GLFW_KEY_KP_9;
+    const int PLATFORM_KEY_KP_DIVIDE       = GLFW_KEY_KP_DIVIDE;
+    const int PLATFORM_KEY_KP_MULTIPLY     = GLFW_KEY_KP_MULTIPLY;
+    const int PLATFORM_KEY_KP_SUBTRACT     = GLFW_KEY_KP_SUBTRACT;
+    const int PLATFORM_KEY_KP_ADD          = GLFW_KEY_KP_ADD;
+    const int PLATFORM_KEY_KP_DECIMAL      = GLFW_KEY_KP_DECIMAL;
+    const int PLATFORM_KEY_KP_EQUAL        = GLFW_KEY_KP_EQUAL;
+    const int PLATFORM_KEY_KP_ENTER        = GLFW_KEY_KP_ENTER;
+    const int PLATFORM_KEY_KP_NUM_LOCK     = GLFW_KEY_KP_NUM_LOCK;
+    const int PLATFORM_KEY_CAPS_LOCK       = GLFW_KEY_CAPS_LOCK;
+    const int PLATFORM_KEY_SCROLL_LOCK     = GLFW_KEY_SCROLL_LOCK;
+    const int PLATFORM_KEY_PAUSE           = GLFW_KEY_PAUSE;
+    const int PLATFORM_KEY_LSUPER          = GLFW_KEY_LSUPER;
+    const int PLATFORM_KEY_RSUPER          = GLFW_KEY_RSUPER;
+    const int PLATFORM_KEY_MENU            = GLFW_KEY_MENU;
+    const int PLATFORM_KEY_BACK            = GLFW_KEY_BACK;
+    const int PLATFORM_MOUSE_BUTTON_LEFT   = GLFW_MOUSE_BUTTON_LEFT;
+    const int PLATFORM_MOUSE_BUTTON_MIDDLE = GLFW_MOUSE_BUTTON_MIDDLE;
+    const int PLATFORM_MOUSE_BUTTON_RIGHT  = GLFW_MOUSE_BUTTON_RIGHT;
+    const int PLATFORM_MOUSE_BUTTON_1      = GLFW_MOUSE_BUTTON_1;
+    const int PLATFORM_MOUSE_BUTTON_2      = GLFW_MOUSE_BUTTON_2;
+    const int PLATFORM_MOUSE_BUTTON_3      = GLFW_MOUSE_BUTTON_3;
+    const int PLATFORM_MOUSE_BUTTON_4      = GLFW_MOUSE_BUTTON_4;
+    const int PLATFORM_MOUSE_BUTTON_5      = GLFW_MOUSE_BUTTON_5;
+    const int PLATFORM_MOUSE_BUTTON_6      = GLFW_MOUSE_BUTTON_6;
+    const int PLATFORM_MOUSE_BUTTON_7      = GLFW_MOUSE_BUTTON_7;
+    const int PLATFORM_MOUSE_BUTTON_8      = GLFW_MOUSE_BUTTON_8;
 }

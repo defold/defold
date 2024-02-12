@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -43,8 +43,8 @@
 #include <Carbon/Carbon.h>
 #endif
 
-#include <dmsdk/graphics/glfw/glfw.h>
-#include <graphics/glfw/glfw_native.h>
+#include <glfw/glfw.h>
+#include  <glfw/glfw_native.h>
 
 #if defined(__linux__) && !defined(ANDROID)
     #include <GL/glext.h>
@@ -410,6 +410,12 @@ static void LogFrameBufferError(GLenum status)
         m_Height                  = params.m_Height;
         m_Window                  = params.m_Window;
 
+        // We need to have some sort of valid default filtering
+        if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
+            m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR;
+        if (m_DefaultTextureMagFilter == TEXTURE_FILTER_DEFAULT)
+            m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
+
         assert(dmPlatform::GetWindowStateParam(m_Window, dmPlatform::WINDOW_STATE_OPENED));
 
         // Formats supported on all platforms
@@ -607,11 +613,10 @@ static void LogFrameBufferError(GLenum status)
         {
             case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
-            case CONTEXT_FEATURE_COMPUTE_SHADER:         return false; // TODO!
+            case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
         }
         return false;
     }
-
 
     static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext context)
     {
@@ -744,6 +749,7 @@ static void LogFrameBufferError(GLenum status)
             dmLogInfo("  %s", #feature);
         PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_TEXTURE_ARRAY);
+        PRINT_FEATURE_IF_SUPPORTED(CONTEXT_FEATURE_COMPUTE_SHADER);
     #undef PRINT_FEATURE_IF_SUPPORTED
     }
 
@@ -902,14 +908,6 @@ static void LogFrameBufferError(GLenum status)
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_lose_context");
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
-
-        if (context->m_PrintDeviceInfo)
-        {
-            dmLogInfo("Device: OpenGL");
-            dmLogInfo("Renderer: %s", (char *) glGetString(GL_RENDERER));
-            dmLogInfo("Version: %s", (char *) glGetString(GL_VERSION));
-            dmLogInfo("Vendor: %s", (char *) glGetString(GL_VENDOR));
-        }
 
 #if defined(DM_PLATFORM_MACOS)
         ProcessSerialNumber psn;
@@ -1205,6 +1203,22 @@ static void LogFrameBufferError(GLenum status)
         glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
         CLEAR_GL_ERROR;
 #endif
+
+    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+        int32_t version_major = 0, version_minor = 0;
+        glGetIntegerv(GL_MAJOR_VERSION, &version_major);
+        glGetIntegerv(GL_MINOR_VERSION, &version_minor);
+
+        #define COMPUTE_VERSION_NEEDED(MAJOR, MINOR) (MAJOR > version_major || (version_major ==  MAJOR && version_minor >= MINOR))
+
+        #if defined(GL_ES_VERSION_3_0) || defined(GL_ES_VERSION_2_0)
+            context->m_ComputeSupport = COMPUTE_VERSION_NEEDED(3,1);
+        #else
+            context->m_ComputeSupport = COMPUTE_VERSION_NEEDED(4,3);
+        #endif
+
+        #undef COMPUTE_VERSION_NEEDED
+    #endif
 
         if (context->m_PrintDeviceInfo)
         {
@@ -1536,34 +1550,6 @@ static void LogFrameBufferError(GLenum status)
         delete vertex_declaration;
     }
 
-    static void OpenGLEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer)
-    {
-        assert(context);
-        assert(vertex_buffer);
-        assert(vertex_declaration);
-        #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
-
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
-        CHECK_GL_ERROR;
-
-        for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
-        {
-            glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_LogicalIndex);
-            CHECK_GL_ERROR;
-            glVertexAttribPointer(
-                    vertex_declaration->m_Streams[i].m_LogicalIndex,
-                    vertex_declaration->m_Streams[i].m_Size,
-                    GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
-                    vertex_declaration->m_Streams[i].m_Normalize,
-                    vertex_declaration->m_Stride,
-            BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
-
-            CHECK_GL_ERROR;
-        }
-
-        #undef BUFFER_OFFSET
-    }
-
     static void BindVertexDeclarationProgram(HContext context, HVertexDeclaration vertex_declaration, HProgram program)
     {
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
@@ -1598,10 +1584,20 @@ static void LogFrameBufferError(GLenum status)
         vertex_declaration->m_ModificationVersion = ((OpenGLContext*) context)->m_ModificationVersion;
     }
 
-    static void OpenGLEnableVertexDeclarationProgram(HContext _context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program)
+    static void OpenGLEnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index)
+    {
+        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
+        CHECK_GL_ERROR;
+    }
+
+    static void OpenGLDisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer)
+    {
+        // NOP
+    }
+
+    static void OpenGLEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
         assert(_context);
-        assert(vertex_buffer);
         assert(vertex_declaration);
 
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -1612,9 +1608,6 @@ static void LogFrameBufferError(GLenum status)
         }
 
         #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
-
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
-        CHECK_GL_ERROR;
 
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
@@ -1760,6 +1753,11 @@ static void LogFrameBufferError(GLenum status)
         return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf);
     }
 
+    static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    {
+        return (HVertexProgram) CreateShader(DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf);
+    }
+
     static void BuildAttributes(OpenGLProgram* program_ptr)
     {
         GLint num_attributes;
@@ -1798,23 +1796,62 @@ static void LogFrameBufferError(GLenum status)
         context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
     }
 
-    static HComputeProgram OpenGLNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static bool LinkProgram(GLuint program)
     {
-        assert(0 && "Not implemented!");
-        return 0;
+        glLinkProgram(program);
+
+        GLint status;
+        glGetProgramiv(program, GL_LINK_STATUS, &status);
+
+        if (status == 0)
+        {
+            dmLogError("Unable to link program.");
+#ifndef NDEBUG
+            GLint logLength;
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
+            if (logLength > 0)
+            {
+                GLchar *log = (GLchar*) malloc(logLength);
+                glGetProgramInfoLog(program, logLength, &logLength, log);
+                dmLogWarning("%s\n", log);
+                free(log);
+            }
+#endif
+            return false;
+        }
+        return true;
     }
 
     static HProgram OpenGLNewProgramFromCompute(HContext context, HComputeProgram compute_program)
     {
-        assert(0 && "Not implemented!");
-        return 0;
+        IncreaseModificationVersion((OpenGLContext*) context);
+
+        OpenGLComputeProgram* program = new OpenGLComputeProgram();
+
+        (void) context;
+        GLuint p = glCreateProgram();
+        CHECK_GL_ERROR;
+
+        OpenGLShader* compute_shader = (OpenGLShader*) compute_program;
+        GLuint compute_shader_id     = compute_shader->m_Id;
+
+        glAttachShader(p, compute_shader_id);
+        CHECK_GL_ERROR;
+
+        if (!LinkProgram(p))
+        {
+            delete program;
+            glDeleteProgram(p);
+            CHECK_GL_ERROR;
+            return 0;
+        }
+
+        program->m_Id       = p;
+        program->m_Language = compute_shader->m_Language;
+        return (HProgram) program;
     }
 
-    static void OpenGLDeleteComputeProgram(HComputeProgram prog)
-    {
-        assert(0 && "Not implemented!");
-    }
-
+    // TODO: Rename to graphicsprogram instead of newprogram
     static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         IncreaseModificationVersion((OpenGLContext*) context);
@@ -1848,26 +1885,9 @@ static void LogFrameBufferError(GLenum status)
         }
 #endif
 
-        glLinkProgram(p);
-
-        GLint status;
-        glGetProgramiv(p, GL_LINK_STATUS, &status);
-        if (status == 0)
+        if (!LinkProgram(p))
         {
-            dmLogError("Unable to link program.");
-#ifndef NDEBUG
-            GLint logLength;
-            glGetProgramiv(p, GL_INFO_LOG_LENGTH, &logLength);
-            if (logLength > 0)
-            {
-                GLchar *log = (GLchar *)malloc(logLength);
-                glGetProgramInfoLog(p, logLength, &logLength, log);
-                dmLogError("%s", log);
-                free(log);
-            }
-#endif
             delete program;
-
             glDeleteProgram(p);
             CHECK_GL_ERROR;
             return 0;
@@ -1977,12 +1997,17 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteVertexProgram(HVertexProgram program)
     {
-        OpenGLDeleteShader(((OpenGLShader*) program));
+        OpenGLDeleteShader((OpenGLShader*) program);
     }
 
     static void OpenGLDeleteFragmentProgram(HFragmentProgram program)
     {
-        OpenGLDeleteShader(((OpenGLShader*) program));
+        OpenGLDeleteShader((OpenGLShader*) program);
+    }
+
+    static void OpenGLDeleteComputeProgram(HComputeProgram program)
+    {
+        OpenGLDeleteShader((OpenGLShader*) program);
     }
 
     static ShaderDesc::Language OpenGLGetProgramLanguage(HProgram program)
@@ -1990,7 +2015,7 @@ static void LogFrameBufferError(GLenum status)
         return ((OpenGLProgram*) program)->m_Language;
     }
 
-    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context)
+    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context, ShaderDesc::ShaderClass shader_class)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_IsShaderLanguageGles) // 0 == glsl, 1 == gles
@@ -2047,7 +2072,7 @@ static void LogFrameBufferError(GLenum status)
         return success;
     }
 
-    static bool OpenGLReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool OpenGLReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         if (!TryLinkProgram(vert_program, frag_program))
         {
@@ -2060,6 +2085,18 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 
         BuildAttributes(program_ptr);
+        return true;
+    }
+
+    static bool OpenGLReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
+    {
+        assert(0);
+        return false;
+    }
+
+    static bool OpenGLReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    {
+        (void)prog;
         return true;
     }
 
@@ -2859,27 +2896,43 @@ static void LogFrameBufferError(GLenum status)
         return texture_filter_lut[texture_filter];
     }
 
+    static inline bool IsTextureFilterMipmapped(GLenum filter)
+    {
+        return filter == GL_NEAREST_MIPMAP_NEAREST ||
+               filter == GL_NEAREST_MIPMAP_LINEAR  ||
+               filter == GL_LINEAR_MIPMAP_NEAREST  ||
+               filter == GL_LINEAR_MIPMAP_LINEAR;
+    }
+
     static void OpenGLSetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
 
-        GLenum type = GetOpenGLTextureType(tex->m_Type);
+        GLenum gl_type       = GetOpenGLTextureType(tex->m_Type);
+        GLenum gl_min_filter = GetOpenGLTextureFilter(minfilter == TEXTURE_FILTER_DEFAULT ? g_Context->m_DefaultTextureMinFilter : minfilter);
+        GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter == TEXTURE_FILTER_DEFAULT ? g_Context->m_DefaultTextureMagFilter : magfilter);
 
-        glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GetOpenGLTextureFilter(minfilter));
+        // Using a mipmapped min filter without any mipmaps will break the sampler
+        if (tex->m_MipMapCount <= 1 && IsTextureFilterMipmapped(gl_min_filter))
+        {
+            gl_min_filter = gl_mag_filter;
+        }
+
+        glTexParameteri(gl_type, GL_TEXTURE_MIN_FILTER, gl_min_filter);
         CHECK_GL_ERROR;
 
-        glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GetOpenGLTextureFilter(magfilter));
+        glTexParameteri(gl_type, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
         CHECK_GL_ERROR;
 
-        glTexParameteri(type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
+        glTexParameteri(gl_type, GL_TEXTURE_WRAP_S, GetOpenGLTextureWrap(uwrap));
         CHECK_GL_ERROR
 
-        glTexParameteri(type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
+        glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(vwrap));
         CHECK_GL_ERROR
 
         if (g_Context->m_AnisotropySupport && max_anisotropy > 1.0f)
         {
-            glTexParameterf(type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, g_Context->m_MaxAnisotropy));
+            glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, dmMath::Min(max_anisotropy, g_Context->m_MaxAnisotropy));
             CHECK_GL_ERROR
         }
     }

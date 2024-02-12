@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -49,6 +49,7 @@ import com.dynamo.gamesys.proto.GameSystem.LightDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionShape.Shape;
+import com.dynamo.gamesys.proto.Physics.CollisionShape.ShapeOrBuilder;
 import com.dynamo.gamesys.proto.Physics.CollisionShape.Type;
 import com.dynamo.gamesys.proto.Physics.CollisionShape;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
@@ -63,6 +64,7 @@ import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
+import com.dynamo.render.proto.ComputeProgram.ComputeProgramDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
@@ -106,16 +108,6 @@ public class ProtoBuilders {
         MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
         materialBuilder.mergeFrom(materialBuildResource.getContent());
         return materialBuilder;
-    }
-
-    private static VertexAttribute GetAttributeByName(List<VertexAttribute> attributes, String attributeName)
-    {
-        for (VertexAttribute attr : attributes) {
-            if (attr.getName().equals(attributeName)) {
-                return attr;
-            }
-        }
-        return null;
     }
 
     // TODO: Should we move this to a build resource?
@@ -218,6 +210,13 @@ public class ProtoBuilders {
                 eb.addAllData(cb.getDataList());
                 messageBuilder.setEmbeddedCollisionShape(eb);
                 messageBuilder.setCollisionShape("");
+            }
+
+            CollisionShape.Builder embeddedShapesBuilder = messageBuilder.getEmbeddedCollisionShapeBuilder();
+
+            for (int i=0; i < embeddedShapesBuilder.getShapesCount(); i++) {
+                CollisionShape.Shape.Builder shapeBuilder = embeddedShapesBuilder.getShapesBuilder(i);
+                shapeBuilder.setIdHash(MurmurHash.hash64(shapeBuilder.getId()));
             }
 
             messageBuilder.setCollisionShape(BuilderUtil.replaceExt(messageBuilder.getCollisionShape(), ".convexshape", ".convexshapec"));
@@ -389,7 +388,7 @@ public class ProtoBuilders {
 
                 for (int i=0; i < messageBuilder.getAttributesCount(); i++) {
                     VertexAttribute spriteAttribute = messageBuilder.getAttributes(i);
-                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, spriteAttribute.getName());
+                    VertexAttribute materialAttribute = GraphicsUtil.getAttributeByName(materialAttributes, spriteAttribute.getName());
 
                     if (materialAttribute != null) {
                         spriteAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(spriteAttribute, materialAttribute));
@@ -400,6 +399,18 @@ public class ProtoBuilders {
                 messageBuilder.addAllAttributes(spriteAttributeOverrides);
             }
 
+            return messageBuilder;
+        }
+    }
+
+    @ProtoParams(srcClass = ComputeProgramDesc.class, messageClass = ComputeProgramDesc.class)
+    @BuilderParams(name="ComputeProgram", inExts=".compute_program", outExt=".compute_programc")
+    public static class ComputeProgramBuilder extends ProtoBuilder<ComputeProgramDesc.Builder> {
+        @Override
+        protected ComputeProgramDesc.Builder transform(Task<Void> task, IResource resource, ComputeProgramDesc.Builder messageBuilder)
+                throws IOException, CompileExceptionError {
+            BuilderUtil.checkResource(this.project, resource, "compute program", messageBuilder.getProgram());
+            messageBuilder.setProgram(BuilderUtil.replaceExt(messageBuilder.getProgram(), ".cp", ".cpc"));
             return messageBuilder;
         }
     }
@@ -498,7 +509,7 @@ public class ProtoBuilders {
 
                 for (int j=0; j < emitterBuilder.getAttributesCount(); j++) {
                     VertexAttribute emitterAttribute  = emitterBuilder.getAttributes(j);
-                    VertexAttribute materialAttribute = GetAttributeByName(materialAttributes, emitterAttribute.getName());
+                    VertexAttribute materialAttribute = GraphicsUtil.getAttributeByName(materialAttributes, emitterAttribute.getName());
 
                     if (materialAttribute != null) {
                         emitterAttributeOverrides.add(GraphicsUtil.buildVertexAttribute(emitterAttribute, materialAttribute));

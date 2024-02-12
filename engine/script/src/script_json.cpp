@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -68,6 +68,10 @@ namespace dmScript
      *
      * @name json.decode
      * @param json [type:string] json data
+     * @param options [type:table] table with decode options
+     *
+     * - [type:string] `decode_null_as_userdata`: wether to decode a JSON null value as json.null or nil (default is nil)
+     *
      * @return data [type:table] decoded json
      *
      * @examples
@@ -116,6 +120,10 @@ namespace dmScript
      *
      * @name json.encode
      * @param tbl [type:table] lua table to encode
+     * @param options [type:table] table with encode options
+     *
+     * - [type:string] `encode_empty_table_as_object`: wether to encode an empty table as an JSON object or array (default is object)
+     *
      * @return json [type:string] encoded json
      *
      * @examples

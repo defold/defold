@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -33,9 +33,10 @@ namespace dmLoadQueue
 
     struct Queue
     {
-        dmResource::HFactory m_Factory;
-        Request m_SingleBuffer;
-        Request* m_ActiveRequest;
+        dmResource::HFactory       m_Factory;
+        Request                    m_SingleBuffer;
+        Request*                   m_ActiveRequest;
+        dmResource::LoadBufferType m_LoadBuffer;
     };
 
     HQueue CreateQueue(dmResource::HFactory factory)
@@ -72,11 +73,21 @@ namespace dmLoadQueue
             return RESULT_INVALID_PARAM;
         }
 
-        load_result->m_LoadResult    = dmResource::LoadResource(queue->m_Factory, request->m_CanonicalPath, request->m_Name, buf, size);
+        if (request->m_PreloadInfo.m_LoadResourceFunction)
+        {
+            load_result->m_LoadResult = request->m_PreloadInfo.m_LoadResourceFunction(queue->m_Factory, request->m_CanonicalPath, request->m_Name, size, &queue->m_LoadBuffer, request->m_PreloadInfo.m_Context);
+            *buf = queue->m_LoadBuffer.Begin();
+            assert(queue->m_LoadBuffer.Size() == *size);
+        }
+        else
+        {
+            load_result->m_LoadResult = dmResource::LoadResource(queue->m_Factory, request->m_CanonicalPath, request->m_Name, buf, size);
+        }
+
         load_result->m_PreloadResult = dmResource::RESULT_PENDING;
         load_result->m_PreloadData   = 0;
 
-        if (load_result->m_LoadResult == dmResource::RESULT_OK && request->m_PreloadInfo.m_Function)
+        if (load_result->m_LoadResult == dmResource::RESULT_OK && request->m_PreloadInfo.m_CompleteFunction)
         {
             dmResource::ResourcePreloadParams params;
             params.m_Factory             = queue->m_Factory;
@@ -85,7 +96,7 @@ namespace dmLoadQueue
             params.m_BufferSize          = *size;
             params.m_HintInfo            = &request->m_PreloadInfo.m_HintInfo;
             params.m_PreloadData         = &load_result->m_PreloadData;
-            load_result->m_PreloadResult = request->m_PreloadInfo.m_Function(params);
+            load_result->m_PreloadResult = request->m_PreloadInfo.m_CompleteFunction(params);
         }
         return RESULT_OK;
     }

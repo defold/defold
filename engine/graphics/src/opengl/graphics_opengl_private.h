@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -99,6 +99,7 @@ namespace dmGraphics
         uint32_t                m_AnisotropySupport                : 1;
         uint32_t                m_TextureArraySupport              : 1;
         uint32_t                m_MultiTargetRenderingSupport      : 1;
+        uint32_t                m_ComputeSupport                   : 1;
         uint32_t                m_FrameBufferInvalidateAttachments : 1;
         uint32_t                m_PackedDepthStencilSupport        : 1;
         uint32_t                m_VerifyGraphicsCalls              : 1;
@@ -148,6 +149,12 @@ namespace dmGraphics
         GLuint                         m_Id;
         ShaderDesc::Language           m_Language;
         dmArray<OpenglVertexAttribute> m_Attributes;
+    };
+
+    struct OpenGLComputeProgram
+    {
+        GLuint               m_Id;
+        ShaderDesc::Language m_Language;
     };
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -509,13 +509,14 @@ namespace dmGraphics
      */
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
 
-    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
-    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
-    void HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
-
+    bool     SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
+    void     EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program);
+    void     DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
+    void     HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
+
+    void     EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
+    void     DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer);
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
@@ -531,16 +532,19 @@ namespace dmGraphics
 
     bool                 ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
     bool                 ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
+    bool                 ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf);
     void                 DeleteVertexProgram(HVertexProgram prog);
     void                 DeleteFragmentProgram(HFragmentProgram prog);
     void                 DeleteComputeProgram(HComputeProgram prog);
 
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
     ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
     void                 EnableProgram(HContext context, HProgram program);
     void                 DisableProgram(HContext context);
     bool                 ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    bool                 ReloadProgram(HContext context, HProgram program, HComputeProgram compute_program);
 
     // Attributes
     uint32_t         GetAttributeCount(HProgram prog);
@@ -696,6 +700,12 @@ namespace dmGraphics
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
 
     uint32_t GetTypeSize(dmGraphics::Type type);
+
+    // Both experimental + tests only:
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
+    bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
+    bool  UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
 }
 
 #endif // DM_GRAPHICS_H
