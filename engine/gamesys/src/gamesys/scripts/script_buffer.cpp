@@ -716,6 +716,7 @@ namespace dmGameSystem
     static int Buffer_gc(lua_State *L)
     {
         dmScript::LuaHBuffer* buffer = dmScript::CheckBufferNoError(L, 1);
+
         if( buffer )
         {
             if (buffer->m_Owner == dmScript::OWNER_LUA)
@@ -1253,8 +1254,9 @@ namespace dmScript
 
         if (v.m_Owner == dmScript::OWNER_RES)
         {
-            luabuf->m_BufferRes        = v.m_BufferRes;
-            luabuf->m_BufferResVersion = v.m_BufferResVersion;
+            luabuf->m_BufferRes         = v.m_BufferRes;
+            luabuf->m_BufferResVersion  = v.m_BufferResVersion;
+            luabuf->m_BufferResPathHash = v.m_BufferResPathHash;
         }
         else
         {
