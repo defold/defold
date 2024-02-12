@@ -19,10 +19,24 @@ index 31b201a..b8b726a 100644
   * Global definition cleanup
   *************************************************************************/
 diff --git a/src/cocoa_window.m b/src/cocoa_window.m
-index bbab6c4..f5153ec 100644
+index bbab6c4..896dad7 100644
 --- a/src/cocoa_window.m
 +++ b/src/cocoa_window.m
-@@ -671,11 +671,19 @@ - (void)setMarkedText:(id)string
+@@ -315,6 +315,13 @@ - (void)windowDidChangeOcclusionState:(NSNotification* )notification
+         window->ns.occluded = GLFW_TRUE;
+ }
+ 
++// macos 12+
++// https://sector7.computest.nl/post/2022-08-process-injection-breaking-all-macos-security-layers-with-a-single-vulnerability/
++- (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app
++{
++    return YES;
++}
++
+ @end
+ 
+ 
+@@ -671,11 +678,19 @@ - (void)setMarkedText:(id)string
          markedText = [[NSMutableAttributedString alloc] initWithAttributedString:string];
      else
          markedText = [[NSMutableAttributedString alloc] initWithString:string];
