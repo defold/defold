@@ -24,7 +24,7 @@ env:
   SERVICES_GITHUB_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
   STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
-  SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/slack-workflow-fix' }}
+  SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
 
 jobs:
 # ---- BUILD ENGINE VERSIONS ------------------
