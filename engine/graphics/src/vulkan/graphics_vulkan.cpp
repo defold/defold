@@ -1467,7 +1467,7 @@ bail:
     template <typename T>
     static void DestroyResourceDeferred(ResourcesToDestroyList* resource_list, T* resource)
     {
-        if (resource->m_Destroyed)
+        if (resource == 0x0 || resource->m_Destroyed)
         {
             return;
         }
@@ -3902,6 +3902,10 @@ bail:
     static uint32_t VulkanGetTextureResourceSize(HTexture texture)
     {
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
+        if (!tex)
+        {
+            return 0;
+        }
         uint32_t size_total = 0;
         uint32_t size = tex->m_Width * tex->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_GraphicsFormat)/8);
         for(uint32_t i = 0; i < tex->m_MipMapCount; ++i)

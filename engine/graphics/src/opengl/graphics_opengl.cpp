@@ -2433,7 +2433,7 @@ static void LogFrameBufferError(GLenum status)
             dmLogWarning("Stencil textures are not supported on the OpenGL adapter, defaulting to render buffer.");
         }
 
-        if (use_depth_attachment && use_stencil_attachment)
+        if (use_depth_attachment && use_stencil_attachment && stencil_texture != depth_texture)
         {
             dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
                 (depth_texture ? "texture" : "buffer"),
@@ -2776,9 +2776,15 @@ static void LogFrameBufferError(GLenum status)
     static void DoDeleteTexture(OpenGLContext* context, HTexture texture)
     {
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
-        glDeleteTextures(tex->m_NumTextureIds, tex->m_TextureIds);
-        CHECK_GL_ERROR;
-        free(tex->m_TextureIds);
+
+        // Even if we check for validity when the texture was flagged for async deletion,
+        // we can still end up in this state in very specific cases.
+        if (tex != 0x0)
+        {
+            glDeleteTextures(tex->m_NumTextureIds, tex->m_TextureIds);
+            CHECK_GL_ERROR;
+            free(tex->m_TextureIds);
+        }
 
         context->m_AssetHandleContainer.Release(texture);
         delete tex;
@@ -2831,7 +2837,11 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLDeleteTexture(HTexture texture)
     {
         assert(texture);
-
+        // We can only delete valid textures
+        if (!IsAssetHandleValid(g_Context, texture))
+        {
+            return;
+        }
         // If they're not uploaded yet, we cannot delete them
         if(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
         {
@@ -2927,7 +2937,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         uint32_t flags     = TEXTURE_STATUS_OK;
-        if(tex->m_DataState)
+        if(tex && tex->m_DataState)
         {
             flags |= TEXTURE_STATUS_DATA_PENDING;
         }
@@ -3387,6 +3397,11 @@ static void LogFrameBufferError(GLenum status)
     static uint32_t OpenGLGetTextureResourceSize(HTexture texture)
     {
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        if (!tex)
+        {
+            return 0;
+        }
+
         uint32_t size_total = 0;
         uint32_t size = tex->m_ResourceSize; // Size for mip 0
         for(uint32_t i = 0; i < tex->m_MipMapCount; ++i)
@@ -3436,6 +3451,7 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
+        assert(GetAssetType(texture) == ASSET_TYPE_TEXTURE);
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
         assert(id_index < tex->m_NumTextureIds);
 

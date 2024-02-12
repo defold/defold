@@ -1,5 +1,9 @@
 script: "/checked.render_script"
-materials {
+render_resources {
   name: "render_material"
-  material: "/checked.material"
+  path: "/checked.material"
+}
+render_resources {
+  name: "render_target"
+  path: "/checked.render_target"
 }

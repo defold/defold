@@ -53,8 +53,6 @@ namespace dmGameSystem
     /// Config key to use for tweaking maximum number of collection factories
     extern const char* COLLECTION_FACTORY_MAX_COUNT_KEY;
 
-    struct MaterialResource;
-
     struct TilemapContext
     {
         TilemapContext()
@@ -109,7 +107,7 @@ namespace dmGameSystem
 
     struct RenderScriptPrototype
     {
-        dmArray<MaterialResource*>      m_Materials;
+        dmArray<void*>                  m_RenderResources;
         dmhash_t                        m_NameHash;
         dmRender::HRenderScriptInstance m_Instance;
         dmRender::HRenderScript         m_Script;

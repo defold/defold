@@ -1030,4 +1030,10 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompTileGridIterPropertiesGetNext;
     }
 
+    // For tests
+    void GetTileGridWorldRenderBuffers(void* tilegrid_world, dmRender::HBufferedRenderBuffer* vx_buffer)
+    {
+        TileGridWorld* world = (TileGridWorld*) tilegrid_world;
+        *vx_buffer = world->m_VertexBuffer;
+    }
 }
