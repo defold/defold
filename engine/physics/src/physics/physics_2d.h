@@ -105,6 +105,13 @@ namespace dmPhysics
         pp *= scale;
         return b2Mul(t, pp);
     }
+
+    inline b2Vec2 FromTransformScaleB2(const b2Transform& t, float inv_scale, const b2Vec2& p)
+    {
+        b2Vec2 pp = p;
+        pp *= inv_scale;
+        return b2MulT(t, pp);
+    }
 }
 
 #endif // PHYSICS_2D_H
