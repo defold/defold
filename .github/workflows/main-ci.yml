@@ -24,7 +24,7 @@ env:
   SERVICES_GITHUB_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
   STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
-
+  SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
 
 jobs:
 # ---- BUILD ENGINE VERSIONS ------------------
@@ -70,7 +70,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure(),
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
