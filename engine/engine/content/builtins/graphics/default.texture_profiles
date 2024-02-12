@@ -10,6 +10,6 @@ profiles {
       format: TEXTURE_FORMAT_RGBA
       compression_level: BEST
     }
-    mipmaps: true
+    mipmaps: false
   }
 }
