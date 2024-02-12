@@ -90,8 +90,6 @@ namespace dmGameSystem
                         break;
                     }
 
-                    MaterialResource* mat = (MaterialResource*) res;
-
                     prototype->m_RenderResources.Push(res);
 
                     RenderResourceMeta meta;
