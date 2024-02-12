@@ -155,8 +155,8 @@ namespace dmScript
             LuaBufferOwnership  m_Owner;
         };
 
-        uint16_t m_BufferResVersion;
         dmhash_t m_BufferResPathHash;
+        uint16_t m_BufferResVersion;
 
         LuaHBuffer();
         LuaHBuffer(dmBuffer::HBuffer buffer, LuaBufferOwnership ownership);
