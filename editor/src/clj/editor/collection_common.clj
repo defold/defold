@@ -287,7 +287,7 @@
                                       go-instance-component-go-props)
         collection-desc {:name name
                          :instances instance-descs
-                         :scale-along-z (if scale-along-z 1 0)
+                         :scale-along-z (protobuf/boolean->int scale-along-z)
                          :property-resources property-resource-paths}]
     {:resource build-resource
      :content (protobuf/map->bytes GameObject$CollectionDesc collection-desc)}))

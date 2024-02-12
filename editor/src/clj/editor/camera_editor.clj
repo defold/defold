@@ -101,8 +101,8 @@
     :fov fov
     :near-z near-z
     :far-z far-z
-    :auto-aspect-ratio (if (true? auto-aspect-ratio) 1 0)
-    :orthographic-projection (if (true? orthographic-projection) 1 0)
+    :auto-aspect-ratio (protobuf/boolean->int auto-aspect-ratio)
+    :orthographic-projection (protobuf/boolean->int orthographic-projection)
     :orthographic-zoom orthographic-zoom))
 
 (defn build-camera

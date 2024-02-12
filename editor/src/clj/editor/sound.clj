@@ -120,7 +120,7 @@
   [_node-id sound-resource looping group gain pan speed loopcount]
   (protobuf/make-map-with-defaults Sound$SoundDesc
     :sound (resource/resource->proj-path sound-resource)
-    :looping (if looping 1 0)
+    :looping (protobuf/boolean->int looping)
     :group group
     :gain gain
     :pan pan

@@ -53,12 +53,6 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- bool->int [val]
-  (when (some? val) (if val 1 0)))
-
-(defn- int->bool [val]
-  (when (some? val) (not= val 0)))
-
 (def ^:private layer-mask-face 0x1)
 (def ^:private layer-mask-outline 0x2)
 (def ^:private layer-mask-shadow 0x4)
@@ -397,7 +391,7 @@
         put-pos-uv-fn (cond-> put-pos-uv!
                               (= type :distance-field)
                               (wrap-with-sdf-params font-map))
-        [_ outline-enabled shadow-enabled] (mapv int->bool (get-layers-in-mask (:layer-mask font-map)))
+        [_ outline-enabled shadow-enabled] (mapv protobuf/int->boolean (get-layers-in-mask (:layer-mask font-map)))
         layer-mask-enabled (> (count-layers-in-mask (:layer-mask font-map)) 1)
         char->glyph (comp (font-map->glyphs font-map) int)
         line-height (+ ^long (:max-ascent font-map) ^long (:max-descent font-map))
@@ -701,9 +695,9 @@
   (property antialiased g/Bool
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic label (g/constantly "Antialias"))
-            (value (g/fnk [antialias] (int->bool antialias)))
+            (value (g/fnk [antialias] (some-> antialias protobuf/int->boolean)))
             (set (fn [_evaluation-context self old-value new-value]
-                   (g/set-property self :antialias (bool->int new-value)))))
+                   (g/set-property self :antialias (protobuf/boolean->int new-value)))))
   (property alpha g/Num
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? alpha))

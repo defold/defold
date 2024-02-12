@@ -305,14 +305,14 @@
   (protobuf/make-map-with-defaults Tile$TileLayer
     :id id
     :z z
-    :is-visible (if visible 1 0)
+    :is-visible (protobuf/boolean->int visible)
     :cell (mapv (fn [{:keys [x y tile v-flip h-flip rotate90]}]
                   {:x x
                    :y y
                    :tile tile
-                   :v-flip (if v-flip 1 0)
-                   :h-flip (if h-flip 1 0)
-                   :rotate90 (if rotate90 1 0)})
+                   :v-flip (protobuf/boolean->int v-flip)
+                   :h-flip (protobuf/boolean->int h-flip)
+                   :rotate90 (protobuf/boolean->int rotate90)})
                 (vals cell-map))))
 
 (g/defnode LayerNode

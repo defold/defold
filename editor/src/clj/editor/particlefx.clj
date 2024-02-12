@@ -181,7 +181,7 @@
       :rotation rotation
       :type type
       :properties properties
-      :use-direction (if use-direction 1 0))))
+      :use-direction (protobuf/boolean->int use-direction))))
 
 (def ^:private type->vcount
   {:emitter-type-2dcone 6

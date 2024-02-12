@@ -210,8 +210,8 @@
     :end-tile end-tile
     :playback playback
     :fps fps
-    :flip-horizontal (if flip-horizontal 1 0)
-    :flip-vertical (if flip-vertical 1 0)
+    :flip-horizontal (protobuf/boolean->int flip-horizontal)
+    :flip-vertical (protobuf/boolean->int flip-vertical)
     :cues cues))
 
 (defn- prop-tile-range? [max v name]
@@ -885,9 +885,6 @@
    (g/connect resource-id :collision-groups-data tool-id :collision-groups-data)
    (g/connect resource-id :_node-id tool-id :tile-source-node)))
 
-(defn- int->boolean [i]
-  (not= 0 i))
-
 (defn- make-animation-node [self project select-fn animation]
   (g/make-nodes
    (g/node-id->graph-id self)
@@ -897,8 +894,8 @@
                     :end-tile (:end-tile animation)
                     :playback (:playback animation)
                     :fps (:fps animation)
-                    :flip-horizontal (int->boolean (:flip-horizontal animation))
-                    :flip-vertical (int->boolean (:flip-vertical animation))
+                    :flip-horizontal (protobuf/int->boolean (:flip-horizontal animation))
+                    :flip-vertical (protobuf/int->boolean (:flip-vertical animation))
                     :cues (:cues animation)]]
    (attach-animation-node self animation-node)
    (when select-fn

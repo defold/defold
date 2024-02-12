@@ -374,7 +374,7 @@
 (g/defnk produce-proto-msg [name scale-along-z ref-inst-ddf embed-inst-ddf ref-coll-ddf]
   (protobuf/make-map-without-defaults GameObject$CollectionDesc
     :name name
-    :scale-along-z (if scale-along-z 1 0)
+    :scale-along-z (protobuf/boolean->int scale-along-z)
     :instances ref-inst-ddf
     :embedded-instances embed-inst-ddf
     :collection-instances ref-coll-ddf))

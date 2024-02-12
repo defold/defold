@@ -81,6 +81,16 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- field->key [^Descriptors$FieldDescriptor field-desc]
   (field-name->key (.getName field-desc)))
 
+(definline boolean->int [value]
+  `(if (boolean ~value)
+     1
+     0))
+
+(definline int->boolean [value]
+  `(if (some-> ~value (not= 0))
+     true
+     false))
+
 (defn- enum-name->keyword-name
   ^String [^String enum-name]
   (util/lower-case* (string/replace enum-name "_" "-")))
@@ -612,7 +622,7 @@ Macros currently mean no foreseeable performance gain, however."
     (cond
       (= type Descriptors$FieldDescriptor$JavaType/INT) (fn [v]
                                                           (int (if (instance? Boolean v)
-                                                                 (if v 1 0)
+                                                                 (boolean->int v)
                                                                  v)))
       (= type Descriptors$FieldDescriptor$JavaType/LONG) long
       (= type Descriptors$FieldDescriptor$JavaType/FLOAT) float

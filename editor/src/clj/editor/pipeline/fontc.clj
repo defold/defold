@@ -14,19 +14,20 @@
 
 (ns editor.pipeline.fontc
   (:require [clojure.java.io :as io]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [util.coll :refer [pair]])
   (:import [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator]
            [com.google.protobuf ByteString]
-           [javax.imageio ImageIO]
-           [java.util Arrays]
-           [java.awt Canvas BasicStroke Font FontMetrics Graphics2D Color RenderingHints Composite CompositeContext Shape Transparency]
-           [java.awt.font FontRenderContext GlyphVector]
-           [java.awt.geom AffineTransform PathIterator FlatteningPathIterator]
-           [java.awt.image BufferedImage Kernel ConvolveOp Raster WritableRaster DataBuffer DataBufferByte ComponentColorModel]
+           [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics2D RenderingHints Shape Transparency]
            [java.awt.color ColorSpace]
-           [java.io InputStream FileNotFoundException IOException]
+           [java.awt.font FontRenderContext GlyphVector]
+           [java.awt.geom AffineTransform FlatteningPathIterator PathIterator]
+           [java.awt.image BufferedImage ComponentColorModel ConvolveOp DataBuffer DataBufferByte Kernel Raster WritableRaster]
+           [java.io FileNotFoundException IOException InputStream]
            [java.nio.file Paths]
+           [java.util Arrays]
+           [javax.imageio ImageIO]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -122,10 +123,6 @@
                 ^int (:y glyph)
                 ^int (:width glyph)
                 (+ ^int (:ascent glyph) ^int (:descent glyph))))
-
-(defn- int->boolean [n]
-  (assert (some? n))
-  (not= n 0))
 
 (defn- fnt-semi-glyphs [^BMFont bm-font]
   (let [semi-glyphs (for [index (range (.. bm-font charArray size))]
@@ -302,7 +299,7 @@
         height (+ glyph-ascent glyph-descent (* padding 2))
         dx (+ (- (int glyph-left-bearing)) padding)
         dy (+ glyph-ascent padding)
-        antialias (int->boolean (:antialias font-desc))
+        antialias (protobuf/int->boolean (:antialias font-desc))
         image (BufferedImage. width height BufferedImage/TYPE_3BYTE_BGR)
         g (doto (.createGraphics image)
             (set-high-quality antialias)
@@ -413,7 +410,7 @@
 
 (defn- compile-ttf-bitmap [font-desc font-resource]
   (let [font (create-ttf-font font-desc font-resource)
-        antialias (int->boolean (:antialias font-desc))
+        antialias (protobuf/int->boolean (:antialias font-desc))
         semi-glyphs (ttf-semi-glyphs font-desc font antialias)
         font-metrics (font-metrics font)
         padding (+ (min (int 4) ^int (:shadow-blur font-desc))
@@ -585,8 +582,8 @@
             (aset image out-shadow-offset (unchecked-byte df-outline-channel)))))
       (when (and (> shadow-alpha 0.0) (> shadow-blur 0) (> channel-count 1))
         (let [image-byte-length (* width height channel-count)
-              shadow-image' (byte-array image-byte-length)
-              shadow-image (do (System/arraycopy image 0 shadow-image' 0 image-byte-length) shadow-image')
+              shadow-image (byte-array image-byte-length)
+              _ (System/arraycopy image 0 shadow-image 0 image-byte-length)
               shadow-data-buffer (DataBufferByte. shadow-image image-byte-length)
               shadow-band-offsets (int-array [0 1 2])
               shadow-n-bits (int-array [8 8 8])
@@ -611,7 +608,7 @@
 
 (defn- compile-ttf-distance-field [font-desc font-resource]
   (let [font (create-ttf-font font-desc font-resource)
-        antialias (int->boolean (:antialias font-desc))
+        antialias (protobuf/int->boolean (:antialias font-desc))
         semi-glyphs (ttf-semi-glyphs font-desc font antialias)
         font-metrics (font-metrics font)
         ^double outline-width (:outline-width font-desc)

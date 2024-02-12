@@ -32,6 +32,22 @@
        (protobuf/str->map-with-defaults cls)
        (protobuf/map->str cls)))
 
+(deftest boolean->int
+  (is (= 0 (protobuf/boolean->int nil)))
+  (is (= 0 (protobuf/boolean->int false)))
+  (is (= 1 (protobuf/boolean->int true)))
+  (is (= 0 (protobuf/boolean->int (Boolean. false))))
+  (is (= 1 (protobuf/boolean->int (Boolean. true)))))
+
+(deftest int->boolean
+  (is (false? (protobuf/int->boolean nil)))
+  (is (false? (protobuf/int->boolean 0)))
+  (is (true? (protobuf/int->boolean 1)))
+  (is (true? (protobuf/int->boolean 2)))
+  (is (true? (protobuf/int->boolean -1)))
+  (is (false? (protobuf/int->boolean (Integer. 0))))
+  (is (true? (protobuf/int->boolean (Integer. 1)))))
+
 (deftest simple
   (let [m {:uint-value 1}
         new-m (round-trip TestDdf$SubMsg m)]

@@ -860,10 +860,10 @@
       (attach-animation-to-atlas atlas-node atlas-anim)
       (make-image-nodes-in-animation atlas-anim image-msgs))))
 
-(defn- update-int->bool [keys m]
+(defn- update-int->boolean [keys m]
   (reduce (fn [m key]
             (if (contains? m key)
-              (update m key (complement zero?))
+              (update m key protobuf/int->boolean)
               m))
           m
           keys))
@@ -881,7 +881,7 @@
       (g/set-property self :rename-patterns (:rename-patterns atlas))
       (make-image-nodes-in-atlas self image-msgs)
       (map (comp (partial make-atlas-animation self)
-                 (partial update-int->bool [:flip-horizontal :flip-vertical]))
+                 (partial update-int->boolean [:flip-horizontal :flip-vertical]))
            (:animations atlas)))))
 
 (defn register-resource-types [workspace]
