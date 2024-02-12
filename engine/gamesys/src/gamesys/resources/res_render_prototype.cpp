@@ -90,6 +90,8 @@ namespace dmGameSystem
                         break;
                     }
 
+                    MaterialResource* mat = (MaterialResource*) res;
+
                     prototype->m_RenderResources.Push(res);
 
                     RenderResourceMeta meta;
@@ -116,7 +118,8 @@ namespace dmGameSystem
                         } break;
                         case dmRender::RENDER_RESOURCE_TYPE_MATERIAL:
                         {
-                            render_resource_val = (uint64_t) render_resource;
+                            dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) render_resource;
+                            render_resource_val = (uint64_t) material_res->m_Material;
                         } break;
                     }
 
