@@ -2332,6 +2332,24 @@ static int SetSound(lua_State* L) {
     return 0;
 }
 
+#if 0 // debug print a buffer
+void PrintBuffer(const char* label, const dmScript::LuaHBuffer& buffer)
+{
+    switch(buffer.m_Owner)
+    {
+    case dmScript::OWNER_RES:
+        dmLogInfo("%s: Handle=%d, Owner=OWNER_RES, Path=%s (%llu), Version=%d", label, buffer.m_Buffer, dmHashReverseSafe64(buffer.m_BufferResPathHash), buffer.m_BufferResPathHash, buffer.m_BufferResVersion);
+        break;
+    case dmScript::OWNER_LUA:
+        dmLogInfo("%s: Handle=%d, Owner=OWNER_LUA", label, buffer.m_Buffer);
+        break;
+    case dmScript::OWNER_C:
+        dmLogInfo("%s: Handle=%d, Owner=OWNER_C", label, buffer.m_Buffer);
+        break;
+    }
+}
+#endif
+
 /*# create a buffer resource
  * This function creates a new buffer resource that can be used in the same way as any buffer created during build time.
  * The function requires a valid buffer created from either [ref:buffer.create] or another pre-existing buffer resource.
@@ -2503,6 +2521,7 @@ static int CreateBuffer(lua_State* L)
         lua_buffer->m_Owner             = dmScript::OWNER_RES;
         lua_buffer->m_BufferRes         = resource;
         lua_buffer->m_BufferResPathHash = canonical_path_hash;
+        lua_buffer->m_BufferResVersion  = dmResource::GetVersion(g_ResourceModule.m_Factory, resource);
     }
 
     dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
@@ -2664,6 +2683,7 @@ static int SetBuffer(lua_State* L)
         luabuf->m_Owner             = dmScript::OWNER_RES;
         luabuf->m_BufferRes         = resource;
         luabuf->m_BufferResPathHash = path_hash;
+        luabuf->m_BufferResVersion  = dmResource::GetVersion(g_ResourceModule.m_Factory, resource);
     }
     else
     {
