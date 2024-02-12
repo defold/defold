@@ -516,6 +516,7 @@ namespace dmGameSystem
         "a joint with that id already exist",
         "joint id not found",
         "joint not connected",
+        "physics world locked (in the middle of a time step)",
         "unknown error",
     };
 

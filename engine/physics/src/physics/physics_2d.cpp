@@ -350,6 +350,11 @@ namespace dmPhysics
         FlipBody(collision_object, 1, -1);
     }
 
+    bool IsWorldLocked(HWorld2D world)
+    {
+        return world->m_World.IsLocked();
+    }
+
     static inline float GetUniformScale2D(dmTransform::Transform& transform)
     {
         const float* v = transform.GetScalePtr();

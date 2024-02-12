@@ -1512,6 +1512,10 @@ namespace dmGameSystem
             return dmPhysics::RESULT_NOT_SUPPORTED;
         }
 
+        if (dmPhysics::IsWorldLocked(world->m_World2D)) {
+            return dmPhysics::RESULT_PHYSICS_WORLD_LOCKED;
+        }
+
         CollisionComponent* component_a = (CollisionComponent*)_component_a;
         CollisionComponent* component_b = (CollisionComponent*)_component_b;
 

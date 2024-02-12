@@ -491,6 +491,44 @@ namespace dmGraphics
         delete stream_declaration;
     }
 
+    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
+    {
+        delete vertex_declaration;
+    }
+
+    void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
+    {
+        dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
+    }
+
+    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
+    {
+        if (stream_index >= vertex_declaration->m_StreamCount) {
+            return false;
+        }
+        vertex_declaration->m_Streams[stream_index].m_Offset = offset;
+        return true;
+    }
+
+    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
+    {
+        uint32_t count = vertex_declaration->m_StreamCount;
+        VertexDeclaration::Stream* streams = vertex_declaration->m_Streams;
+        for (int i = 0; i < count; ++i)
+        {
+            if (streams[i].m_NameHash == name_hash)
+            {
+                return streams[i].m_Offset;
+            }
+        }
+        return dmGraphics::INVALID_STREAM_OFFSET;
+    }
+
+    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
+    {
+        return vertex_declaration->m_Stride;
+    }
+
     #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
     const char* TextureFormatToString(TextureFormat format)
     {
@@ -1092,14 +1130,6 @@ namespace dmGraphics
     {
         return g_functions.m_NewVertexDeclarationStride(context, stream_declaration, stride);
     }
-    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
-    {
-        return g_functions.m_SetStreamOffset(vertex_declaration, stream_index, offset);
-    }
-    void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
-    {
-        g_functions.m_DeleteVertexDeclaration(vertex_declaration);
-    }
     void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
     {
         g_functions.m_EnableVertexDeclaration(context, vertex_declaration, binding_index, program);
@@ -1108,14 +1138,6 @@ namespace dmGraphics
     {
         g_functions.m_DisableVertexDeclaration(context, vertex_declaration);
     }
-    void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
-    {
-        g_functions.m_HashVertexDeclaration(state, vertex_declaration);
-    }
-    uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
-    {
-        return g_functions.m_GetVertexDeclarationStride(vertex_declaration);
-    }
     void EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index)
     {
         return g_functions.m_EnableVertexBuffer(context, vertex_buffer, binding_index);
@@ -1123,10 +1145,6 @@ namespace dmGraphics
     void DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer)
     {
         g_functions.m_DisableVertexBuffer(context, vertex_buffer);
-    }
-    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash)
-    {
-        return g_functions.m_GetVertexStreamOffset(vertex_declaration, name_hash);
     }
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {

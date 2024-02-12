@@ -86,7 +86,6 @@ namespace dmGraphics
         TextureFilter           m_DefaultTextureMinFilter;
         TextureFilter           m_DefaultTextureMagFilter;
         uint32_t                m_MaxElementVertices;
-        uint32_t                m_MaxElementIndices;
         // Counter to keep track of various modifications. Used for cache flush etc
         // Version zero is never used
         uint32_t                m_ModificationVersion;
@@ -107,27 +106,6 @@ namespace dmGraphics
         uint32_t                m_PrintDeviceInfo                  : 1;
         uint32_t                m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3
         uint32_t                m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
-    };
-
-    // JG: dmsdk/graphics.h defines this as a struct ptr so don't want to rename it yet..
-    struct VertexDeclaration
-    {
-        struct Stream
-        {
-            dmhash_t m_NameHash;
-            uint16_t m_LogicalIndex;
-            int16_t  m_PhysicalIndex;
-            uint16_t m_Size;
-            uint16_t m_Offset;
-            Type     m_Type;
-            bool     m_Normalize;
-        };
-
-        Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
-        uint16_t    m_StreamCount;
-        uint16_t    m_Stride;
-        HProgram    m_BoundForProgram;
-        uint32_t    m_ModificationVersion;
     };
 
     struct OpenGLShader

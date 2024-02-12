@@ -47,6 +47,7 @@
             [editor.particlefx :as particlefx]
             [editor.protobuf-types :as protobuf-types]
             [editor.render-pb :as render-pb]
+            [editor.render-target :as render-target]
             [editor.rig :as rig]
             [editor.script-api :as script-api]
             [editor.shared-editor-settings :as shared-editor-settings]
@@ -88,6 +89,7 @@
       (particlefx/register-resource-types workspace)
       (protobuf-types/register-resource-types workspace)
       (render-pb/register-resource-types workspace)
+      (render-target/register-resource-types workspace)
       (rig/register-resource-types workspace)
       (shared-editor-settings/register-resource-types workspace)
       (sound/register-resource-types workspace)

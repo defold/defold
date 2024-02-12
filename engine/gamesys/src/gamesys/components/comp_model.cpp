@@ -110,17 +110,18 @@ namespace dmGameSystem
 
     struct ModelWorld
     {
-        dmObjectPool<ModelComponent*>   m_Components;
-        dmArray<dmRender::RenderObject> m_RenderObjects;
-        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
+        dmObjectPool<ModelComponent*>    m_Components;
+        dmArray<dmRender::RenderObject>  m_RenderObjects;
+        dmGraphics::HVertexDeclaration   m_VertexDeclaration;
         dmRender::HBufferedRenderBuffer* m_VertexBuffers;
         dmArray<uint8_t>*                m_VertexBufferData;
         uint32_t*                        m_VertexBufferVertexCounts;
+        uint32_t*                        m_VertexBufferDispatchCounts;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
-        dmRig::HRigContext              m_RigContext;
-        uint32_t                        m_MaxElementsVertices;
-        uint32_t                        m_MaxBatchIndex;
+        dmRig::HRigContext               m_RigContext;
+        uint32_t                         m_MaxElementsVertices;
+        uint32_t                         m_MaxBatchIndex;
     };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
@@ -170,10 +171,12 @@ namespace dmGameSystem
         world->m_VertexBuffers = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
         world->m_VertexBufferData = new dmArray<uint8_t>[VERTEX_BUFFER_MAX_BATCHES];
         world->m_VertexBufferVertexCounts = new uint32_t[VERTEX_BUFFER_MAX_BATCHES];
+        world->m_VertexBufferDispatchCounts = new uint32_t[VERTEX_BUFFER_MAX_BATCHES];
 
         for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
             world->m_VertexBuffers[i] = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
+            world->m_VertexBufferDispatchCounts[i] = 0;
         }
 
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
@@ -201,6 +204,7 @@ namespace dmGameSystem
 
         delete [] world->m_VertexBufferData;
         delete [] world->m_VertexBufferVertexCounts;
+        delete [] world->m_VertexBufferDispatchCounts;
         delete [] world->m_VertexBuffers;
 
         delete world;
@@ -352,7 +356,7 @@ namespace dmGameSystem
                 texture_res = GetTextureFromSamplerNameHash(&component->m_Resource->m_Materials[material_index], material, i, material->m_SamplerNames[i]);
             }
 
-            ro->m_Textures[i] = texture_res ? texture_res->m_Texture : 0;
+            ro->m_Textures[i] = texture_res->m_Texture;
         }
     }
     static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
@@ -939,6 +943,11 @@ namespace dmGameSystem
 
         dmRender::HBufferedRenderBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batchIndex];
 
+        if (dmRender::GetBufferIndex(render_context, gfx_vertex_buffer) < world->m_VertexBufferDispatchCounts[batchIndex])
+        {
+            dmRender::AddRenderBuffer(render_context, gfx_vertex_buffer);
+        }
+
         // Fill in vertex buffer
         uint8_t* vb_begin = vertex_buffer.End() + vb_buffer_padding;
         uint8_t* vb_end = vb_begin;
@@ -1139,6 +1148,7 @@ namespace dmGameSystem
         {
             dmRender::TrimBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
             dmRender::RewindBuffer(context->m_RenderContext, world->m_VertexBuffers[i]);
+            world->m_VertexBufferDispatchCounts[i] = 0;
         }
 
         world->m_MaxBatchIndex = 0;
@@ -1198,6 +1208,7 @@ namespace dmGameSystem
                     uint32_t vb_size = vertex_buffer_data.Size();
                     dmRender::HBufferedRenderBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batch_index];
                     dmRender::SetBufferData(params.m_Context, gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                    world->m_VertexBufferDispatchCounts[batch_index]++;
 
                     total_count += world->m_VertexBufferVertexCounts[batch_index];
                 }
@@ -1499,7 +1510,8 @@ namespace dmGameSystem
         {
             if(params.m_PropertyId == PROP_TEXTURE[i])
             {
-                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_EXT_HASH, (void**)&component->m_Textures[i]);
+                dmhash_t ext_hashes[] = { TEXTURE_EXT_HASH, RENDER_TARGET_EXT_HASH };
+                dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, ext_hashes, DM_ARRAY_SIZE(ext_hashes), (void**)&component->m_Textures[i]);
                 component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
                 return res;
             }
@@ -1651,5 +1663,13 @@ namespace dmGameSystem
         pit->m_Node = node;
         pit->m_Next = 0;
         pit->m_FnIterateNext = CompModelIterPropertiesGetNext;
+    }
+
+    // For tests
+    void GetModelWorldRenderBuffers(void* model_world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count)
+    {
+        ModelWorld* world = (ModelWorld*) model_world;
+        *vx_buffers       = world->m_VertexBuffers;
+        *vx_buffers_count = VERTEX_BUFFER_MAX_BATCHES;
     }
 }
