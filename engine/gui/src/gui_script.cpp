@@ -2988,7 +2988,7 @@ namespace dmGui
      * @param y [type:number] y-coordinate (see <a href="#on_input">on_input</a> )
      * @return pickable [type:boolean] pick result
      */
-    static int LuaPickNode(lua_State* L)
+    static int LuaPick3Node(lua_State* L)
     {
         HNode hnode;
         InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
