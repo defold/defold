@@ -47,7 +47,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -70,7 +70,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -93,7 +93,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -116,7 +116,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -139,7 +139,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -163,7 +163,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -187,7 +187,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -209,7 +209,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -228,7 +228,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -258,7 +258,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -301,7 +301,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -350,7 +350,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
@@ -389,7 +389,7 @@ jobs:
       {
        name: 'Notify if build status changed',
        uses: homoluctus/slatify@master,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED,
+       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
        with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
                mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
       }]
