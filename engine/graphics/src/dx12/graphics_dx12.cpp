@@ -232,15 +232,19 @@ namespace dmGraphics
                 IID_PPV_ARGS(&m_MemoryPools[i].m_MemoryHeap));
             CHECK_HR_ERROR(hr);
 
-            CD3DX12_RANGE readRange(0, 0);    // We do not intend to read from this resource on the CPU. (End is less than or equal to begin)
-            hr = m_MemoryPools[i].m_MemoryHeap->Map(0, &readRange, &m_MemoryPools[i].m_MappedDataPtr);
+            for (int j = 0; j < DESCRIPTORS_PER_POOL; ++j)
+            {
+                D3D12_CONSTANT_BUFFER_VIEW_DESC view_desc = {};
+                view_desc.BufferLocation = m_MemoryPools[i].m_MemoryHeap->GetGPUVirtualAddress() + i * m_MemoryPools[i].m_BlockSize;
+                view_desc.SizeInBytes    = m_MemoryPools[i].m_BlockSize;
+
+                CD3DX12_CPU_DESCRIPTOR_HANDLE view_handle(m_MemoryPools[i].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(), i, context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+                context->m_Device->CreateConstantBufferView(&view_desc, view_handle);
+            }
+
+            hr = m_MemoryPools[i].m_MemoryHeap->Map(0, 0, &m_MemoryPools[i].m_MappedDataPtr);
             CHECK_HR_ERROR(hr);
 
-            D3D12_CONSTANT_BUFFER_VIEW_DESC view_desc = {};
-            view_desc.BufferLocation = m_MemoryPools[i].m_MemoryHeap->GetGPUVirtualAddress(); // + cursor;
-            view_desc.SizeInBytes    = m_MemoryPools[i].m_BlockSize;
-
-            context->m_Device->CreateConstantBufferView(&view_desc, m_MemoryPools[i].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart());
             // m_MemoryPools[i].m_DescriptorCursor++;
         }
     }
@@ -274,8 +278,16 @@ namespace dmGraphics
         ID3D12DescriptorHeap* heaps[] = { m_MemoryPools[0].m_DescriptorHeap };
         context->m_CommandList->SetDescriptorHeaps(1, heaps);
 
+        /*
+        void SetGraphicsRootConstantBufferView(
+          [in] UINT                      RootParameterIndex,
+          [in] D3D12_GPU_VIRTUAL_ADDRESS BufferLocation
+        );
+        */
+
         // set the root descriptor table 0 to the constant buffer descriptor heap
-        context->m_CommandList->SetGraphicsRootDescriptorTable(0, m_MemoryPools[0].m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+        context->m_CommandList->SetGraphicsRootConstantBufferView(0, m_MemoryPools[0].m_MemoryHeap->GetGPUVirtualAddress());
+        context->m_CommandList->SetGraphicsRootConstantBufferView(1, m_MemoryPools[0].m_MemoryHeap->GetGPUVirtualAddress() + 256);
     }
 
     static bool DX12Initialize(HContext _context)
@@ -1336,6 +1348,7 @@ namespace dmGraphics
             memset(program->m_UniformData, 0, data_size);
         }
 
+        /*
         // TODO: We should hash the data needed to generate this signature
         D3D12_DESCRIPTOR_RANGE desc_range;
         desc_range.RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
@@ -1352,10 +1365,26 @@ namespace dmGraphics
         root_param.ParameterType    = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         root_param.DescriptorTable  = desc_table;
         root_param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        */
+
+        // D3D12_ROOT_DESCRIPTOR_TABLE desc_table;
+        // desc_table.NumDescriptorRanges = 1;
+        // desc_table.pDescriptorRanges   = &desc_range;
+
+        D3D12_ROOT_PARAMETER  root_params[2];
+        root_params[0].ParameterType    = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+        root_params[0].Descriptor.ShaderRegister = 0;
+        root_params[0].Descriptor.RegisterSpace  = 0;
+
+        root_params[1].ParameterType    = D3D12_ROOT_PARAMETER_TYPE_CBV;
+        root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        root_params[1].Descriptor.ShaderRegister = 0;
+        root_params[1].Descriptor.RegisterSpace  = 0;
 
         CD3DX12_ROOT_SIGNATURE_DESC root_signature_desc;
-        root_signature_desc.Init(1, &root_param,
-            0, nullptr,
+        root_signature_desc.Init(2, root_params,
+            0, nullptr, // TODO: samplers
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | // we can deny shader stages here for better performance
             D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
             D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
