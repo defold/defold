@@ -596,7 +596,7 @@
          welcome-settings {:new-project {:categories (concat default-categories custom-categories)}}
          welcome-settings-load-error (or default-welcome-settings-load-error custom-welcome-settings-load-error)
          root (ui/load-fxml "welcome/welcome-dialog.fxml")
-         stage (ui/make-dialog-stage)
+         stage (doto (ui/make-dialog-stage) (.setResizable true))
          scene (Scene. root)
          last-opened-project-directory (last-opened-project-directory prefs)
          new-project-location-directory (new-project-location-directory last-opened-project-directory)
