@@ -64,13 +64,23 @@
      :width width
      :height height}))
 
+(defn- ->anim-frame-from-geometry
+  [page-index frame-geometry]
+  {:page-index page-index
+   :tex-coords (:uvs frame-geometry)
+   :vertex-coords (:vertices frame-geometry)
+   :width (:width frame-geometry)
+   :height (:height frame-geometry)})
+
 (defn- ->anim-data
-  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices page-indices]
-  (let [tex-coord-order (tex-coord-lookup flip-horizontal flip-vertical)
-        frames (mapv (fn [i]
+  [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries]
+  (let [frames (mapv (fn [i]
                        (let [frame-index (frame-indices i)
-                             page-index (page-indices frame-index)]
-                         (->anim-frame frame-index page-index tex-coords tex-dims tex-coord-order)))
+                             page-index (page-indices frame-index)
+                             frame-geometry (get geometries frame-index)]
+                         (if use-geometries
+                           (->anim-frame-from-geometry page-index frame-geometry)
+                           (->anim-frame frame-index page-index tex-coords tex-dims (tex-coord-lookup flip-horizontal flip-vertical)))))
                      (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
@@ -89,11 +99,14 @@
                      (.asReadOnlyByteBuffer)
                      (.order ByteOrder/LITTLE_ENDIAN)
                      (.asFloatBuffer))
+
+        use-geometries (= (:use-geometries texture-set) 1)
+        geometries (:geometries texture-set)
         animations (:animations texture-set)
         frame-indices (:frame-indices texture-set)
         page-indices (:page-indices texture-set)]
     (into {}
-          (map #(vector (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices)))
+          (map #(vector (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries)))
           animations)))
 
 
