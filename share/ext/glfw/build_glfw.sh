@@ -17,7 +17,7 @@
 # Compilation guide:
 # https://www.glfw.org/docs/latest/compile.html
 
-readonly VERSION=3.3.8
+readonly VERSION=3.3.9
 readonly BASE_URL=https://github.com/glfw/glfw/releases/download/${VERSION}/
 readonly FILE_URL=glfw-${VERSION}.zip
 readonly PRODUCT=glfw
