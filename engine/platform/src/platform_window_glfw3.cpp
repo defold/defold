@@ -235,7 +235,8 @@ namespace dmPlatform
 
             glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
             glfwSetJoystickCallback(OnJoystick);
-            glfwSwapInterval(1);
+
+            SetSwapInterval(window, 1);
 
             // This is not supported in the same way by GLFW3, but we could
             // set glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE); to get a transparent framebuffer
