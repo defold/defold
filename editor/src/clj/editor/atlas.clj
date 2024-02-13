@@ -594,7 +594,6 @@
       (let [{:keys [user-data]} renderable
             {:keys [vbuf gpu-texture]} user-data
             vertex-binding (vtx/use-with ::atlas-binding vbuf atlas-shader)]
-        (println vbuf)
         (gl/with-gl-bindings gl render-args [atlas-shader vertex-binding gpu-texture]
           (shader/set-samplers-by-index atlas-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6))))))

@@ -98,10 +98,6 @@
            :vertex-attribute-bytes vertex-attribute-bytes}
           (select-keys (first texcoord-datas) [:position-data :line-data]))))
 
-(defn- into-vertex-buffer [^VertexBuffer vbuf renderables]
-  (let [renderable-datas (mapv renderable-data renderables)]
-    (graphics/put-attributes! vbuf renderable-datas)))
-
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
   (.set pt x y 0)
   (.transform wt pt)
@@ -195,17 +191,28 @@
              0
              renderables))
 
+(defn- count-vertices [renderable-datas]
+  (transduce (map (comp count :position-data))
+             +
+             0
+             renderable-datas))
+
 (defn render-sprites [^GL2 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         scene-infos (:scene-infos user-data)
         pass (:pass render-args)
-        num-quads (count-quads renderables)]
+
+        renderable-datas (mapv renderable-data renderables)
+        num-vertices (count-vertices renderable-datas)
+
+        num-outline-vertices (* 6 (count-quads renderables))]
+    (println "VX COUNT" num-vertices _count)
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)
             shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index] :coordinate-space-world)
             vertex-description (graphics/make-vertex-description shader-bound-attributes)
-            vbuf (into-vertex-buffer (vtx/make-vertex-buffer vertex-description :dynamic (* num-quads 6)) renderables)
+            vbuf (graphics/put-attributes! (vtx/make-vertex-buffer vertex-description :dynamic num-vertices) renderable-datas)
             vertex-binding (vtx/use-with ::sprite-trans vbuf shader)
             blend-mode (:blend-mode user-data)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
@@ -213,18 +220,18 @@
             (gl/bind gl gpu-texture render-args)
             (shader/set-samplers-by-name shader gl sampler (:texture-units gpu-texture)))
           (gl/set-blend-mode gl blend-mode)
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6))
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices)
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
           (doseq [{:keys [gpu-texture]} scene-infos]
             (gl/unbind gl gpu-texture render-args))))
 
       pass/selection
-      (let [vbuf (into-vertex-buffer (->texture-vtx (* num-quads 6)) renderables)
+      (let [vbuf (graphics/put-attributes! (->texture-vtx num-outline-vertices) renderable-datas)
             vertex-binding (vtx/use-with ::sprite-selection vbuf id-shader)
             gpu-texture (:gpu-texture (first scene-infos))]
         (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
           (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* num-quads 6)))))))
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-outline-vertices))))))
 
 (defn- render-sprite-outlines [^GL2 gl render-args renderables _count]
   (assert (= pass/outline (:pass render-args)))
