@@ -1061,11 +1061,26 @@ namespace dmGameSystem
 
             for (uint32_t j = 0; j < num_vertices; ++j, vertices += step)
             {
+                // local coordinates in range [-0.5, 0.5]
+                // No need to rotate these, instead we transform these vertices into correct uv space for each image
                 float px = vertices[0];
                 float py = vertices[1];
 
-                float u = (center_x + px * image_width) / width;
-                float v = (center_y + -py * image_height) / height;
+                // local coordinates in range ([-image_width, image_width], [-image_height, image_height])
+                float ix = px;
+                float iy = py;
+
+                // A rotated image is stored with a 90 deg CW rotation
+                // so we need to convert the vertices into the uv space of that image
+                if (rotated) // rotate 90 degrees CW
+                {
+                    float t = iy;
+                    iy = -ix;
+                    ix = t;
+                }
+
+                float u = (center_x + ix * image_width) / width;
+                float v = (center_y + -iy * image_height) / height;
 
                 uvs[j*2+0] = u;
                 uvs[j*2+1] = 1.0f - v;
@@ -1073,13 +1088,6 @@ namespace dmGameSystem
                 // We grab the geometry as positions from the first texture
                 if (i == 0)
                 {
-                    if (rotated) // rotate 90 degrees (CCW)
-                    {
-                        float t = py;
-                        py = px;
-                        px = -t;
-                    }
-
                     (*scratch_pos)[j*2+0] = px * scale_x;
                     (*scratch_pos)[j*2+1] = py * scale_y;
                 }
