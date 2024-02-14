@@ -1081,13 +1081,6 @@ namespace dmGameSystem
                 float px = vertices[0];
                 float py = vertices[1];
 
-                if (rotated) // rotate back -90 degrees (CW)
-                {
-                    float t = py;
-                    py = -px;
-                    px = t;
-                }
-
                 float u = (center_x + px * image_width) / width;
                 float v = (center_y + -py * image_height) / height;
 
@@ -1097,6 +1090,13 @@ namespace dmGameSystem
                 // We grab the geometry as positions from the first texture
                 if (i == 0)
                 {
+                    if (rotated) // rotate 90 degrees (CCW)
+                    {
+                        float t = py;
+                        py = px;
+                        px = -t;
+                    }
+
                     (*scratch_pos)[j*2+0] = px * scale_x;
                     (*scratch_pos)[j*2+1] = py * scale_y;
                 }
