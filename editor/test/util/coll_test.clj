@@ -272,6 +272,68 @@
           (is (identical? (meta coll) (meta odds)))
           (is (identical? (meta coll) (meta evens))))))))
 
+(deftest mapcat-test
+  (testing "Over collection."
+    (is (= [[:< :a]
+            [:> :a]
+            [:< :b]
+            [:> :b]]
+           (coll/mapcat (fn [value]
+                          [[:< value]
+                           [:> value]])
+                        [:a :b])))
+    (is (= [[:< 0 :a]
+            [:> 0 :a]
+            [:< 1 :b]
+            [:> 1 :b]]
+           (coll/mapcat (fn [num value]
+                          [[:< num value]
+                           [:> num value]])
+                        (range 10)
+                        [:a :b])))
+    (is (= [[:< 0 :a \A]
+            [:> 0 :a \A]
+            [:< 1 :b \B]
+            [:> 1 :b \B]]
+           (coll/mapcat (fn [num value char]
+                          [[:< num value char]
+                           [:> num value char]])
+                        (range 10)
+                        [:a :b]
+                        "ABC"))))
+
+  (testing "As transducer."
+    (is (= [[:< :a]
+            [:> :a]
+            [:< :b]
+            [:> :b]]
+           (into []
+                 (coll/mapcat (fn [value]
+                                [[:< value]
+                                 [:> value]]))
+                 [:a :b])))
+    (is (= [[:< 0 :a]
+            [:> 0 :a]
+            [:< 1 :b]
+            [:> 1 :b]]
+           (sequence
+             (coll/mapcat (fn [num value]
+                            [[:< num value]
+                             [:> num value]]))
+             (range 10)
+             [:a :b])))
+    (is (= [[:< 0 :a \A]
+            [:> 0 :a \A]
+            [:< 1 :b \B]
+            [:> 1 :b \B]]
+           (sequence
+             (coll/mapcat (fn [num value char]
+                            [[:< num value char]
+                             [:> num value char]]))
+             (range 10)
+             [:a :b]
+             "ABC")))))
+
 (deftest mapcat-indexed-test
   (is (= [[:< 0 :a]
           [:> 0 :a]

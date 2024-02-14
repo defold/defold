@@ -225,6 +225,7 @@
   (let [vtx-attributes (mapv attribute-info->vtx-attribute attribute-infos)]
     (vtx/make-vertex-description nil vtx-attributes)))
 
+;; TODO(save-value-cleanup): We shouldn't have to sanitize the attributes once every resource type has :read-defaults false.
 (defn sanitize-attribute-value-v [attribute-value]
   (protobuf/sanitize-repeated attribute-value :v))
 

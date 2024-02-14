@@ -13,13 +13,19 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty? not-empty])
+  (:refer-clojure :exclude [bounded-count empty? mapcat not-empty])
   (:import [clojure.lang IEditableCollection MapEntry]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (def empty-sorted-map (sorted-map))
+
+(defn mapcat
+  "Like core.mapcat, but faster in the non-transducer case."
+  ([f] (comp (map f) cat))
+  ([f coll] (sequence (mapcat f) coll))
+  ([f coll & colls] (apply sequence (mapcat f) coll colls)))
 
 (defn ascending-order
   "Comparator that orders items in ascending order."

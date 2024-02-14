@@ -539,8 +539,7 @@
                                               :min 0.0
                                               :max 1.0
                                               :precision 0.01})))
-  (property vertex-attribute-overrides g/Any
-            (default {})
+  (property vertex-attribute-overrides g/Any (default {})
             (dynamic visible (g/constantly false)))
 
   (input texture-binding-infos g/Any :array)

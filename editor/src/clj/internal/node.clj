@@ -485,9 +485,8 @@
 
 (defn warn-output-schema [node-id label node-type-name value output-schema error]
   (when-not *suppress-schema-warnings*
-    (let [output-name (symbol label)
-          declared-schema (output-schema->declared-schema output-schema)]
-      (println "Schema validation failed for output" output-name "on" node-type-name node-id)
+    (let [declared-schema (output-schema->declared-schema output-schema)]
+      (println "Schema validation failed for output" label "on" node-type-name node-id)
       (println "Output value:" (pr-str value))
       (println "Should match:" (s/explain declared-schema))
       (println "But:" (pr-str error)))))

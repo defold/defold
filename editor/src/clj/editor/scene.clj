@@ -70,11 +70,11 @@
 
 ;; TODO(save-value): Can we use (vector-of :float ...) for these?
 
-(def default-position [(float 0.0) (float 0.0) (float 0.0)])
+(def default-position protobuf/vector3-zero)
 
-(def default-rotation [(float 0.0) (float 0.0) (float 0.0) (float 1.0)])
+(def default-rotation protobuf/quat-identity)
 
-(def default-scale [(float 1.0) (float 1.0) (float 1.0)])
+(def default-scale protobuf/vector3-one)
 
 (def identity-transform-properties
   {:position default-position

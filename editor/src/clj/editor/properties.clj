@@ -25,13 +25,14 @@
             [editor.util :as util]
             [editor.workspace :as workspace]
             [schema.core :as s]
-            [util.coll :as coll]
+            [util.coll :as coll :refer [pair]]
             [util.id-vec :as iv]
             [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
            [javax.vecmath Matrix4d Point3d Quat4d]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn user-name->key [name]
   (->> name
@@ -50,12 +51,16 @@
 
 (declare round-scalar round-scalar-float)
 
-(defn spline-cp [spline x]
+(defn spline-cp [spline ^double x]
   (let [x (min (max x 0.0) 1.0)
-        [cp0 cp1] (some (fn [cps] (and (<= (ffirst cps) x) (<= x (first (second cps))) cps)) (partition 2 1 spline))]
+        [cp0 cp1] (some (fn [cps]
+                          (and (<= ^double (ffirst cps) x)
+                               (<= x ^double (first (second cps)))
+                               cps))
+                        (partition 2 1 spline))]
     (when (and cp0 cp1)
-      (let [[x0 y0 s0 t0] cp0
-            [x1 y1 s1 t1] cp1
+      (let [[^double x0 ^double y0 ^double s0 ^double t0] cp0
+            [^double x1 ^double y1 ^double s1 ^double t1] cp1
             dx (- x1 x0)
             t (/ (- x x0) (- x1 x0))
             d0 (* dx (/ t0 s0))
@@ -65,10 +70,10 @@
             l (Math/sqrt (+ 1.0 (* ty ty)))
             ty (/ ty l)
             tx (/ 1.0 l)
-            num-fn (if (math/float32? x0)
+            num-fn (if (math/float32? (first cp0))
                      round-scalar-float
                      round-scalar)]
-        (-> (empty cp0)
+        (-> (coll/empty-with-meta cp0)
             (conj (num-fn x))
             (conj (num-fn y))
             (conj (num-fn tx))
@@ -123,12 +128,15 @@
         cps (->> (:points curve) iv/iv-vals (mapv first) sort vec)
         margin 0.01
         limits (->> cps
-                 (partition 3 1)
-                 (mapv (fn [[min x max]] [x [(+ min margin) (- max margin)]]))
-                 (into {}))
+                    (partition 3 1)
+                    (into {}
+                          (map (fn [[^double min x ^double max]]
+                                 (pair x
+                                       (pair (+ min margin)
+                                             (- max margin)))))))
         limits (-> limits
-                 (assoc (first cps) [0.0 0.0]
-                        (last cps) [1.0 1.0]))]
+                   (assoc (first cps) (pair 0.0 0.0)
+                          (last cps) (pair 1.0 1.0)))]
     (curve-update curve ids (fn [v]
                               (let [[x y] v
                                     num-fn (if (math/float32? x)
@@ -136,7 +144,7 @@
                                              round-scalar)]
                                 (.set p x y 0.0)
                                 (.transform transform p)
-                                (let [[min-x max-x] (limits x)
+                                (let [[^double min-x ^double max-x] (limits x)
                                       x (max min-x (min max-x (.getX p)))
                                       y (.getY p)]
                                   (assoc v
@@ -182,11 +190,11 @@
   (t/geom-update [this ids f] (curve-update this ids f))
   (t/geom-transform [this ids transform] (curve-transform this ids transform)))
 
-(defrecord CurveSpread [points ^double spread]
+(defrecord CurveSpread [points ^float spread]
   Sampler
   (sample [this] (second (first (iv/iv-vals points))))
-  (sample-range [this] (let [[^double min ^double max] (curve-range this)]
-                         [(- min spread) (+ max spread)]))
+  (sample-range [this] (let [[^float min ^float max] (curve-range this)]
+                         (pair (- min spread) (+ max spread))))
   t/GeomCloud
   (t/geom-aabbs [this] (curve-aabbs this))
   (t/geom-aabbs [this ids] (curve-aabbs this ids))
@@ -199,15 +207,24 @@
   (or (instance? Curve value)
       (instance? CurveSpread value)))
 
-(defn ->curve [control-points]
-  (Curve. (iv/iv-vec control-points)))
+(def default-spline-point [(float 0.0) (float 0.0) (float 1.0) (float 0.0)])
 
-(def default-curve (->curve [[0.0 0.0 1.0 0.0]]))
+(def default-control-points [default-spline-point])
+
+(def default-spread (float 0.0))
+
+(defn ->curve [control-points]
+  (Curve. (iv/iv-vec (or control-points
+                         default-control-points))))
+
+(def default-curve (->curve default-control-points))
 
 (defn ->curve-spread [control-points spread]
-  (CurveSpread. (iv/iv-vec control-points) spread))
+  (CurveSpread. (iv/iv-vec (or control-points
+                               default-control-points))
+                (or spread default-spread)))
 
-(def default-curve-spread (->curve-spread [[0.0 0.0 1.0 0.0]] 0.0))
+(def default-curve-spread (->curve-spread default-control-points default-spread))
 
 (core/register-read-handler!
  (.getName Curve)
@@ -236,7 +253,7 @@
     {:points (curve-vals c)
      :spread (:spread c)})))
 
-(defn- q-round [v]
+(defn- q-round [^double v]
   (let [f 10e6]
     (/ (Math/round (* v f)) f)))
 
@@ -256,7 +273,7 @@
 (defn- tokenize! [^StringTokenizer tokenizer parse-fn]
   (-> tokenizer (.nextToken) (.trim) (parse-fn)))
 
-(defn- parse-vec [s count]
+(defn- parse-vec [s ^long count]
   (let [tokenizer (StringTokenizer. s ",")]
     (loop [result []
            counter 0]

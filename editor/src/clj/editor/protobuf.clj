@@ -1117,36 +1117,46 @@ Macros currently mean no foreseeable performance gain, however."
                         (pair key value)))))
         kvs))
 
-(defn make-map-without-defaults [^Class cls & kvs]
+(defn- without-defaults-xform-raw [^Class cls]
   (let [key->field-info (field-infos cls)
         key->default (default-value cls)]
-    (into {}
-          (comp (partition-all 2)
-                (keep (fn [[key value]]
-                        (when (some? value)
-                          (let [field-info (key->field-info key)]
-                            (case (:field-rule field-info)
-                              :optional
-                              (when (or (resource-field? field-info)
-                                        (not (or (and (message-field? field-info)
-                                                      (coll/empty? value))
-                                                 (= (key->default key) value))))
-                                (pair key value))
+    (keep (fn [[key value]]
+            (when (some? value)
+              (let [field-info (key->field-info key)]
+                (case (:field-rule field-info)
+                  :optional
+                  (when (or (resource-field? field-info)
+                            (not (or (and (message-field? field-info)
+                                          (coll/empty? value))
+                                     (= (key->default key) value))))
+                    (pair key value))
 
-                              :repeated
-                              (when (and (not (coll/empty? value))
-                                         (not= (key->default key) value))
-                                (pair key (vec value)))
+                  :repeated
+                  (when (and (not (coll/empty? value))
+                             (not= (key->default key) value))
+                    (pair key (vec value)))
 
-                              :required
-                              (when-not (and (message-field? field-info)
-                                             (coll/empty? value))
-                                (pair key value))
+                  :required
+                  (when-not (and (message-field? field-info)
+                                 (coll/empty? value))
+                    (pair key value))
 
-                              (throw (ex-info (str "Invalid field " key " for protobuf class " (.getName cls))
-                                              {:key key
-                                               :pb-class cls}))))))))
-          kvs)))
+                  (throw (ex-info (str "Invalid field " key " for protobuf class " (.getName cls))
+                                  {:key key
+                                   :pb-class cls})))))))))
+
+(def without-defaults-xform (fn/memoize without-defaults-xform-raw))
+
+(defn without-defaults [^Class cls pb-map]
+  (into (coll/empty-with-meta pb-map)
+        (without-defaults-xform cls)
+        pb-map))
+
+(defn make-map-without-defaults [^Class cls & kvs]
+  (into {}
+        (comp (partition-all 2)
+              (without-defaults-xform cls))
+        kvs))
 
 (defn read-map-with-defaults [^Class cls input]
   (pb->map-with-defaults

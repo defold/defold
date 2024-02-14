@@ -509,20 +509,22 @@
         (let [scale-v3 (doto (Vector3d.) (clj->vecmath scale))]
           (->mat4-non-uniform position-v3 rotation-q4 scale-v3))))))
 
-(defn hermite [y0 y1 t0 t1 t]
-  (let [t2 (* t t)
-        t3 (* t2 t)]
-    (+ (* (+ (* 2 t3) (* -3 t2) 1.0) y0)
-       (* (+ t3 (* -2 t2) t) t0)
-       (* (+ (* -2 t3) (* 3 t2)) y1)
-       (* (- t3 t2) t1))))
+(defmacro hermite [y0 y1 t0 t1 t]
+  `(let [t# ~t
+         t2# (* t# t#)
+         t3# (* t2# t#)]
+     (+ (* (+ (* 2.0 t3#) (* -3.0 t2#) 1.0) ~y0)
+        (* (+ t3# (* -2.0 t2#) t#) ~t0)
+        (* (+ (* -2.0 t3#) (* 3.0 t2#)) ~y1)
+        (* (- t3# t2#) ~t1))))
 
-(defn hermite' [y0 y1 t0 t1 t]
-  (let [t2 (* t t)]
-    (+ (* (+ (* 6 t2) (* -6 t)) y0)
-       (* (+ (* 3 t2) (* -4 t) 1) t0)
-       (* (+ (* -6 t2) (* 6 t)) y1)
-       (* (+ (* 3 t2) (* -2 t)) t1))))
+(defmacro hermite' [y0 y1 t0 t1 t]
+  `(let [t# ~t
+         t2# (* t# t#)]
+     (+ (* (+ (* 6.0 t2#) (* -6.0 t#)) ~y0)
+        (* (+ (* 3.0 t2#) (* -4.0 t#) 1.0) ~t0)
+        (* (+ (* -6.0 t2#) (* 6.0 t#)) ~y1)
+        (* (+ (* 3.0 t2#) (* -2.0 t#)) ~t1))))
 
 (defn derive-render-transforms
   [^Matrix4d world ^Matrix4d view ^Matrix4d projection ^Matrix4d texture]
