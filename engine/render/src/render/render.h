@@ -96,6 +96,12 @@ namespace dmRender
         uint32_t m_TagCount;
     };
 
+    enum ConstantRenderType
+    {
+        CONSTANT_RENDER_TYPE_CONSTANT  = 0,
+        CONSTANT_RENDER_TYPE_ATTRIBUTE = 1,
+    };
+
     struct Constant
     {
         dmVMath::Vector4*                       m_Values;
@@ -103,9 +109,10 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::ConstantType m_Type;         // TODO: Make this a uint16_t as well
         dmGraphics::HUniformLocation            m_Location;     // Vulkan encodes vs/fs location in the lower/upper bits
         uint16_t                                m_NumValues;
+        ConstantRenderType                      m_RenderType;
 
         Constant();
-        Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location);
+        Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location, ConstantRenderType render_type);
     };
 
     struct RenderConstant
@@ -223,6 +230,10 @@ namespace dmRender
     RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance, float dt);
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 
+    // Constant
+    ConstantRenderType      GetConstantRenderType(HConstant constant);
+    HConstant               NewConstant(dmhash_t name_hash, ConstantRenderType render_type);
+
     // Material
     HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
@@ -264,6 +275,7 @@ namespace dmRender
      * @return True if a constant or element was found
      */
     bool                            GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_num_components);
+    bool                            GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id);
 
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
     dmGraphics::HUniformLocation    GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);

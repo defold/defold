@@ -67,9 +67,17 @@ namespace dmRender
 
     struct MaterialAttribute
     {
+        // dmhash_t            m_ElementIds[4];
         int32_t  m_Location;
         uint16_t m_ValueIndex;
         uint16_t m_ValueCount;
+        uint8_t  m_IsCustomAttribute;
+    };
+
+    struct ShaderLocation
+    {
+        dmGraphics::HUniformLocation m_Location;
+        ConstantRenderType           m_RenderType;
     };
 
     struct Material
@@ -85,7 +93,8 @@ namespace dmRender
         dmGraphics::HVertexProgram              m_VertexProgram;
         dmGraphics::HFragmentProgram            m_FragmentProgram;
         dmGraphics::HVertexDeclaration          m_VertexDeclaration;
-        dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
+        dmHashTable64<ShaderLocation>           m_NameHashToShaderLocation;
+
         dmArray<dmGraphics::VertexAttribute>    m_VertexAttributes;
         dmArray<MaterialAttribute>              m_MaterialAttributes;
         dmArray<uint8_t>                        m_MaterialAttributeValues;
@@ -95,6 +104,7 @@ namespace dmRender
         uint64_t                                m_UserData1;  // used for hot reloading. stores shader name
         uint64_t                                m_UserData2;  // --||–-
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
+        uint8_t                                 m_HasCustomAttributes;
     };
 
     struct ComputeProgram
@@ -103,7 +113,7 @@ namespace dmRender
         dmGraphics::HComputeProgram                 m_Shader;
         dmGraphics::HProgram                        m_Program;
         dmArray<RenderConstant>                     m_Constants;
-        dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
+        dmHashTable64<ShaderLocation>               m_NameHashToLocation;
         uint64_t                                    m_UserData;
     };
 
@@ -287,7 +297,8 @@ namespace dmRender
     Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix);
 
     void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out);
-    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers);
+    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<ShaderLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers);
+    void AddMaterialConstant(ConstantRenderType render_type, const char* name, dmhash_t name_hash, dmGraphics::Type type, dmGraphics::HUniformLocation location, int32_t num_values, dmHashTable64<ShaderLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<dmVMath::Vector4>& default_values_buffer);
 
     // Return true if the predicate tags all exist in the material tag list
     bool                            MatchMaterialTags(uint32_t material_tag_count, const dmhash_t* material_tags, uint32_t tag_count, const dmhash_t* tags);
