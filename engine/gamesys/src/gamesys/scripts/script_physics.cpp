@@ -1398,6 +1398,14 @@ namespace dmGameSystem
         return 1;
     }
 
+    static void Physics_CheckIfShapeSizeValid(lua_State* L, float value)
+    {
+        if (value == 0.0f)
+        {
+            luaL_error(L,"Shape size can't be 0");
+        }
+    }
+
     /*# set collision shape data
      * Sets collision shape data for a collision object. Please note that updating data in 3D
      * can be quite costly for box and capsules. Because of the physics engine, the cost
@@ -1462,6 +1470,7 @@ namespace dmGameSystem
                 lua_getfield(L, -1, "diameter");
                 shape_info.m_SphereDiameter = luaL_checknumber(L, -1);
                 lua_pop(L, 1);
+                Physics_CheckIfShapeSizeValid(L, shape_info.m_SphereDiameter);
             }
             else if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_BOX)
             {
@@ -1469,6 +1478,8 @@ namespace dmGameSystem
                 dmVMath::Vector3* box_dimensions = dmScript::CheckVector3(L, -1);
                 memcpy(shape_info.m_BoxDimensions, &box_dimensions[0], sizeof(shape_info.m_BoxDimensions));
                 lua_pop(L, 1);
+                Physics_CheckIfShapeSizeValid(L, box_dimensions->getX());
+                Physics_CheckIfShapeSizeValid(L, box_dimensions->getY());
             }
             else if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_CAPSULE)
             {
@@ -1479,6 +1490,8 @@ namespace dmGameSystem
                 lua_getfield(L, -1, "height");
                 shape_info.m_CapsuleDiameterHeight[1] = luaL_checknumber(L, -1);
                 lua_pop(L, 1);
+                Physics_CheckIfShapeSizeValid(L, shape_info.m_CapsuleDiameterHeight[0]);
+                Physics_CheckIfShapeSizeValid(L, shape_info.m_CapsuleDiameterHeight[1]);
             }
             else
             {
