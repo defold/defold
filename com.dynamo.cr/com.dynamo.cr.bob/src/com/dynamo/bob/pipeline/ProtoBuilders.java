@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -72,10 +72,12 @@ import com.dynamo.render.proto.ComputeProgram.ComputeProgramDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
+import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 
 public class ProtoBuilders {
 
-    private static String[] textureSrcExts = {".png", ".jpg", ".tga", ".cubemap"};
+    private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".tga", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
+    private static String[][] renderResourceExts = {{".render_target", ".render_targetc"}, {".material", ".materialc"}};
 
     public static String getTextureSetExt(String str) throws Exception {
         Map<String, String> types = TextureUtil.getAtlasFileTypes();
@@ -87,12 +89,16 @@ public class ProtoBuilders {
         throw new Exception(String.format("Cannot find a texture suffix replacement for texture: %s\n", str));
     }
 
-    public static String replaceTextureName(String str) {
+    private static String replaceAllExts(String str, String[][] extList) {
         String out = str;
-        for (String srcExt : textureSrcExts) {
-            out = BuilderUtil.replaceExt(out, srcExt, ".texturec");
+        for (String[] ext : extList) {
+            out = BuilderUtil.replaceExt(out, ext[0], ext[1]);
         }
         return out;
+    }
+
+    public static String replaceTextureName(String str) {
+        return replaceAllExts(str, textureSrcExts);
     }
 
     public static String replaceTextureSetName(String str) throws Exception {
@@ -240,6 +246,10 @@ public class ProtoBuilders {
     @BuilderParams(name="GamepadMaps", inExts=".gamepads", outExt=".gamepadsc")
     public static class GamepadMapsBuilder extends ProtoBuilder<GamepadMaps.Builder> {}
 
+    @ProtoParams(srcClass = RenderTargetDesc.class, messageClass = RenderTargetDesc.class)
+    @BuilderParams(name="RenderTarget", inExts=".render_target", outExt=".render_targetc")
+    public static class RenderTargetDescBuilder extends ProtoBuilder<RenderTargetDesc.Builder> {}
+
     @ProtoParams(srcClass = FactoryDesc.class, messageClass = FactoryDesc.class)
     @BuilderParams(name="Factory", inExts=".factory", outExt=".factoryc")
     public static class FactoryBuilder extends ProtoBuilder<FactoryDesc.Builder> {
@@ -269,6 +279,19 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = RenderPrototypeDesc.class, messageClass = RenderPrototypeDesc.class)
     @BuilderParams(name="Render", inExts=".render", outExt=".renderc")
     public static class RenderPrototypeBuilder extends ProtoBuilder<RenderPrototypeDesc.Builder> {
+
+        private boolean hasDuplicateNames(List<RenderPrototypeDesc.RenderResourceDesc> resourceDesc) {
+            Set<String> uniqueNames = new HashSet<>();
+            for (RenderPrototypeDesc.RenderResourceDesc resource : resourceDesc) {
+                String name = resource.getName();
+                if (uniqueNames.contains(name)) {
+                    return false;
+                }
+                uniqueNames.add(name);
+            }
+            return true;
+        }
+
         @Override
         protected RenderPrototypeDesc.Builder transform(Task<Void> task, IResource resource, RenderPrototypeDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
@@ -276,13 +299,33 @@ public class ProtoBuilders {
             BuilderUtil.checkResource(this.project, resource, "script", messageBuilder.getScript());
             messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".render_script", ".render_scriptc"));
 
-            List<RenderPrototypeDesc.MaterialDesc> newMaterialList = new ArrayList<RenderPrototypeDesc.MaterialDesc>();
+            // Content migration, the material entry is deprecated in the render proto
+            // we should use render resources entry now!
+            List<RenderPrototypeDesc.RenderResourceDesc> newRenderResourceList = new ArrayList<RenderPrototypeDesc.RenderResourceDesc>();
             for (RenderPrototypeDesc.MaterialDesc m : messageBuilder.getMaterialsList()) {
                 BuilderUtil.checkResource(this.project, resource, "material", m.getMaterial());
-                newMaterialList.add(RenderPrototypeDesc.MaterialDesc.newBuilder().mergeFrom(m).setMaterial(BuilderUtil.replaceExt(m.getMaterial(), ".material", ".materialc")).build());
+
+                RenderPrototypeDesc.RenderResourceDesc.Builder resBuilder = RenderPrototypeDesc.RenderResourceDesc.newBuilder();
+                resBuilder.setName(m.getName());
+                resBuilder.setPath(BuilderUtil.replaceExt(m.getMaterial(), ".material", ".materialc"));
+                newRenderResourceList.add(resBuilder.build());
             }
+
+            for (RenderPrototypeDesc.RenderResourceDesc resourceDesc : messageBuilder.getRenderResourcesList()) {
+                BuilderUtil.checkResource(this.project, resource, "render resource", resourceDesc.getPath());
+                newRenderResourceList.add(RenderPrototypeDesc.RenderResourceDesc.newBuilder()
+                                     .mergeFrom(resourceDesc)
+                                     .setPath(replaceAllExts(resourceDesc.getPath(), renderResourceExts))
+                                     .build());
+            }
+
+            if (!hasDuplicateNames(newRenderResourceList)) {
+                throw new CompileExceptionError(resource, 0, "The render resource list contain one or more entries with duplicate names.");
+            }
+
             messageBuilder.clearMaterials();
-            messageBuilder.addAllMaterials(newMaterialList);
+            messageBuilder.clearRenderResources();
+            messageBuilder.addAllRenderResources(newRenderResourceList);
 
             return messageBuilder;
         }

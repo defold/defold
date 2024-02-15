@@ -27,6 +27,7 @@ def build(bld):
     proto_files = [os.path.join('../../proto/gamesys', os.path.basename(x)) for x in proto_files]
 
     apidoc_extract_task(bld, ['scripts/script_buffer.cpp',
+        'scripts/script_camera.cpp',
         'scripts/script_collection_factory.cpp',
         'scripts/script_collectionproxy.h',
         'scripts/script_physics.cpp',

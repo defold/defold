@@ -163,6 +163,23 @@
                              :zip-url "https://github.com/defold/sample-rpgmap/archive/master.zip"
                              :skip-root? true}
 
+                            {:name "3d treasure scene"
+                             :description "This sample shows a stylized 3d scene with animation."
+                             :image "treasurescene.png"
+                             :duration "Short"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/FlexYourBrain/Basic3d_TreasureScene/archive/master.zip"
+                             :skip-root? true}
+
+
+                            {:name "Perspective Parallax"
+                             :description "This sample shows a perspective camera parallax effect"
+                             :image "perspectiveparallax.png"
+                             :duration "Short"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/FlexYourBrain/sample-perspective_parallax/archive/master.zip"
+                             :skip-root? true}
+
                              {:name "Shadertoy sample"
                              :description "This sample contains a GLSL shader that was taken from Shadertoy and converted to Defold. It showcases how to work with materials and shaders in Defold."
                              :image "shadertoy.png"

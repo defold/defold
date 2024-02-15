@@ -20,6 +20,7 @@
 #include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
+#include <dlib/job_thread.h>
 #include <dlib/opaque_handle_container.h>
 
 #include <ddf/ddf.h>
@@ -284,17 +285,18 @@ namespace dmGraphics
     {
         ContextParams();
 
-        dmPlatform::HWindow m_Window;
-        TextureFilter       m_DefaultTextureMinFilter;
-        TextureFilter       m_DefaultTextureMagFilter;
-        uint32_t            m_Width;
-        uint32_t            m_Height;
-        uint32_t            m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
-        uint8_t             m_VerifyGraphicsCalls : 1;
-        uint8_t             m_PrintDeviceInfo : 1;
-        uint8_t             m_RenderDocSupport : 1;           // Vulkan only
-        uint8_t             m_UseValidationLayers : 1;        // Vulkan only
-        uint8_t             : 4;
+        dmPlatform::HWindow   m_Window;
+        dmJobThread::HContext m_JobThread;
+        TextureFilter         m_DefaultTextureMinFilter;
+        TextureFilter         m_DefaultTextureMagFilter;
+        uint32_t              m_Width;
+        uint32_t              m_Height;
+        uint32_t              m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
+        uint8_t               m_VerifyGraphicsCalls : 1;
+        uint8_t               m_PrintDeviceInfo : 1;
+        uint8_t               m_RenderDocSupport : 1;           // Vulkan only
+        uint8_t               m_UseValidationLayers : 1;        // Vulkan only
+        uint8_t               : 4;
     };
 
     struct PipelineState

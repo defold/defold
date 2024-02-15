@@ -516,6 +516,7 @@ namespace dmGameSystem
         "a joint with that id already exist",
         "joint id not found",
         "joint not connected",
+        "physics world locked (in the middle of a time step)",
         "unknown error",
     };
 
@@ -1697,7 +1698,7 @@ namespace dmGameSystem
             dmLogError("Failed to setup physics.set_listener() callback");
             return;
         }
-        lua_pushstring(L, desc->m_Name);
+        dmScript::PushHash(L, desc->m_NameHash);
         dmScript::PushDDF(L, desc, data, false);
         int ret = dmScript::PCall(L, 3, 0);
         (void)ret;

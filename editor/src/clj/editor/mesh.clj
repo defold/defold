@@ -461,7 +461,7 @@
                                                         prop-entry {:node-id _node-id
                                                                     :type resource-type
                                                                     :edit-type {:type resource/Resource
-                                                                                :ext (conj image/exts "cubemap")}}
+                                                                                :ext (conj image/exts "cubemap" "render_target")}}
                                                         keys (map :name samplers)
                                                         p (->> keys
                                                                (map-indexed (fn [i s]

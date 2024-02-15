@@ -17,4 +17,31 @@
 
 #include <dmsdk/dlib/thread.h>
 
+#if !defined(__EMSCRIPTEN__)
+    #define DM_HAS_THREADS
+#endif
+
+#if defined(DM_USE_SINGLE_THREAD)
+    #if defined(DM_HAS_THREADS)
+        #undef DM_HAS_THREADS
+    #endif
+#endif
+
+namespace dmThread
+{
+    /*# check for threading support
+     *
+     * @name dmThread::PlatformHasThreadSupport
+     * @return true if platform has support for threads
+     */
+    static inline bool PlatformHasThreadSupport()
+    {
+    #if defined(DM_HAS_THREADS)
+        return true;
+    #else
+        return false;
+    #endif
+    }
+}
+
 #endif // DM_THREAD_H

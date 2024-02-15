@@ -75,8 +75,6 @@ namespace dmResource
     typedef uintptr_t ResourceType;
     typedef dmArray<char> LoadBufferType;
 
-    typedef Result (*FResourceLoad)(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer, void* context);
-
     Result RegisterTypes(HFactory factory, dmHashTable64<void*>* contexts);
     Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts);
 
@@ -407,12 +405,6 @@ namespace dmResource
     /*#
      */
     const char* ResultToString(Result result);
-
-    struct PreloadHintInfo
-    {
-        HPreloader m_Preloader;
-        int32_t m_Parent;
-    };
 
     // load with default internal buffer and its management, returns buffer ptr in 'buffer'
     Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);

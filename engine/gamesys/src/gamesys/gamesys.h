@@ -19,6 +19,7 @@
 #include <string.h>
 #include <script/script.h>
 
+#include <dlib/job_thread.h>
 #include <resource/resource.h>
 
 #include <dmsdk/dlib/array.h>
@@ -51,8 +52,6 @@ namespace dmGameSystem
     extern const char* FACTORY_MAX_COUNT_KEY;
     /// Config key to use for tweaking maximum number of collection factories
     extern const char* COLLECTION_FACTORY_MAX_COUNT_KEY;
-
-    struct MaterialResource;
 
     struct TilemapContext
     {
@@ -108,7 +107,7 @@ namespace dmGameSystem
 
     struct RenderScriptPrototype
     {
-        dmArray<MaterialResource*>      m_Materials;
+        dmArray<void*>                  m_RenderResources;
         dmhash_t                        m_NameHash;
         dmRender::HRenderScriptInstance m_Instance;
         dmRender::HRenderScript         m_Script;
@@ -155,6 +154,7 @@ namespace dmGameSystem
         dmGameObject::HRegister m_Register;
         dmHID::HContext         m_HidContext;
         dmGraphics::HContext    m_GraphicsContext;
+        dmJobThread::HContext   m_JobThread;
     };
 
 

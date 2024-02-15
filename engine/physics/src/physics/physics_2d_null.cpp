@@ -319,28 +319,33 @@ namespace dmPhysics
     {
     }
 
-    void GetCollisionShapeRadius2D(HCollisionShape2D shape, float* radius)
+    bool IsWorldLocked(HWorld2D world)
+    {
+        return false;
+    }
+
+    void GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D shape, float* radius)
     {
     }
 
-    void GetCollisionShapePolygonVertices2D(HCollisionShape2D shape, float** vertices, uint32_t* vertex_count)
+    void GetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D shape, dmVMath::Quat rotation, float& w, float& h)
     {
     }
 
-    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object, uint32_t shape_index)
+    HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index)
     {
         return 0;
     }
 
-    void SetCollisionShapeRadius2D(HCollisionShape2D shape, float radius)
+    void SetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D shape, float radius)
     {
     }
 
-    void SetCollisionShapeBoxDimensions2D(HCollisionShape2D shape, float w, float h)
+    void SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D shape, dmVMath::Quat rotation, float w, float h)
     {
     }
 
-    void SynchronizeObject2D(HCollisionObject2D collision_object)
+    void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
     {
     }
 }

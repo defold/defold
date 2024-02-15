@@ -736,4 +736,10 @@ namespace dmGameSystem
             return dmParticle::FETCH_ANIMATION_NOT_FOUND;
         }
     }
+
+    void GetParticleFXWorldRenderBuffers(void* pfx_world, dmRender::HBufferedRenderBuffer* vx_buffer)
+    {
+        ParticleFXWorld* world = (ParticleFXWorld*) pfx_world;
+        *vx_buffer = world->m_VertexBuffer;
+    }
 }
