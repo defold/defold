@@ -207,9 +207,9 @@
   (or (instance? Curve value)
       (instance? CurveSpread value)))
 
-(def default-spline-point [(float 0.0) (float 0.0) (float 1.0) (float 0.0)])
+(def default-control-point [protobuf/float-zero protobuf/float-zero protobuf/float-one protobuf/float-zero])
 
-(def default-control-points [default-spline-point])
+(def default-control-points [default-control-point])
 
 (def default-spread (float 0.0))
 

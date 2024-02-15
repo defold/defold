@@ -445,10 +445,20 @@ ordinary paths."
   (let [resource (get-template-resource workspace resource-type)]
     (not= resource nil)))
 
-(defn template [workspace resource-type]
+(defn- template-raw [workspace resource-type]
   (when-let [resource (get-template-resource workspace resource-type)]
-    (with-open [f (io/reader resource)]
-      (slurp f))))
+    (let [{:keys [read-fn write-fn]} resource-type]
+      (if (and read-fn write-fn)
+        ;; Sanitize the template.
+        (write-fn
+          (with-open [reader (io/reader resource)]
+            (read-fn reader)))
+
+        ;; Just read the file as-is.
+        (with-open [reader (io/reader resource)]
+          (slurp reader))))))
+
+(def template (fn/memoize template-raw))
 
 (defn- update-dependency-notifications! [workspace lib-states]
   (let [{:keys [error missing]} (->> lib-states

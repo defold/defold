@@ -147,22 +147,28 @@
 (def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
 
 (defn- curve->pb-spline-points [curve]
-  (when (props/curve? curve)
-    (->> curve
-         (props/curve-vals)
-         (sort-by first)
-         (mapv (fn [[x y t-x t-y]]
-                 (protobuf/make-map-without-defaults Particle$SplinePoint
-                   :x x
-                   :y y
-                   :t-x t-x
-                   :t-y t-y)))
-         (not-empty))))
+  (->> curve
+       (props/curve-vals)
+       (sort-by first)
+       (mapv (fn [[x y t-x t-y]]
+               (protobuf/make-map-without-defaults Particle$SplinePoint
+                 :x (float x)
+                 :y (float y)
+                 :t-x (float t-x)
+                 :t-y (float t-y))))))
 
 (defn- pb-spline-point->control-point [pb-spline-point]
   {:pre [(map? pb-spline-point)]} ; Particle$SplinePoint in map format.
-  (let [{:keys [x y t-x t-y]} pb-spline-point]
-    [x y t-x t-y]))
+  (let [x (protobuf/intern-float (:x pb-spline-point protobuf/float-zero))
+        y (protobuf/intern-float (:y pb-spline-point protobuf/float-zero))
+        t-x (protobuf/intern-float (:t-x pb-spline-point protobuf/float-one))
+        t-y (protobuf/intern-float (:t-y pb-spline-point protobuf/float-zero))]
+    (if (and (identical? protobuf/float-zero x)
+             (identical? protobuf/float-zero y)
+             (identical? protobuf/float-one t-x)
+             (identical? protobuf/float-zero t-y))
+      props/default-control-point
+      [x y t-x t-y])))
 
 (defn- pb-property->curve [pb-property]
   {:pre [(map? pb-property)]} ; Particle$Emitter$Property, Particle$Emitter$ParticleProperty, or Particle$Modifier$Property in map format.
@@ -174,17 +180,28 @@
                         (:spread pb-property)))
 
 (defn- curve->pb-property [^Class property-pb-class property-key curve]
-  (when-let [points (curve->pb-spline-points curve)]
-    (let [spread (:spread curve props/default-spread)
-          spread-is-significant (not= props/default-spread spread)
-          points-are-significant (not= props/default-control-points points)]
-      (when (or spread-is-significant points-are-significant)
-        (cond-> (protobuf/make-map-without-defaults property-pb-class
-                  :key property-key
-                  :points points)
+  (let [points (curve->pb-spline-points curve)
+        spread (or (:spread curve) props/default-spread)]
+    (if (= props/default-spread spread)
+      (protobuf/make-map-without-defaults property-pb-class
+        :key property-key
+        :points points)
+      (protobuf/make-map-without-defaults property-pb-class
+        :key property-key
+        :points points
+        :spread spread))))
 
-                spread-is-significant ; Separate spread assignment because property-pb-class might not have a spread field, which would cause an error in make-map-without-defaults.
-                (assoc :spread spread))))))
+(def ^:private default-pb-spline-point (protobuf/default-message Particle$SplinePoint #{:required}))
+
+(defn- significant-pb-property? [pb-property]
+  {:pre [(map? pb-property)]} ; Particle$Emitter$Property, Particle$Emitter$ParticleProperty, or Particle$Modifier$Property in map format.
+  (let [points (:points pb-property)
+        spread (:spread pb-property props/default-spread)]
+    (or (not= props/default-spread spread)
+        (< 1 (count points))
+        (if-let [point (first points)]
+          (not= default-pb-spline-point point)
+          false))))
 
 (defn- modifier-type-has-max-distance? [modifier-type]
   (case modifier-type
@@ -193,10 +210,12 @@
 
 (g/defnk produce-modifier-pb
   [position rotation type magnitude max-distance use-direction]
+  ;; TODO(save-value-cleanup): Maybe we should strip these like the rest of the
+  ;; properties elsewhere? See the comment in sanitize-modifier below.
   (let [properties
         (into []
-              (keep (fn [[property-key curve]]
-                      (curve->pb-property Particle$Modifier$Property property-key curve)))
+              (map (fn [[property-key curve]]
+                     (curve->pb-property Particle$Modifier$Property property-key curve)))
               (cond-> {:modifier-key-magnitude magnitude}
                       (modifier-type-has-max-distance? type)
                       (assoc :modifier-key-max-distance max-distance)))]
@@ -290,12 +309,8 @@
 
 (def ^:private mod-types {:modifier-type-acceleration {:label "Acceleration"
                                                        :template {:type :modifier-type-acceleration
-                                                                  :use-direction 0
-                                                                  :position [0 0 0]
-                                                                  :rotation [0 0 0 1]
                                                                   :properties [{:key :modifier-key-magnitude
-                                                                                :points [{:x 0.0 :y -100.0 :t-x 1.0 :t-y 0.0}]
-                                                                                :spread 0.0}]}
+                                                                                :points [{:y -100.0}]}]}
                                                        :geom-data-screen (fn [magnitude _]
                                                                            (if (< magnitude 0)
                                                                              acceleration-neg-geom-data
@@ -303,24 +318,16 @@
                                                        :geom-data-world (constantly [])}
                           :modifier-type-drag {:label "Drag"
                                                :template {:type :modifier-type-drag
-                                                          :use-direction 0
-                                                          :position [0 0 0]
-                                                          :rotation [0 0 0 1]
                                                           :properties [{:key :modifier-key-magnitude
-                                                                        :points [{:x 0.0 :y 1.0 :t-x 1.0 :t-y 0.0}]
-                                                                        :spread 0.0}]}
+                                                                        :points [{:y 1.0}]}]}
                                                :geom-data-screen (constantly drag-geom-data)
                                                :geom-data-world (constantly [])}
                           :modifier-type-radial {:label "Radial"
                                                  :template {:type :modifier-type-radial
-                                                            :use-direction 0
-                                                            :position [0 0 0]
-                                                            :rotation [0 0 0 1]
                                                             :properties [{:key :modifier-key-magnitude
-                                                                          :points [{:x 0.0 :y 100.0 :t-x 1.0 :t-y 0.0}]
-                                                                          :spread 0.0}
+                                                                          :points [{:y 100.0}]}
                                                                          {:key :modifier-key-max-distance
-                                                                          :points [{:x 0.0 :y 1000.0 :t-x 1.0 :t-y 0.0}]}]}
+                                                                          :points [{:y 1000.0}]}]}
                                                  :geom-data-screen (fn [magnitude _]
                                                                      (if (< magnitude 0)
                                                                        radial-neg-geom-data
@@ -329,14 +336,10 @@
                                                                     (geom/scale [max-distance max-distance 1] dash-circle))}
                           :modifier-type-vortex {:label "Vortex"
                                                  :template {:type :modifier-type-vortex
-                                                            :use-direction 0
-                                                            :position [0 0 0]
-                                                            :rotation [0 0 0 1]
                                                             :properties [{:key :modifier-key-magnitude
-                                                                          :points [{:x 0.0 :y 100.0 :t-x 1.0 :t-y 0.0}]
-                                                                          :spread 0.0}
+                                                                          :points [{:y 100.0}]}
                                                                          {:key :modifier-key-max-distance
-                                                                          :points [{:x 0.0 :y 1000.0 :t-x 1.0 :t-y 0.0}]}]}
+                                                                          :points [{:y 1000.0}]}]}
                                                  :geom-data-screen (fn [magnitude _]
                                                                      (if (< magnitude 0)
                                                                        vortex-neg-geom-data
@@ -600,7 +603,9 @@
         (comp (map first)
               (keep (fn [property-key]
                       (when-some [curve (property-key->curve property-key)]
-                        (curve->pb-property property-pb-class property-key curve)))))
+                        (let [pb-property (curve->pb-property property-pb-class property-key curve)]
+                          (when (significant-pb-property? pb-property)
+                            pb-property))))))
         (butlast (protobuf/enum-values property-key-enum-pb-class))))
 
 (g/defnode EmitterProperties
@@ -1228,11 +1233,23 @@
 
 (defn- sanitize-emitter [emitter]
   ;; Particle$Emitter in map format.
-  (protobuf/sanitize-repeated emitter :attributes graphics/sanitize-attribute-override))
+  (-> emitter
+      (protobuf/assign-repeated :properties (filterv significant-pb-property? (:properties emitter)))
+      (protobuf/assign-repeated :particle-properties (filterv significant-pb-property? (:particle-properties emitter)))
+      (protobuf/sanitize-repeated :attributes graphics/sanitize-attribute-override)))
 
 (defn- sanitize-modifier [modifier]
   ;; Particle$Modifier in map format.
-  ;; Add default properties.
+  ;; Add default properties. We do this instead of stripping them out because
+  ;; they have individual defaults. This means we always have to include all the
+  ;; modifier properties in the file. Luckily, there are far fewer of these than
+  ;; the emitter and particle properties.
+  ;;
+  ;; TODO(save-value-cleanup): Maybe we should just sanitize these like the rest
+  ;; of the properties? If I add a modifier, it will have the default properties
+  ;; and this only covers the case where there were no properties at all. Seems
+  ;; like a hack to make a short-lived file format without properties load in
+  ;; the editor?
   (update modifier :properties #(or (not-empty %) (get-in mod-types [(:type modifier) :template :properties]))))
 
 (defn- sanitize-particle-fx [particle-fx]

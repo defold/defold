@@ -31,10 +31,10 @@ enum EmissionSpace
 
 message SplinePoint
 {
-    required float x = 1;
-    required float y = 2;
-    required float t_x = 3;
-    required float t_y = 4;
+    optional float x = 1;
+    required float y = 2; // Required since it holds the value for non-curve property values.
+    optional float t_x = 3 [default = 1.0];
+    optional float t_y = 4;
 }
 
 enum EmitterKey

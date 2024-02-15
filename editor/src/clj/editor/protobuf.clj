@@ -460,7 +460,7 @@ Macros currently mean no foreseeable performance gain, however."
   (let [pb->clj (pb->clj-fn class default-included-field-rules)]
     (pb->clj (default-instance class))))
 
-(def ^:private default-message (fn/memoize default-message-raw))
+(def default-message (fn/memoize default-message-raw))
 
 (defn- pb->clj-fn-raw [^Class class default-included-field-rules]
   {:pre [(set? default-included-field-rules)
