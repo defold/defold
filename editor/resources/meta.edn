@@ -810,10 +810,6 @@
    :default "downscale_fit",
    :path ["html5" "scale_mode"]
    :options [["downscale_fit" "Downscale Fit"] ["fit" "Fit"] ["stretch" "Stretch"] ["no_scale" "No Scale"]]}
-  {:type :string,
-   :help "the application id as issued by Facebook",
-   :default "",
-   :path ["facebook" "appid"]}
   {:type :boolean,
    :help "auto-finish transactions",
    :default true,
@@ -891,8 +887,6 @@
             :group "Components"},
   "tilemap" {:help "Tilemap related settings"
              :group "Components"},
-  "facebook" {:help "Facebook related settings"
-              :group "Runtime"},
   "windows" {:help "Windows related settings"
              :group "Platforms"},
   "input" {:help "Input related settings"
