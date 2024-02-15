@@ -810,10 +810,6 @@
    :default "downscale_fit",
    :path ["html5" "scale_mode"]
    :options [["downscale_fit" "Downscale Fit"] ["fit" "Fit"] ["stretch" "Stretch"] ["no_scale" "No Scale"]]}
-  {:type :boolean,
-   :help "auto-finish transactions",
-   :default true,
-   :path ["iap" "auto_finish_transactions"]}
   {:type :resource,
    :filter "appmanifest",
    :preserve-extension true,
@@ -898,9 +894,6 @@
   "ios" {:help "iOS related settings"
          :title "iOS"
          :group "Platforms"},
-  "iap" {:help "In App Purchase related settings"
-         :title "IAP"
-         :group "Runtime"},
   "mesh" {:group "Components"}
   "model" {:group "Components"}
   "render" {:group "Runtime"}
