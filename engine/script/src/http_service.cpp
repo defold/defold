@@ -27,7 +27,7 @@
 #include <dlib/uri.h>
 #include <dlib/math.h>
 #include <ddf/ddf.h>
-#include <dmsdk/gameobject/script.h>
+#include <dmsdk/script.h>
 #include "http_ddf.h"
 #include "http_service.h"
 
