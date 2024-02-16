@@ -183,7 +183,7 @@ namespace dmGraphics
             word_start = line_start;
             word_end   = line_start;
 
-        #if 1
+        #if 0
             char line_buf[256];
             size_t line_len = line_end - line_start;
             memcpy(line_buf, line_start, line_len);

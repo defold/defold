@@ -716,6 +716,7 @@ namespace dmRender
         if (unit >= render_context->m_TextureBindTable.Size())
         {
             render_context->m_TextureBindTable.SetCapacity(unit + 1);
+            memset(render_context->m_TextureBindTable.Begin() + render_context->m_TextureBindTable.Size(), 0, render_context->m_TextureBindTable.Remaining());
             render_context->m_TextureBindTable.SetSize(render_context->m_TextureBindTable.Capacity());
         }
 
