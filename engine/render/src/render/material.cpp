@@ -355,6 +355,18 @@ namespace dmRender
         return 0xFFFFFFFF;
     }
 
+    int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash)
+    {
+        for (int i = 0; i < material->m_Samplers.Size(); ++i)
+        {
+            if (material->m_Samplers[i].m_NameHash == name_hash)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture)
     {
         if (!sampler)

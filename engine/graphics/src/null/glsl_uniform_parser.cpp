@@ -112,6 +112,11 @@ namespace dmGraphics
             *out_type = TYPE_SAMPLER_CUBE;
             return true;
         }
+        else if (STRNCMP("sampler2DArray", string, count))
+        {
+            *out_type = TYPE_SAMPLER_2D_ARRAY;
+            return true;
+        }
         return false;
     }
 
@@ -178,7 +183,7 @@ namespace dmGraphics
             word_start = line_start;
             word_end   = line_start;
 
-        #if 0
+        #if 1
             char line_buf[256];
             size_t line_len = line_end - line_start;
             memcpy(line_buf, line_start, line_len);

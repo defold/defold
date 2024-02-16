@@ -1488,8 +1488,18 @@ namespace dmRender
     int RenderScript_EnableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        dmhash_t sampler_hash   = 0;
+        uint32_t unit           = 0;
 
-        uint32_t unit = luaL_checkinteger(L, 1);
+        if (lua_isnumber(L, 1))
+        {
+            unit = lua_tointeger(L, 1);
+        }
+        else
+        {
+            sampler_hash = dmScript::CheckHashOrString(L, 1);
+        }
+
         if (lua_isnumber(L, 2))
         {
             dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
@@ -1527,7 +1537,7 @@ namespace dmRender
             // Texture can potentially still be zero if it's an attachment texture
             if(texture != 0)
             {
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, texture)))
+                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, sampler_hash, unit, texture)))
                 {
                     return 0;
                 }
@@ -1568,8 +1578,19 @@ namespace dmRender
     int RenderScript_DisableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t unit = luaL_checkinteger(L, 1);
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_TEXTURE, unit)))
+        dmhash_t sampler_hash   = 0;
+        uint32_t unit           = 0;
+
+        if (lua_isnumber(L, 1))
+        {
+            unit = lua_tointeger(L, 1);
+        }
+        else
+        {
+            sampler_hash = dmScript::CheckHashOrString(L, 1);
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_TEXTURE, sampler_hash, unit)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());

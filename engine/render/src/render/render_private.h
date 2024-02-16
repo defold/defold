@@ -234,9 +234,15 @@ namespace dmRender
         dmhash_t m_Tags[MAX_MATERIAL_TAG_COUNT];
     };
 
+    struct TextureBinding
+    {
+        dmhash_t             m_Samplerhash;
+        dmGraphics::HTexture m_Texture;
+    };
+
     struct RenderContext
     {
-        dmGraphics::HTexture        m_Textures[RenderObject::MAX_TEXTURE_COUNT];
+        TextureBinding              m_TextureBindTable[RenderObject::MAX_TEXTURE_COUNT];
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
         dmScript::HContext          m_ScriptContext;
@@ -296,7 +302,9 @@ namespace dmRender
     // Gets the list associated with a hash of all the tags (see RegisterMaterialTagList)
     void                            GetMaterialTagList(HRenderContext context, uint32_t list_hash, MaterialTagList* list);
 
-    bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
+    void    SetTextureBinding(dmRender::HRenderContext render_context, dmhash_t sampler_hash, uint32_t unit, dmGraphics::HTexture texture);
+    bool    GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
+    int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter
