@@ -23,6 +23,7 @@ import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.util.FileUtil;
 
 import java.nio.file.Files;
 import java.io.File;
@@ -120,7 +121,7 @@ public class BobProjectPropertiesTest {
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        file.deleteOnExit();
+        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }

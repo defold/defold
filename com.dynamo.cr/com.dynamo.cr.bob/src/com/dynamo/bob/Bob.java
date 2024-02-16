@@ -62,6 +62,7 @@ import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.cache.ResourceCacheKey;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.util.FileUtil;
 
 public class Bob {
     private static Logger logger = Logger.getLogger(Bob.class.getName());
@@ -166,7 +167,7 @@ public class Bob {
 
                     File dstFile = new File(toFolder, entry.getName());
                     if (deleteOnExit)
-                        dstFile.deleteOnExit();
+                        FileUtil.deleteOnExit(dstFile);
                     dstFile.getParentFile().mkdirs();
 
                     OutputStream fileStream = null;
@@ -354,7 +355,7 @@ public class Bob {
                 File file = new File(downloadFolder, exeName);
                 HttpUtil http = new HttpUtil();
                 http.downloadToFile(url, file);
-                file.deleteOnExit();
+                FileUtil.deleteOnExit(file);
                 binaryFiles.add(file);
             }
             catch (Exception e) {

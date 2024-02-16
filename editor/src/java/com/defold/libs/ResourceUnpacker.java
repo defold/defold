@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import com.defold.editor.Editor;
+import com.dynamo.bob.util.FileUtil;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -234,7 +235,7 @@ public class ResourceUnpacker {
             return ensureDirectory(Editor.getSupportPath().resolve(Paths.get("unpack", sha1)));
         } else {
             Path tmpDir = Files.createTempDirectory("defold-unpack");
-            deleteOnExit(tmpDir);
+            FileUtil.deleteOnExit(tmpDir);
             return tmpDir;
         }
     }
@@ -245,16 +246,5 @@ public class ResourceUnpacker {
             f.mkdirs();
         }
         return path;
-    }
-
-    // Note! There is a method FileUtils#forceDeleteOnExit which does not seem to work,
-    // it does not delete the directory although the Javadoc says it should.
-    private static void deleteOnExit(Path path) {
-        File f = path.toFile();
-        if (f.isDirectory()) {
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(f)));
-        } else {
-            f.deleteOnExit();
-        }
     }
 }
