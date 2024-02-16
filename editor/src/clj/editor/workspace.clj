@@ -790,6 +790,7 @@ ordinary paths."
   (property snapshot-cache g/Any (default {}))
   (property build-settings g/Any)
   (property editable-proj-path? g/Any)
+  (property atlas-resource-extensions g/Any (default ["atlas" "tilesource"]))
 
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)
@@ -798,6 +799,13 @@ ordinary paths."
   (output resource-tree FileResource :cached produce-resource-tree)
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map))
+
+(defn get-atlas-resource-extensions [workspace]
+   (g/node-value workspace :atlas-resource-extensions))
+
+(defn add-atlas-resource-extensions [workspace extension]
+  (g/update-property workspace :atlas-resource-extensions
+                     conj (get-atlas-resource-extensions workspace) extension))
 
 (defn make-build-settings
   [prefs]

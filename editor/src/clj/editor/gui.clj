@@ -1552,9 +1552,9 @@
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id texture]
                              (prop-resource-error _node-id :texture texture "Texture")))
-            (dynamic edit-type (g/constantly
+            (dynamic edit-type (g/fnk [texture]
                                  {:type resource/Resource
-                                  :ext ["atlas" "tilesource"]})))
+                                  :ext (workspace/get-atlas-resource-extensions (:workspace texture))})))
 
   (input name-counts NameCounts)
   (input default-tex-params g/Any)
@@ -2018,7 +2018,7 @@
 
 (defn- add-textures-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-   "Textures" ["atlas" "tilesource"] (g/node-value parent :name-counts) project select-fn
+   "Textures" (workspace/get-atlas-resource-extensions (project/workspace project)) (g/node-value parent :name-counts) project select-fn
    (partial add-texture scene parent)))
 
 (g/defnode TexturesNode
