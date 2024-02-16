@@ -540,13 +540,13 @@
                     (put-renderables! attribute-byte-offset #(get-in % [:texcoord-datas i :uv-data]) put-attribute-doubles!))
 
                   :semantic-type-page-index
-                  (put-renderables! attribute-byte-offset
-                                    (fn [attribute-data]
-                                      (let [vertex-count (count (:position-data attribute-data))
-                                            i (vswap! page-index-vol inc)
-                                            page-index (get-in attribute-data [:texcoord-datas i :page-index])]
-                                        (repeat vertex-count [(double page-index)])))
-                                    put-attribute-doubles!)
+                  (let [i (vswap! page-index-vol inc)]
+                    (put-renderables! attribute-byte-offset
+                                      (fn [attribute-data]
+                                        (let [vertex-count (count (:position-data attribute-data))
+                                              page-index (get-in attribute-data [:texcoord-datas i :page-index])]
+                                          (repeat vertex-count [(double page-index)])))
+                                      put-attribute-doubles!))
 
                   :semantic-type-normal
                   (put-renderables! attribute-byte-offset :normal-data put-attribute-doubles!)
