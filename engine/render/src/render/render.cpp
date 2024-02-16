@@ -684,12 +684,13 @@ namespace dmRender
         uint32_t num_bindings = render_context->m_TextureBindTable.Size();
         for (int i = 0; i < num_bindings; ++i)
         {
+            // The sampler is already bound to this texture, we shouldn't bind it twice
             if (render_context->m_TextureBindTable[i].m_Samplerhash == sampler_hash &&
                 render_context->m_TextureBindTable[i].m_Texture == texture)
             {
-                // The sampler is already bound to this texture, we shouldn't bind it twice
                 return;
             }
+            // Take an empty slot if we can find one
             else if (render_context->m_TextureBindTable[i].m_Texture == 0)
             {
                 render_context->m_TextureBindTable[i].m_Texture     = texture;
@@ -703,6 +704,7 @@ namespace dmRender
             render_context->m_TextureBindTable.OffsetCapacity(4);
         }
 
+        // Otherwise, we add a new binding to the end of the list
         TextureBinding new_binding;
         new_binding.m_Samplerhash = sampler_hash;
         new_binding.m_Texture     = texture;
@@ -713,8 +715,8 @@ namespace dmRender
     {
         if (unit >= render_context->m_TextureBindTable.Size())
         {
-            render_context->m_TextureBindTable.OffsetCapacity(4);
-            render_context->m_TextureBindTable.SetSize(unit + 1);
+            render_context->m_TextureBindTable.SetCapacity(unit + 1);
+            render_context->m_TextureBindTable.SetSize(render_context->m_TextureBindTable.Capacity());
         }
 
         render_context->m_TextureBindTable[unit].m_Texture     = texture;
@@ -731,12 +733,29 @@ namespace dmRender
                 int32_t sampler_index = GetMaterialSamplerIndex(material, render_context->m_TextureBindTable[i].m_Samplerhash);
                 if (sampler_index >= 0 && sampler_index < RenderObject::MAX_TEXTURE_COUNT)
                 {
-                    textures[sampler_index] = render_context->m_TextureBindTable[i].m_Texture;
+                    if (sampler_index < RenderObject::MAX_TEXTURE_COUNT)
+                    {
+                        textures[sampler_index] = render_context->m_TextureBindTable[i].m_Texture;
+                    }
+                    else
+                    {
+                        dmLogOnceWarning("Unable to bind texture '%s' to unit %d, max %d texture units are supported.",
+                            dmHashReverseSafe64(render_context->m_TextureBindTable[i].m_Samplerhash),
+                            sampler_index, RenderObject::MAX_TEXTURE_COUNT);
+                    }
                 }
             }
             else if (textures[i] == 0)
             {
-                textures[i] = render_context->m_TextureBindTable[i].m_Texture;
+                if (i < RenderObject::MAX_TEXTURE_COUNT)
+                {
+                    textures[i] = render_context->m_TextureBindTable[i].m_Texture;
+                }
+                else
+                {
+                    dmLogOnceWarning("Unable to bind texture to unit %d, max %d texture units are supported.",
+                        i, RenderObject::MAX_TEXTURE_COUNT);
+                }
             }
         }
     }

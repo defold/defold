@@ -457,7 +457,7 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
 struct TestEnableTextureByHashDispatchCtx
 {
     dmRender::HRenderContext        m_Context;
-    dmRender::RenderObject          m_RenderObjects[2];
+    dmRender::RenderObject          m_RenderObject;
     dmGraphics::HTexture*           m_Textures;
 
     dmRender::HMaterial             m_Material;
@@ -470,7 +470,7 @@ static void TestEnableTextureByHashDispatch(dmRender::RenderListDispatchParams c
     if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
     {
         TestEnableTextureByHashDispatchCtx* user_ctx = (TestEnableTextureByHashDispatchCtx*) params.m_UserData;
-        dmRender::RenderObject* ro_0                 = &user_ctx->m_RenderObjects[0];
+        dmRender::RenderObject* ro_0                 = &user_ctx->m_RenderObject;
 
         ro_0->m_Material          = user_ctx->m_Material;
         ro_0->m_VertexCount       = 1;
@@ -509,8 +509,6 @@ static dmGraphics::HTexture MakeDummyTexture(dmGraphics::HContext context, uint3
 
 TEST_F(dmRenderTest, TestEnableTextureByHash)
 {
-    dmRender::RenderListBegin(m_Context);
-
     const char* shader_src = "uniform lowp sampler2D texture_sampler_1;\n"
                              "uniform lowp sampler2D texture_sampler_2;\n"
                              "uniform lowp sampler2DArray texture_sampler_3;\n"
@@ -553,6 +551,8 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     user_ctx.m_VertexBuffer      = vx_buffer;
     user_ctx.m_Textures          = textures;
 
+    dmRender::RenderListBegin(m_Context);
+
     uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestEnableTextureByHashDispatch, 0, &user_ctx);
     dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, 1);
 
@@ -579,6 +579,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     dmRender::RenderListSubmit(m_Context, out, out + 1);
     dmRender::RenderListEnd(m_Context);
+
     dmRender::DrawRenderList(m_Context, 0, 0, 0);
 
     // we bind test_texture_0 to unit 0, but that binding will be overwritten by the name hash binding
@@ -631,6 +632,76 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     }
 
     dmGraphics::DeleteTexture(test_texture_0);
+
+    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
+    dmRender::DeleteMaterial(m_Context, material);
+
+    dmGraphics::DeleteVertexBuffer(vx_buffer);
+    dmGraphics::DeleteVertexDeclaration(vx_decl);
+}
+
+TEST_F(dmRenderTest, TestEnableDisableContextTextures)
+{
+    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader("foo", 3);
+    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader("foo", 3);
+
+    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_shader);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_shader);
+    dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, vp, fp);
+
+    dmhash_t tag = dmHashString64("tag");
+    dmRender::SetMaterialTags(material, 1, &tag);
+
+    dmGraphics::HVertexDeclaration vx_decl = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
+    dmGraphics::HVertexBuffer vx_buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+
+    ASSERT_EQ(0, m_Context->m_TextureBindTable.Size());
+
+    SetTextureBindingByUnit(m_Context, 0, 13);
+    SetTextureBindingByUnit(m_Context, 7, 99);
+    SetTextureBindingByUnit(m_Context, 31, 1337);
+
+    ASSERT_EQ(32, m_Context->m_TextureBindTable.Size());
+    ASSERT_EQ(13,   m_Context->m_TextureBindTable[0].m_Texture);
+    ASSERT_EQ(99,   m_Context->m_TextureBindTable[7].m_Texture);
+    ASSERT_EQ(1337, m_Context->m_TextureBindTable[31].m_Texture);
+
+    // Unbind by unit
+    SetTextureBindingByUnit(m_Context, 0, 0);
+    SetTextureBindingByUnit(m_Context, 7, 0);
+    SetTextureBindingByUnit(m_Context, 31, 0);
+
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[0].m_Texture);
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[7].m_Texture);
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[31].m_Texture);
+
+    // Bind by unit and hashes
+    dmhash_t sampler_0 = dmHashString64("sampler_0");
+    dmhash_t sampler_1 = dmHashString64("sampler_1");
+
+    SetTextureBindingByHash(m_Context, sampler_0, 13); // -> slot 0
+    SetTextureBindingByUnit(m_Context, 0,         31); // -> overwrite slot 0
+    ASSERT_EQ(31, m_Context->m_TextureBindTable[0].m_Texture);
+    ASSERT_EQ(0,  m_Context->m_TextureBindTable[0].m_Samplerhash);
+
+    SetTextureBindingByUnit(m_Context, 1,         64); // -> slot 1
+    SetTextureBindingByHash(m_Context, sampler_0, 46); // -> slot 2 (not overwriting)
+
+    ASSERT_EQ(64,        m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ(0,         m_Context->m_TextureBindTable[1].m_Samplerhash);
+    ASSERT_EQ(46,        m_Context->m_TextureBindTable[2].m_Texture);
+    ASSERT_EQ(sampler_0, m_Context->m_TextureBindTable[2].m_Samplerhash);
+
+    SetTextureBindingByUnit(m_Context, 1, 0); // reset 1
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Samplerhash);
+
+    SetTextureBindingByHash(m_Context, sampler_1, 999); // -> reuse slot 1
+    ASSERT_EQ(999,       m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ(sampler_1, m_Context->m_TextureBindTable[1].m_Samplerhash);
 
     dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);
