@@ -78,12 +78,6 @@ public class ExtenderUtil {
             return resource;
         }
 
-        @Override
-        public byte[] sha1() throws IOException {
-            return resource.sha1();
-        }
-
-        @Override
         public String getAbsPath() {
             return resource.getAbsPath().replace('\\', '/');
         }
@@ -116,27 +110,6 @@ public class ExtenderUtil {
         public FileExtenderResource(File file, String path) {
             this.file = file;
             this.path = path;
-        }
-
-        @Override
-        public byte[] sha1() throws IOException {
-            byte[] content = getContent();
-            if (content == null) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
-            }
-            MessageDigest sha1;
-            try {
-                sha1 = MessageDigest.getInstance("SHA1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-            sha1.update(content);
-            return sha1.digest();
-        }
-
-        @Override
-        public String getAbsPath() {
-            return path;
         }
 
         @Override
@@ -297,22 +270,6 @@ public class ExtenderUtil {
 
         public IResource getResource() {
             return resource;
-        }
-
-        @Override
-        public byte[] sha1() throws IOException {
-            byte[] content = getContent();
-            if (content == null) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
-            }
-            MessageDigest sha1;
-            try {
-                sha1 = MessageDigest.getInstance("SHA1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-            sha1.update(content);
-            return sha1.digest();
         }
 
         @Override
@@ -722,7 +679,7 @@ public class ExtenderUtil {
                 for (ExtenderResource r : files) {
                     if (!(r instanceof FSExtenderResource))
                         continue;
-                    File f = new File(r.getAbsPath());
+                    File f = new File(((FSExtenderResource)r).getAbsPath());
                     out.add( ((FSExtenderResource)r).getResource() );
                 }
             }
