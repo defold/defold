@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -146,8 +146,6 @@ public:
         m_Context->m_SceneTraversalCache.m_Data.SetCapacity(MAX_NODES);
         m_Context->m_SceneTraversalCache.m_Data.SetSize(MAX_NODES);
 
-        // Bogus font for the metric callback to be run (not actually using the default font)
-        dmGui::SetDefaultFont(m_Context, (void*)0x1);
         dmGui::NewSceneParams params;
         params.m_MaxNodes = MAX_NODES;
         params.m_MaxAnimations = MAX_ANIMATIONS;
@@ -2495,6 +2493,9 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     dmGui::SetPhysicalResolution(m_Context, physical_width, physical_height);
     dmGui::SetSceneResolution(m_Scene, width, height);
 
+    int f;
+    dmGui::AddFont(m_Scene, dmHashString64("_default"), &f, 0);
+
     Vector4 ref_scale = dmGui::CalculateReferenceScale(m_Scene, 0);
 
     const char* s = "function init(self)\n"
@@ -2536,6 +2537,8 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     const float EPSILON = 0.0001f;
     ASSERT_NEAR(physical_width - 10.0f * ref_scale.getX(), pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH, EPSILON);
     ASSERT_NEAR(physical_height - 10.0f * ref_scale.getY(), pos2.getY() + ref_factor * 0.5f * (TEXT_MAX_DESCENT + TEXT_MAX_ASCENT), EPSILON);
+
+    dmGui::ClearFonts(m_Scene);
 }
 
 TEST_F(dmGuiTest, ScriptPivot)
@@ -2755,6 +2758,9 @@ TEST_F(dmGuiTest, ScriptPicking)
     dmGui::SetSceneResolution(m_Scene, physical_width, physical_height);
     dmGui::SetDefaultResolution(m_Context, physical_width, physical_height);
 
+    int f;
+    dmGui::AddFont(m_Scene, dmHashString64("_default"), &f, 0);
+
     char buffer[1024];
 
     const char* s = "function init(self)\n"
@@ -2772,13 +2778,15 @@ TEST_F(dmGuiTest, ScriptPicking)
                     "    assert(not gui.pick_node(n1, size.x + 1, size.y))\n"
                     "end\n";
 
-    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT, EPSILON);
+    dmSnPrintf(buffer, sizeof(buffer), s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT, EPSILON);
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(buffer));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
     r = dmGui::InitScene(m_Scene);
     ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::ClearFonts(m_Scene);
 }
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, Vector4 v) {
@@ -3436,7 +3444,7 @@ TEST_F(dmGuiTest, ScriptEnableDisable)
                     "    gui.set_enabled(self.n1, false)\n"
                     "    assert(not gui.is_enabled(self.n1))\n"
                     "end\n";
-    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
+    dmSnPrintf(buffer, sizeof(buffer), s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(buffer));
     ASSERT_EQ(dmGui::RESULT_OK, r);
@@ -3464,7 +3472,7 @@ TEST_F(dmGuiTest, ScriptRecursiveEnabled)
                     "    assert(not gui.is_enabled(self.n1))\n"
                     "    assert(not gui.is_enabled(self.n2, true))\n" // n2 node enabled but n1 disabled
                     "end\n";
-    sprintf(buffer, s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
+    dmSnPrintf(buffer, sizeof(buffer), s, TEXT_GLYPH_WIDTH, TEXT_MAX_ASCENT, TEXT_MAX_DESCENT);
     dmGui::Result r;
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(buffer));
     ASSERT_EQ(dmGui::RESULT_OK, r);

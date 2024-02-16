@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -432,7 +432,7 @@ void LogInitialize(const LogParams* params)
         return;
     }
 
-    dmSpinlock::Init(&g_LogServerLock);
+    dmSpinlock::Create(&g_LogServerLock);
 
     dmSocket::Socket server_socket = dmSocket::INVALID_SOCKET_HANDLE;
     uint16_t port = 0;
@@ -473,7 +473,7 @@ void LogInitialize(const LogParams* params)
     dmAtomicStore32(&g_LogServerInitialized, 1);
 
     dmAtomicStore32(&g_ListenersCount, 0);
-    dmSpinlock::Init(&g_ListenerLock);
+    dmSpinlock::Create(&g_ListenerLock);
 
     /*
      * This message is parsed by editor 2 - don't remove or change without
@@ -514,31 +514,36 @@ void LogFinalize()
     if (self->m_Thread)
         dmThread::Join(self->m_Thread);
 
-    DM_SPINLOCK_SCOPED_LOCK(g_LogServerLock);
-
-    uint32_t n = self->m_Connections.Size();
-    for (uint32_t i = 0; i < n; ++i)
     {
-        dmLogConnection* c = &self->m_Connections[i];
-        dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
-        dmSocket::Delete(c->m_Socket);
-        c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+        DM_SPINLOCK_SCOPED_LOCK(g_LogServerLock);
+
+        uint32_t n = self->m_Connections.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            dmLogConnection* c = &self->m_Connections[i];
+            dmSocket::Shutdown(c->m_Socket, dmSocket::SHUTDOWNTYPE_READWRITE);
+            dmSocket::Delete(c->m_Socket);
+            c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+
+        if (self->m_ServerSocket != dmSocket::INVALID_SOCKET_HANDLE)
+        {
+            dmSocket::Delete(self->m_ServerSocket);
+            self->m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
+        }
+
+        if (self->m_MessageSocket != 0)
+        {
+            dmMessage::DeleteSocket(self->m_MessageSocket);
+        }
+
+        delete self;
+        g_dmLogServer = 0;
+        CloseLogFile();
     }
 
-    if (self->m_ServerSocket != dmSocket::INVALID_SOCKET_HANDLE)
-    {
-        dmSocket::Delete(self->m_ServerSocket);
-        self->m_ServerSocket = dmSocket::INVALID_SOCKET_HANDLE;
-    }
-
-    if (self->m_MessageSocket != 0)
-    {
-        dmMessage::DeleteSocket(self->m_MessageSocket);
-    }
-
-    delete self;
-    g_dmLogServer = 0;
-    CloseLogFile();
+    dmSpinlock::Destroy(&g_ListenerLock);
+    dmSpinlock::Destroy(&g_LogServerLock);
 }
 
 uint16_t GetPort()
@@ -584,7 +589,8 @@ void dmLogUnregisterListener(FLogListener listener)
     {
         if (dmLog::g_Listeners[i] == listener)
         {
-            dmLog::g_Listeners[i] = dmLog::g_Listeners[dmAtomicSub32(&dmLog::g_ListenersCount, 1)];
+            int new_count = dmAtomicSub32(&dmLog::g_ListenersCount, 1) - 1;
+            dmLog::g_Listeners[i] = dmLog::g_Listeners[new_count];
             return;
         }
     }

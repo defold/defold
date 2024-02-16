@@ -27,6 +27,15 @@ def build(bld):
                     use             = 'DDF DLIB',
                     target          = 'graphics_proto')
 
+    bld.add_group()
+
+    obj = bld.stlib(features        = obj.features + ['skip_asan'],
+                    includes        = obj.includes,
+                    source          = bld.path.ant_glob(['graphics_proto.cpp']) + bld.path.parent.ant_glob('proto/graphics/*'),
+                    protoc_includes = obj.protoc_includes,
+                    use             = obj.use,
+                    target          = 'graphics_proto_noasan')
+
     proto_cpp_source = bld.path.parent.ant_glob('build/proto/graphics/*.cpp')
     proto_cpp_includes = ['../proto']
 
@@ -39,25 +48,38 @@ def build(bld):
     obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
 
     if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+
+        opengl_defines = []
+        opengl_platform_includes = []
+
+        if platform_supports_feature(bld.env.PLATFORM, 'compute', {}):
+            opengl_defines = ['DM_HAVE_PLATFORM_COMPUTE_SUPPORT']
+
+        if bld.env.PLATFORM in ('x86_64-win32', 'win32'):
+            opengl_platform_includes = ['opengl/win32']
+
         obj = bld.stlib(features        = 'cxx',
-                        includes        = ['.', 'opengl'] + proto_cpp_includes,
+                        includes        = ['.', 'opengl'] + proto_cpp_includes + opengl_platform_includes,
                         source          = bld.path.ant_glob(['*.cpp', 'opengl/*.cpp']) + proto_cpp_source,
                         use             = 'DDF DLIB',
+                        defines         = opengl_defines,
                         target          = 'graphics')
-
-        if 'web' in bld.env.PLATFORM:
-             obj.source.append('opengl/async/job_queue_sync.cpp');
-        else:
-             obj.source.append('opengl/async/job_queue_threaded.cpp');
 
     bld.add_group()
 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
         print("platform_supports_feature", bld.env.PLATFORM, 'vulkan')
+
+        vulkan_defines = []
+
+        if waflib.Options.options.with_vulkan_validation:
+            vulkan_defines.append('DM_VULKAN_VALIDATION=1')
+
         obj = bld.stlib(features        = 'cxx',
                         includes        = ['.', 'vulkan'] + proto_cpp_includes,
                         use             = 'DDF DLIB',
                         source          = bld.path.ant_glob(['*.cpp', 'vulkan/*.cpp']) + proto_cpp_source,
+                        defines         = vulkan_defines,
                         target          = 'graphics_vulkan')
 
         if bld.env.PLATFORM in ('arm64-nx64',):
@@ -77,6 +99,14 @@ def build(bld):
             obj.source.append('vulkan/linux/graphics_vulkan_linux_surface.cpp')
         elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
             obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
+
+        # Build experimental version of the vulkan library
+        obj = bld.stlib(features = obj.features,
+                        includes = obj.includes,
+                        source   = obj.source,
+                        use      = obj.use,
+                        defines  = vulkan_defines + ['DM_EXPERIMENTAL_GRAPHICS_FEATURES'],
+                        target   = 'graphics_vulkan_experimental')
 
     if bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5'):
         bld.recurse('ps4')

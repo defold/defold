@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -94,6 +94,7 @@ import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
@@ -133,8 +134,10 @@ public class Project {
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
     private List<URL> libUrls = new ArrayList<URL>();
-    private List<String> propertyFiles = new ArrayList<String>();
-    private List<String> buildServerHeaders = new ArrayList<String>();
+    private List<String> propertyFiles = new ArrayList<>();
+    private List<String> buildServerHeaders = new ArrayList<>();
+    private List<String> excluedFilesAndFoldersEntries = new ArrayList<>();
+    private List<String> engineBuildDirs = new ArrayList<>();
 
     private BobProjectProperties projectProperties;
     private Publisher publisher;
@@ -235,6 +238,15 @@ public class Project {
 
     public BobProjectProperties getProjectProperties() {
         return projectProperties;
+    }
+
+    /**
+     * Convert an absolute path to a path relative to the project root
+     * @param path The path to relativize
+     * @return Relative path
+     */
+    public String getPathRelativeToRootDirectory(String path) {
+        return Path.of(rootDirectory).relativize(Path.of(path)).toString();
     }
 
     public void setPublisher(Publisher publisher) {
@@ -466,7 +478,7 @@ public class Project {
             builder.setProject(this);
             task = builder.create(inputResource);
             if (task != null) {
-                TimeProfiler.addData("output", task.getOutputsString());
+                TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
                 TimeProfiler.addData("name", task.getName());
                 tasks.put(key, task);
             }
@@ -499,11 +511,20 @@ public class Project {
         return sortedInputs;
     }
 
-    private List<String> loadDefoldIgnore() throws CompileExceptionError {
+    /*
+        The same logic implemented in the Editor.
+        If you change something here, make sure you change it in resource.clj
+        (defignore-pred).
+    */
+    private void loadIgnoredFilesAndFolders() throws CompileExceptionError {
+        String excludeFoldersStr = this.option("exclude-build-folder", "");
+        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
+        excluedFilesAndFoldersEntries.addAll(excludeFolders);
+        List<String> defIgnoreEntries = new ArrayList<String>();
         final File defIgnoreFile = new File(getRootDirectory(), ".defignore");
         if (defIgnoreFile.isFile()) {
             try {
-                return FileUtils.readLines(defIgnoreFile, "UTF-8")
+                defIgnoreEntries = FileUtils.readLines(defIgnoreFile, "UTF-8")
                         .stream()
                         .filter(s -> !s.isEmpty())
                         .collect(Collectors.toList());
@@ -512,7 +533,14 @@ public class Project {
                 throw new CompileExceptionError("Unable to read .defignore", e);
             }
         }
-        return Collections.emptyList();
+        excluedFilesAndFoldersEntries.addAll(defIgnoreEntries);
+        // remove initial "/" from excluded folder names
+        for(int i = 0; i < excluedFilesAndFoldersEntries.size(); i++) {
+            String entry = excluedFilesAndFoldersEntries.get(i);
+            if (entry.startsWith("/")) {
+                excluedFilesAndFoldersEntries.set(i, entry.substring(1));
+            }
+        }
     }
 
     private void createTasks() throws CompileExceptionError {
@@ -521,22 +549,14 @@ public class Project {
 
         // To currently know the output resources, we need to parse the main.collectionc
         // We would need to alter that to get a correct behavior (e.g. using GameProjectBuilder.findResources(this, rootNode))
-        String excludeFoldersStr = this.option("exclude-build-folder", "");
-        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
-        excludeFolders.addAll(loadDefoldIgnore());
 
-        // remove initial "/" from excluded folder names
-        for(int i = 0; i < excludeFolders.size(); i++) {
-            String excludeFolder = excludeFolders.get(i);
-            if (excludeFolder.startsWith("/")) {
-                excludeFolders.set(i, excludeFolder.substring(1));
-            }
-        }
         // create tasks for inputs that are not excluded
         for (String input : sortedInputs) {
             boolean skipped = false;
-            for (String excludeFolder : excludeFolders) {
-                if (input.startsWith(excludeFolder)) {
+            // Ignore for resources.
+            // Check comment for loadIgnoredFilesAndFolders()
+            for (String excludeEntry : excluedFilesAndFoldersEntries) {
+                if (input.startsWith(excludeEntry)) {
                     skipped = true;
                     break;
                 }
@@ -667,6 +687,10 @@ public class Project {
         propertyFiles.add(filepath);
     }
 
+    public void addEngineBuildDir(String dirpath) {
+        engineBuildDirs.add(dirpath);
+    }
+
     // Returns the command line specified property files
     public List<String> getPropertyFiles() {
         return propertyFiles;
@@ -701,7 +725,12 @@ public class Project {
             }
             return doBuild(monitor, commands);
         } catch (CompileExceptionError e) {
+
             String s = Bob.logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR, e.getResource(), e.getLineNumber(), e.toString());
+            if (s.contains("NullPointerException")) {
+                e.printStackTrace(System.err); // E.g. when we happen to do something bad when handling exceptions
+            }
+
             System.err.println(s);
             // Pass on unmodified
             throw e;
@@ -954,20 +983,159 @@ public class Project {
         return platformStrings;
     }
 
-    public void buildEngine(IProgress monitor, String[] architectures, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
-
-        // Store the engine one level above the content build since that folder gets removed during a distclean
-        String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
-        File cacheDir = new File(FilenameUtils.concat(internalDir, "cache"));
-        cacheDir.mkdirs();
+    public void buildEnginePlatform(IProgress monitor, File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
 
-        IProgress m = monitor.subProgress(architectures.length);
-        m.beginTask("Building engine...", 0);
+        final String variant = appmanifestOptions.get("baseVariant");
+
+        List<String> defaultNames = platform.formatBinaryName("dmengine");
+        List<File> exes = new ArrayList<File>();
+        for (String name : defaultNames) {
+            File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
+            exes.add(exe);
+        }
+
+        BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
+
+        List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
+
+        allSource.addAll(helper.writeExtensionResources(platform));
+
+        // Replace the unresolved manifests with the resolved ones
+        List<ExtenderResource> resolvedManifests = helper.writeManifestFiles(platform, helper.getTargetManifestDir(platform));
+        for (ExtenderResource manifest : resolvedManifests) {
+            ExtenderResource src = null;
+            for (ExtenderResource s : allSource) {
+                if (s.getPath().equals(manifest.getPath())) {
+                    src = s;
+                    break;
+                }
+            }
+            if (src != null) {
+                allSource.remove(src);
+            }
+            allSource.add(manifest);
+        }
+
+        boolean debugUploadZip = this.hasOption("debug-ne-upload");
+
+        if (debugUploadZip) {
+            File debugZip = new File(buildDir.getParent(), "upload.zip");
+            ZipOutputStream zipOut = null;
+            try {
+                zipOut = new ZipOutputStream(new FileOutputStream(debugZip));
+                ExtenderUtil.writeResourcesToZip(allSource, zipOut);
+                System.out.printf("Wrote debug upload zip file to: %s", debugZip);
+            } catch (Exception e) {
+                throw new CompileExceptionError(String.format("Failed to write debug zip file to %s", debugZip), e);
+            } finally {
+                zipOut.close();
+            }
+        }
+
+        // Located in the same place as the log file in the unpacked successful build
+        File logFile = new File(buildDir, "log.txt");
+        String serverURL = this.option("build-server", "https://build.defold.com");
+
+        try {
+            ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+            extender.setHeaders(buildServerHeaders);
+
+            String buildPlatform = platform.getExtenderPair();
+            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
+
+            cleanEngine(platform, buildDir);
+
+            BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
+        } catch (ConnectException e) {
+            throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
+        } catch (ExtenderClientException e) {
+            throw new CompileExceptionError(String.format("Failed to build engine: %s", e.getMessage()), e);
+        }
+    }
+
+    public void buildLibraryPlatform(IProgress monitor, File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+
+        // Get SHA1 and create log file
+        final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
+
+        final String libraryName = this.option("ne-output-name", "default");
 
         final String variant = appmanifestOptions.get("baseVariant");
+
+        BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
+
+        // Located in the same place as the log file in the unpacked successful build
+        File logFile = new File(buildDir, "log.txt");
+        String serverURL = this.option("build-server", "https://build.defold.com");
+
+        //platforms /armv7-ios /context /flags
+        Map<String, Object> compilerOptions = new HashMap<>();
+        String DEFINES = getSystemEnv("DEFINES");
+        if (DEFINES != null) {
+            List<String> values = Arrays.asList(DEFINES.split(" "));
+            compilerOptions.put("defines", values);
+        }
+        String CXXFLAGS = getSystemEnv("CXXFLAGS");
+        if (CXXFLAGS != null) {
+            List<String> values = Arrays.asList(CXXFLAGS.split(" "));
+            compilerOptions.put("flags", values);
+        }
+        String INCLUDES = getSystemEnv("INCLUDES");
+        if (INCLUDES != null) {
+            List<String> values = Arrays.asList(INCLUDES.split(" "));
+            compilerOptions.put("includes", values);
+        }
+
+        for (String path : engineBuildDirs) {
+            File dir = new File(path);
+            if (!dir.isDirectory()) {
+                throw new IOException(String.format("'%s' is not a directory!", path));
+            }
+        }
+
+        List<ExtenderResource> allSource = ExtenderUtil.getLibrarySources(this, platform, appmanifestOptions, compilerOptions, libraryName, engineBuildDirs);
+
+        boolean debugUploadZip = this.hasOption("debug-ne-upload");
+        if (debugUploadZip) {
+            File debugZip = new File(buildDir.getParent(), "upload.zip");
+            ZipOutputStream zipOut = null;
+            try {
+                zipOut = new ZipOutputStream(new FileOutputStream(debugZip));
+                ExtenderUtil.writeResourcesToZip(allSource, zipOut);
+                System.out.printf("Wrote debug upload zip file to: %s", debugZip);
+            } catch (Exception e) {
+                throw new CompileExceptionError(String.format("Failed to write debug zip file to %s", debugZip), e);
+            } finally {
+                zipOut.close();
+            }
+        }
+
+        try {
+            ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
+            extender.setHeaders(buildServerHeaders);
+
+            String buildPlatform = platform.getExtenderPair();
+            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
+
+            BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
+        } catch (ConnectException e) {
+            throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
+        } catch (ExtenderClientException e) {
+            throw new CompileExceptionError(String.format("Failed to build engine: %s", e.getMessage()), e);
+        }
+    }
+
+    public void buildEngine(IProgress monitor, String[] architectures, Map<String,String> appmanifestOptions) throws IOException, CompileExceptionError, MultipleCompileException {
+        // Store the build one level above the content build since that folder gets removed during a distclean
+        String internalDir = FilenameUtils.concat(rootDirectory, ".internal");
+        File cacheDir = new File(FilenameUtils.concat(internalDir, "cache"));
+        cacheDir.mkdirs();
+
+        IProgress m = monitor.subProgress(architectures.length);
+        m.beginTask("Building engine...", 0);
 
         // Build all skews of platform
         String outputDir = getBinaryOutputDirectory();
@@ -978,67 +1146,13 @@ public class Project {
             File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
             buildDir.mkdirs();
 
-            List<String> defaultNames = platform.formatBinaryName("dmengine");
-            List<File> exes = new ArrayList<File>();
-            for (String name : defaultNames) {
-                File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
-                exes.add(exe);
+
+            boolean buildLibrary = shouldBuildArtifact("library");
+            if (buildLibrary) {
+                buildLibraryPlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
             }
-
-            List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
-
-            BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
-
-            allSource.addAll(helper.writeExtensionResources(platform));
-
-            // Replace the unresolved manifests with the resolved ones
-            List<ExtenderResource> resolvedManifests = helper.writeManifestFiles(platform, helper.getTargetManifestDir(platform));
-            for (ExtenderResource manifest : resolvedManifests) {
-                ExtenderResource src = null;
-                for (ExtenderResource s : allSource) {
-                    if (s.getPath().equals(manifest.getPath())) {
-                        src = s;
-                        break;
-                    }
-                }
-                if (src != null) {
-                    allSource.remove(src);
-                }
-                allSource.add(manifest);
-            }
-
-            boolean debugUploadZip = this.hasOption("debug-ne-upload");
-
-            if (debugUploadZip) {
-                File debugZip = new File(buildDir.getParent(), "upload.zip");
-                ZipOutputStream zipOut = null;
-                try {
-                    zipOut = new ZipOutputStream(new FileOutputStream(debugZip));
-                    ExtenderUtil.writeResourcesToZip(allSource, zipOut);
-                    System.out.printf("Wrote debug upload zip file to: %s", debugZip);
-                } catch (Exception e) {
-                    throw new CompileExceptionError(String.format("Failed to write debug zip file to %s", debugZip), e);
-                } finally {
-                    zipOut.close();
-                }
-            }
-
-            // Located in the same place as the log file in the unpacked successful build
-            File logFile = new File(buildDir, "log.txt");
-            String serverURL = this.option("build-server", "https://build.defold.com");
-
-            try {
-                ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-                extender.setHeaders(buildServerHeaders);
-                File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
-
-                cleanEngine(platform, buildDir);
-
-                BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
-            } catch (ConnectException e) {
-                throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
-            } catch (ExtenderClientException e) {
-                throw new CompileExceptionError(String.format("Failed to build engine: %s", e.getMessage()), e);
+            else {
+                buildEnginePlatform(monitor, buildDir, cacheDir, appmanifestOptions, platform);
             }
 
             m.worked(1);
@@ -1088,9 +1202,16 @@ public class Project {
     }
 
     private void downloadSymbols(IProgress progress) throws IOException, CompileExceptionError {
-        final String[] platforms = getPlatformStrings();
+        String archs = this.option("architectures", null);
+        String[] platforms;
+        if (archs != null) {
+            platforms = archs.split(",");
+        }
+        else {
+            platforms = getPlatformStrings();
+        }
 
-        progress.beginTask("Downloading symbols...", platforms.length);
+        progress.beginTask(String.format("Downloading %s symbols...", platforms.length), platforms.length);
 
         final String variant = this.option("variant", Bob.VARIANT_RELEASE);
         String variantSuffix = "";
@@ -1105,9 +1226,12 @@ public class Project {
 
         for(String platform : platforms) {
             String symbolsFilename = null;
+            Platform p = Platform.get(platform);
             switch(platform) {
                 case "arm64-ios":
+                case "x86_64-ios":
                 case "x86_64-macos":
+                case "arm64-macos":
                     symbolsFilename = String.format("dmengine%s.dSYM.zip", variantSuffix);
                     break;
                 case "js-web":
@@ -1121,10 +1245,14 @@ public class Project {
 
             if (symbolsFilename != null) {
                 try {
-                    URL url = new URL(String.format("http://d.defold.com/archive/%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
-                    File file = new File(new File(getBinaryOutputDirectory(), platform), symbolsFilename);
+                    URL url = new URL(String.format(Bob.ARTIFACTS_URL + "%s/engine/%s/%s", EngineVersion.sha1, platform, symbolsFilename));
+                    File targetFolder = new File(getBinaryOutputDirectory(), p.getExtenderPair());
+                    File file = new File(targetFolder, symbolsFilename);
                     HttpUtil http = new HttpUtil();
                     http.downloadToFile(url, file);
+                    if (symbolsFilename.endsWith(".zip")){
+                        BundleHelper.unzip(new FileInputStream(file), targetFolder.toPath());
+                    }
                 }
                 catch (Exception e) {
                     throw new CompileExceptionError(e);
@@ -1192,10 +1320,6 @@ public class Project {
     private boolean shouldBuildEngine() {
         String str = this.option("build-artifacts", "");
         return str.equals("") || shouldBuildArtifact("engine");
-    }
-
-    private boolean shouldBuildPlugins() {
-        return shouldBuildArtifact("plugins");
     }
 
     public void scanJavaClasses() throws IOException, CompileExceptionError {
@@ -1309,7 +1433,7 @@ public class Project {
 
         // Generate and save build report
         TimeProfiler.start("Generating build size report");
-        if (generateReport) {
+        if (generateReport && !anyFailing(result)) {
             mrep = monitor.subProgress(1);
             mrep.beginTask("Generating report...", 1);
             ReportGenerator rg = new ReportGenerator(this);
@@ -1366,12 +1490,13 @@ public class Project {
     }
 
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws Throwable, IOException, CompileExceptionError, MultipleCompileException {
+        TimeProfiler.start("Prepare cache");
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
         resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
         fileSystem.loadCache();
-        IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "state"));
+        IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "_BobBuildState_"));
         state = State.load(stateResource);
-
+        TimeProfiler.stop();
         List<TaskResult> result = new ArrayList<TaskResult>();
 
         BundleHelper.throwIfCanceled(monitor);
@@ -1392,7 +1517,7 @@ public class Project {
             switch (command) {
                 case "build": {
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
-
+                    loadIgnoredFilesAndFolders(); // load once before building to be able to use it in a few places
                     final String[] platforms = getPlatformStrings();
                     Future<Void> remoteBuildFuture = null;
                     // Get or build engine binary
@@ -1410,7 +1535,7 @@ public class Project {
                         }
                     }
 
-                    if (shouldBuildEngine()) {
+                    if (shouldBuildEngine() && BundleHelper.isArchiveIncluded(this)) {
                         result = createAndRunTasks(monitor);
                     }
 
@@ -1456,8 +1581,10 @@ public class Project {
         }
 
         monitor.done();
+        TimeProfiler.start("Save cache");
         state.save(stateResource);
         fileSystem.saveCache();
+        TimeProfiler.stop();
         return result;
     }
 
@@ -1991,8 +2118,13 @@ run:
         if (val != null && val.trim().length() > 0) {
             resource = this.getResource(val);
         }
-        if (mustExist && resource == null) {
-            throw new IOException(String.format("Resource does not exist: '%s'  (%s.%s)", resource.getAbsPath(), category, key));
+        if (mustExist) {
+            if (resource == null) {
+                throw new IOException(String.format("Resource is null: %s.%s = '%s'", category, key, val==null?"null":val));
+            }
+            if (!resource.exists()) {
+                throw new IOException(String.format("Resource does not exist: %s.%s = '%s'", category, key, resource.getPath()));
+            }
         }
         return resource;
     }
@@ -2047,7 +2179,18 @@ run:
         final String path = Project.stripLeadingSlash(_path);
         fileSystem.walk(path, new FileSystemWalker() {
             public void handleFile(String path, Collection<String> results) {
-                results.add(FilenameUtils.normalize(path, true));
+                boolean shouldAdd = true;
+                // Ignore for native extensions and the other systems.
+                // Check comment for loadIgnoredFilesAndFolders()
+                for (String prefix : excluedFilesAndFoldersEntries) {
+                    if (path.startsWith(prefix)) {
+                        shouldAdd = false;
+                        break;
+                    }
+                }
+                if (shouldAdd) {
+                    results.add(FilenameUtils.normalize(path, true));
+                }
             }
         }, result);
     }
@@ -2080,14 +2223,6 @@ run:
 
     public void setTextureProfiles(TextureProfiles textureProfiles) {
         this.textureProfiles = textureProfiles;
-    }
-
-    public void excludeCollectionProxy(String path) {
-        state.addExcludedCollectionProxy(path);
-    }
-
-    public final List<String> getExcludedCollectionProxies() {
-        return state.getExcludedCollectionProxies();
     }
 
 }

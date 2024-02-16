@@ -82,6 +82,8 @@
             <proto dir="../../engine/render/proto" file="render/font_ddf.proto"/>
             <proto dir="../../engine/render/proto" file="render/material_ddf.proto"/>
             <proto dir="../../engine/render/proto" file="render/render_ddf.proto"/>
+            <proto dir="../../engine/render/proto" file="render/render_target_ddf.proto"/>
+            <proto dir="../../engine/render/proto" file="render/compute_program_ddf.proto"/>
             <proto dir="../../engine/resource/proto" file="resource/liveupdate_ddf.proto"/>
             <proto dir="../../engine/resource/proto" file="resource/resource_ddf.proto"/>
             <proto dir="../../engine/script/src" file="script/script_doc_ddf.proto"/>
@@ -129,6 +131,7 @@
                 <include name="spirv-opt"/>
                 <include name="luajit-32"/>
                 <include name="luajit-64"/>
+                <include name="lipo"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/arm64-macos" overwrite="true" flatten="true">
@@ -138,6 +141,7 @@
                 <include name="spirv-opt"/>
                 <include name="luac-32"/>
                 <include name="luajit-64"/>
+                <include name="lipo"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/x86_64-linux" overwrite="true" flatten="true">
@@ -147,6 +151,7 @@
                 <include name="spirv-opt"/>
                 <include name="luajit-32"/>
                 <include name="luajit-64"/>
+                <include name="lipo"/>
             </fileset>
         </copy>
         <copy todir="${bob.dir}/libexec/x86_64-win32" overwrite="true" flatten="true">
@@ -155,6 +160,7 @@
                 <include name="spirv-cross.exe"/>
                 <include name="spirv-opt.exe"/>
                 <include name="luajit-64.exe"/>
+                <include name="lipo.exe"/>
             </fileset>
             <fileset dir="${env.DYNAMO_HOME}/ext/bin/win32">
                 <include name="luajit-32.exe"/>
@@ -323,7 +329,7 @@
               <include name="dlib.jar"/>
               <include name="modelimporter.jar"/>
               <include name="texturecompiler.jar"/>
-              <include name="lz4-1.3.0.jar"/>
+              <include name="lz4-1.9.0.jar"/>
               <include name="commons-cli-1.2.jar"/>
               <include name="jna-5.13.0.jar"/>
               <include name="jna-platform-5.13.0.jar"/>

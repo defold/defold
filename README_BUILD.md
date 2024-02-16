@@ -41,6 +41,7 @@ The following platforms are supported:
 
 * `x86_64-linux`
 * `x86_64-macos`
+* `arm64-macos`
 * `win32`
 * `x86_64-win32`
 * `x86_64-ios`
@@ -60,12 +61,12 @@ $ ./scripts/build.py shell
 
 This will start a new shell with all of the required environment variables set (`DYNAMO_HOME` etc).
 
-### STEP 2 - Install packages and SDKs
+### STEP 2 - Install packages
 
-Next thing you need to do is to install external packages and download required platform SDKs:
+Next thing you need to do is to install external packages:
 
 ```sh
-$ ./scripts/build.py install_ext --platform=... --package-path=...
+$ ./scripts/build.py install_ext --platform=...
 ```
 
 It is important that you provide the `--platform` option to let the `install_ext` command know which platform you intend to build for (the target platform). When the `install_ext` command has finished you will find the external packages and downloaded SDKs in `./tmp/dynamo_home/ext`.
@@ -85,10 +86,24 @@ This step also installs some Python dependencies:
 * `requests` - Installed using pip
 * `pyaml` - Installed using pip
 
-#### Installing SDKs
-The second step of the `install_ext` command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.
+### Step 3 - Installing SDKs
 
-### STEP 3 - Build the engine
+The `install_sdk`command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.
+
+For some platforms, it is not necessary to install the platform SDK.
+For Windows/macOS, it can automatically pick up your local install of Visual Studio and XCode.
+
+If you wish to build for any other platform, you will need to install an sdk package where the build system can find it.
+
+Next thing you need to do is to install external packages:
+
+```sh
+$ ./scripts/build.py install_sdk --platform=... --package-path=...
+```
+
+You could also set the package path in an environment variable `DM_PACKAGES_URL`.
+
+### STEP 4 - Build the engine
 
 With the setup and installation done you're ready to build the engine:
 
@@ -114,6 +129,9 @@ When you are working on a specific part of the engine there is no need to rebuil
 $ cd engine/dlib
 $ waf
 ```
+
+And you have the commands `clean`,  `build`, `install`.
+ALso some common options `--opt-level=<opt_level>`, `--skip-tests` or `--target=<artifact>`
 
 You can also use rebuild a specific part of the engine and create a new executable:
 

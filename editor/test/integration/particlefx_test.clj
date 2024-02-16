@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,7 @@
             [editor.collection :as collection]
             [editor.handler :as handler]
             [editor.defold-project :as project]
+            [editor.graphics :as graphics]
             [editor.material :as material]
             [editor.workspace :as workspace]
             [editor.types :as types]
@@ -57,7 +58,12 @@
           emitter-sim-data (g/node-value node-id :emitter-sim-data)
           fetch-anim-fn (fn [index] (get emitter-sim-data index))
           transforms [(doto (Matrix4d.) (.setIdentity))]
-          sim (plib/make-sim 16 256 prototype-msg transforms)]
+          sim (plib/make-sim 16 256 prototype-msg transforms)
+          attribute-infos (into []
+                                (map graphics/attribute-key->default-attribute-info)
+                                [:position])
+          vertex-description (graphics/make-vertex-description attribute-infos)
+          attribute-bytes (graphics/attribute-bytes-by-attribute-key node-id attribute-infos {})]
       (testing "Sim sleeping"
                (is (plib/sleeping? sim))
                (plib/simulate sim 1/60 fetch-anim-fn transforms)
@@ -66,7 +72,7 @@
                (let [sim (-> sim
                              (plib/simulate 1/60 fetch-anim-fn transforms)
                              (plib/simulate 1/60 fetch-anim-fn transforms))
-                     stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0])
+                     _stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description attribute-infos attribute-bytes)
                                (plib/stats sim))]
                  (is (< 0 (:particles (plib/stats sim))))))
       (testing "Rendering"

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -134,7 +134,7 @@ namespace dmGameSystem
      *
      * @name factory.load
      * @param [url] [type:string|hash|url] the factory component to load
-     * @param [complete_function] [type:function(self, url, result))] function to call when resources are loaded.
+     * @param [complete_function] [type:function(self, url, result)] function to call when resources are loaded.
      *
      * `self`
      * : [type:object] The current object.
@@ -369,12 +369,12 @@ namespace dmGameSystem
      *
      * @name factory.set_prototype
      * @param [url] [type:string|hash|url] the factory component
-     * @param [prototype] [type:string|nil] the path to the new prototype, or nil
+     * @param [prototype] [type:string|nil] the path to the new prototype, or `nil`
      *
      * @note
      *   - Requires the factory to have the "Dynamic Prototype" set
      *   - Cannot be set when the state is COMP_FACTORY_STATUS_LOADING
-     *   - Setting the prototype to "nil" will revert back to the original prototype.
+     *   - Setting the prototype to `nil` will revert back to the original prototype.
      *
      * @examples
      *
@@ -421,7 +421,7 @@ namespace dmGameSystem
 
             // check that the path is a .goc
             const char* ext = dmResource::GetExtFromPath(path);
-            if (strcmp(ext, ".goc") != 0)
+            if (!ext || strcmp(ext, ".goc") != 0)
             {
                 return luaL_error(L, "Trying to set '%s' as prototype to '%s:%s#%s'. Only .goc resources are allowed",
                                         path,

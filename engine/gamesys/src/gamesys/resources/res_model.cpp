@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,9 @@
 #include "res_model.h"
 #include "res_meshset.h"
 #include "res_material.h"
+#include "res_render_target.h"
+
+#include "gamesys_private.h"
 
 #include <gamesys/model_ddf.h>
 
@@ -62,21 +65,6 @@ namespace dmGameSystem
             int i1 = FindMaterial(mat1.m_Name);
             int i2 = FindMaterial(mat2.m_Name);
             return i1 < i2;
-        }
-    };
-
-    // We could sort them in the pipeline, but then we'd have to read the material data
-    // for compiling each model which we might not want
-    struct TextureSortPred
-    {
-        dmGraphics::HProgram m_Program;
-        TextureSortPred(dmGraphics::HProgram program) : m_Program(program) {}
-
-        bool operator ()(const dmModelDDF::Texture* a, const dmModelDDF::Texture* b) const
-        {
-            uintptr_t ia = dmGraphics::GetUniformLocation(m_Program, a->m_Sampler);
-            uintptr_t ib = dmGraphics::GetUniformLocation(m_Program, b->m_Sampler);
-            return ia < ib;
         }
     };
 
@@ -215,6 +203,27 @@ namespace dmGameSystem
         return true; // All materials are currently world space
     }
 
+    // We could sort them in the pipeline, but then we'd have to read the material data
+    // for compiling each model which we might not want
+    struct TextureSortPred
+    {
+        dmRender::HMaterial m_Material;
+        TextureSortPred(dmRender::HMaterial material) : m_Material(material) {}
+
+        bool operator ()(MaterialTextureInfo& a, MaterialTextureInfo& b) const
+        {
+            uintptr_t ia = dmRender::GetMaterialConstantLocation(m_Material, a.m_SamplerNameHash);
+            uintptr_t ib = dmRender::GetMaterialConstantLocation(m_Material, b.m_SamplerNameHash);
+            return ia < ib;
+        }
+    };
+
+    void SortTextures(dmRender::HMaterial material, uint32_t num_textures, MaterialTextureInfo* textures)
+    {
+        TextureSortPred pred(material);
+        std::sort(textures, textures + num_textures, pred);
+    }
+
     dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource, const char* filename)
     {
         dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_RigScene, (void**) &resource->m_RigScene);
@@ -248,23 +257,50 @@ namespace dmGameSystem
 
             info.m_Name = strdup(model_material->m_Name);
 
+            info.m_Attributes = model_material->m_Attributes.m_Data;
+            info.m_AttributeCount = model_material->m_Attributes.m_Count;
+
             // Currently, we don't support overriding the textures per-material on the model level
+
+            // While the material may use less samplers than the model has textures,
+            // We'll still respect the users wishes as they may change the material later on
             info.m_TexturesCount = model_material->m_Textures.m_Count;
             info.m_Textures = new MaterialTextureInfo[info.m_TexturesCount];
             memset(info.m_Textures, 0, sizeof(MaterialTextureInfo)*info.m_TexturesCount);
             for (uint32_t t = 0; t < info.m_TexturesCount; ++t)
             {
                 dmModelDDF::Texture* texture = &model_material->m_Textures[t];
-
                 MaterialTextureInfo* texture_info = &info.m_Textures[t];
-                result = dmResource::Get(factory, texture->m_Texture, (void**) &texture_info->m_Texture);
+
+                void* resource;
+                result = dmResource::Get(factory, texture->m_Texture, &resource);
+
                 if (result != dmResource::RESULT_OK)
                 {
                     return result;
                 }
 
+                if (ResourcePathToRenderResourceType(texture->m_Texture) == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET)
+                {
+                    texture_info->m_RenderTarget = (RenderTargetResource*) resource;
+                    texture_info->m_Texture      = texture_info->m_RenderTarget->m_TextureResource;
+                }
+                else
+                {
+                    texture_info->m_RenderTarget = 0;
+                    texture_info->m_Texture      = (TextureResource*) resource;
+                }
+
                 texture_info->m_SamplerNameHash = dmHashString64(texture->m_Sampler);
+                if (!texture_info->m_SamplerNameHash) // old content
+                {
+                    // Then we'll fallback to using the order of each sampler
+                    texture_info->m_SamplerNameHash = dmRender::GetMaterialSamplerNameHash(info.m_Material->m_Material, t);
+                }
             }
+
+            // We need to sort the textures on sampler units
+            SortTextures(info.m_Material->m_Material, info.m_TexturesCount, info.m_Textures);
 
             if (resource->m_Materials.Full())
                 resource->m_Materials.OffsetCapacity(1);
@@ -323,7 +359,14 @@ namespace dmGameSystem
 
             for (uint32_t t = 0; t < material->m_TexturesCount; ++t)
             {
-                if (material->m_Textures[t].m_Texture) dmResource::Release(factory, (void*) material->m_Textures[t].m_Texture);
+                if (material->m_Textures[t].m_RenderTarget)
+                {
+                    dmResource::Release(factory, (void*) material->m_Textures[t].m_RenderTarget);
+                }
+                else if (material->m_Textures[t].m_Texture)
+                {
+                    dmResource::Release(factory, (void*) material->m_Textures[t].m_Texture);
+                }
             }
             delete[] material->m_Textures;
             material->m_TexturesCount = 0;

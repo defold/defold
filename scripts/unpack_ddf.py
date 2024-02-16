@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,6 +36,11 @@ import graphics.graphics_ddf_pb2
 import resource.liveupdate_ddf_pb2
 import rig.rig_ddf_pb2
 import render.material_ddf_pb2
+import render.font_ddf_pb2
+import render.render_ddf_pb2
+import particle.particle_ddf_pb2
+import gamesys.sprite_ddf_pb2
+import gamesys.physics_ddf_pb2
 
 BUILDERS = {}
 BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
@@ -47,13 +52,21 @@ BUILDERS['.skeletonc']      = rig.rig_ddf_pb2.Skeleton
 BUILDERS['.dmanifest']      = resource.liveupdate_ddf_pb2.ManifestFile
 BUILDERS['.vpc']            = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.fpc']            = graphics.graphics_ddf_pb2.ShaderDesc
+BUILDERS['.cpc']            = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.goc']            = gameobject.gameobject_ddf_pb2.PrototypeDesc
 BUILDERS['.collectionc']    = gameobject.gameobject_ddf_pb2.CollectionDesc
 BUILDERS['.luac']           = gameobject.lua_ddf_pb2.LuaModule
 BUILDERS['.materialc']      = render.material_ddf_pb2.MaterialDesc
-
+BUILDERS['.fontc']          = render.font_ddf_pb2.FontMap
+BUILDERS['.glyph_bankc']    = render.font_ddf_pb2.GlyphBank
+BUILDERS['.particlefxc']    = particle.particle_ddf_pb2.ParticleFX
+BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
+BUILDERS['.renderc']        = render.render_ddf_pb2.RenderPrototypeDesc
+BUILDERS['.convexshapec']   = gamesys.physics_ddf_pb2.ConvexShape
+BUILDERS['.collisionobjectc'] = gamesys.physics_ddf_pb2.CollisionObjectDesc
 
 proto_type_to_string_map = {}
+proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BOOL]    = 'TYPE_BOOL'
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BYTES]   = 'TYPE_BYTES'
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_DOUBLE]  = 'TYPE_DOUBLE'
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_ENUM]    = 'TYPE_ENUM'
@@ -88,8 +101,8 @@ def get_descriptor_type(descriptor):
 
 def print_descriptor_default(descriptor, data):
     if descriptor.type == descriptor.TYPE_ENUM:
-        enum_name = descriptor.enum_type.values[data].name
-        print(descriptor.name, ":", enum_name, get_descriptor_type(descriptor))
+        e = descriptor.enum_type.values_by_number.get(data)
+        print(descriptor.name, ":", e.name, get_descriptor_type(descriptor))
     else:
         print(descriptor.name, ":", data, get_descriptor_type(descriptor))
 
@@ -212,4 +225,3 @@ if __name__ == "__main__":
 
         printer = PRINTERS.get(ext, print_message)
         printer(obj)
-

@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1420,3 +1420,46 @@
 
     (->Cursor 4 0) (cr [0 15] [0 16])
     (->Cursor 4 1) (cr [0 15] [0 16])))
+
+(deftest differences-test
+  (testing "No overlap => same as A"
+    (is (= [#code/range [[0 5] [0 10]]]
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 0] [0 5]])))
+    (is (= [#code/range [[0 5] [0 10]]]
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 10] [0 15]])))
+    (is (= [#code/range [[0 5] [0 10]]]
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 11] [0 15]]))))
+  (testing "A within B => empty"
+    (is (= []
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 5] [0 10]])))
+    (is (= []
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 5] [0 11]])))
+    (is (= []
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 4] [0 10]])))
+    (is (= []
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 4] [0 11]]))))
+  (testing "B within A => 2 ranges"
+    (is (= [#code/range [[0 5] [0 6]]
+            #code/range [[0 9] [0 10]]]
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 6] [0 9]]))))
+  (testing "non-empty intersection => different cursor range"
+    (is (= [#code/range [[0 5] [0 6]]]
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 6] [0 10]])))
+    (is (= [#code/range [[0 5] [0 6]]]
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 6] [0 11]])))
+    (is (= [#code/range [[0 7] [0 10]]]
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 4] [0 7]])))
+    (is (= [#code/range [[0 7] [0 10]]]
+           (data/cursor-range-differences #code/range [[0 5] [0 10]]
+                                          #code/range [[0 5] [0 7]])))))

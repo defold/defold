@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,16 +34,45 @@
   (is (false? (coll/supports-transient? (repeatedly 0 rand)))))
 
 (deftest pair-test
-  (instance? IPersistentVector (coll/pair 1 2))
-  (let [[a b] (coll/pair 1 2)]
-    (is (= 1 a))
-    (is (= 2 b))))
+  (is (instance? IPersistentVector (coll/pair 1 2)))
+  (is (counted? (coll/pair 1 2)))
+  (is (= 2 (count (coll/pair 1 2))))
+  (is (= [1 2] (coll/pair 1 2))))
+
+(deftest pair-fn-test
+  (testing "Specified key-fn"
+    (let [make-pair (coll/pair-fn keyword)
+          pair-one (make-pair "one")]
+      (is (instance? IPersistentVector pair-one))
+      (is (counted? pair-one))
+      (is (= 2 (count pair-one)))
+      (is (= [:one "one"] pair-one))))
+
+  (testing "Specified key-fn and value-fn"
+    (let [make-pair (coll/pair-fn symbol keyword)
+          pair-two (make-pair "two")]
+      (is (instance? IPersistentVector pair-two))
+      (is (counted? pair-two))
+      (is (= 2 (count pair-two)))
+      (is (= ['two :two] pair-two))))
+
+  (testing "Argument expressions should not be inlined"
+    (let [key-fn-atom (atom {"item" 1})
+          value-fn-atom (atom {"item" :a})
+          make-pair (coll/pair-fn @key-fn-atom)
+          make-transformed-pair (coll/pair-fn @key-fn-atom @value-fn-atom)]
+      (is (= [1 "item"] (make-pair "item")))
+      (is (= [1 :a] (make-transformed-pair "item")))
+      (swap! key-fn-atom assoc "item" 2)
+      (swap! value-fn-atom assoc "item" :b)
+      (is (= [1 "item"] (make-pair "item")))
+      (is (= [1 :a] (make-transformed-pair "item"))))))
 
 (deftest flipped-pair-test
-  (instance? IPersistentVector (coll/flipped-pair 1 2))
-  (let [[a b] (coll/flipped-pair 1 2)]
-    (is (= 2 a))
-    (is (= 1 b))))
+  (is (instance? IPersistentVector (coll/flipped-pair 1 2)))
+  (is (counted? (coll/flipped-pair 1 2)))
+  (is (= 2 (count (coll/flipped-pair 1 2))))
+  (is (= [2 1] (coll/flipped-pair 1 2))))
 
 (deftest bounded-count-test
   (testing "Counted sequence"
@@ -117,6 +146,24 @@
   (is (false? (coll/empty? (range 1))))
   (is (false? (coll/empty? (repeatedly 1 rand)))))
 
+(deftest pair-map-by-test
+  (testing "Works as a transducer"
+    (let [result (into (sorted-map)
+                       (coll/pair-map-by keyword)
+                       ["one" "two"])]
+      (is (sorted? result))
+      (is (= {:one "one" :two "two"} result))))
+
+  (testing "Applies key-fn on input sequence"
+    (let [result (coll/pair-map-by keyword ["one" "two"])]
+      (is (map? result))
+      (is (= {:one "one" :two "two"} result))))
+
+  (testing "Applies key-fn and value-fn on input sequence"
+    (let [result (coll/pair-map-by symbol keyword ["one" "two"])]
+      (is (map? result))
+      (is (= {'one :one 'two :two} result)))))
+
 (deftest separate-by-test
   (testing "Separates by predicate"
     (let [[odds evens] (coll/separate-by odd? [0 1 2 3 4])]
@@ -172,3 +219,60 @@
               [odds evens] (coll/separate-by (comp odd? key) coll)]
           (is (identical? (meta coll) (meta odds)))
           (is (identical? (meta coll) (meta evens))))))))
+
+(deftest sorted-assoc-in-test
+  (testing "Introduces sorted maps for levels that do not exist"
+    (let [original-map (sorted-map)
+          altered-map (coll/sorted-assoc-in original-map [:a :b] 1)
+          created-level (:a altered-map)]
+      (is (map? created-level))
+      (is (sorted? created-level))
+      (is (= 1 (:b created-level)))))
+
+  (testing "Retains data in existing levels"
+    (let [original-map (sorted-map :a 0 :b (sorted-map :A 1 :B 2))
+          altered-map (coll/sorted-assoc-in original-map [:b :C] 3)]
+      (is (= {:a 0 :b {:A 1 :B 2 :C 3}} altered-map))))
+
+  (testing "Preserves metadata"
+    (let [original-meta {:meta-key "meta-value"}
+          original-map (with-meta (sorted-map :a (with-meta (sorted-map) original-meta)) original-meta)
+          altered-map (coll/sorted-assoc-in original-map [:a :b] 1)]
+      (is (identical? original-meta (meta altered-map)))
+      (is (identical? original-meta (meta (:a altered-map)))))))
+
+
+(deftest nested-map->path-map-test
+  (testing "Transforms nested map to flat map of paths"
+    (is (= {[:a :A] 1
+            [:a :B] 2
+            [:b :A] 1
+            [:b :B "A"] 1
+            [:c] 3}
+           (coll/nested-map->path-map
+             {:a {:A 1 :B 2}
+              :b {:A 1 :B {"A" 1}}
+              :c 3}))))
+
+  (testing "Preserves type"
+    (is (not (sorted? (coll/nested-map->path-map {:a {:A 1}}))))
+    (is (sorted? (coll/nested-map->path-map (sorted-map :a (sorted-map :A 1)))))))
+
+(deftest path-map->nested-map-test
+  (testing "Transforms flat map of paths to nested map"
+    (is (= {:a {:A 1 :B 2}
+            :b {:A 1 :B {"A" 1}}
+            :c 3}
+           (coll/path-map->nested-map
+             {[:a :A] 1
+              [:a :B] 2
+              [:b :A] 1
+              [:b :B "A"] 1
+              [:c] 3}))))
+
+  (testing "Preserves type"
+    (is (not (sorted? (coll/path-map->nested-map {}))))
+    (is (sorted? (coll/path-map->nested-map (sorted-map))))
+
+    (is (not (sorted? (:a (coll/path-map->nested-map {[:a :A] 1})))))
+    (is (sorted? (:a (coll/path-map->nested-map (sorted-map [:a :A] 1)))))))

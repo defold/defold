@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -81,7 +81,7 @@
            ["Meta+D" :select-next-occurrence]
            ["Meta+Delete" :delete-to-end-of-line]
            ["Meta+Down" :end-of-file]
-           ["Meta+E" :hide-selected]
+           ["Meta+E" :hide-toggle-selected]
            ["Meta+F" :filter-form]
            ["Meta+F" :find-text]
            ["Meta+G" :find-next]
@@ -94,7 +94,7 @@
            ["Meta+R" :hot-reload]
            ["Meta+Right" :end-of-line]
            ["Meta+S" :save-all]
-           ["Meta+Slash" :toggle-comment]
+           ["Meta+'/'" :toggle-comment]
            ["Meta+T" :scene-stop]
            ["Meta+U" :rebundle]
            ["Meta+Up" :beginning-of-file]
@@ -169,7 +169,7 @@
            ["Ctrl+Comma" :preferences]
            ["Ctrl+D" :select-next-occurrence]
            ["Ctrl+Delete" :delete-next-word]
-           ["Ctrl+E" :hide-selected]
+           ["Ctrl+E" :hide-toggle-selected]
            ["Ctrl+End" :end-of-file]
            ["Ctrl+F" :filter-form]
            ["Ctrl+F" :find-text]
@@ -188,7 +188,7 @@
            ["Ctrl+R" :hot-reload]
            ["Ctrl+Right" :next-word]
            ["Ctrl+S" :save-all]
-           ["Ctrl+Slash" :toggle-comment]
+           ["Ctrl+'/'" :toggle-comment]
            ["Ctrl+Space" :proposals]
            ["Ctrl+T" :scene-stop]
            ["Ctrl+U" :rebundle]
@@ -277,7 +277,7 @@
            ["Ctrl+Comma" :preferences]
            ["Ctrl+D" :select-next-occurrence]
            ["Ctrl+Delete" :delete-next-word]
-           ["Ctrl+E" :hide-selected]
+           ["Ctrl+E" :hide-toggle-selected]
            ["Ctrl+End" :end-of-file]
            ["Ctrl+F" :filter-form]
            ["Ctrl+F" :find-text]
@@ -296,7 +296,7 @@
            ["Ctrl+R" :hot-reload]
            ["Ctrl+Right" :next-word]
            ["Ctrl+S" :save-all]
-           ["Ctrl+Slash" :toggle-comment]
+           ["Ctrl+'/'" :toggle-comment]
            ["Ctrl+Space" :proposals]
            ["Ctrl+T" :scene-stop]
            ["Ctrl+U" :rebundle]

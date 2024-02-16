@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -74,6 +74,8 @@ namespace dmGui
     const uint64_t INDEX_SHIFT = 0;
     const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
+    // Counter used when assigning an id to a cloned node
+    static uint32_t g_ClonedNodeCount = 0;
 
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
@@ -186,6 +188,7 @@ namespace dmGui
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
+        context->m_HidContext = params->m_HidContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
         context->m_ScratchBoneNodes.SetCapacity(32);
 
@@ -276,11 +279,6 @@ namespace dmGui
     void SetDisplayProfiles(HContext context, void* display_profiles)
     {
         context->m_DisplayProfiles = display_profiles;
-    }
-
-    void SetDefaultFont(HContext context, void* font)
-    {
-        context->m_DefaultFont = font;
     }
 
     void SetSceneAdjustReference(HScene scene, AdjustReference adjust_reference)
@@ -537,6 +535,31 @@ namespace dmGui
         return true;
     }
 
+    static Result MakeDynamicTextureData(DynamicTexture* dynamic_texture, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    {
+        assert(dynamic_texture->m_Buffer == 0x0);
+        dynamic_texture->m_Buffer = malloc(buffer_size);
+
+        if (flip)
+        {
+            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)dynamic_texture->m_Buffer))
+            {
+                free(dynamic_texture->m_Buffer);
+                dynamic_texture->m_Buffer = 0;
+                return RESULT_DATA_ERROR;
+            }
+        }
+        else
+        {
+            memcpy(dynamic_texture->m_Buffer, buffer, buffer_size);
+        }
+
+        dynamic_texture->m_Width  = width;
+        dynamic_texture->m_Height = height;
+        dynamic_texture->m_Type   = type;
+        return RESULT_OK;
+    }
+
     Result NewDynamicTexture(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
         uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
@@ -545,11 +568,15 @@ namespace dmGui
             return RESULT_INVAL_ERROR;
         }
 
-        if (DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash)) {
-            if (t->m_Deleted) {
+        if (DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash))
+        {
+            if (t->m_Deleted)
+            {
                 t->m_Deleted = 0;
-                return RESULT_OK;
-            } else {
+                return MakeDynamicTextureData(t, width, height, type, flip, buffer, buffer_size);
+            }
+            else
+            {
                 return RESULT_TEXTURE_ALREADY_EXISTS;
             }
         }
@@ -559,19 +586,12 @@ namespace dmGui
         }
 
         DynamicTexture t(0);
-        t.m_Buffer = malloc(buffer_size);
-        if (flip) {
-            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)t.m_Buffer)) {
-                free(t.m_Buffer);
-                t.m_Buffer = 0;
-                return RESULT_DATA_ERROR;
-            }
-        } else {
-            memcpy(t.m_Buffer, buffer, buffer_size);
+
+        Result res = MakeDynamicTextureData(&t, width, height, type, flip, buffer, buffer_size);
+        if (res != RESULT_OK)
+        {
+            return res;
         }
-        t.m_Width = width;
-        t.m_Height = height;
-        t.m_Type = type;
 
         scene->m_DynamicTextures.Put(texture_hash, t);
 
@@ -614,22 +634,7 @@ namespace dmGui
         }
 
         DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - (buffer_size / 1024.0 / 1024.0));
-
-        t->m_Buffer = malloc(buffer_size);
-        if (flip) {
-            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)t->m_Buffer)) {
-                free(t->m_Buffer);
-                t->m_Buffer = 0;
-                return RESULT_DATA_ERROR;
-            }
-        } else {
-            memcpy(t->m_Buffer, buffer, buffer_size);
-        }
-        t->m_Width = width;
-        t->m_Height = height;
-        t->m_Type = type;
-
-        return RESULT_OK;
+        return MakeDynamicTextureData(t, width, height, type, flip, buffer, buffer_size);
     }
 
     Result GetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer)
@@ -1151,6 +1156,20 @@ namespace dmGui
         }
     }
 
+    void IterateDynamicTextures(dmhash_t gui_res_id, HScene scene, FDynamicTextturesIterator callback, void* user_ctx)
+    {
+        dmHashTable64<DynamicTexture>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
+        while(dynamic_textures_iter.Next())
+        {
+            const DynamicTexture texture = dynamic_textures_iter.GetValue();
+            uint32_t size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type);
+            bool result = callback(gui_res_id, dynamic_textures_iter.GetKey(), size, user_ctx);
+            if (!result) {
+                break;
+            }
+        }
+    }
+
     static uint16_t GetLayerIndex(HScene scene, InternalNode* node)
     {
         if (node->m_Node.m_LayerHash == DEFAULT_LAYER && node->m_ParentIndex != INVALID_INDEX)
@@ -1341,10 +1360,11 @@ namespace dmGui
             render_entries.Push(e);
 
         uint16_t index = start_index;
-
+        uint32_t active_nodes = 0;
         while (index != INVALID_INDEX) {
             InternalNode* n = &scene->m_Nodes[index];
             if (n->m_Node.m_Enabled) {
+                ++active_nodes;
                 HNode node = GetNodeHandle(n);
                 uint16_t layer = GetLayerIndex(scene, n);
                 if (n->m_ClipperIndex != INVALID_INDEX) {
@@ -1417,6 +1437,7 @@ namespace dmGui
         }
         #undef PUSH_RENDER_ENTRY
 
+        DM_PROPERTY_ADD_U32(rmtp_GuiActiveNodes, active_nodes);
         return order;
     }
 
@@ -2168,7 +2189,6 @@ namespace dmGui
         UpdateAnimations(scene, dt);
 
         uint32_t total_nodes = 0;
-        uint32_t active_nodes = 0;
         node_count = scene->m_Nodes.Size();
         nodes      = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < node_count; ++i)
@@ -2185,9 +2205,6 @@ namespace dmGui
             else if (node->m_Index != INVALID_INDEX)
             {
                 ++total_nodes;
-                if (node->m_Node.m_Enabled)
-                    ++active_nodes;
-
                 if (node->m_Node.m_CustomType != 0)
                 {
                     scene->m_UpdateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(node),
@@ -2242,7 +2259,6 @@ namespace dmGui
         }
 
         DM_PROPERTY_ADD_U32(rmtp_GuiNodes, total_nodes);
-        DM_PROPERTY_ADD_U32(rmtp_GuiActiveNodes, active_nodes);
         DM_PROPERTY_ADD_U32(rmtp_GuiStaticTextures, scene->m_Textures.Size());
         DM_PROPERTY_ADD_U32(rmtp_GuiDynamicTextures, scene->m_DynamicTextures.Size());
         DM_PROPERTY_ADD_U32(rmtp_GuiTextures, scene->m_Textures.Size() + scene->m_DynamicTextures.Size());
@@ -4220,10 +4236,15 @@ namespace dmGui
         InternalNode* out_n = &scene->m_Nodes[index];
         memset(out_n, 0, sizeof(InternalNode));
 
+        // generate a name for the cloned node
+        char name[18];
+        dmSnPrintf(name, 18, "__node%d", g_ClonedNodeCount++);
+
         InternalNode* n = GetNode(scene, node);
         out_n->m_Node = n->m_Node;
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
+        out_n->m_NameHash = dmHashString64(name);
         out_n->m_Version = version;
         out_n->m_Index = index;
         out_n->m_SceneTraversalCacheVersion = INVALID_INDEX;

@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -96,9 +96,9 @@
             project          (test-util/setup-project! workspace [module1-resource module2-resource script-resource])
             script-node      (project/get-resource-node project script-resource)
             completions      (g/node-value script-node :completions)]
-        (is (= #{"a.f1" "a.f2"}
+        (is (= #{"f1" "f2"}
                (set (map :name (get completions "a")))))
-        (is (= #{"b.f3"}
+        (is (= #{"f3"}
                (set (map :name (get completions "b"))))))))
   (testing "does not include completions from transitive requires"
     (test-util/with-loaded-project "test/resources/empty_project"
@@ -116,7 +116,7 @@
             project          (test-util/setup-project! workspace [module1-resource module2-resource script-resource])
             script-node      (project/get-resource-node project script-resource)
             completions      (g/node-value script-node :completions)]
-        (is (= #{"a.f"}
+        (is (= #{"f"}
                (set (map :name (get completions "a")))))))))
 
 (deftest inexact-require-casing-produces-build-error

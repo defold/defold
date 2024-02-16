@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -235,7 +235,7 @@ int dmStrCaseCmp(const char *s1, const char *s2)
 
 #if defined(DM_NO_ERRNO)
     #define DM_STRERROR_USE_POSIX
-    #define DM_STRERROR_FN(buf, size, errval) (int) dmSnPrintf(buf, size, "Unknown error %d", errval) == -1 ? 0 : 1
+    #define DM_STRERROR_FN(buf, size, errval) (int) dmSnPrintf(buf, size, "Unknown error %d", errval) == -1 ? 1 : 0
 #else
     #if !(defined(DM_STRERROR_USE_POSIX) || defined(DM_STRERROR_USE_GNU))
         #if defined(ANDROID)

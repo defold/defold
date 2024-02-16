@@ -1,13 +1,13 @@
 
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -38,6 +38,7 @@ namespace dmModelImporter
     {
         const char* m_Name;
         uint32_t    m_Index;        // The index into the scene.materials array
+        uint8_t     m_IsSkinned;    // If a skinned mesh is using this
     };
 
     struct Mesh
@@ -65,10 +66,11 @@ namespace dmModelImporter
 
     struct Model
     {
-        const char* m_Name;
-        Mesh*       m_Meshes;
-        uint32_t    m_MeshesCount;
-        uint32_t    m_Index;        // The index into the scene.models array
+        const char*     m_Name;
+        Mesh*           m_Meshes;
+        uint32_t        m_MeshesCount;
+        uint32_t        m_Index;        // The index into the scene.models array
+        struct Bone*    m_ParentBone;   // If the model is not skinned, but a child of a bone
     };
 
     struct DM_ALIGNED(16) Bone
@@ -174,6 +176,10 @@ namespace dmModelImporter
 
         Buffer*     m_Buffers;
         uint32_t    m_BuffersCount;
+
+        // When we need to dynamically create materials
+        Material**  m_DynamicMaterials;
+        uint32_t    m_DynamicMaterialsCount;
     };
 
     struct Options

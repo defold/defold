@@ -85,6 +85,8 @@ body
 	border-left-color:#555;
 	border-bottom-color:#111;
 	border-right-color:#111;
+
+    resize:horizontal;
 }
 
 .TimelineBox

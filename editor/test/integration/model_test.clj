@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,13 +15,14 @@
 (ns integration.model-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.protobuf :as protobuf]
             [integration.test-util :as test-util]
             [editor.workspace :as workspace]
-            [editor.defold-project :as project]
             [editor.types :as types]
             [editor.properties :as properties]
             [util.murmur :as murmur])
-  (:import [javax.vecmath Point3d]))
+  (:import [javax.vecmath Point3d]
+           [com.dynamo.gamesys.proto ModelProto$ModelDesc]))
 
 (deftest aabb
   (test-util/with-loaded-project
@@ -33,16 +34,36 @@
 
 (deftest textures
   (test-util/with-loaded-project
-    (let [node-id (test-util/resource-node project "/model/test.model")]
-      (let [original-texture (first (test-util/prop node-id :textures))
-            t [original-texture nil nil]]
-        (test-util/prop! node-id :textures t)
-        (is (= t (test-util/prop node-id :textures)))
-        (let [p (-> [(g/node-value node-id :_properties)]
-                  (properties/coalesce)
+    (let [node-id (test-util/resource-node project "/model/test.model")
+          original-materials (test-util/prop node-id :materials)
+          original-texture (get-in original-materials [0 :textures 0 :texture])
+          texture-binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :texture-binding-infos 0 :_node-id])]
+      (test-util/prop! texture-binding-id :texture original-texture)
+      (is (= original-materials (test-util/prop node-id :materials)))
+      (let [p (-> (properties/coalesce [(g/node-value node-id :_properties)])
                   :properties
-                  :texture2)]
-          (properties/set-values! p [original-texture]))))))
+                  :__sampler__0__0)]
+        (properties/set-values! p [original-texture]))))
+  (testing "Loading textures renames them to match the material"
+    (test-util/with-loaded-project "test/resources/model_migration_project"
+      ;; test2.model has textures that don't match the names of the material, so
+      ;; loading the model renames the texture bindings
+      (let [node-id (test-util/resource-node project "/test.model")]
+        (is (g/node-value node-id :dirty?))
+        (is (= #{"tex_foo" "tex_bar" "tex_baz"}
+               (->> (g/node-value node-id :resource)
+                    (protobuf/read-text ModelProto$ModelDesc)
+                    :materials
+                    (into #{}
+                          (comp
+                            (mapcat :textures)
+                            (map :sampler))))))
+        (is (= #{"tex0" "tex1" "tex2"}
+               (into #{}
+                     (comp
+                       (mapcat :textures)
+                       (map :sampler))
+                     (g/node-value node-id :materials))))))))
 
 (deftest animations
   (test-util/with-loaded-project
@@ -69,11 +90,12 @@
           (test-util/with-prop [node-id :mesh v]
             (is (g/error? (test-util/prop-error node-id :mesh))))))
 
-      (testing "material is required"
-        (is (nil? (test-util/prop-error node-id :material)))
-        (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
-          (test-util/with-prop [node-id :material v]
-            (is (g/error? (test-util/prop-error node-id :material))))))
+      (testing "at least 1 material is required"
+        (is (not (g/error-value? (g/node-value node-id :build-targets))))
+        (let [material-binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
+          (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
+            (test-util/with-prop [material-binding-id :material v]
+              (is (g/error-value? (g/node-value node-id :build-targets)))))))
 
       (testing "default-animation should be empty string or a valid animation"
         (is (nil? (test-util/prop-error node-id :animations)))

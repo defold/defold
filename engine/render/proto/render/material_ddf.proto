@@ -46,18 +46,20 @@ message MaterialDesc
 
     enum FilterModeMin
     {
-        FILTER_MODE_MIN_NEAREST = 0;
-        FILTER_MODE_MIN_LINEAR  = 1;
+        FILTER_MODE_MIN_NEAREST                = 0;
+        FILTER_MODE_MIN_LINEAR                 = 1;
         FILTER_MODE_MIN_NEAREST_MIPMAP_NEAREST = 2;
         FILTER_MODE_MIN_NEAREST_MIPMAP_LINEAR  = 3;
         FILTER_MODE_MIN_LINEAR_MIPMAP_NEAREST  = 4;
         FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR   = 5;
+        FILTER_MODE_MIN_DEFAULT                = 6;
     }
 
     enum FilterModeMag
     {
         FILTER_MODE_MAG_NEAREST = 0;
         FILTER_MODE_MAG_LINEAR  = 1;
+        FILTER_MODE_MAG_DEFAULT = 2;
     }
 
     message Sampler
@@ -68,9 +70,9 @@ message MaterialDesc
         required FilterModeMin filter_min = 4;
         required FilterModeMag filter_mag = 5;
         optional float max_anisotropy     = 6 [default = 1.0];
-        repeated uint64 name_indirections = 7; // sampler name -> list of shader uniform hashes
+        repeated uint64 name_indirections = 7 [(runtime_only)=true]; // sampler name -> list of shader uniform hashes
         optional string texture           = 8 [(resource)=true];
-        optional uint64 name_hash         = 9; // Internal, for faster lookups
+        optional uint64 name_hash         = 9 [(runtime_only)=true]; // Internal, for faster lookups
     }
 
     required string name = 1;

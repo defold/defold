@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,9 +19,13 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.*;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.Date;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import com.defold.editor.Editor;
@@ -41,7 +45,6 @@ public class ResourceUnpacker {
     private static volatile boolean isInitialized = false;
     private static Object lock = new Object();
     private static Logger logger = LoggerFactory.getLogger(ResourceUnpacker.class);
-    private static Path unpackedLibDir;
 
     // unpack dirs should be automatically deleted using a shutdown hook but
     // the shutdown hook will not run if the editor doesn't shut down gracefully
@@ -59,13 +62,19 @@ public class ResourceUnpacker {
         logger.info("deleting old unpack dirs from {}", unpackRoot);
         final long now = new Date().getTime();
         final long oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000);
-        for (File unpackDir : unpackRoot.toFile().listFiles(File::isDirectory)) {
-            long creationTime = Files.getLastModifiedTime(unpackDir.toPath()).toMillis();
-            if (creationTime < oneWeekAgo) {
-                logger.info("deleting unpack dir {}", unpackDir);
-                FileUtils.deleteQuietly(unpackDir);
-            }
-        }
+        Files.list(unpackRoot)
+                .filter(path -> Files.isDirectory(path) && !path.equals(unpackPath))
+                .forEach(unpackDir -> {
+                    try {
+                        long creationTime = Files.getLastModifiedTime(unpackDir).toMillis();
+                        if (creationTime < oneWeekAgo) {
+                            logger.info("deleting unpack dir {}", unpackDir);
+                            FileUtils.deleteQuietly(unpackDir.toFile());
+                        }
+                    } catch (IOException e) {
+                        logger.warn("Couldn't get lastModifiedTime of {}", unpackDir, e);
+                    }
+                });
     }
 
     public static void unpackResources() throws IOException, URISyntaxException {
@@ -85,15 +94,37 @@ public class ResourceUnpacker {
             try {
                 Path unpackPath  = getUnpackPath();
                 deleteOldUnpackDirs(unpackPath);
-                unpackResourceFile("builtins.zip", unpackPath.resolve("builtins"));
-                unpackResourceDir("/_unpack", unpackPath);
+                String sha1 = System.getProperty(DEFOLD_EDITOR_SHA1_KEY);
+                Path unpackShaPath = unpackPath.resolve("editor-sha.txt");
+                boolean alreadyUnpacked = sha1 != null
+                        && Files.exists(unpackShaPath)
+                        && sha1.equals(Files.readString(unpackShaPath));
+                if (alreadyUnpacked) {
+                    logger.info("Already unpacked for the editor version {}", sha1);
+                } else {
+                    unpackResourceFile("builtins.zip", unpackPath.resolve("builtins"));
+                    unpackResourceDir("/_unpack", unpackPath);
 
-                Path binDir = unpackPath.resolve(Platform.getHostPlatform().getPair() + "/bin").toAbsolutePath();
-                if (binDir.toFile().exists()) {
-                    Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
+                    Path binDir = unpackPath.resolve(Platform.getHostPlatform().getPair() + "/bin").toAbsolutePath();
+                    if (Files.exists(binDir)) {
+                        Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
+                    }
+                    if (sha1 != null) {
+                        Files.writeString(unpackShaPath, sha1);
+                    }
+                }
+                if (unpackPath.getParent().startsWith(Editor.getSupportPath())) {
+                    // Prevent from deletion by deleteOldUnpackDirs
+                    Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> {
+                        try {
+                            Files.setLastModifiedTime(unpackPath, FileTime.from(Instant.now()));
+                        } catch (IOException e) {
+                            logger.warn("Couldn't set lastModifiedTime for {}", unpackPath, e);
+                        }
+                    }, 0, 1, TimeUnit.DAYS);
                 }
 
-                unpackedLibDir = unpackPath.resolve(Platform.getHostPlatform().getPair() + "/lib").toAbsolutePath();
+                Path unpackedLibDir = unpackPath.resolve(Platform.getHostPlatform().getPair() + "/lib").toAbsolutePath();
                 System.setProperty("java.library.path", unpackedLibDir.toString());
                 System.setProperty("jna.library.path", unpackedLibDir.toString());
 
@@ -107,11 +138,6 @@ public class ResourceUnpacker {
                 isInitialized = true;
             }
         }
-    }
-
-    public static Path getUnpackedLibraryPath(String libName) {
-        String mappedName = System.mapLibraryName(libName);
-        return unpackedLibDir.resolve(mappedName);
     }
 
     private static void unpackResourceFile(String resourceFileName, Path target) throws URISyntaxException, IOException {
@@ -204,9 +230,13 @@ public class ResourceUnpacker {
         }
 
         String sha1 = System.getProperty(DEFOLD_EDITOR_SHA1_KEY);
-        Path tmpDir = Files.createTempDirectory("defold-unpack" + (sha1 == null ? "" : "-" + sha1));
-        deleteOnExit(tmpDir);
-        return tmpDir;
+        if (sha1 != null) {
+            return ensureDirectory(Editor.getSupportPath().resolve(Paths.get("unpack", sha1)));
+        } else {
+            Path tmpDir = Files.createTempDirectory("defold-unpack");
+            deleteOnExit(tmpDir);
+            return tmpDir;
+        }
     }
 
     private static Path ensureDirectory(Path path) {

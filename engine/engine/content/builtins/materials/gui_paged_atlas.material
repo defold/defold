@@ -1,0 +1,10 @@
+name: "gui"
+tags: "gui"
+vertex_program: "/builtins/materials/gui_paged_atlas.vp"
+fragment_program: "/builtins/materials/gui_paged_atlas.fp"
+vertex_space: VERTEX_SPACE_WORLD
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+max_page_count: 4

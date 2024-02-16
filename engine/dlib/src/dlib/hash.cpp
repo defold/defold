@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,7 @@
 #include "index_pool.h"
 #include "align.h"
 #include <dlib/mutex.h>
+#include <dlib/dstrings.h>
 #include <dlib/hashtable.h>
 
 struct ReverseHashEntry
@@ -665,12 +666,24 @@ DM_DLLEXPORT void dmHashReverseErase64(uint64_t hash)
 DM_DLLEXPORT const char* dmHashReverseSafe64(uint64_t hash)
 {
     const char* s = (const char*)dmHashReverse64(hash, 0);
-    return s != 0 ? s : "<unknown>";
+    if (s == 0)
+    {
+        char tmp[64];
+        dmSnPrintf(tmp, sizeof(tmp), "<unknown:%llu>", (unsigned long long)hash);
+        return tmp;
+    }
+    return s;
 }
 
 DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash)
 {
     const char* s = (const char*)dmHashReverse32(hash, 0);
-    return s != 0 ? s : "<unknown>";
+    if (s == 0)
+    {
+        char tmp[32];
+        dmSnPrintf(tmp, sizeof(tmp), "<unknown:%u>", hash);
+        return tmp;
+    }
+    return s;
 }
 

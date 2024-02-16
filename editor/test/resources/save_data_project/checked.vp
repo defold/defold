@@ -1,0 +1,31 @@
+// Copyright 2020-2023 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#include "/checked.glsl"
+
+uniform mediump mat4 viewproj;
+
+attribute mediump vec4 position;
+attribute mediump vec2 texcoord0;
+attribute lowp float texpage0;
+attribute mediump vec4 color0;
+
+varying mediump vec3 var_texcoord0;
+varying mediump vec4 var_color0;
+
+void main() {
+	gl_Position = viewproj * vec4(position.xyz, 1.0);
+	var_texcoord0 = vec3(texcoord0.xy, texpage0);
+	var_color0 = premultiply_alpha(color0);
+}

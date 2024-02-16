@@ -1,7 +1,13 @@
 mesh: "/assets/defold_logo.dae"
-material: "/main/test.material"
-textures: "/assets/images/logo.png"
 skeleton: ""
 animations: ""
 default_animation: ""
 name: "name"
+materials {
+  name: "default"
+  material: "/main/test.material"
+  textures {
+    sampler: "tex0"
+    texture: "/assets/images/logo.png"
+  }
+}

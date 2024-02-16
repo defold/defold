@@ -1,0 +1,10 @@
+[liveupdate]
+mode = Zip
+amazon-credential-profile = credential_profile
+amazon-bucket = bucket
+amazon-prefix = prefix
+zip-filepath = zip_file_path
+supported-versions = "1.2.3"
+publickey = referenced/liveupdate_manifest_public.der
+privatekey = referenced/liveupdate_manifest_private.der
+

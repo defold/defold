@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -379,7 +379,7 @@ namespace dmRender
      * Then use the constant buffer when drawing a predicate:
      *
      * ```lua
-     * render.draw(self.my_pred, constants)
+     * render.draw(self.my_pred, {constants = constants})
      * ```
      *
      * The constant buffer also supports array values by specifying constants in a table:
@@ -1262,11 +1262,32 @@ namespace dmRender
             {
                 render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
             }
+            else if (dmScript::IsHash(L, 1) || lua_isstring(L, 1))
+            {
+                dmhash_t rt_id                  = dmScript::CheckHashOrString(L, 1);
+                RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
+
+                if (render_resource == 0x0)
+                {
+                    char str[128];
+                    char buffer[256];
+                    dmSnPrintf(buffer, sizeof(buffer), "Could not find render target '%s' %llu",
+                        dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long) rt_id); // since lua doesn't support proper format arguments
+                    return DM_LUA_ERROR("%s", buffer);
+                }
+
+                if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
+                {
+                    return DM_LUA_ERROR("Render resource is not a render target");
+                }
+
+                render_target = (dmGraphics::HRenderTarget) render_resource->m_Resource;
+            }
             else
             {
                 if(!lua_isnil(L, 1) && luaL_checkint(L, 1) != 0)
                 {
-                    return luaL_error(L, "Invalid render target supplied to %s.set_render_target.", RENDER_SCRIPT_LIB_NAME);
+                    return DM_LUA_ERROR("Invalid render target supplied to %s.set_render_target.", RENDER_SCRIPT_LIB_NAME);
                 }
             }
         }
@@ -1292,7 +1313,7 @@ namespace dmRender
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, render_target, transient_buffer_types)))
             return 0;
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     /* DEPRECATED. NO API DOC GENERATED.
@@ -1762,7 +1783,13 @@ namespace dmRender
      * @param [options] [type:table] optional table with properties:
      *
      * `frustum`
-     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
+     *
+     * `frustum_planes`
+     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
+     *
+     * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
+     * - render.FRUSTUM_PLANES_ALL : All 6 sides of the frustum.
      *
      * `constants`
      * : [type:constant_buffer] optional constants to use while rendering
@@ -1789,11 +1816,18 @@ namespace dmRender
      * render.draw(self.my_pred, {constants = constants})
      * ```
 
-     * Draw with predicate and frustum culling:
+     * Draw with predicate and frustum culling (without near+far planes):
      *
      * ```lua
      * local frustum = self.proj * self.view
-     * render.draw(self.my_pred, {frustum = frustum, constants = constants})
+     * render.draw(self.my_pred, {frustum = frustum})
+     * ```
+
+     * Draw with predicate and frustum culling (with near+far planes):
+     *
+     * ```lua
+     * local frustum = self.proj * self.view
+     * render.draw(self.my_pred, {frustum = frustum, frustum_planes = render.FRUSTUM_PLANES_ALL})
      * ```
 
      */
@@ -1812,6 +1846,7 @@ namespace dmRender
         }
 
         dmVMath::Matrix4* frustum_matrix = 0;
+        dmRender::FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
         HNamedConstantBuffer constant_buffer = 0;
 
         if (lua_istable(L, 2))
@@ -1821,6 +1856,10 @@ namespace dmRender
 
             lua_getfield(L, -1, "frustum");
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "frustum_planes");
+            frustum_num_planes = lua_isnil(L, -1) ? frustum_num_planes : (dmRender::FrustumPlanes)luaL_checkinteger(L, -1);
             lua_pop(L, 1);
 
             lua_getfield(L, -1, "constants");
@@ -1836,15 +1875,16 @@ namespace dmRender
             constant_buffer = *tmp;
         }
 
+        // we need to pass ownership to the command queue
+        FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            // we need to pass ownership to the command queue
-            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
-            *copy = *frustum_matrix;
-            frustum_matrix = copy;
+            frustum_options = new FrustumOptions;
+            frustum_options->m_Matrix = *frustum_matrix;
+            frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_options)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1857,6 +1897,12 @@ namespace dmRender
      *
      * `frustum`
      * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     *
+     * `frustum_planes`
+     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
+     *
+     * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
+     * - render.FRUSTUM_PLANES_ALL : All sides of the frustum.
      *
      * @replaces render.draw_debug2d
      * @examples
@@ -1872,6 +1918,7 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmVMath::Matrix4* frustum_matrix = 0;
+        dmRender::FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
 
         if (lua_istable(L, 1))
         {
@@ -1882,18 +1929,23 @@ namespace dmRender
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
             lua_pop(L, 1);
 
+            lua_getfield(L, -1, "frustum_planes");
+            frustum_num_planes = lua_isnil(L, -1) ? frustum_num_planes : (dmRender::FrustumPlanes)luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+
             lua_pop(L, 1);
         }
 
+        // we need to pass ownership to the command queue
+        FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            // we need to pass ownership to the command queue
-            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
-            *copy = *frustum_matrix;
-            frustum_matrix = copy;
+            frustum_options = new FrustumOptions;
+            frustum_options->m_Matrix = *frustum_matrix;
+            frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_options)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1982,6 +2034,16 @@ namespace dmRender
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
+
+    /*#
+     * @name render.FRUSTUM_PLANES_SIDES
+     * @variable
+     */
+
+    /*#
+     * @name render.FRUSTUM_PLANES_ALL
+     * @variable
+     */
 
     /*#
      * @name render.BLEND_ZERO
@@ -2809,8 +2871,9 @@ namespace dmRender
         if (!lua_isnil(L, 1))
         {
             dmhash_t material_id = dmScript::CheckHashOrString(L, 1);
-            dmRender::HMaterial* mat = i->m_Materials.Get(material_id);
-            if (mat == 0x0)
+            RenderResource* render_resource = i->m_RenderResources.Get(material_id);
+
+            if (render_resource == 0x0)
             {
                 assert(top == lua_gettop(L));
                 char str[128];
@@ -2818,19 +2881,21 @@ namespace dmRender
                 dmSnPrintf(buffer, sizeof(buffer), "Could not find material '%s' %llu", dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long)material_id); // since lua doesn't support proper format arguments
                 return luaL_error(L, "%s", buffer);
             }
+            else if (render_resource->m_Type != RENDER_RESOURCE_TYPE_MATERIAL)
+            {
+                return luaL_error(L, "Render resource is not a material.");
+            }
+
+            HMaterial material = (HMaterial) render_resource->m_Resource;
+            if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint64_t)material)))
+            {
+                assert(top == lua_gettop(L));
+                return 0;
+            }
             else
             {
-                HMaterial material = *mat;
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint64_t)material)))
-                {
-                    assert(top == lua_gettop(L));
-                    return 0;
-                }
-                else
-                {
-                    assert(top == lua_gettop(L));
-                    return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-                }
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
             }
         }
         else
@@ -3071,6 +3136,15 @@ namespace dmRender
         REGISTER_BUFFER_CONSTANT(STENCIL_BIT, STENCIL_BIT);
 #undef REGISTER_BUFFER_CONSTANT
 
+#define REGISTER_FRUSTUM_PLANES_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmRender::FRUSTUM_PLANES_##name); \
+        lua_setfield(L, -2, "FRUSTUM_PLANES_"#name);
+
+        REGISTER_FRUSTUM_PLANES_CONSTANT(SIDES);
+        REGISTER_FRUSTUM_PLANES_CONSTANT(ALL);
+
+#undef REGISTER_FRUSTUM_PLANES_CONSTANT
+
         // Flags (only flag here currently, so no need for an enum)
         lua_pushnumber(L, RENDER_SCRIPT_FLAG_TEXTURE_BIT);
         lua_setfield(L, -2, "TEXTURE_BIT");
@@ -3221,7 +3295,7 @@ bail:
         i->m_ScriptWorld = render_context->m_ScriptWorld;
         i->m_RenderContext = render_context;
         i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
-        i->m_Materials.SetCapacity(16, 8);
+        i->m_RenderResources.SetCapacity(16, 8);
 
         lua_pushvalue(L, -1);
         i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
@@ -3276,19 +3350,23 @@ bail:
         render_script_instance->m_RenderScript = render_script;
     }
 
-    void AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material)
+    void AddRenderScriptInstanceRenderResource(HRenderScriptInstance render_script_instance, const char* name, uint64_t resource, RenderResourceType type)
     {
-        if (render_script_instance->m_Materials.Full())
+        if (render_script_instance->m_RenderResources.Full())
         {
-            uint32_t new_capacity = 2 * render_script_instance->m_Materials.Capacity();
-            render_script_instance->m_Materials.SetCapacity(2 * new_capacity, new_capacity);
+            uint32_t new_capacity = 2 * render_script_instance->m_RenderResources.Capacity();
+            render_script_instance->m_RenderResources.SetCapacity(2 * new_capacity, new_capacity);
         }
-        render_script_instance->m_Materials.Put(dmHashString64(material_name), material);
+
+        RenderResource res = {};
+        res.m_Resource     = resource;
+        res.m_Type         = type;
+        render_script_instance->m_RenderResources.Put(dmHashString64(name), res);
     }
 
-    void ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance)
+    void ClearRenderScriptInstanceRenderResources(HRenderScriptInstance render_script_instance)
     {
-        render_script_instance->m_Materials.Clear();
+        render_script_instance->m_RenderResources.Clear();   
     }
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,10 +42,7 @@ protected:
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/src/gameobject/test/script";
 
-        char path[1024];
-        dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/script");
-
-        m_Factory = dmResource::NewFactory(&params, path);
+        m_Factory = dmResource::NewFactory(&params, m_Path);
         ASSERT_NE((dmResource::HFactory)0, m_Factory);
         m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
         dmScript::Initialize(m_ScriptContext);

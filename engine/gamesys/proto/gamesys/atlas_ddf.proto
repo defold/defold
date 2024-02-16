@@ -25,6 +25,7 @@ message AtlasAnimation
     optional uint32 flip_vertical   = 6 [default = 0];
 }
 
+// Editor format. Engine format is in texture_set_ddf.proto
 message Atlas
 {
     repeated AtlasImage images           = 1;
@@ -34,4 +35,6 @@ message Atlas
     optional uint32 inner_padding        = 5 [default = 0];
     optional uint32 max_page_width       = 6 [default = 0];
     optional uint32 max_page_height      = 7 [default = 0];
+    // A list of comma separated patterns to rename animations: E.g. "_nrm=,_normal="
+    optional string rename_patterns      = 8;
 }

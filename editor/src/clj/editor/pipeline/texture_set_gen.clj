@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.pipeline.texture-set-gen
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.image-util :as image-util]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -22,8 +23,9 @@
   (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$LayoutResult TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect TextureSetLayout$Layout]
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
            [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet$Builder]
-           [com.dynamo.gamesys.proto Tile$ConvexHull Tile$Playback TextureSetProto$SpriteGeometry]
+           [com.dynamo.gamesys.proto Tile$ConvexHull Tile$Playback Tile$SpriteTrimmingMode TextureSetProto$SpriteGeometry]
            [editor.types Image]
            [java.awt.image BufferedImage]))
 
@@ -79,15 +81,18 @@
             (TextureSetGenerator/layoutImages layout inner-padding extrude-borders id->image))
           (.-layouts layout-result))))
 
-(defn- sprite-trim-mode->hull-vertex-count
-  ^long [sprite-trim-mode]
-  (case sprite-trim-mode
-    :sprite-trim-mode-off 0
-    :sprite-trim-mode-4 4
-    :sprite-trim-mode-5 5
-    :sprite-trim-mode-6 6
-    :sprite-trim-mode-7 7
-    :sprite-trim-mode-8 8))
+(defn- sprite-trim-mode->enum
+  [sprite-trim-mode]
+  (protobuf/val->pb-enum Tile$SpriteTrimmingMode sprite-trim-mode))
+
+(defn resource-id
+  ([resource rename-patterns]
+   (resource-id resource nil rename-patterns))
+  ([resource animation-name rename-patterns]
+   (let [id (cond->> (resource/base-name resource) animation-name (str animation-name "/"))]
+     (if rename-patterns
+       (try (AtlasUtil/replaceStrings rename-patterns id) (catch Exception _ id))
+       id))))
 
 (defn- texture-set-layout-rect
   ^TextureSetLayout$Rect [{:keys [path width height]}]
@@ -109,6 +114,10 @@
   (-> (TextureSetProto$SpriteGeometry/newBuilder rect-sprite-geometry-template)
       (.setWidth width)
       (.setHeight height)
+      (.setCenterX 0)
+      (.setCenterY 0)
+      (.setRotated false)
+      (.setTrimMode Tile$SpriteTrimmingMode/SPRITE_TRIM_MODE_OFF)
       (.build)))
 
 (defn- make-image-sprite-geometry
@@ -123,8 +132,7 @@
       (let [buffered-image (resource-io/with-error-translation resource error-node-id :image
                              (image-util/read-image resource))]
         (g/precluding-errors buffered-image
-          (let [hull-vertex-count (sprite-trim-mode->hull-vertex-count sprite-trim-mode)]
-            (TextureSetGenerator/buildConvexHull buffered-image hull-vertex-count)))))))
+          (TextureSetGenerator/buildConvexHull buffered-image (sprite-trim-mode->enum sprite-trim-mode)))))))
 
 (defn atlas->texture-set-data
   [animations images margin inner-padding extrude-borders max-page-size]
@@ -145,6 +153,9 @@
                               (let [img (first @anim-imgs-atom)]
                                 (swap! anim-imgs-atom rest)
                                 (img-to-index img)))
+                            ; This generator is run with fake animation (i.e. no valid id's)
+                            ; See atlas.clj produce-texture-set-data for the patchup details
+                            (getFrameId [_this] "")
                             (rewind [_this]
                               (reset! anims-atom animations)
                               (reset! anim-imgs-atom [])))
@@ -252,14 +263,16 @@
                           (let [index (first @anim-indices-atom)]
                             (swap! anim-indices-atom rest)
                             index))
+                        ; The tilesets don't support lookup by image name hash, so we default to ""==0
+                        (getFrameId [_this] "")
                         (rewind [_this]
                           (reset! anims-atom animations)
                           (reset! anim-indices-atom [])))
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
-        hull-vertex-count (sprite-trim-mode->hull-vertex-count (:sprite-trim-mode tile-source-attributes))
+        sprite-trim-mode (sprite-trim-mode->enum (:sprite-trim-mode tile-source-attributes))
         sprite-geometries (map (fn [^TextureSetLayout$Rect image-rect]
                                  (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
-                                   (TextureSetGenerator/buildConvexHull sub-image hull-vertex-count)))
+                                   (TextureSetGenerator/buildConvexHull sub-image sprite-trim-mode)))
                                image-rects)
         use-geometries (if (not= :sprite-trim-mode-off (:sprite-trim-mode tile-source-attributes)) 1 0)
         result (TextureSetGenerator/calculateLayout

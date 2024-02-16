@@ -66,7 +66,7 @@ message TileSet
     optional string collision                       = 6 [(resource)=true];
     required string material_tag                    = 7 [default = "tile"];
     repeated ConvexHull convex_hulls                = 8;
-    repeated float convex_hull_points               = 9;
+    repeated float convex_hull_points               = 9 [(runtime_only)=true];
     repeated string collision_groups                = 10;
     repeated Animation animations                   = 11;
     optional uint32 extrude_borders                 = 12 [default = 0];
@@ -89,7 +89,7 @@ message TileLayer
     required string id          = 1 [default = "layer1"];
     required float z            = 2 [default = 0.0];
     required uint32 is_visible  = 3 [default = 1];
-    optional uint64 id_hash     = 4 [default = 0];
+    optional uint64 id_hash     = 4 [default = 0, (runtime_only)=true];
     repeated TileCell cell      = 6;
 }
 

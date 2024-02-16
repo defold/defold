@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -235,8 +235,7 @@ public class ModelUtilTest {
             ModelUtil.loadSkeleton(scene, skeletonBuilder);
 
             ArrayList<String> animationIds = new ArrayList<>();
-            ArrayList<ModelImporter.Bone> bones = ModelUtil.loadSkeleton(scene);
-            ModelUtil.loadAnimations(scene, bones, animSetBuilder, "top_anim", animationIds);
+            ModelUtil.loadAnimations(scene, animSetBuilder, "top_anim", animationIds);
         }
         return scene;
     }
@@ -333,8 +332,8 @@ public class ModelUtilTest {
     @Test
     public void testSkeleton() throws Exception {
 
-        String[] boneIds   = {"Bottom", "Middle", "Top"};
-        String[] parentIds = {null,     "Bottom", "Middle"};
+        String[] boneIds   = {"root", "Middle", "Top"};
+        String[] parentIds = {null,   "root", "Middle"};
 
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ModelImporter.Scene scene = loadBuiltScene("bend2bones.gltf", skeletonBuilder);

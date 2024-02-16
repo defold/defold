@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1310,8 +1310,6 @@ namespace dmGui
         const char* text = luaL_checkstring(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
         void* font = scene->m_DefaultFont;
-        if (font == 0x0)
-            font = scene->m_Context->m_DefaultFont;
         Vector3 size = Vector3(1,1,1);
         if (font != 0x0)
         {
@@ -1416,6 +1414,7 @@ namespace dmGui
      * - `gui.BLEND_ADD`
      * - `gui.BLEND_ADD_ALPHA`
      * - `gui.BLEND_MULT`
+     * - `gui.BLEND_SCREEN`
      */
     static int LuaGetBlendMode(lua_State* L)
     {
@@ -1436,6 +1435,7 @@ namespace dmGui
      * - `gui.BLEND_ADD`
      * - `gui.BLEND_ADD_ALPHA`
      * - `gui.BLEND_MULT`
+     * - `gui.BLEND_SCREEN`
      */
     static int LuaSetBlendMode(lua_State* L)
     {
@@ -3133,6 +3133,7 @@ namespace dmGui
         InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         int adjust_mode = (int) luaL_checknumber(L, 2);
         n->m_Node.m_AdjustMode = (AdjustMode) adjust_mode;
+        n->m_Node.m_DirtyLocal = 1;
         return 0;
     }
 
@@ -3190,7 +3191,7 @@ namespace dmGui
      *
      * @name gui.move_above
      * @param node [type:node] to move
-     * @param node [type:node|nil] reference node above which the first node should be moved
+     * @param reference [type:node|nil] reference node above which the first node should be moved
      */
     static int LuaMoveAbove(lua_State* L)
     {
@@ -3213,7 +3214,7 @@ namespace dmGui
      *
      * @name gui.move_below
      * @param node [type:node] to move
-     * @param node [type:node|nil] reference node below which the first node should be moved
+     * @param reference [type:node|nil] reference node below which the first node should be moved
      */
     static int LuaMoveBelow(lua_State* L)
     {
@@ -3235,7 +3236,7 @@ namespace dmGui
      *
      * @name gui.get_parent
      * @param node [type:node] the node from which to retrieve its parent
-     * @return parent [type:node] parent instance or nil
+     * @return parent [type:node|nil] parent instance or `nil`
      */
     int LuaGetParent(lua_State* L)
     {
@@ -3302,7 +3303,9 @@ namespace dmGui
     }
 
     /*# clone a node
-     * Make a clone instance of a node.
+     * Make a clone instance of a node. The cloned node will be identical to the
+     * original node, except the id which is generated as the string "node" plus
+     * a sequential unsigned integer value.
      * This function does not clone the supplied node's children nodes.
      * Use gui.clone_tree for that purpose.
      *
@@ -3944,7 +3947,7 @@ namespace dmGui
      *
      * @name gui.get_flipbook_cursor
      * @param node [type:node] node to get the cursor for (node)
-     * @return cursor value [type:number] cursor value
+     * @return cursor [type:number] cursor value
      */
     static int LuaGetFlipbookCursor(lua_State* L)
     {
@@ -4295,7 +4298,7 @@ namespace dmGui
      *
      * @name gui.get_particlefx
      * @param node [type:node] node to get particle fx for
-     * @return [type:hash] particle fx id
+     * @return particlefx [type:hash] particle fx id
      */
     static int LuaGetParticlefx(lua_State* L)
     {
@@ -4597,6 +4600,12 @@ namespace dmGui
      * @variable
      */
 
+    /*# screen blending
+     *
+     * @name gui.BLEND_SCREEN
+     * @variable
+     */
+
     /*# clipping mode none
      *
      * @name gui.CLIPPING_MODE_NONE
@@ -4851,6 +4860,7 @@ namespace dmGui
         SETBLEND(ADD)
         SETBLEND(ADD_ALPHA)
         SETBLEND(MULT)
+        SETBLEND(SCREEN)
 
 #undef SETBLEND
 
@@ -4861,7 +4871,7 @@ namespace dmGui
         SETCLIPPINGMODE(NONE)
         SETCLIPPINGMODE(STENCIL)
 
-#undef SETBLEND
+#undef SETCLIPPINGMODE
 
 #define SETKEYBOARD(name) \
         lua_pushnumber(L, (lua_Number) dmHID::KEYBOARD_TYPE_##name); \
@@ -5122,7 +5132,7 @@ namespace dmGui
      * @param self [type:object] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
-     * @return [consume] [type:boolean] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
+     * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *
      * ```lua

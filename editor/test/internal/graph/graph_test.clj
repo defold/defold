@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,7 +16,6 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.graph :as ig]
-            [internal.system :as is]
             [clojure.core.cache :as cc]
             [internal.graph.generator :as ggen]
             [internal.graph.types :as gt]
@@ -411,3 +410,28 @@
                       :state :fail}],
                     :state :fail}],
                   :state :fail})))))))
+
+(deftest valid-node-value
+  (with-clean-system
+    (let [[error-node consumer-node]
+          (tx-nodes
+            (g/make-nodes
+              world [error-node (TestNode :val "initial")
+                     consumer-node PassthroughNode]
+              (g/connect error-node :val consumer-node :str-in)))]
+      (is (= (g/node-value consumer-node :str-out)
+             (g/valid-node-value consumer-node :str-out)))
+      (g/mark-defective! error-node (g/error-fatal "bad"))
+      (let [error-value (g/node-value consumer-node :str-out)]
+        (is (g/error? error-value))
+        (when (is (thrown? Exception (g/valid-node-value consumer-node :str-out)))
+          (try
+            (g/valid-node-value consumer-node :str-out)
+            (catch Exception exception
+              (let [ex-message (ex-message exception)
+                    ex-data (ex-data exception)]
+                (is (= "Evaluation produced an ErrorValue." ex-message))
+                (when (is (map? ex-data))
+                  (is (= :internal.graph.graph-test/PassthroughNode (:node-type-kw ex-data)))
+                  (is (= :str-out (:label ex-data)))
+                  (is (= error-value (:error ex-data))))))))))))

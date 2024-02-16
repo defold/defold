@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -503,15 +503,15 @@ public abstract class LuaBuilder extends Builder<Void> {
             if ( needs32bit ^ needs64bit ) { // if only one of them is set
                 if (needs64bit) {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
-                    logger.info("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.fine("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
                 }
                 else {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode32));
-                    logger.info("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.fine("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
                 }
             }
             else if (!useLuaBytecodeDelta) {
-                logger.info("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
+                logger.fine("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
                 srcBuilder.setBytecode32(ByteString.copyFrom(bytecode32));
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }
@@ -519,7 +519,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                 byte[] delta = constructBytecodeDelta(bytecode32, bytecode64);
                 srcBuilder.setDelta(ByteString.copyFrom(delta));
 
-                logger.info("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
+                logger.fine("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
             }
         }

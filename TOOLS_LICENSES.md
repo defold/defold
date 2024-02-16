@@ -12,8 +12,8 @@ The following software is used by the Defold editor and command line tools:
 
   * BSD 2.0 license (3-clause license)
     * [ANTLR](/licenses/NOTICE-antlr) - Used by the command line tools when parsing Lua files.
-    * [libogg](/licenses/NOTICE-libogg) - Used by the command line tools when validationg `ogg` files.
-    * [Oggz](/licenses/NOTICE-oggz) - Used by the command line tools when validationg `ogg` files.
+    * [libogg](/licenses/NOTICE-libogg) - Used by the command line tools when validating `ogg` files.
+    * [Oggz](/licenses/NOTICE-oggz) - Used by the command line tools when validating `ogg` files.
   * MIT
     * [flame-chart-js](/licenses/NOTICE-flame-chart-js) - Used for producing bob.jar time profiling report
     * [DataTables](/licenses/NOTICE-datatable) - Used for producing bob.jar time profiling report

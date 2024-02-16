@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.code.resource :as r]
             [editor.code.script :as script]
+            [editor.lua :as lua]
             [editor.luart :as luart]
             [editor.resource :as resource]))
 
@@ -26,9 +27,13 @@
     (catch Exception e
       (g/->error _node-id :prototype :fatal e "Could not compile editor extension"))))
 
+(def completions
+  (merge-with into lua/std-libs-docs lua/editor-completions))
+
 (g/defnode EditorScript
   (inherits r/CodeEditorResourceNode)
   (input globals g/Any)
+  (output completions g/Any (g/constantly completions))
   (output prototype g/Any :cached produce-prototype))
 
 (defn register-resource-types [workspace]

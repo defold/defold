@@ -1,18 +1,19 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include "res_font_map.h"
+#include "res_glyph_bank.h"
 
 #include <string.h>
 
@@ -21,29 +22,55 @@
 
 #include <render/font_renderer.h>
 #include <render/render_ddf.h>
+
 #include <dmsdk/gamesys/resources/res_material.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
+    struct Resources
+    {
+        MaterialResource*  m_MaterialResource;
+        GlyphBankResource* m_GlyphBankResource;
+    };
+
+    static void ReleaseResources(dmResource::HFactory factory, void* font_map_user_data)
+    {
+        Resources* resources = (Resources*) font_map_user_data;
+        dmResource::Release(factory, (void*) resources->m_MaterialResource);
+        dmResource::Release(factory, (void*) resources->m_GlyphBankResource);
+        delete resources;
+    }
+
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
         dmRenderDDF::FontMap* ddf, dmRender::HFontMap font_map, const char* filename, dmRender::HFontMap* font_map_out, bool reload)
     {
         *font_map_out = 0;
 
-        MaterialResource* material;
-        dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &material);
+        MaterialResource* material_res;
+        dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &material_res);
         if (result != dmResource::RESULT_OK)
         {
             dmDDF::FreeMessage(ddf);
             return result;
         }
 
-        dmRender::FontMapParams params;
-        params.m_Glyphs.SetCapacity(ddf->m_Glyphs.m_Count);
-        params.m_Glyphs.SetSize(ddf->m_Glyphs.m_Count);
-        for (uint32_t i = 0; i < ddf->m_Glyphs.m_Count; ++i)
+        GlyphBankResource* glyph_bank_res;
+        result = dmResource::Get(factory, ddf->m_GlyphBank, (void**) &glyph_bank_res);
+        if (result != dmResource::RESULT_OK)
         {
-            dmRenderDDF::FontMap::Glyph& i_g = ddf->m_Glyphs[i];
+            dmDDF::FreeMessage(ddf);
+            return result;
+        }
+
+        dmRenderDDF::GlyphBank* glyph_bank = glyph_bank_res->m_DDF;
+        assert(glyph_bank);
+
+        dmRender::FontMapParams params;
+        params.m_Glyphs.SetCapacity(glyph_bank->m_Glyphs.m_Count);
+        params.m_Glyphs.SetSize(glyph_bank->m_Glyphs.m_Count);
+        for (uint32_t i = 0; i < glyph_bank->m_Glyphs.m_Count; ++i)
+        {
+            dmRenderDDF::GlyphBank::Glyph& i_g = glyph_bank->m_Glyphs[i];
             dmRender::Glyph& o_g = params.m_Glyphs[i];
             o_g.m_Character = i_g.m_Character;
             o_g.m_Advance = i_g.m_Advance;
@@ -57,46 +84,49 @@ namespace dmGameSystem
             o_g.m_GlyphDataSize = i_g.m_GlyphDataSize;
 
         }
-        params.m_ShadowX = ddf->m_ShadowX;
-        params.m_ShadowY = ddf->m_ShadowY;
-        params.m_MaxAscent = ddf->m_MaxAscent;
-        params.m_MaxDescent = ddf->m_MaxDescent;
-        params.m_SdfOffset = ddf->m_SdfOffset;
-        params.m_SdfSpread = ddf->m_SdfSpread;
-        params.m_SdfOutline = ddf->m_SdfOutline;
-        params.m_SdfShadow = ddf->m_SdfShadow;
-        params.m_OutlineAlpha = ddf->m_OutlineAlpha;
-        params.m_ShadowAlpha = ddf->m_ShadowAlpha;
-        params.m_Alpha = ddf->m_Alpha;
 
-        params.m_CacheWidth = ddf->m_CacheWidth;
-        params.m_CacheHeight = ddf->m_CacheHeight;
+        // Font map
+        params.m_ShadowX            = ddf->m_ShadowX;
+        params.m_ShadowY            = ddf->m_ShadowY;
+        params.m_OutlineAlpha       = ddf->m_OutlineAlpha;
+        params.m_ShadowAlpha        = ddf->m_ShadowAlpha;
+        params.m_Alpha              = ddf->m_Alpha;
+        params.m_LayerMask          = ddf->m_LayerMask;
 
-        params.m_GlyphChannels = ddf->m_GlyphChannels;
-
-        params.m_CacheCellWidth = ddf->m_CacheCellWidth;
-        params.m_CacheCellHeight = ddf->m_CacheCellHeight;
-        params.m_CacheCellMaxAscent = ddf->m_CacheCellMaxAscent;
-        params.m_CacheCellPadding = ddf->m_GlyphPadding;
-
-        params.m_ImageFormat = ddf->m_ImageFormat;
-        params.m_LayerMask = ddf->m_LayerMask;
-
-        // Copy and unpack glyphdata
-        params.m_GlyphData = malloc(ddf->m_GlyphData.m_Count);
-        memcpy(params.m_GlyphData, ddf->m_GlyphData.m_Data, ddf->m_GlyphData.m_Count);
+        // Glyphbank
+        params.m_MaxAscent          = glyph_bank->m_MaxAscent;
+        params.m_MaxDescent         = glyph_bank->m_MaxDescent;
+        params.m_SdfOffset          = glyph_bank->m_SdfOffset;
+        params.m_SdfSpread          = glyph_bank->m_SdfSpread;
+        params.m_SdfOutline         = glyph_bank->m_SdfOutline;
+        params.m_SdfShadow          = glyph_bank->m_SdfShadow;
+        params.m_CacheCellWidth     = glyph_bank->m_CacheCellWidth;
+        params.m_CacheCellHeight    = glyph_bank->m_CacheCellHeight;
+        params.m_CacheCellMaxAscent = glyph_bank->m_CacheCellMaxAscent;
+        params.m_CacheCellPadding   = glyph_bank->m_GlyphPadding;
+        params.m_CacheWidth         = glyph_bank->m_CacheWidth;
+        params.m_CacheHeight        = glyph_bank->m_CacheHeight;
+        params.m_ImageFormat        = glyph_bank->m_ImageFormat;
+        params.m_GlyphChannels      = glyph_bank->m_GlyphChannels;
+        params.m_GlyphData          = glyph_bank->m_GlyphData.m_Data;
 
         if (font_map == 0)
+        {
             font_map = dmRender::NewFontMap(dmRender::GetGraphicsContext(context), params);
+        }
         else
         {
             dmRender::SetFontMap(font_map, params);
-            dmResource::Release(factory, dmRender::GetFontMapUserData(font_map));
+            ReleaseResources(factory, dmRender::GetFontMapUserData(font_map));
         }
 
-        // a workaround. ideally we'd have a FontmapResource* // MAWE
-        dmRender::SetFontMapUserData(font_map, (void*)material);
-        dmRender::SetFontMapMaterial(font_map, material->m_Material);
+        // This is a workaround, ideally we'd have a FontmapResource* // MAWE + JG
+        Resources* font_map_resources           = new Resources;
+        font_map_resources->m_MaterialResource  = material_res;
+        font_map_resources->m_GlyphBankResource = glyph_bank_res;
+
+        dmRender::SetFontMapUserData(font_map, (void*) font_map_resources);
+        dmRender::SetFontMapMaterial(font_map, material_res->m_Material);
 
         dmDDF::FreeMessage(ddf);
 
@@ -142,7 +172,7 @@ namespace dmGameSystem
     dmResource::Result ResFontMapDestroy(const dmResource::ResourceDestroyParams& params)
     {
         dmRender::HFontMap font_map = (dmRender::HFontMap)params.m_Resource->m_Resource;
-        dmResource::Release(params.m_Factory, (void*)dmRender::GetFontMapUserData(font_map));
+        ReleaseResources(params.m_Factory, dmRender::GetFontMapUserData(font_map));
         dmRender::DeleteFontMap(font_map);
         return dmResource::RESULT_OK;
     }

@@ -335,6 +335,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/condition_variable.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/configfile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/crypt.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/dalloca.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dlib.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/dstrings.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/easing.h')
@@ -348,6 +349,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_server.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/image.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/job_thread.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/log.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/lz4.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/math.h')
@@ -390,6 +392,7 @@ def build(bld):
     bld.install_files('${PREFIX}/ext/include/basis/encoder', bld.path.ant_glob('basis/encoder/*.h'))
     bld.install_files('${PREFIX}/ext/include/basis/transcoder', bld.path.ant_glob('basis/transcoder/*.h'))
     bld.install_files('${PREFIX}/ext/include/stb/', bld.path.ant_glob('stb/*.h'))
+    bld.install_files('${PREFIX}/ext/include/jc/', bld.path.ant_glob('jc/*.h'))
 
     bld.install_files('${PREFIX}/lib/python/dlib', 'python/dlib/__init__.py')
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
@@ -411,6 +414,7 @@ def build(bld):
     if is_platform_private(bld.env.PLATFORM):
         bld.install_files('${PREFIX}/include/dlib', 'dlib/endian_vendor.h')
         bld.install_files('${PREFIX}/include/dlib', 'dlib/mutex_vendor.h')
+        bld.install_files('${PREFIX}/include/dlib', 'dlib/alloca_vendor.h')
 
     for p in platforms:
         platform_include_dir = 'dlib/%s' % p
@@ -418,3 +422,4 @@ def build(bld):
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/mutex.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/spinlocktypes.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/memory.h')
+        check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/alloca_%s.h' % p)

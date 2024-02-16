@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -34,6 +34,8 @@ import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.render.proto.Font;
+import com.dynamo.render.proto.Material;
+import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.rig.proto.Rig;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
@@ -175,10 +177,22 @@ public class ParseUtil {
                 return Graphics.ShaderDesc.parseFrom(content);
             }
         });
+        parseMap.put("cpc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Graphics.ShaderDesc.parseFrom(content);
+            }
+        });
         parseMap.put("fontc", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return Font.FontMap.parseFrom(content);
+            }
+        });
+        parseMap.put("glyph_bankc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Font.GlyphBank.parseFrom(content);
             }
         });
         parseMap.put("guic", new IParser() {
@@ -197,6 +211,18 @@ public class ParseUtil {
                     throw new RuntimeException(e);
                 }
                 return builder.build();
+            }
+        });
+        parseMap.put("materialc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Material.MaterialDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("renderc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return RenderPrototypeDesc.parseFrom(content);
             }
         });
         parseMap.put("factoryc", new IParser() {

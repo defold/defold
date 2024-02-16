@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,6 +27,7 @@
 #include <ddf/ddf.h>
 #include <resource/resource.h>
 #include <gameobject/gameobject.h>
+#include <gamesys/components/comp_gui.h> 
 #include "engine_service.h"
 #include "engine_version.h"
 
@@ -613,6 +614,17 @@ namespace dmEngineService
     // Resource profiler
     //
 
+    static bool SendResourceData(dmWebServer::Request* request, const char* name, const char* extension, uint32_t size, uint32_t sizeOnDisc, uint32_t refCount)
+    {
+        dmWebServer::Result r;
+        r = SendString(request, name); CHECK_RESULT_BOOL(r);
+        r = SendString(request, extension); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &size, 4); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &sizeOnDisc, 4); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &refCount, 4); CHECK_RESULT_BOOL(r);
+        return true;
+    }
+
     static bool ResourceIteratorFunction(const dmResource::IteratorResource& resource, void* user_ctx)
     {
         dmWebServer::Request* request = (dmWebServer::Request*)user_ctx;
@@ -621,14 +633,49 @@ namespace dmEngineService
         const char* extension = strrchr(name, '.');
         if (!extension)
             extension = "";
+        return SendResourceData(request, name, extension, resource.m_Size, resource.m_SizeOnDisc, resource.m_RefCount);
+    }
 
-        dmWebServer::Result r;
-        r = SendString(request, name); CHECK_RESULT_BOOL(r);
-        r = SendString(request, extension); CHECK_RESULT_BOOL(r);
-        r = dmWebServer::Send(request, &resource.m_Size, 4); CHECK_RESULT_BOOL(r);
-        r = dmWebServer::Send(request, &resource.m_SizeOnDisc, 4); CHECK_RESULT_BOOL(r);
-        r = dmWebServer::Send(request, &resource.m_RefCount, 4); CHECK_RESULT_BOOL(r);
-        return true;
+    static bool DynamicTextureIteratorFunction(dmhash_t gui_res_id, dmhash_t name_hash, uint32_t size, void* user_ctx)
+    {
+        dmWebServer::Request* request = (dmWebServer::Request*)user_ctx;
+        const char* texture_name = dmHashReverseSafe64(name_hash);
+        const char* gui_name = dmHashReverseSafe64(gui_res_id);
+        char full_name[512];
+        dmSnPrintf(full_name, sizeof(full_name), "%s\n%s", gui_name, texture_name);
+        return SendResourceData(request, &full_name[0], "GuiDynamicTexture", size, 0, 1);
+    }
+
+    static void OutputGuiDynamicTextures(dmGameObject::SceneNode* node, dmWebServer::Request* request)
+    {
+        static const dmhash_t s_GuiResource = dmHashString64("guic");
+        static const dmhash_t s_PropertyResource = dmHashString64("resource");
+        static const dmhash_t s_PropertyType = dmHashString64("type");
+
+        if (node->m_Type == dmGameObject::SCENE_NODE_TYPE_SUBCOMPONENT)
+            return;
+
+        dmhash_t resource_id = 0;
+        dmhash_t type = 0;
+        dmGameObject::SceneNodePropertyIterator pit = TraverseIterateProperties(node);
+        while(dmGameObject::TraverseIteratePropertiesNext(&pit))
+        {
+           if (pit.m_Property.m_NameHash == s_PropertyResource)
+                resource_id = pit.m_Property.m_Value.m_Hash;
+            else if (pit.m_Property.m_NameHash == s_PropertyType)
+                type = pit.m_Property.m_Value.m_Hash;
+        }
+
+        if (type == s_GuiResource)
+        {
+            dmGameSystem::IterateDynamicTextures(resource_id, node, DynamicTextureIteratorFunction, (void*)request);
+        }
+
+        dmGameObject::SceneNodeIterator it = dmGameObject::TraverseIterateChildren(node);
+        while(dmGameObject::TraverseIterateNext(&it))
+        {
+            OutputGuiDynamicTextures( &it.m_Node, request );
+        }
     }
 
     static void HttpResourceRequestCallback(void* context, dmWebServer::Request* request)
@@ -642,9 +689,16 @@ namespace dmEngineService
             dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
             return;
         }
+        ResourceHandlerParams* params = (ResourceHandlerParams*)context;
+        dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, (void*)request);
 
-        dmResource::HFactory factory = (dmResource::HFactory)context;
-        dmResource::IterateResources(factory, ResourceIteratorFunction, (void*)request);
+        // Collect dynamic textures from gui
+        dmGameObject::SceneNode root;
+        if (!dmGameObject::TraverseGetRoot(params->m_Regist, &root))
+        {
+            return;
+        }
+        OutputGuiDynamicTextures(&root, request);
     }
 
     //
@@ -841,7 +895,10 @@ namespace dmEngineService
     {
         dmWebServer::HandlerParams resource_params;
         resource_params.m_Handler = HttpResourceRequestCallback;
-        resource_params.m_Userdata = factory;
+        ResourceHandlerParams* params = (ResourceHandlerParams*) malloc(sizeof(ResourceHandlerParams));
+        params->m_Factory = factory;
+        params->m_Regist = regist;
+        resource_params.m_Userdata = params;
         dmWebServer::AddHandler(engine_service->m_WebServer, "/resources_data", &resource_params);
 
         dmWebServer::HandlerParams gameobject_params;

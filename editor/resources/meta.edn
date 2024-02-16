@@ -289,8 +289,9 @@
    :default true,
    :path ["graphics" "verify_graphics_calls"]}
   {:type :boolean,
-   :help "compile and output SPIR-V shaders for use with Metal or Vulkan",
+   :help "This setting is deprecated. Compile and output SPIR-V shaders for use with Metal or Vulkan",
    :default false,
+   :deprecated true,
    :label "Output SPIR-V"
    :path ["shader" "output_spirv"]}
   {:type :number,

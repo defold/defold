@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,7 +17,6 @@
             [dynamo.graph :as g]
             [editor.code.data :refer [CursorRange->line-number]]
             [editor.handler :as handler]
-            [editor.icons :as icons]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
@@ -25,12 +24,11 @@
             [editor.workspace :as workspace]
             [util.coll :refer [pair]])
   (:import [clojure.lang PersistentQueue]
+           [java.io File]
            [java.util Collection]
            [javafx.collections ObservableList]
            [javafx.scene.control TreeItem TreeView]
-           [javafx.scene.input Clipboard ClipboardContent]
-           [javafx.scene.layout HBox]
-           [javafx.scene.text Text]))
+           [javafx.scene.input Clipboard ClipboardContent]))
 
 (set! *warn-on-reflection* true)
 
@@ -91,7 +89,7 @@
          false)))
 
 (defn- error-item [evaluation-context root-cause]
-  (let [{:keys [message severity]} (first root-cause)
+  (let [{:keys [message severity file-path]} (first root-cause)
         cursor-range (error-cursor-range (first root-cause))
         errors (drop-while (comp (fn [node-id]
                                    (or (nil? node-id)
@@ -109,6 +107,9 @@
              :node-id outline-node-id
              :message (:message error)
              :severity (:severity error severity)}
+
+            file-path
+            (assoc :file-path file-path)
 
             (some? cursor-range)
             (assoc :cursor-range cursor-range))))
@@ -216,18 +217,24 @@
   "Returns data describing how an error should be opened when double-clicked.
   Having this as data simplifies writing unit tests."
   [error-item]
-  (if (= :resource (:type error-item))
-    (let [{resource :resource resource-node-id :node-id} (:value error-item)]
-      (when (and (resource/openable-resource? resource)
-                 (resource/exists? resource))
-        [resource resource-node-id {}]))
-    (let [{resource :resource resource-node-id :node-id} (:parent error-item)]
-      (when (and (resource/openable-resource? resource)
-                 (resource/exists? resource))
-        (let [error-node-id (:node-id error-item)
-              outline-node-id (find-outline-node resource-node-id error-node-id)
-              opts (select-keys error-item [:cursor-range])]
-          [resource outline-node-id opts])))))
+  (or (and (= :resource (:type error-item))
+           (let [{resource :resource resource-node-id :node-id} (:value error-item)]
+             (when (and (resource/openable-resource? resource)
+                        (resource/exists? resource))
+               {:type :resource
+                :args [resource resource-node-id {}]})))
+      (let [{resource :resource resource-node-id :node-id} (:parent error-item)]
+        (when (and (resource/openable-resource? resource)
+                   (resource/exists? resource))
+          (let [error-node-id (:node-id error-item)
+                outline-node-id (find-outline-node resource-node-id error-node-id)
+                opts (select-keys error-item [:cursor-range])]
+            {:type :resource
+             :args [resource outline-node-id opts]})))
+      (when-let [file-path (:file-path error-item)]
+        (let [file (.getCanonicalFile (File. ^String file-path))]
+          (when (.exists file)
+            {:type :file :file file})))))
 
 (defn- error-line-for-clipboard [error-item]
   (let [message (:message error-item)
@@ -269,8 +276,11 @@
     (.setShowRoot false)
     (ui/cell-factory! make-tree-cell)
     (ui/on-double! (fn [_]
-                     (when-some [[resource selected-node-id opts] (some-> errors-tree ui/selection first error-item-open-info)]
-                       (open-resource-fn resource [selected-node-id] opts))))
+                     (when-let [{:keys [type] :as open-info} (some-> errors-tree ui/selection first error-item-open-info)]
+                       (case type
+                         :resource (let [[resource selected-node-id opts] (:args open-info)]
+                                     (open-resource-fn resource [selected-node-id] opts))
+                         :file (ui/open-file (:file open-info))))))
     (ui/register-context-menu ::build-errors-menu)
     (ui/context! :build-errors-view
                  {:build-errors-view errors-tree}

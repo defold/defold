@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
+            [util.coll :refer [pair]]
             [util.digest :as digest])
   (:import [java.io File]))
 
@@ -28,8 +29,8 @@
 
 (defn- resolve-resource-paths
   [pb dep-resources resource-props]
-  (reduce (fn [m [prop resource]]
-            (assoc m prop (resource/proj-path (get dep-resources resource))))
+  (reduce (fn [m [path resource]]
+            (assoc-in m path (resource/proj-path (get dep-resources resource))))
           pb
           resource-props))
 
@@ -47,20 +48,39 @@
                                                          :source-resource source-resource})))
                                       [source-resource build-resource])))
                              dep-build-targets)]
-    (keep (fn [resource-key]
-            (when-let [source-resource (m resource-key)]
-              (when-not (satisfies? resource/Resource source-resource)
-                (throw (ex-info "value for resource key in m is not a Resource"
-                                {:key resource-key
-                                 :value source-resource
-                                 :resource-keys resource-keys})))
-              (if-let [build-resource (deps-by-source source-resource)]
-                [resource-key build-resource]
-                (throw (ex-info "deps-by-source is missing a referenced source-resource"
-                                {:key resource-key
-                                 :deps-by-source deps-by-source
-                                 :source-resource source-resource})))))
-          resource-keys)))
+    (letfn [(fill-from-path [x path path-index]
+              (let [end (= path-index (count path))]
+                (if end
+                  (when x
+                    (when-not (satisfies? resource/Resource x)
+                      (throw (ex-info "value for resource path in m is not a Resource"
+                                      {:path path
+                                       :value x
+                                       :resource-keys resource-keys})))
+                    (if-let [build-resource (deps-by-source x)]
+                      [(pair path build-resource)]
+                      (throw (ex-info "deps-by-source is missing a referenced source-resource"
+                                      {:path path
+                                       :deps-by-source deps-by-source
+                                       :source-resource x}))))
+                  (let [k (path path-index)
+                        v (x k)]
+                    (if (vector? v)
+                      (->Eduction
+                        (mapcat (fn [i]
+                                  (let [next-path-index (inc path-index)
+                                        vec-path (-> path
+                                                     (subvec 0 next-path-index)
+                                                     (conj i)
+                                                     (into (subvec path next-path-index)))]
+                                    (fill-from-path v vec-path next-path-index))))
+                        (range (count v)))
+                      (fill-from-path v path (inc path-index)))))))]
+      (into []
+            (mapcat (fn [resource-key]
+                      (let [path (if (vector? resource-key) resource-key [resource-key])]
+                        (fill-from-path m path 0))))
+            resource-keys))))
 
 (defn- build-protobuf
   [resource dep-resources user-data]
@@ -77,7 +97,7 @@
       {:resource (workspace/make-build-resource resource)
        :build-fn build-protobuf
        :user-data {:pb-class pb-class
-                   :pb-msg (reduce dissoc pb-msg resource-keys)
+                   :pb-msg pb-msg
                    :resource-keys resource-keys}
        :deps dep-build-targets})))
 
@@ -200,7 +220,14 @@
                         (render-progress! (swap! progress progress/with-message message))
                         (let [result (or cached-artifact
                                          (let [dep-resources (make-dep-resources deps build-targets-by-content-hash)
-                                               build-result (build-fn resource dep-resources user-data)]
+                                               build-result (try
+                                                              (build-fn resource dep-resources user-data)
+                                                              (catch OutOfMemoryError error
+                                                                (g/error-aggregate
+                                                                  [(g/error-fatal
+                                                                     (format "Failed to allocate memory while building '%s': %s."
+                                                                             (resource/proj-path resource)
+                                                                             (.getMessage error)))])))]
                                            ;; Error results are assumed to be error-aggregates.
                                            ;; We need to inject the node-id of the source build
                                            ;; target into the causes, since the build-fn will

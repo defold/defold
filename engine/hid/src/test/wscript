@@ -17,7 +17,7 @@ def build(bld):
 
     obj = bld.program(features = 'cxx test',
                       includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-                      use      = 'TESTMAIN DLIB PROFILE_NULL DMGLFW SOCKET hid_null',
+                      use      = 'TESTMAIN DLIB PROFILE_NULL DMGLFW SOCKET PLATFORM_NULL hid_null',
                       target   = 'test_hid',
                       source   = 'test_hid.cpp')
 
@@ -39,11 +39,13 @@ def build(bld):
 
     exported_symbols = [graphics_lib_symbols]
 
-    web_libs = ['library_glfw.js', 'library_sys.js']
+    glfw_js = '%s/ext/lib/%s/js/library_glfw.js' % (bld.env.DYNAMO_HOME, bld.env.PLATFORM)
+
+    web_libs = [glfw_js, 'library_sys.js']
 
     bld.program(features = 'cxx test skip_test',
         includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-        use = 'TESTMAIN APP DLIB DINPUT PROFILE_NULL PLATFORM SOCKET hid'.split() + graphics_lib,
+        use = 'TESTMAIN APP DLIB DINPUT PROFILE_NULL PLATFORM SOCKET HID hid'.split() + graphics_lib,
         web_libs = web_libs,
         exported_symbols = exported_symbols,
         target = 'test_app_hid',

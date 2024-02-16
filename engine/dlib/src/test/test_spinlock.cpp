@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -38,12 +38,13 @@ void Thread(void* arg)
 
 TEST(dmSpinlock, Test)
 {
-    dmSpinlock::Init(&g_Lock);
+    dmSpinlock::Create(&g_Lock);
     dmThread::Thread t1 = dmThread::New(Thread, 0xf000, 0, "t1");
     dmThread::Thread t2 = dmThread::New(Thread, 0xf000, 0, "t2");
     dmThread::Join(t1);
     dmThread::Join(t2);
     ASSERT_EQ(ITER * 2, g_Value);
+    dmSpinlock::Destroy(&g_Lock);
 }
 
 int main(int argc, char **argv)

@@ -8,7 +8,7 @@ def build(bld):
                     includes = ['../../src', '../../proto'],
                     exported_symbols = ['GraphicsAdapterNull'],
                     source = name + '.cpp',
-                    use = 'TESTMAIN DDF DLIB SOCKET PROFILE_NULL graphics_null graphics_transcoder_null',
+                    use = 'TESTMAIN DDF DLIB SOCKET PROFILE_NULL PLATFORM_NULL graphics_null graphics_transcoder_null',
                     target = name)
 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and not bld.env.PLATFORM in ('x86_64-linux','x86_64-ios'):
@@ -19,7 +19,7 @@ def build(bld):
 
         bld.program(features = 'cxx cprogram test skip_test',
                     includes = ['../../src', '../../proto'],
-                    exported_symbols = ['GraphicsAdapterVulkan'],
-                    source = 'test_app_vulkan.cpp',
-                    use = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE GRAPHICS_VULKAN VULKAN graphics_vulkan graphics_transcoder_basisu'.split() + extra_libs,
-                    target = 'test_app_vulkan')
+                    exported_symbols = ['GraphicsAdapterVulkan', 'GraphicsAdapterOpenGL'],
+                    source = 'test_app_graphics.cpp',
+                    use = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE PLATFORM VULKAN GRAPHICS graphics_vulkan_experimental graphics_transcoder_basisu'.split() + extra_libs,
+                    target = 'test_app_graphics')

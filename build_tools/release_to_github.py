@@ -1,4 +1,4 @@
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -146,10 +146,16 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
         return os.path.basename(path) in ('Defold-arm64-macos.dmg',
                                           'Defold-x86_64-macos.dmg',
                                           'Defold-x86_64-linux.zip',
+                                          'Defold-x86_64-linux.tar.gz',
                                           'Defold-x86_64-win32.zip')
 
+    filenames = ['bob.jar', 'ref-doc.zip']
     def is_main_file(path):
-        return os.path.basename(path) in ('bob.jar', 'ref-doc.zip') or is_editor_file(path) or 'engine/defoldsdk.zip' in path
+        return os.path.basename(path) in filenames \
+            or is_editor_file(path) \
+            or 'engine/defoldsdk.zip' in path \
+            or 'engine/defoldsdk.sha256' in path \
+            or 'engine/defoldsdk_headers.zip' in path
 
     def is_platform_file(path):
         return os.path.basename(path) in ('gdc',

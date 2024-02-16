@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -38,6 +38,12 @@
        (if (nil? (:address (targets/selected-target prefs)))
          (ui/open-url (format "%s/engine-profiler" (http-server/local-url web-server)))
          (ui/open-url (format "%s/engine-profiler?addr=%s:%d" (http-server/local-url web-server) (:address (targets/selected-target prefs)) port)))))
+
+(handler/defhandler :engine-resource-profile-show :global
+  (enabled? [prefs] (some? (targets/selected-target prefs)))
+  (run [prefs]
+       (let [address (:address (targets/selected-target prefs))]
+         (ui/open-url (format "http://%s:8002/" address)))))
 
 (defn- get-mime-type [path]
   (let [name (.getName (io/file path))

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,21 +18,35 @@ import java.util.Locale;
 
 public class StringUtil {
 
-	/**
-	 * Using String.toUpperCase() with Locale.ROOT
-	 * @param s String to convert to upper-case
-	 * @return The upper-case version of the string
-	 */
-	public static String toUpperCase(String s) {
-		return s.toUpperCase(Locale.ROOT);
-	}
+    /**
+     * Using String.toUpperCase() with Locale.ROOT
+     * @param s String to convert to upper-case
+     * @return The upper-case version of the string
+     */
+    public static String toUpperCase(String s) {
+        return s.toUpperCase(Locale.ROOT);
+    }
 
-	/**
-	 * Using String.toLowerCase() with Locale.ROOT
-	 * @param s String to convert to lower-case
-	 * @return The lower-case version of the string
-	 */
-	public static String toLowerCase(String s) {
-		return s.toLowerCase(Locale.ROOT);
-	}
+    /**
+     * Using String.toLowerCase() with Locale.ROOT
+     * @param s String to convert to lower-case
+     * @return The lower-case version of the string
+     */
+    public static String toLowerCase(String s) {
+        return s.toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Truncate string if it's longer than specified length 
+     * @param s String to truncate
+     * @param maxLength of the result string
+     * @return The lower-case version of the string
+     */
+    public static String truncate(String s, int maxLength) {
+        if (s.length() <= maxLength) {
+            return s;
+        } else {
+            return s.substring(0, maxLength);
+        }
+    }
 }

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -441,6 +441,7 @@ DEPRECATE_LU_FUNCTION("store_archive", Resource_StoreArchive);
         SETCONSTANT(FORMAT_ERROR);
         SETCONSTANT(IO_ERROR);
         SETCONSTANT(INVAL);
+        SETCONSTANT(NOT_INITIALIZED);
         SETCONSTANT(UNKNOWN);
     }
 

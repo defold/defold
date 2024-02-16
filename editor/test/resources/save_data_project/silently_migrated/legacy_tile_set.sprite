@@ -1,0 +1,4 @@
+tile_set: "/checked.atlas"
+default_animation: "diamond"
+material: "/builtins/materials/sprite.material"
+blend_mode: BLEND_MODE_ALPHA

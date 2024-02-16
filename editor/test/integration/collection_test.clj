@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -261,7 +261,7 @@
             (let [sprite-resource-type (resource/resource-type sprite-resource)
                   embedded-component (test-util/add-embedded-component! game-object sprite-resource-type)
                   referenced-component (test-util/add-referenced-component! game-object sprite-resource)]
-              (test-util/prop! embedded-component :image atlas-resource)
+              (test-util/prop! embedded-component :__sampler__texture_sampler__0 atlas-resource)
               (test-util/prop! embedded-component :default-animation "logo")
               [embedded-component referenced-component]))
 

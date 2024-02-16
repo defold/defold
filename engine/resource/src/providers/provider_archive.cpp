@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -58,14 +58,27 @@ namespace dmResourceProviderArchive
         dmSnPrintf(archive_index_path, sizeof(archive_index_path), "%s%s.arci", uri->m_Location, uri->m_Path);
         dmSnPrintf(archive_data_path, sizeof(archive_data_path), "%s%s.arcd", uri->m_Location, uri->m_Path);
 
+        char mount_archive_index_path[DMPATH_MAX_PATH];
+        char mount_archive_data_path[DMPATH_MAX_PATH];
+        if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(mount_archive_index_path, sizeof(mount_archive_index_path), archive_index_path))
+        {
+            dmLogError("Path to small to fit into buffer: %s", archive_index_path);
+            return dmResourceProvider::RESULT_ERROR_UNKNOWN;
+        }
+        if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(mount_archive_data_path, sizeof(mount_archive_data_path), archive_data_path))
+        {
+            dmLogError("Path to small to fit into buffer: %s", mount_archive_data_path);
+            return dmResourceProvider::RESULT_ERROR_UNKNOWN;
+        }
+
         void* mount_info = 0;
-        dmResource::Result result = dmResource::MountArchiveInternal(archive_index_path, archive_data_path, out, &mount_info);
+        dmResource::Result result = dmResource::MountArchiveInternal(mount_archive_index_path, mount_archive_data_path, out, &mount_info);
         if (dmResource::RESULT_OK == result && *out != 0)
         {
             (*out)->m_UserData = mount_info;
             return dmResourceProvider::RESULT_OK;
         }
-        dmLogError("Failed to mount archive from '%s' and '%s': %s", archive_index_path, archive_data_path, dmResource::ResultToString(result));
+        dmLogError("Failed to mount archive from '%s' and '%s': %s", mount_archive_index_path, mount_archive_data_path, dmResource::ResultToString(result));
         return dmResourceProvider::RESULT_ERROR_UNKNOWN;
     }
 

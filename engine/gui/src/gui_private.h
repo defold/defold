@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -99,7 +99,6 @@ namespace dmGui
         dmArray<uint16_t>               m_StencilScopeIndices;
         dmArray<HNode>                  m_ScratchBoneNodes;
         dmHID::HContext                 m_HidContext;
-        void*                           m_DefaultFont;
         void*                           m_DisplayProfiles;
         SceneTraversalCache             m_SceneTraversalCache;
     };

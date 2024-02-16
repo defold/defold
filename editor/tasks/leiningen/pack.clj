@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,20 +23,18 @@
 
 (defn dynamo-home [] (get (System/getenv) "DYNAMO_HOME"))
 
+;; this is universal packing for all the platforms, but we clenup it in bundle.py -> remove_platform_files_from_archive()
+
 ;; these can be sourced either from a local build of engine, or downloaded from an archived build on s3
 (def engine-artifacts
   {"x86_64-macos" {"bin" ["dmengine"]
                     "lib" ["libparticle_shared.dylib"]}
    "arm64-macos" {"bin" ["dmengine"]
                   "lib" ["libparticle_shared.dylib"]}
-   "x86-win32"     {"bin" ["dmengine.exe" "dmengine.pdb"]
-                    "lib" []}
    "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine.pdb"]
                     "lib" ["particle_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine"]
-                    "lib" ["libparticle_shared.so"]}
-   "arm64-ios"  {"bin" ["dmengine"]
-                    "lib" []}})
+                    "lib" ["libparticle_shared.so"]}})
 
 (defn- platform->engine-src-dirname [platform]
   (assert (contains? engine-artifacts platform))

@@ -1,0 +1,5 @@
+[project]
+title = Model
+
+[bootstrap]
+main_collection = main.collectionc

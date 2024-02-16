@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,20 +28,32 @@ using namespace dmVMath;
 
 namespace dmGraphics
 {
-    extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, int base_register);
+    extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, dmGraphics::HUniformLocation base_register);
 }
 
 class dmRenderMaterialTest : public jc_test_base_class
 {
 public:
+    dmPlatform::HWindow           m_Window;
     dmGraphics::HContext          m_GraphicsContext;
     dmRender::HRenderContext      m_RenderContext;
     dmRender::RenderContextParams m_Params;
 
     virtual void SetUp()
     {
-        dmGraphics::Initialize();
-        m_GraphicsContext        = dmGraphics::NewContext(dmGraphics::ContextParams());
+        dmGraphics::InstallAdapter();
+
+        dmPlatform::WindowParams win_params = {};
+        win_params.m_Width = 20;
+        win_params.m_Height = 10;
+
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, win_params);
+
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_Window = m_Window;
+
+        m_GraphicsContext        = dmGraphics::NewContext(graphics_context_params);
         m_Params.m_ScriptContext = dmScript::NewContext(0, 0, true);
         m_Params.m_MaxCharacters = 256;
         m_RenderContext          = dmRender::NewRenderContext(m_GraphicsContext, m_Params);
@@ -50,6 +62,8 @@ public:
     {
         dmRender::DeleteRenderContext(m_RenderContext, 0);
         dmGraphics::DeleteContext(m_GraphicsContext);
+        dmPlatform::CloseWindow(m_Window);
+        dmPlatform::DeleteWindow(m_Window);
         dmScript::DeleteContext(m_Params.m_ScriptContext);
     }
 };
@@ -103,7 +117,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
     // test setting constant
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
     dmGraphics::EnableProgram(m_GraphicsContext, program);
-    uint32_t tint_loc = dmGraphics::GetUniformLocation(program, "tint");
+    dmGraphics::HUniformLocation tint_loc = dmGraphics::GetUniformLocation(program, "tint");
     ASSERT_EQ(0, tint_loc);
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, material, ro.m_ConstantBuffer);
     const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc);
@@ -232,7 +246,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
 
     // using the null graphics device, constant locations are assumed to be in declaration order.
     // test setting constant, no override material
-    uint32_t tint_loc = dmGraphics::GetUniformLocation(program, "tint");
+    dmGraphics::HUniformLocation tint_loc = dmGraphics::GetUniformLocation(program, "tint");
     ASSERT_EQ(0, tint_loc);
     dmGraphics::EnableProgram(m_GraphicsContext, program);
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, material, ro.m_ConstantBuffer);
@@ -246,7 +260,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
     test_v = Vector4(2.0f, 1.0f, 1.0f, 1.0f);
     dmRender::ClearNamedConstantBuffer(constants);
     dmRender::SetNamedConstant(constants, dmHashString64("tint"), &test_v, 1);
-    uint32_t tint_loc_ovr = dmGraphics::GetUniformLocation(program_ovr, "tint");
+    dmGraphics::HUniformLocation tint_loc_ovr = dmGraphics::GetUniformLocation(program_ovr, "tint");
     ASSERT_EQ(1, tint_loc_ovr);
     dmGraphics::EnableProgram(m_GraphicsContext, program_ovr);
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, material_ovr, ro.m_ConstantBuffer);

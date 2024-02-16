@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,23 +20,15 @@
             [clojure.tools.namespace.find :as find]
             [clojure.tools.namespace.track :as track]))
 
-(def excluded-sources-by-build-type
-  {"release" ["src/clj/dev.clj"
-              "src/clj/prof.clj"]})
-
 (defn all-sources-tracker
   [build-type srcdirs]
-  (let [excluded-files (into #{}
-                             (map io/file)
-                             (excluded-sources-by-build-type build-type))]
-    (reduce
-      (fn [tracker dir]
-        (->> dir
-             find/find-clojure-sources-in-dir
-             (remove excluded-files)
-             (file/add-files tracker)))
-      (track/tracker)
-      srcdirs)))
+  (reduce
+    (fn [tracker dir]
+      (->> dir
+           (find/find-clojure-sources-in-dir)
+           (file/add-files tracker)))
+    (track/tracker)
+    srcdirs))
 
 (defn sorted-deps
   [tracker]

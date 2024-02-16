@@ -1,5 +1,17 @@
+# Vulkan SDK
 
-# MoltenVk
+* Download the latest (or a specific) version of the Mac sdk installer .dmg:
+
+    https://vulkan.lunarg.com/sdk/home#mac
+
+## Create the packages
+
+    # From the defold root folder:
+    ./share/ext/build.sh moltenvk <platform>
+
+#  MoltenVk source
+
+Optionally if you need to use a debug version of MoltenVK, you can compile it from source.
 
 * Clone from git
 

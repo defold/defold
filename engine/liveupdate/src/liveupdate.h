@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -48,6 +48,7 @@ namespace dmLiveUpdate
         RESULT_FORMAT_ERROR              = -9,
         RESULT_IO_ERROR                  = -10,
         RESULT_INVAL                     = -11,
+        RESULT_NOT_INITIALIZED           = -12,
         RESULT_UNKNOWN                   = -1000,
     };
 

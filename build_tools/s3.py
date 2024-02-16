@@ -1,4 +1,4 @@
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -93,7 +93,7 @@ def find_files_in_bucket(archive_path, bucket, sha1, path, pattern):
 # Get archive files for a single release/sha1
 def get_files(archive_path, bucket, sha1):
     files = []
-    files = files + find_files_in_bucket(archive_path, bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|gdc.*|defoldsdk.zip|ref-doc.zip)$')
+    files = files + find_files_in_bucket(archive_path, bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|gdc.*|defoldsdk.*|ref-doc.zip)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "bob", '.*(/bob.jar)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "editor", '.*(/Defold-.*)$')
     files = files + find_files_in_bucket(archive_path, bucket, sha1, "dev", '.*(/Defold-.*)$')
@@ -169,9 +169,10 @@ def move_release(archive_path, sha1, channel):
         # get the name of the file this key points to
         # archive/sha1/engine/arm64-android/android.jar -> engine/arm64-android/android.jar
         name = key.name.replace(prefix, "")
-
         # destination
         new_key = "archive/%s/%s/%s" % (channel, sha1, name)
+
+        print("Prepair %s to be moved to: %s" % (name, new_key))
 
         # the keys in archive/sha1/* are all redirects to files in archive/channel/sha1/*
         # get the actual file from the redirect
@@ -188,9 +189,12 @@ def move_release(archive_path, sha1, channel):
         if not redirect_key:
             print("Invalid redirect for %s. The file will not be moved" % redirect_path)
             continue
+        if redirect_key.name == new_key:
+            print("Skip key `%s` because it's already exist\n" % new_key)
+            continue
 
         # copy the file to the new location
-        print("Copying %s to %s" % (redirect_key.name, new_key))
+        print("Copying %s to %s\n" % (redirect_key.name, new_key))
         bucket.copy_key(new_key, bucket_name, redirect_key.name)
 
         # update the redirect

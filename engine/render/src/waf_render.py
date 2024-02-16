@@ -1,4 +1,4 @@
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,6 +37,7 @@ waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.
 def font_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
     fontmap = self.create_task('fontmap')
+
     fontmap.env['CLASSPATH'] = os.pathsep.join(classpath)
     fontmap.env['CONTENT_ROOT'] = fontmap.generator.content_root
     fontmap.set_inputs(node)

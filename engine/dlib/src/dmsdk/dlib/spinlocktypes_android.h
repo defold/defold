@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,9 +22,13 @@ namespace dmSpinlock
 {
     typedef uint32_t Spinlock;
 
-    static inline void Init(Spinlock* lock)
+    static inline void Create(Spinlock* lock)
     {
         *lock = 0;
+    }
+
+    static inline void Destroy(Spinlock* lock)
+    {
     }
 
     static inline void Lock(Spinlock* lock)
@@ -62,9 +66,13 @@ namespace dmSpinlock
 {
     typedef uint32_t Spinlock;
 
-    static inline void Init(Spinlock* lock)
+    static inline void Create(Spinlock* lock)
     {
         *lock = 0;
+    }
+
+    static inline void Destroy(Spinlock* lock)
+    {
     }
 
     static inline void Lock(Spinlock* lock)

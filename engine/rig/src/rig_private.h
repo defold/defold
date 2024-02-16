@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -78,7 +78,8 @@ namespace dmRig
         /// User IK constraint targets
         dmArray<IKTarget>             m_IKTargets;
 
-        const dmRigDDF::Model*        m_Model; // Currently selected model
+        const dmRigDDF::Model*        m_Model;      // Currently selected model
+        uint32_t                      m_NumModels;
 
         dmhash_t                      m_ModelId;
         float                         m_BlendDuration;

@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,15 +26,13 @@
             [editor.workspace :as workspace]
             [util.digestable :as digestable])
   (:import [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
-           [com.dynamo.bob.util TextureUtil]
-           [com.dynamo.graphics.proto Graphics$TextureImage]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
 
 (def exts ["jpg" "png"])
 
-(defn- build-texture [resource dep-resources user-data]
+(defn- build-texture [resource _dep-resources user-data]
   (let [{:keys [content-generator texture-profile compress?]} user-data
         image ((:f content-generator) (:args content-generator))]
     (g/precluding-errors
@@ -139,6 +137,8 @@
                                    :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
                                    :uv-transforms [(TextureSetGenerator$UVTransform.)])}))
 
+  (output texture-page-count g/Int (g/constantly texture/non-paged-page-count))
+
   (output gpu-texture g/Any :cached (g/fnk [_node-id texture-image]
                                       (texture/texture-image->gpu-texture _node-id
                                                                           texture-image
@@ -152,7 +152,7 @@
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn- load-image
-  [project self resource]
+  [project self _resource]
   (concat
     (g/connect project :build-settings self :build-settings)
     (g/connect project :texture-profiles self :texture-profiles)))

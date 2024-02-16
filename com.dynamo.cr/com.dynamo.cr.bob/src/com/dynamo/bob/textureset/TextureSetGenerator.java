@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,12 +22,15 @@ import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 
 import com.dynamo.bob.tile.ConvexHull2D;
 import com.dynamo.bob.tile.TileSetUtil;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.gamesys.proto.TextureSetProto;
 import com.dynamo.gamesys.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.gamesys.proto.Tile.Playback;
+import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
 import com.google.protobuf.ByteString;
 
 import javax.vecmath.Point2d;
@@ -100,13 +103,13 @@ public class TextureSetGenerator {
         public boolean isFlipVertically() {
             return flipVertically;
         }
-
     }
 
     public interface AnimIterator {
-        public AnimDesc nextAnim();
-        public Integer nextFrameIndex();
-        public void rewind();
+        public AnimDesc nextAnim();         // Return the next animation
+        public Integer nextFrameIndex();    // Return the global index of the image that the frame is using
+        public String getFrameId();         // Returns unique frame id for the current frame
+        public void rewind();               // Start iterating from the beginning
     }
 
     public static class UVTransform {
@@ -157,6 +160,18 @@ public class TextureSetGenerator {
             this.innerPadding = innerPadding;
             this.extrudeBorders = extrudeBorders;
         }
+
+        @Override
+        public String toString() {
+            String s = "LayoutResult:\n";
+            s += String.format("  innerPadding: %d:\n", innerPadding);
+            s += String.format("  extrudeBorders: %d:\n", extrudeBorders);
+            for (Layout l : layouts) {
+                s += String.format("%s:\n", l.toString());
+            }
+            s += "\n";
+            return s;
+        }
     }
 
     public static class TextureSetResult {
@@ -173,22 +188,38 @@ public class TextureSetGenerator {
         }
     }
 
+    private static int spriteTrimModeToInt(SpriteTrimmingMode mode) {
+        switch (mode) {
+            case SPRITE_TRIM_MODE_OFF:   return 0;
+            case SPRITE_TRIM_MODE_4:     return 4;
+            case SPRITE_TRIM_MODE_5:     return 5;
+            case SPRITE_TRIM_MODE_6:     return 6;
+            case SPRITE_TRIM_MODE_7:     return 7;
+            case SPRITE_TRIM_MODE_8:     return 8;
+        }
+        return 0;
+    }
+
     // Pass in the original image (no padding or extrude borders)
-    public static SpriteGeometry buildConvexHull(BufferedImage image, int hullVertexCount) {
+    // Used by the editor
+    public static SpriteGeometry buildConvexHull(BufferedImage image, SpriteTrimmingMode trimMode) {
         SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
+
         int width = image.getWidth();
         int height = image.getHeight();
 
         geometryBuilder.setWidth(width);
         geometryBuilder.setHeight(height);
+        geometryBuilder.setTrimMode(trimMode);
 
-        float tileSizeXRecip = 1.0f / width;
-        float tileSizeYRecip = 1.0f / height;
-        float halfSizeX = width / 2.0f;
-        float halfSizeY = height / 2.0f;
+        // These are set later
+        geometryBuilder.setCenterX(0.0f);
+        geometryBuilder.setCenterY(0.0f);
+        geometryBuilder.setRotated(false);
 
         ConvexHull2D.PointF[] points = null;
 
+        int hullVertexCount = spriteTrimModeToInt(trimMode);
         Raster raster = image.getAlphaRaster();
         if (raster != null && hullVertexCount != 0) {
             int dilateCount = 2; // a pixel boundary to avoid filtering issues
@@ -238,6 +269,10 @@ public class TextureSetGenerator {
         float centerX = (float)rect.x + rect.width/2.0f;
         float centerY = (float)rect.y + rect.height/2.0f;
 
+        geometryBuilder.setCenterX(centerX);
+        geometryBuilder.setCenterY(centerY);
+        geometryBuilder.setRotated(rect.rotated);
+
         // if (debug) {
         //     System.out.println(String.format("createPolygonUVs  - %s", rect.id));
         //     System.out.println(String.format("  cx/cy: %f, %f  ow/oh: %d, %d  numPoints: %d", centerX, centerY, originalRectWidth, originalRectHeight, geometry.getVerticesCount() / 2));
@@ -286,69 +321,79 @@ public class TextureSetGenerator {
 
         return geometryBuilder;
     }
-    /**
-     * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
-     *
-     * 1. Extrude image borders
-     * 2. Layout images
-     * 3. Shrink inner rects by previous extrusion
-     * 4. Create vertex data for each frame (image) in each animation
+
+    /* Calculate the layout of a set of images
+     * 1. Extrude rect borders and add inner padding
+     * 2. Layout rects
+     * 3. Shrink rects by previous extrusion
      */
-    public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, int use_geometries,
-                AnimIterator iterator, int margin, int innerPadding, int extrudeBorders,
-               boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) {
+    public static LayoutResult calculateLayoutResult(List<Rect> images, int margin, int innerPadding, int extrudeBorders, boolean rotate,
+                                                    boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) {
+        TimeProfiler.start("calculateLayoutResult");
 
         int totalSizeIncrease = 2 * (innerPadding + extrudeBorders);
 
-        // Store rectangle order as the AnimIterator interface relies on stable frame indices.
-        for(int i = 0; i < images.size(); i++) {
-            images.get(i).index = i;
-        }
-
         List<Rect> resizedImages = images.stream()
-                .map(i -> new Rect(i.id, i.index, i.width + totalSizeIncrease, i.height + totalSizeIncrease))
+                .map(i -> new Rect(i.id, 0, i.width + totalSizeIncrease, i.height + totalSizeIncrease))
                 .collect(Collectors.toList());
 
+        // Store rectangle order as the AnimIterator interface relies on stable frame indices.
+        for(int i = 0; i < resizedImages.size(); i++) {
+            resizedImages.get(i).index = i;
+        }
+
         List<Layout> layouts;
-        List<Rect> layoutRects;
-        int layoutWidth;
-        int layoutHeight;
 
         if (useTileGrid) {
             Layout layout = TextureSetLayout.gridLayout(margin, resizedImages, gridSize);
-            layoutWidth = layout.getWidth();
-            layoutHeight = layout.getHeight();
-            layoutRects = layout.getRectangles();
-            layoutRects.sort(Comparator.comparing(o -> o.index));
             layouts = new ArrayList<Layout>();
             layouts.add(layout);
         } else {
-            List<Layout> packedLayouts = TextureSetLayout.packedLayout(margin, resizedImages, rotate, maxPageSizeW, maxPageSizeH);
-            layoutRects = new ArrayList<Rect>();
+            layouts = TextureSetLayout.packedLayout(margin, resizedImages, rotate, maxPageSizeW, maxPageSizeH);
+        }
 
-            int page_index = 0;
-            for (Layout l : packedLayouts) {
-                List<Rect> packedLayoutRects = l.getRectangles();
-                for (Rect r : packedLayoutRects) {
-                    r.page = page_index;
-                }
-                layoutRects.addAll(packedLayoutRects);
-                page_index++;
+        // Update the page indices
+        int pageIndex = 0;
+        for (Layout l : layouts) {
+            // Update the rectangles in place
+            for (Rect r : l.getRectangles()) {
+                r.page = pageIndex;
             }
+            pageIndex++;
+        }
 
-            layouts      = packedLayouts;
-            layoutWidth  = layouts.get(0).getWidth();
-            layoutHeight = layouts.get(0).getHeight();
+        LayoutResult result = new LayoutResult(layouts, innerPadding, extrudeBorders);
+
+        TimeProfiler.stop();
+        return result;
+    }
+
+    /**
+     * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
+     * Create vertex data for each frame (image) in each animation
+     */
+    public static TextureSetResult calculateTextureSetResult(LayoutResult layout, List<SpriteGeometry> imageHulls, int useGeometries,
+                                                             AnimIterator iterator) {
+
+        TimeProfiler.start("calculateTextureSetResult");
+
+        int layoutWidth = layout.layouts.get(0).getWidth();
+        int layoutHeight = layout.layouts.get(0).getHeight();
+
+        List<Rect> layoutRects = new ArrayList<Rect>();
+
+        for (Layout l : layout.layouts) {
+            layoutRects.addAll(l.getRectangles());
         }
 
         layoutRects.sort(Comparator.comparing(o -> o.index));
 
         // Contract the sizes rectangles (i.e remove the extrudeBorders from them)
-        layoutRects = clipBorders(layoutRects, extrudeBorders);
+        layoutRects = clipBorders(layoutRects, layout.extrudeBorders);
 
-        Pair<TextureSet.Builder, List<UVTransform>> vertexData = genVertexData(layoutWidth, layoutHeight, layoutRects, iterator);
+        Pair<TextureSet.Builder, List<UVTransform>> vertexData = buildData(layoutWidth, layoutHeight, layoutRects, iterator);
 
-        vertexData.left.setUseGeometries(use_geometries);
+        vertexData.left.setUseGeometries(useGeometries);
 
         if (imageHulls != null) {
             for (Rect rect : layoutRects) {
@@ -356,7 +401,20 @@ public class TextureSetGenerator {
                 vertexData.left.addGeometries(createPolygonUVs(geometry, rect, layoutWidth, layoutHeight));
             }
         }
-        return new TextureSetResult(vertexData.left, vertexData.right, new LayoutResult(layouts, innerPadding, extrudeBorders));
+
+        TimeProfiler.stop();
+        return new TextureSetResult(vertexData.left, vertexData.right, layout);
+    }
+
+    // Deprecated
+    public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, int useGeometries,
+                                                    AnimIterator iterator, int margin, int innerPadding, int extrudeBorders,
+                                                    boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) {
+
+        LayoutResult layout = calculateLayoutResult(images, margin, innerPadding, extrudeBorders, rotate,
+                                                    useTileGrid, gridSize, maxPageSizeW, maxPageSizeH);
+
+        return calculateTextureSetResult(layout, imageHulls, useGeometries, iterator);
     }
 
     public static BufferedImage layoutImages(Layout layout, int innerPadding, int extrudeBorders, Map<String, BufferedImage> images) {
@@ -384,7 +442,6 @@ public class TextureSetGenerator {
     }
 
     // static int debugImageCount = 0;
-
     /**
      * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
      *
@@ -400,7 +457,7 @@ public class TextureSetGenerator {
      * @param margin internal atlas margin
      * @return {@link AtlasMap}
      */
-    public static TextureSetResult generate(List<BufferedImage> images, List<Integer> imageHullSizes, List<String> paths, AnimIterator iterator,
+    public static TextureSetResult generate(List<BufferedImage> images, List<SpriteTrimmingMode> imageTrimModes, List<String> paths, AnimIterator iterator,
             int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize,
             float maxPageSizeW, float maxPageSizeH) {
 
@@ -409,15 +466,15 @@ public class TextureSetGenerator {
         // if all sizes are 0, we still need to generate hull (or rect) data
         // since it will still be part of the new code path if there is another atlas with trimming enabled
         List<SpriteGeometry> imageHulls = new ArrayList<SpriteGeometry>();
-        int use_geometries = 0;
+        int useGeometries = 0;
         for (int i = 0; i < images.size(); ++i) {
             BufferedImage image = images.get(i);
-            use_geometries |= imageHullSizes.get(i) > 0 ? 1 : 0;
-            imageHulls.add(buildConvexHull(image, imageHullSizes.get(i)));
+            useGeometries |= imageTrimModes.get(i) != SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF ? 1 : 0;
+            imageHulls.add(buildConvexHull(image, imageTrimModes.get(i)));
         }
 
         // The layout step will expand the rect, and possibly rotate them
-        TextureSetResult result = calculateLayout(imageRects, imageHulls, use_geometries, iterator,
+        TextureSetResult result = calculateLayout(imageRects, imageHulls, useGeometries, iterator,
             margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize, maxPageSizeW, maxPageSizeH);
 
         for (Layout layout : result.layoutResult.layouts) {
@@ -533,9 +590,12 @@ public class TextureSetGenerator {
         return new UVTransform(new Point2d(r.x * xs, 1 - r.y * ys), new Vector2d(xs * r.width, -ys * r.height), r.rotated);
     }
 
-    private static Pair<TextureSet.Builder, List<UVTransform>> genVertexData(int width, int height, List<Rect> rects, AnimIterator iterator) {
+    private static Pair<TextureSet.Builder, List<UVTransform>> buildData(int width, int height, List<Rect> rects, AnimIterator iterator) {
         TextureSet.Builder textureSet = TextureSet.newBuilder();
         ArrayList<UVTransform> uvTransforms = new ArrayList<>();
+
+        textureSet.setWidth(width);
+        textureSet.setHeight(height);
 
         int tileCount = rects.size();
         textureSet.setTileCount(tileCount);
@@ -557,12 +617,14 @@ public class TextureSetGenerator {
         float oneOverHeight = 1.0f / height;
         int quadIndex = 0;
 
-        // Populate all tiles i.e. rects
+        // Populate all single frame image animations
         for (Rect r : rects) {
             putRect(r, oneOverWidth, oneOverHeight, texCoordsBuffer, texDimsBuffer);
 
             uvTransforms.add(genUVTransform(r, oneOverWidth, oneOverHeight));
 
+
+            textureSet.addImageNameHashes(MurmurHash.hash64(r.id));
             textureSet.addFrameIndices(quadIndex);
             textureSet.addPageIndices(r.page);
             ++quadIndex;
@@ -570,11 +632,19 @@ public class TextureSetGenerator {
 
         AnimDesc animDesc = null;
         while ((animDesc = iterator.nextAnim()) != null) {
+            String animId = animDesc.getId();
+
             Rect ref = null;
             Integer index = null;
             int startIndex = quadIndex;
+            int localIndex = 0; // 0 .. num_frames(anim)-1
             while ((index = iterator.nextFrameIndex()) != null) {
+
+                String frameId = iterator.getFrameId(); // either "id" or "anim./id"
+                long frameIdHash = MurmurHash.hash64(frameId);
+
                 textureSet.addFrameIndices(index);
+                textureSet.addImageNameHashes(frameIdHash);
 
                 Rect r = rects.get(index);
                 if (ref == null) {
@@ -585,6 +655,7 @@ public class TextureSetGenerator {
                 textureSet.addPageIndices(r.page);
 
                 ++quadIndex;
+                ++localIndex;
             }
             if (ref == null) {
                 continue;
@@ -616,6 +687,8 @@ public class TextureSetGenerator {
 
             textureSet.addAnimations(anim);
         }
+
+        assert(textureSet.getFrameIndicesList().size() == textureSet.getImageNameHashesList().size());
 
         texCoordsBuffer.rewind();
         texDimsBuffer.rewind();

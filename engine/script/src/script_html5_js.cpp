@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -129,7 +129,7 @@ namespace dmScript
      * or start playing sounds the first time the callback is invoked.
      *
      * @name html5.set_interaction_listener
-     * @param callback [type:function(self] The interaction callback. Pass an empty function or nil if you no longer wish to receive callbacks.
+     * @param callback [type:function(self)|nil] The interaction callback. Pass an empty function or `nil` if you no longer wish to receive callbacks.
      *
      * `self`
      * : [type:object] The calling script

@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,7 +27,7 @@ Macros currently mean no foreseeable performance gain however."
             [internal.java :as j]
             [util.digest :as digest])
   (:import [com.dynamo.proto DdfExtensions DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector4]
-           [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor GeneratedMessage$Builder Message ProtocolMessageEnum TextFormat]
+           [com.google.protobuf DescriptorProtos$FieldOptions Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$FieldDescriptor$Type Descriptors$FileDescriptor GeneratedMessage$Builder Message Message$Builder ProtocolMessageEnum TextFormat]
            [java.io ByteArrayOutputStream StringReader]
            [java.lang.reflect Method]
            [java.nio.charset StandardCharsets]
@@ -55,8 +55,8 @@ Macros currently mean no foreseeable performance gain however."
       (.getBytes StandardCharsets/UTF_8)
       (TextFormat/escapeBytes)))
 
-(defn- new-builder ^GeneratedMessage$Builder
-  [class]
+(defn- new-builder
+  ^GeneratedMessage$Builder [class]
   (j/invoke-no-arg-class-method class "newBuilder"))
 
 (defn- field-name->key-raw [^String field-name]
@@ -426,7 +426,7 @@ Macros currently mean no foreseeable performance gain however."
                                               (.invoke field-set-method b (to-array [(value-fn v)])))])))
                   field-descs)
         builder-fn (fn [m]
-                     (let [b ^GeneratedMessage$Builder (new-builder class)]
+                     (let [b (new-builder class)]
                        (doseq [[k v] m
                                :when (some? v)
                                :let [setter! (get setters k)]
@@ -440,14 +440,15 @@ Macros currently mean no foreseeable performance gain however."
 
 (def ^:private pb-builder (memoize pb-builder-raw))
 
-(defn map->pb
-  [^Class cls m]
-  (when-let [builder (pb-builder cls)]
-    (builder m)))
+(defmacro map->pb [^Class cls m]
+  (cond-> `((#'pb-builder ~cls) ~m)
+          (class? (ns-resolve *ns* cls))
+          (with-meta {:tag cls})))
 
 (defmacro str->pb [^Class cls str]
-  (with-meta `(TextFormat/parse ~str ~cls)
-             {:tag cls}))
+  (cond-> `(TextFormat/parse ~str ~cls)
+          (class? (resolve cls))
+          (with-meta {:tag cls})))
 
 (defn- break-embedded-newlines
   [^String pb-str]
@@ -467,22 +468,113 @@ Macros currently mean no foreseeable performance gain however."
 (defn val->pb-enum [^Class enum-class val]
   (Enum/valueOf enum-class (s/replace (util/upper-case* (name val)) "-" "_")))
 
+(def float-zero (Float/valueOf 0.0))
+(def float-one (Float/valueOf 1.0))
+
+(def vector3-zero [float-zero float-zero float-zero])
+(def vector3-one [float-one float-one float-one])
+
+(def vector4-zero [float-zero float-zero float-zero float-zero])
+(def vector4-one [float-one float-one float-one float-one])
+(def vector4-xyz-zero-w-one [float-zero float-zero float-zero float-one])
+(def vector4-xyz-one-w-zero [float-one float-one float-one float-zero])
+
+(def quat-identity [float-zero float-zero float-zero float-one])
+
+(def matrix4-identity
+  [float-one float-zero float-zero float-zero
+   float-zero float-one float-zero float-zero
+   float-zero float-zero float-one float-zero
+   float-zero float-zero float-zero float-one])
+
+(definline intern-float [num]
+  `(let [float# ~num]
+     (cond
+       (= float-zero float#) float-zero
+       (= float-one float#) float-one
+       :else float#)))
+
 (extend-protocol PbConverter
   DdfMath$Point3
   (msg->vecmath [_pb v] (Point3d. (:x v) (:y v) (:z v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v)])
+  (msg->clj [_pb v]
+    (let [x (intern-float (:x v))
+          y (intern-float (:y v))
+          z (intern-float (:z v))]
+      (if (and (identical? float-zero x)
+               (identical? float-zero y)
+               (identical? float-zero z))
+        vector3-zero
+        [x y z])))
 
   DdfMath$Vector3
   (msg->vecmath [_pb v] (Vector3d. (:x v) (:y v) (:z v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v)])
+  (msg->clj [_pb v]
+    (let [x (intern-float (:x v))
+          y (intern-float (:y v))
+          z (intern-float (:z v))]
+      (cond
+        (and (identical? float-zero x)
+             (identical? float-zero y)
+             (identical? float-zero z))
+        vector3-zero
+
+        (and (identical? float-one x)
+             (identical? float-one y)
+             (identical? float-one z))
+        vector3-one
+
+        :else
+        [x y z])))
 
   DdfMath$Vector4
   (msg->vecmath [_pb v] (Vector4d. (:x v) (:y v) (:z v) (:w v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v) (:w v)])
+  (msg->clj [_pb v]
+    (let [x (intern-float (:x v))
+          y (intern-float (:y v))
+          z (intern-float (:z v))
+          w (intern-float (:w v))]
+      (cond
+        (and (identical? float-zero x)
+             (identical? float-zero y)
+             (identical? float-zero z)
+             (identical? float-zero w))
+        vector4-zero
+
+        (and (identical? float-one x)
+             (identical? float-one y)
+             (identical? float-one z)
+             (identical? float-one w))
+        vector4-one
+
+        (and (identical? float-zero x)
+             (identical? float-zero y)
+             (identical? float-zero z)
+             (identical? float-one w))
+        vector4-xyz-zero-w-one
+
+        (and (identical? float-one x)
+             (identical? float-one y)
+             (identical? float-one z)
+             (identical? float-zero w))
+        vector4-xyz-one-w-zero
+
+        :else
+        [x y z w])))
 
   DdfMath$Quat
   (msg->vecmath [_pb v] (Quat4d. (:x v) (:y v) (:z v) (:w v)))
-  (msg->clj [_pb v] [(:x v) (:y v) (:z v) (:w v)])
+  (msg->clj [_pb v]
+    (let [x (intern-float (:x v))
+          y (intern-float (:y v))
+          z (intern-float (:z v))
+          w (intern-float (:w v))]
+      (if (and (identical? float-zero x)
+               (identical? float-zero y)
+               (identical? float-zero z)
+               (identical? float-one w))
+        quat-identity
+        [x y z w])))
 
   DdfMath$Matrix4
   (msg->vecmath [_pb v]
@@ -491,10 +583,46 @@ Macros currently mean no foreseeable performance gain however."
                (:m20 v) (:m21 v) (:m22 v) (:m23 v)
                (:m30 v) (:m31 v) (:m32 v) (:m33 v)))
   (msg->clj [_pb v]
-    [(:m00 v) (:m01 v) (:m02 v) (:m03 v)
-     (:m10 v) (:m11 v) (:m12 v) (:m13 v)
-     (:m20 v) (:m21 v) (:m22 v) (:m23 v)
-     (:m30 v) (:m31 v) (:m32 v) (:m33 v)])
+    (let [m00 (intern-float (:m00 v))
+          m01 (intern-float (:m01 v))
+          m02 (intern-float (:m02 v))
+          m03 (intern-float (:m03 v))
+          m10 (intern-float (:m10 v))
+          m11 (intern-float (:m11 v))
+          m12 (intern-float (:m12 v))
+          m13 (intern-float (:m13 v))
+          m20 (intern-float (:m20 v))
+          m21 (intern-float (:m21 v))
+          m22 (intern-float (:m22 v))
+          m23 (intern-float (:m23 v))
+          m30 (intern-float (:m30 v))
+          m31 (intern-float (:m31 v))
+          m32 (intern-float (:m32 v))
+          m33 (intern-float (:m33 v))]
+      (if (and (identical? float-one m00)
+               (identical? float-zero m01)
+               (identical? float-zero m02)
+               (identical? float-zero m03)
+
+               (identical? float-zero m10)
+               (identical? float-one m11)
+               (identical? float-zero m12)
+               (identical? float-zero m13)
+
+               (identical? float-zero m20)
+               (identical? float-zero m21)
+               (identical? float-one m22)
+               (identical? float-zero m23)
+
+               (identical? float-zero m30)
+               (identical? float-zero m31)
+               (identical? float-zero m32)
+               (identical? float-one m33))
+        matrix4-identity
+        [m00 m01 m02 m03
+         m10 m11 m12 m13
+         m20 m21 m22 m23
+         m30 m31 m32 m33])))
 
   Message
   (msg->vecmath [_pb v] v)
@@ -579,14 +707,19 @@ Macros currently mean no foreseeable performance gain however."
     (map->pb cls m)
     (pb->bytes)))
 
-(defn read-text-into!
-  ^GeneratedMessage$Builder [^GeneratedMessage$Builder builder input]
+(defn read-pb-into!
+  ^Message$Builder [^Message$Builder builder input]
   (with-open [reader (io/reader input)]
     (TextFormat/merge reader builder)
     builder))
 
+(defmacro read-pb [^Class cls input]
+  (cond-> `(.build (read-pb-into! (#'new-builder ~cls) ~input))
+          (class? (resolve cls))
+          (with-meta {:tag cls})))
+
 (defn read-text [^Class cls input]
-  (pb->map (.build (read-text-into! (new-builder cls) input))))
+  (pb->map (read-pb cls input)))
 
 (defn str->map [^Class cls ^String str]
   (with-open [reader (StringReader. str)]
@@ -600,8 +733,9 @@ Macros currently mean no foreseeable performance gain however."
 (def parser-fn (memoize parser-fn-raw))
 
 (defmacro bytes->pb [^Class cls bytes]
-  (with-meta `((parser-fn ~cls) ~bytes)
-             {:tag cls}))
+  (cond-> `((parser-fn ~cls) ~bytes)
+          (class? (resolve cls))
+          (with-meta {:tag cls})))
 
 (defn bytes->map [^Class cls bytes]
   (let [parser (parser-fn cls)]

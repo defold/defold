@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1394,7 +1394,7 @@ namespace dmGameObject
      *
      * @name go.get_parent
      * @param [id] [type:string|hash|url] optional id of the game object instance to get parent for, defaults to the instance containing the calling script
-     * @return parent_id [type:hash] parent instance or nil
+     * @return parent_id [type:hash|nil] parent instance or `nil`
      * @examples
      *
      * Get parent of the instance containing the calling script:
@@ -2842,6 +2842,19 @@ bail:
      * ```
      */
 
+    /*# called at fixed intervals to update the script component
+     *
+     * This is a callback-function, which is called by the engine at fixed intervals to update the state of a script
+     * component. The function will be called if 'Fixed Update Frequency' is enabled in the Engine section of game.project.
+     * It can for instance be used to update game logic with the physics simulation if using a fixed timestep for the
+     * physics (enabled by ticking 'Use Fixed Timestep' in the Physics section of game.project).
+     *
+     * @name fixed_update
+     * @param self [type:object] reference to the script state to be used for storing data
+     * @param dt [type:number] the time-step of the frame update
+     * @examples
+     */
+
     /*# called when a message has been sent to the script component
      *
      * This is a callback-function, which is called by the engine whenever a message has been sent to the script component.
@@ -2951,7 +2964,7 @@ bail:
      * @param self [type:object] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
-     * @return [consume] [type:boolean] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
+     * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *
      * This example demonstrates how a game object instance can be moved as a response to user input.

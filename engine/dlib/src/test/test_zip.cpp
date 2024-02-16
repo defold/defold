@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,8 +31,11 @@ extern uint32_t FOO_ZIP_SIZE;
 
 TEST(dmZip, NotExist)
 {
+    char path[128];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "NOTEEXIST");
+
     dmZip::HZip zip;
-    dmZip::Result zr = dmZip::Open("FOOBAR", &zip);
+    dmZip::Result zr = dmZip::Open(path, &zip);
     ASSERT_NE(dmZip::RESULT_OK, zr);
 }
 

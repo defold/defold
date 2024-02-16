@@ -1,0 +1,50 @@
+name: "uniform_scale"
+instances {
+  id: "referenced_go"
+  prototype: "/checked.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 2.0
+}
+collection_instances {
+  id: "referenced_collection"
+  collection: "/checked.collection"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 2.0
+}
+scale_along_z: 0
+embedded_instances {
+  id: "embedded_go"
+  data: ""
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 2.0
+}

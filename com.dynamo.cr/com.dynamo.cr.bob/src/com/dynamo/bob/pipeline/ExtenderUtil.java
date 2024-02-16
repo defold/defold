@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -78,12 +78,6 @@ public class ExtenderUtil {
             return resource;
         }
 
-        @Override
-        public byte[] sha1() throws IOException {
-            return resource.sha1();
-        }
-
-        @Override
         public String getAbsPath() {
             return resource.getAbsPath().replace('\\', '/');
         }
@@ -116,27 +110,6 @@ public class ExtenderUtil {
         public FileExtenderResource(File file, String path) {
             this.file = file;
             this.path = path;
-        }
-
-        @Override
-        public byte[] sha1() throws IOException {
-            byte[] content = getContent();
-            if (content == null) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
-            }
-            MessageDigest sha1;
-            try {
-                sha1 = MessageDigest.getInstance("SHA1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-            sha1.update(content);
-            return sha1.digest();
-        }
-
-        @Override
-        public String getAbsPath() {
-            return path;
         }
 
         @Override
@@ -175,13 +148,19 @@ public class ExtenderUtil {
         }
     }
 
-    private static class EmptyResource implements IResource {
+    private static class DynamicResource implements IResource {
     	private String rootDir;
     	private String path;
+        private byte[] content;
 
-    	public EmptyResource(String rootDir, String path) {
+        public DynamicResource(String rootDir, String path, byte[] content) {
             this.rootDir = rootDir;
             this.path = path;
+            this.content = content;
+        }
+
+    	public DynamicResource(String rootDir, String path) {
+            this(rootDir, path, new byte[0]);
         }
 
     	@Override
@@ -191,11 +170,12 @@ public class ExtenderUtil {
 
 		@Override
 		public byte[] getContent() throws IOException {
-			return new byte[0];
+			return content;
 		}
 
 		@Override
 		public void setContent(byte[] content) throws IOException {
+            this.content = content;
 		}
 
 		@Override
@@ -290,22 +270,6 @@ public class ExtenderUtil {
 
         public IResource getResource() {
             return resource;
-        }
-
-        @Override
-        public byte[] sha1() throws IOException {
-            byte[] content = getContent();
-            if (content == null) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
-            }
-            MessageDigest sha1;
-            try {
-                sha1 = MessageDigest.getInstance("SHA1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-            sha1.update(content);
-            return sha1.digest();
         }
 
         @Override
@@ -531,18 +495,14 @@ public class ExtenderUtil {
         return paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
     }
 
-    private static IResource getPropertyResource(Project project, BobProjectProperties projectProperties, String section, String key) throws CompileExceptionError {
-        String path = projectProperties.getStringValue(section, key, "");
-        if (!path.isEmpty()) {
-            IResource resource = project.getResource(path);
-            if (resource.exists()) {
-                return resource;
-            } else {
-                IResource projectResource = project.getResource("game.project");
-                throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s.%s: %s", section, key, path));
-            }
+    private static IResource getProjectResource(Project project, String section, String key) throws CompileExceptionError, IOException {
+        IResource resource = project.getResource(section, key, false);
+        if (resource != null && !resource.exists()) {
+            IResource projectResource = project.getGameProjectResource();
+            String path               = project.getProjectProperties().getStringValue(section, key);
+            throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s.%s: %s", section, key, path));
         }
-        return null;
+        return resource;
     }
 
     /**
@@ -550,7 +510,7 @@ public class ExtenderUtil {
      * @param project
      * @return A list of ExtenderResource that can be supplied to ExtenderClient
      */
-    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError {
+    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError, IOException {
         List<ExtenderResource> sources = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
@@ -558,16 +518,17 @@ public class ExtenderUtil {
         platformFolderAlternatives.add("common");
 
         // Find app manifest if there is one
-        BobProjectProperties projectProperties = project.getProjectProperties();
         {
-            IResource resource = getPropertyResource(project, projectProperties, "native_extension", "app_manifest");
+            IResource resource = getProjectResource(project, "native_extension", "app_manifest");
             if (resource == null) {
-                 resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
+                 resource = new DynamicResource(project.getRootDirectory(), appManifestPath);
             }
+
             sources.add( new FSAppManifestResource(resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ));
         }
+        // Find a Proguard file if specified
         {
-            IResource resource = getPropertyResource(project, projectProperties, "android", "proguard");
+            IResource resource = getProjectResource(project, "android", "proguard");
             if (resource != null) {
                 sources.add(new FSAliasResource(resource, project.getRootDirectory(), proguardPath));
             }
@@ -592,6 +553,88 @@ public class ExtenderUtil {
                 sources.addAll( listFilesRecursive( project, extension + "/lib/" + platformAlt + "/") );
                 sources.addAll( listFilesRecursive( project, extension + "/manifests/" + platformAlt + "/") );
                 sources.addAll( listFilesRecursive( project, extension + "/res/" + platformAlt + "/") );
+            }
+        }
+
+        return sources;
+    }
+
+    static private String createExtensionManifest(String name, Platform platform, Map<String, Object> options) {
+        String ln = System.getProperty("line.separator");
+        String s = String.format("name: %s", name) + ln;
+        s += "platforms:" + ln;
+        s += String.format("  %s:", platform.getExtenderPair()) + ln;
+        s += String.format("    context:" + ln);
+
+        for (String key : options.keySet()) {
+            Object value = options.get(key);
+            String svalue = null;
+            if (value instanceof String) {
+                svalue = (String)value;
+            } else if (value instanceof List) {
+                svalue = "[";
+                List<Object> l = (List<Object>)value;
+                int length = l.size();
+                for (int i = 0; i < length; ++i) {
+                    String vv = (String)l.get(i);
+                    svalue += "'" + vv + "'";
+                    if (i < length-1) {
+                        svalue += ", ";
+                    }
+                }
+                svalue += "]" + ln;
+            }
+            s += String.format("      %s: %s", key, svalue) + ln;
+        }
+        return s;
+    }
+
+    public static List<ExtenderResource> getLibrarySources(Project project, Platform platform,
+                                                        Map<String, String> appmanifestOptions,
+                                                        Map<String, Object> compilerOptions,
+                                                        String libraryName,
+                                                        List<String> sourceDirs) throws CompileExceptionError, IOException {
+        List<ExtenderResource> sources = new ArrayList<>();
+
+        String rootDirectory = project.getRootDirectory();
+
+        // Find app manifest if there is one
+        {
+            IResource resource = getProjectResource(project, "native_extension", "app_manifest");
+            if (resource == null) {
+                 resource = new DynamicResource(rootDirectory, appManifestPath);
+            }
+
+            sources.add( new FSAppManifestResource(resource, rootDirectory, appManifestPath, appmanifestOptions ));
+        }
+
+        String manifestContent = ExtenderUtil.createExtensionManifest(libraryName, platform, compilerOptions);
+
+        // Create dummy extension manifest
+        IResource manifestResource = new DynamicResource(rootDirectory, "ext.manifest", manifestContent.getBytes());
+        sources.add(new FSExtenderResource(manifestResource));
+
+        File rootDirectoryFile = new File(rootDirectory);
+        for (String path : sourceDirs) {
+            File dir = new File(path);
+
+            if (dir.isDirectory() && dir.exists()) {
+                sources.addAll(listFilesRecursive(dir, dir));
+            } else {
+
+                ArrayList<String> paths = new ArrayList<>();
+                project.findResourcePaths(path, paths);
+                for (String p : paths) {
+                    IResource r = project.getResource(p);
+                    // Note: findResourcePaths will return the supplied path even if it's not a file.
+                    // We need to check if the resource is not a directory before adding it to the list of paths found.
+                    if (!r.isFile()) {
+                        continue;
+                    }
+
+                    String alias = String.format("%s/src/%s", libraryName, r.getPath());
+                    sources.add(new FSAliasResource(r, project.getRootDirectory(), alias));
+                }
             }
         }
 
@@ -636,7 +679,7 @@ public class ExtenderUtil {
                 for (ExtenderResource r : files) {
                     if (!(r instanceof FSExtenderResource))
                         continue;
-                    File f = new File(r.getAbsPath());
+                    File f = new File(((FSExtenderResource)r).getAbsPath());
                     out.add( ((FSExtenderResource)r).getResource() );
                 }
             }

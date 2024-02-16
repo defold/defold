@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -131,6 +131,15 @@ namespace dmRender
         context->m_OutOfResources = 0;
 
         context->m_StencilBufferCleared = 0;
+
+        context->m_MultiBufferingRequired = 0;
+
+        dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
+        if (installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
+            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR)
+        {
+            context->m_MultiBufferingRequired = 1;
+        }
 
         context->m_RenderListDispatch.SetCapacity(255);
 
@@ -276,6 +285,11 @@ namespace dmRender
     const Matrix4& GetViewProjectionMatrix(HRenderContext render_context)
     {
         return render_context->m_ViewProj;
+    }
+
+    const Matrix4& GetViewMatrix(HRenderContext render_context)
+    {
+        return render_context->m_View;
     }
 
     void SetViewMatrix(HRenderContext render_context, const Matrix4& view)
@@ -667,7 +681,7 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const dmVMath::Matrix4* frustum_matrix)
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options)
     {
         DM_PROFILE("DrawRenderList");
 
@@ -682,16 +696,16 @@ namespace dmRender
             SortRenderList(context);
         }
 
-        dmhash_t frustum_hash = frustum_matrix ? dmHashBuffer64((const void*)frustum_matrix, 16*sizeof(float)) : 0;
+        dmhash_t frustum_hash = frustum_hash = frustum_options ? dmHashBuffer64((const void*)&frustum_options->m_Matrix, 16*sizeof(float)) : 0;
         if (context->m_FrustumHash != frustum_hash)
         {
             // We use this to avoid calling the culling functions more than once in a row
             context->m_FrustumHash = frustum_hash;
 
-            if (frustum_matrix)
+            if (frustum_options)
             {
                 dmIntersection::Frustum frustum;
-                dmIntersection::CreateFrustumFromMatrix(*frustum_matrix, true, frustum);
+                dmIntersection::CreateFrustumFromMatrix(frustum_options->m_Matrix, true, (int)frustum_options->m_NumPlanes, frustum);
                 FrustumCulling(context, frustum);
             }
             else
@@ -866,14 +880,37 @@ namespace dmRender
                 }
             }
 
-            dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
+            dmGraphics::HProgram material_program = GetMaterialProgram(material);
+
+            for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
+            {
+                if (ro->m_VertexBuffers[i])
+                {
+                    dmGraphics::EnableVertexBuffer(context, ro->m_VertexBuffers[i], i);
+                }
+                if (ro->m_VertexDeclarations[i])
+                {
+                    dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclarations[i], i, material_program);
+                }
+            }
 
             if (ro->m_IndexBuffer)
                 dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer);
             else
                 dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
 
-            dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclaration);
+            for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
+            {
+                if (ro->m_VertexBuffers[i])
+                {
+                    dmGraphics::DisableVertexBuffer(context, ro->m_VertexBuffers[i]);
+                }
+
+                if (ro->m_VertexDeclarations[i])
+                {
+                    dmGraphics::DisableVertexDeclaration(context, ro->m_VertexDeclarations[i]);
+                }
+            }
 
             next_texture_unit = 0;
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
@@ -897,12 +934,12 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    Result DrawDebug3d(HRenderContext context, const dmVMath::Matrix4* frustum_matrix)
+    Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options)
     {
         if (!context->m_DebugRenderer.m_RenderContext) {
             return RESULT_INVALID_CONTEXT;
         }
-        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_matrix);
+        return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options);
     }
 
     Result DrawDebug2d(HRenderContext context) // Deprecated

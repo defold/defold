@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,16 +16,20 @@
 #define DM_SPINLOCKTYPES_PTHREAD_H
 
 #include <assert.h>
-#include <stdint.h>
 #include <pthread.h>
 namespace dmSpinlock
 {
     typedef pthread_spinlock_t Spinlock;
 
-    static inline void Init(Spinlock* lock)
+    static inline void Create(Spinlock* lock)
     {
         int ret = pthread_spin_init(lock, 0);
         assert(ret == 0);
+    }
+
+    static inline void Destroy(Spinlock* lock)
+    {
+        pthread_spin_destroy(lock);
     }
 
     static inline void Lock(Spinlock* lock)

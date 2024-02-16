@@ -3,6 +3,7 @@ package dmModelDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
+import "graphics/graphics_ddf.proto";
 
 option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "ModelProto";
@@ -17,9 +18,10 @@ message Texture
 
 message Material
 {
-    required string name        = 1; // the name of the material in the model file
-    required string material    = 2 [(resource)=true];
-    repeated Texture textures   = 3;
+    required string name                           = 1; // the name of the material in the model file
+    required string material                       = 2 [(resource)=true];
+    repeated Texture textures                      = 3;
+    repeated dmGraphics.VertexAttribute attributes = 4;
 }
 
 // The source format (.model)

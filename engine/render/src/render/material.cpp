@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -29,17 +29,15 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    static const dmhash_t VERTEX_STREAM_POSITION   = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_COLOR      = dmHashString64("color");
-    static const dmhash_t VERTEX_STREAM_PAGE_INDEX = dmHashString64("page_index");
-
     static dmGraphics::VertexAttribute::SemanticType GetAttributeSemanticType(dmhash_t from_hash)
     {
         if      (from_hash == VERTEX_STREAM_POSITION)   return dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
         else if (from_hash == VERTEX_STREAM_TEXCOORD0)  return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
+        else if (from_hash == VERTEX_STREAM_TEXCOORD1)  return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
         else if (from_hash == VERTEX_STREAM_COLOR)      return dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
         else if (from_hash == VERTEX_STREAM_PAGE_INDEX) return dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX;
+        else if (from_hash == VERTEX_STREAM_NORMAL)     return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
+        else if (from_hash == VERTEX_STREAM_TANGENT)    return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
         return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
     }
 
@@ -146,34 +144,13 @@ namespace dmRender
         memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
     }
 
-    void CreateConstants(HMaterial material)
+    void CreateConstants(dmGraphics::HContext graphics_context, HMaterial material)
     {
         uint32_t total_constants_count = dmGraphics::GetUniformCount(material->m_Program);
-        const uint32_t buffer_size = 128;
-        char buffer[buffer_size];
-        dmGraphics::Type type;
-        int32_t num_values = 0; // number of Vector4
 
         uint32_t constants_count = 0;
-        uint32_t samplers_count = 0;
-        for (uint32_t i = 0; i < total_constants_count; ++i)
-        {
-            type = (dmGraphics::Type) -1;
-            dmGraphics::GetUniformName(material->m_Program, i, buffer, buffer_size, &type, &num_values);
-
-            if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
-            {
-                constants_count++;
-            }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
-            {
-                samplers_count++;
-            }
-            else
-            {
-                dmLogWarning("Type for uniform %s is not supported (%d)", buffer, type);
-            }
-        }
+        uint32_t samplers_count   = 0;
+        GetProgramUniformCount(material->m_Program, total_constants_count, &constants_count, &samplers_count);
 
         if ((constants_count + samplers_count) > 0)
         {
@@ -190,116 +167,7 @@ namespace dmRender
             }
         }
 
-        uint32_t default_values_capacity = 0;
-        dmVMath::Vector4* default_values = 0;
-        uint32_t sampler_index = 0;
-
-        for (uint32_t i = 0; i < total_constants_count; ++i)
-        {
-            uint32_t name_str_length = dmGraphics::GetUniformName(material->m_Program, i, buffer, buffer_size, &type, &num_values);
-            int32_t location         = dmGraphics::GetUniformLocation(material->m_Program, buffer);
-
-            // DEF-2971-hotfix
-            // Previously this check was an assert. In Emscripten 1.38.3 they made changes
-            // to how uniforms are collected and reported back from WebGL. Simply speaking
-            // in previous Emscripten versions you would get "valid" locations for uniforms
-            // that wasn't used, but after the upgrade these unused uniforms will return -1
-            // as location instead. The fix here is to avoid asserting on such values, but
-            // not saving them in the m_Constants and m_NameHashToLocation structs.
-            if (location == -1) {
-                continue;
-            }
-
-            assert(name_str_length > 0);
-
-            // For uniform arrays, OpenGL returns the name as "uniform[0]",
-            // but we want to identify it as the base name instead.
-            for (int j = 0; j < name_str_length; ++j)
-            {
-                if (buffer[j] == '[')
-                {
-                    buffer[j] = 0;
-                    break;
-                }
-            }
-
-            dmhash_t name_hash = dmHashString64(buffer);
-
-            if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
-            {
-                material->m_NameHashToLocation.Put(name_hash, location);
-
-                HConstant render_constant = dmRender::NewConstant(name_hash);
-                dmRender::SetConstantLocation(render_constant, location);
-
-                if (type == dmGraphics::TYPE_FLOAT_MAT4)
-                {
-                    num_values *= 4;
-                    dmRender::SetConstantType(render_constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
-                }
-
-                // Set correct size of the constant (Until the shader builder provides all the default values)
-                if (num_values > default_values_capacity)
-                {
-                    default_values_capacity = num_values;
-                    delete[] default_values;
-                    default_values = new dmVMath::Vector4[default_values_capacity];
-                    memset(default_values, 0, default_values_capacity * sizeof(dmVMath::Vector4));
-                }
-                dmRender::SetConstantValues(render_constant, default_values, num_values);
-
-                MaterialConstant constant;
-                constant.m_Constant = render_constant;
-
-                if (type == dmGraphics::TYPE_FLOAT_VEC4)
-                {
-                    size_t original_size = strlen(buffer);
-                    dmStrlCat(buffer, ".x", sizeof(buffer));
-                    constant.m_ElementIds[0] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
-                    dmStrlCat(buffer, ".y", sizeof(buffer));
-                    constant.m_ElementIds[1] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
-                    dmStrlCat(buffer, ".z", sizeof(buffer));
-                    constant.m_ElementIds[2] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
-                    dmStrlCat(buffer, ".w", sizeof(buffer));
-                    constant.m_ElementIds[3] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
-                } else {
-                    // Clear element ids, otherwise we will compare against
-                    // uninitialized values in GetMaterialProgramConstantInfo.
-                    constant.m_ElementIds[0] = 0;
-                    constant.m_ElementIds[1] = 0;
-                    constant.m_ElementIds[2] = 0;
-                    constant.m_ElementIds[3] = 0;
-                }
-                material->m_Constants.Push(constant);
-            }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
-            {
-                material->m_NameHashToLocation.Put(name_hash, location);
-                Sampler& s           = material->m_Samplers[sampler_index];
-                s.m_UnitValueCount   = num_values;
-
-                switch(type)
-                {
-                    case dmGraphics::TYPE_SAMPLER_2D:
-                        s.m_Type = dmGraphics::TEXTURE_TYPE_2D;
-                        break;
-                    case dmGraphics::TYPE_SAMPLER_2D_ARRAY:
-                        s.m_Type = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
-                        break;
-                    case dmGraphics::TYPE_SAMPLER_CUBE:
-                        s.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
-                        break;
-                    default: assert(0);
-                }
-                sampler_index++;
-            }
-        }
-
-        delete[] default_values;
+        SetMaterialConstantValues(graphics_context, material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
     }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
@@ -320,7 +188,7 @@ namespace dmRender
 
         CreateAttributes(graphics_context, m);
         CreateVertexDeclaration(graphics_context, m);
-        CreateConstants(m);
+        CreateConstants(graphics_context, m);
 
         return (HMaterial)m;
     }
@@ -340,14 +208,15 @@ namespace dmRender
 
     void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro)
     {
-        const dmArray<MaterialConstant>& constants = material->m_Constants;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        const dmArray<RenderConstant>& constants = material->m_Constants;
+        dmGraphics::HContext graphics_context    = dmRender::GetGraphicsContext(render_context);
+
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            const MaterialConstant& material_constant = constants[i];
+            const RenderConstant& material_constant = constants[i];
             const HConstant constant = material_constant.m_Constant;
-            int32_t location = GetConstantLocation(constant);
+            dmGraphics::HUniformLocation location = GetConstantLocation(constant);
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
 
             switch (type)
@@ -368,7 +237,7 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
                 {
-                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    if (dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material)) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
                     {
                         Matrix4 ndc_matrix = Matrix4::identity();
                         ndc_matrix.setElem(2, 2, 0.5f );
@@ -401,7 +270,7 @@ namespace dmRender
                 {
                     // Vulkan NDC is [0..1] for z, so we must transform
                     // the projection before setting the constant.
-                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    if (dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material)) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
                     {
                         Matrix4 ndc_matrix = Matrix4::identity();
                         ndc_matrix.setElem(2, 2, 0.5f );
@@ -438,7 +307,7 @@ namespace dmRender
                 }
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
                 {
-                    if (dmGraphics::GetShaderProgramLanguage(graphics_context) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                    if (dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material)) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
                     {
                         Matrix4 ndc_matrix = Matrix4::identity();
                         ndc_matrix.setElem(2, 2, 0.5f );
@@ -466,6 +335,15 @@ namespace dmRender
         return 0x0;
     }
 
+    dmhash_t GetMaterialSamplerNameHash(HMaterial material, uint32_t unit)
+    {
+        if (unit < material->m_Samplers.Size())
+        {
+            return material->m_Samplers[unit].m_NameHash;
+        }
+        return 0;
+    }
+
     uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash)
     {
         for (uint32_t i = 0; i < material->m_Samplers.Size(); ++i)
@@ -475,30 +353,6 @@ namespace dmRender
                 return i;
         }
         return 0xFFFFFFFF;
-    }
-
-    uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit)
-    {
-        Sampler* s                            = (Sampler*) sampler;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-
-        for (int i = 0; i < dmGraphics::GetNumTextureHandles(texture); ++i)
-        {
-            dmGraphics::EnableTexture(graphics_context, unit, i, texture);
-            if (s->m_Location != -1)
-            {
-                dmGraphics::SetSampler(graphics_context, s->m_Location + i, unit);
-
-                if (s->m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
-                    s->m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
-                {
-                    dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
-                }
-            }
-            unit++;
-        }
-
-        return unit;
     }
 
     void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture)
@@ -514,12 +368,7 @@ namespace dmRender
         if (s->m_Location != -1)
         {
             dmGraphics::SetSampler(graphics_context, s->m_Location, unit);
-
-            if (s->m_MinFilter != dmGraphics::TEXTURE_FILTER_DEFAULT &&
-                s->m_MagFilter != dmGraphics::TEXTURE_FILTER_DEFAULT)
-            {
-                dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
-            }
+            dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
         }
     }
 
@@ -553,7 +402,7 @@ namespace dmRender
 
     static inline int32_t FindMaterialConstantIndex(HMaterial material, dmhash_t name_hash)
     {
-        dmArray<MaterialConstant>& constants = material->m_Constants;
+        dmArray<RenderConstant>& constants = material->m_Constants;
         int32_t n = (int32_t)constants.Size();
         for (int32_t i = 0; i < n; ++i)
         {
@@ -572,7 +421,7 @@ namespace dmRender
         if (index < 0)
             return;
 
-        MaterialConstant& mc = material->m_Constants[index];
+        RenderConstant& mc = material->m_Constants[index];
         SetConstantType(mc.m_Constant, type);
     }
 
@@ -582,19 +431,19 @@ namespace dmRender
         if (index < 0)
             return false;
 
-        MaterialConstant& mc = material->m_Constants[index];
+        RenderConstant& mc = material->m_Constants[index];
         out_value = mc.m_Constant;
         return true;
     }
 
     bool GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_array_size)
     {
-        dmArray<MaterialConstant>& constants = material->m_Constants;
+        dmArray<RenderConstant>& constants = material->m_Constants;
         uint32_t n = constants.Size();
         *out_element_index = ~0u;
         for (uint32_t i = 0; i < n; ++i)
         {
-            MaterialConstant& c = constants[i];
+            RenderConstant& c = constants[i];
             dmhash_t constant_name_hash = GetConstantName(c.m_Constant);
             uint32_t num_values;
             dmVMath::Vector4* values = GetConstantValues(c.m_Constant, &num_values);
@@ -719,7 +568,7 @@ namespace dmRender
             return;
         }
 
-        MaterialConstant& mc = material->m_Constants[index];
+        RenderConstant& mc = material->m_Constants[index];
 
         uint32_t num_default_values;
         dmVMath::Vector4* constant_values = dmRender::GetConstantValues(mc.m_Constant, &num_default_values);
@@ -733,16 +582,16 @@ namespace dmRender
         memcpy(constant_values, values, count * sizeof(dmVMath::Vector4));
     }
 
-    int32_t GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)
+    dmGraphics::HUniformLocation GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)
     {
-        int32_t* location = material->m_NameHashToLocation.Get(name_hash);
+        dmGraphics::HUniformLocation* location = material->m_NameHashToLocation.Get(name_hash);
         if (location)
         {
             return *location;
         }
         else
         {
-            return -1;
+            return dmGraphics::INVALID_UNIFORM_LOCATION;
         }
     }
 
@@ -752,7 +601,7 @@ namespace dmRender
 
         if (unit < samplers.Size() && name_hash != 0)
         {
-            int32_t* location = material->m_NameHashToLocation.Get(name_hash);
+            dmGraphics::HUniformLocation* location = material->m_NameHashToLocation.Get(name_hash);
             if (location)
             {
                 Sampler& s        = samplers[unit];

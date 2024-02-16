@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -114,7 +114,6 @@
     (is (= 1.1 (to-double "1.1")))
     (is (= -2.0 (to-double "-2")))
     (is (= -2.5 (to-double "-2.5")))
-    (is (= -1.5 (to-double "-1,5")))
     (is (= 3.1 (to-double "+3.1")))
     (is (= 0.0001 (to-double "1.0e-4")))
     (is (= 0.00001 (to-double "1.0E-5")))

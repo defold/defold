@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -470,7 +470,7 @@
                              1.0)
                            (case manip
                              (:scale-z :scale-xz :scale-yz)
-                             (div-fn (.y delta) (.y start-delta))
+                             (div-fn (.z delta) (.z start-delta))
                              1.0))]
         (for [{:keys [node-id]} original-values]
           (manip-scale evaluation-context node-id scale-factor))))

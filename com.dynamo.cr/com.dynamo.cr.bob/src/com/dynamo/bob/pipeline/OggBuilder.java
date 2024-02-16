@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,9 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.List;
+import java.io.File;
+import java.io.BufferedOutputStream;
+import java.io.FileOutputStream;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
@@ -35,8 +38,21 @@ public class OggBuilder extends CopyBuilder{
         Platform curr_platform = Platform.getHostPlatform();
         List<String> deps = List.of("libogg", "liboggz");
         Bob.unpackSharedLibraries(curr_platform, deps);
+        File tmpOggFile = null;
+        try {
+            tmpOggFile = File.createTempFile("ogg_tmp", null, Bob.getRootFolder());
+            BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpOggFile));
+            try {
+                os.write(input.getContent());
+            } finally {
+                os.close();
+            }
+        } catch (IOException exc) {
+            throw new CompileExceptionError(input, 0, 
+                String.format("Cannot copy ogg file to further process", new String(exc.getMessage())));
+        }
         Result result = Exec.execResult(Bob.getExe(curr_platform, "oggz-validate"),
-            input.getAbsPath()
+            tmpOggFile.getAbsolutePath()
         );
 
         if (result.ret != 0) {

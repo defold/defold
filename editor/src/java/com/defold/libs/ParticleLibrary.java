@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@ package com.defold.libs;
 
 import java.io.IOException;
 import java.nio.Buffer;
+import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.Arrays;
@@ -88,8 +89,8 @@ public class ParticleLibrary {
     public static native boolean Particle_IsSleeping(Pointer context, Pointer instance);
 
     public static native void Particle_Update(Pointer context, float dt, FetchAnimationCallback callback);
-    
-    public static native void Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitter_index, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize, int particleVertexFormat);
+
+    public static native int Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitterIndex, ParticleVertexAttributeInfos attributeInfos, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize);
 
     public static native void Particle_RenderEmitter(Pointer context, Pointer instance, int emitterIndex, Pointer userContext, RenderInstanceCallback callback);
 
@@ -104,6 +105,39 @@ public class ParticleLibrary {
     public static native void Particle_GetInstanceStats(Pointer context, Pointer instance, InstanceStats stats);
 
     public static native int Particle_GetVertexBufferSize(int particle_count, int vertex_format);
+
+    public static native void Particle_ResetAttributeScratchBuffer(Pointer context);
+
+    public static native Pointer Particle_WriteAttributeToScratchBuffer(Pointer context, Buffer bytes, int byte_count);
+
+    public static class ParticleVertexAttributeInfo extends Structure {
+        public long    nameHash;
+        public int     semanticType;
+        public int     coordinateSpace;
+        public Pointer valuePtr;
+        public int     valueByteSize;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("nameHash", "semanticType", "coordinateSpace", "valuePtr", "valueByteSize");
+        }
+    }
+
+    public static class ParticleVertexAttributeInfos extends Structure {
+        public ParticleVertexAttributeInfos() {
+            structSize = size();
+        }
+
+        public ParticleVertexAttributeInfo[] infos = new ParticleVertexAttributeInfo[8]; // ==> dmGraphics::MAX_VERTEX_STREAM_COUNT
+        public int                           vertexStride;
+        public int                           numInfos;
+        public int                           structSize;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("infos", "vertexStride", "numInfos", "structSize");
+        }
+    }
 
     public static class Stats extends Structure {
 

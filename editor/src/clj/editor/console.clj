@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -683,7 +683,7 @@
                                         clear (assoc :cursor-ranges [data/document-start-cursor-range])
                                         clear (assoc :invalidated-row 0)
                                         clear (data/frame-cursor prev-layout)))))))
-  (view/repaint-view! view-node elapsed-time {:cursor-visible? false}))
+  (view/repaint-view! view-node elapsed-time {:cursor-visible false}))
 
 (def ^:private console-grammar
   {:name "Console"

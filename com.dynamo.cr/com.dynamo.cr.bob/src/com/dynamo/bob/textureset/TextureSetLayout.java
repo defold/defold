@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -85,7 +85,7 @@ public class TextureSetLayout {
 
         @Override
         public String toString() {
-            return String.format("[%d, %d, %d, %d]", x, y, width, height);
+            return String.format("Rect: x/y: %d, %d  w/h: %d, %d  r: %d  id: %s", x, y, width, height, rotated?1:0, id);
         }
     }
 
@@ -109,6 +109,17 @@ public class TextureSetLayout {
             return height;
         }
 
+        @Override
+        public String toString() {
+            String s = "Layout:\n";
+            s += String.format("  width: %d:\n", width);
+            s += String.format("  height: %d:\n", height);
+            for (Rect r : rectangles) {
+                s += String.format("  %s\n", r.toString());
+            }
+            s += "\n";
+            return s;
+        }
     }
 
     public static List<Layout> packedLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) {

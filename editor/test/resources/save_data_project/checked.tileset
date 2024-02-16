@@ -1,0 +1,70 @@
+image: "/referenced/images/diamond.png"
+tile_width: 37
+tile_height: 37
+tile_margin: 2
+tile_spacing: 2
+collision: "/referenced/images/diamond.png"
+material_tag: "custom"
+convex_hulls {
+  index: 0
+  count: 3
+  collision_group: ""
+}
+convex_hulls {
+  index: 3
+  count: 6
+  collision_group: ""
+}
+convex_hulls {
+  index: 9
+  count: 3
+  collision_group: ""
+}
+convex_hulls {
+  index: 12
+  count: 6
+  collision_group: ""
+}
+convex_hulls {
+  index: 18
+  count: 4
+  collision_group: ""
+}
+convex_hulls {
+  index: 22
+  count: 6
+  collision_group: ""
+}
+convex_hulls {
+  index: 28
+  count: 3
+  collision_group: ""
+}
+convex_hulls {
+  index: 31
+  count: 6
+  collision_group: ""
+}
+convex_hulls {
+  index: 37
+  count: 3
+  collision_group: ""
+}
+collision_groups: "collision_group"
+animations {
+  id: "animation"
+  start_tile: 4
+  end_tile: 6
+  playback: PLAYBACK_LOOP_PINGPONG
+  fps: 12
+  flip_horizontal: 1
+  flip_vertical: 1
+  cues {
+    id: "cue1"
+    frame: 1;
+    value: 1.1
+  }
+}
+extrude_borders: 4
+inner_padding: 2
+sprite_trim_mode: SPRITE_TRIM_MODE_5

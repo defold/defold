@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1036,6 +1036,7 @@ namespace dmGameObject
 
     // Actually add instance to update
     static bool DoAddToUpdate(Collection* collection, HInstance instance) {
+        bool add_to_update_result = true;
         if (instance)
         {
             instance->m_ToBeAdded = 0;
@@ -1067,14 +1068,14 @@ namespace dmGameObject
                         CreateResult result = component_type->m_AddToUpdateFunction(params);
                         if (result != CREATE_RESULT_OK)
                         {
-                            return false;
+                            add_to_update_result = false;
                         }
                     }
                 }
             }
         }
 
-        return true;
+        return add_to_update_result;
     }
 
     // Actually add all scheduled instances to the update
@@ -1670,6 +1671,7 @@ namespace dmGameObject
     {
         uint32_t next_component_instance_data = 0;
         Prototype* prototype = instance->m_Prototype;
+        bool init_result = true;
         for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
         {
             Prototype::Component* component = &prototype->m_Components[i];
@@ -1693,11 +1695,11 @@ namespace dmGameObject
                 CreateResult result = component_type->m_InitFunction(params);
                 if (result != CREATE_RESULT_OK)
                 {
-                    return false;
+                    init_result = false;
                 }
             }
         }
-        return true;
+        return init_result;
     }
 
     static bool InitInstance(Collection* collection, HInstance instance)

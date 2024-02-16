@@ -69,12 +69,17 @@
 </head>
 
 <body>
-	<div id="running-from-file-warning" style="display: none; margin: 3em;">
-		<h1>Running from local file ⚠️</h1>
-		<p>It seems like you have opened this file by double-clicking on it. In order to test your build in a browser <b>you need to load this file from a web server</b>. You can either upload this file and the rest of the files from a Defold HTML5 bundle to a web hosting service OR host them using a local web server on your home network.</p>
-		<p><a href="https://defold.com/manuals/html5/#testing-html5-build" target="_blank">Learn more about running a local web server in the Defold HTML5 manual</a>.</p>
-	</div>
+
 	<div id="app-container" class="canvas-app-container">
+		<div id="running-from-file-warning" style="display: none; margin: 3em;">
+			<h1>Running from local file ⚠️</h1>
+			<p>It seems like you have opened this file by double-clicking on it. In order to test your build in a browser <b>you need to load this file from a web server</b>. You can either upload this file and the rest of the files from a Defold HTML5 bundle to a web hosting service OR host them using a local web server on your home network.</p>
+			<p><a href="https://defold.com/manuals/html5/#testing-html5-build" target="_blank">Learn more about running a local web server in the Defold HTML5 manual</a>.</p>
+		</div>
+		<div id="webgl-not-supported" style="display: none; margin: 3em;">
+			<h1>WebGL not supported ⚠️</h1>
+			<p>WebGL is not supported by your browser - visit <a href="https://get.webgl.org/">https://get.webgl.org/</a> to learn more.</p>
+		</div>
 		<div id="canvas-container" class="canvas-app-canvas-container">
 			<canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="{{display.width}}" height="{{display.height}}"></canvas>
 		</div>
@@ -98,8 +103,14 @@
 		engine_arguments: [{{#DEFOLD_ENGINE_ARGUMENTS}}"{{.}}",{{/DEFOLD_ENGINE_ARGUMENTS}}],
 		custom_heap_size: {{DEFOLD_HEAP_SIZE}},
 		full_screen_container: "#canvas-container",
-		disable_context_menu: true
+		disable_context_menu: true,
+		unsupported_webgl_callback: function() {
+			var e = document.getElementById("webgl-not-supported");
+			e.style.display = "block";
+		}
 	}
+
+	Module['persistentStorage'] = (typeof window !== 'undefined') && !!(window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB);
 
 	Module['INITIAL_MEMORY'] = extra_params.custom_heap_size;
 

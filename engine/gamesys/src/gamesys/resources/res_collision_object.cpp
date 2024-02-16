@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -211,12 +211,14 @@ range_error:
                 resource->m_Shapes3D = (dmPhysics::HCollisionShape3D*)malloc(sizeof(dmPhysics::HCollisionShape3D) * embedded_shape_count);
                 resource->m_ShapeTranslation = (dmVMath::Vector3*)malloc(sizeof(dmVMath::Vector3) * embedded_shape_count);
                 resource->m_ShapeRotation = (dmVMath::Quat*)malloc(sizeof(dmVMath::Quat) * embedded_shape_count);
+                resource->m_ShapeTypes = (dmPhysicsDDF::CollisionShape::Type*)malloc(sizeof(dmPhysicsDDF::CollisionShape::Type) * embedded_shape_count);
             }
             else if (!resource->m_TileGrid)
             {
                 resource->m_Shapes2D = (dmPhysics::HCollisionShape2D*)malloc(sizeof(dmPhysics::HCollisionShape2D) * embedded_shape_count);
                 resource->m_ShapeTranslation = (dmVMath::Vector3*)malloc(sizeof(dmVMath::Vector3) * embedded_shape_count);
                 resource->m_ShapeRotation = (dmVMath::Quat*)malloc(sizeof(dmVMath::Quat) * embedded_shape_count);
+                resource->m_ShapeTypes = (dmPhysicsDDF::CollisionShape::Type*)malloc(sizeof(dmPhysicsDDF::CollisionShape::Type) * embedded_shape_count);
             }
 
             // Create embedded convex shapes
@@ -231,6 +233,7 @@ range_error:
                         resource->m_Shapes3D[current_shape_count] = shape;
                         resource->m_ShapeTranslation[current_shape_count] = dmVMath::Vector3(embedded_shapes[i].m_Position);
                         resource->m_ShapeRotation[current_shape_count] = embedded_shapes[i].m_Rotation;
+                        resource->m_ShapeTypes[current_shape_count] = embedded_shapes[i].m_ShapeType;
                         current_shape_count++;
                     }
                     else
@@ -247,6 +250,7 @@ range_error:
                         resource->m_Shapes2D[current_shape_count] = shape;
                         resource->m_ShapeTranslation[current_shape_count] = dmVMath::Vector3(embedded_shapes[i].m_Position);
                         resource->m_ShapeRotation[current_shape_count] = embedded_shapes[i].m_Rotation;
+                        resource->m_ShapeTypes[current_shape_count] = embedded_shapes[i].m_ShapeType;
                         current_shape_count++;
                     }
                     else

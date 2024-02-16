@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -227,7 +227,13 @@ public class ComponentsCounter {
     public static void sumInputs(Storage targetStorage, List<IResource> inputs, Integer count) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
             if (isCompCounterStorage(res.getPath())) {
-                targetStorage.add(Storage.load(res), count);
+                Storage inputStorage = Storage.load(res);
+                if (inputStorage.isDynamic()) {
+                    targetStorage.makeDynamic();
+                }
+                else {
+                    targetStorage.add(inputStorage, count);
+                }
             }
         }
     }
@@ -236,7 +242,13 @@ public class ComponentsCounter {
         Map<IResource, Integer> compCounterInputsCount) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
             if (isCompCounterStorage(res.getPath())) {
-                targetStorage.add(Storage.load(res), compCounterInputsCount.get(res));
+                Storage inputStorage = Storage.load(res);
+                if (inputStorage.isDynamic()) {
+                    targetStorage.makeDynamic();
+                }
+                else {
+                    targetStorage.add(inputStorage, compCounterInputsCount.get(res));
+                }
             }
         }
     }
@@ -319,11 +331,11 @@ public class ComponentsCounter {
         }
     }
 
-    public static void excludeCounterPaths(HashSet<String> paths) {
-        Iterator<String> iterator = paths.iterator();
+    public static void excludeCounterPaths(Set<IResource> resources) {
+        Iterator<IResource> iterator = resources.iterator();
         while (iterator.hasNext()) {
-            String path = iterator.next();
-            if (isCompCounterStorage(path)) {
+            IResource resource = iterator.next();
+            if (isCompCounterStorage(resource.getAbsPath())) {
                 iterator.remove();
             }
         }

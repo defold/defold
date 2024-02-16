@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -94,11 +94,11 @@ public class PluginScanner {
 
 		IClassScanner scanner = Project.getClassLoaderScanner();
 		if (scanner == null) {
-			logger.info("PluginScanner has no class loader scanner");
+			logger.warning("PluginScanner has no class loader scanner");
 			return null;
 		}
 
-		logger.info("PluginScanner searching %s for base class %s", packageName, pluginBaseClass);
+		logger.fine("PluginScanner searching %s for base class %s", packageName, pluginBaseClass);
 		
 		List<T> plugins = new ArrayList<>();
 		Set<String> classNames = scanner.scan(packageName);
@@ -109,7 +109,7 @@ public class PluginScanner {
 				boolean isAbstract = Modifier.isAbstract(klass.getModifiers());
 				boolean isPrivate = Modifier.isPrivate(klass.getModifiers());
 				if (pluginBaseClass.isAssignableFrom(klass) && !isAbstract && !isPrivate) {
-					logger.info("Found plugin " + className);
+					logger.fine("Found plugin " + className);
 					plugins.add((T)klass.newInstance());
 				}
 			}
