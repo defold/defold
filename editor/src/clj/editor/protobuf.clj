@@ -1054,6 +1054,13 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def enum-values (fn/memoize enum-values-raw))
 
+(defn- valid-enum-values-raw [^Class cls]
+  (into (sorted-set)
+        (map first)
+        (enum-values cls)))
+
+(def valid-enum-values (fn/memoize valid-enum-values-raw))
+
 (defn- fields-by-indices-raw [^Class cls]
   (let [desc (pb-class->descriptor cls)]
     (into {}

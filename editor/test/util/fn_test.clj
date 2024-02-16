@@ -306,3 +306,18 @@
   (testing "Strings are interned"
     (is (identical? (name `defined-function) (name (fn/declared-symbol defined-function))))
     (is (identical? (namespace `defined-function) (namespace (fn/declared-symbol defined-function))))))
+
+
+(deftest make-case-fn-test
+  (let [case-fn (fn/make-case-fn {:a 1 :b 2 nil nil})]
+
+    (testing "Returned fn resolves keys to values"
+      (is (= 1 (case-fn :a)))
+      (is (= 2 (case-fn :b)))
+      (is (nil? (case-fn nil))))
+
+    (testing "Returned fn throws on invalid key"
+      (is (thrown-with-msg? IllegalArgumentException #"No matching clause: :non-existing-key" (case-fn :non-existing-key)))))
+
+  (is (= 1 ((fn/make-case-fn [[:a 1]]) :a)) "Accepts sequence of pairs")
+  (is (= 1 ((fn/make-case-fn {:a 1}) :a)) "Accepts map"))

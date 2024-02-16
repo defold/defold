@@ -138,7 +138,9 @@
         nil)
       (throw (IllegalArgumentException. "The function was not memoized by us.")))))
 
-(defn declared-symbol [declared-fn]
+(defn declared-symbol
+  "Given a declared function, returns the symbol that resolves to the function."
+  [declared-fn]
   (if-not (fn? declared-fn)
     (throw (IllegalArgumentException. "The argument must be a declared function."))
     (let [class-name (.getName (class declared-fn))]
@@ -154,3 +156,23 @@
                      namespaced-name
                      (.intern (subs namespaced-name (inc separator-index))))]
           (symbol namespace name))))))
+
+(defn make-case-fn
+  "Given a collection of key-value pairs, return a function that returns the
+  value for a key, or throws an IllegalArgumentException if the key does not
+  match any entry. The behavior of the returned function should be functionally
+  equivalent to a case expression."
+  [key-value-pairs]
+  ;; TODO: Reimplement as macro producing a case expression?
+  (let [lookup (if (map? key-value-pairs)
+                 key-value-pairs
+                 (into {} key-value-pairs))]
+    (fn key->value [key]
+      (let [value (lookup key ::not-found)]
+        (if (not= ::not-found value)
+          value
+          (throw (IllegalArgumentException.
+                   (str "No matching clause: " key)
+                   (ex-info "Key not found in lookup."
+                            {:key key
+                             :valid-keys (keys lookup)}))))))))

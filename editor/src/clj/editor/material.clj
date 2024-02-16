@@ -27,12 +27,12 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
   (:import [com.dynamo.bob.pipeline ShaderProgramBuilder]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
-           [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
+           [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Vector4d]))
@@ -67,23 +67,33 @@
 
 (def ^:private hack-upgrade-constants (partial mapv hack-upgrade-constant))
 
+(def ^:private editable-attribute-optional-field-defaults
+  (-> Graphics$VertexAttribute
+      (protobuf/default-message #{:optional})
+      (dissoc :binary-values :double-values :long-values :name-hash)))
+
 (defn- attribute->editable-attribute [attribute]
   {:pre [(map? attribute)]} ; Graphics$VertexAttribute in map format.
   ;; The protobuf stores values in different arrays depending on their type.
   ;; Here, we convert all of them into a vector of doubles for easy editing.
   ;; This is fine, since doubles can accurately represent values in the entire
   ;; signed and unsigned 32-bit integer range from -2147483648 to 4294967295.
-  (-> attribute
-      (dissoc :double-values :long-values) ; Only one of these will be present, but we want neither.
-      (assoc :values (graphics/attribute->doubles attribute))))
+  (let [attribute (merge editable-attribute-optional-field-defaults attribute)
+        values (graphics/attribute->doubles attribute)]
+    (-> attribute
+        (dissoc :double-values :long-values) ; Only one of these will be present, but we want neither.
+        (assoc :values values))))
 
 (defn- editable-attribute->attribute [{:keys [data-type normalize values] :as editable-attribute}]
   {:pre [(map? editable-attribute)
          (vector? values)]}
   (let [[attribute-value-keyword stored-values] (graphics/doubles->storage values data-type normalize)]
-    (-> editable-attribute
-        (dissoc :values)
-        (assoc attribute-value-keyword {:v stored-values}))))
+    (protobuf/without-defaults Graphics$VertexAttribute
+      (-> editable-attribute
+          (dissoc :values)
+          (protobuf/assign attribute-value-keyword
+                           (when-not (coll/empty? stored-values)
+                             {:v stored-values}))))))
 
 (defn- save-value-attributes [editable-attributes]
   (mapv editable-attribute->attribute editable-attributes))
@@ -91,18 +101,17 @@
 (defn- build-target-attributes [attribute-infos]
   (mapv graphics/attribute-info->build-target-attribute attribute-infos))
 
-(g/defnk produce-base-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space max-page-count :as base-pb-msg]
-  (-> (protobuf/make-map-with-defaults Material$MaterialDesc
-        :name name
-        :vertex-program (resource/resource->proj-path vertex-program)
-        :fragment-program (resource/resource->proj-path fragment-program)
-        :vertex-constants (hack-upgrade-constants vertex-constants)
-        :fragment-constants (hack-upgrade-constants fragment-constants)
-        :samplers samplers
-        :tags tags
-        :vertex-space vertex-space
-        :max-page-count max-page-count)
-      (dissoc :textures))) ; Deprecated field. Migrated to :samplers on load.
+(g/defnk produce-base-pb-msg [name vertex-program fragment-program vertex-constants fragment-constants samplers tags vertex-space max-page-count]
+  (protobuf/make-map-without-defaults Material$MaterialDesc
+    :name name
+    :vertex-program (resource/resource->proj-path vertex-program)
+    :fragment-program (resource/resource->proj-path fragment-program)
+    :vertex-constants (hack-upgrade-constants vertex-constants)
+    :fragment-constants (hack-upgrade-constants fragment-constants)
+    :samplers (mapv #(protobuf/without-defaults Material$MaterialDesc$Sampler %) samplers)
+    :tags tags
+    :vertex-space vertex-space
+    :max-page-count max-page-count))
 
 (g/defnk produce-save-value [base-pb-msg attributes]
   (protobuf/assign-repeated base-pb-msg
@@ -447,17 +456,28 @@
     :filter-mode-mag-linear GL2/GL_LINEAR
     nil))
 
-(def ^:private default-sampler {:wrap-u :wrap-mode-clamp-to-edge
-                                :wrap-v :wrap-mode-clamp-to-edge
-                                :filter-min :filter-mode-min-linear
-                                :filter-mag :filter-mode-mag-linear
-                                :max-anisotropy 1.0})
+(def ^:private default-pb-sampler
+  (protobuf/make-map-without-defaults Material$MaterialDesc$Sampler
+    :wrap-u :wrap-mode-clamp-to-edge
+    :wrap-v :wrap-mode-clamp-to-edge
+    :filter-min :filter-mode-min-linear
+    :filter-mag :filter-mode-mag-linear))
+
+(def ^:private editable-sampler-optional-field-defaults
+  (-> Material$MaterialDesc$Sampler
+      (protobuf/default-message #{:optional})
+      (dissoc :name-hash :texture))) ; TODO: Support assigning a default :texture for each sampler in the material.
+
+(defn- sampler->editable-sampler [sampler]
+  (merge editable-sampler-optional-field-defaults sampler))
+
+(def ^:private default-editable-sampler (sampler->editable-sampler default-pb-sampler))
 
 (defn sampler->tex-params
   ([sampler]
    (sampler->tex-params sampler nil))
   ([sampler default-tex-params]
-   (let [s (or sampler default-sampler)
+   (let [s (or sampler default-editable-sampler)
          params {:wrap-s (wrap-mode->gl (:wrap-u s))
                  :wrap-t (wrap-mode->gl (:wrap-v s))
                  :min-filter (filter-mode-min->gl (:filter-min s) default-tex-params)
@@ -507,9 +527,10 @@
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)
 
-  (property name g/Str (dynamic visible (g/constantly false)))
+  (property name g/Str ; Required protobuf field.
+            (dynamic visible (g/constantly false)))
 
-  (property vertex-program resource/Resource
+  (property vertex-program resource/Resource ; Required protobuf field.
     (dynamic visible (g/constantly false))
     (value (gu/passthrough vertex-resource))
     (set (fn [evaluation-context self old-value new-value]
@@ -517,7 +538,7 @@
                                     [:resource :vertex-resource]
                                     [:shader-source-info :vertex-shader-source-info]))))
 
-  (property fragment-program resource/Resource
+  (property fragment-program resource/Resource ; Required protobuf field.
     (dynamic visible (g/constantly false))
     (value (gu/passthrough fragment-resource))
     (set (fn [evaluation-context self old-value new-value]
@@ -525,16 +546,22 @@
                                     [:resource :fragment-resource]
                                     [:shader-source-info :fragment-shader-source-info]))))
 
-  (property max-page-count g/Int (default 1) (dynamic visible (g/constantly false)))
-  (property attributes g/Any (dynamic visible (g/constantly false)))
-  (property vertex-constants g/Any (dynamic visible (g/constantly false)))
-  (property fragment-constants g/Any (dynamic visible (g/constantly false)))
-  (property samplers g/Any
+  (property max-page-count g/Int (default (protobuf/default Material$MaterialDesc :max-page-count))
+            (dynamic visible (g/constantly false)))
+  (property attributes g/Any ; Vector assigned in load-fn.
+            (dynamic visible (g/constantly false)))
+  (property vertex-constants g/Any ; Vector assigned in load-fn.
+            (dynamic visible (g/constantly false)))
+  (property fragment-constants g/Any ; Vector assigned in load-fn.
+            (dynamic visible (g/constantly false)))
+  (property samplers g/Any; Vector assigned in load-fn.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self old-value new-value]
                    (notify-sampler-names-targets-setter evaluation-context self :samplers old-value new-value))))
-  (property tags g/Any (dynamic visible (g/constantly false)))
-  (property vertex-space g/Keyword (dynamic visible (g/constantly false)))
+  (property tags g/Any ; Vector assigned in load-fn.
+            (dynamic visible (g/constantly false)))
+  (property vertex-space g/Keyword (default (protobuf/default Material$MaterialDesc :vertex-space))
+            (dynamic visible (g/constantly false)))
 
   (output form-data g/Any :cached produce-form-data)
 
@@ -551,23 +578,25 @@
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
   (output attribute-infos [g/KeywordMap] :cached produce-attribute-infos))
 
-(defn- make-sampler [name]
-  (assoc default-sampler :name name))
+(defn- legacy-texture->sampler [name]
+  (assoc default-pb-sampler :name name))
 
-(defn load-material [project self resource pb]
-  (concat
-    (g/set-property self :vertex-program (workspace/resolve-resource resource (:vertex-program pb)))
-    (g/set-property self :fragment-program (workspace/resolve-resource resource (:fragment-program pb)))
-    (g/set-property self :vertex-constants (hack-downgrade-constants (:vertex-constants pb)))
-    (g/set-property self :fragment-constants (hack-downgrade-constants (:fragment-constants pb)))
-    (g/set-property self :attributes (mapv attribute->editable-attribute (:attributes pb)))
-    (for [field [:name :samplers :tags :vertex-space :max-page-count]]
-      (g/set-property self field (field pb)))))
-
-(defn- sanitize-sampler [sampler]
-  ;; Material$MaterialDesc$Sampler in map format.
-  ;; TODO: The texture field _will_ be used in the editor, just not in this MVP
-  (dissoc sampler :name-indirections :texture :name-hash)) ; Only used in built data by the runtime.
+(defn load-material [_project self resource material-desc]
+  ;; Material$MaterialDesc in map format.
+  (let [resolve-resource #(workspace/resolve-resource resource %)
+        attributes->editable-attributes #(mapv attribute->editable-attribute %)
+        samplers->editable-samplers #(mapv sampler->editable-sampler %)]
+    (gu/set-properties-from-map self material-desc
+      vertex-program (resolve-resource :vertex-program)
+      fragment-program (resolve-resource :fragment-program)
+      vertex-constants (hack-downgrade-constants :vertex-constants)
+      fragment-constants (hack-downgrade-constants :fragment-constants)
+      attributes (attributes->editable-attributes :attributes)
+      name :name
+      samplers (samplers->editable-samplers :samplers)
+      tags :tags
+      vertex-space :vertex-space
+      max-page-count :max-page-count)))
 
 (defn- sanitize-material
   "The old format specified :textures as string names. Convert these into
@@ -576,17 +605,16 @@
   entries in the :samplers list, based on :name."
   [material-desc]
   ;; Material$MaterialDesc in map format.
-  (let [existing-samplers (map sanitize-sampler (:samplers material-desc))
-        samplers-created-from-textures (map make-sampler (:textures material-desc))
+  (let [existing-samplers (:samplers material-desc)
+        samplers-created-from-textures (map legacy-texture->sampler (:textures material-desc))
         samplers (into []
                        (util/distinct-by :name)
                        (concat existing-samplers
-                               samplers-created-from-textures))
-        attributes (mapv graphics/sanitize-attribute-definition (:attributes material-desc))]
+                               samplers-created-from-textures))]
     (-> material-desc
         (dissoc :textures)
         (protobuf/assign-repeated :samplers samplers)
-        (protobuf/assign-repeated :attributes attributes))))
+        (protobuf/sanitize-repeated :attributes graphics/sanitize-attribute-definition))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -594,6 +622,7 @@
     :label "Material"
     :node-type MaterialNode
     :ddf-type Material$MaterialDesc
+    :read-defaults false
     :load-fn load-material
     :sanitize-fn sanitize-material
     :icon "icons/32/Icons_31-Material.png"

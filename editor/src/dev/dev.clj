@@ -797,6 +797,13 @@
                                 :message pb-class-info})))))
          (workspace/get-resource-type-map workspace))))
 
+(defn pb-resource-exts-that-read-defaults [workspace]
+  (into (sorted-set)
+        (keep (fn [[ext info]]
+                (when (:read-defaults info true)
+                  ext)))
+        (dev/pb-resource-type-info workspace)))
+
 (def class-name-comparator #(compare (.getName ^Class %1) (.getName ^Class %2)))
 
 (defn resource-pb-classes [workspace]

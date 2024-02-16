@@ -53,9 +53,9 @@
           fetch-anim-fn (fn [index] (get emitter-sim-data index))
           transforms [(doto (Matrix4d.) (.setIdentity))]
           sim (plib/make-sim 16 256 prototype-msg transforms)
-          attribute-infos (into []
-                                (map graphics/attribute-key->default-attribute-info)
-                                [:position])
+          attribute-infos [(-> :position
+                               (graphics/attribute-key->default-attribute-info)
+                               (assoc :coordinate-space :coordinate-space-world))]
           vertex-description (graphics/make-vertex-description attribute-infos)
           attribute-bytes (graphics/attribute-bytes-by-attribute-key node-id attribute-infos {})]
       (testing "Sim sleeping"
