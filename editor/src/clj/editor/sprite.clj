@@ -206,7 +206,6 @@
         num-vertices (count-vertices renderable-datas)
 
         num-outline-vertices (* 6 (count-quads renderables))]
-    (println "VX COUNT" num-vertices _count)
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)
