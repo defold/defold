@@ -27,7 +27,6 @@
 #include <dlib/uri.h>
 #include <dlib/math.h>
 #include <ddf/ddf.h>
-#include <dmsdk/gameobject/script.h>
 #include "http_ddf.h"
 #include "http_service.h"
 
@@ -124,8 +123,12 @@ namespace dmHttpService
             dmHttpDDF::HttpRequestProgress progress = {};
             progress.m_BytesReceived = content_data_size;
 
-            if (dmGameObject::RESULT_OK != dmGameObject::PostDDF(&progress, 0, 
-                &worker->m_CurrentRequesterURL, worker->m_ResponseUserData2, false))
+            if (dmMessage::RESULT_OK != dmMessage::Post(0,
+                &worker->m_CurrentRequesterURL,
+                dmHttpDDF::HttpRequestProgress::m_DDFHash,
+                worker->m_ResponseUserData1, worker->m_ResponseUserData2,
+                (uintptr_t) dmHttpDDF::HttpRequestProgress::m_DDFDescriptor,
+                &progress, sizeof(progress), 0))
             {
                 dmLogWarning("Failed to return http-progress. Requester deleted?");
             }
