@@ -61,6 +61,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.MustacheException;
@@ -749,7 +750,7 @@ public class BundleHelper {
 
         try {
             zipFile = File.createTempFile("build_" + sdkVersion, ".zip");
-            zipFile.deleteOnExit();
+            FileUtil.deleteOnExit(zipFile);
         } catch (IOException e) {
             throw new CompileExceptionError("Failed to create temp zip file", e.getCause());
         }

@@ -47,6 +47,7 @@ import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderProgramBuilder;
 import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.MurmurHash;
 
@@ -196,11 +197,11 @@ public class ShaderCompilerHelpers {
             ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
 
             File file_in_compute = File.createTempFile(FilenameUtils.getName(resourceOutput), ".cp");
-            file_in_compute.deleteOnExit();
+            FileUtil.deleteOnExit(file_in_compute);
             FileUtils.writeByteArrayToFile(file_in_compute, es3Result.output.getBytes());
 
             file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-            file_out_spv.deleteOnExit();
+            FileUtil.deleteOnExit(file_out_spv);
 
             result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
                     "-w",
@@ -243,11 +244,11 @@ public class ShaderCompilerHelpers {
 
             // compile GLSL (ES3 or Desktop 140) to SPIR-V
             File file_in_glsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".glsl");
-            file_in_glsl.deleteOnExit();
+            FileUtil.deleteOnExit(file_in_glsl);
             FileUtils.writeByteArrayToFile(file_in_glsl, shaderSource.getBytes());
 
             file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-            file_out_spv.deleteOnExit();
+            FileUtil.deleteOnExit(file_out_spv);
 
             String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
             result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
@@ -269,7 +270,7 @@ public class ShaderCompilerHelpers {
         }
 
         File file_out_spv_opt = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-        file_out_spv_opt.deleteOnExit();
+        FileUtil.deleteOnExit(file_out_spv_opt);
 
         // Run optimization pass
         result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-opt"),
@@ -287,7 +288,7 @@ public class ShaderCompilerHelpers {
 
         // Generate reflection data
         File file_out_refl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".json");
-        file_out_refl.deleteOnExit();
+        FileUtil.deleteOnExit(file_out_refl);
 
         result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
             file_out_spv_opt.getAbsolutePath(),

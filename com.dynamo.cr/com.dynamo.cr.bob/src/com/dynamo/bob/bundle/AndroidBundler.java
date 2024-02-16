@@ -55,6 +55,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.TimeProfiler;
 
@@ -436,7 +437,7 @@ public class AndroidBundler implements IBundler {
     */
     private static File copyLocalResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         File androidResDir = createDir(outDir, "res");
-        androidResDir.deleteOnExit();
+        FileUtil.deleteOnExit(androidResDir);
 
         File resDir = new File(androidResDir, "com.defold.android");
         resDir.mkdirs();
@@ -460,7 +461,7 @@ public class AndroidBundler implements IBundler {
         try {
             // compile the resources using aapt2 to flat format files
             File compiledResourcesDir = Files.createTempDirectory("compiled_resources").toFile();
-            compiledResourcesDir.deleteOnExit();
+            FileUtil.deleteOnExit(compiledResourcesDir);
 
             String aapt2 = Bob.getLibExecPath(getAapt2Name());
 

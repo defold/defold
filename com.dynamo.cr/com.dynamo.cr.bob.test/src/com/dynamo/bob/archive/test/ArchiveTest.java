@@ -41,6 +41,7 @@ import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
@@ -63,7 +64,7 @@ public class ArchiveTest {
     private String createDummyFile(String dir, String filepath, byte[] data) throws IOException {
         File tmp = new File(Paths.get(FilenameUtils.concat(dir, filepath)).toString());
         tmp.getParentFile().mkdirs();
-        tmp.deleteOnExit();
+        FileUtil.deleteOnExit(tmp);
 
         FileOutputStream fos = new FileOutputStream(tmp);
         fos.write(data);
