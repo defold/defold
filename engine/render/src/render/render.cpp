@@ -716,8 +716,13 @@ namespace dmRender
         if (unit >= render_context->m_TextureBindTable.Size())
         {
             render_context->m_TextureBindTable.SetCapacity(unit + 1);
-            memset(render_context->m_TextureBindTable.Begin() + render_context->m_TextureBindTable.Size(), 0, render_context->m_TextureBindTable.Remaining());
+
+            // Make sure new data area is zeroed out
+            uint32_t fill_index_start = render_context->m_TextureBindTable.Size();
+            uint32_t fill_size = render_context->m_TextureBindTable.Remaining() * sizeof(TextureBinding);
+
             render_context->m_TextureBindTable.SetSize(render_context->m_TextureBindTable.Capacity());
+            memset(&render_context->m_TextureBindTable[fill_index_start], 0, fill_size);
         }
 
         render_context->m_TextureBindTable[unit].m_Texture     = texture;
