@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -52,9 +52,11 @@ namespace dmGameSystem
     struct ModelWorld;
     struct ModelResource;
 
-    ModelComponent* CompModelGetComponent(ModelWorld* world, uintptr_t user_data);
-    ModelResource* CompModelGetModelResource(ModelComponent* component);
+    ModelComponent*         CompModelGetComponent(ModelWorld* world, uintptr_t user_data);
+    ModelResource*          CompModelGetModelResource(ModelComponent* component);
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);
+    bool                    CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled);
+    bool                    CompModelGetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool* out);
 
     // these aren't used yet??
     bool CompModelSetIKTargetInstance(ModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);

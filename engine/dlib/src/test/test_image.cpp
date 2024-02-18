@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -210,21 +210,41 @@ TEST(dmImage, PngGray)
 
 TEST(dmImage, PngGrayAlpha)
 {
-    // Test implicit alpha channel removal for 2-component images.
     dmImage::Image image;
     dmImage::Result r =  dmImage::Load(GRAY_ALPHA_CHECK_2X2_PNG, GRAY_ALPHA_CHECK_2X2_PNG_SIZE, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
-    ASSERT_EQ(dmImage::TYPE_LUMINANCE, image.m_Type);
+    ASSERT_EQ(dmImage::TYPE_LUMINANCE_ALPHA, image.m_Type);
     ASSERT_NE((void*) 0, image.m_Buffer);
+
+    // DMSDK Test
+    dmImage::HImage h_image = &image;
+    ASSERT_EQ(2U, dmImage::GetWidth(h_image));
+    ASSERT_EQ(2U, dmImage::GetHeight(h_image));
+    ASSERT_EQ(dmImage::TYPE_LUMINANCE_ALPHA, dmImage::GetType(h_image));
+    ASSERT_NE((void*) 0, dmImage::GetData(h_image));
+    ASSERT_EQ(image.m_Buffer, dmImage::GetData(h_image));
 
     const uint8_t* b = (const uint8_t*) image.m_Buffer;
     int i = 0;
+
+    // Pixel 1
     ASSERT_EQ(0U, (uint32_t) b[i++]);
     ASSERT_EQ(255U, (uint32_t) b[i++]);
+
+    // Pixel 2
     ASSERT_EQ(255U, (uint32_t) b[i++]);
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+
+    // Pixel 3
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+
+    // Pixel 4
     ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+
     dmImage::Free(&image);
 }
 

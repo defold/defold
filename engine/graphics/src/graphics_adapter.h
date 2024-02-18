@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,13 +27,13 @@ namespace dmGraphics
 
     struct GraphicsAdapter
     {
-        GraphicsAdapter(const char* adapter_name)
-        : m_AdapterName(adapter_name) {}
+        GraphicsAdapter(AdapterFamily family)
+        : m_Family(family) {}
 
         struct GraphicsAdapter*            m_Next;
         GraphicsAdapterRegisterFunctionsCb m_RegisterCb;
         GraphicsAdapterIsSupportedCb       m_IsSupportedCb;
-        const char*                        m_AdapterName;
+        AdapterFamily                      m_Family;
         int8_t                             m_Priority;
     };
 
@@ -55,27 +55,19 @@ namespace dmGraphics
 
     typedef HContext (*NewContextFn)(const ContextParams& params);
     typedef void (*DeleteContextFn)(HContext context);
-    typedef bool (*InitializeFn)();
     typedef void (*FinalizeFn)();
     typedef void (*AppBootstrapFn)(int argc, char** argv, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
-    typedef uint32_t (*GetWindowRefreshRateFn)(HContext context);
-    typedef WindowResult (*OpenWindowFn)(HContext context, WindowParams *params);
     typedef void (*CloseWindowFn)(HContext context);
-    typedef void (*IconifyWindowFn)(HContext context);
-    typedef uint32_t (*GetWindowStateFn)(HContext context, WindowState state);
+    typedef dmPlatform::HWindow (*GetWindowFn)(HContext context);
     typedef uint32_t (*GetDisplayDpiFn)(HContext context);
     typedef uint32_t (*GetWidthFn)(HContext context);
     typedef uint32_t (*GetHeightFn)(HContext context);
-    typedef uint32_t (*GetWindowWidthFn)(HContext context);
-    typedef uint32_t (*GetWindowHeightFn)(HContext context);
     typedef PipelineState (*GetPipelineStateFn)(HContext context);
-    typedef float (*GetDisplayScaleFactorFn)(HContext context);
     typedef void (*SetWindowSizeFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*ResizeWindowFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*GetDefaultTextureFiltersFn)(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter);
     typedef void (*BeginFrameFn)(HContext context);
     typedef void (*FlipFn)(HContext context);
-    typedef void (*SetSwapIntervalFn)(HContext context, uint32_t swap_interval);
     typedef void (*ClearFn)(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
     typedef HVertexBuffer (*NewVertexBufferFn)(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
     typedef void (*DeleteVertexBufferFn)(HVertexBuffer buffer);
@@ -90,13 +82,14 @@ namespace dmGraphics
     typedef uint32_t (*GetMaxElementsIndicesFn)(HContext context);
     typedef HVertexDeclaration (*NewVertexDeclarationFn)(HContext context, HVertexStreamDeclaration stream_declaration);
     typedef HVertexDeclaration (*NewVertexDeclarationStrideFn)(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride);
-    typedef bool (*SetStreamOffsetFn)(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
-    typedef void (*DeleteVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
-    typedef void (*EnableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
-    typedef void (*EnableVertexDeclarationProgramFn)(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
+
+    typedef void (*EnableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program);
     typedef void (*DisableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration);
-    typedef void (*HashVertexDeclarationFn)(HashState32* state, HVertexDeclaration vertex_declaration);
     typedef uint32_t (*GetVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
+
+    typedef void (*EnableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
+    typedef void (*DisableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer);
+
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
     typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc::Shader* ddf);
@@ -107,18 +100,21 @@ namespace dmGraphics
     typedef bool (*ReloadFragmentProgramFn)(HFragmentProgram prog, ShaderDesc::Shader* ddf);
     typedef void (*DeleteVertexProgramFn)(HVertexProgram prog);
     typedef void (*DeleteFragmentProgramFn)(HFragmentProgram prog);
-    typedef ShaderDesc::Language (*GetShaderProgramLanguageFn)(HContext context);
+    typedef ShaderDesc::Language (*GetShaderProgramLanguageFn)(HContext context, ShaderDesc::ShaderClass shader_class);
+    typedef ShaderDesc::Language (*GetProgramLanguageFn)(HProgram program);
     typedef void (*EnableProgramFn)(HContext context, HProgram program);
     typedef void (*DisableProgramFn)(HContext context);
-    typedef bool (*ReloadProgramFn)(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    typedef bool (*ReloadProgramGraphicsFn)(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    typedef bool (*ReloadComputeProgramFn)(HComputeProgram prog, ShaderDesc::Shader* ddf);
+    typedef bool (*ReloadProgramComputeFn)(HContext context, HProgram program, HComputeProgram compute_program);
     typedef uint32_t (*GetAttributeCountFn)(HProgram prog);
     typedef void (*GetAttributeFn)(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     typedef uint32_t (*GetUniformNameFn)(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     typedef uint32_t (*GetUniformCountFn)(HProgram prog);
-    typedef int32_t (* GetUniformLocationFn)(HProgram prog, const char* name);
-    typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, int base_register);
-    typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int count, int base_register);
-    typedef void (*SetSamplerFn)(HContext context, int32_t location, int32_t unit);
+    typedef HUniformLocation (* GetUniformLocationFn)(HProgram prog, const char* name);
+    typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    typedef void (*SetSamplerFn)(HContext context, HUniformLocation location, int32_t unit);
     typedef void (*SetViewportFn)(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     typedef void (*EnableStateFn)(HContext context, State state);
     typedef void (*DisableStateFn)(HContext context, State state);
@@ -168,30 +164,32 @@ namespace dmGraphics
     typedef uint8_t (*GetNumTextureHandlesFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
+    typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc::Shader* ddf);
+    typedef HProgram (*NewProgramFromComputeFn)(HContext context, HComputeProgram compute_program);
+    typedef void (*DeleteComputeProgramFn)(HComputeProgram prog);
+
+#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+    typedef void* (*MapVertexBufferFn)(HContext context, HVertexBuffer buffer, BufferAccess access);
+    typedef bool (*UnmapVertexBufferFn)(HContext context, HVertexBuffer buffer);
+    typedef void* (*MapIndexBufferFn)(HContext context, HIndexBuffer buffer, BufferAccess access);
+    typedef bool (*UnmapIndexBufferFn)(HContext context, HIndexBuffer buffer);
+#endif
 
     struct GraphicsAdapterFunctionTable
     {
         NewContextFn m_NewContext;
         DeleteContextFn m_DeleteContext;
-        InitializeFn m_Initialize;
         FinalizeFn m_Finalize;
-        GetWindowRefreshRateFn m_GetWindowRefreshRate;
-        OpenWindowFn m_OpenWindow;
         CloseWindowFn m_CloseWindow;
-        IconifyWindowFn m_IconifyWindow;
-        GetWindowStateFn m_GetWindowState;
+        GetWindowFn m_GetWindow;
         GetDisplayDpiFn m_GetDisplayDpi;
         GetWidthFn m_GetWidth;
         GetHeightFn m_GetHeight;
-        GetWindowWidthFn m_GetWindowWidth;
-        GetWindowHeightFn m_GetWindowHeight;
-        GetDisplayScaleFactorFn m_GetDisplayScaleFactor;
         SetWindowSizeFn m_SetWindowSize;
         ResizeWindowFn m_ResizeWindow;
         GetDefaultTextureFiltersFn m_GetDefaultTextureFilters;
         BeginFrameFn m_BeginFrame;
         FlipFn m_Flip;
-        SetSwapIntervalFn m_SetSwapInterval;
         ClearFn m_Clear;
         NewVertexBufferFn m_NewVertexBuffer;
         DeleteVertexBufferFn m_DeleteVertexBuffer;
@@ -206,13 +204,10 @@ namespace dmGraphics
         GetMaxElementsIndicesFn m_GetMaxElementsIndices;
         NewVertexDeclarationFn m_NewVertexDeclaration;
         NewVertexDeclarationStrideFn m_NewVertexDeclarationStride;
-        SetStreamOffsetFn m_SetStreamOffset;
-        DeleteVertexDeclarationFn m_DeleteVertexDeclaration;
         EnableVertexDeclarationFn m_EnableVertexDeclaration;
-        EnableVertexDeclarationProgramFn m_EnableVertexDeclarationProgram;
         DisableVertexDeclarationFn m_DisableVertexDeclaration;
-        HashVertexDeclarationFn m_HashVertexDeclaration;
-        GetVertexDeclarationFn m_GetVertexDeclarationStride;
+        EnableVertexBufferFn m_EnableVertexBuffer;
+        DisableVertexBufferFn m_DisableVertexBuffer;
         DrawElementsFn m_DrawElements;
         DrawFn m_Draw;
         NewVertexProgramFn m_NewVertexProgram;
@@ -223,10 +218,11 @@ namespace dmGraphics
         ReloadFragmentProgramFn m_ReloadFragmentProgram;
         DeleteVertexProgramFn m_DeleteVertexProgram;
         DeleteFragmentProgramFn m_DeleteFragmentProgram;
+        GetProgramLanguageFn m_GetProgramLanguage;
         GetShaderProgramLanguageFn m_GetShaderProgramLanguage;
         EnableProgramFn m_EnableProgram;
         DisableProgramFn m_DisableProgram;
-        ReloadProgramFn m_ReloadProgram;
+        ReloadProgramGraphicsFn m_ReloadProgramGraphics;
         GetAttributeCountFn m_GetAttributeCount;
         GetAttributeFn m_GetAttribute;
         GetUniformNameFn m_GetUniformName;
@@ -285,6 +281,20 @@ namespace dmGraphics
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
+
+        // Compute
+        ReloadComputeProgramFn  m_ReloadComputeProgram;
+        ReloadProgramComputeFn  m_ReloadProgramCompute;
+        NewComputeProgramFn     m_NewComputeProgram;
+        NewProgramFromComputeFn m_NewProgramFromCompute;
+        DeleteComputeProgramFn  m_DeleteComputeProgram;
+
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        MapVertexBufferFn   m_MapVertexBuffer;
+        UnmapVertexBufferFn m_UnmapVertexBuffer;
+        MapIndexBufferFn    m_MapIndexBuffer;
+        UnmapIndexBufferFn  m_UnmapIndexBuffer;
+    #endif
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -292,25 +302,17 @@ namespace dmGraphics
     #define DM_REGISTER_GRAPHICS_FUNCTION_TABLE(tbl, adapter_name) \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewContext); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteContext); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Initialize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Finalize); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowRefreshRate); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, OpenWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, CloseWindow); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IconifyWindow); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowState); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDisplayDpi); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWidth); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetHeight); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowWidth); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetWindowHeight); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDisplayScaleFactor); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetWindowSize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ResizeWindow); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetDefaultTextureFilters); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, BeginFrame); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Flip); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetSwapInterval); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Clear); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexBuffer); \
@@ -324,13 +326,10 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsIndexBufferFormatSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexDeclarationStride); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStreamOffset); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexDeclaration); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexDeclarationProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexDeclaration); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, HashVertexDeclaration); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetVertexDeclarationStride); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElements); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Draw); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexProgram); \
@@ -341,10 +340,13 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadFragmentProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteFragmentProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetProgramLanguage); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetShaderProgramLanguage); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableProgram); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgramGraphics); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadProgramCompute); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadComputeProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttributeCount); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttribute); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformName); \
@@ -403,7 +405,19 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumTextureHandles); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewComputeProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgramFromCompute); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteComputeProgram);
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(tbl, adapter_name) \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapVertexBuffer); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapVertexBuffer); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapIndexBuffer); \
+            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapIndexBuffer);
+    #else
+        #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(...)
+    #endif
 }
 
 #endif

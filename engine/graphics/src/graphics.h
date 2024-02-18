@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,19 +20,16 @@
 #include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
+#include <dlib/job_thread.h>
 #include <dlib/opaque_handle_container.h>
 
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
+#include <platform/platform_window.h>
+
 namespace dmGraphics
 {
-    typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
-
-    typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);
-
-    typedef void (*WindowIconifyCallback)(void* user_data, uint32_t iconified);
-
     /**
      * Callback function called when the window is requested to close.
      * @param user_data user data that was supplied when opening the window
@@ -67,6 +64,8 @@ namespace dmGraphics
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
     typedef uint64_t HAssetHandle;
 
+    typedef uintptr_t HComputeProgram;
+
     const static uint64_t MAX_ASSET_HANDLE_VALUE       = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_COLOR_ATTACHMENTS = 4;
     static const uint8_t  MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
@@ -79,6 +78,16 @@ namespace dmGraphics
 
     static const HVertexProgram   INVALID_VERTEX_PROGRAM_HANDLE   = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
+    static const HUniformLocation INVALID_UNIFORM_LOCATION        = ~0ull;
+
+    enum AdapterFamily
+    {
+        ADAPTER_FAMILY_NONE   = -1,
+        ADAPTER_FAMILY_NULL   = 1,
+        ADAPTER_FAMILY_OPENGL = 2,
+        ADAPTER_FAMILY_VULKAN = 3,
+        ADAPTER_FAMILY_VENDOR = 4,
+    };
 
     enum AssetType
     {
@@ -117,6 +126,7 @@ namespace dmGraphics
         TEXTURE_TYPE_2D       = 0,
         TEXTURE_TYPE_2D_ARRAY = 1,
         TEXTURE_TYPE_CUBE_MAP = 2,
+        TEXTURE_TYPE_IMAGE_2D = 3,
     };
 
     // Texture filter
@@ -148,37 +158,6 @@ namespace dmGraphics
         FACE_TYPE_FRONT_AND_BACK = 2,
     };
 
-    enum WindowState
-    {
-        WINDOW_STATE_OPENED             = 0x00020001,
-        WINDOW_STATE_ACTIVE             = 0x00020002,
-        WINDOW_STATE_ICONIFIED          = 0x00020003,
-        WINDOW_STATE_ACCELERATED        = 0x00020004,
-        WINDOW_STATE_RED_BITS           = 0x00020005,
-        WINDOW_STATE_GREEN_BITS         = 0x00020006,
-        WINDOW_STATE_BLUE_BITS          = 0x00020007,
-        WINDOW_STATE_ALPHA_BITS         = 0x00020008,
-        WINDOW_STATE_DEPTH_BITS         = 0x00020009,
-        WINDOW_STATE_STENCIL_BITS       = 0x0002000A,
-        WINDOW_STATE_REFRESH_RATE       = 0x0002000B,
-        WINDOW_STATE_ACCUM_RED_BITS     = 0x0002000C,
-        WINDOW_STATE_ACCUM_GREEN_BITS   = 0x0002000D,
-        WINDOW_STATE_ACCUM_BLUE_BITS    = 0x0002000E,
-        WINDOW_STATE_ACCUM_ALPHA_BITS   = 0x0002000F,
-        WINDOW_STATE_AUX_BUFFERS        = 0x00020010,
-        WINDOW_STATE_STEREO             = 0x00020011,
-        WINDOW_STATE_WINDOW_NO_RESIZE   = 0x00020012,
-        WINDOW_STATE_FSAA_SAMPLES       = 0x00020013
-    };
-
-    enum WindowResult
-    {
-        WINDOW_RESULT_ALREADY_OPENED    = 1,
-        WINDOW_RESULT_OK                = 0,
-        WINDOW_RESULT_WINDOW_OPEN_ERROR = -2,
-        WINDOW_RESULT_UNKNOWN_ERROR     = -1000,
-    };
-
     enum TextureStatusFlags
     {
         TEXTURE_STATUS_OK               = 0,
@@ -189,6 +168,7 @@ namespace dmGraphics
     {
         CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
+        CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -198,16 +178,35 @@ namespace dmGraphics
         AttachmentToBufferType();
     };
 
-    struct TextureCreationParams {
+    enum AttachmentOp
+    {
+        ATTACHMENT_OP_DONT_CARE,
+        ATTACHMENT_OP_LOAD,
+        ATTACHMENT_OP_STORE,
+        ATTACHMENT_OP_CLEAR,
+    };
 
-        TextureCreationParams() :
-            m_Type(TEXTURE_TYPE_2D),
-            m_Width(0),
-            m_Height(0),
-            m_Depth(1),
-            m_OriginalWidth(0),
-            m_OriginalHeight(0),
-            m_MipMapCount(1)
+    enum TextureUsageHint
+    {
+        TEXTURE_USAGE_HINT_NONE       = 0,
+        TEXTURE_USAGE_HINT_SAMPLE     = 1,
+        TEXTURE_USAGE_HINT_MEMORYLESS = 2,
+        TEXTURE_USAGE_HINT_INPUT      = 4,
+        TEXTURE_USAGE_HINT_COLOR      = 8,
+        TEXTURE_USAGE_HINT_STORAGE    = 16,
+    };
+
+    struct TextureCreationParams
+    {
+        TextureCreationParams()
+        : m_Type(TEXTURE_TYPE_2D)
+        , m_Width(0)
+        , m_Height(0)
+        , m_Depth(1)
+        , m_OriginalWidth(0)
+        , m_OriginalHeight(0)
+        , m_MipMapCount(1)
+        , m_UsageHintBits(TEXTURE_USAGE_HINT_SAMPLE)
         {}
 
         TextureType m_Type;
@@ -217,6 +216,7 @@ namespace dmGraphics
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
         uint8_t     m_MipMapCount;
+        uint8_t     m_UsageHintBits;
     };
 
     struct TextureParams
@@ -267,48 +267,17 @@ namespace dmGraphics
         TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthBufferParams;
         TextureParams         m_StencilBufferParams;
+
+    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
+        AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+
+        // TODO: Depth/Stencil
+    #endif
+
         uint8_t               m_DepthTexture   : 1;
         uint8_t               m_StencilTexture : 1;
-    };
-
-    // Parameters structure for OpenWindow
-    struct WindowParams
-    {
-        WindowParams();
-
-        /// Window resize callback
-        WindowResizeCallback    m_ResizeCallback;
-        /// User data supplied to the callback function
-        void*                   m_ResizeCallbackUserData;
-        /// Window close callback
-        WindowCloseCallback     m_CloseCallback;
-        /// User data supplied to the callback function
-        void*                   m_CloseCallbackUserData;
-        /// Window focus callback
-        WindowFocusCallback     m_FocusCallback;
-        /// User data supplied to the callback function
-        void*                   m_FocusCallbackUserData;
-        /// Window iconify callback
-        WindowIconifyCallback   m_IconifyCallback;
-        /// User data supplied to the callback function
-        void*                   m_IconifyCallbackUserData;
-        /// Window width, 640 by default
-        uint32_t                m_Width;
-        /// Window height, 480 by default
-        uint32_t                m_Height;
-        /// Number of samples (for multi-sampling), 1 by default
-        uint32_t                m_Samples;
-        /// Window title, "Dynamo App" by default
-        const char*             m_Title;
-        /// If the window should cover the full screen or not, false by default
-        bool                    m_Fullscreen;
-        /// Log info about the graphics device being used, false by default
-        bool                    m_PrintDeviceInfo;
-
-        bool                    m_HighDPI;
-
-        // Window background color, RGB 0x00BBGGRR
-        uint32_t                m_BackgroundColor;
     };
 
     // Parameters structure for NewContext
@@ -316,13 +285,18 @@ namespace dmGraphics
     {
         ContextParams();
 
-        TextureFilter m_DefaultTextureMinFilter;
-        TextureFilter m_DefaultTextureMagFilter;
-        uint32_t      m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
-        uint8_t       m_VerifyGraphicsCalls : 1;
-        uint8_t       m_RenderDocSupport : 1;           // Vulkan only
-        uint8_t       m_UseValidationLayers : 1;        // Vulkan only
-        uint8_t       : 5;
+        dmPlatform::HWindow   m_Window;
+        dmJobThread::HContext m_JobThread;
+        TextureFilter         m_DefaultTextureMinFilter;
+        TextureFilter         m_DefaultTextureMagFilter;
+        uint32_t              m_Width;
+        uint32_t              m_Height;
+        uint32_t              m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
+        uint8_t               m_VerifyGraphicsCalls : 1;
+        uint8_t               m_PrintDeviceInfo : 1;
+        uint8_t               m_RenderDocSupport : 1;           // Vulkan only
+        uint8_t               m_UseValidationLayers : 1;        // Vulkan only
+        uint8_t               : 4;
     };
 
     struct PipelineState
@@ -376,11 +350,13 @@ namespace dmGraphics
     void DeleteContext(HContext context);
 
     /**
-     * Initialize graphics system
-     * @params adapter_type_str String identifier for which adapter to use (vulkan/opengl/null)
+     * Install a graphics adapter
+     * @params family AdapterFamily identifier for which adapter to use (vulkan/opengl/null/vendor)
      * @return True if a graphics backend could be created, false otherwise.
      */
-    bool Initialize(const char* adapter_type_str = 0);
+    bool InstallAdapter(AdapterFamily family = ADAPTER_FAMILY_NONE);
+    AdapterFamily GetAdapterFamily(const char* adapter_name);
+    AdapterFamily GetInstalledAdapterFamily();
 
     /**
      * Finalize graphics system
@@ -400,12 +376,11 @@ namespace dmGraphics
     uint32_t GetWindowRefreshRate(HContext context);
 
     /**
-     * Open a window
+     * Get the window handle from the graphics context
      * @param context Graphics context handle
-     * @param params Window parameters
-     * @return The result of the operation
+     * @return The window handle
      */
-    WindowResult OpenWindow(HContext context, WindowParams *params);
+    dmPlatform::HWindow GetWindow(HContext context);
 
     /**
      * Close the open window if any.
@@ -425,7 +400,7 @@ namespace dmGraphics
      * @param state Aspect of the window state to query for
      * @return State of the supplied aspect. If no window is opened, 0 is always returned.
      */
-    uint32_t GetWindowState(HContext context, WindowState state);
+    uint32_t GetWindowStateParam(HContext context, dmPlatform::WindowState state);
 
     /**
      * Returns the specified dpi of default monitor.
@@ -536,32 +511,42 @@ namespace dmGraphics
      */
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
 
-    bool SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer);
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, HVertexBuffer vertex_buffer, HProgram program);
-    void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
-    void HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
-
+    bool     SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
+    void     EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program);
+    void     DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
+    void     HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
+
+    void     EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
+    void     DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer);
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
 
-    HVertexProgram   NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
-    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
-    HProgram         NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
-    void             DeleteProgram(HContext context, HProgram program);
+    // Shaders
+    HVertexProgram       NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
+    HFragmentProgram     NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
+    HComputeProgram      NewComputeProgram(HContext context, ShaderDesc::Shader* ddf);
 
-    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
-    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
-    void DeleteVertexProgram(HVertexProgram prog);
-    void DeleteFragmentProgram(HFragmentProgram prog);
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
-    ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc);
+    HProgram             NewProgram(HContext context, HComputeProgram compute_program);
+    HProgram             NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
+    void                 DeleteProgram(HContext context, HProgram program);
 
-    void EnableProgram(HContext context, HProgram program);
-    void DisableProgram(HContext context);
-    bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    bool                 ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
+    bool                 ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
+    bool                 ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf);
+    void                 DeleteVertexProgram(HVertexProgram prog);
+    void                 DeleteFragmentProgram(HFragmentProgram prog);
+    void                 DeleteComputeProgram(HComputeProgram prog);
+
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class);
+    ShaderDesc::Language GetProgramLanguage(HProgram program);
+    ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
+
+    void                 EnableProgram(HContext context, HProgram program);
+    void                 DisableProgram(HContext context);
+    bool                 ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
+    bool                 ReloadProgram(HContext context, HProgram program, HComputeProgram compute_program);
 
     // Attributes
     uint32_t         GetAttributeCount(HProgram prog);
@@ -569,13 +554,13 @@ namespace dmGraphics
     void             GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
     dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type);
 
-    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
-    uint32_t GetUniformCount(HProgram prog);
-    int32_t  GetUniformLocation(HProgram prog, const char* name);
+    uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
+    uint32_t         GetUniformCount(HProgram prog);
+    HUniformLocation GetUniformLocation(HProgram prog, const char* name);
 
-    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
-    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, int base_register);
-    void SetSampler(HContext context, int32_t location, int32_t unit);
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    void SetSampler(HContext context, HUniformLocation location, int32_t unit);
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     void EnableState(HContext context, State state);
@@ -650,7 +635,6 @@ namespace dmGraphics
     uint16_t    GetMipmapSize(uint16_t size_0, uint8_t mipmap);
     uint8_t     GetMipmapCount(uint16_t size);
 
-
     // Asset handle helpers
     const char* GetAssetTypeLiteral(AssetType type);
     bool        IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
@@ -718,6 +702,12 @@ namespace dmGraphics
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
 
     uint32_t GetTypeSize(dmGraphics::Type type);
+
+    // Both experimental + tests only:
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
+    bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
+    bool  UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
 }
 
 #endif // DM_GRAPHICS_H

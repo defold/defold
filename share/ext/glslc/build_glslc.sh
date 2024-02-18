@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,8 +27,18 @@ if [ -z "$PLATFORM" ]; then
     exit 1
 fi
 
+case $PLATFORM in
+    x86_64-macos)
+        OSX_MIN_SDK_VERSION=11.0
+        ;;
+    arm64-macos)
+        OSX_MIN_SDK_VERSION=11.0
+        ;;
+esac
+
+
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DMACOSX_DEPLOYMENT_TARGET=10.13 ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSHADERC_SKIP_TESTS=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSHADERC_SKIP_EXAMPLES=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSHADERC_SKIP_COPYRIGHT_CHECK=ON ${CMAKE_FLAGS}"

@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -123,6 +123,12 @@ class BuildUtility:
         self._library_path = os.path.join(self._dynamo_home, 'lib', self._platform['platform'])
         self._binary_path = os.path.join(self._dynamo_home, 'bin', self._platform['platform'])
     # _initialise_paths
+
+    def get_defold_version(self):
+        path = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '../../VERSION'))
+        with open(path, 'r') as f:
+            version = f.readline().strip()
+        return version
 
 # class BuildUtility
 

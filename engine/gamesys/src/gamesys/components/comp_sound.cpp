@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -184,7 +184,7 @@ namespace dmGameSystem
             dmLogError("Error deleting sound: (%d)", r);
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
-        else if (entry.m_PlayId != dmSound::INVALID_PLAY_ID && entry.m_Listener.m_Fragment != 0x0)
+        else if (entry.m_Listener.m_Fragment != 0x0 && entry.m_LuaCallback)
         {
             DispatchSoundEvent(entry, entry.m_StopRequested ? SOUND_EVENT_STOPPED : SOUND_EVENT_DONE);
         }
@@ -446,12 +446,22 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor)
         {
+            dmGameSystemDDF::StopSound* stop_sound = (dmGameSystemDDF::StopSound*)params.m_Message->m_Data;
+            uint32_t play_id = stop_sound->m_PlayId;
             for (uint32_t i = 0; i < world->m_Entries.Size(); ++i)
             {
                 PlayEntry& entry = world->m_Entries[i];
                 if (entry.m_SoundInstance != 0 && entry.m_Sound == component->m_Resource && entry.m_Instance == params.m_Instance)
                 {
-                    entry.m_StopRequested = 1;
+                    if (play_id == dmSound::INVALID_PLAY_ID)
+                    {
+                        entry.m_StopRequested = 1;
+                    }
+                    else if (entry.m_PlayId == play_id)
+                    {
+                        entry.m_StopRequested = 1;
+                        break; 
+                    }
                 }
             }
         }

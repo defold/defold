@@ -103,8 +103,6 @@
 
             <!-- How to test individual tests -->
             <!-- <test name="com.dynamo.bob.bundle.test.BundleHelperTest" haltonfailure="yes" /> -->
-
-            <!-- <test name="com.dynamo.bob.test.ProjectTest" haltonfailure="yes" /> -->
         </junit>
     </target>
 

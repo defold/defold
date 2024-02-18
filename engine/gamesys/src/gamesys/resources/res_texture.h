@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,7 @@
 
 #include <resource/resource.h>
 #include <dmsdk/gamesys/resources/res_texture.h>
+#include <graphics/graphics.h>
 
 namespace dmGameSystem
 {
@@ -35,6 +36,9 @@ namespace dmGameSystem
         void*                  m_TextureImage;
         ResTextureUploadParams m_UploadParams;
     };
+
+    dmGraphics::TextureType TextureImageToTextureType(dmGraphics::TextureImage::Type type);
+    dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format);
 
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params);
 

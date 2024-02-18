@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -156,10 +156,16 @@
                 (g/node-instance*? resource/ResourceNode node))
        (resource-node-resource basis node)))))
 
-(defn defective? [resource-node]
-  (let [value (g/node-value resource-node :valid-node-id+type+resource)]
+(defn defective? [resource-node-id]
+  (let [value (g/node-value resource-node-id :valid-node-id+type+resource)]
     (and (g/error? value)
          (g/error-fatal? value))))
+
+(defn dirty?
+  ([resource-node-id]
+   (g/valid-node-value resource-node-id :dirty?))
+  ([resource-node-id evaluation-context]
+   (g/valid-node-value resource-node-id :dirty? evaluation-context)))
 
 (defn owner-resource-node-id
   ([node-id]
@@ -214,7 +220,9 @@
                :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
                :read-raw-fn read-raw-fn
                :read-fn read-fn
-               :write-fn (partial protobuf/map->str ddf-type))]
+               :write-fn (partial protobuf/map->str ddf-type)
+               :test-info {:type :ddf
+                           :ddf-type ddf-type})]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
 (defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn meta-settings icon view-types tags tag-opts label] :as args}]
@@ -230,5 +238,7 @@
                                      disk-sha256 (concat (workspace/set-disk-sha256 workspace self disk-sha256)))))
                :read-fn read-fn
                :write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
-                               settings-core/settings-with-value))]
+                               settings-core/settings-with-value)
+               :test-info {:type :settings
+                           :meta-settings meta-settings})]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

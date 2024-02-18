@@ -219,7 +219,7 @@ void zip_close(struct zip_t *zip) {
     // valid central directory.
     //DEFOLD: mz_zip_writer_finalize_archive(&(zip->archive));
     //DEFOLD: mz_zip_writer_end(&(zip->archive));
-    //DEFOLD: mz_zip_reader_end(&(zip->archive));
+    mz_zip_reader_end(&(zip->archive));
 
     CLEANUP(zip);
   }

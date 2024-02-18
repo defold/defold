@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,15 +42,19 @@ public class FontBuilder extends Builder<Void>  {
         ProtoUtil.merge(input, fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
 
-        this.project.createTask(input, GlyphBankBuilder.class);
+        Task<?> embedTask = this.project.createTask(input, GlyphBankBuilder.class);
 
-        Task.TaskBuilder<Void> task = Task.<Void>newBuilder(this)
+        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addInput(input.getResource(fontDesc.getFont()))
                 .addOutput(input.changeExt(params.outExt()));
 
-        return task.build();
+        taskBuilder.addInput(embedTask.getOutputs().get(0));
+
+        Task<Void> task = taskBuilder.build();
+        embedTask.setProductOf(task);
+        return task;
     }
 
     @Override
@@ -61,14 +65,13 @@ public class FontBuilder extends Builder<Void>  {
 
         BuilderUtil.checkResource(this.project, task.input(0), "material", fontDesc.getMaterial());
 
-        long fontDescHash      = Fontc.FontDescToHash(fontDesc);
-        IResource genResource  = this.project.getGeneratedResource(fontDescHash, "glyph_bank");
         int buildDirLen        = this.project.getBuildDirectory().length();
-        String genResourcePath = genResource.getPath().substring(buildDirLen);
+        String genResourcePath = task.input(2).getPath().substring(buildDirLen);
 
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
         fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
-        fontMapBuilder.setGlyphBank(BuilderUtil.replaceExt(genResourcePath, ".glyph_bank", ".glyph_bankc"));
+
+        fontMapBuilder.setGlyphBank(genResourcePath);
         fontMapBuilder.setShadowX(fontDesc.getShadowX());
         fontMapBuilder.setShadowY(fontDesc.getShadowY());
         fontMapBuilder.setAlpha(fontDesc.getAlpha());

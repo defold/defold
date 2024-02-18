@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -58,6 +58,7 @@ namespace dmHID
     {
         Context();
 
+        dmPlatform::HWindow m_Window;
         Gamepad            m_Gamepads[MAX_GAMEPAD_COUNT];
         Keyboard           m_Keyboards[MAX_KEYBOARD_COUNT];
         Mouse              m_Mice[MAX_MOUSE_COUNT];
@@ -84,6 +85,8 @@ namespace dmHID
     // TODO: How to represent user id from/to C/Lua
     //      I.e. convert from uint32_t to platform type
     bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* user_id);
+    int  GetKeyValue(Key key);
+    int  GetMouseButtonValue(MouseButton button);
 }
 
 #endif

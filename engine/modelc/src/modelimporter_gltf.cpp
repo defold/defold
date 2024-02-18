@@ -1,13 +1,13 @@
 
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,6 +31,7 @@
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/transform.h>
+#include <dmsdk/dlib/log.h>
 
 // Terminology:
 // Defold: Model, GLTF: Mesh
@@ -369,7 +370,8 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
         {
             node->m_Local = ToTransform(gltf_node->matrix);
         }
-        else {
+        else
+        {
             node->m_Local = dmTransform::Transform(translation, rotation, scale);
         }
     }
@@ -476,6 +478,13 @@ static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
             aabb->m_Max[i] = dmMath::Max(aabb->m_Max[i], positions[i]);
         }
     }
+}
+
+static void AddDynamicMaterial(Scene* scene, Material* material)
+{
+    scene->m_DynamicMaterialsCount++;
+    scene->m_DynamicMaterials = (Material**)realloc(scene->m_DynamicMaterials, sizeof(Material*)*scene->m_DynamicMaterialsCount);
+    scene->m_DynamicMaterials[scene->m_DynamicMaterialsCount-1] = material;
 }
 
 static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
@@ -594,6 +603,11 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
             }
         }
 
+        if (mesh->m_Weights && mesh->m_Material)
+        {
+            mesh->m_Material->m_IsSkinned = 1;
+        }
+
         if (!mesh->m_TexCoord0)
         {
             mesh->m_TexCoord0NumComponents = 2;
@@ -617,6 +631,77 @@ static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
         model->m_Index = i;
 
         LoadPrimitives(scene, model, gltf_data, gltf_mesh); // Our "Meshes"
+    }
+}
+
+
+// If the mesh wasn't skinned, but uses same material as other skinned meshes, we need to create a duplicate
+// We also insert a bone index for the mesh (i.e. the parent)
+static void FixupNonSkinnedModels(Scene* scene, Bone* parent, Node* node)
+{
+    Model* model = node->m_Model;
+
+    model->m_ParentBone = parent;
+
+    for (uint32_t j = 0; j < model->m_MeshesCount; ++j)
+    {
+        Mesh* mesh = &model->m_Meshes[j];
+        if (mesh->m_Weights)
+            continue;
+
+        if (!mesh->m_Material->m_IsSkinned)
+            continue;
+
+        // We duplicate the material, and create a non skinned version
+        {
+            char name[128];
+            dmSnPrintf(name, sizeof(name), "%s_no_skin", mesh->m_Material->m_Name);
+            Material* non_skinned = 0;
+            for (uint32_t m = 0; m < scene->m_DynamicMaterialsCount; ++m)
+            {
+                Material* material = scene->m_DynamicMaterials[m];
+                if (strcmp(material->m_Name, name) == 0)
+                {
+                    non_skinned = material;
+                    break;
+                }
+            }
+            if (!non_skinned)
+            {
+                non_skinned = new Material;
+                non_skinned->m_IsSkinned = 0;
+                non_skinned->m_Index = scene->m_MaterialsCount + scene->m_DynamicMaterialsCount;
+                non_skinned->m_Name = strdup(name);
+                AddDynamicMaterial(scene, non_skinned);
+            }
+            mesh->m_Material = non_skinned;
+        }
+    }
+}
+
+static void FixupNonSkinnedModels(Scene* scene, Skin* skin)
+{
+    for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
+    {
+        Bone* bone = &skin->m_Bones[i];
+        if (!bone->m_Node)
+            continue;
+
+        for (uint32_t c = 0; c < bone->m_Node->m_ChildrenCount; ++c)
+        {
+            Node* child = bone->m_Node->m_Children[c];
+            if (!child->m_Model)
+                continue;
+            FixupNonSkinnedModels(scene, bone, child);
+        }
+    }
+}
+
+static void FixupNonSkinnedModels(Scene* scene, cgltf_data* gltf_data)
+{
+    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
+    {
+        FixupNonSkinnedModels(scene, &scene->m_Skins[i]);
     }
 }
 
@@ -765,14 +850,20 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
 
             // Cannot translate the bones here, since they're not created yet
             // bone->m_Node = ...
-
-            float matrix[16];
-            if (ReadAccessorMatrix4(accessor, j, matrix))
+            if (accessor)
             {
-                bone->m_InvBindPose = ToTransform(matrix);
-            } else
+                float matrix[16];
+                if (ReadAccessorMatrix4(accessor, j, matrix))
+                {
+                    bone->m_InvBindPose = ToTransform(matrix);
+                } else
+                {
+                    assert(false);
+                }
+            }
+            else
             {
-                assert(false);
+                bone->m_InvBindPose.SetIdentity();
             }
         }
 
@@ -1179,6 +1270,8 @@ static void LoadScene(Scene* scene, cgltf_data* data)
     LinkNodesWithBones(scene, data);
     LinkMeshesWithNodes(scene, data);
     LoadAnimations(scene, data);
+
+    FixupNonSkinnedModels(scene, data);
 
     // At this point, all the nodes reference each other
 

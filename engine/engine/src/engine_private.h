@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -106,6 +106,7 @@ namespace dmEngine
         Engine(dmEngineService::HEngineService engine_service);
         dmEngineService::HEngineService             m_EngineService;
         dmConfigFile::HConfig                       m_Config;
+        dmPlatform::HWindow                         m_Window;
 
         RunResult                                   m_RunResult;
         bool                                        m_Alive;
@@ -119,6 +120,7 @@ namespace dmEngine
 
         float                                       m_MouseSensitivity;
 
+        dmJobThread::HContext                       m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContext                m_PhysicsContext;

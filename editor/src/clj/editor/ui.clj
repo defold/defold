@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1599,6 +1599,13 @@
                   [id menu-data-entry])))
         (tree-seq :children :children {:children menu-data})))
 
+(defn- menu-data-without-icons [menu-data]
+  (util/deep-keep-kv
+    (fn [key value]
+      (when (not= :icon key)
+        value))
+    menu-data))
+
 (defn- refresh-menubar-items!
   [^MenuBar menu-bar menu-data visible-command-contexts command->shortcut evaluation-context]
   (let [id->menu-item (menu->id-map menu-bar)
@@ -1831,7 +1838,9 @@
         root (.getRoot scene)]
     (when-let [md (user-data root ::menubar)]
       (let [^MenuBar menu-bar (:control md)
-            menu (handler/realize-menu (:menu-id md))]
+            menu (cond-> (handler/realize-menu (:menu-id md))
+                         (eutil/is-mac-os?)
+                         (menu-data-without-icons))]
         (cond
           (refresh-menubar? menu-bar menu visible-command-contexts)
           (refresh-menubar! menu-bar menu visible-command-contexts command->shortcut evaluation-context)

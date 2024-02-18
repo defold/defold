@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,13 +19,13 @@
             [editor.camera :as camera]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
+            [editor.math :as math]
             [editor.scene :as scene]
             [editor.system :as system]
             [editor.types :as types]
-            [editor.math :as math]
             [integration.test-util :as test-util])
   (:import [editor.types AABB]
-           [javax.vecmath Point3d Matrix4d Quat4d Vector3d]))
+           [javax.vecmath Matrix4d Quat4d Vector3d]))
 
 (defn- apply-scene-transforms-to-aabbs
   ([scene] (apply-scene-transforms-to-aabbs geom/Identity4d scene))
@@ -278,7 +278,9 @@
   (is (instance? Matrix4d (:parent-world-transform renderable)))
   (is (some? (:render-fn renderable)))
   (is (instance? Comparable (:render-key renderable)))
-  (is (or (true? (:selected renderable)) (false? (:selected renderable))))
+  (is (or (nil? (:selected renderable))
+          (= :self-selected (:selected renderable))
+          (= :parent-selected (:selected renderable))))
   (is (instance? Matrix4d (:world-transform renderable))))
 
 (defn- output-renderable-vector? [coll]
@@ -430,28 +432,28 @@
         [:apple-node-id :apple-node-id]
 
         [:tree-node-id]
-        [:tree-node-id :apple-node-id :apple-node-id]
+        [:apple-node-id :apple-node-id :tree-node-id]
 
         [:door-node-id]
-        [:door-node-id :door-handle-node-id]
+        [:door-handle-node-id :door-node-id]
 
         [:house-node-id]
-        [:house-node-id :door-node-id :door-handle-node-id]
+        [:door-node-id :door-handle-node-id :house-node-id]
 
         [:house-node-id :door-handle-node-id]
-        [:house-node-id :door-node-id :door-handle-node-id]
+        [:door-node-id :house-node-id :door-handle-node-id]
 
         [:bucket-node-id]
         [:bucket-node-id]
 
         [:rope-node-id]
-        [:rope-node-id :bucket-node-id]
+        [:bucket-node-id :rope-node-id]
 
         [:well-node-id]
-        [:well-node-id :rope-node-id :bucket-node-id]
+        [:rope-node-id :bucket-node-id :well-node-id]
 
         [:well-node-id :rope-node-id]
-        [:well-node-id :rope-node-id :bucket-node-id]))
+        [:bucket-node-id :well-node-id :rope-node-id]))
 
     (testing "Selected renderables are ordered"
       (are [selection]

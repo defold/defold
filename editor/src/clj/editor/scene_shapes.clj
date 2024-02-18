@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -246,6 +246,8 @@
 
 (def ^:private selected-shape-alpha 0.3)
 
+(def ^:private parent-selected-shape-alpha 0.2)
+
 (def ^:private no-point-scale (float-array 4 1.0))
 
 (def ^:private no-point-offset-by-w (float-array 4 0.0))
@@ -255,9 +257,8 @@
   (let [{:keys [selected user-data world-transform]} (first renderables)
         {:keys [color geometry]} user-data
         {:keys [primitive-type vbuf]} geometry
-        color (float-array (if selected
-                             colors/selected-outline-color
-                             (colors/alpha color 1.0)))
+        color (float-array (or (colors/selection-color selected)
+                               (colors/alpha color 1.0)))
         render-args (merge render-args
                            (math/derive-render-transforms
                              world-transform
@@ -285,8 +286,11 @@
                   (= pass/selection (:pass render-args))
                   (scene-picking/renderable-picking-id-uniform renderable)
 
-                  selected
+                  (= :self-selected selected)
                   (colors/alpha color selected-shape-alpha)
+
+                  (= :parent-selected selected)
+                  (colors/alpha color parent-selected-shape-alpha)
 
                   :else
                   (colors/alpha color shape-alpha)))

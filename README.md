@@ -13,6 +13,8 @@ Repository for the Defold engine, editor and command line tools.
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/rive-black.png)](https://www.rive.app)
 ![](https://defold.com/images/spacer32.png)
+[![](https://defold.com/images/logo/others/poki-black.png)](https://www.poki.com)
+![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/op-games-color.png)](https://www.opgames.org)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/heroiclabs-blue.png)](https://www.heroiclabs.com)

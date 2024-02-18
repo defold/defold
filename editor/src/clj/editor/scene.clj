@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -146,9 +146,12 @@
    (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-proj world-transform)))
    (or index 0)])
 
-(defn- outline-render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? selected?]
+(defn- outline-render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? selection-state]
   ;; Draw selection outlines on top of other outlines.
-  [(boolean selected?)
+  [(case selection-state
+     :self-selected 2
+     :parent-selected 1
+     0)
    (boolean topmost?)
    (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-proj world-transform)))
    (or index 0)])
@@ -334,8 +337,11 @@
         world-translation (math/transform parent-world-transform (math/translation local-transform))
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
         world-scale (math/multiply-vector parent-world-scale (math/scale local-transform))
-        appear-selected? (some? (some selection-set node-id-path)) ; Child nodes appear selected if parent is.
-        picking-node-id (or (:picking-node-id scene) (peek node-id-path))
+        node-id (peek node-id-path)
+        picking-node-id (or (:picking-node-id scene) node-id)
+        selection-state (cond
+                          (contains? selection-set node-id) :self-selected ; This node is selected.
+                          (some selection-set node-id-path) :parent-selected) ; Child nodes appear dimly selected if their parent is selected.
         visible? (and parent-shows-children
                       (:visible-self? renderable true)
                       (not (contains? hidden-node-outline-key-paths node-outline-key-path))
@@ -354,12 +360,12 @@
                                    :world-scale world-scale
                                    :world-transform world-transform
                                    :parent-world-transform parent-world-transform
-                                   :selected appear-selected?
+                                   :selected selection-state
                                    :user-data (:user-data renderable)
                                    :batch-key (:batch-key renderable)
                                    :aabb (geom/aabb-transform aabb world-transform)
                                    :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
-                                   :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
+                                   :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) selection-state)}}))
         flat-renderable (if visible?
                           flat-renderable
                           (dissoc flat-renderable :updatable))
@@ -376,7 +382,7 @@
                        ;; within their outlines, and more importantly, the
                        ;; manipulator disappears, since it aligns to selection
                        ;; pass renderables.
-                       appear-selected?
+                       selection-state
                        (filterv #(or (= pass/outline %)
                                      (= pass/selection %))
                                 (:passes renderable)))
@@ -1087,12 +1093,10 @@
    {:label "Toggle Grid"
     :command :toggle-grid}
    {:label :separator}
-   {:label "Hide Selected Objects"
-    :command :hide-selected}
+   {:label "Show/Hide Selected Objects"
+    :command :hide-toggle-selected}
    {:label "Hide Unselected Objects"
     :command :hide-unselected}
-   {:label "Show Selected Objects"
-    :command :show-selected}
    {:label "Show Last Hidden Objects"
     :command :show-last-hidden}
    {:label "Show All Hidden Objects"

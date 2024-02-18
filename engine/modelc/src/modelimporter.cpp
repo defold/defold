@@ -1,13 +1,13 @@
 
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -176,6 +176,11 @@ void DestroyScene(Scene* scene)
     scene->m_MaterialsCount = 0;
     delete[] scene->m_Materials;
 
+    for (uint32_t i = 0; i < scene->m_DynamicMaterialsCount; ++i)
+        DestroyMaterial(scene->m_DynamicMaterials[i]);
+    scene->m_DynamicMaterialsCount = 0;
+    free((void*)scene->m_DynamicMaterials);
+
     scene->m_BuffersCount = 0;
     delete[] scene->m_Buffers;
 
@@ -220,7 +225,11 @@ Scene* LoadFromPath(Options* options, const char* path)
     }
 
     Scene* scene = LoadFromBuffer(options, suffix, data, file_size);
-
+    if (!scene)
+    {
+        dmLogError("Failed to create scene from path '%s'", path);
+        return 0;
+    }
 
     char dirname[512];
     dmStrlCpy(dirname, path, sizeof(dirname));

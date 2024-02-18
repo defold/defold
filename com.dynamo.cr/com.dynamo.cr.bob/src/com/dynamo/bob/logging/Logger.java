@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -39,18 +39,13 @@ public class Logger extends java.util.logging.Logger {
 		return logger;
 	}
 
-	public void info(String message, Object... args) {
-		Object[] v = args;
-		super.log(Level.INFO, message, v);
+	public void severe(String message, Throwable t) {
+		super.log(Level.SEVERE, message, t);
 	}
 
 	public void severe(String message, Object... args) {
 		Object[] v = args;
 		super.log(Level.SEVERE, message, v);
-	}
-
-	public void severe(String message, Throwable t) {
-		super.log(Level.SEVERE, message, t);
 	}
 
 	public void warning(String message, Object... args) {
@@ -61,6 +56,11 @@ public class Logger extends java.util.logging.Logger {
 	public void config(String message, Object... args) {
 		Object[] v = args;
 		super.log(Level.CONFIG, message, v);
+	}
+
+	public void info(String message, Object... args) {
+		Object[] v = args;
+		super.log(Level.INFO, message, v);
 	}
 
 	public void fine(String message, Object... args) {

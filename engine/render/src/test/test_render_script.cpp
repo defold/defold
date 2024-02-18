@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -51,6 +51,7 @@ namespace
 class dmRenderScriptTest : public jc_test_base_class
 {
 protected:
+    dmPlatform::HWindow m_Window;
     dmScript::HContext m_ScriptContext;
     dmRender::HRenderContext m_Context;
     dmGraphics::HContext m_GraphicsContext;
@@ -63,8 +64,21 @@ protected:
     {
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
-        dmGraphics::Initialize();
-        m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
+        dmGraphics::InstallAdapter();
+
+        dmPlatform::WindowParams win_params = {};
+        win_params.m_Width = 20;
+        win_params.m_Height = 10;
+
+        m_Window = dmPlatform::NewWindow();
+        dmPlatform::OpenWindow(m_Window, win_params);
+
+        dmGraphics::ContextParams graphics_context_params;
+        graphics_context_params.m_Width = 20;
+        graphics_context_params.m_Height = 10;
+        graphics_context_params.m_Window = m_Window;
+
+        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         dmRender::FontMapParams font_map_params;
         font_map_params.m_CacheWidth = 128;
         font_map_params.m_CacheHeight = 128;
@@ -97,11 +111,6 @@ protected:
 
         m_FontMaterial = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
         dmRender::SetFontMapMaterial(m_SystemFontMap, m_FontMaterial);
-
-        dmGraphics::WindowParams win_params;
-        win_params.m_Width = 20;
-        win_params.m_Height = 10;
-        dmGraphics::OpenWindow(m_GraphicsContext, &win_params);
     }
 
     virtual void TearDown()
@@ -114,6 +123,9 @@ protected:
         dmRender::DeleteRenderContext(m_Context, 0);
         dmRender::DeleteFontMap(m_SystemFontMap);
         dmGraphics::DeleteContext(m_GraphicsContext);
+        dmPlatform::CloseWindow(m_Window);
+        dmPlatform::DeleteWindow(m_Window);
+
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
     }
@@ -201,7 +213,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
 
     dmRender::HMaterial material = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
-    dmRender::AddRenderScriptInstanceMaterial(render_script_instance, "test_material", material);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_material", (uint64_t) material, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
@@ -214,7 +226,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
     command = &commands[1];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_MATERIAL, command->m_Type);
 
-    dmRender::ClearRenderScriptInstanceMaterials(render_script_instance);
+    dmRender::ClearRenderScriptInstanceRenderResources(render_script_instance);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());

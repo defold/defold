@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -45,6 +45,18 @@
       (is (= ["ball_anim"
               "block_anim"
               "pow_anim"]
+             animation-ids-in-ddf)))))
+
+(deftest rename-anim
+  (test-util/with-loaded-project "test/resources/image_project"
+    (let [atlas (project/get-resource-node project "/main/rename.atlas")
+          ddf-texture-set (g/node-value atlas :texture-set)
+          animation-ids-in-ddf (into #{}
+                                     (map :id)
+                                     (:animations ddf-texture-set))]
+      (is (= #{"ball"
+               "diamond_dogs"
+               "test_anim"}
              animation-ids-in-ddf)))))
 
 (deftest sprite-trim-mode-image-io-error

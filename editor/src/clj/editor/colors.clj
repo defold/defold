@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -61,6 +61,17 @@
 
 (def outline-color bright-grey)
 (def selected-outline-color defold-turquoise)
+(def parent-selected-outline-color defold-light-blue)
+
+(defn selection-color [selection-state]
+  (case selection-state
+    :self-selected selected-outline-color
+    :parent-selected parent-selected-outline-color
+    nil))
+
+(defn renderable-outline-color [renderable]
+  (or (selection-color (:selected renderable))
+      outline-color))
 
 ; https://en.wikipedia.org/wiki/HSL_and_HSV
 

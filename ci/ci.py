@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -130,14 +130,14 @@ def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
-        # we use apt-fast to speed up apt-get downloads
-        # https://github.com/ilikenwf/apt-fast
-        call("sudo add-apt-repository ppa:apt-fast/stable")
+        # # we use apt-fast to speed up apt-get downloads
+        # # https://github.com/ilikenwf/apt-fast
+        # call("sudo add-apt-repository ppa:apt-fast/stable")
         call("sudo apt-get update", failonerror=False)
-        call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
-        call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
-        call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
-        call("sudo apt-get install -y apt-fast aria2")
+        # call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
+        # call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
+        # call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
+        # call("sudo apt-get install -y apt-fast aria2")
 
         call("sudo apt-get install -y software-properties-common")
 
@@ -166,7 +166,7 @@ def install(args):
             "uuid-dev",
             "xvfb"
         ]
-        aptfast(" ".join(packages))
+        aptget(" ".join(packages))
 
         if args.steam_config_b64:
             # for steamcmd
@@ -182,7 +182,7 @@ def install(args):
                 "lib32gcc1",
                 "hfsprogs"   # for mounting DMG files
             ]
-            aptfast(" ".join(packages))
+            aptget(" ".join(packages))
             setup_steam_config(args)
 
     elif system == "Darwin":
@@ -369,7 +369,7 @@ def install_ext(platform = None):
     call("python scripts/build.py install_ext %s" % ' '.join(opts))
 
 def build_bob(channel, branch = None):
-    args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
+    args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
     opts = []
     opts.append("--channel=%s" % channel)
 

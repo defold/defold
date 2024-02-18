@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1310,8 +1310,6 @@ namespace dmGui
         const char* text = luaL_checkstring(L, 2);
         Scene* scene = GuiScriptInstance_Check(L);
         void* font = scene->m_DefaultFont;
-        if (font == 0x0)
-            font = scene->m_Context->m_DefaultFont;
         Vector3 size = Vector3(1,1,1);
         if (font != 0x0)
         {
@@ -1416,6 +1414,7 @@ namespace dmGui
      * - `gui.BLEND_ADD`
      * - `gui.BLEND_ADD_ALPHA`
      * - `gui.BLEND_MULT`
+     * - `gui.BLEND_SCREEN`
      */
     static int LuaGetBlendMode(lua_State* L)
     {
@@ -1436,6 +1435,7 @@ namespace dmGui
      * - `gui.BLEND_ADD`
      * - `gui.BLEND_ADD_ALPHA`
      * - `gui.BLEND_MULT`
+     * - `gui.BLEND_SCREEN`
      */
     static int LuaSetBlendMode(lua_State* L)
     {
@@ -3133,6 +3133,7 @@ namespace dmGui
         InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
         int adjust_mode = (int) luaL_checknumber(L, 2);
         n->m_Node.m_AdjustMode = (AdjustMode) adjust_mode;
+        n->m_Node.m_DirtyLocal = 1;
         return 0;
     }
 
@@ -3302,7 +3303,9 @@ namespace dmGui
     }
 
     /*# clone a node
-     * Make a clone instance of a node.
+     * Make a clone instance of a node. The cloned node will be identical to the
+     * original node, except the id which is generated as the string "node" plus
+     * a sequential unsigned integer value.
      * This function does not clone the supplied node's children nodes.
      * Use gui.clone_tree for that purpose.
      *
@@ -4597,6 +4600,12 @@ namespace dmGui
      * @variable
      */
 
+    /*# screen blending
+     *
+     * @name gui.BLEND_SCREEN
+     * @variable
+     */
+
     /*# clipping mode none
      *
      * @name gui.CLIPPING_MODE_NONE
@@ -4851,6 +4860,7 @@ namespace dmGui
         SETBLEND(ADD)
         SETBLEND(ADD_ALPHA)
         SETBLEND(MULT)
+        SETBLEND(SCREEN)
 
 #undef SETBLEND
 
@@ -4861,7 +4871,7 @@ namespace dmGui
         SETCLIPPINGMODE(NONE)
         SETCLIPPINGMODE(STENCIL)
 
-#undef SETBLEND
+#undef SETCLIPPINGMODE
 
 #define SETKEYBOARD(name) \
         lua_pushnumber(L, (lua_Number) dmHID::KEYBOARD_TYPE_##name); \

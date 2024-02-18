@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,6 +30,28 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+
+static uint8_t* GetRawFile(const char* path, uint32_t* size, bool override)
+{
+    const char* override_path = override ? "/overrides" : "";
+    const char* alternatives[2] = {
+        "build/src/test%s%s",
+        "src/test%s%s"
+    };
+    for (int i = 0; i < DM_ARRAY_SIZE(alternatives); ++i)
+    {
+        char path_buffer[256];
+        dmSnPrintf(path_buffer, sizeof(path_buffer), alternatives[i], override_path, path);
+
+        char host_buffer[256];
+        dmTestUtil::MakeHostPath(host_buffer, sizeof(host_buffer), path_buffer);
+        if (!dmSys::Exists(host_buffer))
+            continue;
+        return dmTestUtil::ReadHostFile(path_buffer, size);
+    }
+    return 0;
+}
+
 typedef dmResourceProvider::ArchiveLoader ArchiveLoader;
 
 // ****************************************************************************************************************
@@ -48,7 +70,7 @@ TEST(ArchiveProviderBasic, Registered)
     ASSERT_NE((ArchiveLoader*)0, loader);
 }
 
-// // ****************************************************************************************************************
+// ****************************************************************************************************************
 
 class ArchiveProvidersMulti : public jc_test_base_class
 {
@@ -158,17 +180,6 @@ TEST_F(ArchiveProvidersMulti, GetMounts)
     ASSERT_EQ(10, result.m_Priority);
 }
 
-static uint8_t* GetRawFile(const char* path, uint32_t* size, bool override)
-{
-    char path_buffer[256];
-    const char* override_path = override ? "/overrides" : "";
-    const char* host_path = dmTestUtil::MakeHostPathf(path_buffer, sizeof(path_buffer), "build/src/test%s%s", override_path, path);
-    if (!dmSys::Exists(host_path))
-        host_path = dmTestUtil::MakeHostPathf(path_buffer, sizeof(path_buffer), "src/test%s%s", override_path, path);
-    return dmTestUtil::ReadHostFile(host_path, size);
-}
-
-
 TEST_F(ArchiveProvidersMulti, ReadFile)
 {
     const char* file_paths[] = {
@@ -179,12 +190,12 @@ TEST_F(ArchiveProvidersMulti, ReadFile)
         "/archive_data/liveupdate.file7.adc", // exists in zip archive, but overridden in file mout
     };
 
-    uint32_t file_override_sizes[] = {
-        0,
-        0,
-        13,
-        20,
-        25,
+    bool file_overrides[] = {
+        false,
+        false,
+        true,
+        true,
+        true,
     };
 
 
@@ -192,7 +203,7 @@ TEST_F(ArchiveProvidersMulti, ReadFile)
     {
         dmhash_t path_hash = dmHashString64(file_paths[i]);
         uint32_t raw_file_size = 0;
-        uint8_t* raw_file = GetRawFile(file_paths[i], &raw_file_size, file_override_sizes[i] != 0);
+        uint8_t* raw_file = GetRawFile(file_paths[i], &raw_file_size, file_overrides[i]);
         ASSERT_NE(0U, raw_file_size);
         ASSERT_NE((uint8_t*)0, raw_file);
 
@@ -212,6 +223,52 @@ TEST_F(ArchiveProvidersMulti, ReadFile)
         dmMemory::AlignedFree(raw_file);
         delete[] resource;
     }
+}
+
+TEST_F(ArchiveProvidersMulti, ReadCustomFile)
+{
+    uint8_t     file0_data[] = {0,1,2,3,4,5,6,7,8,9};
+    uint32_t    file0_size = DM_ARRAY_SIZE(file0_data);
+    const char* file0_path = "/custom/test.adc";
+    dmhash_t    file0_hash = dmHashString64(file0_path);
+
+    uint32_t resource_size = 0;
+    dmResource::Result result = dmResource::RESULT_UNKNOWN_ERROR;
+
+    // Test without having added the file
+    result = dmResourceMounts::GetResourceSize(m_Mounts, file0_hash, file0_path, &resource_size);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, result);
+    ASSERT_EQ(0u, resource_size);
+
+    // Test with adding the file
+    result = dmResourceMounts::AddFile(m_Mounts, file0_hash, file0_size, file0_data);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    result = dmResourceMounts::AddFile(m_Mounts, file0_hash, file0_size, file0_data);
+    ASSERT_EQ(dmResource::RESULT_ALREADY_REGISTERED, result);
+
+    result = dmResourceMounts::GetResourceSize(m_Mounts, file0_hash, file0_path, &resource_size);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(file0_size, resource_size);
+
+    uint8_t* resource = new uint8_t[resource_size];
+    result = dmResourceMounts::ReadResource(m_Mounts, file0_hash, file0_path, resource, resource_size);
+
+    ASSERT_ARRAY_EQ_LEN(file0_data, resource, resource_size);
+
+    delete[] resource;
+
+    // Test removing the file
+    result = dmResourceMounts::RemoveFile(m_Mounts, file0_hash);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    result = dmResourceMounts::RemoveFile(m_Mounts, file0_hash);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, result);
+
+    resource_size = 0;
+    result = dmResourceMounts::GetResourceSize(m_Mounts, file0_hash, file0_path, &resource_size);
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, result);
+    ASSERT_EQ(0u, resource_size);
 }
 
 int main(int argc, char **argv)

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -86,6 +86,13 @@ namespace dmGraphics
     typedef uintptr_t HIndexBuffer;
 
     /*#
+     * Uniform location handle
+     * @typedef
+     * @name HUniformLocation
+     */
+    typedef int64_t HUniformLocation;
+
+    /*#
      * Vertex declaration handle
      * @typedef
      * @name HVertexDeclaration
@@ -98,6 +105,13 @@ namespace dmGraphics
      * @name HVertexStreamDeclaration
      */
     typedef struct VertexStreamDeclaration* HVertexStreamDeclaration;
+
+    /*#
+     * Invalid stream offset
+     * @constant
+     * @name INVALID_STREAM_OFFSET
+     */
+    const uint32_t INVALID_STREAM_OFFSET = 0xFFFFFFFF;
 
     /*#
      * @enum
@@ -162,6 +176,7 @@ namespace dmGraphics
      * @member TEXTURE_FORMAT_RG16F
      * @member TEXTURE_FORMAT_R32F
      * @member TEXTURE_FORMAT_RG32F
+     * @member TEXTURE_FORMAT_RGBA32UI
      * @member TEXTURE_FORMAT_COUNT
      */
     enum TextureFormat
@@ -198,13 +213,32 @@ namespace dmGraphics
         TEXTURE_FORMAT_RG16F                = 27,
         TEXTURE_FORMAT_R32F                 = 28,
         TEXTURE_FORMAT_RG32F                = 29,
+        // Internal formats (not exposed via script APIs)
+        TEXTURE_FORMAT_RGBA32UI             = 30,
+        TEXTURE_FORMAT_BGRA8U               = 31,
+        TEXTURE_FORMAT_R32UI                = 32,
 
         TEXTURE_FORMAT_COUNT
     };
 
+    /*#
+     * Get the attachment texture from a render target. Returns zero if no such attachment texture exists.
+     * @name GetRenderTargetAttachment
+     * @param render_target [type: dmGraphics::HRenderTarget] the render target
+     * @param attachment_type [type: dmGraphics::RenderTargetAttachment] the attachment to get
+     * @return attachment [type: dmGraphics::HTexture] the attachment texture
+     */
     HTexture GetRenderTargetAttachment(HRenderTarget render_target, RenderTargetAttachment attachment_type);
-    HandleResult GetTextureHandle(HTexture texture, void** out_handle);
 
+    /*#
+     * Get the native graphics API texture object from an engine texture handle. This depends on the graphics backend and is not
+     * guaranteed to be implemented on the currently running adapter.
+     * @name GetTextureHandle
+     * @param texture [type: dmGraphics::HTexture] the texture handle
+     * @param out_handle [type: void**] a pointer to where the raw object should be stored
+     * @return handle_result [type: dmGraphics::HandleResult] the result of the query
+     */
+    HandleResult GetTextureHandle(HTexture texture, void** out_handle);
 
     /*#
      * @enum
@@ -278,6 +312,7 @@ namespace dmGraphics
         BUFFER_USAGE_STREAM_DRAW  = 0,
         BUFFER_USAGE_DYNAMIC_DRAW = 1,
         BUFFER_USAGE_STATIC_DRAW  = 2,
+        BUFFER_USAGE_TRANSFER     = 4,
     };
 
     /*#
@@ -342,6 +377,7 @@ namespace dmGraphics
      * @member TYPE_FLOAT_VEC3
      * @member TYPE_FLOAT_MAT2
      * @member TYPE_FLOAT_MAT3
+     * @member TYPE_IMAGE_2D
      */
     enum Type
     {
@@ -361,6 +397,7 @@ namespace dmGraphics
         TYPE_FLOAT_VEC3       = 13,
         TYPE_FLOAT_MAT2       = 14,
         TYPE_FLOAT_MAT3       = 15,
+        TYPE_IMAGE_2D         = 16,
     };
 
     /*#
@@ -400,6 +437,19 @@ namespace dmGraphics
         BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR = 12,
         BLEND_FACTOR_CONSTANT_ALPHA           = 13,
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = 14,
+    };
+
+    /*#
+     * Vertex step function. Dictates how the data for a vertex attribute should be read in a vertex shader.
+     * @enum
+     * @name VertexStepFunction
+     * @member VERTEX_STEP_FUNCTION_VERTEX
+     * @member VERTEX_STEP_FUNCTION_INSTANCE
+     */
+    enum VertexStepFunction
+    {
+        VERTEX_STEP_FUNCTION_VERTEX,
+        VERTEX_STEP_FUNCTION_INSTANCE,
     };
 
     /*#
@@ -466,6 +516,15 @@ namespace dmGraphics
      * @param vertex_declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
      */
     void DeleteVertexDeclaration(HVertexDeclaration vertex_declaration);
+
+    /*#
+     * Get the physical offset into the vertex data for a particular stream
+     * @name GetVertexStreamOffset
+     * @param vertex_declaration [type: dmGraphics::HVertexDeclaration] the vertex declaration
+     * @param name_hash [type: uint64_t] the name hash of the vertex stream (as passed into AddVertexStream())
+     * @return Offset in bytes into the vertex or INVALID_STREAM_OFFSET if not found
+     */
+    uint32_t GetVertexStreamOffset(HVertexDeclaration vertex_declaration, uint64_t name_hash);
 
     /*#
      * Create new vertex buffer with initial data

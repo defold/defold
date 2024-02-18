@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -461,7 +461,7 @@
                                                         prop-entry {:node-id _node-id
                                                                     :type resource-type
                                                                     :edit-type {:type resource/Resource
-                                                                                :ext (conj image/exts "cubemap")}}
+                                                                                :ext (conj image/exts "cubemap" "render_target")}}
                                                         keys (map :name samplers)
                                                         p (->> keys
                                                                (map-indexed (fn [i s]

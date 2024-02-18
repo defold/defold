@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -379,7 +379,7 @@ namespace dmRender
      * Then use the constant buffer when drawing a predicate:
      *
      * ```lua
-     * render.draw(self.my_pred, constants)
+     * render.draw(self.my_pred, {constants = constants})
      * ```
      *
      * The constant buffer also supports array values by specifying constants in a table:
@@ -1262,11 +1262,32 @@ namespace dmRender
             {
                 render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
             }
+            else if (dmScript::IsHash(L, 1) || lua_isstring(L, 1))
+            {
+                dmhash_t rt_id                  = dmScript::CheckHashOrString(L, 1);
+                RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
+
+                if (render_resource == 0x0)
+                {
+                    char str[128];
+                    char buffer[256];
+                    dmSnPrintf(buffer, sizeof(buffer), "Could not find render target '%s' %llu",
+                        dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long) rt_id); // since lua doesn't support proper format arguments
+                    return DM_LUA_ERROR("%s", buffer);
+                }
+
+                if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
+                {
+                    return DM_LUA_ERROR("Render resource is not a render target");
+                }
+
+                render_target = (dmGraphics::HRenderTarget) render_resource->m_Resource;
+            }
             else
             {
                 if(!lua_isnil(L, 1) && luaL_checkint(L, 1) != 0)
                 {
-                    return luaL_error(L, "Invalid render target supplied to %s.set_render_target.", RENDER_SCRIPT_LIB_NAME);
+                    return DM_LUA_ERROR("Invalid render target supplied to %s.set_render_target.", RENDER_SCRIPT_LIB_NAME);
                 }
             }
         }
@@ -1292,7 +1313,7 @@ namespace dmRender
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, render_target, transient_buffer_types)))
             return 0;
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     /* DEPRECATED. NO API DOC GENERATED.
@@ -2850,8 +2871,9 @@ namespace dmRender
         if (!lua_isnil(L, 1))
         {
             dmhash_t material_id = dmScript::CheckHashOrString(L, 1);
-            dmRender::HMaterial* mat = i->m_Materials.Get(material_id);
-            if (mat == 0x0)
+            RenderResource* render_resource = i->m_RenderResources.Get(material_id);
+
+            if (render_resource == 0x0)
             {
                 assert(top == lua_gettop(L));
                 char str[128];
@@ -2859,19 +2881,21 @@ namespace dmRender
                 dmSnPrintf(buffer, sizeof(buffer), "Could not find material '%s' %llu", dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long)material_id); // since lua doesn't support proper format arguments
                 return luaL_error(L, "%s", buffer);
             }
+            else if (render_resource->m_Type != RENDER_RESOURCE_TYPE_MATERIAL)
+            {
+                return luaL_error(L, "Render resource is not a material.");
+            }
+
+            HMaterial material = (HMaterial) render_resource->m_Resource;
+            if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint64_t)material)))
+            {
+                assert(top == lua_gettop(L));
+                return 0;
+            }
             else
             {
-                HMaterial material = *mat;
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint64_t)material)))
-                {
-                    assert(top == lua_gettop(L));
-                    return 0;
-                }
-                else
-                {
-                    assert(top == lua_gettop(L));
-                    return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-                }
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
             }
         }
         else
@@ -3271,7 +3295,7 @@ bail:
         i->m_ScriptWorld = render_context->m_ScriptWorld;
         i->m_RenderContext = render_context;
         i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
-        i->m_Materials.SetCapacity(16, 8);
+        i->m_RenderResources.SetCapacity(16, 8);
 
         lua_pushvalue(L, -1);
         i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
@@ -3326,19 +3350,23 @@ bail:
         render_script_instance->m_RenderScript = render_script;
     }
 
-    void AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material)
+    void AddRenderScriptInstanceRenderResource(HRenderScriptInstance render_script_instance, const char* name, uint64_t resource, RenderResourceType type)
     {
-        if (render_script_instance->m_Materials.Full())
+        if (render_script_instance->m_RenderResources.Full())
         {
-            uint32_t new_capacity = 2 * render_script_instance->m_Materials.Capacity();
-            render_script_instance->m_Materials.SetCapacity(2 * new_capacity, new_capacity);
+            uint32_t new_capacity = 2 * render_script_instance->m_RenderResources.Capacity();
+            render_script_instance->m_RenderResources.SetCapacity(2 * new_capacity, new_capacity);
         }
-        render_script_instance->m_Materials.Put(dmHashString64(material_name), material);
+
+        RenderResource res = {};
+        res.m_Resource     = resource;
+        res.m_Type         = type;
+        render_script_instance->m_RenderResources.Put(dmHashString64(name), res);
     }
 
-    void ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance)
+    void ClearRenderScriptInstanceRenderResources(HRenderScriptInstance render_script_instance)
     {
-        render_script_instance->m_Materials.Clear();
+        render_script_instance->m_RenderResources.Clear();   
     }
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -96,6 +96,11 @@ public class TileSetGenerator {
         }
 
         @Override
+        public String getFrameId() {
+            return ""; // A tile source doesn't support playing single image animations using e.g. "tile0" etc.
+        }
+
+        @Override
         public void rewind() {
             nextAnimIndex = 0;
             nextFrameIndex = 0;
@@ -114,21 +119,13 @@ public class TileSetGenerator {
 
         int hullVertexSize = 6;
         SpriteTrimmingMode mode = tileSet.getSpriteTrimMode();
-        switch (mode) {
-            case SPRITE_TRIM_MODE_OFF:   hullVertexSize = 0; break;
-            case SPRITE_TRIM_MODE_4:     hullVertexSize = 4; break;
-            case SPRITE_TRIM_MODE_5:     hullVertexSize = 5; break;
-            case SPRITE_TRIM_MODE_6:     hullVertexSize = 6; break;
-            case SPRITE_TRIM_MODE_7:     hullVertexSize = 7; break;
-            case SPRITE_TRIM_MODE_8:     hullVertexSize = 8; break;
-        }
 
         List<BufferedImage> images = split(image, tileSet, metrics);
-        List<Integer> imageHullSizes = new ArrayList<Integer>();
+        List<SpriteTrimmingMode> imageTrimModes = new ArrayList<>();
         List<String> names = new ArrayList<String>();
         int tileIndex = 0;
         for (BufferedImage tmp : images) {
-            imageHullSizes.add(hullVertexSize);
+            imageTrimModes.add(mode);
             names.add(String.format("tile%d", tileIndex++));
         }
 
@@ -137,7 +134,7 @@ public class TileSetGenerator {
         // Since all the images already are positioned optimally in a grid,
         // we tell TextureSetGenerator to NOT do its own packing and use this grid directly.
         Grid grid_size = new Grid(metrics.tilesPerRow, metrics.tilesPerColumn);
-        TextureSetResult result = TextureSetGenerator.generate(images, imageHullSizes, names, iterator, 0,
+        TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, names, iterator, 0,
                 tileSet.getInnerPadding(),
                 tileSet.getExtrudeBorders(), false, true, grid_size, 0, 0);
 

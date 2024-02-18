@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -179,7 +179,6 @@
                              (is (= (murmur/hash64 "Cube.006") (-> mesh-set :models first :id)))
 
                              (is (= 3 (count (:bones skeleton))))
-                             (is (= (set (:bone-list mesh-set)) (set (:bone-list animation-set))))
                              (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))
                              (is (contains? targets (:material (first (:materials pb)))))
                              (is (contains? targets (:texture (first (:textures (first (:materials pb)))))))))}]
@@ -198,7 +197,7 @@
                                   mesh-set (target (:mesh-set rig-scene) targets)]
                               (is (= "" (:texture-set rig-scene)))
                               (is (contains? targets (:material (first (:materials pb)))))
-                              (is (= "" (:texture (first (:textures (first (:materials pb)))))))
+                              (is (empty? (:textures (first (:materials pb)))))
 
                               (let [mesh (-> mesh-set :models first :meshes first)
                                     size (.size (:indices mesh))

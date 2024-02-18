@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -145,9 +145,6 @@
 
 (def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
 
-(def color colors/outline-color)
-(def selected-color colors/selected-outline-color)
-
 (def mod-type->properties {:modifier-type-acceleration [:modifier-key-magnitude]
                            :modifier-type-drag [:modifier-key-magnitude]
                            :modifier-type-radial [:modifier-key-magnitude :modifier-key-max-distance]
@@ -212,7 +209,7 @@
             :when (> vcount 0)]
       (let [^Matrix4d world-transform (:world-transform renderable)
             world-transform-no-scale (orthonormalize world-transform)
-            color (if (:selected renderable) selected-color color)
+            color (colors/renderable-outline-color renderable)
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
                      (geom/transf-p world-transform vs-world))
             render-args (if (= pass/selection (:pass render-args))
@@ -403,7 +400,7 @@
     (let [user-data (:user-data renderable)
           {:keys [emitter-sim-data emitter-index color max-particle-count]} user-data
           shader (:shader emitter-sim-data)
-          shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color])
+          shader-bound-attributes (graphics/shader-bound-attributes gl shader (:material-attribute-infos user-data) [:position :texcoord0 :page-index :color] :coordinate-space-world)
           vertex-description (graphics/make-vertex-description shader-bound-attributes)
           vertex-attribute-bytes (:vertex-attribute-bytes user-data)
           pfx-sim-request-id (some-> renderable :updatable :node-id)]
@@ -607,8 +604,8 @@
 (g/defnk produce-emitter-pb
   [position rotation _declared-properties modifier-msgs material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes]
   (let [properties (:properties _declared-properties)]
-    (into {:attributes-save-values (graphics/attributes->save-values material-attribute-infos vertex-attribute-overrides)
-           :attributes-build-target (graphics/attributes->build-target material-attribute-infos vertex-attribute-overrides vertex-attribute-bytes)
+    (into {:attributes-save-values (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)
+           :attributes-build-target (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)
            :position position
            :rotation rotation
            :modifiers modifier-msgs}
@@ -649,26 +646,10 @@
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
 
-
-(defn- page-count-mismatch-error-message [is-paged-material texture-page-count material-max-page-count]
-  (when (and (some? texture-page-count)
-             (some? material-max-page-count))
-    (cond
-      (and is-paged-material
-           (zero? texture-page-count))
-      "The Material expects a paged Atlas, but the selected Image is not paged"
-
-      (and (not is-paged-material)
-           (pos? texture-page-count))
-      "The Material does not support paged Atlases, but the selected Image is paged"
-
-      (< material-max-page-count texture-page-count)
-      "The Material's 'Max Page Count' is not sufficient for the number of pages in the selected Image")))
-
 (defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
   (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
     (or (prop-resource-error :fatal _node-id :material material "Material")
-        (validation/prop-error :fatal _node-id :material page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count))))
+        (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Image"))))
 
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
   (let [attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
@@ -959,7 +940,7 @@
                   (let [mod-properties (into {} (map #(do [(:key %) (dissoc % :key)])
                                                      (:properties modifier)))]
                     (concat
-                      (g/set-property mod-node :use-direction (= 1 (:use-direction mod-properties)))
+                      (g/set-property mod-node :use-direction (= 1 (:use-direction modifier)))
                       (g/set-property mod-node :magnitude (if-let [prop (:modifier-key-magnitude mod-properties)]
                                                             (props/->curve-spread (map #(let [{:keys [x y t-x t-y]} %] [x y t-x t-y]) (:points prop)) (:spread prop))
                                                             props/default-curve-spread))
@@ -1019,11 +1000,7 @@
           graph-id (g/node-id->graph-id self)
           tile-source (workspace/resolve-workspace-resource workspace (:tile-source emitter))
           material (workspace/resolve-workspace-resource workspace (:material emitter))
-          vertex-attribute-overrides (into {}
-                                           (map (fn [attribute]
-                                                  [(graphics/attribute-name->key (:name attribute))
-                                                   (graphics/attribute->any-doubles attribute)]))
-                                           (:attributes emitter))]
+          vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides (:attributes emitter))]
       (g/make-nodes graph-id
                     [emitter-node [EmitterNode :position (:position emitter) :rotation (:rotation emitter)
                                    :id (:id emitter) :mode (:mode emitter) :duration [(:duration emitter) (:duration-spread emitter)] :space (:space emitter)

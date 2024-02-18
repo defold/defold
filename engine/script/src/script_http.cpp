@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -84,9 +84,9 @@ namespace dmScript
      * @param [options] [type:table] optional table with request parameters. Supported entries:
      *
      * - [type:number] `timeout`: timeout in seconds
-     * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200
-     * - [type:boolean] `ignore_cache`: don't return cached data if we get a 304
-     * - [type:boolean] `chunked_transfer`: use chunked transfer encoding for https requests larger than 16kb. Defaults to true.
+     * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200. [icon:attention] Not available in HTML5 build
+     * - [type:boolean] `ignore_cache`: don't return cached data if we get a 304. [icon:attention] Not available in HTML5 build
+     * - [type:boolean] `chunked_transfer`: use chunked transfer encoding for https requests larger than 16kb. Defaults to true. [icon:attention] Not available in HTML5 build
      *
      *
      * @examples
@@ -276,6 +276,10 @@ namespace dmScript
                 params.m_ThreadCount = dmConfigFile::GetInt(config_file, "network.http_thread_count", params.m_ThreadCount);
                 params.m_UseHttpCache = dmConfigFile::GetInt(config_file, "network.http_cache_enabled", params.m_UseHttpCache);
             }
+#if defined(DM_NO_HTTP_CACHE)
+            params.m_UseHttpCache = 0;
+#endif
+
             g_Service = dmHttpService::New(&params);
             dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
         }

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -187,15 +187,18 @@ public class IOSBundler implements IBundler {
     private static final String SYMBOL_EXE_RELATIVE_PATH = String.format("Contents/Resources/DWARF/dmengine");
 
     public static List<File> getSymbolDirsFromArchitectures(File buildDir, List<Platform> architectures) {
+        final String[] prefixes = {"", "src" + File.separator};
         List<File> symbolDirectories = new ArrayList<File>();
         for (Platform architecture : architectures) {
 
             File platformDir = new File(buildDir, architecture.getExtenderPair());
-            File symbolsDir = new File(platformDir, "dmengine.dSYM");
-            if (symbolsDir.exists()) {
-                File symbols = new File(symbolsDir, SYMBOL_EXE_RELATIVE_PATH);
-                if (symbols.exists()) {
-                    symbolDirectories.add(symbolsDir);
+            for (String prefix: prefixes) {
+                File symbolsDir = new File(platformDir, prefix + "dmengine.dSYM");
+                if (symbolsDir.exists()) {
+                    File symbols = new File(symbolsDir, SYMBOL_EXE_RELATIVE_PATH);
+                    if (symbols.exists()) {
+                        symbolDirectories.add(symbolsDir);
+                    }
                 }
             }
         }
@@ -368,7 +371,7 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if (BundleHelper.isArchiveExcluded(project)) {
+        if (BundleHelper.isArchiveIncluded(project)) {
             // Copy archive and game.projectc
             for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
                 FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));

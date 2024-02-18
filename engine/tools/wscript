@@ -57,6 +57,7 @@ def configure(conf):
     conf.env['STLIB_GRAPHICS'] = 'graphics'
     conf.env['STLIB_GRAPHICS_VULKAN'] = ['graphics_vulkan']
     conf.env['STLIB_GRAPHICS_PS4'] = ['graphics_ps4']
+    conf.env['STLIB_PLATFORM_NULL'] = ['platform_null']
     if platform in ("x86_64-macos",):
         conf.env['STLIB_GRAPHICS_VULKAN'] += ['MoltenVK']
 

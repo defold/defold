@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -55,6 +55,11 @@
    :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
+   :commit-characters {:method #{"("}
+                       :function #{"("}
+                       :field #{"."}
+                       :module #{"."}}
+   :completion-trigger-characters #{"."}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}
@@ -191,7 +196,7 @@
    "font"        "font"
    "material"    "material"
    "buffer"      "buffer"
-   "texture"     (conj image/exts "cubemap")
+   "texture"     (conj image/exts "cubemap" "render_target")
    "tile_source" "tilesource"})
 
 (def ^:private valid-resource-kind? (partial contains? resource-kind->ext))
@@ -575,7 +580,7 @@
                               preprocessed-module-build-targets)})])))))))
 
 (g/defnk produce-completions [completion-info module-completion-infos script-intelligence-completions]
-  (code-completion/combine-completions completion-info module-completion-infos script-intelligence-completions))
+  (lua/combine-completions completion-info module-completion-infos script-intelligence-completions))
 
 (g/defnk produce-breakpoints [resource regions]
   (into []

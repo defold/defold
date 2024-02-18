@@ -1,0 +1,20 @@
+mesh: "/mesh/test_collada_dae.dae"
+skeleton: ""
+animations: ""
+default_animation: ""
+materials {
+  name: "default"
+  material: "/model.material"
+  textures {
+    sampler: "tex_foo"
+    texture: "/mesh/test_m.png"
+  }
+  textures {
+    sampler: "tex_bar"
+    texture: "/mesh/test_m.png"
+  }
+  textures {
+    sampler: "tex_baz"
+    texture: "/mesh/test_m.png"
+  }
+}

@@ -1,0 +1,36 @@
+path_settings {
+  path: "**"
+  profile: "Default"
+}
+path_settings {
+  path: "**_normal.*"
+  profile: "Normal Map"
+}
+profiles {
+  name: "Default"
+  platforms {
+    os: OS_ID_GENERIC
+    formats {
+      format: TEXTURE_FORMAT_RGBA
+      compression_level: BEST
+      compression_type: COMPRESSION_TYPE_DEFAULT
+    }
+    mipmaps: true
+    max_texture_size: 0
+    premultiply_alpha: true
+  }
+}
+profiles {
+  name: "Normal Map"
+  platforms {
+    os: OS_ID_WINDOWS
+    formats {
+      format: TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
+      compression_level: HIGH
+      compression_type: COMPRESSION_TYPE_BASIS_UASTC
+    }
+    mipmaps: false
+    max_texture_size: 8192
+    premultiply_alpha: false
+  }
+}

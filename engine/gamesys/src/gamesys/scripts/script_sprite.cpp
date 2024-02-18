@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -414,7 +414,7 @@ namespace dmGameSystem
      * @name sprite.play_flipbook
      * @param url [type:string|hash|url] the sprite that should play the animation
      * @param id [type:string|hash] hashed id of the animation to play
-     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the animation has completed.
+     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the animation has completed.
      *
      * `self`
      * : [type:object] The current object.

@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,19 +36,6 @@
 
 (defn tx-nodes [& txs]
   (g/tx-nodes-added (g/transact txs)))
-
-(defn valid-node-value
-  ([node-id label]
-   (g/with-auto-evaluation-context evaluation-context
-     (valid-node-value node-id label evaluation-context)))
-  ([node-id label evaluation-context]
-   (let [value (g/node-value node-id label evaluation-context)]
-     (if (g/error? value)
-       (throw (ex-info "Evaluation produced an ErrorValue."
-                       {:node-type (g/node-type-kw (:basis evaluation-context) node-id)
-                        :label label
-                        :error-value value}))
-       value))))
 
 (defn array= [a b]
   (and

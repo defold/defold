@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -869,7 +869,7 @@ TEST(OneOfTests, Save)
     ASSERT_EQ(dmDDF::RESULT_OK, e);
 
     ASSERT_EQ(message->m_OneOfField.m_IntVal, saved_message->m_OneOfField.m_IntVal);
-    ASSERT_EQ(message->m_OneOfField.m_BoolVal, saved_message->m_OneOfField.m_BoolVal);
+    ASSERT_EQ((int)message->m_OneOfField.m_BoolVal, (int)saved_message->m_OneOfField.m_BoolVal);
     ASSERT_STREQ(message->m_OneOfFieldString.m_StringVal, saved_message->m_OneOfFieldString.m_StringVal);
 
     dmDDF::FreeMessage(message);

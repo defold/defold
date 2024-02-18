@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -103,8 +103,10 @@ public class GameObjectBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
 
         for (ComponentDesc cd : b.getComponentsList()) {
-            Boolean isStatic = Boolean.TRUE.equals(ComponentsCounter.ifStaticFactoryAddProtoAsInput(cd, taskBuilder, input, project));
-            ifObjectHasDynamicFactory |= !isStatic;
+            Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(cd, taskBuilder, input, project);
+            if (isStatic != null) {
+                ifObjectHasDynamicFactory |= !isStatic;
+            }
             Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
             for(String r : resources) {
                 IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
@@ -133,8 +135,10 @@ public class GameObjectBuilder extends Builder<Void> {
                 genResource.setContent(data);
                 uniqueResources.put(hash, genResource);
             }
-            Boolean isStatic = Boolean.TRUE.equals(ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, taskBuilder, input));
-            ifObjectHasDynamicFactory |= !isStatic;
+            Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, taskBuilder, input);
+            if (isStatic != null) {
+                ifObjectHasDynamicFactory |= !isStatic;
+            }
         }
 
         for (long hash : uniqueResources.keySet()) {
@@ -160,7 +164,7 @@ public class GameObjectBuilder extends Builder<Void> {
     @Override
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
-        IResource input = task.getInputs().get(0);
+        IResource input = task.input(0);
         PrototypeDesc.Builder protoBuilder = loadPrototype(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();

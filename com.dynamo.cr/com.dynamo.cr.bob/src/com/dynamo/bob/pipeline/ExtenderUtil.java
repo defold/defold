@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -175,13 +175,19 @@ public class ExtenderUtil {
         }
     }
 
-    private static class EmptyResource implements IResource {
+    private static class DynamicResource implements IResource {
     	private String rootDir;
     	private String path;
+        private byte[] content;
 
-    	public EmptyResource(String rootDir, String path) {
+        public DynamicResource(String rootDir, String path, byte[] content) {
             this.rootDir = rootDir;
             this.path = path;
+            this.content = content;
+        }
+
+    	public DynamicResource(String rootDir, String path) {
+            this(rootDir, path, new byte[0]);
         }
 
     	@Override
@@ -191,11 +197,12 @@ public class ExtenderUtil {
 
 		@Override
 		public byte[] getContent() throws IOException {
-			return new byte[0];
+			return content;
 		}
 
 		@Override
 		public void setContent(byte[] content) throws IOException {
+            this.content = content;
 		}
 
 		@Override
@@ -557,7 +564,7 @@ public class ExtenderUtil {
         {
             IResource resource = getProjectResource(project, "native_extension", "app_manifest");
             if (resource == null) {
-                 resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
+                 resource = new DynamicResource(project.getRootDirectory(), appManifestPath);
             }
 
             sources.add( new FSAppManifestResource(resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ));
@@ -589,6 +596,88 @@ public class ExtenderUtil {
                 sources.addAll( listFilesRecursive( project, extension + "/lib/" + platformAlt + "/") );
                 sources.addAll( listFilesRecursive( project, extension + "/manifests/" + platformAlt + "/") );
                 sources.addAll( listFilesRecursive( project, extension + "/res/" + platformAlt + "/") );
+            }
+        }
+
+        return sources;
+    }
+
+    static private String createExtensionManifest(String name, Platform platform, Map<String, Object> options) {
+        String ln = System.getProperty("line.separator");
+        String s = String.format("name: %s", name) + ln;
+        s += "platforms:" + ln;
+        s += String.format("  %s:", platform.getExtenderPair()) + ln;
+        s += String.format("    context:" + ln);
+
+        for (String key : options.keySet()) {
+            Object value = options.get(key);
+            String svalue = null;
+            if (value instanceof String) {
+                svalue = (String)value;
+            } else if (value instanceof List) {
+                svalue = "[";
+                List<Object> l = (List<Object>)value;
+                int length = l.size();
+                for (int i = 0; i < length; ++i) {
+                    String vv = (String)l.get(i);
+                    svalue += "'" + vv + "'";
+                    if (i < length-1) {
+                        svalue += ", ";
+                    }
+                }
+                svalue += "]" + ln;
+            }
+            s += String.format("      %s: %s", key, svalue) + ln;
+        }
+        return s;
+    }
+
+    public static List<ExtenderResource> getLibrarySources(Project project, Platform platform,
+                                                        Map<String, String> appmanifestOptions,
+                                                        Map<String, Object> compilerOptions,
+                                                        String libraryName,
+                                                        List<String> sourceDirs) throws CompileExceptionError, IOException {
+        List<ExtenderResource> sources = new ArrayList<>();
+
+        String rootDirectory = project.getRootDirectory();
+
+        // Find app manifest if there is one
+        {
+            IResource resource = getProjectResource(project, "native_extension", "app_manifest");
+            if (resource == null) {
+                 resource = new DynamicResource(rootDirectory, appManifestPath);
+            }
+
+            sources.add( new FSAppManifestResource(resource, rootDirectory, appManifestPath, appmanifestOptions ));
+        }
+
+        String manifestContent = ExtenderUtil.createExtensionManifest(libraryName, platform, compilerOptions);
+
+        // Create dummy extension manifest
+        IResource manifestResource = new DynamicResource(rootDirectory, "ext.manifest", manifestContent.getBytes());
+        sources.add(new FSExtenderResource(manifestResource));
+
+        File rootDirectoryFile = new File(rootDirectory);
+        for (String path : sourceDirs) {
+            File dir = new File(path);
+
+            if (dir.isDirectory() && dir.exists()) {
+                sources.addAll(listFilesRecursive(dir, dir));
+            } else {
+
+                ArrayList<String> paths = new ArrayList<>();
+                project.findResourcePaths(path, paths);
+                for (String p : paths) {
+                    IResource r = project.getResource(p);
+                    // Note: findResourcePaths will return the supplied path even if it's not a file.
+                    // We need to check if the resource is not a directory before adding it to the list of paths found.
+                    if (!r.isFile()) {
+                        continue;
+                    }
+
+                    String alias = String.format("%s/src/%s", libraryName, r.getPath());
+                    sources.add(new FSAliasResource(r, project.getRootDirectory(), alias));
+                }
             }
         }
 

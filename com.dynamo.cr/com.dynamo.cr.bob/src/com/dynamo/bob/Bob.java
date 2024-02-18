@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -49,18 +49,17 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.logging.LogFormatter;
 import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.cache.ResourceCacheKey;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 
@@ -70,6 +69,8 @@ public class Bob {
     public static final String VARIANT_DEBUG = "debug";
     public static final String VARIANT_RELEASE = "release";
     public static final String VARIANT_HEADLESS = "headless";
+
+    public static final String ARTIFACTS_URL = "http://d.defold.com/archive/";
 
     private static File rootFolder = null;
     private static boolean luaInitialized = false;
@@ -153,7 +154,7 @@ public class Bob {
         return rootFolder;
     }
 
-    public static void extract(final URL url, File toFolder) throws IOException {
+    public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
 
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
@@ -164,7 +165,8 @@ public class Bob {
                 if (!entry.isDirectory()) {
 
                     File dstFile = new File(toFolder, entry.getName());
-                    dstFile.deleteOnExit();
+                    if (deleteOnExit)
+                        dstFile.deleteOnExit();
                     dstFile.getParentFile().mkdirs();
 
                     OutputStream fileStream = null;
@@ -183,7 +185,7 @@ public class Bob {
                     } finally {
                         IOUtils.closeQuietly(fileStream);
                     }
-                    logger.info("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
+                    logger.fine("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
 
                 entry = zipStream.getNextEntry();
@@ -191,6 +193,10 @@ public class Bob {
         } finally {
             IOUtils.closeQuietly(zipStream);
         }
+    }
+
+    public static void extract(final URL url, File toFolder) throws IOException {
+        extractToFolder(url, toFolder, true);
     }
 
     public static String getPath(String path) {
@@ -202,7 +208,7 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static List<String> getExes(Platform platform, String name) throws IOException {
+    private static List<String> getExes(Platform platform, String name) throws IOException {
         String[] exeSuffixes = platform.getExeSuffixes();
         List<String> exes = new ArrayList<String>();
         for (String exeSuffix : exeSuffixes) {
@@ -280,7 +286,7 @@ public class Bob {
         }
     }
 
-    public static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
+    private static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
         TimeProfiler.startF("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
@@ -331,7 +337,35 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static String getDefaultDmengineExeName(String variant) {
+    private static List<File> downloadExes(Platform platform, String variant, String artifactsURL) throws IOException {
+        init();
+        TimeProfiler.startF("DownloadExes %s for %s", platform, variant);
+        List<File> binaryFiles = new ArrayList<File>();
+        String[] exeSuffixes = platform.getExeSuffixes();
+        List<String> exes = new ArrayList<String>();
+        String downloadFolder = rootFolder + File.pathSeparator + platform.getPair() + File.separator + platform;
+        String defaultDmengineExeName = getDefaultDmengineExeName(variant);
+        for (String exeSuffix : exeSuffixes) {
+            String exeName = platform.getExePrefix() + defaultDmengineExeName + exeSuffix;
+            File f = new File(rootFolder, exeName);
+            try {
+                URL url = new URL(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platform.getPair(), exeName));
+                logger.info("Download: %s", url);
+                File file = new File(downloadFolder, exeName);
+                HttpUtil http = new HttpUtil();
+                http.downloadToFile(url, file);
+                file.deleteOnExit();
+                binaryFiles.add(file);
+            }
+            catch (Exception e) {
+                throw new IOException(String.format("%s could not be found locally or downloaded, create an application manifest to build the engine remotely.", exeName));
+            }
+        }
+        TimeProfiler.stop();
+        return binaryFiles;
+    }
+
+    private static String getDefaultDmengineExeName(String variant) {
         switch (variant)
         {
             case VARIANT_DEBUG:
@@ -345,17 +379,27 @@ public class Bob {
         }
     }
 
-    public static List<String> getDefaultDmenginePaths(Platform platform, String variant) throws IOException {
+    private static List<String> getDefaultDmenginePaths(Platform platform, String variant) throws IOException {
         return getExes(platform, getDefaultDmengineExeName(variant));
     }
 
-    public static List<File> getDefaultDmengineFiles(Platform platform, String variant) throws IOException {
-        List<String> binaryPaths = getDefaultDmenginePaths(platform, variant);
-        List<File> binaryFiles = new ArrayList<File>();
-        for (String path : binaryPaths) {
-            binaryFiles.add(new File(path));
+    public static List<File> getDefaultDmengineFiles(Platform platform, String variant, String artifactsURL) throws IOException {
+        List<File> binaryFiles;
+        try {
+            List<String> binaryPaths = getDefaultDmenginePaths(platform, variant);
+            binaryFiles = new ArrayList<File>();
+            for (String path : binaryPaths) {
+                binaryFiles.add(new File(path));
+            }
+        }
+        catch (RuntimeException e) {
+            binaryFiles = downloadExes(platform, variant, artifactsURL);
         }
         return binaryFiles;
+    }
+
+    public static List<File> getDefaultDmengineFiles(Platform platform, String variant) throws IOException {
+        return getDefaultDmengineFiles(platform, variant, ARTIFACTS_URL);
     }
 
     public static String getLib(Platform platform, String name) throws IOException {
@@ -484,11 +528,13 @@ public class Bob {
 
         addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", true);
 
-        addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance are allowed. The settings files are applied left to right.", false);
+        addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance is allowed. The settings files are applied left to right.", false);
 
         addOption(options, null, "version", false, "Prints the version number to the output", false);
 
-        addOption(options, null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins'. Comma separated list.", false);
+        addOption(options, null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins', 'library'. Comma separated list.", false);
+        addOption(options, null, "ne-build-dir", true, "Specify a folder with includes or source, to build a specific library. More than one occurrance is allowed. ", false);
+        addOption(options, null, "ne-output-name", true, "Specify a library target name", false);
 
         addOption(options, null, "resource-cache-local", true, "Path to local resource cache.", false);
         addOption(options, null, "resource-cache-remote", true, "URL to remote resource cache.", false);
@@ -729,7 +775,9 @@ public class Bob {
         }
 
         boolean verbose = cmd.hasOption('v');
-        LogHelper.setVerboseLogging(verbose);
+
+        LogHelper.setVerboseLogging(verbose);  // It doesn't iterate over all loggers (including the bob logger)
+        LogHelper.configureLogger(logger);     // It was created before the log helper was set to be verbose
 
         String email = getOptionsValue(cmd, 'e', null);
         String auth = getOptionsValue(cmd, 'u', null);
@@ -740,6 +788,13 @@ public class Bob {
                 project.addPropertyFile(filepath);
             }
         }
+
+        if (cmd.hasOption("ne-build-dir")) {
+            for (String filepath : cmd.getOptionValues("ne-build-dir")) {
+                project.addEngineBuildDir(filepath);
+            }
+        }
+
 
         if (cmd.hasOption("build-server-header")) {
             for (String header : cmd.getOptionValues("build-server-header")) {
@@ -872,7 +927,7 @@ public class Bob {
         }
 
         if (project.hasOption("build-artifacts")) {
-            String[] validArtifacts = {"engine", "plugins"};
+            String[] validArtifacts = {"engine", "plugins", "library"};
             validateChoicesList(project, "build-artifacts", validArtifacts);
         }
 
@@ -913,7 +968,7 @@ public class Bob {
                         message = "undefined";
                     }
                 }
-                errors.append(String.format("ERROR %s%s %s\n", taskResult.getTask().getInputs().get(0),
+                errors.append(String.format("ERROR %s%s %s\n", taskResult.getTask().input(0),
                         (taskResult.getLineNumber() != -1) ? String.format(":%d", taskResult.getLineNumber()) : "",
                         message));
                 if (verbose) {

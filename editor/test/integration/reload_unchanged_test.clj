@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,18 +16,18 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.code.resource :as code.resource]
-            [editor.collection :as collection]
             [editor.defold-project :as project]
-            [editor.game-object :as game-object]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime valid-node-value with-clean-system]]))
+            [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime]]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
+(def ^:private project-path "test/resources/reload_unchanged_project")
 
 (defn- folder-file-resource? [resource]
   (and (resource/file-resource? resource)
@@ -64,39 +64,6 @@
   (into (sorted-set)
         (map save-data->proj-path)
         save-datas))
-
-(defmulti ^:private edit-resource-node
-  (fn [node-id]
-    (if (g/node-instance? code.resource/CodeEditorResourceNode node-id)
-      :code
-      (resource/type-ext (resource-node/resource node-id)))))
-
-(defmethod edit-resource-node :code [node-id]
-  (test-util/update-code-editor-lines node-id conj ""))
-
-(defmethod edit-resource-node "atlas" [node-id]
-  (g/set-property node-id :margin 4))
-
-(defmethod edit-resource-node "collection" [node-id]
-  (g/delete-node (test-util/first-subnode-of-type node-id collection/InstanceNode)))
-
-(defmethod edit-resource-node "font" [node-id]
-  (g/set-property node-id :render-mode :mode-multi-layer))
-
-(defmethod edit-resource-node "go" [node-id]
-  (g/delete-node (test-util/first-subnode-of-type node-id game-object/ComponentNode)))
-
-(defmethod edit-resource-node "input_binding" [node-id]
-  (g/update-property node-id :pb assoc-in [:mouse-trigger 0 :input] :mouse-button-2))
-
-(defmethod edit-resource-node "project" [node-id]
-  (test-util/set-setting node-id ["project" "title"] "New Title"))
-
-(defmethod edit-resource-node "shared_editor_settings" [node-id]
-  (test-util/set-setting node-id ["performance" "cache_capacity"] 12345))
-
-(defmethod edit-resource-node "sprite" [node-id]
-  (g/set-property node-id :blend-mode :blend-mode-mult))
 
 (defn- resource-changes [resource-change-plan]
   {:kept (resources->proj-paths (:kept resource-change-plan))
@@ -155,8 +122,8 @@
         observing-resource-listener
         (reify resource/ResourceListener
           (handle-changes [_this changes _render-progress!]
-            (let [old-nodes-by-path (valid-node-value project :nodes-by-resource-path)
-                  old-node->old-disk-sha256 (valid-node-value workspace :disk-sha256s-by-node-id)
+            (let [old-nodes-by-path (g/valid-node-value project :nodes-by-resource-path)
+                  old-node->old-disk-sha256 (g/valid-node-value workspace :disk-sha256s-by-node-id)
                   resource-change-plan (resource-update/resource-change-plan old-nodes-by-path old-node->old-disk-sha256 changes)]
               (swap! resource-change-plans-atom conj resource-change-plan))))
 
@@ -168,7 +135,7 @@
 (defn- perform-edits-to-all-editable-files [project]
   (into []
         (mapcat (fn [[editable-resource-node-id]]
-                  (edit-resource-node editable-resource-node-id)))
+                  (test-util/edit-resource-node editable-resource-node-id)))
         (g/sources-of project :save-data)))
 
 (defn- perform-edits-to-all-editable-files! [project]
@@ -180,10 +147,8 @@
          (save-datas->proj-path-set (project/dirty-save-data project)))))
 
 (deftest keep-existing-nodes-no-false-positives-test
-  (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
-          project (test-util/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
+  (test-util/with-scratch-project project-path
+    (let [project-graph (g/node-id->graph-id project)
           resource-change-plans-atom (make-resource-change-plans-atom! project)
 
           resource+edited-contents
@@ -214,10 +179,8 @@
                  (resource-changes (@resource-change-plans-atom 0)))))))))
 
 (deftest keep-existing-nodes-touch-before-save-test
-  (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
-          project (test-util/setup-project! workspace)
-          resource-change-plans-atom (make-resource-change-plans-atom! project)]
+  (test-util/with-scratch-project project-path
+    (let [resource-change-plans-atom (make-resource-change-plans-atom! project)]
 
       (testing "Only nodes whose file contents have changed on disk are reloaded."
         ;; Touch all the files in the project.
@@ -250,10 +213,8 @@
                    (resource-changes (@resource-change-plans-atom 1))))))))))
 
 (deftest keep-existing-nodes-touch-after-save-test
-  (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
-          project (test-util/setup-project! workspace)
-          resource-change-plans-atom (make-resource-change-plans-atom! project)]
+  (test-util/with-scratch-project project-path
+    (let [resource-change-plans-atom (make-resource-change-plans-atom! project)]
 
       ;; Perform edits on all editable files in the project.
       (perform-edits-to-all-editable-files! project)
@@ -278,10 +239,8 @@
                  (resource-changes (@resource-change-plans-atom 0)))))))))
 
 (deftest keep-existing-nodes-undo-after-save-test
-  (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
-          project (test-util/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
+  (test-util/with-scratch-project project-path
+    (let [project-graph (g/node-id->graph-id project)
           resource-change-plans-atom (make-resource-change-plans-atom! project)]
 
       ;; Perform edits on all editable files in the project.

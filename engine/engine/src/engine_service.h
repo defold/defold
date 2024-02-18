@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -52,6 +52,12 @@ namespace dmEngineService
     dmWebServer::HServer GetWebServer(HEngineService engine_service);
 
     void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist);
+
+    struct ResourceHandlerParams
+    {
+        dmResource::HFactory      m_Factory;
+        dmGameObject::HRegister   m_Regist;
+    };
 }
 
 #endif // DM_ENGINE_SERVICE

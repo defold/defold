@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -44,11 +44,43 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "gl_Position = position; \n" +
             "}\n";
 
+    private final String vpEs3 =
+            "#version 310 es \n" +
+            "in vec4 position; \n" +
+            "out vec4 fragColor; \n" +
+            "uniform NonOpaqueBlock { vec4 color; }; \n" +
+            "void main(){ \n" +
+            "   fragColor   = color;\n" +
+            "   gl_Position = position; \n" +
+            "}\n";
+
     private final String fp =
             "varying vec4 fragColor; \n" +
             "void main(){ \n" +
             "gl_FragColor = fragColor; \n" +
             "}\n";
+
+    private final String fpEs3 =
+            "#version 310 es \n" +
+            "precision mediump float; \n" +
+            "in vec4 fragColor; \n" +
+            "out vec4 FragColorOut; \n" +
+            "void main(){ \n" +
+            "   FragColorOut = fragColor; \n" +
+            "}\n";
+
+    private static boolean hasPlatformSupportsSpirv() {
+        switch(Platform.getHostPlatform())
+        {
+            case Arm64MacOS:
+            case X86_64MacOS:
+            case X86_64Linux:
+            case X86_64Win32:
+                return true;
+            default:break;
+        }
+        return false;
+    }
 
     private void doTest(boolean expectSpirv) throws Exception {
         // Test GL vp
@@ -56,21 +88,13 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         ShaderDesc shader = (ShaderDesc)outputs.get(0);
         assertNotNull(shader.getShaders(0).getSource());
         assertEquals(ShaderDesc.Language.LANGUAGE_GLSL_SM140, shader.getShaders(0).getLanguage());
-        switch(Platform.getHostPlatform())
-        {
-            case Arm64MacOS:
-            case X86_64MacOS:
-            case X86_64Linux:
-            case X86_64Win32:
-            if (expectSpirv)
-            {
-                assertEquals(2, shader.getShadersCount());
-                assertNotNull(shader.getShaders(1).getSource());
-                assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-                break;
-            }
-            default:
-                assertEquals(1, shader.getShadersCount());
+
+        if (expectSpirv && hasPlatformSupportsSpirv()) {
+            assertEquals(2, shader.getShadersCount());
+            assertNotNull(shader.getShaders(1).getSource());
+            assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
+        } else {
+            assertEquals(1, shader.getShadersCount());
         }
 
         // Test GL fp
@@ -79,61 +103,45 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assert(shader.getShaders(0).getLanguage() == ShaderDesc.Language.LANGUAGE_GLSL_SM140);
         assertNotNull(shader.getShaders(0).getSource());
         assertEquals(ShaderDesc.Language.LANGUAGE_GLSL_SM140, shader.getShaders(0).getLanguage());
-        switch(Platform.getHostPlatform())
-        {
-            case Arm64MacOS:
-            case X86_64MacOS:
-            case X86_64Linux:
-            case X86_64Win32:
-            if (expectSpirv)
-            {
-                assertEquals(2, shader.getShadersCount());
-                assertNotNull(shader.getShaders(1).getSource());
-                assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-                break;
-            }
-            default:
-                assertEquals(1, shader.getShadersCount());
+
+        if (expectSpirv && hasPlatformSupportsSpirv()) {
+            assertEquals(2, shader.getShadersCount());
+            assertNotNull(shader.getShaders(1).getSource());
+            assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
+        } else {
+            assertEquals(1, shader.getShadersCount());
         }
 
         // Test GLES vp
-        outputs = build("/test_shader.vp", "#version 310 es\n" + vp);
-        shader = (ShaderDesc)outputs.get(0);
-        switch(Platform.getHostPlatform())
-        {
-            case Arm64MacOS:
-            case X86_64MacOS:
-            case X86_64Linux:
-            case X86_64Win32:
-            if (expectSpirv)
-            {
+        if (expectSpirv) {
+            if (hasPlatformSupportsSpirv()) {
+                // If we have requested Spir-V, we have to test a ready-made ES3 version
+                // Since we will not process the input shader if the #version preprocessor exists
+                outputs = build("/test_shader.vp", vpEs3);
+                shader = (ShaderDesc)outputs.get(0);
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-                break;
             }
-            default:
-                assertEquals(1, shader.getShadersCount());
+        } else {
+            outputs = build("/test_shader.vp", "#version 310 es\n" + vp);
+            shader = (ShaderDesc)outputs.get(0);
+            assertEquals(1, shader.getShadersCount());
         }
 
         // Test GLES fp
-        outputs = build("/test_shader.fp", "#version 310 es\n" + fp);
-        shader = (ShaderDesc)outputs.get(0);
-        switch(Platform.getHostPlatform())
-        {
-            case Arm64MacOS:
-            case X86_64MacOS:
-            case X86_64Linux:
-            case X86_64Win32:
-            if (expectSpirv)
-            {
+        if (expectSpirv) {
+            if (hasPlatformSupportsSpirv()) {
+                outputs = build("/test_shader.fp", fpEs3);
+                shader = (ShaderDesc)outputs.get(0);
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
-                break;
             }
-            default:
-                assertEquals(1, shader.getShadersCount());
+        } else {
+            outputs = build("/test_shader.fp", "#version 310 es\n" + fpEs3);
+            shader = (ShaderDesc)outputs.get(0);
+            assertEquals(1, shader.getShadersCount());
         }
     }
 
@@ -342,12 +350,118 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "#ifndef MY_DEFINE\n" +
             "#define MY_DEFINE\n" +
             "\n" +
-            "layout(set=1) uniform _DMENGINE_GENERATED_UB_0 { vec4 my_uniform  ; };\n" +
+            "layout(set=1) uniform _DMENGINE_GENERATED_UB_FS_0 { vec4 my_uniform  ; };\n" +
             "#endif\n" +
             "void main(){\n" +
             "   _DMENGINE_GENERATED_gl_FragColor_0 = my_uniform + my_varying;\n" +
             "}\n";
 
         testOutput(expected, res.output);
+    }
+
+    static ShaderDesc.Shader getShaderByLanguage(ShaderDesc shaderDesc, ShaderDesc.Language language) {
+        for (ShaderDesc.Shader shader : shaderDesc.getShadersList()) {
+            if (shader.getLanguage() == language) {
+                return shader;
+            }
+        }
+        return null;
+    }
+
+    @Test
+    public void testUniformBuffers() throws Exception {
+        String vp =
+            "attribute vec4 position; \n" +
+            "varying vec4 fragColor; \n" +
+
+            "uniform uniform_buffer {\n" +
+            "   vec4 color_one;\n" +
+            "   vec4 color_two;\n" +
+            "} ubo;\n" +
+            "uniform vec4 color; \n" +
+            "void main(){ \n" +
+            "   fragColor = ubo.color_one + ubo.color_two;\n" +
+            "   gl_Position = position; \n" +
+            "}\n";
+
+        GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
+
+        List<Message> outputs = build("/test_shader.vp", vp);
+        ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+
+        assert(shaderDesc.getShadersCount() > 0);
+
+        ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
+        assertNotNull(shader);
+
+        ShaderDesc.ResourceBlock ubo = shader.getResources(0);
+        assertTrue(ubo.getName().equals("uniform_buffer"));
+
+        ShaderDesc.ResourceBinding binding_one = ubo.getBindings(0);
+        assertTrue(binding_one.getName().equals("color_one"));
+
+        ShaderDesc.ResourceBinding binding_two = ubo.getBindings(1);
+        assertTrue(binding_two.getName().equals("color_two"));
+    }
+
+    @Test
+    public void testCompute() throws Exception {
+        String source_no_version =
+            "layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;\n" +
+            "void main() {}";
+
+        String expected =
+            "#version 430\n" +
+            source_no_version +
+            "\n";
+
+        GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
+
+        List<Message> outputs = build("/test_compute.cp", source_no_version);
+        ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+
+        assert(shaderDesc.getShadersCount() > 0);
+        assertNotNull(getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV));
+        assertEquals(ShaderDesc.ShaderClass.SHADER_CLASS_COMPUTE, shaderDesc.getShaderClass());
+
+        // Compute not supported for OSX on GL contexts
+        if (Platform.getHostPlatform() == Platform.X86_64Win32 || Platform.getHostPlatform() == Platform.X86_64Win32) {
+            ShaderDesc.Shader glslShader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            assertNotNull(glslShader);
+            testOutput(expected, glslShader.getSource().toStringUtf8());
+        }
+    }
+
+    @Test
+    public void testStripComments() throws Exception {
+        String shader_base =
+            "#version 430 //Comment0\n" +
+            "#ifndef MY_DEFINE //Comment1\n" +
+            "//Comment2\n" +
+            "#define MY_DEFINE//Comment3\n" +
+            "   uniform vec4 my_uniform;\n" +
+            "#endif\n" +
+            "/*\n" +
+            "Comment block\n" +
+            "*/\n" +
+            "void main(){\n" +
+            "   gl_FragColor = vec4(1.0); //Comment3\n" +
+            "}\n";
+
+        String expected_base =
+            "#version 430 \n" +
+            "#ifndef MY_DEFINE \n" +
+            "\n" +
+            "#define MY_DEFINE\n" +
+            "   uniform vec4 my_uniform;\n" +
+            "#endif\n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "void main(){\n" +
+            "   gl_FragColor = vec4(1.0); \n" +
+            "}\n";
+        String result = ShaderUtil.Common.stripComments(shader_base);
+        testOutput(expected_base, result);
     }
 }

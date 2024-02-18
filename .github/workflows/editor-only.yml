@@ -28,10 +28,10 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
-      { name: 'Install dependencies', run: sudo apt-get install -y libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
+      { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
         run: 'ci/ci.sh build-editor'
@@ -49,7 +49,7 @@ jobs:
         platform: [x86_64-macos, arm64-macos]
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
         name: 'Download editor',
@@ -74,13 +74,13 @@ jobs:
 
   sign-editor-windows:
     needs: [build-editor]
-    runs-on: linux-latest
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
         platform: [x86_64-win32]
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
         name: 'Download editor',
@@ -116,7 +116,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
         name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)

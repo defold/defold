@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -71,6 +71,7 @@ import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 
 import com.dynamo.bob.util.StringUtil;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.render.proto.Font.FontDesc;
@@ -160,15 +161,24 @@ public class Fontc {
     public static long FontDescToHash(FontDesc fontDesc) {
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
 
-        fontDescbuilder.mergeFrom(fontDesc)
-                       .setMaterial("")
-                       .clearOutlineAlpha()
-                       .clearShadowAlpha()
-                       .clearShadowX()
-                       .clearShadowY()
-                       .clearAlpha();
+        fontDescbuilder.mergeFrom(fontDesc);
+        FontDesc desc = fontDescbuilder.build();
 
-        return fontDescbuilder.build().hashCode();
+        // the list of parameters which affect the glyph_bank
+        String result = ""
+            + desc.getFont()
+            + desc.getSize()
+            + desc.getAntialias()
+            + desc.getOutlineWidth()
+            + desc.getShadowBlur()
+            + desc.getExtraCharacters()
+            + desc.getOutputFormat()
+            + desc.getAllChars()
+            + desc.getCacheWidth()
+            + desc.getCacheHeight()
+            + desc.getRenderMode();
+
+        return MurmurHash.hash64(result);
     }
 
     // These values are the same as font_renderer.cpp
@@ -1014,7 +1024,7 @@ public class Fontc {
         try {
             System.setProperty("java.awt.headless", "true");
             if (args.length != 2 && args.length != 3 && args.length != 4)    {
-                System.err.println("Usage: fontc fontfile [basedir] outfile [project-root]");
+                System.err.println("Usage: fontc fontfile [basedir] outfile");
                 System.exit(1);
             }
 

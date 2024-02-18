@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -545,11 +545,6 @@
 (g/defnk produce-font-map [_node-id font type font-resource-map pb-msg]
   (make-font-map _node-id font type pb-msg (make-font-resource-resolver font font-resource-map)))
 
-(defn- font-desc->layer-mask [font-desc]
-  (if (= (:output-format font-desc) :type-distance-field)
-    (fontc/calculate-ttf-layer-mask font-desc)
-    0x1))
-
 (defn- build-glyph-bank [resource _dep-resources user-data]
   (let [{:keys [font-map]} user-data]
     (g/precluding-errors
@@ -588,7 +583,7 @@
                                                                         :alpha (:alpha pb-msg)
                                                                         :outline-alpha (:outline-alpha pb-msg)
                                                                         :shadow-alpha (:shadow-alpha pb-msg)
-                                                                        :layer-mask (font-desc->layer-mask pb-msg)}
+                                                                        :layer-mask (fontc/font-desc->layer-mask pb-msg)}
                                                                        nil)]
         [(assoc protobuf-build-target :node-id _node-id)])))
 

@@ -36,25 +36,26 @@ RUN \
     tofrodos \
     cmake \
     wget \
+    curl \
     zip \
     unzip \
     tree \
     silversearcher-ag \
     git
 
-ENV CLANG_VERSION 13.0.1
+#
+# llvm
+#
+ENV CLANG_VERSION=17
 RUN \
-  apt-get update && apt-get install -y \
-    xz-utils \
-    curl \
-    libtinfo5 \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -SL https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_VERSION}/clang+llvm-${CLANG_VERSION}-x86_64-linux-gnu-ubuntu-18.04.tar.xz \
-    | tar -xJC . && \
-    mv clang+llvm-${CLANG_VERSION}-x86_64-linux-gnu-ubuntu-18.04 clang_${CLANG_VERSION}
+  echo "LLVM + CLANG ${CLANG_VERSION}" && \
+  wget https://apt.llvm.org/llvm.sh && \
+  chmod +x llvm.sh && \
+  ./llvm.sh ${CLANG_VERSION} && \
+  rm llvm.sh
 
-ENV PATH=/clang_${CLANG_VERSION}/bin:$PATH
-ENV LD_LIBRARY_PATH=/clang_${CLANG_VERSION}/lib:$LD_LIBRARY_PATH
+ENV PATH=/usr/lib/llvm-${CLANG_VERSION}/bin:$PATH
+ENV LD_LIBRARY_PATH=/usr/lib/llvm-${CLANG_VERSION}/lib:$LD_LIBRARY_PATH
 
 ENV PYENV_ROOT /.pyenv
 ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH

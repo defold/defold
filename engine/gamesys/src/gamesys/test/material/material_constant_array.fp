@@ -2,5 +2,5 @@ uniform lowp vec4 tint[2];
 
 void main()
 {
-    gl_FragColor = tint[0];
+    gl_FragColor = tint[1];
 }

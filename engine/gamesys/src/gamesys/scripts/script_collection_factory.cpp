@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -465,7 +465,7 @@ namespace dmGameSystem
 
             // check that the path is a .collectionc
             const char* ext = dmResource::GetExtFromPath(path);
-            if (strcmp(ext, ".collectionc") != 0)
+            if (!ext || strcmp(ext, ".collectionc") != 0)
             {
                 return luaL_error(L, "Trying to set '%s' as prototype to '%s:%s#%s'. Only .collectionc resources are allowed",
                                         path,
