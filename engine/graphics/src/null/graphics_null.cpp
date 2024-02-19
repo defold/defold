@@ -1353,6 +1353,8 @@ namespace dmGraphics
             {
                 delete [] (char*)tex->m_Data;
             }
+
+            delete [] tex->m_LastBoundUnit;
             delete tex;
         }
         return 0;

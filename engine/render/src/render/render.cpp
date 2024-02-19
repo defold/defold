@@ -684,10 +684,14 @@ namespace dmRender
         uint32_t num_bindings = render_context->m_TextureBindTable.Size();
         for (int i = 0; i < num_bindings; ++i)
         {
-            // The sampler is already bound to this texture, we shouldn't bind it twice
-            if (render_context->m_TextureBindTable[i].m_Samplerhash == sampler_hash &&
-                render_context->m_TextureBindTable[i].m_Texture == texture)
+            // The sampler is already bound to this texture, reuse or unbind the current binding
+            if (render_context->m_TextureBindTable[i].m_Samplerhash == sampler_hash)
             {
+                if (texture == 0)
+                {
+                    render_context->m_TextureBindTable[i].m_Samplerhash = 0;
+                }
+                render_context->m_TextureBindTable[i].m_Texture = texture;
                 return;
             }
             // Take an empty slot if we can find one
@@ -732,6 +736,7 @@ namespace dmRender
     static void SetRenderContextTextures(HRenderContext render_context, HMaterial material, dmGraphics::HTexture* textures)
     {
         uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+        uint32_t last_zero_index = -1;
         for (uint32_t i = 0; i < num_bindings; ++i)
         {
             if (render_context->m_TextureBindTable[i].m_Samplerhash)
@@ -763,6 +768,25 @@ namespace dmRender
                         i, RenderObject::MAX_TEXTURE_COUNT);
                 }
             }
+
+            if (render_context->m_TextureBindTable[i].m_Texture == 0)
+            {
+                if (last_zero_index == -1)
+                {
+                    last_zero_index = i;
+                }
+            }
+            else
+            {
+                last_zero_index = -1;
+            }
+        }
+
+        // Trim the iteration space
+        if (last_zero_index != -1)
+        {
+            dmLogInfo("Trimming %d -> %d", render_context->m_TextureBindTable.Size(), last_zero_index);
+            render_context->m_TextureBindTable.SetSize(last_zero_index);
         }
     }
 

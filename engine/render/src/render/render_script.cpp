@@ -1439,15 +1439,25 @@ namespace dmRender
         return 0;
     }
 
-    /*# enables a texture for a render target
+    /*# sets a texture to the render state
      *
-     * Sets the specified render target's specified buffer to be
-     * used as texture with the specified unit.
-     * A material shader can then use the texture to sample from.
+     * Sets the specified texture handle for a render target attachment or a regular texture
+     * that should be used for rendering. The texture can be bound to either a texture unit
+     * or to a sampler name by a hash or a string.
+     * A texture can be bound to multiple units and sampler names at the same time,
+     * the actual binding will be applied to the shaders when a shader program is bound.
+     *
+     * When mixing binding using both units and sampler names, you might end up in situations
+     * where two different textures will be applied to the same bind location in the shader.
+     * In this case, the texture set to the named sampler will take precedence over the unit.
+     * 
+     * Note that you can bind multiple sampler names to the same texture, in case you want to reuse
+     * the same texture for differnt use-cases. It is however recommended that you use the same name
+     * everywhere for the textures that should be shared across different materials.
      *
      * @name render.enable_texture
-     * @param unit [type:number] texture unit to enable texture for
-     * @param render_target [type:handle] render target or texture from which to enable the specified texture unit
+     * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash for the sampler name that the texture should be bound to
+     * @param handle [type:texture] render target or texture handle that should be bound
      * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `render.BUFFER_COLOR_BIT`. These values are supported:
      *
      * - `render.BUFFER_COLOR_BIT`
@@ -1482,6 +1492,15 @@ namespace dmRender
      *     -- draw a predicate with the render target available as texture 0 in the predicate
      *     -- material shader.
      *     render.draw(self.my_pred)
+     * end
+     * ```
+     *
+     * ```lua
+     * function update(self, dt)
+     *     -- bind a texture to the texture unit 0
+     *     render.enable_texture(0, self.my_texture_handle)
+     *     -- bind the same texture to a named sampler
+     *     render.enable_texture("my_texture_sampler", self.my_texture_handle)
      * end
      * ```
      */
@@ -1556,12 +1575,12 @@ namespace dmRender
         }
     }
 
-    /*# disables a texture for a render target
+    /*# disables a texture on the render state
      *
-     * Disables a texture unit for a render target that has previourly been enabled.
+     * Disables a texture that has previourly been enabled.
      *
      * @name render.disable_texture
-     * @param unit [type:number] texture unit to disable
+     * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash that should be disabled
      * @examples
      *
      * ```lua

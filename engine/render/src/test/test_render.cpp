@@ -622,6 +622,31 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     ASSERT_EQ(m_Context->m_TextureBindTable[4].m_Texture, test_texture_0);
     ASSERT_EQ(6, tex0_ptr->m_LastBoundUnit[0]);
 
+    // Unbind everything
+    for (int i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        SetTextureBindingByUnit(m_Context, i, 0);
+    }
+
+    // Drawing should trim the texture bind table based on where the last valid texture was found
+    // which will set the table to zero in this case
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    ASSERT_EQ(0, m_Context->m_TextureBindTable.Size());
+
+    // table is [t0, 0, 0, t0];
+    SetTextureBindingByUnit(m_Context, 0, test_texture_0);
+    SetTextureBindingByUnit(m_Context, 3, test_texture_0);
+    ASSERT_EQ(4, m_Context->m_TextureBindTable.Size());
+    ASSERT_EQ(test_texture_0, m_Context->m_TextureBindTable[0].m_Texture);
+    ASSERT_EQ(test_texture_0, m_Context->m_TextureBindTable[3].m_Texture);
+    // Unbind [t0, 0, 0, 0]
+    SetTextureBindingByUnit(m_Context, 3, 0);
+
+    // Draw should trim the array to [t0]
+    dmRender::DrawRenderList(m_Context, 0, 0, 0);
+    ASSERT_EQ(1, m_Context->m_TextureBindTable.Size());
+    ASSERT_EQ(test_texture_0, m_Context->m_TextureBindTable[0].m_Texture);
+
     dmGraphics::DeleteTexture(test_texture_0);
     dmGraphics::DeleteTexture(test_texture_1);
     dmGraphics::DeleteTexture(test_texture_array);
@@ -702,6 +727,14 @@ TEST_F(dmRenderTest, TestEnableDisableContextTextures)
     SetTextureBindingByHash(m_Context, sampler_1, 999); // -> reuse slot 1
     ASSERT_EQ(999,       m_Context->m_TextureBindTable[1].m_Texture);
     ASSERT_EQ(sampler_1, m_Context->m_TextureBindTable[1].m_Samplerhash);
+
+    SetTextureBindingByHash(m_Context, sampler_1, 9000); // -> reuse hash sampler_1
+    ASSERT_EQ(9000,      m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ(sampler_1, m_Context->m_TextureBindTable[1].m_Samplerhash);
+
+    SetTextureBindingByHash(m_Context, sampler_1, 0); // -> unbind sampler_1
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ(0, m_Context->m_TextureBindTable[1].m_Samplerhash);
 
     dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);
