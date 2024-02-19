@@ -26,9 +26,9 @@
   (:import [com.dynamo.render.proto Render$RenderPrototypeDesc Render$RenderPrototypeDesc$RenderResourceDesc]))
 
 (g/defnode NamedRenderResource
-  (property name g/Str
+  (property name g/Str ; Required protobuf field.
             (dynamic visible (g/constantly false)))
-  (property render-resource resource/Resource
+  (property render-resource resource/Resource ; Required protobuf field.
             (value (gu/passthrough resource))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
@@ -100,12 +100,13 @@
                       [:named-render-resources] named-render-resources})))
 
 (g/defnk produce-save-value [script-resource named-render-resources]
-  {:script (resource/resource->proj-path script-resource)
-   :render-resources (mapv (fn [{:keys [name path]}]
-                             (protobuf/make-map-with-defaults Render$RenderPrototypeDesc$RenderResourceDesc
-                               :name name
-                               :path (resource/resource->proj-path path)))
-                           named-render-resources)})
+  (protobuf/make-map-without-defaults Render$RenderPrototypeDesc
+    :script (resource/resource->proj-path script-resource)
+    :render-resources (mapv (fn [{:keys [name path]}]
+                              (protobuf/make-map-without-defaults Render$RenderPrototypeDesc$RenderResourceDesc
+                                :name name
+                                :path (resource/resource->proj-path path)))
+                            named-render-resources)))
 
 (defn- build-render [resource dep-resources user-data]
   (let [{:keys [pb-msg built-resources]} user-data
@@ -148,7 +149,7 @@
   (inherits core/Scope)
   (inherits resource-node/ResourceNode)
 
-  (property script resource/Resource
+  (property script resource/Resource ; Required protobuf field.
             (dynamic visible (g/constantly false))
             (value (gu/passthrough script-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -187,6 +188,7 @@
     :ext "render"
     :node-type RenderNode
     :ddf-type Render$RenderPrototypeDesc
+    :read-defaults false
     :load-fn load-render
     :sanitize-fn sanitize-render
     :icon "icons/32/Icons_30-Render.png"
