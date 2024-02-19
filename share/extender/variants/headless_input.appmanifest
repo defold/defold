@@ -11,6 +11,13 @@ platforms:
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
             libs: ["record_null","sound_null","graphics_null","hid_null","platform_null"]
 
+    arm64-osx:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid","platform"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
+            symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
+            libs: ["record_null","sound_null","graphics_null","hid_null","platform_null"]
+
     x86_64-linux:
         context:
             excludeLibs: ["record","vpx","sound","tremolo","graphics","hid","platform"]

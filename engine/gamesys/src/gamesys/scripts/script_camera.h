@@ -12,25 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef H_GRAPHICS_OPENGL_JOBQUEUE
-#define H_GRAPHICS_OPENGL_JOBQUEUE
+#ifndef DM_SCRIPT_CAMERA_H
+#define DM_SCRIPT_CAMERA_H
 
-
-namespace dmGraphics
+namespace dmGameSystem
 {
-    struct JobDesc
-    {
-        void* m_Context;
-        void (*m_Func)(void* context);
-        void (*m_FuncComplete)(void* context);
-    };
+    struct ScriptLibContext;
+    void ScriptCameraRegister(const ScriptLibContext& context);
+}
 
-    void JobQueueInitialize();
-    void JobQueueFinalize();
-    bool JobQueueIsAsync();
-
-    void JobQueuePush(const JobDesc& request);
-};
-
-#endif // H_GRAPHICS_OPENGL_JOBQUEUE
-
+#endif // DM_SCRIPT_CAMERA_H

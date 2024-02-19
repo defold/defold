@@ -45,6 +45,7 @@ import com.dynamo.bob.font.BMFont.ChannelData;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.font.Fontc.FontResourceResolver;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.GlyphBank;
@@ -59,7 +60,7 @@ public class FontTest {
 
         InputStream inputStream = getClass().getResourceAsStream(resName);
         File outputFile = new File(outputPath);
-        outputFile.deleteOnExit();
+        FileUtil.deleteOnExit(outputFile);
         OutputStream outputStream = new FileOutputStream(outputFile);
         IOUtils.copy(inputStream, outputStream);
         inputStream.close();
@@ -212,7 +213,7 @@ public class FontTest {
 
         // temp output file
         File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
-        outfile.deleteOnExit();
+        FileUtil.deleteOnExit(outfile);
 
         // compile font
         Fontc fontc = new Fontc();
@@ -259,7 +260,7 @@ public class FontTest {
 
         // temp output file
         File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
-        outfile.deleteOnExit();
+        FileUtil.deleteOnExit(outfile);
 
         // compile font
         Fontc fontc = new Fontc();
@@ -302,7 +303,7 @@ public class FontTest {
 
         // temp output file
         File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
-        outfile.deleteOnExit();
+        FileUtil.deleteOnExit(outfile);
 
         // compile font
         Fontc fontc = new Fontc();
@@ -386,7 +387,7 @@ public class FontTest {
                 .build();
 
         File outfile = File.createTempFile("font-output", ".fontc");
-        outfile.deleteOnExit();
+        FileUtil.deleteOnExit(outfile);
 
         // compile font
         boolean success = true;
@@ -422,7 +423,7 @@ public class FontTest {
 
         // copy fnt and texture file
         final Path tmpDir = Files.createTempDirectory("fnt-tmp");
-        tmpDir.toFile().deleteOnExit();
+        FileUtil.deleteOnExit(tmpDir.toFile());
         String tmpFnt = copyResourceToDir(tmpDir.toString(), "bmfont.fnt");
         copyResourceToDir(tmpDir.toString(), "bmfont.png");
 
@@ -435,7 +436,7 @@ public class FontTest {
 
         // temp output file
         File outfile = File.createTempFile("font-output", ".fontc");
-        outfile.deleteOnExit();
+        FileUtil.deleteOnExit(outfile);
 
         // compile font
         Fontc fontc = new Fontc();
@@ -478,7 +479,7 @@ public class FontTest {
 
         // temp output file
         File outfile = File.createTempFile("font-output", ".fontc");
-        outfile.deleteOnExit();
+        FileUtil.deleteOnExit(outfile);
 
         // compile font
         Fontc fontc = new Fontc();

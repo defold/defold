@@ -362,20 +362,45 @@ namespace dmPlatform
         return -1;
     }
 
+    #ifndef __EMSCRIPTEN__
+        #define GLFW_AUX_CONTEXT_SUPPORTED
+    #endif
+    static inline int32_t QueryAuxContextImpl()
+    {
+    #if defined(GLFW_AUX_CONTEXT_SUPPORTED)
+        return glfwQueryAuxContext();
+    #else
+        return 0;
+    #endif
+    }
+
+    void* AcquireAuxContext(HWindow window)
+    {
+    #if defined(GLFW_AUX_CONTEXT_SUPPORTED)
+        return glfwAcquireAuxContext();
+    #else
+        return 0;
+    #endif
+    }
+
+    void UnacquireAuxContext(HWindow window, void* aux_context)
+    {
+    #if defined(GLFW_AUX_CONTEXT_SUPPORTED)
+        glfwUnacquireAuxContext(aux_context);
+    #endif
+    }
+
+    #undef GLFW_AUX_CONTEXT_SUPPORTED
+
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
-        // JG: Not sure this is needed, or if it's already supported via the glfwGetWindowParam fn
-        if (state == WINDOW_STATE_REFRESH_RATE)
+        switch(state)
         {
-            return glfwGetWindowRefreshRate();
-        }
-        else if (state == WINDOW_STATE_SAMPLE_COUNT)
-        {
-            return window->m_Samples;
-        }
-        else if (state == WINDOW_STATE_HIGH_DPI)
-        {
-            return window->m_HighDPI;
+            case WINDOW_STATE_REFRESH_RATE: return glfwGetWindowRefreshRate();
+            case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
+            case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
+            case WINDOW_STATE_AUX_CONTEXT:  return QueryAuxContextImpl();
+            default:break;
         }
 
         return window->m_WindowOpened ? glfwGetWindowParam(WindowStateToGLFW(state)) : 0;

@@ -184,7 +184,7 @@
    "font"        "font"
    "material"    "material"
    "buffer"      "buffer"
-   "texture"     (conj image/exts "cubemap")
+   "texture"     (conj image/exts "cubemap" "render_target")
    "tile_source" "tilesource"})
 
 (def ^:private valid-resource-kind? (partial contains? resource-kind->ext))

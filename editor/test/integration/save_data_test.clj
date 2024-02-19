@@ -485,9 +485,17 @@
    {:default
     {"texture" :unimplemented}} ; Default texture resources not supported yet.
 
+   'dmRenderDDF.RenderPrototypeDesc
+   {:default
+    {"materials" :deprecated}}
+
+   'dmRenderDDF.RenderTargetDesc.DepthStencilAttachment
+   {:default
+    {"format" :unimplemented}} ; Non-default depth/stencil format not supported yet.
+
    'dmRigDDF.AnimationSetDesc
    {:default
-    {"skeleton" :deprecated}}}) ; This was a legacy setting used back when we addressed bones by index instead of name. It is no longer needed.
+    {"skeleton" :deprecated}}}) ; Non-default depth/stencil format not supported yet.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))
@@ -655,6 +663,12 @@
                  :wrap-u :wrap-mode-clamp-to-edge
                  :wrap-v :wrap-mode-clamp-to-edge}]
                (g/node-value legacy-textures-material :samplers)))))
+
+    (testing "render"
+      (let [legacy-render-prototype (project/get-resource-node project "/silently_migrated/legacy_render_prototype.render")]
+        (is (= [{:name "test"
+                 :path "/builtins/materials/sprite.material"}]
+               (:render-resources (g/node-value legacy-render-prototype :save-value))))))
 
     (testing "model"
       (let [legacy-material-and-textures-model (project/get-resource-node project "/silently_migrated/legacy_material_and_textures.model")

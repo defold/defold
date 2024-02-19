@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -992,7 +992,7 @@ namespace dmGameSystem
                 memset(uvs.Begin(), 0, sizeof(float)*uvs.Size());
                 continue;
             }
-                
+
             const float* tex_coords     = (const float*) texture_set_ddf->m_TexCoords.m_Data;
             const float* tc             = &tex_coords[frame_index * 4 * 2];
             uint32_t flip_flag          = 0;
@@ -1025,10 +1025,14 @@ namespace dmGameSystem
         return !data->m_UsesGeometries || data->m_Geometries[0]->m_TrimMode == dmGameSystemDDF::SPRITE_TRIM_MODE_OFF;
     }
 
-    static void ResolveUVDataFromGeometry(TexturesData* data, dmArray<float>* scratch_uvs, uint16_t flip_horizontal, uint16_t flip_vertical)
+    static void ResolvePositionAndUVDataFromGeometry(TexturesData* data, dmArray<float>* scratch_pos, dmArray<float>* scratch_uvs,
+                                                            float scale_x, float scale_y, int reverse)
     {
         uint32_t num_vertices = data->m_Geometries[0]->m_Vertices.m_Count / 2;
-        float* vertices = data->m_Geometries[0]->m_Vertices.m_Data;
+        float* orig_vertices = data->m_Geometries[0]->m_Vertices.m_Data;
+        int step = reverse ? -2 : 2;
+
+        EnsureSize(*scratch_pos, num_vertices * 2);
 
         for (uint32_t i = 0; i < data->m_NumTextures; ++i)
         {
@@ -1053,23 +1057,40 @@ namespace dmGameSystem
             uint32_t center_x = geometry->m_CenterX;
             uint32_t center_y = geometry->m_CenterY;
 
+            const float* vertices = reverse ? orig_vertices + num_vertices*2 - 2 : orig_vertices;
 
-            for (uint32_t j = 0; j < num_vertices; ++j)
+            for (uint32_t j = 0; j < num_vertices; ++j, vertices += step)
             {
-                float px = vertices[j*2+0];
-                float py = vertices[j*2+1];
-                if (rotated) // rotate back -90 degrees (CW)
+                // local coordinates in range [-0.5, 0.5]
+                // No need to rotate these, instead we transform these vertices into correct uv space for each image
+                float px = vertices[0];
+                float py = vertices[1];
+
+                // local coordinates in range ([-image_width, image_width], [-image_height, image_height])
+                float ix = px;
+                float iy = py;
+
+                // A rotated image is stored with a 90 deg CW rotation
+                // so we need to convert the vertices into the uv space of that image
+                if (rotated) // rotate 90 degrees CW
                 {
-                    float t = py;
-                    py = -px;
-                    px = t;
+                    float t = iy;
+                    iy = -ix;
+                    ix = t;
                 }
 
-                float u = (center_x + px * image_width) / width;
-                float v = (center_y + -py * image_height) / height;
+                float u = (center_x + ix * image_width) / width;
+                float v = (center_y + -iy * image_height) / height;
 
                 uvs[j*2+0] = u;
                 uvs[j*2+1] = 1.0f - v;
+
+                // We grab the geometry as positions from the first texture
+                if (i == 0)
+                {
+                    (*scratch_pos)[j*2+0] = px * scale_x;
+                    (*scratch_pos)[j*2+1] = py * scale_y;
+                }
             }
         }
     }
@@ -1092,6 +1113,7 @@ namespace dmGameSystem
 
         // We currently assume the vertex format uses 2-tuple UVs
         dmArray<float> scratch_uvs[MAX_TEXTURE_COUNT];
+        dmArray<float> scratch_pos;
 
         TexturesData textures = {};
         textures.m_NumTextures = GetNumTextures(first);
@@ -1135,32 +1157,28 @@ namespace dmGameSystem
 
             if (!CanUseQuads(&textures))
             {
-                ResolveUVDataFromGeometry(&textures, scratch_uvs, component->m_FlipHorizontal, component->m_FlipVertical);
-
-                // Depending on the sprite is flipped or not, we loop the vertices forward or backward
-                // to respect face winding (and backface culling)
                 const dmGameSystemDDF::TextureSetAnimation* animation_ddf = textures.m_Animations[0];
+
                 int flipx = animation_ddf->m_FlipHorizontal ^ component->m_FlipHorizontal;
                 int flipy = animation_ddf->m_FlipVertical ^ component->m_FlipVertical;
-                int reverse = flipx ^ flipy;
-
-                const Matrix4& w = component->m_World;
-                const dmGameSystemDDF::SpriteGeometry* geometry = textures.m_Geometries[0];
-                uint32_t num_points = geometry->m_Vertices.m_Count / 2;
-                const float* points = geometry->m_Vertices.m_Data;
-                const float* uvs    = geometry->m_Uvs.m_Data;
-
                 float scaleX = flipx ? -1 : 1;
                 float scaleY = flipy ? -1 : 1;
 
-                int step = reverse ? -2 : 2;
-                points = reverse ? points + num_points*2 - 2 : points;
-                uvs = reverse ? uvs + num_points*2 - 2 : uvs;
+                // Depending on the sprite is flipped or not, we loop the vertices forward or backward
+                // to respect face winding (and backface culling)
+                int reverse = flipx ^ flipy;
 
-                for (uint32_t vert = 0; vert < num_points; ++vert, points += step, uvs += step)
+                ResolvePositionAndUVDataFromGeometry(&textures, &scratch_pos, scratch_uvs, scaleX, scaleY, reverse);
+
+                const Matrix4& w = component->m_World;
+                const dmGameSystemDDF::SpriteGeometry* geometry = textures.m_Geometries[0];
+
+                uint32_t num_points = scratch_pos.Size() / 2;
+                for (uint32_t vert = 0; vert < num_points; ++vert)
                 {
-                    float x  = points[0] * scaleX; // range -0.5,+0.5
-                    float y  = points[1] * scaleY;
+                    float x = scratch_pos[vert*2+0];
+                    float y = scratch_pos[vert*2+1];
+
                     Point3 p = Point3(x, y, 0.0f);
                     Point3 p_local;
 
@@ -1338,6 +1356,10 @@ namespace dmGameSystem
         if (dmRender::GetBufferIndex(render_context, sprite_world->m_VertexBuffer) < sprite_world->m_DispatchCount)
         {
             dmRender::AddRenderBuffer(render_context, sprite_world->m_VertexBuffer);
+        }
+        if (dmRender::GetBufferIndex(render_context, sprite_world->m_IndexBuffer) < sprite_world->m_DispatchCount)
+        {
+            dmRender::AddRenderBuffer(render_context, sprite_world->m_IndexBuffer);
         }
 
         ro.Init();
@@ -2182,5 +2204,13 @@ namespace dmGameSystem
         pit->m_Node = node;
         pit->m_Next = 0;
         pit->m_FnIterateNext = CompSpriteIterPropertiesGetNext;
+    }
+
+    // For tests
+    void GetSpriteWorldRenderBuffers(void* sprite_world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer)
+    {
+        SpriteWorld* world = (SpriteWorld*) sprite_world;
+        *vx_buffer = world->m_VertexBuffer;
+        *ix_buffer = world->m_IndexBuffer;
     }
 }

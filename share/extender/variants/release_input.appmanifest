@@ -9,6 +9,11 @@ platforms:
             excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext", "record", "vpx"]
             libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null"]
 
+    arm64-osx:
+        context:
+            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext", "record", "vpx"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null", "record_null"]
+
     x86_64-linux:
         context:
             excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext", "record", "vpx"]
@@ -16,7 +21,7 @@ platforms:
 
     js-web:
         context:
-            excludeLibs: ["engine", "profile", "remotery", ]
+            excludeLibs: ["engine", "engine_service", "profile", "remotery", "profilerext"]
             libs: ["engine_release", "engine_service_null", "profile_null", "remotery_null", "profilerext_null"]
 
     wasm-web:

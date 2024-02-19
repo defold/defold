@@ -22,12 +22,6 @@ namespace dmGraphics
     static const uint8_t  SUBPASS_EXTERNAL 		    = -1;
     static const uint8_t  SUBPASS_ATTACHMENT_UNUSED = -1;
 
-    enum VertexStepFunction
-    {
-        VERTEX_STEP_VERTEX,
-        VERTEX_STEP_INSTANCE,
-    };
-
     enum BarrierStageFlags
     {
         STAGE_FLAG_QUEUE_BEGIN                = 1,

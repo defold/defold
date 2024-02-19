@@ -213,7 +213,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
 
     dmRender::HMaterial material = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
-    dmRender::AddRenderScriptInstanceMaterial(render_script_instance, "test_material", material);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_material", (uint64_t) material, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
@@ -226,7 +226,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
     command = &commands[1];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_MATERIAL, command->m_Type);
 
-    dmRender::ClearRenderScriptInstanceMaterials(render_script_instance);
+    dmRender::ClearRenderScriptInstanceRenderResources(render_script_instance);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());

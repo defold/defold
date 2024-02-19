@@ -451,7 +451,7 @@
                 "design" ["atlas" "collection" "collisionobject" "cubemap" "dae"
                           "font" "go" "gui" "label" "model" "particlefx"
                           "spinemodel" "spinescene" "sprite" "tilemap"
-                          "tilesource"]
+                          "tilesource" "render_target"]
                 "property" ["animationset" "camera" "collectionfactory"
                             "collectionproxy" "display_profiles" "factory"
                             "gamepads" "input_binding" "material" "project"

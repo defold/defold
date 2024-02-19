@@ -42,6 +42,7 @@ namespace dmGameSystem
     EXT_CONSTANTS(TEXTURE, "texturec")
     EXT_CONSTANTS(TEXTURE_SET, "texturesetc")
     EXT_CONSTANTS(TILE_MAP, "tilemapc")
+    EXT_CONSTANTS(RENDER_TARGET, "render_targetc")
 
 #undef EXT_CONSTANTS
 
@@ -92,6 +93,8 @@ namespace dmGameSystem
      * @param format printf-style format string
      */
     void LogMessageError(dmMessage::Message* message, const char* format, ...);
+
+    dmRender::RenderResourceType ResourcePathToRenderResourceType(const char* path);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

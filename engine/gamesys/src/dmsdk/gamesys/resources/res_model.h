@@ -39,6 +39,7 @@ namespace dmGameSystem
     struct MaterialResource;
     struct RigSceneResource;
     struct TextureResource;
+    struct RenderTargetResource;
 
     struct ModelResourceBuffers
     {
@@ -60,18 +61,17 @@ namespace dmGameSystem
     {
         dmhash_t                m_SamplerNameHash;
         TextureResource*        m_Texture;
+        RenderTargetResource*   m_RenderTarget;
     };
 
     struct MaterialInfo
     {
-        const char*             m_Name;
-        MaterialResource*       m_Material;
-
+        const char*                  m_Name;
+        MaterialResource*            m_Material;
         dmGraphics::VertexAttribute* m_Attributes;
-        uint32_t m_AttributeCount;
-
-        MaterialTextureInfo*    m_Textures;
-        uint32_t                m_TexturesCount;
+        uint32_t                     m_AttributeCount;
+        MaterialTextureInfo*         m_Textures;
+        uint32_t                     m_TexturesCount;
     };
 
     struct ModelResource

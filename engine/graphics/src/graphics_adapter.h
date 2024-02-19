@@ -82,15 +82,10 @@ namespace dmGraphics
     typedef uint32_t (*GetMaxElementsIndicesFn)(HContext context);
     typedef HVertexDeclaration (*NewVertexDeclarationFn)(HContext context, HVertexStreamDeclaration stream_declaration);
     typedef HVertexDeclaration (*NewVertexDeclarationStrideFn)(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride);
-    typedef bool (*SetStreamOffsetFn)(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
 
-    typedef void (*DeleteVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
     typedef void (*EnableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program);
     typedef void (*DisableVertexDeclarationFn)(HContext context, HVertexDeclaration vertex_declaration);
-    typedef void (*HashVertexDeclarationFn)(HashState32* state, HVertexDeclaration vertex_declaration);
     typedef uint32_t (*GetVertexDeclarationFn)(HVertexDeclaration vertex_declaration);
-    typedef uint32_t (*GetVertexDeclarationStrideFn)(HVertexDeclaration vertex_declaration);
-    typedef uint32_t (*GetVertexStreamOffsetFn)(HVertexDeclaration vertex_declaration, dmhash_t name_hash);
 
     typedef void (*EnableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
     typedef void (*DisableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer);
@@ -209,15 +204,10 @@ namespace dmGraphics
         GetMaxElementsIndicesFn m_GetMaxElementsIndices;
         NewVertexDeclarationFn m_NewVertexDeclaration;
         NewVertexDeclarationStrideFn m_NewVertexDeclarationStride;
-        SetStreamOffsetFn m_SetStreamOffset;
-        DeleteVertexDeclarationFn m_DeleteVertexDeclaration;
         EnableVertexDeclarationFn m_EnableVertexDeclaration;
         DisableVertexDeclarationFn m_DisableVertexDeclaration;
-        HashVertexDeclarationFn m_HashVertexDeclaration;
         EnableVertexBufferFn m_EnableVertexBuffer;
         DisableVertexBufferFn m_DisableVertexBuffer;
-        GetVertexDeclarationStrideFn m_GetVertexDeclarationStride;
-        GetVertexStreamOffsetFn m_GetVertexStreamOffset;
         DrawElementsFn m_DrawElements;
         DrawFn m_Draw;
         NewVertexProgramFn m_NewVertexProgram;
@@ -336,15 +326,10 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsIndexBufferFormatSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexDeclarationStride); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStreamOffset); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexDeclaration); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, HashVertexDeclaration); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetVertexDeclarationStride); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableVertexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexBuffer); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetVertexStreamOffset); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElements); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Draw); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexProgram); \

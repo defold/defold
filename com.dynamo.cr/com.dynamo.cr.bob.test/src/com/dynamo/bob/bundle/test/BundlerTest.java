@@ -67,6 +67,7 @@ import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.NullPublisher;
@@ -447,7 +448,7 @@ public class BundlerTest {
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        file.deleteOnExit();
+        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }

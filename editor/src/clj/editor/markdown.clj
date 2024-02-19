@@ -427,7 +427,7 @@
   [markdown]
   (let [parser (.build (Parser/builder))
         doc (.parse parser markdown)
-        renderer (.build (HtmlRenderer/builder))]
+        renderer (.build (.softbreak (HtmlRenderer/builder) " "))]
     (.render renderer doc)))
 
 (g/defnode MarkdownNode

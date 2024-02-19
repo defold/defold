@@ -41,7 +41,7 @@
            [com.defold.editor.luart SearchPath]
            [com.dynamo.bob Platform]
            [java.io File]
-           [java.nio.file FileAlreadyExistsException Path]
+           [java.nio.file FileAlreadyExistsException NotDirectoryException Path]
            [org.luaj.vm2 LuaError LuaFunction LuaValue Prototype]))
 
 (set! *warn-on-reflection* true)
@@ -467,9 +467,11 @@
         root-path (-> project
                       (project/workspace evaluation-context)
                       (workspace/project-path evaluation-context)
-                      .toPath
-                      .normalize)
-        dir-path (-> (str root-path proj-path) io/file .toPath .normalize)]
+                      (fs/as-path)
+                      (fs/to-real-path))
+        dir-path (-> (str root-path proj-path)
+                     (fs/as-path)
+                     (.normalize))]
     (if (.startsWith dir-path root-path)
       (try
         (fs/create-path-directories! dir-path)
@@ -480,6 +482,43 @@
         (catch Exception e
           (throw (LuaError. (str (.getMessage e))))))
       (throw (LuaError. (str "Can't create " dir-path ": outside of project directory"))))))
+
+(defn- do-ext-delete-directory [^String proj-path]
+  (ensure-spec-in-api-call "editor.delete_directory()" resource-path? proj-path)
+  (let [{:keys [project evaluation-context request-sync]} *execution-context*
+        root-path (-> project
+                      (project/workspace evaluation-context)
+                      (workspace/project-path evaluation-context)
+                      (fs/as-path)
+                      (fs/to-real-path))
+        dir-path (-> (str root-path proj-path)
+                     (fs/as-path)
+                     (.normalize))
+        protected-paths (mapv #(.resolve root-path ^String %)
+                              [".git"
+                               ".internal"])
+        protected-path? (fn protected-path? [^Path path]
+                          (some #(.startsWith path ^Path %)
+                                protected-paths))]
+    (cond
+      (not (.startsWith dir-path root-path))
+      (throw (LuaError. (str "Can't delete " dir-path ": outside of project directory")))
+
+      (= (.getNameCount dir-path) (.getNameCount root-path))
+      (throw (LuaError. (str "Can't delete the project directory itself")))
+
+      (protected-path? dir-path)
+      (throw (LuaError. (str "Can't delete " dir-path ": protected by editor")))
+
+      :else
+      (try
+        (when (fs/delete-path-directory! dir-path)
+          (vreset! request-sync true))
+        nil
+        (catch NotDirectoryException e
+          (throw (LuaError. (str "Not a directory: " (.getMessage e)))))
+        (catch Exception e
+          (throw (LuaError. (str (.getMessage e)))))))))
 
 (defn- transact! [txs execution-context]
   (on-transact-thread (:ui execution-context) #(g/transact txs)))
@@ -833,6 +872,7 @@
                                         "can_get" do-ext-can-get
                                         "can_set" do-ext-can-set
                                         "create_directory" do-ext-create-directory
+                                        "delete_directory" do-ext-delete-directory
                                         "platform" (.getPair (Platform/getHostPlatform))
                                         "version" (system/defold-version)
                                         "engine_sha1" (system/defold-engine-sha1)

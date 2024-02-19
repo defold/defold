@@ -463,12 +463,8 @@
       :message (.getMessage exception)
       :severity :fatal})])
 
-(defn build-error [platform status log]
-  (ex-info (format "Failed to build engine, status %d: %s" status log)
-           {:type ::build-error
-            :platform platform
-            :status status
-            :log log}))
+(defn build-error [message log]
+  (ex-info message {:type ::build-error :log log}))
 
 (defn build-error? [exception]
   (= ::build-error (:type (ex-data exception))))

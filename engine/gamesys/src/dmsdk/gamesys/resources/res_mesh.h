@@ -25,6 +25,7 @@
 namespace dmGameSystem
 {
     struct MaterialResource;
+    struct RenderTargetResource;
     struct MeshResource
     {
         dmMeshDDF::MeshDesc*    m_MeshDDF;
@@ -32,6 +33,7 @@ namespace dmGameSystem
         MaterialResource*       m_Material;
 
         TextureResource*        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        RenderTargetResource*   m_RenderTargets[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmhash_t                m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
 
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
