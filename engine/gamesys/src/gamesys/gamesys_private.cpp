@@ -246,25 +246,6 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_OK;
             }
         }
-        /*
-        else
-        {
-            if (GetMaterialProgramAttributeInfo(material, name_hash, &constant_id))
-            {
-                if (constant_id == name_hash)
-                {
-                    if (var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4 &&
-                        var.m_Type != dmGameObject::PROPERTY_TYPE_QUAT &&
-                        var.m_Type != dmGameObject::PROPERTY_TYPE_MATRIX4)
-                    {
-                        return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
-                    }
-                    callback(callback_user_data, constant_id, 0, 0x0, var);
-                }
-            }
-        }
-        */
-
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 }

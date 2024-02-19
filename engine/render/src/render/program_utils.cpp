@@ -62,80 +62,23 @@ namespace dmRender
                language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM300;
     }
 
-    void AddMaterialConstant(ConstantRenderType render_type, const char* name, dmhash_t name_hash, dmGraphics::Type type, dmGraphics::HUniformLocation location, int32_t num_values, dmHashTable64<ShaderLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<dmVMath::Vector4>& default_values_buffer)
-    {
-        ShaderLocation shader_location;
-        shader_location.m_Location = location;
-        shader_location.m_RenderType = render_type;
-        name_hash_to_location.Put(name_hash, shader_location);
-
-        HConstant render_constant = dmRender::NewConstant(name_hash, render_type);
-        dmRender::SetConstantLocation(render_constant, location);
-
-        if (type == dmGraphics::TYPE_FLOAT_MAT4)
-        {
-            num_values *= 4;
-            dmRender::SetConstantType(render_constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
-        }
-
-        if (num_values > default_values_buffer.Capacity())
-        {
-            default_values_buffer.SetCapacity(num_values);
-            default_values_buffer.SetSize(num_values);
-            memset(default_values_buffer.Begin(), 0, default_values_buffer.Capacity() * sizeof(dmVMath::Vector4));
-        }
-
-        dmRender::SetConstantValues(render_constant, default_values_buffer.Begin(), num_values);
-
-        RenderConstant constant;
-        constant.m_Constant = render_constant;
-
-        if (type == dmGraphics::TYPE_FLOAT_VEC4)
-        {
-            char* name_str = (char*) name;
-            size_t original_size = strlen(name_str);
-            dmStrlCat(name_str, ".x", sizeof(name_str));
-            constant.m_ElementIds[0] = dmHashString64(name_str);
-            name_str[original_size] = 0;
-            dmStrlCat(name_str, ".y", sizeof(name_str));
-            constant.m_ElementIds[1] = dmHashString64(name_str);
-            name_str[original_size] = 0;
-            dmStrlCat(name_str, ".z", sizeof(name_str));
-            constant.m_ElementIds[2] = dmHashString64(name_str);
-            name_str[original_size] = 0;
-            dmStrlCat(name_str, ".w", sizeof(name_str));
-            constant.m_ElementIds[3] = dmHashString64(name_str);
-            name_str[original_size] = 0;
-        }
-        else
-        {
-            // Clear element ids, otherwise we will compare against
-            // uninitialized values in GetMaterialProgramConstantInfo.
-            constant.m_ElementIds[0] = 0;
-            constant.m_ElementIds[1] = 0;
-            constant.m_ElementIds[2] = 0;
-            constant.m_ElementIds[3] = 0;
-        }
-        constants.Push(constant);
-    }
-
-    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<ShaderLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
+    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
     {
         dmGraphics::Type type;
-        const uint32_t name_buffer_size = 128;
-        char name_buffer[name_buffer_size];
+        const uint32_t buffer_size = 128;
+        char buffer[buffer_size];
+        int32_t num_values = 0;
 
-        int32_t num_values     = 0;
+        uint32_t default_values_capacity = 0;
+        dmVMath::Vector4* default_values = 0;
         uint32_t sampler_index = 0;
-
-        dmArray<dmVMath::Vector4> default_values_buffer;
 
         bool program_language_glsl = IsContextLanguageGlsl(dmGraphics::GetProgramLanguage(program));
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            uint32_t name_str_length              = dmGraphics::GetUniformName(program, i, name_buffer, name_buffer_size, &type, &num_values);
-            dmGraphics::HUniformLocation location = dmGraphics::GetUniformLocation(program, name_buffer);
+            uint32_t name_str_length              = dmGraphics::GetUniformName(program, i, buffer, buffer_size, &type, &num_values);
+            dmGraphics::HUniformLocation location = dmGraphics::GetUniformLocation(program, buffer);
 
             // DEF-2971-hotfix
             // Previously this check was an assert. In Emscripten 1.38.3 they made changes
@@ -156,15 +99,15 @@ namespace dmRender
                 // but we want to identify it as the base name instead.
                 for (int j = 0; j < name_str_length; ++j)
                 {
-                    if (name_buffer[j] == '[')
+                    if (buffer[j] == '[')
                     {
-                        name_buffer[j] = 0;
+                        buffer[j] = 0;
                         break;
                     }
                 }
             }
 
-            dmhash_t name_hash = dmHashString64(name_buffer);
+            dmhash_t name_hash = dmHashString64(buffer);
 
             // We check if we already have a constant registered for this name.
             // This will happen on NON-OPENGL context when there is a constant with the same name
@@ -182,15 +125,58 @@ namespace dmRender
 
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
-                AddMaterialConstant(CONSTANT_RENDER_TYPE_CONSTANT, name_buffer, name_hash, type, location, num_values, name_hash_to_location, constants, default_values_buffer);
+                name_hash_to_location.Put(name_hash, location);
+
+                HConstant render_constant = dmRender::NewConstant(name_hash);
+                dmRender::SetConstantLocation(render_constant, location);
+
+                if (type == dmGraphics::TYPE_FLOAT_MAT4)
+                {
+                    num_values *= 4;
+                    dmRender::SetConstantType(render_constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+                }
+
+                // Set correct size of the constant (Until the shader builder provides all the default values)
+                if (num_values > default_values_capacity)
+                {
+                    default_values_capacity = num_values;
+                    delete[] default_values;
+                    default_values = new dmVMath::Vector4[default_values_capacity];
+                    memset(default_values, 0, default_values_capacity * sizeof(dmVMath::Vector4));
+                }
+                dmRender::SetConstantValues(render_constant, default_values, num_values);
+
+                RenderConstant constant;
+                constant.m_Constant = render_constant;
+
+                if (type == dmGraphics::TYPE_FLOAT_VEC4)
+                {
+                    size_t original_size = strlen(buffer);
+                    dmStrlCat(buffer, ".x", sizeof(buffer));
+                    constant.m_ElementIds[0] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                    dmStrlCat(buffer, ".y", sizeof(buffer));
+                    constant.m_ElementIds[1] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                    dmStrlCat(buffer, ".z", sizeof(buffer));
+                    constant.m_ElementIds[2] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                    dmStrlCat(buffer, ".w", sizeof(buffer));
+                    constant.m_ElementIds[3] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                } else {
+                    // Clear element ids, otherwise we will compare against
+                    // uninitialized values in GetMaterialProgramConstantInfo.
+                    constant.m_ElementIds[0] = 0;
+                    constant.m_ElementIds[1] = 0;
+                    constant.m_ElementIds[2] = 0;
+                    constant.m_ElementIds[3] = 0;
+                }
+                constants.Push(constant);
             }
             else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
             {
-                ShaderLocation shader_location;
-                shader_location.m_Location = location;
-                shader_location.m_RenderType = CONSTANT_RENDER_TYPE_CONSTANT;
-                name_hash_to_location.Put(name_hash, shader_location);
-
+                name_hash_to_location.Put(name_hash, location);
                 Sampler& s           = samplers[sampler_index];
                 s.m_UnitValueCount   = num_values;
 
@@ -210,5 +196,7 @@ namespace dmRender
                 sampler_index++;
             }
         }
+
+        delete[] default_values;
     }
 }

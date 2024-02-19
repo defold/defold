@@ -22,35 +22,24 @@ namespace dmRender
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Constant::Constant() {}
-Constant::Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location, ConstantRenderType render_type)
+Constant::Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location)
     : m_Values(0)
     , m_NameHash(name_hash)
     , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
     , m_Location(location)
     , m_NumValues(0)
-    , m_RenderType(render_type)
 {
 }
 
 HConstant NewConstant(dmhash_t name_hash)
 {
-    return new Constant(name_hash, -1, CONSTANT_RENDER_TYPE_CONSTANT);
-}
-
-HConstant NewConstant(dmhash_t name_hash, ConstantRenderType render_type)
-{
-    return new Constant(name_hash, -1, render_type);
+    return new Constant(name_hash, -1);
 }
 
 void DeleteConstant(HConstant constant)
 {
     dmMemory::AlignedFree(constant->m_Values);
     delete constant;
-}
-
-ConstantRenderType GetConstantRenderType(HConstant constant)
-{
-     return constant->m_RenderType;
 }
 
 dmVMath::Vector4* GetConstantValues(HConstant constant, uint32_t* num_values)
@@ -375,19 +364,18 @@ struct ApplyConstantContext
 
 static inline void ApplyConstant(ApplyConstantContext* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
 {
-    ShaderLocation* shader_location = context->m_Material->m_NameHashToShaderLocation.Get(*name_hash);
-
-    if (shader_location && shader_location->m_Location && shader_location->m_RenderType == CONSTANT_RENDER_TYPE_CONSTANT)
+    dmGraphics::HUniformLocation* location = context->m_Material->m_NameHashToLocation.Get(*name_hash);
+    if (location)
     {
         dmVMath::Vector4* values = &context->m_ConstantBuffer->m_Values[constant->m_ValueIndex];
 
         if (constant->m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
         {
-            dmGraphics::SetConstantM4(context->m_GraphicsContext, values, constant->m_NumValues / 4, shader_location->m_Location);
+            dmGraphics::SetConstantM4(context->m_GraphicsContext, values, constant->m_NumValues / 4, *location);
         }
         else
         {
-            dmGraphics::SetConstantV4(context->m_GraphicsContext, values, constant->m_NumValues, shader_location->m_Location);
+            dmGraphics::SetConstantV4(context->m_GraphicsContext, values, constant->m_NumValues, *location);
         }
     }
 }

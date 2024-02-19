@@ -154,7 +154,7 @@ namespace dmRender
 
         if ((constants_count + samplers_count) > 0)
         {
-            material->m_NameHashToShaderLocation.SetCapacity((constants_count + samplers_count), (constants_count + samplers_count) * 2);
+            material->m_NameHashToLocation.SetCapacity((constants_count + samplers_count), (constants_count + samplers_count) * 2);
             material->m_Constants.SetCapacity(constants_count);
         }
 
@@ -167,7 +167,7 @@ namespace dmRender
             }
         }
 
-        SetMaterialConstantValues(graphics_context, material->m_Program, total_constants_count, material->m_NameHashToShaderLocation, material->m_Constants, material->m_Samplers);
+        SetMaterialConstantValues(graphics_context, material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
     }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
@@ -216,12 +216,6 @@ namespace dmRender
         {
             const RenderConstant& material_constant = constants[i];
             const HConstant constant = material_constant.m_Constant;
-
-            if (constant->m_RenderType == CONSTANT_RENDER_TYPE_ATTRIBUTE)
-            {
-                continue;
-            }
-
             dmGraphics::HUniformLocation location = GetConstantLocation(constant);
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
 
@@ -475,37 +469,6 @@ namespace dmRender
         return false;
     }
 
-    bool GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id)
-    {
-        if (!material->m_HasCustomAttributes)
-        {
-            return false;
-        }
-
-        dmArray<MaterialAttribute>& material_attributes = material->m_MaterialAttributes;
-
-        uint32_t n = material_attributes.Size();
-        // *out_element_index = ~0u;
-
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            MaterialAttribute& a = material_attributes[i];
-            if (!a.m_IsCustomAttribute)
-                continue;
-
-            dmGraphics::VertexAttribute& graphics_attribute = material->m_VertexAttributes[i];
-
-            if (graphics_attribute.m_NameHash == name_hash)
-            {
-                // *out_element_ids = c.m_ElementIds;
-                *out_constant_id = graphics_attribute.m_NameHash;
-                // *out_array_size  = 1;
-                return true;
-            }
-        }
-        return false;
-    }
-
     void GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count)
     {
         *attributes      = material->m_VertexAttributes.Begin();
@@ -572,8 +535,6 @@ namespace dmRender
         material->m_MaterialAttributeValues.SetCapacity(value_byte_size);
         material->m_MaterialAttributeValues.SetSize(value_byte_size);
 
-        dmArray<dmVMath::Vector4> default_values_buffer;
-
         // And one more pass to set the new values from the incoming vertex declaration
         for (int i = 0; i < attributes_count; ++i)
         {
@@ -594,24 +555,6 @@ namespace dmRender
             uint32_t attribute_byte_size   = dmGraphics::GetTypeSize(graphics_type) * graphics_attribute_in.m_ElementCount * material_attribute.m_ValueCount;
             attribute_byte_size            = dmMath::Min(attribute_byte_size, byte_size);
             memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
-
-            material_attribute.m_IsCustomAttribute = 1;
-            material->m_HasCustomAttributes = 1;
-
-            material->m_NameHashToShaderLocation.SetCapacity(material->m_NameHashToShaderLocation.Capacity(), material->m_NameHashToShaderLocation.Capacity() * 2);
-            material->m_Constants.OffsetCapacity(1);
-
-            assert(graphics_attribute_in.m_Name != 0x0);
-            AddMaterialConstant(
-                CONSTANT_RENDER_TYPE_ATTRIBUTE,
-                graphics_attribute_in.m_Name,
-                graphics_attribute_in.m_NameHash,
-                graphics_type,
-                material_attribute.m_Location,
-                1,
-                material->m_NameHashToShaderLocation,
-                material->m_Constants,
-                default_values_buffer);
         }
 
         CreateVertexDeclaration(GetGraphicsContext(material->m_RenderContext), material);
@@ -641,10 +584,10 @@ namespace dmRender
 
     dmGraphics::HUniformLocation GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)
     {
-        ShaderLocation* location = material->m_NameHashToShaderLocation.Get(name_hash);
+        dmGraphics::HUniformLocation* location = material->m_NameHashToLocation.Get(name_hash);
         if (location)
         {
-            return location->m_Location;
+            return *location;
         }
         else
         {
@@ -658,12 +601,12 @@ namespace dmRender
 
         if (unit < samplers.Size() && name_hash != 0)
         {
-            ShaderLocation* location = material->m_NameHashToShaderLocation.Get(name_hash);
+            dmGraphics::HUniformLocation* location = material->m_NameHashToLocation.Get(name_hash);
             if (location)
             {
                 Sampler& s        = samplers[unit];
                 s.m_NameHash      = name_hash;
-                s.m_Location      = location->m_Location;
+                s.m_Location      = *location;
                 s.m_UWrap         = u_wrap;
                 s.m_VWrap         = v_wrap;
                 s.m_MinFilter     = min_filter;

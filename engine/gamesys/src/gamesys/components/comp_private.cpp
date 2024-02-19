@@ -393,20 +393,19 @@ static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants consta
     {
         return constants->m_RenderConstants[index];
     }
+    // it didn't exist, so we'll add it
+    dmRender::HConstant constant = dmRender::NewConstant(name_hash);
+    if (constants->m_RenderConstants.Full())
+    {
+        constants->m_RenderConstants.OffsetCapacity(4);
+    }
+    constants->m_RenderConstants.Push(constant);
 
     dmRender::HConstant material_constant;
     if (!dmRender::GetMaterialProgramConstant(material, name_hash, material_constant))
     {
         return 0;
     }
-
-    // it didn't exist, so we'll add it
-    dmRender::HConstant constant = dmRender::NewConstant(name_hash, dmRender::GetConstantRenderType(material_constant));
-    if (constants->m_RenderConstants.Full())
-    {
-        constants->m_RenderConstants.OffsetCapacity(4);
-    }
-    constants->m_RenderConstants.Push(constant);
 
     uint32_t num_values;
     dmVMath::Vector4* values = dmRender::GetConstantValues(material_constant, &num_values);
@@ -521,10 +520,6 @@ void HashRenderConstants(HComponentRenderConstants constants, HashState32* state
     for (uint32_t i = 0; i < size; ++i)
     {
         dmRender::HConstant constant = constants->m_RenderConstants[i];
-
-        if (dmRender::GetConstantRenderType(constant) == dmRender::CONSTANT_RENDER_TYPE_ATTRIBUTE)
-            continue;
-
         uint32_t num_values;
         dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
         dmhash_t name_hash = dmRender::GetConstantName(constant);
