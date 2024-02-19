@@ -587,22 +587,22 @@ public class BundlerTest {
                 expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
-                expectedFiles.add("archive/game.arcd0");
-                expectedFiles.add("archive/game.arci0");
-                expectedFiles.add("archive/game.dmanifest0");
-                expectedFiles.add("archive/game.projectc0");
-                expectedFiles.add("archive/game.public.der0");
+                expectedFiles.add("archive/game0.arcd");
+                expectedFiles.add("archive/game0.arci");
+                expectedFiles.add("archive/game0.dmanifest");
+                expectedFiles.add("archive/game0.projectc");
+                expectedFiles.add("archive/game0.public.der");
                 expectedFiles.add("archive/archive_files.json");
                 break;
             case JsWeb:
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_asmjs.js");
-                expectedFiles.add("archive/game.arcd0");
-                expectedFiles.add("archive/game.arci0");
-                expectedFiles.add("archive/game.dmanifest0");
-                expectedFiles.add("archive/game.projectc0");
-                expectedFiles.add("archive/game.public.der0");
+                expectedFiles.add("archive/game0.arcd");
+                expectedFiles.add("archive/game0.arci");
+                expectedFiles.add("archive/game0.dmanifest");
+                expectedFiles.add("archive/game0.projectc");
+                expectedFiles.add("archive/game0.public.der");
                 expectedFiles.add("archive/archive_files.json");
                 break;
             case Armv7Android:
