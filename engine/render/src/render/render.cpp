@@ -785,7 +785,6 @@ namespace dmRender
         // Trim the iteration space
         if (last_zero_index != -1)
         {
-            dmLogInfo("Trimming %d -> %d", render_context->m_TextureBindTable.Size(), last_zero_index);
             render_context->m_TextureBindTable.SetSize(last_zero_index);
         }
     }
