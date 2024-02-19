@@ -151,7 +151,7 @@
   (input animation-infos g/Any :array)
   (output animation-info g/Any :cached produce-animation-info)
 
-  (property animations resource/ResourceVec
+  (property animations resource/ResourceVec ; Vector assigned in load-fn.
             (value (gu/passthrough animation-resources))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
@@ -176,11 +176,12 @@
   (output animation-ids g/Any produce-animation-ids)
   (output animation-set-build-target g/Any :cached produce-animation-set-build-target))
 
-(defn- load-animation-set [_project self resource pb]
-  (let [proj-path->resource (partial workspace/resolve-resource resource)
-        animation-proj-paths (map :animation (:animations pb))
-        animation-resources (mapv proj-path->resource animation-proj-paths)]
-    (g/set-property self :animations animation-resources)))
+(defn- load-animation-set [_project self resource animation-set-desc]
+  {:pre [(map? animation-set-desc)]} ; Rig$AnimationSetDesc in map format
+  (let [resolve-resource #(workspace/resolve-resource resource %)
+        animation-instance-descs->animation-resources #(mapv (comp resolve-resource :animation) %)]
+    (gu/set-properties-from-map self animation-set-desc
+      animations (animation-instance-descs->animation-resources :animations))))
 
 (defn- sanitize-animation-set [animation-set-desc]
   (dissoc animation-set-desc :skeleton)) ; Deprecated field.
@@ -194,4 +195,5 @@
     :sanitize-fn sanitize-animation-set
     :node-type AnimationSetNode
     :ddf-type Rig$AnimationSetDesc
+    :read-defaults false
     :view-types [:cljfx-form-view]))
