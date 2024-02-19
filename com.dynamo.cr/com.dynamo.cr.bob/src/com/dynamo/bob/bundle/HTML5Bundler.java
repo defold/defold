@@ -165,6 +165,17 @@ public class HTML5Bundler implements IBundler {
             subdivisions = new ArrayList<File>();
         }
 
+        private static String insertNumberBeforeExtension(String filePath, int number) {
+            int dotIndex = filePath.indexOf('.');
+            if (dotIndex > 0) {
+                String baseName = filePath.substring(0, dotIndex);
+                String extension = filePath.substring(dotIndex);
+                return baseName + number + extension;
+            } else {
+                return filePath + number;
+            }
+        }
+
         void performSplit(File destDir) throws IOException {
             InputStream input = null;
             try {
@@ -176,8 +187,7 @@ public class HTML5Bundler implements IBundler {
                     byte[] readBuffer = new byte[thisRead];
                     long bytesRead = input.read(readBuffer, 0, thisRead);
                     assert(bytesRead == thisRead);
-
-                    File output = new File(destDir, source.getName() + subdivisions.size());
+                    File output = new File(destDir, insertNumberBeforeExtension(source.getName(), subdivisions.size()));
                     writeChunk(output, readBuffer);
                     subdivisions.add(output);
 
