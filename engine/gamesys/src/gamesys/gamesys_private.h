@@ -95,6 +95,27 @@ namespace dmGameSystem
     void LogMessageError(dmMessage::Message* message, const char* format, ...);
 
     dmRender::RenderResourceType ResourcePathToRenderResourceType(const char* path);
+
+    // Dynamic vertex attributes
+    static const uint16_t INVALID_DYNAMIC_ATTRIBUTE_INDEX = 0xFFFF;
+
+    struct DynamicAttributeInfo
+    {
+        struct Info
+        {
+            dmhash_t         m_NameHash;
+            dmVMath::Vector4 m_Value;
+        };
+
+        Info*   m_Infos;
+        uint8_t m_NumInfos;
+    };
+
+    void                         InitializeMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint32_t initial_capacity);
+    void                         DestroyMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos);
+    int32_t                      FindMaterialAttributeIndex(DynamicAttributeInfo info, dmhash_t name_hash);
+    dmGameObject::PropertyResult ClearMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t dynamic_attribute_index, dmhash_t name_hash);
+    dmGameObject::PropertyResult SetMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t* dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

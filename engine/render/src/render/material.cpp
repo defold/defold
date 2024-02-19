@@ -387,7 +387,7 @@ namespace dmRender
         return material->m_FragmentProgram;
     }
 
-    static int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
+    int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
     {
         dmArray<dmGraphics::VertexAttribute>& attributes = material->m_VertexAttributes;
         for (int i = 0; i < attributes.Size(); ++i)

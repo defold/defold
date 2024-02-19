@@ -248,4 +248,128 @@ namespace dmGameSystem
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
+
+    void InitializeMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint32_t initial_capacity)
+    {
+        dynamic_attribute_infos.SetCapacity(initial_capacity);
+        dynamic_attribute_infos.SetSize(initial_capacity);
+        dynamic_attribute_free_indices.SetCapacity(initial_capacity);
+        for (int i = 0; i < initial_capacity; ++i)
+        {
+            dynamic_attribute_free_indices.Push(initial_capacity - 1 - i);
+        }
+    }
+
+    void DestroyMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos)
+    {
+        for (int i = 0; i < dynamic_attribute_infos.Size(); ++i)
+        {
+            if (dynamic_attribute_infos[i].m_Infos)
+            {
+                free(dynamic_attribute_infos[i].m_Infos);
+            }
+        }
+    }
+
+    int32_t FindMaterialAttributeIndex(DynamicAttributeInfo info, dmhash_t name_hash)
+    {
+        for (int i = 0; i < info.m_NumInfos; ++i)
+        {
+            if (info.m_Infos[i].m_NameHash == name_hash)
+                return i;
+        }
+        return -1;
+    }
+
+    dmGameObject::PropertyResult ClearMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t dynamic_attribute_index, dmhash_t name_hash)
+    {
+        if (dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+        {
+            DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[dynamic_attribute_index];
+
+            int32_t existing_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
+            if (existing_index >= 0)
+            {
+                if (dynamic_info.m_NumInfos == 1)
+                {
+                    free(dynamic_info.m_Infos);
+                    dynamic_attribute_free_indices.Push(dynamic_attribute_index);
+                }
+                else
+                {
+                    // Swap out the entry with the last item in the list
+                    DynamicAttributeInfo::Info tmp_info             = dynamic_info.m_Infos[existing_index];
+                    dynamic_info.m_Infos[existing_index]            = dynamic_info.m_Infos[dynamic_info.m_NumInfos-1];
+                    dynamic_info.m_Infos[dynamic_info.m_NumInfos-1] = tmp_info;
+                    dynamic_info.m_NumInfos--;
+                }
+                return dmGameObject::PROPERTY_RESULT_OK;
+            }
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    dmGameObject::PropertyResult SetMaterialAttribute(
+        dmArray<DynamicAttributeInfo>& dynamic_attribute_infos,
+        dmArray<uint16_t>&             dynamic_attribute_free_indices,
+        uint16_t*                      dynamic_attribute_index,
+        dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var)
+    {
+        if (dmRender::FindMaterialAttributeIndex(material, name_hash) < 0)
+        {
+            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        }
+
+        if (*dynamic_attribute_index == INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+        {
+            // Find new indices to put on the list
+            if (dynamic_attribute_free_indices.Empty())
+            {
+                const uint32_t current_count = dynamic_attribute_infos.Size();
+                const uint32_t new_capacity = dmMath::Min(current_count + 32, (uint32_t) INVALID_DYNAMIC_ATTRIBUTE_INDEX);
+
+                if (new_capacity >= INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+                {
+                    dmLogError("Unable to allocate dynamic attributes, max dynamic attribute limit reached for sprites (%d)", INVALID_DYNAMIC_ATTRIBUTE_INDEX);
+                    return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+                }
+                for (int i = new_capacity - 1; i >= current_count; i--)
+                {
+                    dynamic_attribute_free_indices.Push(i);
+                }
+
+                dynamic_attribute_infos.SetCapacity(new_capacity);
+                dynamic_attribute_infos.SetSize(dynamic_attribute_infos.Capacity());
+            }
+
+            // Grab a free index from the list
+            *dynamic_attribute_index = dynamic_attribute_free_indices.Back();
+            dynamic_attribute_free_indices.Pop();
+
+            DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[*dynamic_attribute_index];
+            assert(dynamic_info.m_Infos == 0);
+
+            dynamic_info.m_Infos               = (DynamicAttributeInfo::Info*) malloc(sizeof(DynamicAttributeInfo::Info));
+            dynamic_info.m_NumInfos            = 1;
+            dynamic_info.m_Infos[0].m_NameHash = name_hash;
+            memcpy(&dynamic_info.m_Infos[0].m_Value, &var.m_V4, sizeof(var.m_V4));
+        }
+        else
+        {
+            DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[*dynamic_attribute_index];
+            int32_t existing_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
+            if (existing_index >= 0)
+            {
+                memcpy(&dynamic_info.m_Infos[existing_index].m_Value, &var.m_V4, sizeof(var.m_V4));
+            }
+            else
+            {
+                dynamic_info.m_NumInfos++;
+                dynamic_info.m_Infos = (DynamicAttributeInfo::Info*) realloc(dynamic_info.m_Infos, sizeof(DynamicAttributeInfo::Info) * dynamic_info.m_NumInfos);
+                dynamic_info.m_Infos[dynamic_info.m_NumInfos-1].m_NameHash = name_hash;
+                memcpy(&dynamic_info.m_Infos[dynamic_info.m_NumInfos-1].m_Value, &var.m_V4, sizeof(var.m_V4));
+            }
+        }
+        return dmGameObject::PROPERTY_RESULT_OK;
+    }
 }
