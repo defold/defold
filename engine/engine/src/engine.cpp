@@ -1983,7 +1983,7 @@ bail:
     {
         dmResource::Result fact_error;
 #if !defined(DM_RELEASE)
-        const char* system_font_map = "/builtins/fonts/system_font.fontc";
+        const char* system_font_map = "/builtins/fonts/debug/always_on_top.fontc";
         fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
         if (fact_error != dmResource::RESULT_OK)
         {

@@ -1,7 +1,7 @@
 script: ""
 fonts {
   name: "font"
-  font: "/builtins/fonts/system_font.font"
+  font: "/builtins/fonts/default.font"
 }
 textures {
   name: "texture"

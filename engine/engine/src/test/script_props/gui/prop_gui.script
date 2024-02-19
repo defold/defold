@@ -52,7 +52,7 @@ function late_init(self)
 
     -- Test replace fonts works
     assert_not_error(function()
-            go.set("#gui", "fonts", self.big_font, {key = "system_font"})
+            go.set("#gui", "fonts", self.big_font, {key = "default_font"})
         end)
 
     -- Test set fonts with index failed
@@ -62,7 +62,7 @@ function late_init(self)
 
     -- Test set fonts with both index and key failed
     assert_error(function()
-            go.set("#gui", "fonts", self.big_font, {key = "system_font", index = 992})
+            go.set("#gui", "fonts", self.big_font, {key = "default_font", index = 992})
         end)
 
     -- Test get fonts works
