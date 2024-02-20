@@ -309,13 +309,99 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
+    dmGameObject::PropertyResult GetMaterialAttribute(
+        dmArray<DynamicAttributeInfo>& dynamic_attribute_infos,
+        dmArray<uint16_t>&             dynamic_attribute_free_indices,
+        uint16_t*                      dynamic_attribute_index,
+        dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc)
+    {
+        const dmGraphics::VertexAttribute* material_attribute;
+        const uint8_t* value_ptr;
+        uint32_t num_values;
+        dmhash_t* element_ids = 0x0;
+        uint32_t element_index = ~0u;
+        dmhash_t attribute_id = 0;
+
+        if (!GetMaterialProgramAttributeInfo(material, name_hash, &attribute_id, &element_ids, &element_index, &material_attribute, &value_ptr, &num_values))
+        {
+            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        }
+
+        if (element_ids != 0x0)
+        {
+            out_desc.m_ElementIds[0] = element_ids[0];
+            out_desc.m_ElementIds[1] = element_ids[1];
+            out_desc.m_ElementIds[2] = element_ids[2];
+            out_desc.m_ElementIds[3] = element_ids[3];
+        }
+
+        if (*dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+        {
+            DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[*dynamic_attribute_index];
+
+            int32_t dynamic_info_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
+
+            if (dynamic_info_index >= 0)
+            {
+                if (attribute_id != name_hash)
+                {
+                    out_desc.m_Variant = dmGameObject::PropertyVar((float) dynamic_info.m_Infos[dynamic_info_index].m_Value.getElem(element_index));
+                }
+                else
+                {
+                    out_desc.m_Variant = dmGameObject::PropertyVar(dynamic_info.m_Infos[dynamic_info_index].m_Value);
+                }
+                return dmGameObject::PROPERTY_RESULT_OK;
+            }
+        }
+        else
+        {
+            float* f_ptr = (float*) value_ptr;
+
+            if (attribute_id != name_hash)
+            {
+                out_desc.m_Variant = dmGameObject::PropertyVar(f_ptr[element_index]);
+            }
+            else
+            {
+                switch(material_attribute->m_ElementCount)
+                {
+                    case 1:
+                    {
+                        out_desc.m_Variant = dmGameObject::PropertyVar(f_ptr[0]);
+                    } break;
+                    case 2:
+                    {
+                        out_desc.m_Variant = dmGameObject::PropertyVar(dmVMath::Vector3(f_ptr[0], f_ptr[1], 0.0f));
+                    } break;
+                    case 3:
+                    {
+                        out_desc.m_Variant = dmGameObject::PropertyVar(dmVMath::Vector3(f_ptr[0], f_ptr[1], f_ptr[2]));
+                    } break;
+                    case 4:
+                    {
+                        out_desc.m_Variant = dmGameObject::PropertyVar(dmVMath::Vector4(f_ptr[0], f_ptr[1], f_ptr[2], f_ptr[3]));
+                    } break;
+                }
+            }
+        }
+        return dmGameObject::PROPERTY_RESULT_OK;
+    }
+
     dmGameObject::PropertyResult SetMaterialAttribute(
         dmArray<DynamicAttributeInfo>& dynamic_attribute_infos,
         dmArray<uint16_t>&             dynamic_attribute_free_indices,
         uint16_t*                      dynamic_attribute_index,
         dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var)
     {
-        if (dmRender::FindMaterialAttributeIndex(material, name_hash) < 0)
+        const dmGraphics::VertexAttribute* material_attribute;
+        const uint8_t* value_ptr;
+        uint32_t num_values;
+        dmhash_t* element_ids = 0x0;
+        uint32_t element_index = ~0u;
+        dmhash_t attribute_id = 0;
+
+        if (!GetMaterialProgramAttributeInfo(material, name_hash, &attribute_id, &element_ids, &element_index, &material_attribute, &value_ptr, &num_values))
         {
             return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
@@ -351,23 +437,39 @@ namespace dmGameSystem
 
             dynamic_info.m_Infos               = (DynamicAttributeInfo::Info*) malloc(sizeof(DynamicAttributeInfo::Info));
             dynamic_info.m_NumInfos            = 1;
-            dynamic_info.m_Infos[0].m_NameHash = name_hash;
-            memcpy(&dynamic_info.m_Infos[0].m_Value, &var.m_V4, sizeof(var.m_V4));
+            dynamic_info.m_Infos[0].m_NameHash = attribute_id;
+
+            if (attribute_id != name_hash)
+            {
+                float* f_ptr = (float*) &dynamic_info.m_Infos[0].m_Value;
+                f_ptr[element_index] = var.m_Number;
+            }
+            else
+            {
+                memcpy(&dynamic_info.m_Infos[0].m_Value, &var.m_V4, sizeof(var.m_V4));
+            }
         }
         else
         {
             DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[*dynamic_attribute_index];
-            int32_t existing_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
-            if (existing_index >= 0)
-            {
-                memcpy(&dynamic_info.m_Infos[existing_index].m_Value, &var.m_V4, sizeof(var.m_V4));
-            }
-            else
+            int32_t attribute_index = FindMaterialAttributeIndex(dynamic_info, attribute_id);
+
+            if (attribute_index < 0)
             {
                 dynamic_info.m_NumInfos++;
                 dynamic_info.m_Infos = (DynamicAttributeInfo::Info*) realloc(dynamic_info.m_Infos, sizeof(DynamicAttributeInfo::Info) * dynamic_info.m_NumInfos);
-                dynamic_info.m_Infos[dynamic_info.m_NumInfos-1].m_NameHash = name_hash;
-                memcpy(&dynamic_info.m_Infos[dynamic_info.m_NumInfos-1].m_Value, &var.m_V4, sizeof(var.m_V4));
+                dynamic_info.m_Infos[dynamic_info.m_NumInfos-1].m_NameHash = attribute_id;
+                attribute_index = dynamic_info.m_NumInfos-1;
+            }
+
+            if (attribute_id != name_hash)
+            {
+                float* f_ptr = (float*) &dynamic_info.m_Infos[attribute_index].m_Value;
+                f_ptr[element_index] = var.m_Number;
+            }
+            else
+            {
+                memcpy(&dynamic_info.m_Infos[attribute_index].m_Value, &var.m_V4, sizeof(var.m_V4));
             }
         }
         return dmGameObject::PROPERTY_RESULT_OK;

@@ -2033,7 +2033,14 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(GetAnimationFrameCount(component));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        return GetMaterialConstant(GetMaterial(component), get_property, params.m_Options.m_Index, out_value, false, CompSpriteGetConstantCallback, component);
+
+        dmRender::HMaterial material = GetMaterial(component);
+        if (GetMaterialConstant(material, get_property, params.m_Options.m_Index, out_value, false, CompSpriteGetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
+        {
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+
+        return GetMaterialAttribute(sprite_world->m_DynamicVertexAttributeInfos, sprite_world->m_DynamicVertexAttributeFreeIndices, &component->m_DynamicVertexAttributeIndex, material, get_property, out_value);
     }
 
     dmGameObject::PropertyResult CompSpriteSetProperty(const dmGameObject::ComponentSetPropertyParams& params)

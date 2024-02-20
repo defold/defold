@@ -387,7 +387,7 @@ namespace dmRender
         return material->m_FragmentProgram;
     }
 
-    int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
+    static int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
     {
         dmArray<dmGraphics::VertexAttribute>& attributes = material->m_VertexAttributes;
         for (int i = 0; i < attributes.Size(); ++i)
@@ -469,6 +469,45 @@ namespace dmRender
         return false;
     }
 
+    bool GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, const dmGraphics::VertexAttribute** attribute, const uint8_t** value_ptr, uint32_t* num_values)
+    {
+        dmArray<dmGraphics::VertexAttribute>& attributes = material->m_VertexAttributes;
+        for (int i = 0; i < attributes.Size(); ++i)
+        {
+            MaterialAttribute& material_attribute = material->m_MaterialAttributes[i];
+
+            bool found = false;
+            if (attributes[i].m_NameHash == name_hash)
+            {
+                found = true;
+            }
+            else
+            {
+                for (uint32_t elem_i = 0; elem_i < 4; ++elem_i)
+                {
+                    if (material_attribute.m_ElementIds[elem_i] == name_hash)
+                    {
+                        *out_element_index = elem_i;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (found)
+            {
+                *out_element_ids = material_attribute.m_ElementIds;
+                *out_constant_id = attributes[i].m_NameHash;
+                *attribute       = &material->m_VertexAttributes[i];
+                *value_ptr       = &material->m_MaterialAttributeValues[material_attribute.m_ValueIndex];
+                *num_values      = material_attribute.m_ValueCount;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     void GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count)
     {
         *attributes      = material->m_VertexAttributes.Begin();
@@ -489,7 +528,7 @@ namespace dmRender
     void SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count)
     {
         // Don't need to do all this work if we don't have any custom attributes coming in
-        if (attributes == 0)
+        if (attributes == 0 || attributes_count == 0)
         {
             return;
         }
@@ -535,6 +574,9 @@ namespace dmRender
         material->m_MaterialAttributeValues.SetCapacity(value_byte_size);
         material->m_MaterialAttributeValues.SetSize(value_byte_size);
 
+        const uint32_t name_buffer_size = 128;
+        char name_buffer[name_buffer_size];
+
         // And one more pass to set the new values from the incoming vertex declaration
         for (int i = 0; i < attributes_count; ++i)
         {
@@ -555,6 +597,9 @@ namespace dmRender
             uint32_t attribute_byte_size   = dmGraphics::GetTypeSize(graphics_type) * graphics_attribute_in.m_ElementCount * material_attribute.m_ValueCount;
             attribute_byte_size            = dmMath::Min(attribute_byte_size, byte_size);
             memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
+
+            dmSnPrintf(name_buffer, name_buffer_size, "%s", graphics_attribute_in.m_Name);
+            FillElementIds(name_buffer, name_buffer_size, material_attribute.m_ElementIds);
         }
 
         CreateVertexDeclaration(GetGraphicsContext(material->m_RenderContext), material);
