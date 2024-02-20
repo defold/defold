@@ -24,6 +24,7 @@
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
+            [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.protobuf :as protobuf]
@@ -96,7 +97,7 @@
 
 (g/defnk produce-save-value
   [aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom]
-  (protobuf/make-map-with-defaults Camera$CameraDesc
+  (protobuf/make-map-without-defaults Camera$CameraDesc
     :aspect-ratio aspect-ratio
     :fov fov
     :near-z near-z
@@ -271,26 +272,27 @@
                                           :is-orthographic orthographic-projection}
                               :passes [pass/outline]}}]}))
 
-(defn load-camera [project self resource camera]
-  (g/set-property self
-    :aspect-ratio (:aspect-ratio camera)
-    :fov (:fov camera)
-    :near-z (:near-z camera)
-    :far-z (:far-z camera)
-    :auto-aspect-ratio (not= 0 (:auto-aspect-ratio camera))
-    :orthographic-projection (not= 0 (:orthographic-projection camera))
-    :orthographic-zoom (:orthographic-zoom camera)))
+(defn load-camera [_project self _resource camera-desc]
+  {:pre [(map? camera-desc)]} ; Camera$CameraDesc in map format.
+  (gu/set-properties-from-map self camera-desc
+    aspect-ratio :aspect-ratio
+    fov :fov
+    near-z :near-z
+    far-z :far-z
+    auto-aspect-ratio (protobuf/int->boolean :auto-aspect-ratio)
+    orthographic-projection (protobuf/int->boolean :orthographic-projection)
+    orthographic-zoom :orthographic-zoom))
 
 (g/defnode CameraNode
   (inherits resource-node/ResourceNode)
 
-  (property aspect-ratio g/Num)
-  (property fov g/Num)
-  (property near-z g/Num)
-  (property far-z g/Num)
-  (property auto-aspect-ratio g/Bool)
-  (property orthographic-projection g/Bool)
-  (property orthographic-zoom g/Num)
+  (property aspect-ratio g/Num) ; Required protobuf field.
+  (property fov g/Num) ; Required protobuf field.
+  (property near-z g/Num) ; Required protobuf field.
+  (property far-z g/Num) ; Required protobuf field.
+  (property auto-aspect-ratio g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :auto-aspect-ratio))))
+  (property orthographic-projection g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :orthographic-projection))))
+  (property orthographic-zoom g/Num (default (protobuf/default Camera$CameraDesc :orthographic-zoom)))
 
   (output form-data g/Any produce-form-data)
 
@@ -310,6 +312,7 @@
     :ext "camera"
     :node-type CameraNode
     :ddf-type Camera$CameraDesc
+    :read-defaults false
     :load-fn load-camera
     :icon camera-icon
     :view-types [:cljfx-form-view :text]
