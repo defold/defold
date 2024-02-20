@@ -473,11 +473,12 @@
             :let [values (:values vertex-override-info)
                   element-count (if (number? values) 1 (count values))
                   assumed-attribute-info {:element-count element-count
-                                          :name-key name-key}
+                                          :name-key name-key
+                                          :semantic-type :semantic-type-none}
                   property-type (attribute-property-type assumed-attribute-info)]]
         [(attribute-key->property-key name-key)
          {:node-id _node-id
-          :value (attribute-value values property-type nil element-count)
+          :value (attribute-value values property-type :semantic-type-none element-count)
           :label (properties/keyword->name name-key)
           :type property-type
           :edit-type (attribute-edit-type assumed-attribute-info property-type)
