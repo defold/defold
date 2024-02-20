@@ -44,6 +44,7 @@
            [java.time Instant]
            [java.util.zip ZipInputStream]
            [javafx.beans.property StringProperty]
+           [javafx.beans.value ChangeListener]
            [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
@@ -596,7 +597,27 @@
          welcome-settings {:new-project {:categories (concat default-categories custom-categories)}}
          welcome-settings-load-error (or default-welcome-settings-load-error custom-welcome-settings-load-error)
          root (ui/load-fxml "welcome/welcome-dialog.fxml")
-         stage (ui/make-dialog-stage)
+         min-width 792.0
+         min-height 338.0
+         stage (doto (ui/make-dialog-stage) (.setResizable true))
+         ;; Adapted from https://stackoverflow.com/questions/57425534/how-to-limit-how-much-the-user-can-resize-a-javafx-window
+         ;; because setting minWidth/minHeight on a resizable stage does not prevent resizing the stage to a smaller size
+         _ (.addListener (.widthProperty stage)
+                         (reify ChangeListener
+                           (changed [_ _ _ v]
+                             (when (< (double v) min-width)
+                               (doto stage
+                                 (.setResizable false)
+                                 (.setWidth min-width)
+                                 (.setResizable true))))))
+         _ (.addListener (.heightProperty stage)
+                         (reify ChangeListener
+                           (changed [_ _ _ v]
+                             (when (< (double v) min-height)
+                               (doto stage
+                                 (.setResizable false)
+                                 (.setHeight min-height)
+                                 (.setResizable true))))))
          scene (Scene. root)
          last-opened-project-directory (last-opened-project-directory prefs)
          new-project-location-directory (new-project-location-directory last-opened-project-directory)
