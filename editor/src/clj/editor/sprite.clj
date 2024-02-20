@@ -36,7 +36,8 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.coll :as coll])
   (:import [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
@@ -297,39 +298,56 @@
             (< 1 (count (:frames first-animation)))
             (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" first-animation)))))
 
-(defn- validate-material [_node-id material material-max-page-count material-shader texture-page-count]
-  (let [is-paged-material (shader/is-using-array-samplers? material-shader)]
-    (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
-        (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")
-        (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Image"))))
+(defn- validate-material [_node-id material]
+  (or (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
+      (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")))
 
-(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count material-shader blend-mode size-mode manual-size slice9 texture-page-count dep-build-targets offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
-  (or (when-let [errors (->> (into
-                               [(validate-material _node-id material material-max-page-count material-shader texture-page-count)
-                                (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")]
-                               (mapcat
-                                 (fn [{:keys [sampler texture anim-data]}]
-                                   (let [label (if (= 1 (count texture-binding-infos)) "Image" sampler)]
-                                     [(validation/prop-error :fatal _node-id :textures validation/prop-nil? texture sampler)
-                                      (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing-in? default-animation anim-data label)])))
-                               texture-binding-infos)
-                             (remove nil?)
-                             (seq))]
-        (g/error-aggregate errors))
-      [(pipeline/make-protobuf-build-target resource dep-build-targets
-                                            Sprite$SpriteDesc
-                                            {:default-animation default-animation
-                                             :material material
-                                             :blend-mode blend-mode
-                                             :size-mode size-mode
-                                             :size (v3->v4 manual-size)
-                                             :slice9 slice9
-                                             :offset offset
-                                             :playback-rate playback-rate
-                                             :attributes (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)
-                                             :textures textures}
-                                            [:material
-                                             [:textures :texture]])]))
+(g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count material-samplers material-shader blend-mode size-mode manual-size slice9 dep-build-targets offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
+  (g/precluding-errors
+    (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler texture-binding-infos)
+          is-paged-material (shader/is-using-array-samplers? material-shader)
+          unassigned-default-animation-error (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation "Default Animation")]
+      (concat
+        ;; Validate material assignment.
+        [(validate-material _node-id material)]
+
+        ;; Validate sampler assignments. All samplers declared by the material
+        ;; must be assigned a compatible texture, and the default animation must
+        ;; be present in all the assigned textures.
+        (mapcat
+          (fn [sampler]
+            (let [sampler-name (:name sampler)
+                  label (if (= 1 (count material-samplers)) "Image" sampler-name)
+                  {:keys [anim-data texture texture-page-count]} (sampler-name->texture-binding-info sampler-name)
+                  unassigned-texture-error (or (validation/prop-error :fatal _node-id :textures validation/prop-nil? texture label)
+                                               (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture label))]
+              (if unassigned-texture-error
+                [unassigned-texture-error]
+                [(validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count label)
+                 (when (nil? unassigned-default-animation-error)
+                   (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data label))])))
+          material-samplers)
+
+        ;; Validate default-animation assignment.
+        (when (and (pos? (count material-samplers))
+                   (pos? (count textures)))
+          [unassigned-default-animation-error])))
+
+    [(pipeline/make-protobuf-build-target
+       resource dep-build-targets
+       Sprite$SpriteDesc
+       {:default-animation default-animation
+        :material material
+        :blend-mode blend-mode
+        :size-mode size-mode
+        :size (v3->v4 manual-size)
+        :slice9 slice9
+        :offset offset
+        :playback-rate playback-rate
+        :attributes (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)
+        :textures textures}
+       [:material
+        [:textures :texture]])]))
 
 (def ^:private fake-resource
   (reify resource/Resource
@@ -384,8 +402,9 @@
     (g/connect texture-binding :texture-binding-info sprite :texture-binding-infos)
     (g/connect texture-binding :scene-info sprite :scene-infos)))
 
-(g/defnk produce-properties [_node-id _declared-properties texture-binding-infos material-samplers material-attribute-infos vertex-attribute-overrides]
-  (let [texture-binding-index (util/name-index texture-binding-infos :sampler)
+(g/defnk produce-properties [_declared-properties _node-id default-animation material-attribute-infos material-max-page-count material-samplers material-shader texture-binding-infos vertex-attribute-overrides]
+  (let [is-paged-material (shader/is-using-array-samplers? material-shader)
+        texture-binding-index (util/name-index texture-binding-infos :sampler)
         material-sampler-index (if (g/error-value? material-samplers)
                                  {}
                                  (util/name-index material-samplers :name))
@@ -397,28 +416,32 @@
              sort
              (mapv
                (fn [[sampler-name order :as name+order]]
-                 (let [property-key (keyword (str "__sampler__" sampler-name "__" order))]
+                 (let [property-key (keyword (str "__sampler__" sampler-name "__" order))
+                       label (if (= 1 (count combined-name+indices)) "Image" sampler-name)]
                    (if-let [i (texture-binding-index name+order)]
                      ;; texture binding exists
-                     (let [{:keys [sampler texture anim-data]
+                     (let [{:keys [anim-data sampler texture texture-page-count]
                             texture-binding-node-id :_node-id} (texture-binding-infos i)
                            should-be-deleted (nil? (material-sampler-index name+order))]
                        [property-key
                         (cond->
                           {:node-id texture-binding-node-id
-                           :label (if (= 1 (count combined-name+indices)) "Image" sampler)
+                           :label label
                            :type resource/Resource
                            :value (cond-> texture should-be-deleted (or fake-resource))
                            :prop-kw :texture
                            :error (or
                                     (when should-be-deleted
-                                      (g/->error _node-id :texture :warning texture
+                                      (g/->error _node-id :textures :warning texture
                                                  (format "'%s' is not defined in the material. Clear the field to delete it. If the sampler is necessary for the shader, add a missing sampler in the material"
                                                          sampler)))
-                                    (validation/prop-error :info _node-id :texture validation/prop-nil? texture sampler)
-                                    (validation/prop-error :fatal _node-id :texture validation/prop-resource-not-exists? texture sampler)
-                                    (when (nil? anim-data)  ; nil from :try producing error-value
-                                      (g/->error _node-id :texture :fatal texture "the assigned Image has internal errors")))
+                                    (validation/prop-error :info _node-id :textures validation/prop-nil? texture label)
+                                    (validation/prop-error :fatal _node-id :textures validation/prop-resource-not-exists? texture label)
+                                    (when (nil? texture-page-count)  ; nil from :try producing error-value
+                                      (g/->error _node-id :textures :fatal texture "the assigned Image has internal errors"))
+                                    (validation/prop-error :fatal _node-id :textures shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count label)
+                                    (when-not (coll/empty? default-animation)
+                                      (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data label)))
 
                            :edit-type {:type resource/Resource
                                        :ext ["atlas" "tilesource"]
@@ -428,9 +451,10 @@
                      ;; needed texture binding does not exist
                      [property-key
                       {:node-id _node-id
-                       :label (if (= 1 (count combined-name+indices)) "Image" sampler-name)
+                       :label label
                        :value nil
                        :type resource/Resource
+                       :error (validation/prop-error :info _node-id :texture validation/prop-nil? nil label)
                        :edit-type {:type resource/Resource
                                    :ext ["atlas" "tilesource"]
                                    :set-fn (fn [_ _ _ new]
@@ -493,10 +517,11 @@
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
   (property default-animation g/Str
-            (dynamic error (g/fnk [_node-id textures anim-ids default-animation]
+            (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]
                              (when (pos? (count textures))
-                               (or (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
-                                   (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing? default-animation anim-ids)))))
+                               (or (validation/prop-error :info _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
+                                   (let [{:keys [anim-data sampler]} primary-texture-binding-info]
+                                     (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing-in? default-animation anim-data sampler))))))
             (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
 
   (property material resource/Resource
@@ -510,8 +535,8 @@
                                             [:attribute-infos :material-attribute-infos]
                                             [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"material"}}))
-            (dynamic error (g/fnk [_node-id material material-max-page-count material-shader texture-page-count]
-                             (validate-material _node-id material material-max-page-count material-shader texture-page-count))))
+            (dynamic error (g/fnk [_node-id material]
+                             (validate-material _node-id material))))
 
   (property blend-mode g/Any (default :blend-mode-alpha)
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
@@ -562,14 +587,22 @@
                                         (if (g/error-value? material-samplers)
                                           texture-binding-infos
                                           (detect-and-apply-renames texture-binding-infos material-samplers))))
+  (output primary-texture-binding-info g/Any (g/fnk [texture-binding-infos ^:try material-samplers]
+                                               (if (g/error-value? material-samplers)
+                                                 (first texture-binding-infos)
+                                                 (let [primary-sampler-name (:name (first material-samplers))]
+                                                   (or (some (fn [texture-binding-info]
+                                                               (when (= primary-sampler-name (:sampler texture-binding-info))
+                                                                 texture-binding-info))
+                                                             texture-binding-infos)
+                                                       (first texture-binding-infos))))))
   (output textures g/Any (g/fnk [texture-binding-infos]
                            (into []
                                  (keep (fn [{:keys [sampler texture]}]
                                          (when texture
                                            {:sampler sampler :texture texture})))
                                  texture-binding-infos)))
-  (output anim-ids g/Any (g/fnk [texture-binding-infos] (:anim-ids (first texture-binding-infos))))
-  (output texture-page-count g/Any (g/fnk [texture-binding-infos] (:texture-page-count (first texture-binding-infos))))
+  (output anim-ids g/Any (g/fnk [primary-texture-binding-info] (:anim-ids primary-texture-binding-info)))
 
   (input dep-build-targets g/Any :array)
 
