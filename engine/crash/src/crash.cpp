@@ -333,7 +333,7 @@ namespace dmCrash
             if (lineend && lineend < end)
                 *lineend = 0;
 
-            dmLogError("%s%s", p, lineend ? "":"\n");
+            dmLogError("%s", p);
 
             if (!lineend)
                 break;
