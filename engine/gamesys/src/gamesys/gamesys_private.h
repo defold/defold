@@ -96,7 +96,10 @@ namespace dmGameSystem
 
     dmRender::RenderResourceType ResourcePathToRenderResourceType(const char* path);
 
-    // Dynamic vertex attributes
+    // Vertex attributes
+    int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash);
+
+    // Dynamic Vertex Attribute overrides
     static const uint16_t INVALID_DYNAMIC_ATTRIBUTE_INDEX = 0xFFFF;
 
     struct DynamicAttributeInfo
@@ -111,12 +114,14 @@ namespace dmGameSystem
         uint8_t m_NumInfos;
     };
 
+    typedef bool (*CompGetMaterialAttributeCallback)(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute);
+
+    int32_t                      FindMaterialAttributeIndex(const DynamicAttributeInfo& info, dmhash_t name_hash);
     void                         InitializeMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint32_t initial_capacity);
     void                         DestroyMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos);
-    int32_t                      FindMaterialAttributeIndex(DynamicAttributeInfo info, dmhash_t name_hash);
     dmGameObject::PropertyResult ClearMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t dynamic_attribute_index, dmhash_t name_hash);
     dmGameObject::PropertyResult SetMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t* dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var);
-    dmGameObject::PropertyResult GetMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t* dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc);
+    dmGameObject::PropertyResult GetMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t* dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, CompGetMaterialAttributeCallback callback, void* callback_user_data);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

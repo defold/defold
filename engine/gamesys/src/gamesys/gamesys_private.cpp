@@ -249,6 +249,26 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
+    int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash)
+    {
+        for (int i = 0; i < attributes_count; ++i)
+        {
+            if (attributes[i].m_NameHash == name_hash)
+                return i;
+        }
+        return -1;
+    }
+
+    int32_t FindMaterialAttributeIndex(const DynamicAttributeInfo& info, dmhash_t name_hash)
+    {
+        for (int i = 0; i < info.m_NumInfos; ++i)
+        {
+            if (info.m_Infos[i].m_NameHash == name_hash)
+                return i;
+        }
+        return -1;
+    }
+
     void InitializeMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint32_t initial_capacity)
     {
         dynamic_attribute_infos.SetCapacity(initial_capacity);
@@ -269,16 +289,6 @@ namespace dmGameSystem
                 free(dynamic_attribute_infos[i].m_Infos);
             }
         }
-    }
-
-    int32_t FindMaterialAttributeIndex(DynamicAttributeInfo info, dmhash_t name_hash)
-    {
-        for (int i = 0; i < info.m_NumInfos; ++i)
-        {
-            if (info.m_Infos[i].m_NameHash == name_hash)
-                return i;
-        }
-        return -1;
     }
 
     dmGameObject::PropertyResult ClearMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t dynamic_attribute_index, dmhash_t name_hash)
@@ -310,31 +320,27 @@ namespace dmGameSystem
     }
 
     dmGameObject::PropertyResult GetMaterialAttribute(
-        dmArray<DynamicAttributeInfo>& dynamic_attribute_infos,
-        dmArray<uint16_t>&             dynamic_attribute_free_indices,
-        uint16_t*                      dynamic_attribute_index,
-        dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc)
+        dmArray<DynamicAttributeInfo>&   dynamic_attribute_infos,
+        dmArray<uint16_t>&               dynamic_attribute_free_indices,
+        uint16_t*                        dynamic_attribute_index,
+        dmRender::HMaterial              material,
+        dmhash_t                         name_hash,
+        dmGameObject::PropertyDesc&      out_desc,
+        CompGetMaterialAttributeCallback callback,
+        void*                            callback_user_data)
     {
-        const dmGraphics::VertexAttribute* material_attribute;
-        const uint8_t* value_ptr;
-        uint32_t num_values;
-        dmhash_t* element_ids = 0x0;
-        uint32_t element_index = ~0u;
-        dmhash_t attribute_id = 0;
-
-        if (!GetMaterialProgramAttributeInfo(material, name_hash, &attribute_id, &element_ids, &element_index, &material_attribute, &value_ptr, &num_values))
+        dmRender::MaterialProgramAttributeInfo info;
+        if (!dmRender::GetMaterialProgramAttributeInfo(material, name_hash, info))
         {
             return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
 
-        if (element_ids != 0x0)
-        {
-            out_desc.m_ElementIds[0] = element_ids[0];
-            out_desc.m_ElementIds[1] = element_ids[1];
-            out_desc.m_ElementIds[2] = element_ids[2];
-            out_desc.m_ElementIds[3] = element_ids[3];
-        }
+        out_desc.m_ElementIds[0] = info.m_ElementIds[0];
+        out_desc.m_ElementIds[1] = info.m_ElementIds[1];
+        out_desc.m_ElementIds[2] = info.m_ElementIds[2];
+        out_desc.m_ElementIds[3] = info.m_ElementIds[3];
 
+        // If we have a dynamic attribute set, we return that data
         if (*dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
             DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[*dynamic_attribute_index];
@@ -343,9 +349,9 @@ namespace dmGameSystem
 
             if (dynamic_info_index >= 0)
             {
-                if (attribute_id != name_hash)
+                if (info.m_AttributeNameHash != name_hash)
                 {
-                    out_desc.m_Variant = dmGameObject::PropertyVar((float) dynamic_info.m_Infos[dynamic_info_index].m_Value.getElem(element_index));
+                    out_desc.m_Variant = dmGameObject::PropertyVar((float) dynamic_info.m_Infos[dynamic_info_index].m_Value.getElem(info.m_ElementIndex));
                 }
                 else
                 {
@@ -356,15 +362,26 @@ namespace dmGameSystem
         }
         else
         {
-            float* f_ptr = (float*) value_ptr;
+            const dmGraphics::VertexAttribute* comp_attribute;
 
-            if (attribute_id != name_hash)
+            // Otherwise, we need to get it from the component itself
+            // If this callback returns false, e.g a component resource might not have a value override for the attribute,
+            // we fallback to the material attribute data instead
+            if (callback(callback_user_data, info.m_AttributeNameHash, &comp_attribute))
             {
-                out_desc.m_Variant = dmGameObject::PropertyVar(f_ptr[element_index]);
+                uint32_t value_byte_size;
+                dmGraphics::GetAttributeValues(*comp_attribute, &info.m_ValuePtr, &value_byte_size);
+            }
+
+            float* f_ptr = (float*) info.m_ValuePtr;
+
+            if (info.m_AttributeNameHash != name_hash)
+            {
+                out_desc.m_Variant = dmGameObject::PropertyVar(f_ptr[info.m_ElementIndex]);
             }
             else
             {
-                switch(material_attribute->m_ElementCount)
+                switch(info.m_Attribute->m_ElementCount)
                 {
                     case 1:
                     {
@@ -389,22 +406,21 @@ namespace dmGameSystem
     }
 
     dmGameObject::PropertyResult SetMaterialAttribute(
-        dmArray<DynamicAttributeInfo>& dynamic_attribute_infos,
-        dmArray<uint16_t>&             dynamic_attribute_free_indices,
-        uint16_t*                      dynamic_attribute_index,
-        dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var)
+        dmArray<DynamicAttributeInfo>&   dynamic_attribute_infos,
+        dmArray<uint16_t>&               dynamic_attribute_free_indices,
+        uint16_t*                        dynamic_attribute_index,
+        dmRender::HMaterial              material,
+        dmhash_t                         name_hash,
+        const dmGameObject::PropertyVar& var)
     {
-        const dmGraphics::VertexAttribute* material_attribute;
-        const uint8_t* value_ptr;
-        uint32_t num_values;
-        dmhash_t* element_ids = 0x0;
-        uint32_t element_index = ~0u;
-        dmhash_t attribute_id = 0;
-
-        if (!GetMaterialProgramAttributeInfo(material, name_hash, &attribute_id, &element_ids, &element_index, &material_attribute, &value_ptr, &num_values))
+        dmRender::MaterialProgramAttributeInfo info;
+        if (!dmRender::GetMaterialProgramAttributeInfo(material, name_hash, info))
         {
             return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
+
+        DynamicAttributeInfo* dynamic_info = 0;
+        int32_t attribute_index = -1;
 
         if (*dynamic_attribute_index == INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
@@ -432,46 +448,39 @@ namespace dmGameSystem
             *dynamic_attribute_index = dynamic_attribute_free_indices.Back();
             dynamic_attribute_free_indices.Pop();
 
-            DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[*dynamic_attribute_index];
-            assert(dynamic_info.m_Infos == 0);
+            dynamic_info = &dynamic_attribute_infos[*dynamic_attribute_index];
+            assert(dynamic_info->m_Infos == 0);
 
-            dynamic_info.m_Infos               = (DynamicAttributeInfo::Info*) malloc(sizeof(DynamicAttributeInfo::Info));
-            dynamic_info.m_NumInfos            = 1;
-            dynamic_info.m_Infos[0].m_NameHash = attribute_id;
+            dynamic_info->m_Infos               = (DynamicAttributeInfo::Info*) malloc(sizeof(DynamicAttributeInfo::Info));
+            dynamic_info->m_NumInfos            = 1;
+            dynamic_info->m_Infos[0].m_NameHash = info.m_AttributeNameHash;
 
-            if (attribute_id != name_hash)
-            {
-                float* f_ptr = (float*) &dynamic_info.m_Infos[0].m_Value;
-                f_ptr[element_index] = var.m_Number;
-            }
-            else
-            {
-                memcpy(&dynamic_info.m_Infos[0].m_Value, &var.m_V4, sizeof(var.m_V4));
-            }
+            attribute_index = 0;
         }
         else
         {
-            DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[*dynamic_attribute_index];
-            int32_t attribute_index = FindMaterialAttributeIndex(dynamic_info, attribute_id);
+            dynamic_info = &dynamic_attribute_infos[*dynamic_attribute_index];
+            attribute_index = FindMaterialAttributeIndex(*dynamic_info, info.m_AttributeNameHash);
 
             if (attribute_index < 0)
             {
-                dynamic_info.m_NumInfos++;
-                dynamic_info.m_Infos = (DynamicAttributeInfo::Info*) realloc(dynamic_info.m_Infos, sizeof(DynamicAttributeInfo::Info) * dynamic_info.m_NumInfos);
-                dynamic_info.m_Infos[dynamic_info.m_NumInfos-1].m_NameHash = attribute_id;
-                attribute_index = dynamic_info.m_NumInfos-1;
-            }
-
-            if (attribute_id != name_hash)
-            {
-                float* f_ptr = (float*) &dynamic_info.m_Infos[attribute_index].m_Value;
-                f_ptr[element_index] = var.m_Number;
-            }
-            else
-            {
-                memcpy(&dynamic_info.m_Infos[attribute_index].m_Value, &var.m_V4, sizeof(var.m_V4));
+                dynamic_info->m_NumInfos++;
+                dynamic_info->m_Infos = (DynamicAttributeInfo::Info*) realloc(dynamic_info->m_Infos, sizeof(DynamicAttributeInfo::Info) * dynamic_info->m_NumInfos);
+                dynamic_info->m_Infos[dynamic_info->m_NumInfos-1].m_NameHash = info.m_AttributeNameHash;
+                attribute_index = dynamic_info->m_NumInfos-1;
             }
         }
+
+        if (info.m_AttributeNameHash != name_hash)
+        {
+            float* f_ptr = (float*) &dynamic_info->m_Infos[attribute_index].m_Value;
+            f_ptr[info.m_ElementIndex] = var.m_Number;
+        }
+        else
+        {
+            memcpy(&dynamic_info->m_Infos[attribute_index].m_Value, &var.m_V4, sizeof(var.m_V4));
+        }
+
         return dmGameObject::PROPERTY_RESULT_OK;
     }
 }

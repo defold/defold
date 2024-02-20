@@ -469,7 +469,7 @@ namespace dmRender
         return false;
     }
 
-    bool GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, const dmGraphics::VertexAttribute** attribute, const uint8_t** value_ptr, uint32_t* num_values)
+    bool GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, MaterialProgramAttributeInfo& info)
     {
         dmArray<dmGraphics::VertexAttribute>& attributes = material->m_VertexAttributes;
         for (int i = 0; i < attributes.Size(); ++i)
@@ -477,6 +477,8 @@ namespace dmRender
             MaterialAttribute& material_attribute = material->m_MaterialAttributes[i];
 
             bool found = false;
+            uint32_t element_index = 0;
+
             if (attributes[i].m_NameHash == name_hash)
             {
                 found = true;
@@ -487,8 +489,8 @@ namespace dmRender
                 {
                     if (material_attribute.m_ElementIds[elem_i] == name_hash)
                     {
-                        *out_element_index = elem_i;
-                        found = true;
+                        element_index = elem_i;
+                        found         = true;
                         break;
                     }
                 }
@@ -496,11 +498,11 @@ namespace dmRender
 
             if (found)
             {
-                *out_element_ids = material_attribute.m_ElementIds;
-                *out_constant_id = attributes[i].m_NameHash;
-                *attribute       = &material->m_VertexAttributes[i];
-                *value_ptr       = &material->m_MaterialAttributeValues[material_attribute.m_ValueIndex];
-                *num_values      = material_attribute.m_ValueCount;
+                info.m_AttributeNameHash = attributes[i].m_NameHash;
+                info.m_Attribute         = &material->m_VertexAttributes[i];
+                info.m_ValuePtr          = &material->m_MaterialAttributeValues[material_attribute.m_ValueIndex];
+                info.m_ElementIndex      = element_index;
+                memcpy(info.m_ElementIds, material_attribute.m_ElementIds, sizeof(material_attribute.m_ElementIds));
                 return true;
             }
         }
