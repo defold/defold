@@ -50,7 +50,7 @@
 
 (g/defnk produce-save-value
   [collection-resource exclude]
-  (protobuf/make-map-with-defaults GameSystem$CollectionProxyDesc
+  (protobuf/make-map-without-defaults GameSystem$CollectionProxyDesc
     :collection (resource/resource->proj-path collection-resource)
     :exclude exclude))
 
@@ -76,10 +76,12 @@
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
 
-(defn load-collection-proxy [project self resource collection-proxy]
-  (concat
-    (g/set-property self :collection (workspace/resolve-resource resource (:collection collection-proxy)))
-    (g/set-property self :exclude (boolean (:exclude collection-proxy)))))
+(defn load-collection-proxy [_project self resource collection-proxy-desc]
+  {:pre [(map? collection-proxy-desc)]} ; GameSystem$CollectionProxyDesc in map format.
+  (let [resolve-resource #(workspace/resolve-resource resource %)]
+    (gu/set-properties-from-map self collection-proxy-desc
+      collection (resolve-resource :collection)
+      exclude :exclude)))
 
 (g/defnode CollectionProxyNode
   (inherits resource-node/ResourceNode)
@@ -87,7 +89,7 @@
   (input dep-build-targets g/Any)
   (input collection-resource resource/Resource)
 
-  (property collection resource/Resource
+  (property collection resource/Resource ; Required protobuf field.
             (value (gu/passthrough collection-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -99,7 +101,7 @@
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource :ext "collection"})))
 
-  (property exclude g/Bool)
+  (property exclude g/Bool (default (protobuf/default GameSystem$CollectionProxyDesc :exclude)))
 
   (output form-data g/Any produce-form-data)
 
@@ -115,13 +117,13 @@
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
-
 (defn register-resource-types
   [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "collectionproxy"
     :node-type CollectionProxyNode
     :ddf-type GameSystem$CollectionProxyDesc
+    :read-defaults false
     :load-fn load-collection-proxy
     :icon collection-proxy-icon
     :view-types [:cljfx-form-view :text]
