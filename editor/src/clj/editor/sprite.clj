@@ -329,7 +329,8 @@
           material-samplers)
 
         ;; Validate default-animation assignment.
-        (when-not (coll/empty? textures)
+        (when (and (pos? (count material-samplers))
+                   (pos? (count textures)))
           [unassigned-default-animation-error])))
 
     [(pipeline/make-protobuf-build-target
