@@ -605,7 +605,7 @@
          _ (.addListener (.widthProperty stage)
                          (reify ChangeListener
                            (changed [_ _ _ v]
-                             (when (< v min-width)
+                             (when (< (double v) min-width)
                                (doto stage
                                  (.setResizable false)
                                  (.setWidth min-width)
@@ -613,7 +613,7 @@
          _ (.addListener (.heightProperty stage)
                          (reify ChangeListener
                            (changed [_ _ _ v]
-                             (when (< v min-height)
+                             (when (< (double v) min-height)
                                (doto stage
                                  (.setResizable false)
                                  (.setHeight min-height)
