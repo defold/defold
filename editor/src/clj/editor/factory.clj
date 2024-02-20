@@ -67,7 +67,7 @@
 (g/defnk produce-save-value
   [prototype-resource load-dynamically dynamic-prototype factory-type]
   (let [pb-class (-> factory-types factory-type :pb-type)]
-    (protobuf/make-map-with-defaults pb-class
+    (protobuf/make-map-without-defaults pb-class
       :prototype (resource/resource->proj-path prototype-resource)
       :load-dynamically load-dynamically
       :dynamic-prototype dynamic-prototype)))
@@ -98,12 +98,23 @@
             :deps dep-build-targets})])))
 
 (defn load-factory
-  [factory-type project self resource factory]
-  (g/set-property self
-                  :factory-type factory-type
-                  :prototype (workspace/resolve-resource resource (:prototype factory))
-                  :load-dynamically (:load-dynamically factory)
-                  :dynamic-prototype (:dynamic-prototype factory)))
+  [factory-type _project self resource any-factory-desc]
+  {:pre [(contains? factory-types factory-type)
+         (map? any-factory-desc)]} ; GameSystem$FactoryDesc or GameSystem$CollectionFactoryDesc in map format.
+  (let [resolve-resource #(workspace/resolve-resource resource %)]
+    (into [(g/set-property self :factory-type factory-type)]
+          (gu/set-properties-from-map self any-factory-desc
+            prototype (resolve-resource :prototype)
+            load-dynamically :load-dynamically
+            dynamic-prototype :dynamic-prototype))))
+
+;; For these fields, we use the default from GameSystem$FactoryDesc in both
+;; cases since we share a single defnode between two protobuf classes.
+(assert (= (protobuf/default GameSystem$FactoryDesc :load-dynamically)
+           (protobuf/default GameSystem$CollectionFactoryDesc :load-dynamically)))
+
+(assert (= (protobuf/default GameSystem$FactoryDesc :dynamic-prototype)
+           (protobuf/default GameSystem$CollectionFactoryDesc :dynamic-prototype)))
 
 (g/defnode FactoryNode
   (inherits resource-node/ResourceNode)
@@ -111,10 +122,10 @@
   (input dep-build-targets g/Any)
   (input prototype-resource resource/Resource)
 
-  (property factory-type g/Any
+  (property factory-type g/Any ; Always assigned in load-fn.
             (dynamic visible (g/constantly false)))
 
-  (property prototype resource/Resource
+  (property prototype resource/Resource ; Required protobuf field.
             (value (gu/passthrough prototype-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -125,8 +136,8 @@
                                       (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource "Prototype"))))
             (dynamic edit-type (g/fnk [factory-type]
                                  {:type resource/Resource :ext (get-in factory-types [factory-type :ext])})))
-  (property load-dynamically g/Bool)
-  (property dynamic-prototype g/Bool)
+  (property load-dynamically g/Bool (default (protobuf/default GameSystem$FactoryDesc :load-dynamically)))
+  (property dynamic-prototype g/Bool (default (protobuf/default GameSystem$FactoryDesc :dynamic-prototype)))
 
   (output form-data g/Any produce-form-data)
 
@@ -148,27 +159,27 @@
 (defn register-resource-types
   [workspace]
   (concat
-   (resource-node/register-ddf-resource-type workspace
-                                     :textual? true
-                                     :ext "factory"
-                                     :node-type FactoryNode
-                                     :ddf-type GameSystem$FactoryDesc
-                                     :load-fn (partial load-factory :game-object)
-                                     :icon (get-in factory-types [:game-object :icon])
-                                     :view-types [:cljfx-form-view :text]
-                                     :view-opts {}
-                                     :tags #{:component}
-                                     :tag-opts {:component {:transform-properties #{}}}
-                                     :label "Factory")
-   (resource-node/register-ddf-resource-type workspace
-                                     :textual? true
-                                     :ext "collectionfactory"
-                                     :node-type FactoryNode
-                                     :ddf-type GameSystem$CollectionFactoryDesc
-                                     :load-fn (partial load-factory :collection)
-                                     :icon (get-in factory-types [:collection :icon])
-                                     :view-types [:cljfx-form-view :text]
-                                     :view-opts {}
-                                     :tags #{:component}
-                                     :tag-opts {:component {:transform-properties #{}}}
-                                     :label "Collection Factory")))
+    (resource-node/register-ddf-resource-type workspace
+      :ext "factory"
+      :node-type FactoryNode
+      :ddf-type GameSystem$FactoryDesc
+      :read-defaults false
+      :load-fn (partial load-factory :game-object)
+      :icon (get-in factory-types [:game-object :icon])
+      :view-types [:cljfx-form-view :text]
+      :view-opts {}
+      :tags #{:component}
+      :tag-opts {:component {:transform-properties #{}}}
+      :label "Factory")
+    (resource-node/register-ddf-resource-type workspace
+      :ext "collectionfactory"
+      :node-type FactoryNode
+      :ddf-type GameSystem$CollectionFactoryDesc
+      :read-defaults false
+      :load-fn (partial load-factory :collection)
+      :icon (get-in factory-types [:collection :icon])
+      :view-types [:cljfx-form-view :text]
+      :view-opts {}
+      :tags #{:component}
+      :tag-opts {:component {:transform-properties #{}}}
+      :label "Collection Factory")))
