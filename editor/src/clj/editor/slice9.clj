@@ -108,8 +108,8 @@
 
 (defn vertex-data
   [{:keys [width height tex-coords] :as _frame} size slice9 pivot]
-  (let [^double texture-width (or width 1.0)
-        ^double texture-height (or height 1.0)
+  (let [^double texture-width (or width (first size) 1.0)
+        ^double texture-height (or height (second size) 1.0)
         ;; Sample tex-coords if anim from tile source:
         ;;
         ;;  no flip:  [[0.0 0.140625] [0.0 1.0] [0.5566406 1.0] [0.5566406 0.140625]]   TL BL BR TR     T-B-B-T L-L-R-R

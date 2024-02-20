@@ -87,13 +87,20 @@
   (let [{:keys [world-transform updatable user-data]} renderable
         {:keys [scene-infos size-mode size slice9 vertex-attribute-bytes]} user-data
         frame-index (get-in updatable [:state :frame] 0)
-        texcoord-datas (mapv (fn [{:keys [animation]}]
-                               (let [animation-frame (get-in animation [:frames frame-index])
-                                     vertex-data (if (= :size-mode-auto size-mode)
-                                                   (texture-set/vertex-data animation-frame)
-                                                   (slice9/vertex-data animation-frame size slice9 :pivot-center))]
-                                 (assoc vertex-data :page-index (:page-index animation-frame))))
-                             scene-infos)]
+
+        texcoord-datas
+        (if (and (coll/empty? scene-infos)
+                 (= :size-mode-manual size-mode))
+          (let [vertex-data (slice9/vertex-data nil size slice9 :pivot-center)]
+            [(assoc vertex-data :page-index 0)])
+          (mapv (fn [{:keys [animation]}]
+                  (let [animation-frame (get-in animation [:frames frame-index])
+                        vertex-data (if (= :size-mode-auto size-mode)
+                                      (texture-set/vertex-data animation-frame)
+                                      (slice9/vertex-data animation-frame size slice9 :pivot-center))]
+                    (assoc vertex-data :page-index (:page-index animation-frame))))
+                scene-infos))]
+
     (conj {:texcoord-datas texcoord-datas
            :world-transform world-transform
            :vertex-attribute-bytes vertex-attribute-bytes}
@@ -264,36 +271,32 @@
   (let [first-animation (:animation (first scene-infos))]
     (cond-> {:node-id _node-id
              :aabb aabb
-             :renderable {:passes [pass/selection]}}
-            (seq (:frames first-animation))
-            (assoc :renderable {:render-fn render-sprites
-                                :batch-key [(mapv :gpu-texture scene-infos) blend-mode material-shader]
-                                :select-batch-key _node-id
-                                :tags #{:sprite}
-                                :user-data {:shader material-shader
-                                            :scene-infos scene-infos
-                                            :material-attribute-infos material-attribute-infos
-                                            :vertex-attribute-bytes vertex-attribute-bytes
-                                            :blend-mode blend-mode
-                                            :size-mode size-mode
-                                            :size size
-                                            :slice9 slice9
-                                            :quad-count (quad-count size-mode slice9)}
-                                :passes [pass/transparent pass/selection]})
-
-            (and (:width first-animation) (:height first-animation))
-            (assoc :children [{:node-id _node-id
-                               :aabb aabb
-                               :renderable {:render-fn render-sprite-outlines
-                                            :batch-key [outline-shader]
-                                            :tags #{:sprite :outline}
-                                            :select-batch-key _node-id
-                                            :user-data {:animation first-animation
-                                                        :size-mode size-mode
-                                                        :size size
-                                                        :slice9 slice9
-                                                        :quad-count (quad-count size-mode slice9)}
-                                            :passes [pass/outline]}}])
+             :renderable {:render-fn render-sprites
+                          :batch-key [(mapv :gpu-texture scene-infos) blend-mode material-shader]
+                          :select-batch-key _node-id
+                          :tags #{:sprite}
+                          :user-data {:shader material-shader
+                                      :scene-infos scene-infos
+                                      :material-attribute-infos material-attribute-infos
+                                      :vertex-attribute-bytes vertex-attribute-bytes
+                                      :blend-mode blend-mode
+                                      :size-mode size-mode
+                                      :size size
+                                      :slice9 slice9
+                                      :quad-count (quad-count size-mode slice9)}
+                          :passes [pass/transparent pass/selection]}
+             :children [{:node-id _node-id
+                         :aabb aabb
+                         :renderable {:render-fn render-sprite-outlines
+                                      :batch-key [outline-shader]
+                                      :tags #{:sprite :outline}
+                                      :select-batch-key _node-id
+                                      :user-data {:animation first-animation
+                                                  :size-mode size-mode
+                                                  :size size
+                                                  :slice9 slice9
+                                                  :quad-count (quad-count size-mode slice9)}
+                                      :passes [pass/outline]}}]}
 
             (< 1 (count (:frames first-animation)))
             (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" first-animation)))))
