@@ -41,10 +41,11 @@
           <entry key="editor.lsp.async/with-auto-evaluation-context" value="-1" />
           <entry key="editor.protobuf/assign" value="1" />
           <entry key="editor.protobuf/assign-repeated" value="1" />
+          <entry key="editor.protobuf/clear-defaults" value="1" />
+          <entry key="editor.protobuf/inject-defaults" value="1" />
           <entry key="editor.protobuf/make-map" value="1" />
           <entry key="editor.protobuf/make-map-with-defaults" value="1" />
           <entry key="editor.protobuf/make-map-without-defaults" value="1" />
-          <entry key="editor.protobuf/without-defaults" value="1" />
           <entry key="editor.resource-io/with-error-translation" value="-1" />
           <entry key="editor.resource-node/register-ddf-resource-type" value="-1" />
           <entry key="editor.resource-node/register-settings-resource-type" value="-1" />

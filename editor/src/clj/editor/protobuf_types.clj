@@ -15,15 +15,14 @@
 (ns editor.protobuf-types
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto GameSystem$LightDesc]
+           [com.dynamo.gamesys.proto Physics$ConvexShape]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]
-           [com.dynamo.input.proto Input$GamepadMaps Input$InputBinding]
-           [com.dynamo.gamesys.proto Physics$ConvexShape]))
+           [com.dynamo.input.proto Input$GamepadMaps Input$InputBinding]))
 
 (set! *warn-on-reflection* true)
 
@@ -68,20 +67,28 @@
 (g/defnk produce-form-data [_node-id pb def]
   (protobuf-forms/produce-form-data _node-id pb def))
 
+(g/defnk produce-save-value [def pb]
+  (let [pb-class (:pb-class def)]
+    (protobuf/clear-defaults pb-class pb)))
+
 (g/defnode ProtobufNode
   (inherits resource-node/ResourceNode)
 
-  (property pb g/Any (dynamic visible (g/constantly false)))
-  (property def g/Any (dynamic visible (g/constantly false)))
+  (property pb g/Any ; Always assigned in load-fn.
+            (dynamic visible (g/constantly false)))
+  (property def g/Any ; Always assigned in load-fn.
+            (dynamic visible (g/constantly false)))
 
   (output form-data g/Any :cached produce-form-data)
-  (output save-value g/Any (gu/passthrough pb))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-pb [def project self resource pb]
-  (concat
-    (g/set-property self :pb pb)
-    (g/set-property self :def def)))
+(defn load-pb [def _project self _resource pb-map-without-defaults]
+  (let [pb-class (:pb-class def)
+        pb-map-with-defaults (protobuf/inject-defaults pb-class pb-map-without-defaults)]
+    (g/set-property self
+      :def def
+      :pb pb-map-with-defaults)))
 
 (defn- register [workspace def]
   (let [ext (:ext def)
@@ -93,6 +100,7 @@
         :build-ext (:build-ext def)
         :node-type ProtobufNode
         :ddf-type (:pb-class def)
+        :read-defaults false
         :load-fn (partial load-pb def)
         :icon (:icon def)
         :view-types (:view-types def)

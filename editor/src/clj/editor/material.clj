@@ -88,7 +88,7 @@
   {:pre [(map? editable-attribute)
          (vector? values)]}
   (let [[attribute-value-keyword stored-values] (graphics/doubles->storage values data-type normalize)]
-    (protobuf/without-defaults Graphics$VertexAttribute
+    (protobuf/clear-defaults Graphics$VertexAttribute
       (-> editable-attribute
           (dissoc :values)
           (protobuf/assign attribute-value-keyword
@@ -108,7 +108,7 @@
     :fragment-program (resource/resource->proj-path fragment-program)
     :vertex-constants (hack-upgrade-constants vertex-constants)
     :fragment-constants (hack-upgrade-constants fragment-constants)
-    :samplers (mapv #(protobuf/without-defaults Material$MaterialDesc$Sampler %) samplers)
+    :samplers (mapv #(protobuf/clear-defaults Material$MaterialDesc$Sampler %) samplers)
     :tags tags
     :vertex-space vertex-space
     :max-page-count max-page-count))
