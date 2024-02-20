@@ -99,7 +99,7 @@ namespace dmGameSystem
     // Vertex attributes
     int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash);
 
-    // Dynamic Vertex Attribute overrides
+    // Dynamic Vertex Attribute
     static const uint16_t INVALID_DYNAMIC_ATTRIBUTE_INDEX = 0xFFFF;
 
     struct DynamicAttributeInfo
