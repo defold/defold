@@ -4794,6 +4794,24 @@ TEST_F(ComponentTest, GetSetCollisionShape)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(ComponentTest, GetSetErrorCollisionShape)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_error_shape.goc", dmHashString64("/get_set_error_shape_go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_base);
+
+    ASSERT_FALSE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(SysTest, LoadBufferSync)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;

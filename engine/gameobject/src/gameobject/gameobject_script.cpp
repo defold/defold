@@ -1118,7 +1118,7 @@ namespace dmGameObject
      * local s = go.get_scale("x")
      * ```
      */
-    int Script_GetScale(lua_State* L)
+    static int Script_GetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
         dmScript::PushVector3(L, dmGameObject::GetScale(instance));
@@ -1145,11 +1145,9 @@ namespace dmGameObject
      * local s = go.get_scale_vector("x")
      * ```
      */
-    int Script_GetScaleVector(lua_State* L)
+    static int Script_GetScaleVector(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushVector3(L, dmGameObject::GetScale(instance));
-        return 1;
+        return Script_GetScale(L);
     }
 
     /*# gets the uniform scale factor of the game object instance
@@ -2031,7 +2029,7 @@ namespace dmGameObject
      * ```
      *
      */
-    int Script_Delete(lua_State* L)
+    static int Script_Delete(lua_State* L)
     {
         int args = lua_gettop(L);
 
@@ -2130,43 +2128,9 @@ namespace dmGameObject
      * go.delete_all(ids)
      * ```
      */
-    int Script_DeleteAll(lua_State* L)
+    static int Script_DeleteAll(lua_State* L)
     {
-        const int top = lua_gettop(L);
-        if (lua_gettop(L) != 1 || !lua_istable(L, 1)) {
-            dmLogWarning("go.delete_all() needs a table as its first argument");
-            return 0;
-        }
-        int result = DeleteGOTable(L, false);
-        if(result == 0)
-        {
-            assert(top == lua_gettop(L));
-        }
-        return result;
-    }
-
-    /* OMITTED FROM API DOCS!
-     * constructs a ray in world space from a position in screen space
-     *
-     * [icon:alert] Do not use this function, WIP!
-     *
-     * @name go.screen_ray
-     * @param x [type:number] x-coordinate of the screen space position
-     * @param y [type:number] y-coordinate of the screen space position
-     * @return position [type:vector3] of the ray in world-space
-     * @return direction [type:vector3] of the ray in world space
-     */
-    int Script_ScreenRay(lua_State* L)
-    {
-        lua_Number x = luaL_checknumber(L, 1);
-        lua_Number y = luaL_checknumber(L, 2);
-        // TODO: This temporarily assumes the worldspace is simply screen space
-        // Should be fixed in a more robust way.
-        Vector3 p((float) x, (float) y, 1.0f);
-        Vector3 d(0.0f, 0.0f, -1.0f);
-        dmScript::PushVector3(L, p);
-        dmScript::PushVector3(L, d);
-        return 2;
+        return Script_Delete(L);
     }
 
     /*# define a property for the script
@@ -2303,7 +2267,6 @@ namespace dmGameObject
         {"cancel_animations",       Script_CancelAnimations},
         {"delete",                  Script_Delete},
         {"delete_all",              Script_DeleteAll},
-        {"screen_ray",              Script_ScreenRay},
         {"property",                Script_Property},
         {"exists",                  Script_Exists},
         {0, 0}

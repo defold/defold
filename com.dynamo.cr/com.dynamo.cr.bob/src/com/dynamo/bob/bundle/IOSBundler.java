@@ -55,6 +55,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.FileUtil;
 
 @BundlerParams(platforms = {Platform.Arm64Ios, Platform.X86_64Ios})
 public class IOSBundler implements IBundler {
@@ -82,7 +83,7 @@ public class IOSBundler implements IBundler {
     private static File createTempDirectory() throws IOException {
         final File temp;
 
-        temp = File.createTempFile("temp", Long.toString(System.nanoTime()));
+        temp = File.createTempFile("temp_defold_", Long.toString(System.nanoTime()));
 
         if(!(temp.delete()))
         {
@@ -469,7 +470,7 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         // Create fat/universal binary
         File exe = File.createTempFile("dmengine", "");
-        exe.deleteOnExit();
+        FileUtil.deleteOnExit(exe);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -519,8 +520,7 @@ public class IOSBundler implements IBundler {
 
         // Package zip file
         File tmpZipDir = createTempDirectory();
-        tmpZipDir.deleteOnExit();
-
+        FileUtil.deleteOnExit(tmpZipDir);
         File swiftSupportDir = new File(tmpZipDir, "SwiftSupport");
 
         // Copy any libswift*.dylib files from the Frameworks folder
@@ -557,7 +557,7 @@ public class IOSBundler implements IBundler {
             FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
 
             File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
-            textProvisionFile.deleteOnExit();
+            FileUtil.deleteOnExit(textProvisionFile);
 
             Result securityResult = Exec.execResult("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
             if (securityResult.ret != 0) {
@@ -631,7 +631,7 @@ public class IOSBundler implements IBundler {
                     entitlements.initFileLocator(locator);
                     entitlements.write(writer);
                     writer.close();
-                    entitlementOut.deleteOnExit();
+                    FileUtil.deleteOnExit(entitlementOut);
                 }
                 catch (ConfigurationException e) {
                     logger.severe("Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
