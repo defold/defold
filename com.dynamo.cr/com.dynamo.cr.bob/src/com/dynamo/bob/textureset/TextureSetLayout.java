@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -410,6 +410,11 @@ public class TextureSetLayout {
             this.x = x;
             this.y = y;
         };
+
+        public float getX()                 { return x; }
+        public void setX(float x)           { this.x = x; }
+        public float getY()                 { return y; }
+        public void setY(float y)           { this.y = y; }
     }
 
     public static class Size
@@ -420,6 +425,11 @@ public class TextureSetLayout {
             this.width = width;
             this.height = height;
         };
+
+        public float getWidth()                 { return width; }
+        public void setWidth(float width)       { this.width = width; }
+        public float getHeight()                { return height; }
+        public void setHeight(float height)     { this.height = height; }
     }
 
     public static class Rectangle
@@ -434,6 +444,15 @@ public class TextureSetLayout {
             this.width = width;
             this.height = height;
         };
+
+        public float getX()                 { return x; }
+        public void setX(float x)           { this.x = x; }
+        public float getY()                 { return y; }
+        public void setY(float y)           { this.y = y; }
+        public float getWidth()             { return width; }
+        public void setWidth(float width)   { this.width = width; }
+        public float getHeight()            { return height; }
+        public void setHeight(float height) { this.height = height; }
     }
 
     public static class SourceImage
@@ -451,6 +470,47 @@ public class TextureSetLayout {
 
         // List of indices (3-tuples) that make up the triangle list
         public List<Integer>   indices;
+
+        /////////////////////////////////////////////////////////////
+        public String getName() {
+            return name;
+        }
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public Rectangle getOriginalSize() {
+            return originalSize;
+        }
+        public void setOriginalSize(Rectangle originalSize) {
+            this.originalSize = originalSize;
+        }
+        public Rectangle getRect() {
+            return rect;
+        }
+        public void setRect(Rectangle rect) {
+            this.rect = rect;
+        }
+
+        public boolean getRotated() {
+            return rotated;
+        }
+        public void setRotated(boolean rotated) {
+            this.rotated = rotated;
+        }
+
+        public List<Point> getVertices() {
+            return vertices;
+        }
+        public void setVertices(List<Point> vertices) {
+            this.vertices = vertices;
+        }
+        public List<Integer> getIndices() {
+            return indices;
+        }
+        public void setIndices(List<Integer> indices) {
+            this.indices = indices;
+        }
     }
 
     // Public api for extensions!
