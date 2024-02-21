@@ -588,6 +588,22 @@
          (protobuf/make-map-with-defaults TestDdf$ResourceFields
            :optional-resource "/default"))))
 
+(deftest make-map-with-defaults-resources
+  (assert (= "" (protobuf/default TestDdf$ResourceSimple :image)))
+  (assert (= "/default" (protobuf/default TestDdf$ResourceFields :optional-resource)))
+  (is (= {:image ""}
+         (protobuf/make-map-with-defaults TestDdf$ResourceSimple
+           :image ""))
+      "Keep empty paths if equal to the default.")
+  (is (= {:optional-resource ""}
+         (protobuf/make-map-with-defaults TestDdf$ResourceFields
+           :optional-resource ""))
+      "Keep empty paths if not equal to the default.")
+  (is (= {:optional-resource "/default"}
+         (protobuf/make-map-with-defaults TestDdf$ResourceFields
+           :optional-resource "/default"))
+      "Keep non-empty paths even if equal to the default."))
+
 ;; -----------------------------------------------------------------------------
 ;; read-map-with-defaults
 ;; -----------------------------------------------------------------------------
@@ -839,6 +855,19 @@ repeated_message {
   (is (= {:optional-resource "/default"}
          (read-map-with-defaults TestDdf$ResourceFields "optional_resource: '/default'"))))
 
+(deftest read-map-with-defaults-resources
+  (assert (= "" (protobuf/default TestDdf$ResourceSimple :image)))
+  (assert (= "/default" (protobuf/default TestDdf$ResourceFields :optional-resource)))
+  (is (= {:image ""}
+         (read-map-with-defaults TestDdf$ResourceSimple "image: ''"))
+      "Keep empty paths if equal to the default.")
+  (is (= {:optional-resource ""}
+         (read-map-with-defaults TestDdf$ResourceFields "optional_resource: ''"))
+      "Keep empty paths if not equal to the default.")
+  (is (= {:optional-resource "/default"}
+         (read-map-with-defaults TestDdf$ResourceFields "optional_resource: '/default'"))
+      "Keep non-empty paths even if equal to the default."))
+
 ;; -----------------------------------------------------------------------------
 ;; make-map-without-defaults
 ;; -----------------------------------------------------------------------------
@@ -967,6 +996,22 @@ repeated_message {
   (is (= {:optional-resource "/default"}
          (protobuf/make-map-without-defaults TestDdf$ResourceFields
            :optional-resource "/default"))))
+
+(deftest make-map-without-defaults-resources
+  (assert (= "" (protobuf/default TestDdf$ResourceSimple :image)))
+  (assert (= "/default" (protobuf/default TestDdf$ResourceFields :optional-resource)))
+  (is (= {}
+         (protobuf/make-map-without-defaults TestDdf$ResourceSimple
+           :image ""))
+      "Remove empty paths if equal to the default.")
+  (is (= {:optional-resource ""}
+         (protobuf/make-map-without-defaults TestDdf$ResourceFields
+           :optional-resource ""))
+      "Keep empty paths if not equal to the default.")
+  (is (= {:optional-resource "/default"}
+         (protobuf/make-map-without-defaults TestDdf$ResourceFields
+           :optional-resource "/default"))
+      "Keep non-empty paths even if equal to the default."))
 
 ;; -----------------------------------------------------------------------------
 ;; read-map-without-defaults
@@ -1186,3 +1231,16 @@ repeated_message {
 }")))
   (is (= {:optional-resource "/default"}
          (read-map-without-defaults TestDdf$ResourceFields "optional_resource: '/default'"))))
+
+(deftest read-map-without-defaults-resources
+  (assert (= "" (protobuf/default TestDdf$ResourceSimple :image)))
+  (assert (= "/default" (protobuf/default TestDdf$ResourceFields :optional-resource)))
+  (is (= {}
+         (read-map-without-defaults TestDdf$ResourceSimple "image: ''"))
+      "Remove empty paths if equal to the default.")
+  (is (= {:optional-resource ""}
+         (read-map-without-defaults TestDdf$ResourceFields "optional_resource: ''"))
+      "Keep empty paths if not equal to the default.")
+  (is (= {:optional-resource "/default"}
+         (read-map-without-defaults TestDdf$ResourceFields "optional_resource: '/default'"))
+      "Keep non-empty paths even if equal to the default."))

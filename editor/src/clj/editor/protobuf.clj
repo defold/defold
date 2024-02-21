@@ -546,8 +546,12 @@ Macros currently mean no foreseeable performance gain, however."
                   (not (.hasField builder field-desc))
                   is-default
 
-                  (and (= (.getDefaultValue field-desc) (.getField builder field-desc))
-                       (not (-> field-desc (.getOptions) (.getField resource-desc))))
+                  (let [is-resource-field (-> field-desc (.getOptions) (.getField resource-desc))
+                        default-value (.getDefaultValue field-desc)]
+                    (if is-resource-field
+                      (and (= "" default-value)
+                           (= "" (.getField builder field-desc)))
+                      (= default-value (.getField builder field-desc))))
                   (do
                     (.clearField builder field-desc)
                     is-default)
@@ -1024,7 +1028,7 @@ Macros currently mean no foreseeable performance gain, however."
     (with-open [reader (StringReader. str)]
       (read-pb cls reader))))
 
-(defonce single-byte-array-args [j/byte-array-class])
+(defonce ^:private single-byte-array-args [j/byte-array-class])
 
 (defn- parser-fn-raw [^Class cls]
   (let [^Method parse-method (j/get-declared-method cls "parseFrom" single-byte-array-args)]
@@ -1135,10 +1139,13 @@ Macros currently mean no foreseeable performance gain, however."
               (let [field-info (key->field-info key)]
                 (case (:field-rule field-info)
                   :optional
-                  (when (or (resource-field? field-info)
-                            (not (or (and (message-field? field-info)
-                                          (coll/empty? value))
-                                     (= (key->default key) value))))
+                  (when (if (resource-field? field-info)
+                          (if (= "" value)
+                            (not= "" (key->default key))
+                            true)
+                          (not (or (and (message-field? field-info)
+                                        (coll/empty? value))
+                                   (= (key->default key) value))))
                     entry)
 
                   :repeated
