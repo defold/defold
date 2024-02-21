@@ -18,6 +18,7 @@
             [editor.resource :as resource]
             [util.coll :refer [pair]])
   (:import [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator]
+           [com.dynamo.render.proto Font$FontDesc]
            [com.google.protobuf ByteString]
            [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics2D RenderingHints Shape Transparency]
            [java.awt.color ColorSpace]
@@ -391,12 +392,18 @@
       (throw (ex-info "No character glyphs were included! Maybe turn on 'all_chars'?" {})))
     semi-glyphs))
 
+(def ^:private default-alpha (protobuf/default Font$FontDesc :alpha))
+(def ^:private default-shadow-alpha (protobuf/default Font$FontDesc :shadow-alpha))
+(def ^:private default-outline-alpha (protobuf/default Font$FontDesc :outline-alpha))
+(def ^:private default-outline-width (protobuf/default Font$FontDesc :outline-width))
+(def ^:private default-render-mode (protobuf/default Font$FontDesc :render-mode))
+
 (defn font-desc->layer-mask [font-desc]
-  (let [^double alpha (:alpha font-desc)
-        ^double shadow-alpha (:shadow-alpha font-desc)
-        ^double outline-alpha (:outline-alpha font-desc)
-        ^double outline-width (:outline-width font-desc)
-        render-mode (:render-mode font-desc)
+  (let [^double alpha (:alpha font-desc default-alpha)
+        ^double shadow-alpha (:shadow-alpha font-desc default-shadow-alpha)
+        ^double outline-alpha (:outline-alpha font-desc default-outline-alpha)
+        ^double outline-width (:outline-width font-desc default-outline-width)
+        render-mode (:render-mode font-desc default-render-mode)
         face-layer 0x1
         outline-layer (if (and (> outline-width 0.0)
                                (> outline-alpha 0.0)
