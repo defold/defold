@@ -655,6 +655,9 @@ namespace dmGameSystem
                 int32_t dynamic_attribute_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
                 if (dynamic_attribute_index >= 0)
                 {
+                    // TODO: We should optimally use converted values for this as well,
+                    //       but since we are not converting any other attribute value
+                    //       we will wait with that a bit.
                     GetMaterialAttributeValues(dynamic_info, dynamic_attribute_index,
                         material_infos->m_Infos[i].m_ValueByteSize,
                         &sprite_infos->m_Infos[i].m_ValuePtr,

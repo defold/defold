@@ -269,6 +269,82 @@ namespace dmGameSystem
         return -1;
     }
 
+    static inline float VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr)
+    {
+        switch (data_type)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:           return (float) ((int8_t*) value_ptr)[0];
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return (float) value_ptr[0];
+            case dmGraphics::VertexAttribute::TYPE_SHORT:          return (float) ((int16_t*) value_ptr)[0];
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return (float) ((uint16_t*) value_ptr)[0];
+            case dmGraphics::VertexAttribute::TYPE_INT:            return (float) ((int32_t*) value_ptr)[0];
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return (float) ((uint32_t*) value_ptr)[0];
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return (float) ((float*) value_ptr)[0];
+            default:break;
+        }
+        return 0;
+    }
+
+    static inline void FloatToVertexAttributeDataType(float value, dmGraphics::VertexAttribute::DataType data_type, uint8_t* value_write_ptr)
+    {
+        switch (data_type)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:
+                *((int8_t*) value_write_ptr) = (int8_t) dmMath::Clamp(value, -128.0f, 127.0f);
+                break;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:
+                *value_write_ptr = (uint8_t) dmMath::Clamp(value, 0.0f, 255.0f);
+                break;
+            case dmGraphics::VertexAttribute::TYPE_SHORT:
+                *((int16_t*) value_write_ptr) = (int16_t) dmMath::Clamp(value, -32768.0f, 32767.0f);
+                break;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT:
+                *((uint16_t*) value_write_ptr) = (uint16_t) dmMath::Clamp(value, 0.0f, 65535.0f);
+                break;
+            case dmGraphics::VertexAttribute::TYPE_INT:
+                *((int32_t*) value_write_ptr) = (int32_t) dmMath::Clamp(value, -2147483648.0f, 2147483647.0f);
+                break;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:
+                *((uint32_t*) value_write_ptr) = (uint32_t) dmMath::Clamp(value, 0.0f, 4294967295.0f);
+                break;
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:
+                *((float*) value_write_ptr) = value;
+                break;
+            default:break;
+        }
+    }
+
+    static void VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out)
+    {
+        dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);
+        uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);
+        for (int i = 0; i < attribute->m_ElementCount; ++i)
+        {
+            out[i] = VertexAttributeDataTypeToFloat(attribute->m_DataType, value_ptr + bytes_per_element * i);
+        }
+    }
+
+    void ConvertMaterialAttributeValuesToDataType(const DynamicAttributeInfo& info, uint16_t dynamic_attribute_index, const dmGraphics::VertexAttribute* attribute, uint8_t* value_ptr)
+    {
+        float* values = info.m_Infos[dynamic_attribute_index].m_Values;
+
+        dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);
+        uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);
+        uint32_t bytes_to_copy         = dmMath::Min(bytes_per_element * attribute->m_ElementCount, (uint32_t) sizeof(info.m_Infos[dynamic_attribute_index].m_Values));
+
+        if (attribute->m_DataType == dmGraphics::VertexAttribute::TYPE_FLOAT)
+        {
+            memcpy(value_ptr, values, bytes_to_copy);
+        }
+        else
+        {
+            for (int i = 0; i < attribute->m_ElementCount; ++i)
+            {
+                FloatToVertexAttributeDataType(values[i], attribute->m_DataType, value_ptr + bytes_per_element * i);
+            }
+        }
+    }
+
     void GetMaterialAttributeValues(const DynamicAttributeInfo& info, uint16_t dynamic_attribute_index, uint32_t max_value_size, const uint8_t** value_ptr, uint32_t* value_size)
     {
         *value_ptr  = (uint8_t*) info.m_Infos[dynamic_attribute_index].m_Values;
@@ -340,31 +416,6 @@ namespace dmGameSystem
             }
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
-    }
-
-    static inline float VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr)
-    {
-        switch (data_type)
-        {
-            case dmGraphics::VertexAttribute::TYPE_BYTE:           return (float) ((int8_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return (float) value_ptr[0];
-            case dmGraphics::VertexAttribute::TYPE_SHORT:          return (float) ((int16_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return (float) ((uint16_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_INT:            return (float) ((int32_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return (float) ((uint32_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return (float) ((float*) value_ptr)[0];
-        }
-        return 0;
-    }
-
-    static void VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out)
-    {
-        dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);
-        uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);
-        for (int i = 0; i < attribute->m_ElementCount; ++i)
-        {
-            out[i] = VertexAttributeDataTypeToFloat(attribute->m_DataType, value_ptr + bytes_per_element * i);
-        }
     }
 
     static dmGameObject::PropertyVar DynamicAttributeValuesToPropertyVar(float* values, uint32_t element_count, uint32_t element_index, bool use_element_index)
