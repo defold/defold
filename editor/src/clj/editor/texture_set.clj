@@ -137,6 +137,19 @@
      (gen-vertex world-transform x1 y1 u2 v2 page-index)
      (gen-vertex world-transform x0 y1 u1 v1 page-index)]))
 
+(defn- animation-frame-corners [animation-frame]
+  (let [^double width (:width animation-frame)
+        ^double height (:height animation-frame)
+        x1 (* 0.5 width)
+        y1 (* 0.5 height)
+        x0 (- x1)
+        y0 (- y1)
+        xynw (vector-of :double x0 y0 0.0 1.0)
+        xyne (vector-of :double x1 y0 0.0 1.0)
+        xysw (vector-of :double x0 y1 0.0 1.0)
+        xyse (vector-of :double x1 y1 0.0 1.0)]
+    [xynw xyne xysw xyse]))
+
 (defn position-data [animation-frame]
   (if (:use-geometries animation-frame)
     (let [^double width (:width animation-frame)
@@ -149,16 +162,11 @@
                     y (* height (get p 1))]
                 (vector-of :double x y 0.0 1.0)))
             indices))
-    (let [^double width (:width animation-frame)
-          ^double height (:height animation-frame)
-          x1 (* 0.5 width)
-          y1 (* 0.5 height)
-          x0 (- x1)
-          y0 (- y1)
-          xynw (vector-of :double x0 y0 0.0 1.0)
-          xyne (vector-of :double x1 y0 0.0 1.0)
-          xysw (vector-of :double x0 y1 0.0 1.0)
-          xyse (vector-of :double x1 y1 0.0 1.0)]
+    (let [corner-points (animation-frame-corners animation-frame)
+          xynw (get corner-points 0)
+          xyne (get corner-points 1)
+          xysw (get corner-points 2)
+          xyse (get corner-points 3)]
       [xynw xyne xysw xyne xyse xysw])))
 
 (defn uv-data [animation-frame]
@@ -169,9 +177,18 @@
     (let [[uvnw uvsw uvse uvne] (:tex-coords animation-frame)]
       [uvnw uvne uvsw uvne uvse uvsw])))
 
+(defn- line-data [animation-frame]
+  (let [corner-points (animation-frame-corners animation-frame)
+        xynw (get corner-points 0)
+        xyne (get corner-points 1)
+        xysw (get corner-points 2)
+        xyse (get corner-points 3)]
+    [xynw xyne xyne xyse xyse xysw xysw xynw]))
+
 (defn vertex-data [animation-frame]
   {:position-data (position-data animation-frame)
-   :uv-data (uv-data animation-frame)})
+   :uv-data (uv-data animation-frame)
+   :line-data (line-data animation-frame)})
 
 
 ;; animation
