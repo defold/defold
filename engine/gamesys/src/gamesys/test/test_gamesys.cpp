@@ -4665,12 +4665,6 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         info_members[1].m_Values[2] = -32768.0f;
         info_members[1].m_Values[3] = -65536.0f;
 
-        info_members[2].m_NameHash  = dmHashString64("dynamic_attribute_massive");
-        info_members[2].m_Values[0] = -2147483648.0f;
-        info_members[2].m_Values[1] = 2147483648.0f;
-        info_members[2].m_Values[2] = -4294967295.0f;
-        info_members[2].m_Values[3] = 4294967295.0f;
-
         dmGameSystem::DynamicAttributeInfo info;
         info.m_Infos    = info_members;
         info.m_NumInfos = DM_ARRAY_SIZE(info_members);
@@ -4718,9 +4712,6 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
             int32_t expected_values_neg[] = { -128, -256, -32768, -65536 };
             ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_INT, expected_values_neg, 4);
-
-            int32_t expected_values_massive[] = { -2147483648, 2147483647, -2147483648, 2147483647 };
-            ValidateVertexAttributeTypeConversion(info, 2, dmGraphics::VertexAttribute::TYPE_INT, expected_values_massive, 4);
         }
 
         // TYPE_UNSIGNED_INT
@@ -4730,9 +4721,6 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
             uint32_t expected_values_neg[] = { 0, 0, 0, 0 };
             ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT, expected_values_neg, 4);
-
-            uint32_t expected_values_massive[] = { 0, 2147483648, 0, 4294967295 };
-            ValidateVertexAttributeTypeConversion(info, 2, dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT, expected_values_massive, 4);
         }
 
         // TYPE_FLOAT

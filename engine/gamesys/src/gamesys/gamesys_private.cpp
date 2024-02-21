@@ -355,6 +355,8 @@ namespace dmGameSystem
     {
         dynamic_attribute_infos.SetCapacity(initial_capacity);
         dynamic_attribute_infos.SetSize(initial_capacity);
+        memset(&dynamic_attribute_infos[0], 0, dynamic_attribute_infos.Capacity() * sizeof(DynamicAttributeInfo));
+
         dynamic_attribute_free_indices.SetCapacity(initial_capacity);
         for (int i = 0; i < initial_capacity; ++i)
         {
@@ -369,8 +371,12 @@ namespace dmGameSystem
             if (dynamic_attribute_infos[i].m_Infos)
             {
                 free(dynamic_attribute_infos[i].m_Infos);
+                dynamic_attribute_infos[i].m_Infos = 0;
             }
         }
+
+        dynamic_attribute_infos.SetSize(0);
+        dynamic_attribute_infos.SetCapacity(0);
     }
 
     dmGameObject::PropertyResult ClearMaterialAttribute(
