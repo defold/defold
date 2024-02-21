@@ -118,20 +118,23 @@
       empty-coll)))
 
 (defn empty?
-  "Like core.empty?, but avoids generating garbage for counted collections."
+  "Like core.empty?, but avoids generating garbage when possible."
   [coll]
   (cond
+    (nil? coll)
+    true
+
     (counted? coll)
     (zero? (count coll))
 
-    (nil? coll)
-    true
+    (instance? CharSequence coll)
+    (.isEmpty ^CharSequence coll)
 
     :else
     (not (seq coll))))
 
 (defn not-empty
-  "Like core.not-empty, but avoids generating garbage for counted collections."
+  "Like core.not-empty, but avoids generating garbage when possible."
   [coll]
   (if (empty? coll)
     nil
