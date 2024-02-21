@@ -4606,11 +4606,10 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         ASSERT_EQ(1,           dynamic_attribute_infos[0].m_NumInfos);
         ASSERT_NE((void*) 0x0, dynamic_attribute_infos[0].m_Infos);
 
-        // Again, "position" only has two elements
+        // Again, "position" only has two elements, which in turn ends up as a vector three, so we know we will only care about these three values
         ASSERT_NEAR(var.m_V4[0], desc.m_Variant.m_V4[0], EPSILON);
         ASSERT_NEAR(var.m_V4[1], desc.m_Variant.m_V4[1], EPSILON);
         ASSERT_NEAR(0.0f,        desc.m_Variant.m_V4[2], EPSILON);
-        ASSERT_NEAR(0.0f,        desc.m_Variant.m_V4[3], EPSILON);
 
         // Clear the dynamic proeprty
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, ClearMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, index, attr_name_hash));
