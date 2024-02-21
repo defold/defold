@@ -600,8 +600,11 @@ namespace dmRender
             attribute_byte_size            = dmMath::Min(attribute_byte_size, byte_size);
             memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
 
-            dmSnPrintf(name_buffer, name_buffer_size, "%s", graphics_attribute_in.m_Name);
-            FillElementIds(name_buffer, name_buffer_size, material_attribute.m_ElementIds);
+            if (graphics_attribute_in.m_Name != 0x0)
+            {
+                dmSnPrintf(name_buffer, name_buffer_size, "%s", graphics_attribute_in.m_Name);
+                FillElementIds(name_buffer, name_buffer_size, material_attribute.m_ElementIds);
+            }
         }
 
         CreateVertexDeclaration(GetGraphicsContext(material->m_RenderContext), material);
