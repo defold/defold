@@ -832,7 +832,7 @@
                                                          value
                                                          on-value-changed
                                                          element]}]
-  (let [new-value (into value [element])]
+  (let [new-value (util/conjv value element)]
     [[:dispatch (assoc on-value-changed :fx/event new-value)]
      [:set-ui-state (assoc-in ui-state
                               (conj state-path :selected-indices)
