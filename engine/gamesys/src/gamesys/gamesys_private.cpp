@@ -269,6 +269,12 @@ namespace dmGameSystem
         return -1;
     }
 
+    void GetMaterialAttributeValues(const DynamicAttributeInfo& info, uint16_t dynamic_attribute_index, uint32_t max_value_size, const uint8_t** value_ptr, uint32_t* value_size)
+    {
+        *value_ptr  = (uint8_t*) info.m_Infos[dynamic_attribute_index].m_Values;
+        *value_size = dmMath::Min(max_value_size, (uint32_t) sizeof(info.m_Infos[dynamic_attribute_index].m_Values));
+    }
+
     void InitializeMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint32_t initial_capacity)
     {
         dynamic_attribute_infos.SetCapacity(initial_capacity);
@@ -324,7 +330,7 @@ namespace dmGameSystem
                 else
                 {
                     // Swap out the deleted entry with the last item in the list
-                    // The property memory area will not be trimmed down
+                    // The property memory area will NOT be trimmed down
                     DynamicAttributeInfo::Info tmp_info             = dynamic_info.m_Infos[existing_index];
                     dynamic_info.m_Infos[existing_index]            = dynamic_info.m_Infos[dynamic_info.m_NumInfos-1];
                     dynamic_info.m_Infos[dynamic_info.m_NumInfos-1] = tmp_info;
@@ -334,6 +340,51 @@ namespace dmGameSystem
             }
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    static inline float VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr)
+    {
+        switch (data_type)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:           return (float) ((int8_t*) value_ptr)[0];
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return (float) value_ptr[0];
+            case dmGraphics::VertexAttribute::TYPE_SHORT:          return (float) ((int16_t*) value_ptr)[0];
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return (float) ((uint16_t*) value_ptr)[0];
+            case dmGraphics::VertexAttribute::TYPE_INT:            return (float) ((int32_t*) value_ptr)[0];
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return (float) ((uint32_t*) value_ptr)[0];
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return (float) ((float*) value_ptr)[0];
+        }
+        return 0;
+    }
+
+    static void VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out)
+    {
+        dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);
+        uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);
+        for (int i = 0; i < attribute->m_ElementCount; ++i)
+        {
+            out[i] = VertexAttributeDataTypeToFloat(attribute->m_DataType, value_ptr + bytes_per_element * i);
+        }
+    }
+
+    static dmGameObject::PropertyVar DynamicAttributeValuesToPropertyVar(float* values, uint32_t element_count, uint32_t element_index, bool use_element_index)
+    {
+        if (use_element_index)
+        {
+            return dmGameObject::PropertyVar(values[element_index]);
+        }
+        else
+        {
+            switch(element_count)
+            {
+                case 1: return dmGameObject::PropertyVar(values[0]);
+                case 2: return dmGameObject::PropertyVar(dmVMath::Vector3(values[0], values[1], 0.0f));
+                case 3: return dmGameObject::PropertyVar(dmVMath::Vector3(values[0], values[1], values[2]));
+                case 4: return dmGameObject::PropertyVar(dmVMath::Vector4(values[0], values[1], values[2], values[3]));
+            }
+        }
+
+        return dmGameObject::PropertyVar(false);
     }
 
     dmGameObject::PropertyResult GetMaterialAttribute(
@@ -352,11 +403,6 @@ namespace dmGameSystem
             return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
 
-        out_desc.m_ElementIds[0] = info.m_ElementIds[0];
-        out_desc.m_ElementIds[1] = info.m_ElementIds[1];
-        out_desc.m_ElementIds[2] = info.m_ElementIds[2];
-        out_desc.m_ElementIds[3] = info.m_ElementIds[3];
-
         // If we have a dynamic attribute set, we return that data
         if (dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
@@ -366,43 +412,17 @@ namespace dmGameSystem
 
             if (dynamic_info_index >= 0)
             {
-                if (info.m_AttributeNameHash != name_hash)
-                {
-                    out_desc.m_Variant = dmGameObject::PropertyVar((float) dynamic_info.m_Infos[dynamic_info_index].m_Value.getElem(info.m_ElementIndex));
-                }
-                else
-                {
-                    dmVMath::Vector4& value = dynamic_info.m_Infos[dynamic_info_index].m_Value;
-
-                    switch(info.m_Attribute->m_ElementCount)
-                    {
-                        case 1:
-                        {
-                            out_desc.m_Variant = dmGameObject::PropertyVar(value.getX());
-                        } break;
-                        case 2:
-                        {
-                            out_desc.m_Variant = dmGameObject::PropertyVar(dmVMath::Vector3(value.getX(), value.getY(), 0.0f));
-                        } break;
-                        case 3:
-                        {
-                            out_desc.m_Variant = dmGameObject::PropertyVar(value.getXYZ());
-                        } break;
-                        case 4:
-                        {
-                            out_desc.m_Variant = value;
-                        } break;
-                    }
-
-                }
+                out_desc.m_Variant = DynamicAttributeValuesToPropertyVar(dynamic_info.m_Infos[dynamic_info_index].m_Values, info.m_Attribute->m_ElementCount, info.m_ElementIndex, info.m_AttributeNameHash != name_hash);
                 return dmGameObject::PROPERTY_RESULT_OK;
             }
         }
+        // Otherwise, we try to get it from the component itself via the callabck.
+        // We need a callback mechanism here because we don't have a shared data layout for
+        // the override attributes on component level (TODO: we should have).
         else
         {
             const dmGraphics::VertexAttribute* comp_attribute;
 
-            // Otherwise, we need to get it from the component itself
             // If this callback returns false, e.g a component resource might not have a value override for the attribute,
             // we fallback to the material attribute data instead
             if (callback(callback_user_data, info.m_AttributeNameHash, &comp_attribute))
@@ -411,35 +431,16 @@ namespace dmGameSystem
                 dmGraphics::GetAttributeValues(*comp_attribute, &info.m_ValuePtr, &value_byte_size);
             }
 
-            float* f_ptr = (float*) info.m_ValuePtr;
-
-            if (info.m_AttributeNameHash != name_hash)
-            {
-                out_desc.m_Variant = dmGameObject::PropertyVar(f_ptr[info.m_ElementIndex]);
-            }
-            else
-            {
-                switch(info.m_Attribute->m_ElementCount)
-                {
-                    case 1:
-                    {
-                        out_desc.m_Variant = dmGameObject::PropertyVar(f_ptr[0]);
-                    } break;
-                    case 2:
-                    {
-                        out_desc.m_Variant = dmGameObject::PropertyVar(dmVMath::Vector3(f_ptr[0], f_ptr[1], 0.0f));
-                    } break;
-                    case 3:
-                    {
-                        out_desc.m_Variant = dmGameObject::PropertyVar(dmVMath::Vector3(f_ptr[0], f_ptr[1], f_ptr[2]));
-                    } break;
-                    case 4:
-                    {
-                        out_desc.m_Variant = dmGameObject::PropertyVar(dmVMath::Vector4(f_ptr[0], f_ptr[1], f_ptr[2], f_ptr[3]));
-                    } break;
-                }
-            }
+            float values[4];
+            VertexAttributeToFloats(info.m_Attribute, info.m_ValuePtr, values);
+            out_desc.m_Variant = DynamicAttributeValuesToPropertyVar(values, info.m_Attribute->m_ElementCount, info.m_ElementIndex, info.m_AttributeNameHash != name_hash);
         }
+
+        out_desc.m_ElementIds[0] = info.m_ElementIds[0];
+        out_desc.m_ElementIds[1] = info.m_ElementIds[1];
+        out_desc.m_ElementIds[2] = info.m_ElementIds[2];
+        out_desc.m_ElementIds[3] = info.m_ElementIds[3];
+
         return dmGameObject::PROPERTY_RESULT_OK;
     }
 
@@ -460,6 +461,7 @@ namespace dmGameSystem
         DynamicAttributeInfo* dynamic_info = 0;
         int32_t attribute_index = -1;
 
+        // The attribute doesn't exist in the dynamic attribute table
         if (*dynamic_attribute_index == INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
             // No free slots available, so we allocate more slots
@@ -494,34 +496,38 @@ namespace dmGameSystem
             dynamic_info = &dynamic_attribute_infos[*dynamic_attribute_index];
             assert(dynamic_info->m_Infos == 0);
 
-            dynamic_info->m_Infos               = (DynamicAttributeInfo::Info*) malloc(sizeof(DynamicAttributeInfo::Info));
             dynamic_info->m_NumInfos            = 1;
+            dynamic_info->m_Infos               = (DynamicAttributeInfo::Info*) malloc(sizeof(DynamicAttributeInfo::Info));
             dynamic_info->m_Infos[0].m_NameHash = info.m_AttributeNameHash;
-
             attribute_index = 0;
+            memset(&dynamic_info->m_Infos[attribute_index].m_Values, 0, sizeof(dynamic_info->m_Infos[attribute_index].m_Values));
         }
         else
         {
             dynamic_info = &dynamic_attribute_infos[*dynamic_attribute_index];
             attribute_index = FindMaterialAttributeIndex(*dynamic_info, info.m_AttributeNameHash);
 
+            // The attribute doesn't exist in the dynamic info table (i.e the list of overridden dynamic attributes)
             if (attribute_index < 0)
             {
+                attribute_index = dynamic_info->m_NumInfos;
                 dynamic_info->m_NumInfos++;
                 dynamic_info->m_Infos = (DynamicAttributeInfo::Info*) realloc(dynamic_info->m_Infos, sizeof(DynamicAttributeInfo::Info) * dynamic_info->m_NumInfos);
-                dynamic_info->m_Infos[dynamic_info->m_NumInfos-1].m_NameHash = info.m_AttributeNameHash;
-                attribute_index = dynamic_info->m_NumInfos-1;
+                dynamic_info->m_Infos[attribute_index].m_NameHash = info.m_AttributeNameHash;
+                memset(&dynamic_info->m_Infos[attribute_index].m_Values, 0, sizeof(dynamic_info->m_Infos[attribute_index].m_Values));
             }
         }
 
+        // The values for the dynamic attribute are always represented by float values,
+        // so we have compatability between properties and attributes without data conversion
+        float* values = dynamic_info->m_Infos[attribute_index].m_Values;
         if (info.m_AttributeNameHash != name_hash)
         {
-            float* f_ptr = (float*) &dynamic_info->m_Infos[attribute_index].m_Value;
-            f_ptr[info.m_ElementIndex] = var.m_Number;
+            values[info.m_ElementIndex] = var.m_Number;
         }
         else
         {
-            memcpy(&dynamic_info->m_Infos[attribute_index].m_Value, &var.m_V4, sizeof(var.m_V4));
+            memcpy(values, var.m_V4, sizeof(var.m_V4));
         }
 
         return dmGameObject::PROPERTY_RESULT_OK;

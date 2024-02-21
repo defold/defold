@@ -107,8 +107,8 @@ namespace dmGameSystem
     {
         struct Info
         {
-            dmhash_t         m_NameHash;
-            dmVMath::Vector4 m_Value;
+            dmhash_t m_NameHash;
+            float    m_Values[4]; // Enough to store a float vec4 property (no support for mat4 yet)
         };
 
         Info*   m_Infos;
@@ -118,6 +118,7 @@ namespace dmGameSystem
     typedef bool (*CompGetMaterialAttributeCallback)(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute);
 
     int32_t                      FindMaterialAttributeIndex(const DynamicAttributeInfo& info, dmhash_t name_hash);
+    void                         GetMaterialAttributeValues(const DynamicAttributeInfo& info, uint16_t dynamic_attribute_index, uint32_t max_value_size, const uint8_t** value_ptr, uint32_t* value_size);
     void                         InitializeMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint32_t initial_capacity);
     void                         DestroyMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos);
     dmGameObject::PropertyResult ClearMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t dynamic_attribute_index, dmhash_t name_hash);

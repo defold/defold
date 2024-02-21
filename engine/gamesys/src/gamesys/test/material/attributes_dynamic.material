@@ -19,11 +19,12 @@ attributes {
 attributes {
   name: "normal"
   data_type: TYPE_BYTE
-  element_count: 3
+  element_count: 4
   long_values {
   	v: 64
   	v: 32
   	v: 16
+  	v: 8
   }
 }
 

@@ -655,8 +655,10 @@ namespace dmGameSystem
                 int32_t dynamic_attribute_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
                 if (dynamic_attribute_index >= 0)
                 {
-                    sprite_infos->m_Infos[i].m_ValuePtr      = (uint8_t*) &dynamic_info.m_Infos[dynamic_attribute_index].m_Value[0];
-                    sprite_infos->m_Infos[i].m_ValueByteSize = dmMath::Min((uint32_t) sizeof(dynamic_info.m_Infos[dynamic_attribute_index].m_Value), material_infos->m_Infos[i].m_ValueByteSize);
+                    GetMaterialAttributeValues(dynamic_info, dynamic_attribute_index,
+                        material_infos->m_Infos[i].m_ValueByteSize,
+                        &sprite_infos->m_Infos[i].m_ValuePtr,
+                        &sprite_infos->m_Infos[i].m_ValueByteSize);
                     continue;
                 }
             }
