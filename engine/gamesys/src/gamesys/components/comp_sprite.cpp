@@ -228,7 +228,7 @@ namespace dmGameSystem
         sprite_world->m_IndexBuffer      = 0;
         sprite_world->m_IndexBufferData  = 0;
 
-        InitializeMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributeInfos, sprite_world->m_DynamicVertexAttributeFreeIndices, 32);
+        InitializeMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributeInfos, sprite_world->m_DynamicVertexAttributeFreeIndices, 8);
 
         *params.m_World = sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
