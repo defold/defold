@@ -21,7 +21,7 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [util.text-util :as text-util])
-  (:import [com.dynamo.render.proto Render$DisplayProfiles]))
+  (:import [com.dynamo.render.proto Render$DisplayProfile Render$DisplayProfileQualifier Render$DisplayProfiles]))
 
 (set! *warn-on-reflection* true)
 
@@ -35,16 +35,19 @@
   (comp not-empty text-util/parse-comma-separated-string))
 
 (defn- qualifier-form-value->pb [qualifier]
-  (protobuf/sanitize qualifier :device-models comma-separated-string->non-empty-vector))
+  (protobuf/make-map-without-defaults Render$DisplayProfileQualifier
+    :width (:width qualifier)
+    :height (:height qualifier)
+    :device-models (comma-separated-string->non-empty-vector (:device-models qualifier))))
 
-(g/defnk produce-profile-pb-msg [form-values]
-  (-> form-values
-      (dissoc :node-id)
-      (protobuf/sanitize-repeated :qualifiers qualifier-form-value->pb)))
+(g/defnk produce-profile-pb-msg [name qualifiers]
+  (protobuf/make-map-without-defaults Render$DisplayProfile
+    :name name
+    :qualifiers (mapv qualifier-form-value->pb qualifiers)))
 
 (g/defnode ProfileNode
-  (property name g/Str)
-  (property qualifiers g/Any)
+  (property name g/Str) ; Required protobuf field.
+  (property qualifiers g/Any) ; Vector assigned in load-fn.
 
   (output form-values g/Any (g/fnk [_node-id name qualifiers]
                               {:node-id _node-id
@@ -122,7 +125,7 @@
 
   (input profile-msgs g/Any :array)
   (output save-value g/Any :cached (g/fnk [profile-msgs]
-                                     (protobuf/make-map-with-defaults Render$DisplayProfiles
+                                     (protobuf/make-map-without-defaults Render$DisplayProfiles
                                        :profiles profile-msgs)))
   (input profile-form-values g/Any :array)
   (output form-values g/Any (g/fnk [profile-form-values] {[:profiles] profile-form-values}))
@@ -133,9 +136,12 @@
   (output profile-data g/Any (gu/passthrough profile-data))
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn load-display-profiles [project self resource pb]
-  (for [p (:profiles pb)]
-    (add-profile self (:name p) (:qualifiers p))))
+(defn load-display-profiles [_project self _resource display-profiles]
+  {:pre [(map? display-profiles)]} ; Render$DisplayProfiles in map format.
+  ;; Inject any missing defaults into the stripped pb-map for form-view editing.
+  (let [with-defaults (protobuf/inject-defaults Render$DisplayProfiles display-profiles)]
+    (for [display-profile (:profiles with-defaults)]
+      (add-profile self (:name display-profile) (:qualifiers display-profile)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -144,6 +150,7 @@
     :build-ext (:build-ext pb-def)
     :node-type DisplayProfilesNode
     :ddf-type Render$DisplayProfiles
+    :read-defaults false
     :load-fn load-display-profiles
     :icon (:icon pb-def)
     :view-types (:view-types pb-def)))
