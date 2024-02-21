@@ -291,7 +291,11 @@ namespace dmGameSystem
         }
     }
 
-    dmGameObject::PropertyResult ClearMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t dynamic_attribute_index, dmhash_t name_hash)
+    dmGameObject::PropertyResult ClearMaterialAttribute(
+        dmArray<DynamicAttributeInfo>& dynamic_attribute_infos,
+        dmArray<uint16_t>&             dynamic_attribute_free_indices,
+        uint16_t                       dynamic_attribute_index,
+        dmhash_t                       name_hash)
     {
         if (dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
@@ -303,16 +307,29 @@ namespace dmGameSystem
                 if (dynamic_info.m_NumInfos == 1)
                 {
                     free(dynamic_info.m_Infos);
+                    dynamic_info.m_Infos = 0x0;
+
+                    // We might have filled up the free list already, so in this case we have options:
+                    // 1. create more space in the index list
+                    // 2. scan the list of entries for free items when a new dynamic property is created (in SetMaterialAttribute)
+                    //
+                    // Currently we are doing 1) and trimming the index list down to DYNAMIC_ATTRIBUTE_INCREASE_COUNT
+                    // in SetMaterialAttribute when the index list is full.
+                    if (dynamic_attribute_free_indices.Full())
+                    {
+                        dynamic_attribute_free_indices.OffsetCapacity(DYNAMIC_ATTRIBUTE_INCREASE_COUNT);
+                    }
                     dynamic_attribute_free_indices.Push(dynamic_attribute_index);
                 }
                 else
                 {
-                    // Swap out the entry with the last item in the list
+                    // Swap out the deleted entry with the last item in the list
+                    // The property memory area will not be trimmed down
                     DynamicAttributeInfo::Info tmp_info             = dynamic_info.m_Infos[existing_index];
                     dynamic_info.m_Infos[existing_index]            = dynamic_info.m_Infos[dynamic_info.m_NumInfos-1];
                     dynamic_info.m_Infos[dynamic_info.m_NumInfos-1] = tmp_info;
-                    dynamic_info.m_NumInfos--;
                 }
+                dynamic_info.m_NumInfos--;
                 return dmGameObject::PROPERTY_RESULT_OK;
             }
         }
@@ -322,7 +339,7 @@ namespace dmGameSystem
     dmGameObject::PropertyResult GetMaterialAttribute(
         dmArray<DynamicAttributeInfo>&   dynamic_attribute_infos,
         dmArray<uint16_t>&               dynamic_attribute_free_indices,
-        uint16_t*                        dynamic_attribute_index,
+        uint16_t                         dynamic_attribute_index,
         dmRender::HMaterial              material,
         dmhash_t                         name_hash,
         dmGameObject::PropertyDesc&      out_desc,
@@ -341,9 +358,9 @@ namespace dmGameSystem
         out_desc.m_ElementIds[3] = info.m_ElementIds[3];
 
         // If we have a dynamic attribute set, we return that data
-        if (*dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+        if (dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
-            DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[*dynamic_attribute_index];
+            DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[dynamic_attribute_index];
 
             int32_t dynamic_info_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
 
@@ -355,7 +372,28 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    out_desc.m_Variant = dmGameObject::PropertyVar(dynamic_info.m_Infos[dynamic_info_index].m_Value);
+                    dmVMath::Vector4& value = dynamic_info.m_Infos[dynamic_info_index].m_Value;
+
+                    switch(info.m_Attribute->m_ElementCount)
+                    {
+                        case 1:
+                        {
+                            out_desc.m_Variant = dmGameObject::PropertyVar(value.getX());
+                        } break;
+                        case 2:
+                        {
+                            out_desc.m_Variant = dmGameObject::PropertyVar(dmVMath::Vector3(value.getX(), value.getY(), 0.0f));
+                        } break;
+                        case 3:
+                        {
+                            out_desc.m_Variant = dmGameObject::PropertyVar(value.getXYZ());
+                        } break;
+                        case 4:
+                        {
+                            out_desc.m_Variant = value;
+                        } break;
+                    }
+
                 }
                 return dmGameObject::PROPERTY_RESULT_OK;
             }
@@ -424,24 +462,29 @@ namespace dmGameSystem
 
         if (*dynamic_attribute_index == INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
-            // Find new indices to put on the list
+            // No free slots available, so we allocate more slots
             if (dynamic_attribute_free_indices.Empty())
             {
                 const uint32_t current_count = dynamic_attribute_infos.Size();
-                const uint32_t new_capacity = dmMath::Min(current_count + 32, (uint32_t) INVALID_DYNAMIC_ATTRIBUTE_INDEX);
+                const uint32_t new_capacity = dmMath::Min(current_count + DYNAMIC_ATTRIBUTE_INCREASE_COUNT, (uint32_t) INVALID_DYNAMIC_ATTRIBUTE_INDEX);
 
                 if (new_capacity >= INVALID_DYNAMIC_ATTRIBUTE_INDEX)
                 {
                     dmLogError("Unable to allocate dynamic attributes, max dynamic attribute limit reached for sprites (%d)", INVALID_DYNAMIC_ATTRIBUTE_INDEX);
                     return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
                 }
+
+                // Put all the new indices on the free list and trim the indices list down so we don't waste too much memory
+                dynamic_attribute_free_indices.SetCapacity(DYNAMIC_ATTRIBUTE_INCREASE_COUNT);
                 for (int i = new_capacity - 1; i >= current_count; i--)
                 {
                     dynamic_attribute_free_indices.Push(i);
                 }
 
+                uint32_t fill_start = dynamic_attribute_infos.Capacity();
                 dynamic_attribute_infos.SetCapacity(new_capacity);
                 dynamic_attribute_infos.SetSize(dynamic_attribute_infos.Capacity());
+                memset(&dynamic_attribute_infos[fill_start], 0, DYNAMIC_ATTRIBUTE_INCREASE_COUNT * sizeof(DynamicAttributeInfo));
             }
 
             // Grab a free index from the list

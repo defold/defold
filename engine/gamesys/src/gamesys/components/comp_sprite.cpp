@@ -2046,7 +2046,7 @@ namespace dmGameSystem
             return dmGameObject::PROPERTY_RESULT_OK;
         }
 
-        return GetMaterialAttribute(sprite_world->m_DynamicVertexAttributeInfos, sprite_world->m_DynamicVertexAttributeFreeIndices, &component->m_DynamicVertexAttributeIndex, material, get_property, out_value, CompSpriteGetMaterialAttributeCallback, component);
+        return GetMaterialAttribute(sprite_world->m_DynamicVertexAttributeInfos, sprite_world->m_DynamicVertexAttributeFreeIndices, component->m_DynamicVertexAttributeIndex, material, get_property, out_value, CompSpriteGetMaterialAttributeCallback, component);
     }
 
     dmGameObject::PropertyResult CompSpriteSetProperty(const dmGameObject::ComponentSetPropertyParams& params)

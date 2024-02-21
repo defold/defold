@@ -100,7 +100,8 @@ namespace dmGameSystem
     int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash);
 
     // Dynamic Vertex Attribute
-    static const uint16_t INVALID_DYNAMIC_ATTRIBUTE_INDEX = 0xFFFF;
+    static const uint16_t INVALID_DYNAMIC_ATTRIBUTE_INDEX  = 0xFFFF;
+    static const uint8_t  DYNAMIC_ATTRIBUTE_INCREASE_COUNT = 32;
 
     struct DynamicAttributeInfo
     {
@@ -121,7 +122,7 @@ namespace dmGameSystem
     void                         DestroyMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos);
     dmGameObject::PropertyResult ClearMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t dynamic_attribute_index, dmhash_t name_hash);
     dmGameObject::PropertyResult SetMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t* dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var);
-    dmGameObject::PropertyResult GetMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t* dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, CompGetMaterialAttributeCallback callback, void* callback_user_data);
+    dmGameObject::PropertyResult GetMaterialAttribute(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint16_t dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, CompGetMaterialAttributeCallback callback, void* callback_user_data);
 }
 
 #endif // DM_GAMESYS_PRIVER_H
