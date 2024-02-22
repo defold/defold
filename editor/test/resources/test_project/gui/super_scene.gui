@@ -1,7 +1,7 @@
 script: ""
 fonts {
-  name: "system_font_super"
-  font: "/builtins/fonts/system_font.font"
+  name: "default_font_super"
+  font: "/builtins/fonts/default.font"
 }
 textures {
   name: "main_super"
@@ -357,7 +357,7 @@ nodes {
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
   text: "Test"
-  font: "system_font"
+  font: "default_font"
   id: "scene/text"
   parent: "scene"
   xanchor: XANCHOR_NONE
