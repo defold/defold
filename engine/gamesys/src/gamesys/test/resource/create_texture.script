@@ -60,7 +60,7 @@ end
 
 function test_invalid()
     assert_error(function()
-        resource.create_texture("/test_simple.texturec", tparams_invalid)
+        resource.create_texture("/test_invalid.texturec", tparams_invalid)
     end)
 end
 
