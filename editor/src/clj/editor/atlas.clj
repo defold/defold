@@ -54,8 +54,8 @@
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
            [com.dynamo.gamesys.proto Tile$Playback Tile$SpriteTrimmingMode]
            [com.jogamp.opengl GL GL2]
-           [editor.types AABB Animation Image]
            [editor.gl.vertex2 VertexBuffer]
+           [editor.types AABB Animation Image]
            [java.awt.image BufferedImage]
            [java.nio ByteBuffer]
            [java.util List]
@@ -760,7 +760,6 @@
 
 (g/defnk produce-anim-data
   [texture-set uv-transforms]
-  (reset! my-atom [texture-set uv-transforms])
   (texture-set/make-anim-data texture-set uv-transforms))
 
 (s/defrecord AtlasRect

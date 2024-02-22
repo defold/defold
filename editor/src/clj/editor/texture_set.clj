@@ -65,7 +65,9 @@
      :height height}))
 
 (defn- flat-array->2d-points [flat-array]
-  (into [] (map vec (partition 2 flat-array))))
+  (into []
+        (partition-all 2)
+        flat-array))
 
 (defn- ->anim-frame-from-geometry
   [page-index frame-geometry]
