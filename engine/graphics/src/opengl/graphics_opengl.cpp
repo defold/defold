@@ -2854,14 +2854,6 @@ static void LogFrameBufferError(GLenum status)
         return texture_filter_lut[texture_filter];
     }
 
-    static inline bool IsTextureFilterMipmapped(GLenum filter)
-    {
-        return filter == GL_NEAREST_MIPMAP_NEAREST ||
-               filter == GL_NEAREST_MIPMAP_LINEAR  ||
-               filter == GL_LINEAR_MIPMAP_NEAREST  ||
-               filter == GL_LINEAR_MIPMAP_LINEAR;
-    }
-
     static inline GLenum GetNonMipMapVersionOfFilter(GLenum filter)
     {
         switch (filter)
@@ -2885,7 +2877,7 @@ static void LogFrameBufferError(GLenum status)
         GLenum gl_mag_filter = GetOpenGLTextureFilter(magfilter == TEXTURE_FILTER_DEFAULT ? g_Context->m_DefaultTextureMagFilter : magfilter);
 
         // Using a mipmapped min filter without any mipmaps will break the sampler
-        if (tex->m_MipMapCount <= 1 && IsTextureFilterMipmapped(gl_min_filter))
+        if (tex->m_MipMapCount <= 1)
         {
             gl_min_filter = GetNonMipMapVersionOfFilter(gl_min_filter);
         }
