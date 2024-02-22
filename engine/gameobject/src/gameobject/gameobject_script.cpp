@@ -2243,6 +2243,64 @@ namespace dmGameObject
         return 1;
     }
 
+
+    /*# convert position to game object's coordinate space
+    *
+    * @name go.world_to_local_position
+    * @param position [type:vector3] position which need to be converted
+    * @param url [type:string|hash|url] url of the game object which coordinate system convert to
+    * @return converted_postion [type:vector3] converted position
+    *
+    * @examples
+    * Convert position of "test" game object into coordinate space of "child" object.
+    *
+    * ```lua
+    *   local test_pos = go.get_world_position("/test")
+    *   local child_pos = go.get_world_position("/child")
+    *   local new_position = go.world_to_local_position(test_pos, "/child")
+    * ```
+    */
+    int Script_WorldToLocalPosition(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmVMath::Vector3* world_position = dmScript::CheckVector3(L, 1);
+        Instance* instance = ResolveInstance(L, 2);
+        dmVMath::Matrix4 go_transform = dmGameObject::GetWorldMatrix(instance);
+        dmVMath::Matrix4 world_transform = dmVMath::Matrix4::identity();
+        world_transform.setTranslation(*world_position);
+        dmVMath::Matrix4 result_transfrom = world_transform * go_transform;
+        dmScript::PushVector3(L, result_transfrom.getTranslation());
+        return 1;
+    }
+
+
+    /*# convert transformation matrix to game object's coordinate space
+    *
+    * @name go.world_to_local_transform
+    * @param transformation [type:matrix4] transformation which need to be converted
+    * @param url [type:string|hash|url] url of the game object which coordinate system convert to
+    * @return converted_transform [type:matrix4] converted transformation
+    *
+    * @examples
+    * Convert transformation of "test" game object into coordinate space of "child" object.
+    *
+    * ```lua
+    *    local test_transform = go.get_world_transform("/test")
+    *    local child_transform = go.get_world_transform("/child")
+    *    local result_transform = go.world_to_local_transform(test_transform, "/child")
+    * ```
+    */
+    int Script_WorldToLocalTransfrom(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmVMath::Matrix4* world_transform = dmScript::CheckMatrix4(L, 1);
+        Instance* instance = ResolveInstance(L, 2);
+        const dmVMath::Matrix4& go_transform = dmGameObject::GetWorldMatrix(instance);
+
+        dmScript::PushMatrix4(L,  *world_transform * go_transform);
+        return 1;
+    }
+
     static const luaL_reg GO_methods[] =
     {
         {"get",                     Script_Get},
@@ -2269,6 +2327,8 @@ namespace dmGameObject
         {"delete_all",              Script_DeleteAll},
         {"property",                Script_Property},
         {"exists",                  Script_Exists},
+        {"world_to_local_position", Script_WorldToLocalPosition},
+        {"world_to_local_transform",Script_WorldToLocalTransfrom},
         {0, 0}
     };
 
