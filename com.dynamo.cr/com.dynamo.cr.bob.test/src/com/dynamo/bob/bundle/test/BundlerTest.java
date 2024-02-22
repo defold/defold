@@ -101,8 +101,10 @@ public class BundlerTest {
     public static Collection<Platform[]> data() {
         List<Platform[]> data = new ArrayList<>();
 
-        String skipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
-        if (skipTest != null) {
+        String envSkipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
+        String skipTest =  envSkipTest != null ? envSkipTest : System.getProperty("DM_BOB_BUNDLERTEST_ONLY_HOST");
+        // By default property is `${DM_BOB_BUNDLERTEST_ONLY_HOST}`
+        if (skipTest != null && !skipTest.equals("0") && !skipTest.equals("${DM_BOB_BUNDLERTEST_ONLY_HOST}")) {
             data.add(new Platform[]{Platform.getHostPlatform()});
         }
         else {
