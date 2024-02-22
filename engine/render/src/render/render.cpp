@@ -715,7 +715,7 @@ namespace dmRender
         render_context->m_TextureBindTable.Push(new_binding);
     }
 
-    void SetTextureBindingByUnit(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture)
+    void SetTextureBindingByUnit(HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture)
     {
         if (unit >= render_context->m_TextureBindTable.Size())
         {
@@ -733,42 +733,13 @@ namespace dmRender
         render_context->m_TextureBindTable[unit].m_Samplerhash = 0;
     }
 
-    static void SetRenderContextTextures(HRenderContext render_context, HMaterial material, dmGraphics::HTexture* textures)
+    static void TrimTextureBindingTable(HRenderContext render_context)
     {
-        uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+        uint32_t num_bindings    = render_context->m_TextureBindTable.Size();
         uint32_t last_zero_index = -1;
+
         for (uint32_t i = 0; i < num_bindings; ++i)
         {
-            if (render_context->m_TextureBindTable[i].m_Samplerhash)
-            {
-                int32_t sampler_index = GetMaterialSamplerIndex(material, render_context->m_TextureBindTable[i].m_Samplerhash);
-                if (sampler_index >= 0 && sampler_index < RenderObject::MAX_TEXTURE_COUNT)
-                {
-                    if (sampler_index < RenderObject::MAX_TEXTURE_COUNT)
-                    {
-                        textures[sampler_index] = render_context->m_TextureBindTable[i].m_Texture;
-                    }
-                    else
-                    {
-                        dmLogOnceWarning("Unable to bind texture '%s' to unit %d, max %d texture units are supported.",
-                            dmHashReverseSafe64(render_context->m_TextureBindTable[i].m_Samplerhash),
-                            sampler_index, RenderObject::MAX_TEXTURE_COUNT);
-                    }
-                }
-            }
-            else if (textures[i] == 0)
-            {
-                if (i < RenderObject::MAX_TEXTURE_COUNT)
-                {
-                    textures[i] = render_context->m_TextureBindTable[i].m_Texture;
-                }
-                else
-                {
-                    dmLogOnceWarning("Unable to bind texture to unit %d, max %d texture units are supported.",
-                        i, RenderObject::MAX_TEXTURE_COUNT);
-                }
-            }
-
             if (render_context->m_TextureBindTable[i].m_Texture == 0)
             {
                 if (last_zero_index == -1)
@@ -786,6 +757,39 @@ namespace dmRender
         if (last_zero_index != -1)
         {
             render_context->m_TextureBindTable.SetSize(last_zero_index);
+        }
+    }
+
+    static void GetRenderContextTextures(HRenderContext render_context, HMaterial material, dmGraphics::HTexture* textures)
+    {
+        uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+        for (uint32_t i = 0; i < num_bindings; ++i)
+        {
+            uint32_t sampler_index       = i;
+            dmGraphics::HTexture texture = textures[i];
+
+            if (render_context->m_TextureBindTable[i].m_Samplerhash)
+            {
+                int32_t hash_sampler_index = GetMaterialSamplerIndex(material, render_context->m_TextureBindTable[i].m_Samplerhash);
+                if (hash_sampler_index >= 0)
+                {
+                    sampler_index = hash_sampler_index;
+                    texture       = render_context->m_TextureBindTable[i].m_Texture;
+                }
+            }
+            else if (texture == 0)
+            {
+                texture = render_context->m_TextureBindTable[i].m_Texture;
+            }
+
+            if (sampler_index >= 0 && sampler_index < RenderObject::MAX_TEXTURE_COUNT)
+            {
+                textures[sampler_index] = texture;
+            }
+            else
+            {
+                dmLogOnceWarning("Unable to bind texture to unit %d, max %d texture units are supported.", i, RenderObject::MAX_TEXTURE_COUNT);
+            }
         }
     }
 
@@ -927,7 +931,7 @@ namespace dmRender
         if(context_material)
         {
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
-            SetRenderContextTextures(render_context, context_material, render_context_textures);
+            GetRenderContextTextures(render_context, context_material, render_context_textures);
         }
 
         dmGraphics::PipelineState ps_orig = dmGraphics::GetPipelineState(context);
@@ -953,7 +957,7 @@ namespace dmRender
                 {
                     material = ro->m_Material;
                     dmGraphics::EnableProgram(context, GetMaterialProgram(material));
-                    SetRenderContextTextures(render_context, material, render_context_textures);
+                    GetRenderContextTextures(render_context, material, render_context_textures);
                 }
             }
 
@@ -1042,6 +1046,8 @@ namespace dmRender
         }
 
         ResetRenderStateIfChanged(context, ps_orig, dmGraphics::GetPipelineState(context));
+
+        TrimTextureBindingTable(render_context);
 
         return RESULT_OK;
     }
