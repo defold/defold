@@ -58,6 +58,7 @@ def build(bld):
     start_dir = bld.path.find_dir('builtins')
     bld.install_files('${PREFIX}/content/builtins', start_dir.ant_glob('manifests/**/*'), cwd = start_dir, relative_trick = True)
     bld.install_files('${PREFIX}/content/builtins', start_dir.ant_glob('assets/**/*'), cwd = start_dir, relative_trick = True)
+    bld.install_files('${PREFIX}/content/builtins', start_dir.ant_glob('fonts/**/*'), cwd = start_dir, relative_trick = True)
 
     if not waflib.Options.options.skip_build_tests:
         bld(name = 'bob-engine',

@@ -2845,7 +2845,7 @@
       (g/make-nodes graph-id [fonts-node FontsNode
                               no-font [FontNode
                                        :name ""
-                                       :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
+                                       :font (workspace/resolve-resource resource "/builtins/fonts/default.font")]]
                     (g/connect fonts-node :_node-id self :fonts-node) ; for the tests :/
                     (g/connect fonts-node :_node-id self :nodes)
                     (g/connect fonts-node :build-errors self :build-errors)

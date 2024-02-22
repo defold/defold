@@ -184,7 +184,7 @@ namespace dmGameSystem
             dmLogError("Error deleting sound: (%d)", r);
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
-        else if (entry.m_Listener.m_Fragment != 0x0)
+        else if (entry.m_Listener.m_Fragment != 0x0 && entry.m_LuaCallback)
         {
             DispatchSoundEvent(entry, entry.m_StopRequested ? SOUND_EVENT_STOPPED : SOUND_EVENT_DONE);
         }

@@ -1,5 +1,5 @@
-name: "system_font"
-tags: "text"
+name: "always_on_top_font"
+tags: "debug_text"
 vertex_program: "/builtins/fonts/font.vp"
 fragment_program: "/builtins/fonts/font.fp"
 vertex_constants {

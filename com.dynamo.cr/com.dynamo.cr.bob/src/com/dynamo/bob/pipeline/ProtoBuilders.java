@@ -376,12 +376,6 @@ public class ProtoBuilders {
             }
 
             List<String> images = getImageResources(spriteBuilder);
-
-            if (images.isEmpty())
-            {
-                throw new CompileExceptionError(input, 0, "An atlas or tileset must be assigned.");
-            }
-
             for (String atlas : images) {
                 String extension = null;
                 try {

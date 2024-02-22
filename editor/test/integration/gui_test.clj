@@ -330,7 +330,7 @@
           text (gui-node node-id "scene/text")]
       (is (= ["" "main/particle_blob" "main_super/particle_blob"] (options box :texture)))
       (is (= ["" "layer"] (options text :layer)))
-      (is (= ["system_font" "system_font_super"] (options text :font)))
+      (is (= ["default_font" "default_font_super"] (options text :font)))
       (g/transact (g/set-property text :layer "layer"))
       (let [l (gui-layer node-id "layer")]
         (g/transact (g/set-property l :name "new-name"))
