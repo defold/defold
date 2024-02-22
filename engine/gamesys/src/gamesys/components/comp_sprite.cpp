@@ -427,7 +427,7 @@ namespace dmGameSystem
             texture = &overrides->m_Textures[index];
         if (!texture || !texture->m_TextureSet)
             texture = &component->m_Resource->m_Textures[index];
-        return texture->m_TextureSet;
+        return texture ? texture->m_TextureSet : 0;
     }
 
     // Until we can set multiple play cursors, we'll use the first texture set as the driving animation
@@ -493,7 +493,7 @@ namespace dmGameSystem
     static bool PlayAnimation(SpriteComponent* component, dmhash_t animation, float offset, float playback_rate)
     {
         TextureSetResource* texture_set = GetFirstTextureSet(component);
-        uint32_t* anim_id = texture_set->m_AnimationIds.Get(animation);
+        uint32_t* anim_id = texture_set ? texture_set->m_AnimationIds.Get(animation) : 0;
         if (anim_id)
         {
             component->m_AnimationID = *anim_id;
@@ -611,8 +611,11 @@ namespace dmGameSystem
             component->m_Size[1] = component->m_Resource->m_DDF->m_Size.getY();
         }
 
-        PlayAnimation(component, resource->m_DefaultAnimation,
-                component->m_Resource->m_DDF->m_Offset, component->m_Resource->m_DDF->m_PlaybackRate);
+        if (GetNumTextures(component) > 0)
+        {
+            PlayAnimation(component, resource->m_DefaultAnimation,
+                    component->m_Resource->m_DDF->m_Offset, component->m_Resource->m_DDF->m_PlaybackRate);
+        }
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -741,6 +744,26 @@ namespace dmGameSystem
         array.SetSize(size);
     }
 
+    static void FillSlice9Uvs(const float us[4], const float vs[4], bool rotated, float uvs[SPRITE_VERTEX_COUNT_SLICE9*2]) {
+        int index = 0;
+        for (int y=0; y<4; ++y)
+        {
+            for (int x=0; x<4; ++x, ++index)
+            {
+                if (rotated)
+                {
+                    uvs[index*2+0] = us[y];
+                    uvs[index*2+1] = vs[x];
+                }
+                else
+                {
+                    uvs[index*2+0] = us[x];
+                    uvs[index*2+1] = vs[y];
+                }
+            }
+        }
+    }
+
     static void CreateVertexDataSlice9(uint8_t* vertices, uint8_t* indices, bool is_indices_16_bit,
         const Matrix4& transform, Vector3 sprite_size, Vector4 slice9, uint32_t vertex_offset, uint32_t vertex_stride,
         TexturesData* textures, dmArray<float>* scratch_uvs,
@@ -813,30 +836,35 @@ namespace dmGameSystem
                 vs[vI[3]] = tc[3];
             }
 
-            int index = 0;
-            for (int y=0; y<4; ++y)
-            {
-                for (int x=0; x<4; ++x, ++index)
-                {
-                    if (uv_rotated)
-                    {
-                        uvs[index*2+0] = us[y];
-                        uvs[index*2+1] = vs[x];
-                    }
-                    else
-                    {
-                        uvs[index*2+0] = us[x];
-                        uvs[index*2+1] = vs[y];
-                    }
-                }
-            }
+            FillSlice9Uvs(us, vs, uv_rotated, uvs.Begin());
         }
 
-        // disable slice9 computation below a certain dimension
+        // disable slice9 computation below a certain threshold
         // (avoid div by zero)
         const float s9_min_dim = 0.001f;
-        const float sx         = sprite_size.getX() > s9_min_dim ? 1.0f / sprite_size.getX() : 0;
-        const float sy         = sprite_size.getY() > s9_min_dim ? 1.0f / sprite_size.getY() : 0;
+
+        if (textures->m_NumTextures == 0)
+        {
+            dmArray<float>& uvs = scratch_uvs[0];
+            EnsureSize(uvs, SPRITE_VERTEX_COUNT_SLICE9*2);
+
+            float us[4];
+            float vs[4];
+            us[0] = 0.0f;
+            us[1] = sprite_size.getX() > s9_min_dim ? slice9.getX() / sprite_size.getX() : 0.0f;
+            us[2] = 1.0f - (sprite_size.getX() > s9_min_dim ? slice9.getZ() / sprite_size.getX() : 0.0f);
+            us[3] = 1.0f;
+
+            vs[0] = 0.0f;
+            vs[1] = sprite_size.getY() > s9_min_dim ? slice9.getY() / sprite_size.getY() : 0.0f;
+            vs[2] = 1.0f - (sprite_size.getY() > s9_min_dim ? slice9.getW() / sprite_size.getY() : 0.0f);
+            vs[3] = 1.0f;
+
+            FillSlice9Uvs(us, vs, false, uvs.Begin());
+        }
+
+        const float sx = sprite_size.getX() > s9_min_dim ? 1.0f / sprite_size.getX() : 0;
+        const float sy = sprite_size.getY() > s9_min_dim ? 1.0f / sprite_size.getY() : 0;
 
         float xs[4], ys[4];
         // v are '1-v'
@@ -1018,6 +1046,28 @@ namespace dmGameSystem
             uvs[6] = tc[tex_lookup[4] * 2 + 0];
             uvs[7] = tc[tex_lookup[4] * 2 + 1];
         }
+
+        if (data->m_NumTextures == 0)
+        {
+            dmArray<float>& uvs = scratch_uvs[0];
+            EnsureSize(uvs, 4*2);
+
+            // top left
+            uvs[0] = 0.0f;
+            uvs[1] = 0.0f;
+
+            // bottom left
+            uvs[2] = 0.0f;
+            uvs[3] = 1.0f;
+
+            // bottom right
+            uvs[4] = 1.0f;
+            uvs[5] = 1.0f;
+
+            // top right
+            uvs[6] = 1.0f;
+            uvs[7] = 0.0f;
+        }
     }
 
     static inline bool CanUseQuads(const TexturesData* data)
@@ -1155,7 +1205,8 @@ namespace dmGameSystem
                 vertex_offset += 1;
             }
 
-            if (!CanUseQuads(&textures))
+            // if num_texture == 0, then we don't have a texture set to get any vertex/uv coordinates from
+            if (textures.m_NumTextures != 0 && !CanUseQuads(&textures))
             {
                 const dmGameSystemDDF::TextureSetAnimation* animation_ddf = textures.m_Animations[0];
 
@@ -1628,6 +1679,24 @@ namespace dmGameSystem
 
             TexturesData textures = {};
             textures.m_NumTextures = GetNumTextures(component);
+
+            if (textures.m_NumTextures == 0)
+            {
+                if (component->m_UseSlice9)
+                {
+                    num_vertices   += SPRITE_VERTEX_COUNT_SLICE9;
+                    num_indices    += SPRITE_INDEX_COUNT_SLICE9;
+                    vertex_memsize += SPRITE_VERTEX_COUNT_SLICE9 * vertex_stride;
+                }
+                else
+                {
+                    num_vertices   += SPRITE_VERTEX_COUNT_LEGACY;
+                    num_indices    += SPRITE_INDEX_COUNT_LEGACY;
+                    vertex_memsize += SPRITE_VERTEX_COUNT_LEGACY * vertex_stride;
+                }
+                continue;
+            }
+
             for (uint32_t i = 0; i < textures.m_NumTextures; ++i)
             {
                 textures.m_Resources[i] = GetTextureSet(component, i);
@@ -1998,11 +2067,17 @@ namespace dmGameSystem
         }
         else if (get_property == PROP_IMAGE)
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetFirstTextureSet(component), out_value);
+            TextureSetResource* texture_set = GetFirstTextureSet(component);
+            if (!texture_set)
+                return dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND;
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), texture_set, out_value);
         }
         else if (get_property == PROP_TEXTURE[0])
         {
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetFirstTextureSet(component)->m_Texture, out_value);
+            TextureSetResource* texture_set = GetFirstTextureSet(component);
+            if (!texture_set)
+                return dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND;
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), texture_set->m_Texture, out_value);
         }
         else if (get_property == SPRITE_PROP_ANIMATION)
         {
@@ -2070,7 +2145,7 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 TextureSetResource* texture_set = GetFirstTextureSet(component);
-                uint32_t* anim_id =  texture_set->m_AnimationIds.Get(component->m_CurrentAnimation);
+                uint32_t* anim_id = texture_set ? texture_set->m_AnimationIds.Get(component->m_CurrentAnimation) : 0;
                 if (anim_id)
                 {
                     PlayAnimation(component, component->m_CurrentAnimation, GetCursor(component), component->m_PlaybackRate);
