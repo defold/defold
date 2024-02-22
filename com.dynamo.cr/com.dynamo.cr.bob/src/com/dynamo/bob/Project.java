@@ -1375,6 +1375,60 @@ public class Project {
         return executor.submit(callable);
     }
 
+    private boolean getSpirvRequired() throws IOException, CompileExceptionError {
+        IResource appManifestResource = this.getResource("native_extension", "app_manifest", false);
+        if (appManifestResource != null && appManifestResource.exists()) {
+            Map<String, Object> yamlAppManifest = ExtenderUtil.readYaml(appManifestResource);
+            Map<String, Object> yamlPlatforms = (Map<String, Object>) yamlAppManifest.getOrDefault("platforms", null);
+
+            if (yamlPlatforms != null) {
+                String targetPlatform = this.getPlatform().toString();
+                Map<String, Object> yamlPlatform = (Map<String, Object>) yamlPlatforms.getOrDefault(targetPlatform, null);
+
+                if (yamlPlatform != null) {
+                    Map<String, Object> yamlPlatformContext = (Map<String, Object>) yamlPlatform.getOrDefault("context", null);
+
+                    if (yamlPlatformContext != null) {
+                        boolean vulkanSymbolFound = false;
+                        boolean vulkanLibraryFound = false;
+
+                        List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
+                        List<String> libs = (List<String>) yamlPlatformContext.getOrDefault("libs", new ArrayList<String>());
+
+                        for (String symbol : symbols) {
+                            if (symbol.equals("GraphicsAdapterVulkan")) {
+                                vulkanSymbolFound = true;
+                                break;
+                            }
+                        }
+
+                        for (String lib : libs) {
+                            if (lib.equals("graphics_vulkan")) {
+                                vulkanLibraryFound = true;
+                                break;
+                            }
+                        }
+
+                        return vulkanLibraryFound && vulkanSymbolFound;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
+        // Build spir-v either if:
+        //   1. If the user has specified explicitly to build or not to build with spir-v
+        //   2. The project has an app manifest with vulkan enabled
+        if (this.hasOption("debug-output-spirv")) {
+            this.setOption("output-spirv", this.option("debug-output-spirv", "false"));
+        } else {
+            this.setOption("output-spirv", getSpirvRequired() ? "true" : "false");
+        }
+    }
+
     private List<TaskResult> createAndRunTasks(IProgress monitor) throws IOException, CompileExceptionError {
         // Do early test if report files are writable before we start building
         boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
@@ -1412,6 +1466,7 @@ public class Project {
         mrep.beginTask("Reading tasks...", 1);
         TimeProfiler.start("Create tasks");
         BundleHelper.throwIfCanceled(monitor);
+        configurePreBuildProjectOptions();
         pruneSources();
         createTasks();
         validateBuildResourceMapping();
