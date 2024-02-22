@@ -67,6 +67,7 @@ namespace dmRender
 
     struct MaterialAttribute
     {
+        dmhash_t m_ElementIds[4];
         int32_t  m_Location;
         uint16_t m_ValueIndex;
         uint16_t m_ValueCount;
@@ -294,6 +295,8 @@ namespace dmRender
 
     void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out);
     void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers);
+
+    void FillElementIds(char* buffer, uint32_t buffer_size, dmhash_t element_ids[4]);
 
     // Return true if the predicate tags all exist in the material tag list
     bool                            MatchMaterialTags(uint32_t material_tag_count, const dmhash_t* material_tags, uint32_t tag_count, const dmhash_t* tags);

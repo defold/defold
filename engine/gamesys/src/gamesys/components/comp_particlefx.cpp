@@ -258,23 +258,11 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static inline int32_t GetEmitterAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash)
-    {
-        for (int i = 0; i < attributes_count; ++i)
-        {
-            if (attributes[i].m_NameHash == name_hash)
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
-
     static void FillEmitterAttributeInfos(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmParticle::ParticleVertexAttributeInfos* infos)
     {
         for (int i = 0; i < infos->m_NumInfos; ++i)
         {
-            int32_t emitter_attribute_index = GetEmitterAttributeIndex(attributes, attributes_count, infos->m_Infos[i].m_NameHash);
+            int32_t emitter_attribute_index = FindAttributeIndex(attributes, attributes_count, infos->m_Infos[i].m_NameHash);
             if (emitter_attribute_index >= 0)
             {
                 infos->m_Infos[i].m_NameHash = attributes[emitter_attribute_index].m_NameHash;
