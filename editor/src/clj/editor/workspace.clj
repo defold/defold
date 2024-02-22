@@ -44,6 +44,7 @@ ordinary paths."
            [editor.resource FileResource]
            [java.io File FileNotFoundException IOException PushbackReader]
            [java.net URI]
+           [java.util List]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -790,7 +791,7 @@ ordinary paths."
   (property snapshot-cache g/Any (default {}))
   (property build-settings g/Any)
   (property editable-proj-path? g/Any)
-  (property atlas-resource-extensions g/Any (default ["atlas" "tilesource"]))
+  (property resource-kind-extensions g/Any (default {:atlas ["atlas" "tilesource"]}))
 
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)
@@ -800,12 +801,20 @@ ordinary paths."
   (output resource-list g/Any :cached produce-resource-list)
   (output resource-map g/Any :cached produce-resource-map))
 
-(defn get-atlas-resource-extensions [workspace]
-   (g/node-value workspace :atlas-resource-extensions))
+(defn register-resource-kind-extension [workspace resource-kind extension]
+  (g/update-property
+    workspace :resource-kind-extensions
+    (fn [extensions-by-resource-kind]
+      (if-some [^List extensions (extensions-by-resource-kind resource-kind)]
+        (if (neg? (.indexOf extensions extension))
+          (assoc extensions-by-resource-kind resource-kind (conj extensions extension))
+          extensions-by-resource-kind) ; Already registered, return unaltered.
+        (throw (IllegalArgumentException. (str "Unsupported resource-kind:" resource-kind)))))))
 
-(defn add-atlas-resource-extensions [workspace extension]
-  (g/update-property workspace :atlas-resource-extensions
-                     conj (get-atlas-resource-extensions workspace) extension))
+(defn resource-kind-extensions [workspace resource-kind]
+  (let [extensions-by-resource-kind (g/node-value workspace :resource-kind-extensions)]
+    (or (extensions-by-resource-kind resource-kind)
+        (throw (IllegalArgumentException. (str "Unsupported resource-kind:" resource-kind))))))
 
 (defn make-build-settings
   [prefs]

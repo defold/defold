@@ -1557,7 +1557,7 @@
                              (prop-resource-error _node-id :texture texture "Texture")))
             (dynamic edit-type (g/fnk [texture]
                                  {:type resource/Resource
-                                  :ext (workspace/get-atlas-resource-extensions (:workspace texture))})))
+                                  :ext (workspace/resource-kind-extensions (:workspace texture) :atlas)})))
 
   (input name-counts NameCounts)
   (input default-tex-params g/Any)
@@ -2021,7 +2021,7 @@
 
 (defn- add-textures-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-   "Textures" (workspace/get-atlas-resource-extensions (project/workspace project)) (g/node-value parent :name-counts) project select-fn
+   "Textures" (workspace/resource-kind-extensions (project/workspace project) :atlas) (g/node-value parent :name-counts) project select-fn
    (partial add-texture scene parent)))
 
 (g/defnode TexturesNode

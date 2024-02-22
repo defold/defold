@@ -391,7 +391,8 @@
     (g/connect texture-binding :scene-info sprite :scene-infos)))
 
 (g/defnk produce-properties [_node-id _declared-properties resource texture-binding-infos material-samplers material-attribute-infos vertex-attribute-overrides]
-  (let [texture-binding-index (util/name-index texture-binding-infos :sampler)
+  (let [extension (workspace/resource-kind-extensions (:workspace resource) :atlas)
+        texture-binding-index (util/name-index texture-binding-infos :sampler)
         material-sampler-index (if (g/error-value? material-samplers)
                                  {}
                                  (util/name-index material-samplers :name))
@@ -427,7 +428,7 @@
                                       (g/->error _node-id :texture :fatal texture "the assigned Image has internal errors")))
 
                            :edit-type {:type resource/Resource
-                                       :ext (workspace/get-atlas-resource-extensions (:workspace resource))
+                                       :ext extension
                                        :clear-fn (fn [_ _] (g/delete-node texture-binding-node-id))}}
                           should-be-deleted
                           (assoc :original-value fake-resource))])
@@ -438,7 +439,7 @@
                        :value nil
                        :type resource/Resource
                        :edit-type {:type resource/Resource
-                                   :ext (workspace/get-atlas-resource-extensions (:workspace resource))
+                                   :ext extension
                                    :set-fn (fn [_ _ _ new]
                                              (create-texture-binding-tx _node-id sampler-name new))}}])))))
         attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
