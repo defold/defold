@@ -375,31 +375,32 @@ namespace dmGameSystem
         uint32_t              dynamic_attribute_index,
         dmhash_t              name_hash)
     {
-        if (dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+        if (dynamic_attribute_index == INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
-            DynamicAttributeInfo& dynamic_info = pool.Get(dynamic_attribute_index);
-
-            int32_t existing_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
-            if (existing_index >= 0)
-            {
-                if (dynamic_info.m_NumInfos == 1)
-                {
-                    free(dynamic_info.m_Infos);
-                    pool.Free(dynamic_attribute_index, true);
-                }
-                else
-                {
-                    // Swap out the deleted entry with the last item in the list
-                    // The property memory area will NOT be trimmed down
-                    DynamicAttributeInfo::Info tmp_info             = dynamic_info.m_Infos[existing_index];
-                    dynamic_info.m_Infos[existing_index]            = dynamic_info.m_Infos[dynamic_info.m_NumInfos-1];
-                    dynamic_info.m_Infos[dynamic_info.m_NumInfos-1] = tmp_info;
-                    dynamic_info.m_NumInfos--;
-                }
-                return dmGameObject::PROPERTY_RESULT_OK;
-            }
+            return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
-        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+
+        DynamicAttributeInfo& dynamic_info = pool.Get(dynamic_attribute_index);
+        int32_t existing_index             = FindMaterialAttributeIndex(dynamic_info, name_hash);
+
+        if (existing_index >= 0)
+        {
+            if (dynamic_info.m_NumInfos == 1)
+            {
+                free(dynamic_info.m_Infos);
+                pool.Free(dynamic_attribute_index, true);
+            }
+            else
+            {
+                // Swap out the deleted entry with the last item in the list
+                // The property memory area will NOT be trimmed down
+                DynamicAttributeInfo::Info tmp_info             = dynamic_info.m_Infos[existing_index];
+                dynamic_info.m_Infos[existing_index]            = dynamic_info.m_Infos[dynamic_info.m_NumInfos-1];
+                dynamic_info.m_Infos[dynamic_info.m_NumInfos-1] = tmp_info;
+                dynamic_info.m_NumInfos--;
+            }
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
     }
 
     static dmGameObject::PropertyVar DynamicAttributeValuesToPropertyVar(float* values, uint32_t element_count, uint32_t element_index, bool use_element_index)

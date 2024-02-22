@@ -4491,14 +4491,13 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
 
-    dmGameSystem::DynamicAttributePool dynamic_attribute_pool;
-
     const uint32_t INITIAL_SIZE = 4;
     const float EPSILON = 0.0001;
 
     DynamicVertexAttributesContext ctx;
     ctx.m_Attributes.SetCapacity(INITIAL_SIZE);
 
+    dmGameSystem::DynamicAttributePool dynamic_attribute_pool;
     InitializeMaterialAttributeInfos(dynamic_attribute_pool, INITIAL_SIZE);
 
     // Attribute not found
@@ -4614,6 +4613,23 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         }
 
         ASSERT_EQ(0, dynamic_attribute_pool.Size());
+    }
+
+    {
+        dmGameSystem::DynamicAttributePool tmp_pool;
+        tmp_pool.SetCapacity(dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX - 1);
+
+        for (int i = 0; i < tmp_pool.Capacity(); ++i)
+        {
+            uint32_t dummy_index = tmp_pool.Alloc();
+        }
+
+        dmhash_t attr_name_hash = dmHashString64("position");
+        dmGameObject::PropertyVar var = {};
+        dmGameObject::PropertyDesc desc = {};
+
+        uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE, SetMaterialAttribute(tmp_pool, &new_index, material, attr_name_hash, var));
     }
 
     // Data conversion for attribute values

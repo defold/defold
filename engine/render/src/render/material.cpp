@@ -602,7 +602,7 @@ namespace dmRender
 
             if (graphics_attribute_in.m_Name != 0x0)
             {
-                dmSnPrintf(name_buffer, name_buffer_size, "%s", graphics_attribute_in.m_Name);
+                dmStrlCpy(name_buffer, graphics_attribute_in.m_Name, name_buffer_size);
                 FillElementIds(name_buffer, name_buffer_size, material_attribute.m_ElementIds);
             }
         }
