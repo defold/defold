@@ -4462,40 +4462,6 @@ static uint32_t CountOccurences(dmArray<T>& lst, T entry)
     return count;
 }
 
-void ValidateDynamicAttributesList(dmArray<dmGameSystem::DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices)
-{
-    // All free indices must point to an empty dynamic attribute info
-    for (int i = 0; i < dynamic_attribute_free_indices.Size(); ++i)
-    {
-        dmGameSystem::DynamicAttributeInfo& info = dynamic_attribute_infos[dynamic_attribute_free_indices[i]];
-        ASSERT_EQ(0, info.m_NumInfos);
-        ASSERT_EQ((void*) 0, info.m_Infos);
-    }
-
-    // All free indices must only exist once
-    for (int i = 0; i < dynamic_attribute_free_indices.Size(); ++i)
-    {
-        CountOccurences(dynamic_attribute_free_indices, dynamic_attribute_free_indices[i]);
-    }
-
-    // Entries in the attribute info list must exist in the free list if they are free, and not otherwise
-    for (int i = 0; i < dynamic_attribute_infos.Size(); ++i)
-    {
-        dmGameSystem::DynamicAttributeInfo& info = dynamic_attribute_infos[i];
-
-        ASSERT_TRUE(info.m_Infos == 0x0 && info.m_NumInfos == 0 || info.m_Infos != 0x0 && info.m_NumInfos > 0);
-
-        if (info.m_NumInfos > 0)
-        {
-            ASSERT_EQ(0, CountOccurences(dynamic_attribute_free_indices, (uint16_t) i));
-        }
-        else
-        {
-            ASSERT_EQ(1, CountOccurences(dynamic_attribute_free_indices, (uint16_t) i));
-        }
-    }
-}
-
 template<typename T>
 static void ValidateVertexAttributeTypeConversion(dmGameSystem::DynamicAttributeInfo& info, uint16_t info_index, dmGraphics::VertexAttribute::DataType data_type, T* expected_values, uint32_t num_values)
 {
@@ -4525,8 +4491,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
     dmRender::HMaterial material = material_res->m_Material;
     ASSERT_NE((void*)0, material);
 
-    dmArray<dmGameSystem::DynamicAttributeInfo> dynamic_attribute_infos;
-    dmArray<uint16_t> dynamic_attribute_free_indices;
+    dmGameSystem::DynamicAttributePool dynamic_attribute_pool;
 
     const uint32_t INITIAL_SIZE = 4;
     const float EPSILON = 0.0001;
@@ -4534,30 +4499,30 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
     DynamicVertexAttributesContext ctx;
     ctx.m_Attributes.SetCapacity(INITIAL_SIZE);
 
-    InitializeMaterialAttributeInfos(dynamic_attribute_infos, dynamic_attribute_free_indices, INITIAL_SIZE);
+    InitializeMaterialAttributeInfos(dynamic_attribute_pool, INITIAL_SIZE);
 
     // Attribute not found
     {
-        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmGameObject::PropertyDesc desc = {};
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, GetMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, index, material, dmHashString64("attribute_does_not_exist"), desc, Test_GetMaterialAttributeCallback, &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("attribute_does_not_exist"), desc, Test_GetMaterialAttributeCallback, &ctx));
     }
 
     // Attribute(s) found
     {
-        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmGameObject::PropertyDesc desc = {};
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, index, material, dmHashString64("position"), desc, Test_GetMaterialAttributeCallback, &ctx));
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, index, material, dmHashString64("normal"), desc, Test_GetMaterialAttributeCallback, &ctx));
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, index, material, dmHashString64("texcoord0"), desc, Test_GetMaterialAttributeCallback, &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("position"), desc, Test_GetMaterialAttributeCallback, &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("normal"), desc, Test_GetMaterialAttributeCallback, &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("texcoord0"), desc, Test_GetMaterialAttributeCallback, &ctx));
 
         // No slots has been taken
-        ASSERT_EQ(INITIAL_SIZE, dynamic_attribute_free_indices.Size());
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
     }
 
     // Callback
     {
-        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmGameObject::PropertyDesc desc = {};
 
         float data_buffer[4] = { 13.0f, 14.0f, 15.0f, 16.0f };
@@ -4570,7 +4535,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
         ctx.m_Attributes.Push(attr);
 
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, index, material, dmHashString64("position"), desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("position"), desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
         ASSERT_TRUE(ctx.m_Result);
 
         // note: the material position attribute is only two elements, so we put in a vector3 instead since there are no v2 property values
@@ -4585,7 +4550,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Set a dynamic attribute
     {
-        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmhash_t attr_name_hash = dmHashString64("position");
 
         dmGameObject::PropertyVar var = {};
@@ -4596,15 +4561,14 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         var.m_V4[2] = 97.0f;
         var.m_V4[3] = 96.0f;
 
-        ASSERT_EQ(0,          dynamic_attribute_infos[0].m_NumInfos);
-        ASSERT_EQ((void*)0x0, dynamic_attribute_infos[0].m_Infos);
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
 
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, &index, material, attr_name_hash, var));
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &index, material, attr_name_hash, var));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
 
-        ASSERT_EQ(1,           dynamic_attribute_infos[0].m_NumInfos);
-        ASSERT_NE((void*) 0x0, dynamic_attribute_infos[0].m_Infos);
+        ASSERT_EQ(1,           dynamic_attribute_pool.Get(0).m_NumInfos);
+        ASSERT_NE((void*) 0x0, dynamic_attribute_pool.Get(0).m_Infos);
 
         // Again, "position" only has two elements, which in turn ends up as a vector three, so we know we will only care about these three values
         ASSERT_NEAR(var.m_V4[0], desc.m_Variant.m_V4[0], EPSILON);
@@ -4612,14 +4576,13 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         ASSERT_NEAR(0.0f,        desc.m_Variant.m_V4[2], EPSILON);
 
         // Clear the dynamic proeprty
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, ClearMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, index, attr_name_hash));
-        ASSERT_EQ(0,          dynamic_attribute_infos[0].m_NumInfos);
-        ASSERT_EQ((void*)0x0, dynamic_attribute_infos[0].m_Infos);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, ClearMaterialAttribute(dynamic_attribute_pool, index, attr_name_hash));
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
     }
 
     // Set multiple dynamic attributes (more than original capacity)
     {
-        dmArray<uint16_t> allocated_indices;
+        dmArray<uint32_t> allocated_indices;
         allocated_indices.SetCapacity( dmGameSystem::DYNAMIC_ATTRIBUTE_INCREASE_COUNT * 2 + INITIAL_SIZE + 1); // Should equate to three resizes
 
         dmhash_t attr_name_hash = dmHashString64("position");
@@ -4628,24 +4591,29 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
         for (int i = 0; i < allocated_indices.Capacity(); ++i)
         {
-            uint16_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
-            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, &new_index, material, attr_name_hash, var));
-            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, new_index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+            var.m_V4[0] = (float) i;
+
+            uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &new_index, material, attr_name_hash, var));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, new_index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+
+            ASSERT_NEAR(var.m_V4[0], desc.m_Variant.m_V4[0], EPSILON);
 
             allocated_indices.Push(new_index);
         }
 
-        ASSERT_EQ(INITIAL_SIZE + dmGameSystem::DYNAMIC_ATTRIBUTE_INCREASE_COUNT * 3, dynamic_attribute_infos.Size());
+        ASSERT_EQ(INITIAL_SIZE + dmGameSystem::DYNAMIC_ATTRIBUTE_INCREASE_COUNT * 3, dynamic_attribute_pool.Capacity());
+        ASSERT_EQ(allocated_indices.Size(), dynamic_attribute_pool.Size());
 
         for (int i = 0; i < allocated_indices.Capacity(); ++i)
         {
-            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, ClearMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, allocated_indices[i], attr_name_hash));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, allocated_indices[i], material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+            ASSERT_NEAR((float) i, desc.m_Variant.m_V4[0], EPSILON);
+
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, ClearMaterialAttribute(dynamic_attribute_pool, allocated_indices[i], attr_name_hash));
         }
 
-        ASSERT_EQ(0,          dynamic_attribute_infos[0].m_NumInfos);
-        ASSERT_EQ((void*)0x0, dynamic_attribute_infos[0].m_Infos);
-
-        ValidateDynamicAttributesList(dynamic_attribute_infos, dynamic_attribute_free_indices);
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
     }
 
     // Data conversion for attribute values
@@ -4734,13 +4702,13 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
     // Data conversion for dynamic attributes
     {
-        uint16_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmhash_t attr_name_hash = dmHashString64("normal");
 
         dmGameObject::PropertyVar var = {};
         dmGameObject::PropertyDesc desc = {};
 
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
 
         // Values are from the material
@@ -4749,10 +4717,10 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         ASSERT_NEAR(16.0f, desc.m_Variant.m_V4[2], EPSILON);
 
         // Dynamic attribute not set, so can't clear it!
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, ClearMaterialAttribute(dynamic_attribute_infos, dynamic_attribute_free_indices, index, attr_name_hash));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, ClearMaterialAttribute(dynamic_attribute_pool, index, attr_name_hash));
     }
 
-    dmGameSystem::DestroyMaterialAttributeInfos(dynamic_attribute_infos);
+    dmGameSystem::DestroyMaterialAttributeInfos(dynamic_attribute_pool);
 
     dmResource::Release(m_Factory, material_res);
 }

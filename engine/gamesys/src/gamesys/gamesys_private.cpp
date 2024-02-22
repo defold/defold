@@ -324,7 +324,7 @@ namespace dmGameSystem
         }
     }
 
-    void ConvertMaterialAttributeValuesToDataType(const DynamicAttributeInfo& info, uint16_t dynamic_attribute_index, const dmGraphics::VertexAttribute* attribute, uint8_t* value_ptr)
+    void ConvertMaterialAttributeValuesToDataType(const DynamicAttributeInfo& info, uint32_t dynamic_attribute_index, const dmGraphics::VertexAttribute* attribute, uint8_t* value_ptr)
     {
         float* values = info.m_Infos[dynamic_attribute_index].m_Values;
 
@@ -345,27 +345,21 @@ namespace dmGameSystem
         }
     }
 
-    void GetMaterialAttributeValues(const DynamicAttributeInfo& info, uint16_t dynamic_attribute_index, uint32_t max_value_size, const uint8_t** value_ptr, uint32_t* value_size)
+    void GetMaterialAttributeValues(const DynamicAttributeInfo& info, uint32_t dynamic_attribute_index, uint32_t max_value_size, const uint8_t** value_ptr, uint32_t* value_size)
     {
         *value_ptr  = (uint8_t*) info.m_Infos[dynamic_attribute_index].m_Values;
         *value_size = dmMath::Min(max_value_size, (uint32_t) sizeof(info.m_Infos[dynamic_attribute_index].m_Values));
     }
 
-    void InitializeMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos, dmArray<uint16_t>& dynamic_attribute_free_indices, uint32_t initial_capacity)
+    void InitializeMaterialAttributeInfos(DynamicAttributePool& pool, uint32_t initial_capacity)
     {
-        dynamic_attribute_infos.SetCapacity(initial_capacity);
-        dynamic_attribute_infos.SetSize(initial_capacity);
-        memset(&dynamic_attribute_infos[0], 0, dynamic_attribute_infos.Capacity() * sizeof(DynamicAttributeInfo));
-
-        dynamic_attribute_free_indices.SetCapacity(initial_capacity);
-        for (int i = 0; i < initial_capacity; ++i)
-        {
-            dynamic_attribute_free_indices.Push(initial_capacity - 1 - i);
-        }
+        pool.SetCapacity(initial_capacity);
     }
 
-    void DestroyMaterialAttributeInfos(dmArray<DynamicAttributeInfo>& dynamic_attribute_infos)
+    void DestroyMaterialAttributeInfos(DynamicAttributePool& pool)
     {
+        dmArray<DynamicAttributeInfo>& dynamic_attribute_infos = pool.GetRawObjects();
+
         for (int i = 0; i < dynamic_attribute_infos.Size(); ++i)
         {
             if (dynamic_attribute_infos[i].m_Infos)
@@ -374,20 +368,16 @@ namespace dmGameSystem
                 dynamic_attribute_infos[i].m_Infos = 0;
             }
         }
-
-        dynamic_attribute_infos.SetSize(0);
-        dynamic_attribute_infos.SetCapacity(0);
     }
 
     dmGameObject::PropertyResult ClearMaterialAttribute(
-        dmArray<DynamicAttributeInfo>& dynamic_attribute_infos,
-        dmArray<uint16_t>&             dynamic_attribute_free_indices,
-        uint16_t                       dynamic_attribute_index,
-        dmhash_t                       name_hash)
+        DynamicAttributePool& pool,
+        uint32_t              dynamic_attribute_index,
+        dmhash_t              name_hash)
     {
         if (dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
-            DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[dynamic_attribute_index];
+            DynamicAttributeInfo& dynamic_info = pool.Get(dynamic_attribute_index);
 
             int32_t existing_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
             if (existing_index >= 0)
@@ -395,19 +385,7 @@ namespace dmGameSystem
                 if (dynamic_info.m_NumInfos == 1)
                 {
                     free(dynamic_info.m_Infos);
-                    dynamic_info.m_Infos = 0x0;
-
-                    // We might have filled up the free list already, so in this case we have options:
-                    // 1. create more space in the index list
-                    // 2. scan the list of entries for free items when a new dynamic property is created (in SetMaterialAttribute)
-                    //
-                    // Currently we are doing 1) and trimming the index list down to DYNAMIC_ATTRIBUTE_INCREASE_COUNT
-                    // in SetMaterialAttribute when the index list is full.
-                    if (dynamic_attribute_free_indices.Full())
-                    {
-                        dynamic_attribute_free_indices.OffsetCapacity(DYNAMIC_ATTRIBUTE_INCREASE_COUNT);
-                    }
-                    dynamic_attribute_free_indices.Push(dynamic_attribute_index);
+                    pool.Free(dynamic_attribute_index, true);
                 }
                 else
                 {
@@ -416,8 +394,8 @@ namespace dmGameSystem
                     DynamicAttributeInfo::Info tmp_info             = dynamic_info.m_Infos[existing_index];
                     dynamic_info.m_Infos[existing_index]            = dynamic_info.m_Infos[dynamic_info.m_NumInfos-1];
                     dynamic_info.m_Infos[dynamic_info.m_NumInfos-1] = tmp_info;
+                    dynamic_info.m_NumInfos--;
                 }
-                dynamic_info.m_NumInfos--;
                 return dmGameObject::PROPERTY_RESULT_OK;
             }
         }
@@ -445,9 +423,8 @@ namespace dmGameSystem
     }
 
     dmGameObject::PropertyResult GetMaterialAttribute(
-        dmArray<DynamicAttributeInfo>&   dynamic_attribute_infos,
-        dmArray<uint16_t>&               dynamic_attribute_free_indices,
-        uint16_t                         dynamic_attribute_index,
+        DynamicAttributePool&            pool,
+        uint32_t                         dynamic_attribute_index,
         dmRender::HMaterial              material,
         dmhash_t                         name_hash,
         dmGameObject::PropertyDesc&      out_desc,
@@ -463,7 +440,7 @@ namespace dmGameSystem
         // If we have a dynamic attribute set, we return that data
         if (dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
-            DynamicAttributeInfo& dynamic_info = dynamic_attribute_infos[dynamic_attribute_index];
+            DynamicAttributeInfo& dynamic_info = pool.Get(dynamic_attribute_index);
 
             int32_t dynamic_info_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
 
@@ -502,9 +479,8 @@ namespace dmGameSystem
     }
 
     dmGameObject::PropertyResult SetMaterialAttribute(
-        dmArray<DynamicAttributeInfo>&   dynamic_attribute_infos,
-        dmArray<uint16_t>&               dynamic_attribute_free_indices,
-        uint16_t*                        dynamic_attribute_index,
+        DynamicAttributePool&            pool,
+        uint32_t*                        dynamic_attribute_index,
         dmRender::HMaterial              material,
         dmhash_t                         name_hash,
         const dmGameObject::PropertyVar& var)
@@ -522,46 +498,36 @@ namespace dmGameSystem
         if (*dynamic_attribute_index == INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
             // No free slots available, so we allocate more slots
-            if (dynamic_attribute_free_indices.Empty())
+
+            if (pool.Full())
             {
-                const uint32_t current_count = dynamic_attribute_infos.Size();
+                const uint32_t current_count = pool.Capacity();
                 const uint32_t new_capacity = dmMath::Min(current_count + DYNAMIC_ATTRIBUTE_INCREASE_COUNT, (uint32_t) INVALID_DYNAMIC_ATTRIBUTE_INDEX);
 
                 if (new_capacity >= INVALID_DYNAMIC_ATTRIBUTE_INDEX)
                 {
-                    dmLogError("Unable to allocate dynamic attributes, max dynamic attribute limit reached for sprites (%d)", INVALID_DYNAMIC_ATTRIBUTE_INDEX);
+                    dmLogError("Unable to allocate dynamic attributes, max dynamic attribute limit reached (%d).", INVALID_DYNAMIC_ATTRIBUTE_INDEX);
                     return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
                 }
 
-                // Put all the new indices on the free list and trim the indices list down so we don't waste too much memory
-                dynamic_attribute_free_indices.SetCapacity(DYNAMIC_ATTRIBUTE_INCREASE_COUNT);
-                for (int i = new_capacity - 1; i >= current_count; i--)
-                {
-                    dynamic_attribute_free_indices.Push(i);
-                }
-
-                uint32_t fill_start = dynamic_attribute_infos.Capacity();
-                dynamic_attribute_infos.SetCapacity(new_capacity);
-                dynamic_attribute_infos.SetSize(dynamic_attribute_infos.Capacity());
-                memset(&dynamic_attribute_infos[fill_start], 0, DYNAMIC_ATTRIBUTE_INCREASE_COUNT * sizeof(DynamicAttributeInfo));
+                pool.SetCapacity(new_capacity);
             }
 
-            // Grab a free index from the list
-            *dynamic_attribute_index = dynamic_attribute_free_indices.Back();
-            dynamic_attribute_free_indices.Pop();
+            DynamicAttributeInfo new_info  = {};
+            new_info.m_NumInfos            = 1;
+            new_info.m_Infos               = (DynamicAttributeInfo::Info*) malloc(sizeof(DynamicAttributeInfo::Info));
+            new_info.m_Infos[0].m_NameHash = info.m_AttributeNameHash;
 
-            dynamic_info = &dynamic_attribute_infos[*dynamic_attribute_index];
-            assert(dynamic_info->m_Infos == 0);
-
-            dynamic_info->m_NumInfos            = 1;
-            dynamic_info->m_Infos               = (DynamicAttributeInfo::Info*) malloc(sizeof(DynamicAttributeInfo::Info));
-            dynamic_info->m_Infos[0].m_NameHash = info.m_AttributeNameHash;
             attribute_index = 0;
-            memset(&dynamic_info->m_Infos[attribute_index].m_Values, 0, sizeof(dynamic_info->m_Infos[attribute_index].m_Values));
+            uint32_t new_index = pool.Alloc();
+            pool.Set(new_index, new_info);
+
+            dynamic_info = &pool.Get(new_index);
+            *dynamic_attribute_index = new_index;
         }
         else
         {
-            dynamic_info = &dynamic_attribute_infos[*dynamic_attribute_index];
+            dynamic_info = &pool.Get(*dynamic_attribute_index);
             attribute_index = FindMaterialAttributeIndex(*dynamic_info, info.m_AttributeNameHash);
 
             // The attribute doesn't exist in the dynamic info table (i.e the list of overridden dynamic attributes)

@@ -79,6 +79,7 @@ namespace dmGameSystem
         uint32_t                    m_MixedHash;
 
         uint32_t                    m_AnimationID;
+        uint32_t                    m_DynamicVertexAttributeIndex;
 
         SpriteResource*             m_Resource;
         SpriteResourceOverrides*    m_Overrides;
@@ -93,7 +94,6 @@ namespace dmGameSystem
         float                       m_AnimTimer;
         float                       m_PlaybackRate;
         uint16_t                    m_ComponentIndex;
-        uint16_t                    m_DynamicVertexAttributeIndex;
         uint16_t                    m_AnimPingPong : 1;
         uint16_t                    m_AnimBackwards : 1;
         uint16_t                    m_Enabled : 1;
@@ -109,27 +109,24 @@ namespace dmGameSystem
 
     struct SpriteWorld
     {
-        dmObjectPool<SpriteComponent>   m_Components;
-        dmArray<dmRender::RenderObject*> m_RenderObjects;
-        dmArray<float>                  m_BoundingVolumes;
-        uint32_t                        m_RenderObjectsInUse;
-        dmRender::HBufferedRenderBuffer m_VertexBuffer;
-        uint8_t*                        m_VertexBufferData;
-        uint8_t*                        m_VertexBufferWritePtr;
-        dmRender::HBufferedRenderBuffer m_IndexBuffer;
-        uint32_t                        m_VerticesWritten;
-        uint32_t                        m_VertexMemorySize;
-        uint32_t                        m_VertexCount;
-        uint32_t                        m_IndexCount;
-        uint32_t                        m_DispatchCount;
-        uint8_t*                        m_IndexBufferData;
-        uint8_t*                        m_IndexBufferWritePtr;
-
-        dmArray<DynamicAttributeInfo>   m_DynamicVertexAttributeInfos;
-        dmArray<uint16_t>               m_DynamicVertexAttributeFreeIndices;
-
-        uint8_t                         m_Is16BitIndex : 1;
-        uint8_t                         m_ReallocBuffers : 1;
+        dmObjectPool<SpriteComponent>       m_Components;
+        DynamicAttributePool                m_DynamicVertexAttributePool;
+        dmArray<dmRender::RenderObject*>    m_RenderObjects;
+        dmArray<float>                      m_BoundingVolumes;
+        uint32_t                            m_RenderObjectsInUse;
+        dmRender::HBufferedRenderBuffer     m_VertexBuffer;
+        uint8_t*                            m_VertexBufferData;
+        uint8_t*                            m_VertexBufferWritePtr;
+        dmRender::HBufferedRenderBuffer     m_IndexBuffer;
+        uint32_t                            m_VerticesWritten;
+        uint32_t                            m_VertexMemorySize;
+        uint32_t                            m_VertexCount;
+        uint32_t                            m_IndexCount;
+        uint32_t                            m_DispatchCount;
+        uint8_t*                            m_IndexBufferData;
+        uint8_t*                            m_IndexBufferWritePtr;
+        uint8_t                             m_Is16BitIndex : 1;
+        uint8_t                             m_ReallocBuffers : 1;
     };
 
     struct SpriteAttributeInfo
@@ -228,7 +225,7 @@ namespace dmGameSystem
         sprite_world->m_IndexBuffer      = 0;
         sprite_world->m_IndexBufferData  = 0;
 
-        InitializeMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributeInfos, sprite_world->m_DynamicVertexAttributeFreeIndices, 8);
+        InitializeMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool, 8);
 
         *params.m_World = sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -238,7 +235,7 @@ namespace dmGameSystem
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
 
-        DestroyMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributeInfos);
+        DestroyMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool);
 
         for (uint32_t i = 0; i < sprite_world->m_RenderObjects.Size(); ++i)
         {
@@ -636,7 +633,7 @@ namespace dmGameSystem
     }
 
     // Prepares the list of sprite attributes that could potentially overrides an already specified material attribute
-    static void FillSpriteAttributeInfos(const SpriteWorld* sprite_world, const SpriteComponent* component, SpriteAttributeInfo* material_infos, SpriteAttributeInfo* sprite_infos)
+    static void FillSpriteAttributeInfos(DynamicAttributePool& dynamic_attribute_pool, const SpriteComponent* component, SpriteAttributeInfo* material_infos, SpriteAttributeInfo* sprite_infos)
     {
         const dmGraphics::VertexAttribute* sprite_resource_attributes = component->m_Resource->m_DDF->m_Attributes.m_Data;
         const uint32_t sprite_resource_attribute_count = component->m_Resource->m_DDF->m_Attributes.m_Count;
@@ -651,7 +648,7 @@ namespace dmGameSystem
             // 1. Fill from dynamic attributes first
             if (component->m_DynamicVertexAttributeIndex != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
             {
-                const DynamicAttributeInfo& dynamic_info = sprite_world->m_DynamicVertexAttributeInfos[component->m_DynamicVertexAttributeIndex];
+                const DynamicAttributeInfo& dynamic_info = dynamic_attribute_pool.Get(component->m_DynamicVertexAttributeIndex);
                 int32_t dynamic_attribute_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
                 if (dynamic_attribute_index >= 0)
                 {
@@ -1164,7 +1161,7 @@ namespace dmGameSystem
             SpriteAttributeInfo* sprite_attribute_info_ptr = material_attribute_info;
             if (component->m_Resource->m_DDF->m_Attributes.m_Count > 0 || component->m_DynamicVertexAttributeIndex != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
             {
-                FillSpriteAttributeInfos(sprite_world, component, material_attribute_info, &sprite_attribute_info);
+                FillSpriteAttributeInfos(sprite_world->m_DynamicVertexAttributePool, component, material_attribute_info, &sprite_attribute_info);
                 sprite_attribute_info_ptr = &sprite_attribute_info;
             }
 
@@ -2059,7 +2056,7 @@ namespace dmGameSystem
             return dmGameObject::PROPERTY_RESULT_OK;
         }
 
-        return GetMaterialAttribute(sprite_world->m_DynamicVertexAttributeInfos, sprite_world->m_DynamicVertexAttributeFreeIndices, component->m_DynamicVertexAttributeIndex, material, get_property, out_value, CompSpriteGetMaterialAttributeCallback, component);
+        return GetMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, component->m_DynamicVertexAttributeIndex, material, get_property, out_value, CompSpriteGetMaterialAttributeCallback, component);
     }
 
     dmGameObject::PropertyResult CompSpriteSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -2143,7 +2140,7 @@ namespace dmGameSystem
         {
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        return SetMaterialAttribute(sprite_world->m_DynamicVertexAttributeInfos, sprite_world->m_DynamicVertexAttributeFreeIndices, &component->m_DynamicVertexAttributeIndex, material, set_property, params.m_Value);
+        return SetMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, &component->m_DynamicVertexAttributeIndex, material, set_property, params.m_Value);
     }
 
     static bool CompSpriteIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
