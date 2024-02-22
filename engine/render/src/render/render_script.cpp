@@ -1457,7 +1457,7 @@ namespace dmRender
      *
      * @name render.enable_texture
      * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash for the sampler name that the texture should be bound to
-     * @param handle [type:texture] render target or texture handle that should be bound
+     * @param handle|name [type:texture|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
      * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `render.BUFFER_COLOR_BIT`. These values are supported:
      *
      * - `render.BUFFER_COLOR_BIT`
@@ -1506,6 +1506,8 @@ namespace dmRender
      */
     int RenderScript_EnableTexture(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmhash_t sampler_hash   = 0;
         uint32_t unit           = 0;
@@ -1519,60 +1521,77 @@ namespace dmRender
             sampler_hash = dmScript::CheckHashOrString(L, 1);
         }
 
+        dmGraphics::HAssetHandle asset_handle;
+        dmGraphics::AssetType asset_type;
+
         if (lua_isnumber(L, 2))
         {
-            dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
-            dmGraphics::AssetType asset_type      = dmGraphics::GetAssetType(asset_handle);
-            dmGraphics::HTexture texture          = 0;
+            asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
+            asset_type   = dmGraphics::GetAssetType(asset_handle);
+        }
+        else if (dmScript::IsHash(L, 2) || lua_isstring(L, 2))
+        {
+            dmhash_t rt_id                  = dmScript::CheckHashOrString(L, 2);
+            RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
 
-            if (!dmGraphics::IsAssetHandleValid(i->m_RenderContext->m_GraphicsContext, asset_handle))
+            if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
             {
-                char buf[128];
-                return luaL_error(L, "Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+                return DM_LUA_ERROR("Render resource is not a render target");
             }
 
-            if (asset_type == dmGraphics::ASSET_TYPE_RENDER_TARGET)
-            {
-                dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
-                if (lua_isnumber(L, 3))
-                {
-                    buffer_type = CheckBufferType(L, 3);
-                }
-
-                texture = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
-
-                if (texture == 0)
-                {
-                    char buf[128];
-                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type (type=%s).",
-                        AssetHandleToString(asset_handle, buf, sizeof(buf)), dmGraphics::GetBufferTypeLiteral(buffer_type));
-                }
-            }
-            else if (asset_type == dmGraphics::ASSET_TYPE_TEXTURE)
-            {
-                texture = (dmGraphics::HTexture) asset_handle;
-            }
-
-            // Texture can potentially still be zero if it's an attachment texture
-            if(texture != 0)
-            {
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, sampler_hash, unit, texture)))
-                {
-                    return 0;
-                }
-                else
-                {
-                    return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-                }
-            }
-
-            char buf[128];
-            return luaL_error(L, "Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+            asset_handle = (dmGraphics::HRenderTarget) render_resource->m_Resource;
+            asset_type   = dmGraphics::ASSET_TYPE_RENDER_TARGET;
         }
         else
         {
-            return luaL_error(L, "%s.enable_texture(unit, handle, buffer_type) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
+            return DM_LUA_ERROR("%s.enable_texture(unit, handle, buffer_type) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
         }
+
+        if (!dmGraphics::IsAssetHandleValid(i->m_RenderContext->m_GraphicsContext, asset_handle))
+        {
+            char buf[128];
+            return DM_LUA_ERROR("Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+        }
+
+        dmGraphics::HTexture texture = 0;
+
+        if (asset_type == dmGraphics::ASSET_TYPE_RENDER_TARGET)
+        {
+            dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            if (lua_isnumber(L, 3))
+            {
+                buffer_type = CheckBufferType(L, 3);
+            }
+
+            texture = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
+
+            if (texture == 0)
+            {
+                char buf[128];
+                return DM_LUA_ERROR("Render target '%s' does not have a texture for the specified buffer type (type=%s).",
+                    AssetHandleToString(asset_handle, buf, sizeof(buf)), dmGraphics::GetBufferTypeLiteral(buffer_type));
+            }
+        }
+        else if (asset_type == dmGraphics::ASSET_TYPE_TEXTURE)
+        {
+            texture = (dmGraphics::HTexture) asset_handle;
+        }
+
+        // Texture can potentially still be zero if it's an attachment texture
+        if(texture != 0)
+        {
+            if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, sampler_hash, unit, texture)))
+            {
+                return 0;
+            }
+            else
+            {
+                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            }
+        }
+
+        char buf[128];
+        return DM_LUA_ERROR("Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
     }
 
     /*# disables a texture on the render state
