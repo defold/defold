@@ -17,9 +17,10 @@
             [editor.colors :as colors]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx])
+            [editor.gl.vertex2 :as vtx])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL2]
+           [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteOrder FloatBuffer]
            [javax.vecmath Matrix4d Point3d Vector3d]))
 
@@ -125,20 +126,6 @@
     (.transform world-transform p)
     (vector-of :double (.x p) (.y p) (.z p) 1.0 u v page-index)))
 
-(defn legacy-vertex-data
-  [{:keys [width height tex-coords page-index] :as _frame} world-transform]
-  (let [x1 (* 0.5 width)
-        y1 (* 0.5 height)
-        x0 (- x1)
-        y0 (- y1)
-        [[u0 v0] [u1 v1] [u2 v2] [u3 v3]] tex-coords]
-    [(gen-vertex world-transform x0 y0 u0 v0 page-index)
-     (gen-vertex world-transform x1 y0 u3 v3 page-index)
-     (gen-vertex world-transform x0 y1 u1 v1 page-index)
-     (gen-vertex world-transform x1 y0 u3 v3 page-index)
-     (gen-vertex world-transform x1 y1 u2 v2 page-index)
-     (gen-vertex world-transform x0 y1 u1 v1 page-index)]))
-
 (defn- animation-frame-corners [animation-frame]
   (let [^double width (:width animation-frame)
         ^double height (:height animation-frame)
@@ -237,10 +224,32 @@
 
 (def ^:const animation-preview-offset 40)
 
+(defn animation-frame->vertex-pos-uv
+  [animation-frame world-transform]
+  (let [frame-vertex-data (vertex-data animation-frame)
+        page-index (:page-index animation-frame)]
+    (mapv (fn [positions uvs]
+            (let [x (get positions 0)
+                  y (get positions 1)
+                  u (get uvs 0)
+                  v (get uvs 1)]
+              (gen-vertex world-transform x y u v page-index)))
+          (:position-data frame-vertex-data)
+          (:uv-data frame-vertex-data))))
+
 (defn- anim-data->vbuf
   [anim-data frame-index world-transform make-vbuf-fn]
-  (let [vd (legacy-vertex-data (get-in anim-data [:frames frame-index]) world-transform)]
-    (persistent! (reduce conj! (make-vbuf-fn (count vd)) vd))))
+  (let [animation-data (get-in anim-data [:frames frame-index])
+        animation-vertices (animation-frame->vertex-pos-uv animation-data world-transform)
+        ^VertexBuffer vbuf (make-vbuf-fn (count animation-vertices))
+        ^ByteBuffer buf (.buf vbuf)]
+    (doseq [vertex animation-vertices]
+      (vtx/buf-push-floats! buf vertex))
+    (vtx/flip! vbuf)))
+
+(defn- anim-data->vertex-count
+  [anim-data frame-index]
+  (count (:indices (get-in anim-data [:frames frame-index]))))
 
 (defn render-animation-overlay
   [^GL2 gl render-args renderables n make-vbuf-fn shader]
@@ -264,6 +273,7 @@
                                                               (- (.y world-pos) (* 0.5 (/ 1 sy) (:height anim-data)))
                                                               0))
                                   (.mul scale-m))
+                vertex-count (anim-data->vertex-count anim-data frame)
                 vbuf (anim-data->vbuf anim-data frame world-transform make-vbuf-fn)]
             (when vbuf
               (let [vertex-binding (vtx/use-with ::animation vbuf shader)
@@ -290,4 +300,4 @@
                 (.glEnd gl)
                 (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
                   (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
-                  (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (* n 6)))))))))))
+                  (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 vertex-count))))))))))

@@ -755,9 +755,6 @@
     (assoc layout-data
       :texture-set complete-ddf-texture-set)))
 
-
-(def my-atom (atom 0))
-
 (g/defnk produce-anim-data
   [texture-set uv-transforms]
   (texture-set/make-anim-data texture-set uv-transforms))
