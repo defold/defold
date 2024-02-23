@@ -393,11 +393,27 @@ namespace dmEngine
     {
         if (strcmp(filter, "linear") == 0)
         {
-            return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+            return dmGraphics::TEXTURE_FILTER_LINEAR;
         }
-        else
+        else if (strcmp(filter, "nearest") == 0)
+        {
+            return dmGraphics::TEXTURE_FILTER_NEAREST;
+        }
+        else if (strcmp(filter, "nearest_mipmap_nearest") == 0)
         {
             return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+        }
+        else if (strcmp(filter, "nearest_mipmap_linear") == 0)
+        {
+            return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
+        }
+        else if (strcmp(filter, "linear_mipmap_nearest") == 0)
+        {
+            return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+        }
+        else if (strcmp(filter, "linear_mipmap_linear") == 0)
+        {
+            return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
         }
     }
 
