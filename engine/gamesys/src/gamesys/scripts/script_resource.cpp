@@ -665,10 +665,10 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * - `resource.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
- * : [type:number] The width of the texture (in pixels)
+ * : [type:number] The width of the texture (in pixels). Must be larger than 0.
  *
  * `height`
- * : [type:number] The width of the texture (in pixels)
+ * : [type:number] The width of the texture (in pixels). Must be larger than 0.
  *
  * `format`
  * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
@@ -794,7 +794,7 @@ static int CreateTexture(lua_State* L)
     int height                       = CheckTableInteger(L, 2, "height");
     uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
 
-    if ((width < 1) || (height < 1))
+    if (width < 1 || height < 1)
     {
         return luaL_error(L, "Unable to create texture, width and height must be larger than 0");
     }
