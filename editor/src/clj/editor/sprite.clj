@@ -412,7 +412,10 @@
     (g/connect texture-binding :scene-info sprite :scene-infos)))
 
 (g/defnk produce-properties [_declared-properties _node-id resource default-animation material-attribute-infos material-max-page-count material-samplers material-shader texture-binding-infos vertex-attribute-overrides]
-  (let [extension (workspace/resource-kind-extensions (:workspace resource) :atlas)
+  (let [workspace (if resource
+                    (:workspace resource)
+                    (-> _node-id project/get-project project/workspace))
+        extensions (workspace/resource-kind-extensions workspace :atlas)
         is-paged-material (shader/is-using-array-samplers? material-shader)
         texture-binding-index (util/name-index texture-binding-infos :sampler)
         material-sampler-index (if (g/error-value? material-samplers)
@@ -454,7 +457,7 @@
                                       (validation/prop-error :fatal _node-id :textures validation/prop-anim-missing-in? default-animation anim-data label)))
 
                            :edit-type {:type resource/Resource
-                                       :ext extension
+                                       :ext extensions
                                        :clear-fn (fn [_ _] (g/delete-node texture-binding-node-id))}}
                           should-be-deleted
                           (assoc :original-value fake-resource))])
@@ -466,7 +469,7 @@
                        :type resource/Resource
                        :error (validation/prop-error :info _node-id :texture validation/prop-nil? nil label)
                        :edit-type {:type resource/Resource
-                                   :ext extension
+                                   :ext extensions
                                    :set-fn (fn [_ _ _ new]
                                              (create-texture-binding-tx _node-id sampler-name new))}}])))))
         attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
