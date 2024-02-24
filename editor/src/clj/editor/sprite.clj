@@ -411,8 +411,8 @@
     (g/connect texture-binding :texture-binding-info sprite :texture-binding-infos)
     (g/connect texture-binding :scene-info sprite :scene-infos)))
 
-(g/defnk produce-properties [_declared-properties _node-id resource default-animation material-attribute-infos material-max-page-count material-samplers material-shader texture-binding-infos vertex-attribute-overrides]
-  (let [extension (workspace/resource-kind-extensions (:workspace resource) :atlas)
+(g/defnk produce-properties [_declared-properties _node-id default-animation material-attribute-infos material-max-page-count material-samplers material-shader texture-binding-infos vertex-attribute-overrides]
+  (let [extension (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)
         is-paged-material (shader/is-using-array-samplers? material-shader)
         texture-binding-index (util/name-index texture-binding-infos :sampler)
         material-sampler-index (if (g/error-value? material-samplers)

@@ -1555,9 +1555,9 @@
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id texture]
                              (prop-resource-error _node-id :texture texture "Texture")))
-            (dynamic edit-type (g/fnk [texture]
+            (dynamic edit-type (g/fnk [_node-id]
                                  {:type resource/Resource
-                                  :ext (workspace/resource-kind-extensions (:workspace texture) :atlas)})))
+                                  :ext (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)})))
 
   (input name-counts NameCounts)
   (input default-tex-params g/Any)
