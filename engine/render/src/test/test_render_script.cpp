@@ -1177,11 +1177,12 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
 
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_TEXTURE, command->m_Type);
-    ASSERT_EQ(unit,    command->m_Operands[0]);
-    ASSERT_EQ(texture, command->m_Operands[1]);
+    ASSERT_EQ(0,       command->m_Operands[0]);
+    ASSERT_EQ(unit,    command->m_Operands[1]);
+    ASSERT_EQ(texture, command->m_Operands[2]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
-    ASSERT_EQ(m_Context->m_Textures[unit], texture);
+    ASSERT_EQ(m_Context->m_TextureBindTable[unit].m_Texture, texture);
 
     dmGraphics::DeleteTexture(texture);
 

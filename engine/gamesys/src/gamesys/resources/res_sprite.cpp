@@ -51,19 +51,6 @@ namespace dmGameSystem
                 resource->m_Textures[i].m_SamplerNameHash = dmHashString64(resource->m_DDF->m_Textures[i].m_Sampler);
             }
         }
-        else { // Fallback until the editor outputs the same format
-            num_textures = 1;
-            resource->m_NumTextures = 1;
-
-            resource->m_Textures = (SpriteTexture*)malloc(num_textures * sizeof(SpriteTexture));
-            memset(resource->m_Textures, 0, num_textures * sizeof(SpriteTexture));
-            dmResource::Result fr = dmResource::Get(factory, resource->m_DDF->m_TileSet, (void**)&resource->m_Textures[0].m_TextureSet);
-            if (fr != dmResource::RESULT_OK)
-            {
-                return fr;
-            }
-            resource->m_Textures[0].m_SamplerNameHash = dmHashString64("");
-        }
 
         fr = dmResource::Get(factory, resource->m_DDF->m_Material, (void**)&resource->m_Material);
         if (fr != dmResource::RESULT_OK)
@@ -76,7 +63,7 @@ namespace dmGameSystem
             return dmResource::RESULT_NOT_SUPPORTED;
         }
         resource->m_DefaultAnimation = dmHashString64(resource->m_DDF->m_DefaultAnimation);
-        if (!resource->m_Textures[0].m_TextureSet->m_AnimationIds.Get(resource->m_DefaultAnimation))
+        if (num_textures && !resource->m_Textures[0].m_TextureSet->m_AnimationIds.Get(resource->m_DefaultAnimation))
         {
             if (resource->m_DDF->m_DefaultAnimation == 0 || resource->m_DDF->m_DefaultAnimation[0] == '\0')
             {
@@ -103,7 +90,8 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < resource->m_NumTextures; ++i)
         {
-            dmResource::Release(factory, resource->m_Textures[i].m_TextureSet);
+            if (resource->m_Textures[i].m_TextureSet)
+                dmResource::Release(factory, resource->m_Textures[i].m_TextureSet);
         }
         free((void*)resource->m_Textures);
     }

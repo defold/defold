@@ -62,6 +62,23 @@ namespace dmRender
                language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM300;
     }
 
+    void FillElementIds(char* buffer, uint32_t buffer_size, dmhash_t element_ids[4])
+    {
+        size_t original_size = strlen(buffer);
+        dmStrlCat(buffer, ".x", buffer_size);
+        element_ids[0] = dmHashString64(buffer);
+        buffer[original_size] = 0;
+        dmStrlCat(buffer, ".y", buffer_size);
+        element_ids[1] = dmHashString64(buffer);
+        buffer[original_size] = 0;
+        dmStrlCat(buffer, ".z", buffer_size);
+        element_ids[2] = dmHashString64(buffer);
+        buffer[original_size] = 0;
+        dmStrlCat(buffer, ".w", buffer_size);
+        element_ids[3] = dmHashString64(buffer);
+        buffer[original_size] = 0;
+    }
+
     void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
     {
         dmGraphics::Type type;
@@ -151,19 +168,7 @@ namespace dmRender
 
                 if (type == dmGraphics::TYPE_FLOAT_VEC4)
                 {
-                    size_t original_size = strlen(buffer);
-                    dmStrlCat(buffer, ".x", sizeof(buffer));
-                    constant.m_ElementIds[0] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
-                    dmStrlCat(buffer, ".y", sizeof(buffer));
-                    constant.m_ElementIds[1] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
-                    dmStrlCat(buffer, ".z", sizeof(buffer));
-                    constant.m_ElementIds[2] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
-                    dmStrlCat(buffer, ".w", sizeof(buffer));
-                    constant.m_ElementIds[3] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
+                    FillElementIds(buffer, buffer_size, constant.m_ElementIds);
                 } else {
                     // Clear element ids, otherwise we will compare against
                     // uninitialized values in GetMaterialProgramConstantInfo.

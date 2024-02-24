@@ -34,6 +34,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 
 @BundlerParams(platforms = {Platform.X86_64MacOS, Platform.Arm64MacOS})
@@ -155,7 +156,7 @@ public class MacOSBundler implements IBundler {
 
         // Create fat/universal binary
         File exe = File.createTempFile("dmengine", "");
-        exe.deleteOnExit();
+        FileUtil.deleteOnExit(exe);
 
         BundleHelper.throwIfCanceled(canceled);
 
