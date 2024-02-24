@@ -111,7 +111,6 @@ public class TextureSetLayout {
             this.page = page;
             this.rotated = rotated;
             this.rect = new Rectanglei(x, y, width, height);
-            this.rotated = false;
             this.vertices = new ArrayList<>();
             this.indices = new ArrayList<>();
         }

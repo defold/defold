@@ -28,6 +28,7 @@ import java.util.HashSet;
 import org.junit.Test;
 
 import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.gamesys.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
 import com.google.protobuf.Message;
@@ -190,6 +191,52 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
             caught = true;
         }
         assertTrue(caught);
+    }
+
+
+    @Test
+    public void testAtlasRotateImages() throws Exception {
+        addImage("/1.png", 10, 12);
+        addImage("/2.png", 16, 6);
+
+        // We don't allow duplicate files as single frame animations
+        StringBuilder src = new StringBuilder();
+        src.append("extrude_borders: 0\n");
+        src.append("images: {");
+        src.append("  image: \"/1.png\"");
+        src.append("}");
+
+        src.append("images: {");
+        src.append("  image: \"/2.png\"");
+        src.append("}");
+
+        List<Message> outputs = build("/test.atlas", src.toString());
+
+        TextureSet textureSet = (TextureSet)outputs.get(0);
+
+        assertThat(textureSet.getWidth(), is(16));
+        assertThat(textureSet.getHeight(), is(16));
+        assertThat(textureSet.getAnimationsCount(), is(2));
+
+        TextureSetAnimation anim = textureSet.getAnimations(0);
+        assertThat(anim.getId(), is("1"));
+        assertThat(anim.getWidth(), is(10));
+        assertThat(anim.getHeight(), is(12));
+
+        anim = textureSet.getAnimations(1);
+        assertThat(anim.getId(), is("2"));
+        assertThat(anim.getWidth(), is(16)); // The unrotated dimensions
+        assertThat(anim.getHeight(), is(6));
+
+        SpriteGeometry geom = textureSet.getGeometries(0);
+        assertThat(geom.getRotated(), is(false));
+        assertThat(geom.getWidth(), is(10));
+        assertThat(geom.getHeight(), is(12));
+
+        geom = textureSet.getGeometries(1);
+        assertThat(geom.getRotated(), is(true));
+        assertThat(geom.getWidth(), is(16)); // The unrotated dimensions
+        assertThat(geom.getHeight(), is(6));
     }
 
 
