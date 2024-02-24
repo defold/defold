@@ -118,7 +118,7 @@
 
 (g/defnk produce-save-value
   [_node-id sound-resource looping group gain pan speed loopcount]
-  (protobuf/make-map-with-defaults Sound$SoundDesc
+  (protobuf/make-map-without-defaults Sound$SoundDesc
     :sound (resource/resource->proj-path sound-resource)
     :looping (protobuf/boolean->int looping)
     :group group
@@ -152,15 +152,17 @@
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
 
-(defn load-sound [project self resource sound]
-  (g/set-property self
-    :sound (workspace/resolve-resource resource (:sound sound))
-    :looping (not (zero? (:looping sound)))
-    :group (:group sound)
-    :gain (:gain sound)
-    :pan (:pan sound)
-    :speed (:speed sound)
-    :loopcount (:loopcount sound)))
+(defn load-sound [_project self resource sound-desc]
+  {:pre [(map? sound-desc)]} ; Sound$SoundDesc in map format.
+  (let [resolve-resource #(workspace/resolve-resource resource %)]
+    (gu/set-properties-from-map self sound-desc
+      sound (resolve-resource :sound)
+      looping (protobuf/int->boolean :looping)
+      group :group
+      gain :gain
+      pan :pan
+      speed :speed
+      loopcount :loopcount)))
 
 (def prop-sound_speed? (partial validation/prop-outside-range? [0.1 5.0]))
 
@@ -170,7 +172,7 @@
   (input dep-build-targets g/Any)
   (input sound-resource resource/Resource)
 
-  (property sound resource/Resource
+  (property sound resource/Resource ; Required protobuf field.
             (value (gu/passthrough sound-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -180,26 +182,21 @@
                                   (or (validation/prop-error :info _node-id :sound validation/prop-nil? sound "Sound")
                                       (validation/prop-error :fatal _node-id :sound validation/prop-resource-not-exists? sound "Sound"))))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext supported-audio-formats})))
-
-  (property looping g/Bool (default false))
-  (property loopcount g/Int
+  (property looping g/Bool (default (protobuf/int->boolean (protobuf/default Sound$SoundDesc :looping))))
+  (property loopcount g/Int (default (protobuf/default Sound$SoundDesc :loopcount))
             (value (g/fnk [looping loopcount]
                      (if (not looping) 0 loopcount)))
             (dynamic error (g/fnk [_node-id loopcount]
                              (validation/prop-error :fatal _node-id :loopcount (partial validation/prop-outside-range? [0 127]) loopcount "Loopcount" )))
             (dynamic read-only? (g/fnk [looping]
                                   (not looping))))
-
-
-  (property group g/Str (default "master"))
-  (property gain g/Num (default 1.0)
+  (property group g/Str (default (protobuf/default Sound$SoundDesc :group)))
+  (property gain g/Num (default (protobuf/default Sound$SoundDesc :gain))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? gain)))
-  (property pan g/Num (default 0.0)
+  (property pan g/Num (default (protobuf/default Sound$SoundDesc :pan))
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-1-1? pan)))
-  (property speed g/Num (default 1.0)
+  (property speed g/Num (default (protobuf/default Sound$SoundDesc :speed))
             (dynamic error (validation/prop-error-fnk :fatal prop-sound_speed? speed)))
-
-
 
   (output form-data g/Any :cached produce-form-data)
   (output node-outline outline/OutlineData :cached produce-outline-data)
@@ -212,6 +209,7 @@
       :ext "sound"
       :node-type SoundNode
       :ddf-type Sound$SoundDesc
+      :read-defaults false
       :load-fn load-sound
       :icon sound-icon
       :view-types [:cljfx-form-view :text]
