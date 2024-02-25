@@ -58,7 +58,7 @@ namespace dmScript
 
     const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)
     {
-        dmReverseHashStackContext<512> hash_ctx;
+        DM_HASH_REVERSE_MEM(hash_ctx, 512);
         *buffer = '\0';
 
         const char* unknown = "<unknown>";
@@ -72,19 +72,19 @@ namespace dmScript
 
         if( !socketname )
         {
-            socketname = dmHashReverseSafe64C(&hash_ctx, url->m_Socket);
+            socketname = dmHashReverseSafe64Alloc(&hash_ctx, url->m_Socket);
         }
 
         dmStrlCpy(buffer, socketname ? socketname : unknown, buffer_size);
         dmStrlCat(buffer, ":", buffer_size);
         if (url->m_Path != 0)
         {
-            const char* tmp = dmHashReverseSafe64C(&hash_ctx, url->m_Path);
+            const char* tmp = dmHashReverseSafe64Alloc(&hash_ctx, url->m_Path);
             dmStrlCat(buffer, tmp, buffer_size);
         }
         if (url->m_Fragment != 0)
         {
-            const char* tmp = dmHashReverseSafe64C(&hash_ctx, url->m_Fragment);
+            const char* tmp = dmHashReverseSafe64Alloc(&hash_ctx, url->m_Fragment);
             dmStrlCat(buffer, "#", buffer_size);
             dmStrlCat(buffer, tmp, buffer_size);
         }

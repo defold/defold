@@ -190,21 +190,12 @@ TEST_F(dlib, HashToString64)
     }
 }
 
-TEST_F(dlib, ReverseHashSafe)
+TEST_F(dlib, ReverseHashSafeDeprecated)
 {
     {
         const char* test_string = "TestString1";
         uint64_t h = dmHashString64(test_string);
         ASSERT_STREQ(test_string, dmHashReverseSafe64(h));
-        char tmp[256];
-        uint32_t len = sizeof(tmp);
-        ASSERT_STREQ(test_string, dmHashReverseSafeBuffer64(h, tmp, &len));
-        ASSERT_STREQ(test_string, tmp);
-
-        // Test truncation
-        len = 4;
-        ASSERT_STREQ("Tes", dmHashReverseSafeBuffer64(h, tmp, &len));
-        ASSERT_EQ(0xFFFFFFFF, len);
     }
 
     {
@@ -214,17 +205,8 @@ TEST_F(dlib, ReverseHashSafe)
         uint64_t h32 = dmHashString64(test_string);
         dmHashEnableReverseHash(true);
 
-        char tmp[256];
-        uint32_t len = sizeof(tmp);
-
         ASSERT_STREQ("<unknown>", dmHashReverseSafe64(h64));
-        ASSERT_STREQ("<unknown:13766936562963415115>", dmHashReverseSafeBuffer64(h64, tmp, &len));
-        ASSERT_STREQ("<unknown:13766936562963415115>", tmp);
-
-        len = sizeof(tmp);
         ASSERT_STREQ("<unknown>", dmHashReverseSafe32(h32));
-        ASSERT_STREQ("<unknown:415596619>", dmHashReverseSafeBuffer32(h32, tmp, &len));
-        ASSERT_STREQ("<unknown:415596619>", tmp);
     }
 }
 
@@ -237,9 +219,9 @@ TEST_F(dlib, ReverseHashSafeStack)
     uint32_t h32 = dmHashString32(test_string);
 
     {
-        dmReverseHashStackContext<32> ctx;
-        ASSERT_STREQ(test_string, dmHashReverseSafe64C(&ctx, h64));
-        ASSERT_STREQ(test_string, dmHashReverseSafe32C(&ctx, h32));
+        DM_HASH_REVERSE_MEM(hash_ctx, 32);
+        ASSERT_STREQ(test_string, dmHashReverseSafe64Alloc(&hash_ctx, h64));
+        ASSERT_STREQ(test_string, dmHashReverseSafe32Alloc(&hash_ctx, h32));
     }
 
     dmHashEnableReverseHash(false);
@@ -248,17 +230,25 @@ TEST_F(dlib, ReverseHashSafeStack)
     dmHashEnableReverseHash(true);
 
     {
-        dmReverseHashStackContext<52+21> ctx;
-        const char* reverse64 = dmHashReverseSafe64C(&ctx, h64);
+        DM_HASH_REVERSE_MEM(hash_ctx, 52+21);
+
+        const char* reverse64 = dmHashReverseSafe64Alloc(&hash_ctx, h64);
         ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // 30 chars
-        ASSERT_STREQ("<unknown:3053055052>", dmHashReverseSafe32C(&ctx, h32)); // 20 chars
+        ASSERT_STREQ("<unknown:3053055052>", dmHashReverseSafe32Alloc(&hash_ctx, h32)); // 20 chars
         ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // Check that the null termination wasn't messed up
 
         // Test that the string will get truncated, and we'll fallback to the default string
         // No allocation from the context will occur
-        ASSERT_STREQ("<unknown>", dmHashReverseSafe64C(&ctx, 0xFFFFFFFFFFFFFFFF));
+        ASSERT_STREQ("<unknown>", dmHashReverseSafe64Alloc(&hash_ctx, 0xFFFFFFFFFFFFFFFF));
+        ASSERT_STREQ("<unknown>", dmHashReverseSafe64Alloc(&hash_ctx, 0x0));
         // We have room for just one more allocation
-        ASSERT_STREQ("<unknown:4294967295>", dmHashReverseSafe32C(&ctx, 0xFFFFFFFF));
+        ASSERT_STREQ("<unknown:4294967295>", dmHashReverseSafe32Alloc(&hash_ctx, 0xFFFFFFFF));
+    }
+
+    {
+        // Making sure the macro works and that the variables names don't collide
+        DM_HASH_REVERSE_MEM(hash_ctx2, 32);
+        DM_HASH_REVERSE_MEM(hash_ctx3, 32);
     }
 }
 

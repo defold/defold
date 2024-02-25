@@ -1474,8 +1474,8 @@ namespace dmGameObject
                     {
                         if (!type->m_InstanceHasUserData)
                         {
-                            dmReverseHashStackContext<256> hash_ctx;
-                            dmLogError("Unable to set properties for the component '%s' in game object '%s' in collection '%s' since it has no ability to store them.", dmHashReverseSafe64C(&hash_ctx, component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
+                            DM_HASH_REVERSE_MEM(hash_ctx, 256);
+                            dmLogError("Unable to set properties for the component '%s' in game object '%s' in collection '%s' since it has no ability to store them.", dmHashReverseSafe64Alloc(&hash_ctx, component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
                             success = false;
                             break;
                         }
@@ -1490,8 +1490,8 @@ namespace dmGameObject
                                 ddf_properties = CreatePropertyContainerFromDDF(&comp_prop.m_PropertyDecls);
                                 if (ddf_properties == 0x0)
                                 {
-                                    dmReverseHashStackContext<256> hash_ctx;
-                                    dmLogError("Could not read properties parameters for the component '%s' in game object '%s' in collection '%s'.", dmHashReverseSafe64C(&hash_ctx, component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
+                                    DM_HASH_REVERSE_MEM(hash_ctx, 256);
+                                    dmLogError("Could not read properties parameters for the component '%s' in game object '%s' in collection '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
                                     success = false;
                                 }
                                 break;
@@ -1532,8 +1532,8 @@ namespace dmGameObject
                             DestroyPropertyContainer(ddf_properties);
                             if (properties == 0x0)
                             {
-                                dmReverseHashStackContext<256> hash_ctx;
-                                dmLogError("Could not merge properties parameters for the component '%s' in game object '%s' in collection '%s'", dmHashReverseSafe64C(&hash_ctx, component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
+                                DM_HASH_REVERSE_MEM(hash_ctx, 256);
+                                dmLogError("Could not merge properties parameters for the component '%s' in game object '%s' in collection '%s'", dmHashReverseSafe64Alloc(&hash_ctx, component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
                                 success = false;
                                 break;
                             }
@@ -1559,8 +1559,8 @@ namespace dmGameObject
                         PropertyResult result = type->m_SetPropertiesFunction(params);
                         if (result != PROPERTY_RESULT_OK)
                         {
-                            dmReverseHashStackContext<256> hash_ctx;
-                            dmLogError("Could not load properties for component '%s' when spawning '%s' in collection '%s'.", dmHashReverseSafe64C(&hash_ctx, component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
+                            DM_HASH_REVERSE_MEM(hash_ctx, 256);
+                            dmLogError("Could not load properties for component '%s' when spawning '%s' in collection '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
                             DestroyPropertyContainer(properties);
                             success = false;
                             break;
@@ -2186,15 +2186,15 @@ namespace dmGameObject
         }
         if (instance == 0x0)
         {
-            dmReverseHashStackContext<512> hash_ctx;
+            DM_HASH_REVERSE_MEM(hash_ctx, 512);
             const dmMessage::URL* sender = &message->m_Sender;
             const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-            const char* path_name = dmHashReverseSafe64C(&hash_ctx, sender->m_Path);
-            const char* fragment_name = dmHashReverseSafe64C(&hash_ctx, sender->m_Fragment);
+            const char* path_name = dmHashReverseSafe64Alloc(&hash_ctx, sender->m_Path);
+            const char* fragment_name = dmHashReverseSafe64Alloc(&hash_ctx, sender->m_Fragment);
 
             dmLogError("Instance '%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
-                        dmHashReverseSafe64C(&hash_ctx, message->m_Receiver.m_Path),
-                        dmHashReverseSafe64C(&hash_ctx, message->m_Id),
+                        dmHashReverseSafe64Alloc(&hash_ctx, message->m_Receiver.m_Path),
+                        dmHashReverseSafe64Alloc(&hash_ctx, message->m_Id),
                         socket_name, path_name, fragment_name);
 
             context->m_Success = false;
@@ -2274,16 +2274,16 @@ namespace dmGameObject
             Result result = GetComponentIndex(instance, message->m_Receiver.m_Fragment, &component_index);
             if (result != RESULT_OK)
             {
-                dmReverseHashStackContext<512> hash_ctx;
+                DM_HASH_REVERSE_MEM(hash_ctx, 512);
                 const dmMessage::URL* sender = &message->m_Sender;
                 const char* socket_name = dmMessage::GetSocketName(sender->m_Socket);
-                const char* path_name = dmHashReverseSafe64C(&hash_ctx, sender->m_Path);
-                const char* fragment_name = dmHashReverseSafe64C(&hash_ctx, sender->m_Fragment);
+                const char* path_name = dmHashReverseSafe64Alloc(&hash_ctx, sender->m_Path);
+                const char* fragment_name = dmHashReverseSafe64Alloc(&hash_ctx, sender->m_Fragment);
 
                 dmLogError("Component '%s#%s' could not be found when dispatching message '%s' sent from %s:%s#%s",
-                            dmHashReverseSafe64C(&hash_ctx, message->m_Receiver.m_Path),
-                            dmHashReverseSafe64C(&hash_ctx, message->m_Receiver.m_Fragment),
-                            dmHashReverseSafe64C(&hash_ctx, message->m_Id),
+                            dmHashReverseSafe64Alloc(&hash_ctx, message->m_Receiver.m_Path),
+                            dmHashReverseSafe64Alloc(&hash_ctx, message->m_Receiver.m_Fragment),
+                            dmHashReverseSafe64Alloc(&hash_ctx, message->m_Id),
                             socket_name, path_name, fragment_name);
                 context->m_Success = false;
                 return;
