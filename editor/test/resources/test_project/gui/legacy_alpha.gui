@@ -1,7 +1,7 @@
 script: ""
 fonts {
-  name: "system_font"
-  font: "/builtins/fonts/system_font.font"
+  name: "default_font"
+  font: "/builtins/fonts/default.font"
 }
 textures {
   name: "main"
@@ -99,7 +99,7 @@ nodes {
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
   text: "Test"
-  font: "system_font"
+  font: "default_font"
   id: "text"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE

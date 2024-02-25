@@ -12,12 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-/*# Inter-app communication API documentation
- *
- * The Inter-app communication module has been moved into an external extension library
- * available on [here](https://defold.github.io/extension-iac/).
- *
- * @document
- * @name Inter-app communication
- * @namespace iac
- */
+#ifndef DM_SCRIPT_CAMERA_H
+#define DM_SCRIPT_CAMERA_H
+
+namespace dmGameSystem
+{
+    struct ScriptLibContext;
+    void ScriptCameraRegister(const ScriptLibContext& context);
+}
+
+#endif // DM_SCRIPT_CAMERA_H

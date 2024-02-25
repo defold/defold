@@ -136,7 +136,7 @@ local function create_state()
 end
 
 function init(self)
-    self.predicates = create_predicates("tile", "gui", "text", "particle", "model")
+    self.predicates = create_predicates("tile", "gui", "particle", "model", "debug_text")
 
     -- default is stretch projection. copy from builtins and change for different projection
     -- or send a message to the render script to change projection:
@@ -204,7 +204,7 @@ function update(self)
 
     render.enable_state(render.STATE_STENCIL_TEST)
     render.draw(predicates.gui, camera_gui.frustum)
-    render.draw(predicates.text, camera_gui.frustum)
+    render.draw(predicates.debug_text, camera_gui.frustum)
     render.disable_state(render.STATE_STENCIL_TEST)
     render.disable_state(render.STATE_BLEND)
 end

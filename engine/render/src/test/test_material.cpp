@@ -168,7 +168,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     ASSERT_EQ(1, attributes[2].m_ElementCount);
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[2].m_DataType);
 
-    dmGraphics::VertexAttribute attribute_overrides[3];
+    dmGraphics::VertexAttribute attribute_overrides[3] = {};
 
     // Reconfigure all streams and set new data
     uint8_t bytes_one[] = { 127, 32 };
