@@ -299,14 +299,23 @@ DM_DLLEXPORT void dmHashRelease64(HashState64* hash_state);
 /*# get string value from hash
  *
  * Returns the original string used to produce a hash.
- * Always returns a null terminated string. Returns "<unknown:value>" if the original string wasn't found.
  * @name dmHashReverseSafe64Alloc
  * @param allocator [type:dmAllocator*] The reverse hash allocator
  * @param hash [type:uint64_t] hash value
  * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found,
  *                            or "<unknown>" if the allocator failed to allocate more memory.
+ *                            Always returns a null terminated string.
  * @note This function is thread safe
  * @note The pointer is valid during the scope of the allocator
+ *
+ * @examples
+ *
+ * Get the string representaiton of a hash value
+ *
+ * ```cpp
+ * DM_HASH_REVERSE_MEM(hash_ctx, 128);
+ * const char* reverse = (const char*) dmHashReverseSafe64Alloc(&hash_ctx, hash);
+ * ```
  */
 DM_DLLEXPORT const char* dmHashReverseSafe64Alloc(dmAllocator* allocator, uint64_t hash);
 
@@ -314,14 +323,24 @@ DM_DLLEXPORT const char* dmHashReverseSafe64Alloc(dmAllocator* allocator, uint64
 /*# get string value from hash
  *
  * Returns the original string used to produce a hash.
- * Always returns a null terminated string. Returns "<unknown:value>" if the original string wasn't found.
+ *
  * @name dmHashReverseSafe32Alloc
  * @param allocator [type:dmAllocator*] The reverse hash allocator
  * @param hash [type:uint32_t] hash value
  * @return [type:const char*] Original string value or "<unknown:value>" if it wasn't found,
  *                            or "<unknown>" if the allocator failed to allocate more memory.
+ *                            Always returns a null terminated string.
  * @note This function is thread safe
  * @note The pointer is valid during the scope of the allocator
+ *
+ * @examples
+ *
+ * Get the string representaiton of a hash value
+ *
+ * ```cpp
+ * DM_HASH_REVERSE_MEM(hash_ctx, 128);
+ * const char* reverse = (const char*) dmHashReverseSafe32Alloc(&hash_ctx, hash);
+ * ```
  */
 DM_DLLEXPORT const char* dmHashReverseSafe32Alloc(dmAllocator* allocator, uint32_t hash);
 
