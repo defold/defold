@@ -462,7 +462,7 @@
                           property-info
                           (cond-> (update property-info :value resolve-resource)
 
-                                  (not (valid-resource-kind? (:resource-kind property-info)))
+                                  (not (valid-resource-kind? workspace (:resource-kind property-info)))
                                   (assoc :status :invalid-value))))))
               info)]
     {:vars vars-info

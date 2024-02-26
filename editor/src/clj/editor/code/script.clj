@@ -192,18 +192,25 @@
 (def resource-kind->ext
   "Declares which file extensions are valid for different kinds of resource
   properties. This affects the Property Editor, but is also used for validation."
-  {"atlas"       ["atlas" "tilesource"]
+  {"atlas"       "" ; dummy in order to make ResourceKind work
    "font"        "font"
    "material"    "material"
    "buffer"      "buffer"
    "texture"     (conj image/exts "cubemap" "render_target")
    "tile_source" "tilesource"})
 
-(def ^:private valid-resource-kind? (partial contains? resource-kind->ext))
+(defn- resource-kind->extensions [workspace resource-kind]
+  (let [exts (try (workspace/resource-kind-extensions workspace resource-kind)
+                  (catch IllegalArgumentException _ nil))]
+    (or exts
+        (get resource-kind->ext resource-kind))))
 
-(defn- script-property-edit-type [prop-type resource-kind]
+(defn- ^:private valid-resource-kind? [workspace resource-kind]
+  (not (nil? (resource-kind->extensions workspace resource-kind))))
+
+(defn- script-property-edit-type [workspace prop-type resource-kind]
   (if (= resource/Resource prop-type)
-    {:type prop-type :ext (resource-kind->ext resource-kind)}
+    {:type prop-type :ext (resource-kind->extensions workspace resource-kind)}
     {:type prop-type}))
 
 (defn- resource-assignment-error [node-id prop-kw prop-name resource expected-ext]
@@ -232,9 +239,10 @@
 
 (g/defnk produce-script-property-entries [_this _node-id deleted? name resource-kind type value]
   (when-not deleted?
-    (let [prop-kw (properties/user-name->key name)
+    (let [workspace (project/workspace (project/get-project _node-id))
+          prop-kw (properties/user-name->key name)
           prop-type (script-property-type->property-type type)
-          edit-type (script-property-edit-type prop-type resource-kind)
+          edit-type (script-property-edit-type workspace prop-type resource-kind)
           error (validate-value-against-edit-type _node-id :value name value edit-type)
           go-prop-type (script-property-type->go-prop-type type)
           overridden? (g/node-property-overridden? _this :value)
@@ -510,7 +518,7 @@
             (not-empty
               (keep (fn [{:keys [name resource-kind type value]}]
                       (let [prop-type (script-property-type->property-type type)
-                            edit-type (script-property-edit-type prop-type resource-kind)]
+                            edit-type (script-property-edit-type (project/workspace (project/get-project _node-id)) prop-type resource-kind)]
                         (validate-value-against-edit-type _node-id :lines name value edit-type)))
                     script-properties))]
     (g/error-aggregate errors :_node-id _node-id :_label :build-targets)

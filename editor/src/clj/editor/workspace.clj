@@ -813,7 +813,7 @@ ordinary paths."
 
 (defn resource-kind-extensions [workspace resource-kind]
   (let [extensions-by-resource-kind (g/node-value workspace :resource-kind-extensions)]
-    (or (extensions-by-resource-kind resource-kind)
+    (or (extensions-by-resource-kind (keyword resource-kind))
         (throw (IllegalArgumentException. (str "Unsupported resource-kind:" resource-kind))))))
 
 (defn make-build-settings
