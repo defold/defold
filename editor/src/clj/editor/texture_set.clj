@@ -249,7 +249,10 @@
 
 (defn- anim-data->vertex-count
   [anim-data frame-index]
-  (count (:indices (get-in anim-data [:frames frame-index]))))
+  (let [anim-frame (get-in anim-data [:frames frame-index])]
+    (if (:use-geometries anim-frame)
+      (count (:indices anim-frame))
+      6)))
 
 (defn render-animation-overlay
   [^GL2 gl render-args renderables n make-vbuf-fn shader]
