@@ -139,30 +139,6 @@ namespace dmParticle
         GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED = 2,
     };
 
-    /*
-    struct ParticleVertexAttributeInfo
-    {
-        dmhash_t                                  m_NameHash;
-        dmGraphics::VertexAttribute::SemanticType m_SemanticType;
-        dmGraphics::CoordinateSpace               m_CoordinateSpace;
-        uint8_t*                                  m_ValuePtr;
-        uint32_t                                  m_ValueByteSize;
-    };
-
-    struct ParticleVertexAttributeInfos
-    {
-        ParticleVertexAttributeInfos()
-        {
-            m_StructSize = sizeof(*this);
-        }
-
-        ParticleVertexAttributeInfo m_Infos[dmGraphics::MAX_VERTEX_STREAM_COUNT];
-        uint32_t                    m_VertexStride;
-        uint32_t                    m_NumInfos;
-        uint32_t                    m_StructSize;
-    };
-    */
-
     struct EmitterRenderData
     {
         EmitterRenderData()
