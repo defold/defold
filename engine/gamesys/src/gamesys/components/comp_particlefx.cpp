@@ -258,6 +258,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    /*
     static void FillEmitterAttributeInfos(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmParticle::ParticleVertexAttributeInfos* infos)
     {
         for (int i = 0; i < infos->m_NumInfos; ++i)
@@ -289,6 +290,7 @@ namespace dmGameSystem
             dmRender::GetMaterialProgramAttributeValues(material, i, (const uint8_t**) &info.m_ValuePtr, &info.m_ValueByteSize);
         }
     }
+    */
 
     static void RenderBatch(ParticleFXWorld* pfx_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
@@ -325,19 +327,28 @@ namespace dmGameSystem
         uint32_t vb_size      = vb_size_init;
         uint32_t vb_max_size  = pfx_world->m_VertexBufferData.Capacity();
 
-        dmParticle::ParticleVertexAttributeInfos attribute_infos = {};
+        // dmParticle::ParticleVertexAttributeInfos attribute_infos = {};
+        // FillParticleMaterialAttributeInfos(material_res->m_Material, &attribute_infos);
 
-        FillParticleMaterialAttributeInfos(material_res->m_Material, &attribute_infos);
+        dmGraphics::VertexAttributeInfos emitter_attribute_info = {};
+        dmGraphics::VertexAttributeInfos material_attribute_info;
+        FillMaterialAttributeInfos(material_res->m_Material, vx_decl, &material_attribute_info);
 
         for (uint32_t *i = begin; i != end; ++i)
         {
             const dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*) buf[*i].m_UserData;
 
-            FillEmitterAttributeInfos(emitter_render_data->m_Attributes, emitter_render_data->m_AttributeCount, &attribute_infos);
+            // FillEmitterAttributeInfos(emitter_render_data->m_Attributes, emitter_render_data->m_AttributeCount, &attribute_infos);
+
+            FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Not supported yet
+                    emitter_render_data->m_Attributes,
+                    emitter_render_data->m_AttributeCount,
+                    &material_attribute_info,
+                    &emitter_attribute_info);
 
             dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexData(particle_context,
                 pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
-                attribute_infos, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
+                emitter_attribute_info, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
 
             if (res != dmParticle::GENERATE_VERTEX_DATA_OK)
             {
@@ -353,7 +364,7 @@ namespace dmGameSystem
             }
         }
 
-        uint32_t ro_vertex_count = (vb_size - vb_size_init) / attribute_infos.m_VertexStride;
+        uint32_t ro_vertex_count = (vb_size - vb_size_init) / material_attribute_info.m_VertexStride;
 
         vertex_buffer.SetSize(vb_size);
 

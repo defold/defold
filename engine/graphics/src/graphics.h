@@ -342,9 +342,12 @@ namespace dmGraphics
     {
         dmhash_t                      m_NameHash;
         VertexAttribute::SemanticType m_SemanticType;
+        VertexAttribute::DataType     m_DataType;
         CoordinateSpace               m_CoordinateSpace;
         const uint8_t*                m_ValuePtr;
         uint32_t                      m_ValueByteSize;
+        uint32_t                      m_ElementCount;
+        bool                          m_Normalize;
     };
 
     struct VertexAttributeInfos
@@ -685,6 +688,19 @@ namespace dmGraphics
                buffer_type == BUFFER_TYPE_COLOR1_BIT ||
                buffer_type == BUFFER_TYPE_COLOR2_BIT ||
                buffer_type == BUFFER_TYPE_COLOR3_BIT;
+    }
+
+    static inline bool HasLocalPositionAttribute(const dmGraphics::VertexAttributeInfos& attribute_infos)
+    {
+        for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
+        {
+            if (attribute_infos.m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION &&
+                attribute_infos.m_Infos[i].m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

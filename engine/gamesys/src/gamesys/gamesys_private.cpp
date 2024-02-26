@@ -270,9 +270,10 @@ namespace dmGameSystem
     }
 
     // Prepares the list of sprite attributes that could potentially overrides an already specified material attribute
-    void FillAttributeInfos(DynamicAttributePool& dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos)
+    void FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos)
     {
-        component_infos->m_NumInfos = material_infos->m_NumInfos;
+        component_infos->m_NumInfos     = material_infos->m_NumInfos;
+        component_infos->m_VertexStride = material_infos->m_VertexStride;
 
         for (int i = 0; i < material_infos->m_NumInfos; ++i)
         {
@@ -281,9 +282,9 @@ namespace dmGameSystem
             component_infos->m_Infos[i] = material_infos->m_Infos[i];
 
             // 1. Fill from dynamic attributes first
-            if (component_dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+            if (dynamic_attribute_pool != 0x0 && component_dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
             {
-                const DynamicAttributeInfo& dynamic_info = dynamic_attribute_pool.Get(component_dynamic_attribute_index);
+                const DynamicAttributeInfo& dynamic_info = dynamic_attribute_pool->Get(component_dynamic_attribute_index);
                 int32_t dynamic_attribute_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
                 if (dynamic_attribute_index >= 0)
                 {
@@ -313,19 +314,25 @@ namespace dmGameSystem
 
     // Prepares the list of material attributes by getting all the vertex attributes and values for each attribute
     // as specified in the material
-    void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::VertexAttributeInfos* infos)
+    void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos)
     {
         const dmGraphics::VertexAttribute* material_attributes;
         uint32_t material_attributes_count;
         dmRender::GetMaterialProgramAttributes(material, &material_attributes, &material_attributes_count);
 
-        infos->m_NumInfos = dmMath::Min(material_attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
+        infos->m_NumInfos     = dmMath::Min(material_attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
+        infos->m_VertexStride = dmGraphics::GetVertexDeclarationStride(vx_decl);
+
         for (int i = 0; i < infos->m_NumInfos; ++i)
         {
             dmGraphics::VertexAttributeInfo& info = infos->m_Infos[i];
-            info.m_NameHash                       = material_attributes[i].m_NameHash;
-            info.m_SemanticType                   = material_attributes[i].m_SemanticType;
-            info.m_CoordinateSpace                = material_attributes[i].m_CoordinateSpace;
+            info.m_NameHash         = material_attributes[i].m_NameHash;
+            info.m_SemanticType     = material_attributes[i].m_SemanticType;
+            info.m_DataType         = material_attributes[i].m_DataType;
+            info.m_CoordinateSpace  = material_attributes[i].m_CoordinateSpace;
+            info.m_ElementCount     = material_attributes[i].m_ElementCount;
+            info.m_Normalize        = material_attributes[i].m_Normalize;
+
             dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
         }
     }

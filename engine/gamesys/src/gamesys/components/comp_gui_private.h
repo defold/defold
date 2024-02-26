@@ -141,7 +141,7 @@ namespace dmGameSystem
         dmArray<BoxVertex>                       m_ClientVertexBuffer;
         dmGraphics::HTexture                     m_WhiteTexture;
         dmParticle::HParticleContext             m_ParticleContext;
-        dmParticle::ParticleVertexAttributeInfos m_ParticleAttributeInfos;
+        dmGraphics::VertexAttributeInfos         m_ParticleAttributeInfos;
         uint32_t                                 m_MaxParticleFXCount;
         uint32_t                                 m_MaxParticleCount;
         uint32_t                                 m_RenderedParticlesSize;
