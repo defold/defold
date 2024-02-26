@@ -338,6 +338,28 @@ namespace dmGraphics
         uint64_t m_PolygonOffsetFillEnabled : 1;
     };
 
+    struct VertexAttributeInfo
+    {
+        dmhash_t                      m_NameHash;
+        VertexAttribute::SemanticType m_SemanticType;
+        CoordinateSpace               m_CoordinateSpace;
+        const uint8_t*                m_ValuePtr;
+        uint32_t                      m_ValueByteSize;
+    };
+
+    struct VertexAttributeInfos
+    {
+        VertexAttributeInfos()
+        {
+            m_StructSize = sizeof(*this);
+        }
+
+        VertexAttributeInfo m_Infos[dmGraphics::MAX_VERTEX_STREAM_COUNT];
+        uint32_t            m_VertexStride;
+        uint32_t            m_NumInfos;
+        uint32_t            m_StructSize;
+    };
+
     /** Creates a graphics context
      * Currently, there can only be one context active at a time.
      * @return New graphics context

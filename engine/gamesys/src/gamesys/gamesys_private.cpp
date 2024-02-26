@@ -269,6 +269,67 @@ namespace dmGameSystem
         return -1;
     }
 
+    // Prepares the list of sprite attributes that could potentially overrides an already specified material attribute
+    void FillAttributeInfos(DynamicAttributePool& dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos)
+    {
+        component_infos->m_NumInfos = material_infos->m_NumInfos;
+
+        for (int i = 0; i < material_infos->m_NumInfos; ++i)
+        {
+            dmhash_t name_hash = material_infos->m_Infos[i].m_NameHash;
+
+            component_infos->m_Infos[i] = material_infos->m_Infos[i];
+
+            // 1. Fill from dynamic attributes first
+            if (component_dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+            {
+                const DynamicAttributeInfo& dynamic_info = dynamic_attribute_pool.Get(component_dynamic_attribute_index);
+                int32_t dynamic_attribute_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
+                if (dynamic_attribute_index >= 0)
+                {
+                    // TODO: We should optimally use converted values for this as well,
+                    //       but since we are not converting any other attribute value
+                    //       we will wait with that a bit.
+                    GetMaterialAttributeValues(dynamic_info, dynamic_attribute_index,
+                        material_infos->m_Infos[i].m_ValueByteSize,
+                        &component_infos->m_Infos[i].m_ValuePtr,
+                        &component_infos->m_Infos[i].m_ValueByteSize);
+                    continue;
+                }
+            }
+
+            // 2. If that failed, we try to fill from the resource attribute
+            int component_attribute_index = FindAttributeIndex(component_attributes, num_component_attributes, name_hash);
+            if (component_attribute_index >= 0)
+            {
+                dmGraphics::GetAttributeValues(component_attributes[component_attribute_index],
+                    &component_infos->m_Infos[i].m_ValuePtr,
+                    &component_infos->m_Infos[i].m_ValueByteSize);
+            }
+
+            // 3. If all of the above failed, we fallback to using the material attribute instead
+        }
+    }
+
+    // Prepares the list of material attributes by getting all the vertex attributes and values for each attribute
+    // as specified in the material
+    void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::VertexAttributeInfos* infos)
+    {
+        const dmGraphics::VertexAttribute* material_attributes;
+        uint32_t material_attributes_count;
+        dmRender::GetMaterialProgramAttributes(material, &material_attributes, &material_attributes_count);
+
+        infos->m_NumInfos = dmMath::Min(material_attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
+        for (int i = 0; i < infos->m_NumInfos; ++i)
+        {
+            dmGraphics::VertexAttributeInfo& info = infos->m_Infos[i];
+            info.m_NameHash                       = material_attributes[i].m_NameHash;
+            info.m_SemanticType                   = material_attributes[i].m_SemanticType;
+            info.m_CoordinateSpace                = material_attributes[i].m_CoordinateSpace;
+            dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
+        }
+    }
+
     static inline float VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr)
     {
         switch (data_type)
@@ -401,6 +462,7 @@ namespace dmGameSystem
             }
             return dmGameObject::PROPERTY_RESULT_OK;
         }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
     static dmGameObject::PropertyVar DynamicAttributeValuesToPropertyVar(float* values, uint32_t element_count, uint32_t element_index, bool use_element_index)
