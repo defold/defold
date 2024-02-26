@@ -967,6 +967,7 @@ namespace dmRig
 
                 uint32_t num_texcoords = 0;
 
+                // TODO: Use the shared dmGraphics function instead of this
                 for (int a = 0; a < attribute_infos->m_NumInfos; ++a)
                 {
                     const dmGraphics::VertexAttributeInfo& info = attribute_infos->m_Infos[a];

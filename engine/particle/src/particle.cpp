@@ -1032,6 +1032,7 @@ namespace dmParticle
         particle->m_SourceAngularVelocity = emitter_properties[EMITTER_KEY_PARTICLE_ANGULAR_VELOCITY];
     }
 
+    // TODO: Use the shared dmGraphics function instead of this (needs to solve dynamic library linking for the particle library)
     static uint8_t* WriteParticleVertex(const dmGraphics::VertexAttributeInfos& attribute_infos, uint8_t* write_ptr, const Vector3& p, const Vector3& p_local, const Vector4& color, float* uv, float page_index)
     {
         for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
