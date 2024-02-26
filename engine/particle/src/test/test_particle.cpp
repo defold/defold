@@ -45,7 +45,7 @@ struct TestVertex
     // Offset 40
 };
 
-static inline void FillAttribute(dmParticle::ParticleVertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
+static inline void FillAttribute(dmGraphics::VertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
 {
     info.m_NameHash        = name_hash;
     info.m_SemanticType    = semantic_type;
@@ -89,7 +89,7 @@ protected:
 
     dmParticle::HParticleContext m_Context;
     dmParticle::HPrototype m_Prototype;
-    dmParticle::ParticleVertexAttributeInfos m_AttributeInfos;
+    dmGraphics::VertexAttributeInfos m_AttributeInfos;
 
     uint8_t* m_VertexBuffer;
     uint32_t m_VertexBufferSize;
