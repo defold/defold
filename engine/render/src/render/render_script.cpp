@@ -1457,7 +1457,7 @@ namespace dmRender
      *
      * @name render.enable_texture
      * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash for the sampler name that the texture should be bound to
-     * @param handle|name [type:texture|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
+     * @param handle_or_name [type:texture|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
      * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `render.BUFFER_COLOR_BIT`. These values are supported:
      *
      * - `render.BUFFER_COLOR_BIT`
