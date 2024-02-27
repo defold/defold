@@ -132,11 +132,6 @@ def configure(conf):
     if operating_sys != "macos":
         conf.env['STLIB_UNWIND'] = 'unwind'
 
-    conf.env['STLIB_FACEBOOKEXT'] = 'facebookext'
-    conf.env['STLIB_IAPEXT'] = 'iapext'
-    conf.env['STLIB_PUSHEXT'] = 'pushext'
-    conf.env['STLIB_WEBVIEWEXT'] = 'webviewext'
-    conf.env['STLIB_IACEXT'] = 'iacext'
     conf.env['STLIB_PROFILEREXT'] = 'profilerext'
     conf.env['STLIB_PROFILEREXT_NULL'] = 'profilerext_null'
 

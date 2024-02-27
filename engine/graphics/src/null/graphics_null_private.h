@@ -18,6 +18,8 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/opaque_handle_container.h>
 
+#include "../graphics_private.h"
+
 namespace dmGraphics
 {
     const static uint32_t MAX_REGISTER_COUNT = 16;
@@ -43,6 +45,8 @@ namespace dmGraphics
         uint32_t          m_Depth;
         uint32_t          m_OriginalWidth;
         uint32_t          m_OriginalHeight;
+        uint16_t          m_NumTextureIds;
+        int32_t*          m_LastBoundUnit; // testing
         volatile uint16_t m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         uint8_t           m_MipMapCount;
     };
@@ -115,6 +119,7 @@ namespace dmGraphics
         TextureFilter                      m_DefaultTextureMinFilter;
         TextureFilter                      m_DefaultTextureMagFilter;
         ShaderDesc::Language               m_ShaderClassLanguage[2];
+
         uint32_t                           m_Width;
         uint32_t                           m_Height;
         int32_t                            m_ScissorRect[4];
@@ -125,6 +130,7 @@ namespace dmGraphics
         uint32_t                           m_UseAsyncTextureLoad    : 1;
         uint32_t                           m_RequestWindowClose     : 1;
         uint32_t                           m_PrintDeviceInfo        : 1;
+        uint32_t                           m_ContextFeatures        : 3;
     };
 }
 

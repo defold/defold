@@ -28,5 +28,5 @@ pivot: PIVOT_N
 blend_mode: BLEND_MODE_ADD
 line_break: true
 text: "Modified"
-font: "/builtins/fonts/system_font.font"
+font: "/builtins/fonts/default.font"
 material: "/builtins/fonts/label.material"

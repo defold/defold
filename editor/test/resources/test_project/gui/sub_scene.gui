@@ -1,7 +1,7 @@
 script: ""
 adjust_reference: ADJUST_REFERENCE_PARENT
 fonts {
-  name: "system_font"
+  name: "default_font"
   font: "/fonts/big_score.font"
 }
 fonts {

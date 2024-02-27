@@ -60,6 +60,7 @@ import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
@@ -96,7 +97,7 @@ public class GameProjectBuilder extends Builder<Void> {
     private static Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
-        handle.deleteOnExit();
+        FileUtil.deleteOnExit(handle);
         RandomAccessFile file = new RandomAccessFile(handle, "rw");
         file.setLength(0);
         return file;

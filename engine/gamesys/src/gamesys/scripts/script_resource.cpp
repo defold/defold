@@ -665,10 +665,10 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * - `resource.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
- * : [type:number] The width of the texture (in pixels)
+ * : [type:number] The width of the texture (in pixels). Must be larger than 0.
  *
  * `height`
- * : [type:number] The width of the texture (in pixels)
+ * : [type:number] The width of the texture (in pixels). Must be larger than 0.
  *
  * `format`
  * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
@@ -790,9 +790,14 @@ static int CreateTexture(lua_State* L)
     luaL_checktype(L, 2, LUA_TTABLE);
     dmGraphics::TextureType type     = (dmGraphics::TextureType) CheckTableInteger(L, 2, "type");
     dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) CheckTableInteger(L, 2, "format");
-    uint32_t width                   = (uint32_t) CheckTableInteger(L, 2, "width");
-    uint32_t height                  = (uint32_t) CheckTableInteger(L, 2, "height");
+    int width                        = CheckTableInteger(L, 2, "width");
+    int height                       = CheckTableInteger(L, 2, "height");
     uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+
+    if (width < 1 || height < 1)
+    {
+        return luaL_error(L, "Unable to create texture, width and height must be larger than 0");
+    }
 
     // TODO: Texture arrays
     if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
