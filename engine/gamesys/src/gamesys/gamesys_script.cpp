@@ -37,6 +37,8 @@
 #include "scripts/script_image.h"
 #include "scripts/script_sys_gamesys.h"
 #include "scripts/script_camera.h"
+#include "scripts/script_http.h"
+
 #include "components/comp_gui.h"
 
 #include <dmsdk/gamesys/script.h>
@@ -146,6 +148,7 @@ namespace dmGameSystem
         ScriptCollectionProxyRegister(context);
         ScriptImageRegister(context);
         ScriptSysGameSysRegister(context);
+        ScriptHttpRegister(context);
 
         assert(top == lua_gettop(L));
         return result;
@@ -159,6 +162,7 @@ namespace dmGameSystem
         ScriptResourceFinalize(context);
         ScriptWindowFinalize(context);
         ScriptSysGameSysFinalize(context);
+        ScriptHttpFinalize(context);
     }
 
     void UpdateScriptLibs(const ScriptLibContext& context)

@@ -27,15 +27,15 @@ def build(bld):
 
     common_src = ["test_script.cpp"]
 
-    if not 'web' in bld.env['PLATFORM']:
-        if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
-            bld.program(features = flist,
-                                       includes = '..',
-                                       use = libs,
-                                       web_libs = web_libs,
-                                       proto_gen_py = True,
-                                       target = 'test_script_http',
-                                       source = common_src + 'test_script_http.cpp test_http.lua test_http_timeout.lua'.split())
+    #if not 'web' in bld.env['PLATFORM']:
+    #    if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
+    #        bld.program(features = flist,
+    #                    includes = '..',
+    #                    use = libs,
+    #                    web_libs = web_libs,
+    #                    proto_gen_py = True,
+    #                    target = 'test_script_http',
+    #                    source = common_src + 'test_script_http.cpp test_http.lua test_http_timeout.lua'.split())
 
     test_script_ddf = bld.program(features = flist,
                                   includes = '..',

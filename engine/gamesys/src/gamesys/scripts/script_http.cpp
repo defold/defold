@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,11 +25,11 @@
 #include <dlib/math.h>
 #include <dlib/uri.h>
 
-#include "script.h"
-#include "http_ddf.h"
+#include <script/script.h>
+#include <script/http_ddf.h>
+#include <script/http_service.h>
 
 #include "script_http.h"
-#include "http_service.h"
 
 extern "C"
 {
@@ -39,7 +39,7 @@ extern "C"
 
 #include "script_http_util.h"
 
-namespace dmScript
+namespace dmGameSystem
 {
     /*# HTTP API documentation
      *
@@ -53,6 +53,18 @@ namespace dmScript
     dmHttpService::HHttpService g_Service = 0;
     int g_ServiceRefCount = 0;
     uint64_t g_Timeout = 0;
+
+    static void ReportProgressCallback(dmHttpDDF::HttpRequestProgress* msg, dmMessage::URL* url, uintptr_t user_data)
+    {
+        dmLogInfo("REPORT PROGRESS CALLED!");
+        /*
+        if (dmGameObject::RESULT_OK != dmGameObject::PostDDF(&progress, 0,
+            &worker->m_CurrentRequesterURL, worker->m_ResponseUserData2, false))
+        {
+            dmLogWarning("Failed to return http-progress. Requester deleted?");
+        }
+        */
+    }
 
     /*# perform a HTTP/HTTPS request
      * Perform a HTTP/HTTPS request.
@@ -268,23 +280,27 @@ namespace dmScript
         g_Timeout = timeout;
     }
 
-    static void HttpInitialize(HContext context)
+    void ScriptHttpRegister(const ScriptLibContext& context)
     {
-        lua_State* L = GetLuaState(context);
-        dmConfigFile::HConfig config_file = GetConfigFile(context);
+        lua_State* L = dmScript::GetLuaState(context.m_ScriptContext);
+        dmConfigFile::HConfig config_file = dmScript::GetConfigFile(context.m_ScriptContext);
 
         int top = lua_gettop(L);
 
         if (g_Service == 0) {
 
             dmHttpService::Params params;
-            if (config_file) {
+            params.m_ReportProgressCallback = ReportProgressCallback;
+
+            if (config_file)
+            {
                 params.m_ThreadCount = dmConfigFile::GetInt(config_file, "network.http_thread_count", params.m_ThreadCount);
                 params.m_UseHttpCache = dmConfigFile::GetInt(config_file, "network.http_cache_enabled", params.m_UseHttpCache);
             }
-#if defined(DM_NO_HTTP_CACHE)
+
+        #if defined(DM_NO_HTTP_CACHE)
             params.m_UseHttpCache = 0;
-#endif
+        #endif
 
             g_Service = dmHttpService::New(&params);
             dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
@@ -301,7 +317,7 @@ namespace dmScript
         assert(top == lua_gettop(L));
     }
 
-    static void HttpFinalize(HContext context)
+    void ScriptHttpFinalize(const ScriptLibContext& context)
     {
         assert(g_ServiceRefCount > 0);
         g_ServiceRefCount--;
@@ -310,20 +326,4 @@ namespace dmScript
             g_Service = 0;
         }
     }
-
-    void InitializeHttp(HContext context)
-    {
-        static ScriptExtension sl;
-        sl.Initialize = HttpInitialize;
-        sl.Update = 0x0;
-        sl.Finalize = HttpFinalize;
-        sl.NewScriptWorld = 0x0;
-        sl.DeleteScriptWorld = 0x0;
-        sl.UpdateScriptWorld = 0x0;
-        sl.FixedUpdateScriptWorld = 0x0;
-        sl.InitializeScriptInstance = 0x0;
-        sl.FinalizeScriptInstance = 0x0;
-        RegisterScriptExtension(context, &sl);
-    }
-
 }

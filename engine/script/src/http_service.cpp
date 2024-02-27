@@ -80,6 +80,7 @@ namespace dmHttpService
         dmThread::Thread          m_Balancer;
         dmMessage::HSocket        m_Socket;
         dmHttpCache::HCache       m_HttpCache;
+        ReportProgressCallback    m_ReportProgressCallback;
         int                       m_LoadBalanceCount;
         volatile bool             m_Run;
     };
@@ -120,18 +121,11 @@ namespace dmHttpService
 
         if (worker->m_ReportProgress)
         {
-            dmHttpDDF::HttpRequestProgress progress = {};
-            progress.m_BytesReceived = content_data_size;
+            assert(worker->m_Service->m_ReportProgressCallback);
 
-            if (dmMessage::RESULT_OK != dmMessage::Post(0,
-                &worker->m_CurrentRequesterURL,
-                dmHttpDDF::HttpRequestProgress::m_DDFHash,
-                worker->m_ResponseUserData1, worker->m_ResponseUserData2,
-                (uintptr_t) dmHttpDDF::HttpRequestProgress::m_DDFDescriptor,
-                &progress, sizeof(progress), 0))
-            {
-                dmLogWarning("Failed to return http-progress. Requester deleted?");
-            }
+            dmHttpDDF::HttpRequestProgress progress = {};
+            progress.m_BytesReceived                = content_data_size;
+            worker->m_Service->m_ReportProgressCallback(&progress, &worker->m_CurrentRequesterURL, worker->m_ResponseUserData2);
         }
     }
 
@@ -439,6 +433,8 @@ namespace dmHttpService
 
         dmThread::Thread t = dmThread::New(&LoadBalancer, THREAD_STACK_SIZE, service, "http_balance");
         service->m_Balancer = t;
+
+        service->m_ReportProgressCallback = params->m_ReportProgressCallback;
 
         return service;
     }

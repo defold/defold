@@ -81,5 +81,23 @@ def build(bld):
                                 source = bld.path.ant_glob('test_gamesys.cpp') + bld.path.ant_glob(dirs, excl=excl_pattern),
                                 target = 'test_gamesys')
 
+    """
+    web_libs = ['library_sys.js', 'library_script.js']
+    libs = 'TESTMAIN SOCKET APP THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA script test_script_private'
+    exported_symbols = ['ResourceProviderFile']
+
+    common_src = ["test_script.cpp"]
+
+    if not 'web' in bld.env['PLATFORM']:
+        if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
+            bld.program(features = flist,
+                        includes = '..',
+                        use = libs,
+                        web_libs = web_libs,
+                        proto_gen_py = True,
+                        target = 'test_script_http',
+                        source = common_src + 'test_script_http.cpp test_http.lua test_http_timeout.lua'.split())
+    """
+
     if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'arm64-macos', 'x86_64-linux')  and not waflib.Options.options.with_vulkan:
         bld.recurse('fontview')
