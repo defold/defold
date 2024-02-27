@@ -26,6 +26,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
+            [editor.gl.vertex2 :as vtx2]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.image :as image]
@@ -74,6 +75,11 @@
    :wrap-t     gl/clamp})
 
 (vtx/defvertex pos-uv-vtx
+  (vec4 position)
+  (vec2 texcoord0)
+  (vec1 page_index))
+
+(vtx2/defvertex pos-uv-vtx2
   (vec4 position)
   (vec2 texcoord0)
   (vec1 page_index))
@@ -235,7 +241,7 @@
               (.glEnd gl)))))
 
       pass/overlay
-      (texture-set/render-animation-overlay gl render-args renderables n ->pos-uv-vtx tile-shader))))
+      (texture-set/render-animation-overlay gl render-args renderables n ->pos-uv-vtx2 tile-shader))))
 
 (g/defnk produce-animation-updatable
   [_node-id id anim-data]
