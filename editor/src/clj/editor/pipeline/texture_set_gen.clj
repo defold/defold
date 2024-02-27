@@ -13,19 +13,18 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.pipeline.texture-set-gen
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.image-util :as image-util]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$LayoutResult TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect TextureSetLayout$Layout]
+  (:import [com.dynamo.bob.pipeline AtlasUtil]
+           [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$LayoutResult TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Layout TextureSetLayout$Rect]
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
            [com.dynamo.bob.util TextureUtil]
-           [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet$Builder]
-           [com.dynamo.gamesys.proto Tile$ConvexHull Tile$Playback Tile$SpriteTrimmingMode TextureSetProto$SpriteGeometry]
+           [com.dynamo.gamesys.proto TextureSetProto$SpriteGeometry Tile$Animation Tile$ConvexHull Tile$Playback Tile$SpriteTrimmingMode]
            [editor.types Image]
            [java.awt.image BufferedImage]))
 
@@ -203,11 +202,21 @@
                             (int width)
                             (int height))))
 
-(defn- tile-anim->AnimDesc [anim]
-  (when anim
-    (TextureSetGenerator$AnimDesc. (:id anim) (protobuf/val->pb-enum Tile$Playback (:playback anim)) (:fps anim)
-                                   (not= 0 (:flip-horizontal anim)) (not= 0 (:flip-vertical anim)))))
+(def ^:private default-tile-animation-playback (protobuf/default Tile$Animation :playback))
+(def ^:private default-tile-animation-fps (protobuf/default Tile$Animation :fps))
+(def ^:private default-tile-animation-flip-horizontal (protobuf/default Tile$Animation :flip-horizontal))
+(def ^:private default-tile-animation-flip-vertical (protobuf/default Tile$Animation :flip-vertical))
 
+(defn- tile-animation->AnimDesc
+  ^TextureSetGenerator$AnimDesc [tile-animation]
+  ;; Tile$Animation in map format.
+  (when tile-animation
+    (TextureSetGenerator$AnimDesc.
+      (:id tile-animation) ; Required protobuf field.
+      (protobuf/val->pb-enum Tile$Playback (:playback tile-animation default-tile-animation-playback))
+      (:fps tile-animation default-tile-animation-fps)
+      (not= 0 (:flip-horizontal tile-animation default-tile-animation-flip-horizontal))
+      (not= 0 (:flip-vertical tile-animation default-tile-animation-flip-vertical)))))
 
 (defn calculate-convex-hulls
   [^BufferedImage collision {:keys [width height margin spacing] :as _tile-properties}]
@@ -258,7 +267,7 @@
                                                         (vec (map int (range (dec (:start-tile anim)) (:end-tile anim))))
                                                         []))
                             (swap! anims-atom rest)
-                            (tile-anim->AnimDesc anim)))
+                            (tile-animation->AnimDesc anim)))
                         (nextFrameIndex [_this]
                           (let [index (first @anim-indices-atom)]
                             (swap! anim-indices-atom rest)
