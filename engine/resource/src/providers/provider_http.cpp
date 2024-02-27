@@ -62,7 +62,7 @@ static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int st
     }
 }
 
-static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
 {
     HttpProviderContext* archive = (HttpProviderContext*)user_data;
     (void) status_code;

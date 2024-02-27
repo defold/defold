@@ -18,6 +18,8 @@
 #include <ctype.h>
 #include <string.h>
 
+#include <dmsdk/gameobject/script.h>
+
 #include <ddf/ddf.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -50,20 +52,16 @@ namespace dmGameSystem
      * @namespace http
      */
 
-    dmHttpService::HHttpService g_Service = 0;
-    int g_ServiceRefCount = 0;
-    uint64_t g_Timeout = 0;
+    static dmHttpService::HHttpService g_Service = 0;
+    static int g_ServiceRefCount                 = 0;
+    static uint64_t g_Timeout                    = 0;
 
     static void ReportProgressCallback(dmHttpDDF::HttpRequestProgress* msg, dmMessage::URL* url, uintptr_t user_data)
     {
-        dmLogInfo("REPORT PROGRESS CALLED!");
-        /*
-        if (dmGameObject::RESULT_OK != dmGameObject::PostDDF(&progress, 0,
-            &worker->m_CurrentRequesterURL, worker->m_ResponseUserData2, false))
+        if (dmGameObject::RESULT_OK != dmGameObject::PostDDF(msg, 0, url, user_data, false))
         {
             dmLogWarning("Failed to return http-progress. Requester deleted?");
         }
-        */
     }
 
     /*# perform a HTTP/HTTPS request

@@ -181,7 +181,7 @@ namespace dmHttpCache
      * @param checksum content checksum (dmHashString64)
      * @return RESULT_OK on success.
      */
-    Result Get(HCache cache, const char* uri, const char* etag, FILE** file, uint64_t* checksum);
+    Result Get(HCache cache, const char* uri, const char* etag, FILE** file, uint32_t* file_size, uint64_t* checksum);
 
     /**
      * Set cache entry to verifed

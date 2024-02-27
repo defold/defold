@@ -399,7 +399,7 @@ namespace dmConfigFile
         (void) value;
     }
 
-    void HttpContent(dmHttpClient::HResponse response , void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    void HttpContent(dmHttpClient::HResponse response , void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
     {
         HttpContext* context = (HttpContext*) user_data;
         if (status_code != 200)

@@ -666,7 +666,7 @@ namespace dmHttpCache
         }
     }
 
-    Result Get(HCache cache, const char* uri, const char* etag, FILE** file, uint64_t* checksum)
+    Result Get(HCache cache, const char* uri, const char* etag, FILE** file, uint32_t* file_size, uint64_t* checksum)
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
@@ -693,6 +693,13 @@ namespace dmHttpCache
             FILE* f = fopen(path, "rb");
             if (f)
             {
+                if (file_size)
+                {
+                    fseek(f, 0L, SEEK_END);
+                    *file_size = ftell(f);
+                    fseek(f, 0L, SEEK_SET);
+                }
+
                 *file = f;
                 entry->m_ReadLockCount++;
                 *checksum = entry->m_Info.m_Checksum;
