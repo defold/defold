@@ -296,8 +296,6 @@ ordinary paths."
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-
-  ;; TODO(save-value-cleanup): Should we get rid of :auto-connect-save-data? now that we don't use it externally? Maybe used for PlaceholderResourceNode?
   [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded read-defaults auto-connect-save-data?]}]
   (let [editable (if (nil? editable) true (boolean editable))
         read-defaults (if (nil? read-defaults) true (boolean read-defaults))

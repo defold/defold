@@ -17,7 +17,6 @@
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.animation-set :as animation-set]
-            [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl.pass :as pass]

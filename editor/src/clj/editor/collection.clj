@@ -625,6 +625,7 @@
 (defn- make-ref-go [self source-resource id position rotation scale parent overrides select-fn]
   (let [path {:resource source-resource
               :overrides overrides}]
+    ;; TODO(save-value): set-properties-from-map.
     (g/make-nodes (g/node-id->graph-id self)
       [go-node [ReferencedGOInstanceNode :id id]]
       (some->> position (g/set-property go-node :position))
