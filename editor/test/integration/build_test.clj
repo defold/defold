@@ -132,7 +132,7 @@
                                    :scale [1.0 1.0 1.0 1.0], ; Default from legacy field added by editor.protobuf/field-desc-default. Not in actual Label$LabelDesc.
                                    :blend-mode :blend-mode-alpha,
                                    :leading 1.0,
-                                   :font "/builtins/fonts/system_font.fontc",
+                                   :font "/builtins/fonts/default.fontc",
                                    :size [128.0 32.0 0.0 0.0],
                                    :tracking 0.0,
                                    :material "/builtins/fonts/label.materialc",
@@ -618,7 +618,7 @@
         (is (= "/gui/gui.a.texturesetc" (get textures "main")))
         (is (= "/graphics/atlas.a.texturesetc" (get textures "sub_main"))))
       (let [fonts (zipmap (map :name (:fonts desc)) (map :font (:fonts desc)))]
-        (is (= "/builtins/fonts/system_font.fontc" (get fonts "system_font")))
+        (is (= "/builtins/fonts/default.fontc" (get fonts "default_font")))
         (is (= "/fonts/big_score.fontc" (get fonts "sub_font")))))))
 
 (deftest build-game-project

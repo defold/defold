@@ -87,6 +87,8 @@ show_fullscreen_button = 0
 show_made_with_defold = 0
 show_console_banner = 0
 scale_mode = no_scale
+retry_count = 11
+retry_time = 1.5
 
 [ios]
 app_icon_76x76 = /referenced/images/diamond.png

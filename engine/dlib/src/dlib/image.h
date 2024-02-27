@@ -43,10 +43,11 @@ namespace dmImage
      * @param buffer image buffer
      * @param buffer_size image buffer size
      * @param premult premultiply alpha or not
+     * @param flip_vertically flip the image vertically
      * @param image output
      * @return RESULT_OK on success
      */
-    Result Load(const void* buffer, uint32_t buffer_size, bool premult, HImage image);
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, HImage image);
 
     /**
      * Free loaded image

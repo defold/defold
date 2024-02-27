@@ -81,12 +81,20 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_ENABLE_TEXTURE:
                 {
-                    render_context->m_Textures[c->m_Operands[0]] = c->m_Operands[1];
+                    // operand order: Hash, Unit, Texture
+                    if (c->m_Operands[0])
+                        dmRender::SetTextureBindingByHash(render_context, c->m_Operands[0], c->m_Operands[2]);
+                    else
+                        dmRender::SetTextureBindingByUnit(render_context, c->m_Operands[1], c->m_Operands[2]);
                     break;
                 }
                 case COMMAND_TYPE_DISABLE_TEXTURE:
                 {
-                    render_context->m_Textures[c->m_Operands[0]] = 0;
+                    // operand order: Hash, Unit, Texture
+                    if (c->m_Operands[0])
+                        dmRender::SetTextureBindingByHash(render_context, c->m_Operands[0], 0);
+                    else
+                        dmRender::SetTextureBindingByUnit(render_context, c->m_Operands[1], 0);
                     break;
                 }
                 case COMMAND_TYPE_CLEAR:

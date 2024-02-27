@@ -27,6 +27,8 @@
 
 #include "render/render_ddf.h"
 
+#include "../../../graphics/src/null/graphics_null_private.h"
+
 using namespace dmVMath;
 
 namespace
@@ -1177,11 +1179,12 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
 
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_TEXTURE, command->m_Type);
-    ASSERT_EQ(unit,    command->m_Operands[0]);
-    ASSERT_EQ(texture, command->m_Operands[1]);
+    ASSERT_EQ(0,       command->m_Operands[0]);
+    ASSERT_EQ(unit,    command->m_Operands[1]);
+    ASSERT_EQ(texture, command->m_Operands[2]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
-    ASSERT_EQ(m_Context->m_Textures[unit], texture);
+    ASSERT_EQ(m_Context->m_TextureBindTable[unit].m_Texture, texture);
 
     dmGraphics::DeleteTexture(texture);
 
@@ -1189,6 +1192,7 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+/*
 TEST_F(dmRenderScriptTest, TestAssetHandlesInvalid)
 {
     // Out-of-range handle should cause assert
@@ -1237,6 +1241,149 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesInvalid)
 
     // Third update will cause an assert due to the handle being out-of-range
     ASSERT_DEATH(dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f), "");
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+*/
+
+static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
+{
+    dmGraphics::ShaderDesc::Shader ddf;
+    memset(&ddf,0,sizeof(ddf));
+    ddf.m_Source.m_Data  = (uint8_t*)data;
+    ddf.m_Source.m_Count = count;
+    return ddf;
+}
+
+TEST_F(dmRenderScriptTest, TestRenderResourceTable)
+{
+    const char* script =
+        "function init(self)\n"
+        "   self.update_num = -1\n"
+        "end\n"
+        "function update(self)\n"
+        "   self.update_num = self.update_num + 1\n"
+        "   if self.update_num == 0 then\n"
+        "       render.enable_texture(0, 'valid_rt')\n"
+        "       render.set_render_target('valid_rt')\n"
+        "   elseif self.update_num == 1 then\n"
+        "       render.disable_texture(0)\n"
+        "       render.set_render_target(render.RENDER_TARGET_DEFAULT)\n"
+        "   elseif self.update_num == 2 then\n"
+        "       render.enable_texture(0, 'invalid_rt')\n"
+        "   elseif self.update_num == 3 then\n"
+        "       render.enable_material('valid_material')\n"
+        "       render.enable_texture('texture_sampler_1', 'valid_rt')\n"
+        "       render.enable_texture('texture_sampler_2', 'valid_rt')\n"
+        "       render.enable_texture('texture_sampler_3', 'valid_rt')\n"
+        "   elseif self.update_num == 4 then\n"
+        "       render.enable_material('invalid_material')\n"
+        "   end\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+
+    /////////////////////////////
+    // MATERIAL
+    /////////////////////////////
+    const char* shader_src = "uniform lowp sampler2D texture_sampler_1;\n"
+                             "uniform lowp sampler2D texture_sampler_2;\n"
+                             "uniform lowp sampler2D texture_sampler_3;\n";
+
+    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader(shader_src, strlen(shader_src));
+    dmGraphics::HVertexProgram vp         = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
+    dmGraphics::HFragmentProgram fp       = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
+    dmRender::HMaterial material          = dmRender::NewMaterial(m_Context, vp, fp);
+
+    /////////////////////////////
+    // RENDER TARGET
+    /////////////////////////////
+    dmGraphics::RenderTargetCreationParams params          = {};
+    params.m_ColorBufferCreationParams[0].m_Width          = 32;
+    params.m_ColorBufferCreationParams[0].m_Height         = 32;
+    params.m_ColorBufferCreationParams[0].m_OriginalWidth  = 32;
+    params.m_ColorBufferCreationParams[0].m_OriginalHeight = 32;
+
+    params.m_ColorBufferParams[0].m_Width  = 32;
+    params.m_ColorBufferParams[0].m_Height = 32;
+    params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+
+    dmGraphics::HRenderTarget rt = dmGraphics::NewRenderTarget(m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+    dmGraphics::HTexture tex = dmGraphics::GetRenderTargetTexture(rt, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "valid_rt", rt, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "invalid_rt", 0x1337, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET);
+
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "valid_material", (uint64_t) material, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "invalid_material", 0xBAD, dmRender::RENDER_RESOURCE_TYPE_INVALID);
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    // Update 1 - enable texture + set render target from render resource
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+        dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+        dmGraphics::RenderTarget* rt_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::RenderTarget>(null_context->m_AssetHandleContainer, rt);
+        ASSERT_EQ(&rt_ptr->m_FrameBuffer, null_context->m_CurrentFrameBuffer);
+        ASSERT_EQ(tex, m_Context->m_TextureBindTable[0].m_Texture);
+
+        commands.SetSize(0);
+    }
+
+    // Update 2 - unbind both
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+        dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+        ASSERT_EQ(&null_context->m_MainFrameBuffer, null_context->m_CurrentFrameBuffer);
+        ASSERT_EQ(0, m_Context->m_TextureBindTable[0].m_Texture);
+        commands.SetSize(0);
+    }
+
+    // Update 3 - try binding invalid render target
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    }
+
+    // Update 4 - bind valid material + rt
+    {
+        m_Context->m_TextureBindTable.SetSize(0);
+
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+        dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+        ASSERT_EQ(m_Context->m_Material, material);
+        ASSERT_EQ(tex, m_Context->m_TextureBindTable[0].m_Texture);
+        ASSERT_EQ(dmHashString64("texture_sampler_1"), m_Context->m_TextureBindTable[0].m_Samplerhash);
+
+        ASSERT_EQ(tex, m_Context->m_TextureBindTable[1].m_Texture);
+        ASSERT_EQ(dmHashString64("texture_sampler_2"), m_Context->m_TextureBindTable[1].m_Samplerhash);
+
+        ASSERT_EQ(tex, m_Context->m_TextureBindTable[2].m_Texture);
+        ASSERT_EQ(dmHashString64("texture_sampler_3"), m_Context->m_TextureBindTable[2].m_Samplerhash);
+
+        commands.SetSize(0);
+    }
+
+    // Update 5 - try binding invalid material
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    }
+
+    ClearRenderScriptInstanceRenderResources(render_script_instance);
+
+    dmGraphics::DeleteRenderTarget(rt);
+
+    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
+    dmRender::DeleteMaterial(m_Context, material);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);

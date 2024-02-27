@@ -897,6 +897,10 @@
   (cond
     (.equalsIgnoreCase "nearest" s) gl/nearest
     (.equalsIgnoreCase "linear" s) gl/linear
+    (.equalsIgnoreCase "nearest_mipmap_nearest" s) gl/nearest-mipmap-nearest
+    (.equalsIgnoreCase "nearest_mipmap_linear" s) gl/nearest-mipmap-linear
+    (.equalsIgnoreCase "linear_mipmap_nearest" s) gl/linear-mipmap-nearest
+    (.equalsIgnoreCase "linear_mipmap_linear" s) gl/linear-mipmap-linear
     :else (g/error-fatal (format "Invalid value for filter param: '%s'" s))))
 
 (g/defnk produce-default-tex-params

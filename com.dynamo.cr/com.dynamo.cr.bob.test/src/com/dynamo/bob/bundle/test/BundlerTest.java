@@ -101,8 +101,10 @@ public class BundlerTest {
     public static Collection<Platform[]> data() {
         List<Platform[]> data = new ArrayList<>();
 
-        String skipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
-        if (skipTest != null) {
+        String envSkipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
+        String skipTest =  envSkipTest != null ? envSkipTest : System.getProperty("DM_BOB_BUNDLERTEST_ONLY_HOST");
+        // By default property is `${DM_BOB_BUNDLERTEST_ONLY_HOST}`
+        if (skipTest != null && !skipTest.equals("0") && !skipTest.equals("${DM_BOB_BUNDLERTEST_ONLY_HOST}")) {
             data.add(new Platform[]{Platform.getHostPlatform()});
         }
         else {
@@ -587,22 +589,22 @@ public class BundlerTest {
                 expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
-                expectedFiles.add("archive/game.arcd0");
-                expectedFiles.add("archive/game.arci0");
-                expectedFiles.add("archive/game.dmanifest0");
-                expectedFiles.add("archive/game.projectc0");
-                expectedFiles.add("archive/game.public.der0");
+                expectedFiles.add("archive/game0.arcd");
+                expectedFiles.add("archive/game0.arci");
+                expectedFiles.add("archive/game0.dmanifest");
+                expectedFiles.add("archive/game0.projectc");
+                expectedFiles.add("archive/game0.public.der");
                 expectedFiles.add("archive/archive_files.json");
                 break;
             case JsWeb:
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_asmjs.js");
-                expectedFiles.add("archive/game.arcd0");
-                expectedFiles.add("archive/game.arci0");
-                expectedFiles.add("archive/game.dmanifest0");
-                expectedFiles.add("archive/game.projectc0");
-                expectedFiles.add("archive/game.public.der0");
+                expectedFiles.add("archive/game0.arcd");
+                expectedFiles.add("archive/game0.arci");
+                expectedFiles.add("archive/game0.dmanifest");
+                expectedFiles.add("archive/game0.projectc");
+                expectedFiles.add("archive/game0.public.der");
                 expectedFiles.add("archive/archive_files.json");
                 break;
             case Armv7Android:

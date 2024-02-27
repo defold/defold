@@ -252,10 +252,15 @@
    :path ["physics" "max_fixed_timesteps"]},
   {:type :string,
    :help
-   "which filtering to use for min filtering, linear (default) or nearest",
+   "which filtering to use for min filtering, linear by default",
    :default "linear",
    :path ["graphics" "default_texture_min_filter"]
-   :options [["linear" "linear"] ["nearest" "nearest"]]}
+   :options [["linear" "linear"]
+             ["nearest" "nearest"]
+             ["nearest_mipmap_nearest" "nearest mipmap nearest"]
+             ["nearest_mipmap_linear" "nearest mipmap linear"]
+             ["linear_mipmap_nearest" "linear mipmap nearest"]
+             ["linear_mipmap_linear" "linear mipmap linear"]]}
   {:type :string,
    :help
    "which filtering to use for mag filtering, linear (default) or nearest",
@@ -810,14 +815,14 @@
    :default "downscale_fit",
    :path ["html5" "scale_mode"]
    :options [["downscale_fit" "Downscale Fit"] ["fit" "Fit"] ["stretch" "Stretch"] ["no_scale" "No Scale"]]}
-  {:type :string,
-   :help "the application id as issued by Facebook",
-   :default "",
-   :path ["facebook" "appid"]}
-  {:type :boolean,
-   :help "auto-finish transactions",
-   :default true,
-   :path ["iap" "auto_finish_transactions"]}
+  {:type :integer,
+   :help "how many attempts we do when trying to download a file",
+   :default 10,
+   :path ["html5" "retry_count"]}
+  {:type :number,
+   :help "pause in seconds before retry file loading after error",
+   :default 1.0,
+   :path ["html5" "retry_time"]}
   {:type :resource,
    :filter "appmanifest",
    :preserve-extension true,
@@ -891,8 +896,6 @@
             :group "Components"},
   "tilemap" {:help "Tilemap related settings"
              :group "Components"},
-  "facebook" {:help "Facebook related settings"
-              :group "Runtime"},
   "windows" {:help "Windows related settings"
              :group "Platforms"},
   "input" {:help "Input related settings"
@@ -904,9 +907,6 @@
   "ios" {:help "iOS related settings"
          :title "iOS"
          :group "Platforms"},
-  "iap" {:help "In App Purchase related settings"
-         :title "IAP"
-         :group "Runtime"},
   "mesh" {:group "Components"}
   "model" {:group "Components"}
   "render" {:group "Runtime"}

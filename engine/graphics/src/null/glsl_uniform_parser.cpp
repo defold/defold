@@ -112,6 +112,11 @@ namespace dmGraphics
             *out_type = TYPE_SAMPLER_CUBE;
             return true;
         }
+        else if (STRNCMP("sampler2DArray", string, count))
+        {
+            *out_type = TYPE_SAMPLER_2D_ARRAY;
+            return true;
+        }
         return false;
     }
 

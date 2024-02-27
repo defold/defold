@@ -18,14 +18,18 @@
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.changes-view :as changes-view]
+            [editor.collection :as collection]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
             [editor.defold-project :as project]
+            [editor.game-object :as game-object]
             [editor.math :as math]
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
             [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.util :as eutil]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -83,6 +87,74 @@
        first))
 
 (def sel (comp first selection))
+
+(defn- throw-invalid-component-resource-node-id-exception [basis node-id]
+  (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
+                  {:node-id node-id
+                   :node-type (g/node-type* basis node-id)})))
+
+(defn- validate-component-resource-node-id
+  ([node-id]
+   (validate-component-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   (if (and (g/node-instance? basis resource-node/ResourceNode node-id)
+            (when-some [resource-type (resource/resource-type (resource-node/resource basis node-id))]
+              (contains? (:tags resource-type) :component)))
+     node-id
+     (throw-invalid-component-resource-node-id-exception basis node-id))))
+
+(defn to-component-resource-node-id
+  ([node-id]
+   (to-component-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [resource-node/ResourceNode
+                                                  game-object/EmbeddedComponent
+                                                  game-object/ReferencedComponent])
+     resource-node/ResourceNode
+     (validate-component-resource-node-id basis node-id)
+
+     game-object/EmbeddedComponent
+     (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :embedded-resource-id))
+
+     game-object/ReferencedComponent
+     (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :source-resource))
+
+     :else
+     (throw-invalid-component-resource-node-id-exception basis node-id))))
+
+(defn to-game-object-node-id
+  ([node-id]
+   (to-game-object-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [game-object/GameObjectNode
+                                                  collection/GameObjectInstanceNode])
+     game-object/GameObjectNode
+     node-id
+
+     collection/GameObjectInstanceNode
+     (g/node-feeding-into basis node-id :source-resource)
+
+     :else
+     (throw (ex-info "The specified node cannot be resolved to a GameObjectNode."
+                     {:node-id node-id
+                      :node-type (g/node-type* basis node-id)})))))
+
+(defn to-collection-node-id
+  ([node-id]
+   (to-collection-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [collection/CollectionNode
+                                                  collection/CollectionInstanceNode])
+     collection/CollectionNode
+     node-id
+
+     collection/CollectionInstanceNode
+     (g/node-feeding-into basis node-id :source-resource)
+
+     :else
+     (throw (ex-info "The specified node cannot be resolved to a CollectionNode."
+                     {:node-id node-id
+                      :node-type (g/node-type* basis node-id)})))))
 
 (defn prefs []
   (prefs/make-prefs "defold"))
