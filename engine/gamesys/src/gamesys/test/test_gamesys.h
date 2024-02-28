@@ -642,6 +642,7 @@ protected:
         m_ScriptLibContext.m_Register        = m_Register;
         m_ScriptLibContext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
         m_ScriptLibContext.m_GraphicsContext = m_GraphicsContext;
+        m_ScriptLibContext.m_ScriptContext   = m_ScriptContext;
         dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
 
         L = dmScript::GetLuaState(m_ScriptContext);
@@ -669,6 +670,7 @@ protected:
         m_ScriptLibContext.m_Factory = 0x0;
         m_ScriptLibContext.m_Register = 0x0;
         m_ScriptLibContext.m_LuaState = dmScript::GetLuaState(m_Context);
+        m_ScriptLibContext.m_ScriptContext = m_Context;
         dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
 
         L = dmScript::GetLuaState(m_Context);
@@ -721,6 +723,7 @@ protected:
         m_ScriptLibContext.m_Factory = 0x0;
         m_ScriptLibContext.m_Register = 0x0;
         m_ScriptLibContext.m_LuaState = dmScript::GetLuaState(m_Context);
+        m_ScriptLibContext.m_ScriptContext = m_Context;
         dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
 
         dmScript::Initialize(m_Context);

@@ -16,6 +16,8 @@
 
 #include <assert.h>
 
+
+
 namespace dmScriptTest
 {
 

@@ -81,23 +81,14 @@ def build(bld):
                                 source = bld.path.ant_glob('test_gamesys.cpp') + bld.path.ant_glob(dirs, excl=excl_pattern),
                                 target = 'test_gamesys')
 
-    """
-    web_libs = ['library_sys.js', 'library_script.js']
-    libs = 'TESTMAIN SOCKET APP THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA script test_script_private'
-    exported_symbols = ['ResourceProviderFile']
-
-    common_src = ["test_script.cpp"]
-
     if not 'web' in bld.env['PLATFORM']:
         if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
-            bld.program(features = flist,
+            bld.program(features = 'cxx test',
                         includes = '..',
-                        use = libs,
-                        web_libs = web_libs,
+                        use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB TEST_SCRIPT gamesys',
                         proto_gen_py = True,
-                        target = 'test_script_http',
-                        source = common_src + 'test_script_http.cpp test_http.lua test_http_timeout.lua'.split())
-    """
+                        source = 'test_script_http.cpp http/test_http.lua.raw http/test_http_timeout.lua.raw'.split(),
+                        target = 'test_script_http')
 
     if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'arm64-macos', 'x86_64-linux')  and not waflib.Options.options.with_vulkan:
         bld.recurse('fontview')
