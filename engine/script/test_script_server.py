@@ -51,6 +51,12 @@ class Handler(BaseHTTPRequestHandler):
             sys.stdout.flush()
             time.sleep( sleeptime )
             to_send = "slept for %f" % sleeptime
+        else:
+            try:
+                import test_script_server_plugin
+                to_send = test_script_server_plugin.do_GET(self.path)
+            except Exception as e:
+                pass
 
         if to_send:
             self.send_response(200)

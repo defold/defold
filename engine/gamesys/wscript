@@ -74,6 +74,7 @@ def build(bld):
     sys.path.insert(0, os.path.abspath('build/proto/gamesys'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/gameobject'))
     sys.path.insert(0, os.path.join(bld.env.PREFIX, 'lib/python/input'))
+    sys.path.insert(0, os.path.abspath('src/gamesys/test'))
 
     bld.recurse('content')
     bld.add_group()

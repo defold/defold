@@ -13,8 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include "../scripts/script_http.h" // to set the timeout
-#include <script/test_script.h>
 
+#include <script/test_script.h>
 #include <script/script.h>
 #include <testmain/testmain.h>
 #include <dlib/configfile.h>
@@ -101,7 +101,7 @@ protected:
     virtual void SetUp()
     {
         char path[1024];
-        dmTestUtil::MakeHostPath(path, sizeof(path), "src/gamesys/test/http/test_http.config");
+        dmTestUtil::MakeHostPath(path, sizeof(path), "src/gamesys/test/http/test_http.config.raw");
 
         dmConfigFile::Result r = dmConfigFile::Load(path, 0, 0, &m_ConfigFile);
         ASSERT_EQ(dmConfigFile::RESULT_OK, r);
@@ -191,7 +191,7 @@ static void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
     ASSERT_EQ(0, ret);
 }
 
-TEST_F(ScriptHttpTest, TestPost)
+TEST_F(ScriptHttpTest, TestGetPost)
 {
     int top = lua_gettop(L);
 

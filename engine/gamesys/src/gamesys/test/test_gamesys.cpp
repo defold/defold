@@ -44,6 +44,9 @@
 
 #include <dmsdk/gamesys/render_constants.h>
 
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+
 using namespace dmVMath;
 
 #if !defined(DM_TEST_EXTERN_INIT_FUNCTIONS)
@@ -108,22 +111,6 @@ bool UnlinkResource(const char* name)
     char path[128];
     dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", name);
     return dmSys::Unlink(path) == 0;
-}
-
-static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
-{
-    dmGameObject::HPrototype prototype = 0x0;
-    if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
-        dmResource::Release(factory, prototype);
-        return result;
-    }
-    return 0x0;
-}
-
-static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id)
-{
-    return Spawn(factory, collection, prototype_name, id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
 }
 
 static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
