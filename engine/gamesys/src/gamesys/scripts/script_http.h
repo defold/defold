@@ -15,7 +15,6 @@
 #ifndef DM_GAMESYS_SCRIPT_HTTP_H
 #define DM_GAMESYS_SCRIPT_HTTP_H
 
-#include <dmsdk/gamesys/script.h>
 #include "../gamesys.h"
 
 namespace dmGameSystem
