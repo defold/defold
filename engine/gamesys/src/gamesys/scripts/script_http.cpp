@@ -53,7 +53,6 @@ namespace dmGameSystem
      */
 
     static dmHttpService::HHttpService g_Service = 0;
-    static int g_ServiceRefCount                 = 0;
     static uint64_t g_Timeout                    = 0;
 
     static void ReportProgressCallback(dmHttpDDF::HttpRequestProgress* msg, dmMessage::URL* url, uintptr_t user_data)
@@ -285,7 +284,8 @@ namespace dmGameSystem
 
         int top = lua_gettop(L);
 
-        if (g_Service == 0) {
+        if (g_Service == 0)
+        {
 
             dmHttpService::Params params;
             params.m_ReportProgressCallback = ReportProgressCallback;
@@ -303,8 +303,9 @@ namespace dmGameSystem
             g_Service = dmHttpService::New(&params);
             dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
         }
-        g_ServiceRefCount++;
-        if (config_file) {
+
+        if (config_file)
+        {
             float timeout = dmConfigFile::GetFloat(config_file, "network.http_timeout", 0.0f);
             g_Timeout = (uint64_t) (timeout * 1000000.0f);
         }
@@ -317,9 +318,8 @@ namespace dmGameSystem
 
     void ScriptHttpFinalize(const ScriptLibContext& context)
     {
-        assert(g_ServiceRefCount > 0);
-        g_ServiceRefCount--;
-        if (g_ServiceRefCount == 0) {
+        if (g_Service == 0)
+        {
             dmHttpService::Delete(g_Service);
             g_Service = 0;
         }
