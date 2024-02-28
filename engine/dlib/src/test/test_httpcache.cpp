@@ -73,7 +73,7 @@ public:
     {
         FILE* f = 0;
         dmHttpCache::Result r;
-        r = dmHttpCache::Get(cache, uri, etag, &f, checksum);
+        r = dmHttpCache::Get(cache, uri, etag, &f, 0, checksum);
         if (r != dmHttpCache::RESULT_OK)
             return r;
 
@@ -387,7 +387,7 @@ TEST_F(dmHttpCacheTest, UpdateReadlocked)
 
     FILE* file;
     uint64_t checksum;
-    r = dmHttpCache::Get(cache, "uri", "etag", &file, &checksum);
+    r = dmHttpCache::Get(cache, "uri", "etag", &file, 0, &checksum);
     ASSERT_EQ(dmHashString64("data"), checksum);
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 
@@ -417,7 +417,7 @@ TEST_F(dmHttpCacheTest, GetWriteLocked)
 
     FILE* file;
     uint64_t checksum;
-    r = dmHttpCache::Get(cache, "uri", "etag", &file, &checksum);
+    r = dmHttpCache::Get(cache, "uri", "etag", &file, 0, &checksum);
     ASSERT_EQ(dmHttpCache::RESULT_LOCKED, r);
 
     dmHttpCache::Add(cache, cache_creator, "data", 4);
@@ -481,7 +481,7 @@ TEST_F(dmHttpCacheTest, PartialUpdate)
 
     FILE* file;
     uint64_t checksum;
-    r = dmHttpCache::Get(cache, "uri", "etag", &file, &checksum);
+    r = dmHttpCache::Get(cache, "uri", "etag", &file, 0, &checksum);
     ASSERT_EQ(dmHttpCache::RESULT_LOCKED, r);
 
     dmHttpCache::Add(cache, cache_creator, "data", 4);
