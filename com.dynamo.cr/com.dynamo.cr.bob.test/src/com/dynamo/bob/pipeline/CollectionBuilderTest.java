@@ -44,7 +44,6 @@ import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
 import com.google.protobuf.Message;
-import com.dynamo.bob.pipeline.graph.ResourceNode;
 
 public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 

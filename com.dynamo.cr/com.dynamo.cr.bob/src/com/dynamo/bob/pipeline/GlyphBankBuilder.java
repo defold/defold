@@ -21,8 +21,6 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.IOException;
 
-import java.util.ArrayList;
-
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -31,7 +29,6 @@ import com.dynamo.bob.fs.IResource;
 
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.font.Fontc.FontResourceResolver;
-import com.dynamo.render.proto.Font.GlyphBank;
 import com.dynamo.render.proto.Font.FontDesc;
 
 @BuilderParams(name = "Glyph Bank", inExts = ".glyph_bank", outExt = ".glyph_bankc")

@@ -15,9 +15,6 @@
 package com.dynamo.bob.pipeline.graph;
 
 import java.util.List;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Stack;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.CompileExceptionError;

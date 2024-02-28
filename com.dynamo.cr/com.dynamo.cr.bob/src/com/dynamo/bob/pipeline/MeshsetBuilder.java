@@ -17,20 +17,13 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 
 import javax.xml.stream.XMLStreamException;
 
 import org.apache.commons.io.FilenameUtils;
 
-import java.util.Objects;
-
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
-import java.nio.channels.FileChannel;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;

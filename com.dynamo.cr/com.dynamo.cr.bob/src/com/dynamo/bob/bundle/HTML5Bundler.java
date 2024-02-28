@@ -24,12 +24,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -48,8 +44,6 @@ import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.samskivert.mustache.Mustache;
-import com.samskivert.mustache.Template;
 
 @BundlerParams(platforms = {Platform.JsWeb, Platform.WasmWeb})
 public class HTML5Bundler implements IBundler {

@@ -15,7 +15,6 @@
 package com.dynamo.bob.textureset.test;
 
 import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -30,8 +29,6 @@ import org.junit.Test;
 import com.dynamo.bob.pipeline.AtlasUtil.MappedAnimDesc;
 import com.dynamo.bob.pipeline.AtlasUtil.MappedAnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator;
-import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
-import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;

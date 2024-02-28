@@ -23,7 +23,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.IOException;
-import java.net.URL;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,7 +42,6 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CommandBuilder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
-import com.dynamo.bob.LibraryException;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.ClassLoaderScanner;
@@ -53,7 +51,6 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.test.util.MockFileSystem;
 import com.dynamo.bob.test.util.MockResource;
-import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.TaskResult;
 
 public class JBobTest {

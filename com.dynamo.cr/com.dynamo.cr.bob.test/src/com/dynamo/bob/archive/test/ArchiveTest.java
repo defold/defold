@@ -47,7 +47,6 @@ import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
-import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
 public class ArchiveTest {
 

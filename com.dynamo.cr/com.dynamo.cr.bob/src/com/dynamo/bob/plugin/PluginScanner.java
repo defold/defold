@@ -20,7 +20,6 @@ import java.util.Set;
 import java.util.HashMap;
 import java.lang.reflect.Modifier;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.IClassScanner;
 import com.dynamo.bob.CompileExceptionError;

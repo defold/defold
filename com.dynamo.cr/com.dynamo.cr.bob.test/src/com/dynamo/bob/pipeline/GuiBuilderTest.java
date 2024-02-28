@@ -14,29 +14,17 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.Set;
 import java.util.Arrays;
 
-import org.apache.commons.io.IOUtils;
-import org.eclipse.core.runtime.IPath;
-import org.eclipse.core.runtime.Path;
 import org.junit.Test;
 import org.junit.Assert;
-
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
 
 import com.dynamo.gamesys.proto.Gui;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
-import com.google.protobuf.Message;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.ProtoBuilder;
