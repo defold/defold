@@ -1392,7 +1392,10 @@ namespace dmGameSystem
                 lua_setfield(L, -2, "diameter");
                 lua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[1]);
                 lua_setfield(L, -2, "height");
-            break;
+                break;
+            case dmPhysicsDDF::CollisionShape::TYPE_HULL:
+                break;
+            default:break;
         }
 
         return 1;

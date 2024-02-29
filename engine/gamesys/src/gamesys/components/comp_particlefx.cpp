@@ -366,11 +366,14 @@ namespace dmGameSystem
             dmRender::AddRenderBuffer(render_context, pfx_world->m_VertexBuffer);
         }
 
+        TextureResource* texture_res = (TextureResource*) first->m_Texture;
+        dmGraphics::HTexture texture = texture_res ? texture_res->m_Texture : 0;
+
         dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];
         ro.Init();
         ro.m_Material          = material_res->m_Material;
         ro.m_VertexDeclaration = dmRender::GetVertexDeclaration(material_res->m_Material);
-        ro.m_Textures[0]       = (dmGraphics::HTexture) first->m_Texture;
+        ro.m_Textures[0]       = texture;
         ro.m_VertexStart       = vertex_offset;
         ro.m_VertexCount       = ro_vertex_count;
         ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, pfx_world->m_VertexBuffer);
@@ -676,10 +679,7 @@ namespace dmGameSystem
                 return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
             }
 
-            TextureResource* texture_res = texture_set_res->m_Texture;
-            dmGraphics::HTexture texture = texture_res ? texture_res->m_Texture : 0;
-
-            out_data->m_Texture = (void*) texture;
+            out_data->m_Texture = (void*) texture_set_res->m_Texture;
             out_data->m_TexCoords = (float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
             out_data->m_TexDims = (float*) texture_set_res->m_TextureSet->m_TexDims.m_Data;
             out_data->m_PageIndices = texture_set_res->m_TextureSet->m_PageIndices.m_Data;

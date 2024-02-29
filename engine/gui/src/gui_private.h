@@ -146,8 +146,8 @@ namespace dmGui
 
         const char* m_Text;
 
-        uint64_t    m_TextureHash;
-        void*       m_Texture;
+        uint64_t        m_TextureHash;
+        HTextureSource  m_Texture;
         NodeTextureType m_TextureType;
 
         TextureSetAnimDesc m_TextureSetAnimDesc;
@@ -226,27 +226,27 @@ namespace dmGui
 
     struct TextureInfo
     {
-        TextureInfo(void* texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height)
+        TextureInfo(HTextureSource texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height)
         : m_TextureSource(texture_source)
         , m_TextureSourceType(texture_source_type)
         , m_OriginalWidth(original_width)
         , m_OriginalHeight(original_height) {}
 
-        void*    m_TextureSource;
+        HTextureSource  m_TextureSource;
         NodeTextureType m_TextureSourceType;
-        uint32_t m_OriginalWidth : 16;
-        uint32_t m_OriginalHeight : 16;
+        uint32_t        m_OriginalWidth : 16;
+        uint32_t        m_OriginalHeight : 16;
     };
 
     struct DynamicTexture
     {
-        DynamicTexture(void* handle)
+        DynamicTexture(HTextureSource handle)
         {
             memset(this, 0, sizeof(*this));
             m_Handle = handle;
             m_Type = (dmImage::Type) -1;
         }
-        void*           m_Handle;
+        HTextureSource  m_Handle;
         uint32_t        m_Created : 1;
         uint32_t        m_Deleted : 1;
         uint32_t        m_Width;
