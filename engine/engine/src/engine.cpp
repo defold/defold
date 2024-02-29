@@ -415,6 +415,7 @@ namespace dmEngine
         {
             return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
         }
+        return (dmGraphics::TextureFilter) -1;
     }
 
     dmGraphics::TextureFilter ConvertMagTextureFilter(const char* filter)
