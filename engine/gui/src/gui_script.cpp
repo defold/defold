@@ -1704,7 +1704,7 @@ namespace dmGui
      * Dynamically create a new texture.
      *
      * @name gui.new_texture
-     * @param texture [type:string|hash] texture id
+     * @param texture_id [type:string|hash] texture id
      * @param width [type:number] texture width
      * @param height [type:number] texture height
      * @param type [type:string|constant] texture type

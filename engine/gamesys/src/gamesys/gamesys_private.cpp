@@ -401,6 +401,7 @@ namespace dmGameSystem
             }
             return dmGameObject::PROPERTY_RESULT_OK;
         }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
     static dmGameObject::PropertyVar DynamicAttributeValuesToPropertyVar(float* values, uint32_t element_count, uint32_t element_index, bool use_element_index)
