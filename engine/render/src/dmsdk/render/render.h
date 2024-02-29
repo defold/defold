@@ -178,8 +178,9 @@ namespace dmRender
         RenderObject();
         void Init();
 
+        // JG: These should be moved to graphics..
         static const uint32_t MAX_TEXTURE_COUNT = 8;
-        static const uint32_t MAX_VERTEX_BUFFER_COUNT = 2;
+        static const uint32_t MAX_VERTEX_BUFFER_COUNT = 3;
 
         HNamedConstantBuffer            m_ConstantBuffer;
         dmVMath::Matrix4                m_WorldTransform;

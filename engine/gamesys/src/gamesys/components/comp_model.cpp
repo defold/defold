@@ -114,6 +114,7 @@ namespace dmGameSystem
         dmObjectPool<ModelComponent*>    m_Components;
         dmArray<dmRender::RenderObject>  m_RenderObjects;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
+        dmGraphics::HVertexDeclaration   m_InstanceVertexDeclaration;
 
         dmArray<uint8_t>                 m_InstanceBufferDataLocalSpace;
         dmRender::HBufferedRenderBuffer  m_InstanceBufferLocalSpace;
@@ -164,18 +165,22 @@ namespace dmGameSystem
         DM_STATIC_ASSERT( sizeof(dmRig::RigModelVertex) == ((3+3+3+4+2+2)*4), Invalid_Struct_Size);
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-        dmGraphics::AddVertexStream(stream_declaration, "position",  3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "normal",    3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "tangent",   3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "color",     4, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "texcoord1", 2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::HVertexStreamDeclaration stream_declaration_vertex = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+        dmGraphics::AddVertexStream(stream_declaration_vertex, "position",  3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration_vertex, "normal",    3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration_vertex, "tangent",   3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration_vertex, "color",     4, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration_vertex, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration_vertex, "texcoord1", 2, dmGraphics::TYPE_FLOAT, false);
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration_instance = dmGraphics::NewVertexStreamDeclaration(graphics_context, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+        dmGraphics::AddVertexStream(stream_declaration_instance, "mtx_world",  16, dmGraphics::TYPE_FLOAT, false);
 
         world->m_MaxBatchIndex = 0;
-        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
-        world->m_MaxElementsVertices = dmGraphics::GetMaxElementsVertices(graphics_context);
-        world->m_InstanceBufferLocalSpace = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
+        world->m_VertexDeclaration         = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration_vertex);
+        world->m_InstanceVertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration_instance);
+        world->m_MaxElementsVertices       = dmGraphics::GetMaxElementsVertices(graphics_context);
+        world->m_InstanceBufferLocalSpace  = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
 
         world->m_VertexBuffers = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
         world->m_InstanceBuffers = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
@@ -191,7 +196,8 @@ namespace dmGameSystem
             world->m_VertexBufferDispatchCounts[i] = 0;
         }
 
-        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration_vertex);
+        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration_instance);
 
         *params.m_World = world;
 
@@ -308,12 +314,23 @@ namespace dmGameSystem
 
     static inline bool IsDefaultStream(dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type)
     {
-        return (name_hash == dmRender::VERTEX_STREAM_POSITION  && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION) ||
-               (name_hash == dmRender::VERTEX_STREAM_NORMAL    && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL)   ||
-               (name_hash == dmRender::VERTEX_STREAM_TANGENT   && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT)  ||
-               (name_hash == dmRender::VERTEX_STREAM_COLOR     && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR)    ||
-               (name_hash == dmRender::VERTEX_STREAM_TEXCOORD0 && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD) ||
-               (name_hash == dmRender::VERTEX_STREAM_TEXCOORD1 && semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD);
+        switch(semantic_type)
+        {
+            case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
+                return name_hash == dmRender::VERTEX_STREAM_POSITION;
+            case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL:
+                return name_hash == dmRender::VERTEX_STREAM_NORMAL;
+            case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT:
+                return name_hash == dmRender::VERTEX_STREAM_TANGENT;
+            case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
+                return name_hash == dmRender::VERTEX_STREAM_COLOR;
+            case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+                return name_hash == dmRender::VERTEX_STREAM_TEXCOORD0 || name_hash == dmRender::VERTEX_STREAM_TEXCOORD1;
+            case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
+                return name_hash == dmRender::VERTEX_STREAM_WORLD_MATRIX;
+            default:break;
+        }
+        return false;
     }
 
     static inline MaterialResource* GetMaterialResource(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
@@ -799,11 +816,11 @@ namespace dmGameSystem
     {
         DM_PROFILE("RenderBatchLocal");
 
-        const MeshRenderItem* render_item      = (MeshRenderItem*) buf[*begin].m_UserData;
-        const ModelComponent* component        = render_item->m_Component;
-        uint32_t material_index                = render_item->m_MaterialIndex;
-        dmRender::HMaterial material           = GetMaterial(component, component->m_Resource, material_index);
-        dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
+        const MeshRenderItem* render_item        = (MeshRenderItem*) buf[*begin].m_UserData;
+        ModelComponent* component                = render_item->m_Component;
+        uint32_t material_index                  = render_item->m_MaterialIndex;
+        dmRender::HMaterial material             = GetMaterial(component, component->m_Resource, material_index);
+        dmGraphics::HVertexDeclaration vx_decl   = dmRender::GetVertexDeclaration(material);
         dmGraphics::HVertexDeclaration inst_decl = dmRender::GetInstanceVertexDeclaration(material);
 
         uint32_t instance_count    = 0;
@@ -848,9 +865,29 @@ namespace dmGameSystem
                 if (inst_decl)
                 {
                     ro->m_WorldTransform        = Matrix4::identity();
-                    ro->m_VertexDeclarations[1] = inst_decl;
-                    ro->m_VertexBuffers[1]      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_InstanceBufferLocalSpace);
+                    ro->m_VertexDeclarations[2] = world->m_InstanceVertexDeclaration;
+                    ro->m_VertexBuffers[2]      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_InstanceBufferLocalSpace);
                 }
+            }
+
+            if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+            {
+                MeshAttributeRenderData* attribute_rd = &component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex];
+
+                /*
+                if (!attribute_rd->m_VertexDeclaration)
+                {
+                    SetupMeshAttributeRenderData(render_context,
+                        ro->m_Material,
+                        render_item,
+                        component->m_Resource->m_Materials[material_index].m_Attributes,
+                        component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                        attribute_rd);
+                }
+                */
+
+                // ro.m_VertexDeclarations[1] = attribute_rd->m_VertexDeclaration;
+                // ro.m_VertexBuffers[1]      = attribute_rd->m_VertexBuffer;
             }
 
             if (inst_decl)
@@ -860,11 +897,11 @@ namespace dmGameSystem
                 // TODO! Write according to the vertex declaration
                 uint8_t* write_ptr = (uint8_t*) world->m_InstanceBufferDataLocalSpace.Begin() + world->m_InstanceBufferDataLocalSpace.Size();
                 memcpy(write_ptr, &render_item->m_World, sizeof(render_item->m_World));
-
                 world->m_InstanceBufferDataLocalSpace.SetSize( world->m_InstanceBufferDataLocalSpace.Size() + instance_stride);
             }
             else
             {
+                ro->m_WorldTransform = render_item->m_World;
             }
 
             FillTextures(ro, component, material_index);
@@ -874,7 +911,21 @@ namespace dmGameSystem
                 dmGameSystem::EnableRenderObjectConstants(ro, component->m_RenderConstants);
             }
 
-            /*
+            if (!inst_decl)
+            {
+                dmRender::AddToRender(render_context, ro);
+                ro = 0;
+            }
+        }
+
+        if (ro)
+        {
+            dmRender::AddToRender(render_context, ro);
+        }
+    }
+
+
+    /*
             // We currently have no support for instancing, so we generate a separate draw call for each render item
             world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
             dmRender::RenderObject& ro = world->m_RenderObjects.Back();
@@ -923,13 +974,6 @@ namespace dmGameSystem
 
             dmRender::AddToRender(render_context, &ro);
             */
-        }
-
-        if (ro)
-        {
-            dmRender::AddToRender(render_context, ro);
-        }
-    }
 
     #if 0
     static void OutputVector4(const dmVMath::Vector4& v)

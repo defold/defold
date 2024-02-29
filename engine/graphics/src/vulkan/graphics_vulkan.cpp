@@ -2055,15 +2055,18 @@ bail:
         Program* program_ptr        = context->m_CurrentProgram;
         VkDevice vk_device          = context->m_LogicalDevice.m_Device;
 
-        VkBuffer vk_buffers[MAX_VERTEX_BUFFERS]            = {};
-        VkDeviceSize vk_buffer_offsets[MAX_VERTEX_BUFFERS] = {};
-        uint32_t num_vx_buffers                            = 0;
+        VkBuffer vk_buffers[MAX_VERTEX_BUFFERS]                = {};
+        VkDeviceSize vk_buffer_offsets[MAX_VERTEX_BUFFERS]     = {};
+        VertexDeclaration* vx_declarations[MAX_VERTEX_BUFFERS] = {};
+        uint32_t num_vx_buffers                                = 0;
 
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
-            if (context->m_CurrentVertexBuffer[i])
+            if (context->m_CurrentVertexBuffer[i] && context->m_CurrentVertexDeclaration[i])
             {
-                vk_buffers[num_vx_buffers++] = context->m_CurrentVertexBuffer[i]->m_Handle.m_Buffer;
+                vx_declarations[num_vx_buffers] = context->m_CurrentVertexDeclaration[i];
+                vk_buffers[num_vx_buffers]      = context->m_CurrentVertexBuffer[i]->m_Handle.m_Buffer;
+                num_vx_buffers++;
             }
         }
 
@@ -2157,7 +2160,7 @@ bail:
 
         Pipeline* pipeline = GetOrCreatePipeline(vk_device, vk_sample_count,
             context->m_PipelineState, context->m_PipelineCache,
-            program_ptr, current_rt, context->m_CurrentVertexDeclaration, num_vx_buffers);
+            program_ptr, current_rt, vx_declarations, num_vx_buffers);
 
         if (pipeline != context->m_CurrentPipeline)
         {
