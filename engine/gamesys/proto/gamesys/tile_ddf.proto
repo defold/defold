@@ -42,6 +42,7 @@ enum SpriteTrimmingMode
     SPRITE_TRIM_MODE_6      = 6 [(displayName) = "6 Vertices"];
     SPRITE_TRIM_MODE_7      = 7 [(displayName) = "7 Vertices"];
     SPRITE_TRIM_MODE_8      = 8 [(displayName) = "8 Vertices"];
+    SPRITE_TRIM_POLYGONS    = 9 [(displayName) = "Polygons"];
 }
 
 message Animation

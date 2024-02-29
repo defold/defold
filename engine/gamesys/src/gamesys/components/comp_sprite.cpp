@@ -1125,8 +1125,8 @@ namespace dmGameSystem
                 image_height = t;
             }
             // center X/Y may be rotated, if the image is stored rotated
-            uint32_t center_x = geometry->m_CenterX;
-            uint32_t center_y = geometry->m_CenterY;
+            float center_x = geometry->m_CenterX;
+            float center_y = geometry->m_CenterY;
 
             const float* vertices = reverse ? orig_vertices + num_vertices*2 - 2 : orig_vertices;
 
@@ -1287,7 +1287,7 @@ namespace dmGameSystem
                 const Matrix4& w = component->m_World;
 
                 // Output vertices in either a single quad format or slice-9 format
-                // ==================================================================
+                // ****************************************************************************
                 // Note regarding how we decide how the vertices should be generated:
                 //      Currently in the code below, we only support generating slice-9
                 //      quads when any components of the slice-9 property are set

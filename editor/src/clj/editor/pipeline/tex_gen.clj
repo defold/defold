@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,9 +19,7 @@
            [com.dynamo.bob.pipeline TextureGenerator]
            [com.dynamo.bob.util TextureUtil]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Type Graphics$TextureProfile Graphics$TextureProfiles]
-           [com.google.protobuf ByteString]
            [java.awt.image BufferedImage]
-           [java.io ByteArrayOutputStream]
            [java.util EnumSet]))
 
 (set! *warn-on-reflection* true)
@@ -43,12 +41,16 @@
    ;; least previewing with alpha.
    :texture-format-luminance-alpha   :texture-format-rgba})
 
-(defn match-texture-profile
-  [texture-profiles ^String path]
+(defn match-texture-profile-pb
+  ^Graphics$TextureProfile [texture-profiles ^String path]
   (let [texture-profiles-data (some->> texture-profiles (protobuf/map->pb Graphics$TextureProfiles))
         path (if (.startsWith path "/") (subs path 1) path)]
-    (when-some [texture-profile (TextureUtil/getTextureProfileByPath texture-profiles-data path)]
-      (protobuf/pb->map texture-profile))))
+    (TextureUtil/getTextureProfileByPath texture-profiles-data path)))
+
+(defn match-texture-profile
+  [texture-profiles ^String path]
+  (when-some [texture-profile (match-texture-profile-pb texture-profiles path)]
+    (protobuf/pb->map texture-profile)))
 
 (defn make-texture-image
   (^Graphics$TextureImage [^BufferedImage image texture-profile]
@@ -105,4 +107,3 @@
   ^Graphics$TextureImage [images texture-profile]
   (let [preview-profile (make-preview-profile texture-profile)]
     (make-cubemap-texture-images images preview-profile false)))
-

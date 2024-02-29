@@ -815,6 +815,14 @@
    :default "downscale_fit",
    :path ["html5" "scale_mode"]
    :options [["downscale_fit" "Downscale Fit"] ["fit" "Fit"] ["stretch" "Stretch"] ["no_scale" "No Scale"]]}
+  {:type :integer,
+   :help "how many attempts we do when trying to download a file",
+   :default 10,
+   :path ["html5" "retry_count"]}
+  {:type :number,
+   :help "pause in seconds before retry file loading after error",
+   :default 1.0,
+   :path ["html5" "retry_time"]}
   {:type :resource,
    :filter "appmanifest",
    :preserve-extension true,

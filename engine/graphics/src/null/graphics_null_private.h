@@ -18,6 +18,8 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/opaque_handle_container.h>
 
+#include "../graphics_private.h"
+
 namespace dmGraphics
 {
     const static uint32_t MAX_REGISTER_COUNT = 16;

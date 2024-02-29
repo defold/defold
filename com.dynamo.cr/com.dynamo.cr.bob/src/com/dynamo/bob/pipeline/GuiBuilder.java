@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -42,6 +42,7 @@ import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
 import com.dynamo.gamesys.proto.Gui.NodeDesc.AdjustMode;
@@ -59,6 +60,7 @@ import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.TextFormat;
 
+import org.apache.commons.io.FilenameUtils;
 
 @ProtoParams(srcClass = SceneDesc.class, messageClass = SceneDesc.class)
 @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
@@ -290,14 +292,17 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private static String replaceTextureName(String str) {
+    private static String replaceTextureName(String str) throws CompileExceptionError {
         String out = str;
-        if(str.endsWith(".atlas")) {
-            out = BuilderUtil.replaceExt(out, ".atlas", ".a.texturesetc");
-        } else if(str.endsWith(".tilesource")) {
-            out = BuilderUtil.replaceExt(out, ".tilesource", ".t.texturesetc");
-        } else {
-            out = ProtoBuilders.replaceTextureName(str);
+        String ext = "." + FilenameUtils.getExtension(str);
+        try {
+            if (TextureUtil.isAtlasFileType(ext)) {
+                out = ProtoBuilders.replaceTextureSetName(str);
+            } else {
+                out = ProtoBuilders.replaceTextureName(str);
+            }
+        } catch (Exception e) {
+            throw new CompileExceptionError(null, -1, e.getMessage(), e);
         }
         return out;
     }
@@ -348,7 +353,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             }
             b.setId(parentNode.getId() + "/" + b.getId());
 
-            // apply overridden fields from super-node to node, if there are any   
+            // apply overridden fields from super-node to node, if there are any
             // For defaut layout first
             if (applyDefaultLayout) {
                 HashMap<String, NodeDesc> nodeMapDefault = parentSceneNodeMap.get("");
@@ -704,4 +709,3 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
 }
-
