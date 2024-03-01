@@ -473,7 +473,7 @@ namespace dmGameSystem
      * `sender`
      * : [type:url] The invoker of the callback: the sound component.
      *
-     * @return id [type:number] The identifier for the sound voice
+     * @return play_id [type:number] The identifier for the sound voice
      *
      * @examples
      *
@@ -536,14 +536,16 @@ namespace dmGameSystem
 
         uint32_t play_id = dmSound::GetAndIncreasePlayCounter();
 
-        int functionref = 0;
+        // We use this value to know if it's function call without callback or `play_sound` message call from lua
+        // 
+        uintptr_t functionref = UINTPTR_MAX;
         if (top > 2) // completed cb
         {
             if (lua_isfunction(L, 3))
             {
                 lua_pushvalue(L, 3);
                 // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
-                functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+                functionref = (uintptr_t)(dmScript::RefInInstance(L) - LUA_NOREF);
             }
         }
 
@@ -554,7 +556,7 @@ namespace dmGameSystem
         msg.m_Speed = speed;
         msg.m_PlayId = play_id;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
 
         lua_pushnumber(L, (double) msg.m_PlayId);
 
