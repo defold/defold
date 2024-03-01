@@ -1097,13 +1097,16 @@ namespace dmGameSystem
         dmRender::RenderObject& ro = gro.m_RenderObject;
         gro.m_SortOrder = gui_context->m_NextSortOrder++;
 
+        TextureResource* texture_res = (TextureResource*) first_emitter_render_data->m_Texture;
+        dmGraphics::HTexture texture = texture_res ? texture_res->m_Texture : 0;
+
         ro.Init();
         ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
         ro.m_VertexBuffer      = gui_world->m_VertexBuffer;
         ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart       = gui_world->m_ClientVertexBuffer.Size();
         ro.m_Material          = GetNodeMaterial(gui_context, scene, first_node);
-        ro.m_Textures[0]       = (dmGraphics::HTexture) first_emitter_render_data->m_Texture;
+        ro.m_Textures[0]       = texture;
 
         // Offset capacity to fit vertices for all emitters we are about to render
         uint32_t vertex_count = 0;
