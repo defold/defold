@@ -318,7 +318,7 @@ namespace dmGameSystem
 
     void ScriptHttpFinalize(const ScriptLibContext& context)
     {
-        if (g_Service == 0)
+        if (g_Service != 0)
         {
             dmHttpService::Delete(g_Service);
             g_Service = 0;
