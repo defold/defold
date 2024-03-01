@@ -536,8 +536,8 @@ namespace dmGameSystem
 
         uint32_t play_id = dmSound::GetAndIncreasePlayCounter();
 
-        // We use this value to know if it's function call without callback or `play_sound` message call from lua
-        // 
+        // We use UINTPTR_MAX value to determine if it's a function call without a callback or a `play_sound` message call from Lua.
+        // Take a look at comp_sound -> CompSoundOnMessage for a better understanding of how it's used.
         uintptr_t functionref = UINTPTR_MAX;
         if (top > 2) // completed cb
         {
