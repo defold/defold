@@ -204,7 +204,6 @@ namespace dmScript
         lua_newtable(L);
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
-        // InitializeHttp(context);
         InitializeTimer(context);
         if (context->m_EnableExtensions)
         {

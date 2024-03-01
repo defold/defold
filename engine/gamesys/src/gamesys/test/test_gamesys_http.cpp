@@ -115,7 +115,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        dmLogError("No config file specified! To run these tests locally, you must first run the HTTP server 'run_test_server.py' in the root gamesys folder");
+        dmLogError("No config file specified!");
         return 1;
     }
 
