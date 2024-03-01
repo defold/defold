@@ -450,6 +450,9 @@ namespace dmRender
 
     bool GetMaterialProgramConstantInfo(HMaterial material, dmhash_t name_hash, dmhash_t* out_constant_id, dmhash_t* out_element_ids[4], uint32_t* out_element_index, uint16_t* out_array_size)
     {
+        if (name_hash == 0)
+            return false;
+
         dmArray<RenderConstant>& constants = material->m_Constants;
         uint32_t n = constants.Size();
         *out_element_index = ~0u;

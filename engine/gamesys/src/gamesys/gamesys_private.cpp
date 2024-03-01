@@ -439,6 +439,11 @@ namespace dmGameSystem
             return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
         }
 
+        out_desc.m_ElementIds[0] = info.m_ElementIds[0];
+        out_desc.m_ElementIds[1] = info.m_ElementIds[1];
+        out_desc.m_ElementIds[2] = info.m_ElementIds[2];
+        out_desc.m_ElementIds[3] = info.m_ElementIds[3];
+
         // If we have a dynamic attribute set, we return that data
         if (dynamic_attribute_index != INVALID_DYNAMIC_ATTRIBUTE_INDEX)
         {
@@ -471,11 +476,6 @@ namespace dmGameSystem
             VertexAttributeToFloats(info.m_Attribute, info.m_ValuePtr, values);
             out_desc.m_Variant = DynamicAttributeValuesToPropertyVar(values, info.m_Attribute->m_ElementCount, info.m_ElementIndex, info.m_AttributeNameHash != name_hash);
         }
-
-        out_desc.m_ElementIds[0] = info.m_ElementIds[0];
-        out_desc.m_ElementIds[1] = info.m_ElementIds[1];
-        out_desc.m_ElementIds[2] = info.m_ElementIds[2];
-        out_desc.m_ElementIds[3] = info.m_ElementIds[3];
 
         return dmGameObject::PROPERTY_RESULT_OK;
     }
