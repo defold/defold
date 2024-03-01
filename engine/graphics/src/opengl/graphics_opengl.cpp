@@ -741,6 +741,17 @@ static void LogFrameBufferError(GLenum status)
     #undef PRINT_FEATURE_IF_SUPPORTED
     }
 
+    static int AcquireContextForWorker(void* _context, void* data)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        dmPlatform::AcquireAuxContext(context->m_Window);
+
+        //void* aux_context = dmPlatform::AcquireAuxContext(context->m_Window);
+        //DoDeleteTexture(context, (HTexture) data);
+        // dmPlatform::UnacquireAuxContext(context->m_Window, aux_context);
+        return 0;
+    }
+
     static bool OpenGLInitialize(HContext _context)
     {
         assert(_context);
@@ -1214,6 +1225,9 @@ static void LogFrameBufferError(GLenum status)
         context->m_AsyncProcessingSupport = dmThread::PlatformHasThreadSupport() && dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_AUX_CONTEXT);
         if (context->m_AsyncProcessingSupport)
         {
+
+            dmJobThread::PushJob(g_Context->m_JobThread, AcquireContextForWorker, 0, (void*) context, 0);
+
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
 
             if (context->m_JobThread == 0x0)
@@ -2762,9 +2776,9 @@ static void LogFrameBufferError(GLenum status)
     static int AsyncDeleteTextureProcess(void* _context, void* data)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        void* aux_context = dmPlatform::AcquireAuxContext(context->m_Window);
+        //void* aux_context = dmPlatform::AcquireAuxContext(context->m_Window);
         DoDeleteTexture(context, (HTexture) data);
-        dmPlatform::UnacquireAuxContext(context->m_Window, aux_context);
+        // dmPlatform::UnacquireAuxContext(context->m_Window, aux_context);
         return 0;
     }
 
@@ -2931,10 +2945,10 @@ static void LogFrameBufferError(GLenum status)
         //       The window handle (pointer) isn't protected by a mutex either,
         //       but it is currently not used with our GLFW version (yet) so
         //       we don't necessarily need to guard it right now.
-        void* aux_context = dmPlatform::AcquireAuxContext(context->m_Window);
+        //void* aux_context = dmPlatform::AcquireAuxContext(context->m_Window);
         SetTexture(ap.m_Texture, ap.m_Params);
         glFlush();
-        dmPlatform::UnacquireAuxContext(context->m_Window, aux_context);
+        //dmPlatform::UnacquireAuxContext(context->m_Window, aux_context);
 
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, ap.m_Texture);
         tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
