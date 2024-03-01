@@ -60,6 +60,11 @@ namespace dmGameSystem
 
     static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED = 0xffff;
 
+    struct ModelInstanceData
+    {
+        dmVMath::Matrix4 m_Transform;
+    };
+
     struct MeshAttributeRenderData
     {
         dmGraphics::HVertexBuffer      m_VertexBuffer;
@@ -873,8 +878,6 @@ namespace dmGameSystem
             if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
             {
                 MeshAttributeRenderData* attribute_rd = &component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex];
-
-                /*
                 if (!attribute_rd->m_VertexDeclaration)
                 {
                     SetupMeshAttributeRenderData(render_context,
@@ -884,20 +887,27 @@ namespace dmGameSystem
                         component->m_Resource->m_Materials[material_index].m_AttributeCount,
                         attribute_rd);
                 }
-                */
 
-                // ro.m_VertexDeclarations[1] = attribute_rd->m_VertexDeclaration;
-                // ro.m_VertexBuffers[1]      = attribute_rd->m_VertexBuffer;
+                ro->m_VertexDeclarations[1] = attribute_rd->m_VertexDeclaration;
+                ro->m_VertexBuffers[1]      = attribute_rd->m_VertexBuffer;
             }
 
             if (inst_decl)
             {
                 ro->m_InstanceCount++;
 
-                // TODO! Write according to the vertex declaration
-                uint8_t* write_ptr = (uint8_t*) world->m_InstanceBufferDataLocalSpace.Begin() + world->m_InstanceBufferDataLocalSpace.Size();
-                memcpy(write_ptr, &render_item->m_World, sizeof(render_item->m_World));
-                world->m_InstanceBufferDataLocalSpace.SetSize( world->m_InstanceBufferDataLocalSpace.Size() + instance_stride);
+                if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+                {
+
+                }
+                else
+                {
+                    assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclaration) == sizeof(ModelInstanceData));
+                    uint8_t* write_ptr               = (uint8_t*) world->m_InstanceBufferDataLocalSpace.Begin() + world->m_InstanceBufferDataLocalSpace.Size();
+                    ModelInstanceData* instance_data = (ModelInstanceData*) write_ptr;
+                    instance_data->m_Transform       = render_item->m_World;
+                    world->m_InstanceBufferDataLocalSpace.SetSize(world->m_InstanceBufferDataLocalSpace.Size() + sizeof(ModelInstanceData));
+                }
             }
             else
             {
