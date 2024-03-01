@@ -585,7 +585,9 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context                   = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
         dmGraphics::HVertexDeclaration material_vx_decl         = dmRender::GetVertexDeclaration(material);
+        // dmGraphics::HVertexDeclaration material_vx_decl_inst    = dmRender::GetVertexDeclaration(material);
 
+        /*
         dmRig::AttributeInfo material_attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
         uint32_t material_attributes_count = FillMaterialAttributeInfos(material, material_attributes);
 
@@ -633,6 +635,7 @@ namespace dmGameSystem
 
         free(attribute_data);
         free(scratch_attribute_vertex);
+        */
     }
 
     static void SetupRenderItems(ModelComponent* component, ModelResource* resource)
@@ -878,7 +881,9 @@ namespace dmGameSystem
             if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
             {
                 MeshAttributeRenderData* attribute_rd = &component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex];
-                if (!attribute_rd->m_VertexDeclaration)
+
+                /*
+                if (!attribute_rd->m_Initialized)
                 {
                     SetupMeshAttributeRenderData(render_context,
                         ro->m_Material,
@@ -887,6 +892,7 @@ namespace dmGameSystem
                         component->m_Resource->m_Materials[material_index].m_AttributeCount,
                         attribute_rd);
                 }
+                */
 
                 ro->m_VertexDeclarations[1] = attribute_rd->m_VertexDeclaration;
                 ro->m_VertexBuffers[1]      = attribute_rd->m_VertexBuffer;
