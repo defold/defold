@@ -141,9 +141,6 @@ namespace dmHttpClient
         /// HTTP-write headers callback
         HttpWriteHeaders m_HttpWriteHeaders;
 
-        // TODO
-        // HttpReportProgressCallback m_ReportProgressCallback;
-
         /// HTTP-cache. Default value 0. Set to a http-cache to enable http-caching
         dmHttpCache::HCache m_HttpCache;
 

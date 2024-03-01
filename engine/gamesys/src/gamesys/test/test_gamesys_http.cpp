@@ -77,6 +77,7 @@ TEST_F(ComponentTest, HTTPRequest)
         dmTime::Sleep(30*1000);
     }
 
+    ASSERT_TRUE(tests_done);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);

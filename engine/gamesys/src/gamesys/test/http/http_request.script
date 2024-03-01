@@ -12,8 +12,7 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-local tests_left = 2
-
+local tests_left = 6
 tests_done = false
 
 local function test_done(response, data_str)
@@ -26,16 +25,24 @@ local function test_done(response, data_str)
     end
 end
 
-local function get_callback(response)
 
-end
+function test_get(self)
 
-function init(self)
+    -- this equates to the size of the buffer used internally
+    local chunk_size = 64 * 1024
+    local num_chunks = 2
+    local chunked_data = ""
+    for i=1,chunk_size * num_chunks do
+        chunked_data = chunked_data .. "A"
+    end
+
+    -- 1
     http.request(ADDRESS, "GET",
         function(self, id, response)
             test_done(response, "Hello")
         end)
 
+    -- 2
     http.request(ADDRESS .. "/test_progress", "GET",
         function(self, id, response)
             local data_str = "test_progress_complete"
@@ -49,5 +56,76 @@ function init(self)
             end
         end,
         nil, nil, { report_progress = true })
+
+    -- 3
+    http.request(ADDRESS .. "/test_progress_content_length", "GET",
+        function(self, id, response)
+            local data_str = "test_progress_complete"
+            if not self.test_2_progress then
+                assert(response.bytes_received == #data_str)
+                -- no content-length headers
+                assert(response.bytes_total == #data_str)
+                self.test_2_progress = true
+            else
+                test_done(response, data_str)
+            end
+        end,
+        nil, nil, { report_progress = true })
+
+
+    -- 4
+    self.test_3_chunk_count = 0
+    http.request(ADDRESS .. "/test_progress_chunked", "GET",
+        function(self, id, response)
+
+            if not self.test_3_progress then
+                self.test_3_chunk_count = self.test_3_chunk_count + 1
+                assert(response.bytes_total == chunk_size * num_chunks)
+                assert(response.bytes_received == chunk_size * self.test_3_chunk_count)
+
+                if self.test_3_chunk_count == num_chunks then
+                    self.test_3_progress = true
+                end
+            else
+                test_done(response, chunked_data)
+            end
+        end,
+        nil, nil, { report_progress = true })
+end
+
+function test_post(self)
+    -- 5
+    http.request(ADDRESS, "POST",
+        function(self, id, response)
+            test_done(response, "PONG")
+        end)
+
+    -- 6
+    local test_post_1_data_str = "test_post_progress"
+    self.test_post_1_received = 0
+    self.test_post_1_sent = 0
+    http.request(ADDRESS .. "/test_post_progress", "POST",
+        function(self, id, response)
+
+            -- The server prepends "PONG" to whatever we send
+            local data_str = "PONG" .. test_post_1_data_str
+
+            if response.status ~= nil then
+                test_done(response, data_str)
+            elseif response.bytes_sent > 0 then
+                assert(response.bytes_sent == #test_post_1_data_str)
+                assert(response.bytes_total == #test_post_1_data_str)
+            elseif response.bytes_received > 0 then
+                -- ignore
+            else
+                assert(false)
+            end
+        end,
+        nil, test_post_1_data_str, { report_progress = true })
+end
+
+function init(self)
+    test_get(self)
+    test_post(self)
 end
 
