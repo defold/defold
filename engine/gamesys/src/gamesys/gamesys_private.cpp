@@ -449,7 +449,7 @@ namespace dmGameSystem
         {
             DynamicAttributeInfo& dynamic_info = pool.Get(dynamic_attribute_index);
 
-            int32_t dynamic_info_index = FindMaterialAttributeIndex(dynamic_info, name_hash);
+            int32_t dynamic_info_index = FindMaterialAttributeIndex(dynamic_info, info.m_AttributeNameHash);
 
             if (dynamic_info_index >= 0)
             {
