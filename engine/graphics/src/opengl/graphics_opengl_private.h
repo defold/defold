@@ -76,6 +76,8 @@ namespace dmGraphics
         dmJobThread::HContext   m_JobThread;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
+        void*                   m_AuxContext;
+        volatile bool           m_AuxContextJobPending;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 
