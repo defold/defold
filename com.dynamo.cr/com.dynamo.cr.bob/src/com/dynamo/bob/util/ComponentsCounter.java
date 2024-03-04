@@ -30,7 +30,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;

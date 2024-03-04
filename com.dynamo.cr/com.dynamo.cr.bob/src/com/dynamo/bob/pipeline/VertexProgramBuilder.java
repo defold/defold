@@ -25,7 +25,6 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderPreprocessor;
-import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 import org.apache.commons.cli.CommandLine;
 

@@ -14,9 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -33,7 +30,6 @@ import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
-import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.bob.pipeline.antlr.lua.LuaParser;
@@ -41,10 +37,8 @@ import com.dynamo.bob.pipeline.antlr.lua.LuaLexer;
 import com.dynamo.bob.pipeline.antlr.lua.LuaParserBaseListener;
 
 import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;

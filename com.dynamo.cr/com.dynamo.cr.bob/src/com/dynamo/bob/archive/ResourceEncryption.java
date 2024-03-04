@@ -15,11 +15,8 @@
 package com.dynamo.bob.archive;
 
 import com.dynamo.crypt.Crypt;
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.plugin.PluginScanner;
-
-import java.util.List;
 
 
 public class ResourceEncryption {

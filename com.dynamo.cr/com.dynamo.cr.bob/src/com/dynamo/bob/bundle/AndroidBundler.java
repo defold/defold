@@ -14,14 +14,11 @@
 
 package com.dynamo.bob.bundle;
 
-import static org.apache.commons.io.FilenameUtils.normalize;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.FileSystem;
@@ -35,7 +32,6 @@ import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Hashtable;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +40,6 @@ import java.security.KeyStore;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
@@ -58,8 +53,6 @@ import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.TimeProfiler;
-
-import com.defold.extender.client.ExtenderResource;
 
 @BundlerParams(platforms = {Platform.Armv7Android, Platform.Arm64Android})
 public class AndroidBundler implements IBundler {

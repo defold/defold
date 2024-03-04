@@ -42,10 +42,7 @@ import org.junit.Test;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 
-import com.dynamo.proto.DdfMath.Point3;
-import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
-import com.dynamo.proto.DdfMath.Transform;
 import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.RigAnimation;
 

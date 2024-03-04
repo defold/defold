@@ -14,10 +14,6 @@
 
 // Generated from GLSLLexer.g4 by ANTLR 4.9.1
 package com.dynamo.bob.pipeline.antlr.glsl;
-import org.antlr.v4.runtime.Lexer;
-import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;

@@ -15,8 +15,6 @@
 package com.dynamo.bob.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertNotNull;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;

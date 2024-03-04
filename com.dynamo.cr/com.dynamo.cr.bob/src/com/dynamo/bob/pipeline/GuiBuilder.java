@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.InputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -23,14 +22,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.lang.reflect.Method;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Vector3d;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
@@ -38,14 +35,12 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
-import com.dynamo.gamesys.proto.Gui.NodeDesc.AdjustMode;
 import com.dynamo.gamesys.proto.Gui.NodeDesc.Type;
 import com.dynamo.gamesys.proto.Gui.SceneDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.FontDesc;
@@ -57,7 +52,6 @@ import com.dynamo.gamesys.proto.Gui.SceneDesc.TextureDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.MaterialDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.ResourceDesc;
 import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.TextFormat;
 
 import org.apache.commons.io.FilenameUtils;

@@ -14,21 +14,16 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.File;
 import java.io.PrintWriter;
 
-import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Locale;
 import java.util.Scanner;
 import java.util.regex.Pattern;
@@ -39,9 +34,7 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.bundle.BundlerParams;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;

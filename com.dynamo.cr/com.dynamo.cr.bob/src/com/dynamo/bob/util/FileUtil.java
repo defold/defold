@@ -24,7 +24,6 @@ import java.util.zip.Checksum;
 import java.util.zip.CRC32;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 import org.apache.commons.io.IOUtils;

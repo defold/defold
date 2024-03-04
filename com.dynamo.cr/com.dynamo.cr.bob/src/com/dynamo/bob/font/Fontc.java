@@ -59,13 +59,6 @@ import org.apache.commons.io.FilenameUtils;
 import com.sun.jna.Pointer;
 
 import com.dynamo.bob.TexcLibrary;
-import com.dynamo.bob.TexcLibrary.PixelFormat;
-import com.dynamo.bob.TexcLibrary.CompressionLevel;
-import com.dynamo.bob.TexcLibrary.CompressionType;
-import com.dynamo.bob.Project;
-
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.fs.IResource;
 
 import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.bob.pipeline.TextureGeneratorException;

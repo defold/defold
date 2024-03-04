@@ -27,12 +27,9 @@ import java.util.Base64;
 import java.net.URL;
 import java.net.HttpURLConnection;
 import java.net.ConnectException;
-import java.net.ProtocolException;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-
-import com.dynamo.bob.CompileExceptionError;
 
 
 public class HttpUtil {
