@@ -933,7 +933,7 @@ namespace dmRig
         return out_buffer;
     }
 
-    static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, const float* tangents, const AttributeInfo* attributes, uint32_t attributes_count, uint32_t vertex_stride, uint8_t* out_write_ptr)
+    static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* out_write_ptr)
     {
         const float* uv0 = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
         const float* uv1 = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
@@ -967,12 +967,13 @@ namespace dmRig
 
                 uint32_t num_texcoords = 0;
 
-                for (int a = 0; a < attributes_count; ++a)
+                // TODO: Use the shared dmGraphics function instead of this
+                for (int a = 0; a < attribute_infos->m_NumInfos; ++a)
                 {
-                    const dmGraphics::VertexAttribute* attr = attributes[a].m_Attribute;
-                    const size_t data_size = attributes[a].m_ValueByteSize;
+                    const dmGraphics::VertexAttributeInfo& info = attribute_infos->m_Infos[a];
+                    const size_t data_size                      = info.m_ValueByteSize;
 
-                    switch(attr->m_SemanticType)
+                    switch(info.m_SemanticType)
                     {
                         case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
                         {
@@ -1009,7 +1010,7 @@ namespace dmRig
                         } break;
                         default:
                         {
-                            memcpy(write_ptr, attributes[a].m_ValuePtr, data_size);
+                            memcpy(write_ptr, info.m_ValuePtr, data_size);
                         } break;
                     }
 
@@ -1108,7 +1109,7 @@ namespace dmRig
         array.SetSize(size);
     }
 
-    uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const Matrix4& world_matrix, const AttributeInfo* attributes, uint32_t attributes_count, uint32_t vertex_stride, uint8_t* vertex_data_out)
+    uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out)
     {
         const dmRigDDF::Model* model = instance->m_Model;
 
@@ -1128,11 +1129,10 @@ namespace dmRig
         bool stream_position = false;
         bool stream_normal = false;
 
-        for (int i = 0; i < attributes_count; ++i)
+        for (int i = 0; i < attribute_infos->m_NumInfos; ++i)
         {
-            const dmGraphics::VertexAttribute* attr = attributes[i].m_Attribute;
-            stream_position |= attr->m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
-            stream_normal   |= attr->m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
+            stream_position |= attribute_infos->m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
+            stream_normal   |= attribute_infos->m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
         }
 
         pose_matrices.SetSize(0);
@@ -1182,7 +1182,7 @@ namespace dmRig
             dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer, tangents_buffer);
         }
 
-        return WriteVertexDataByAttributes(mesh, positions_buffer, normals_buffer, tangents_buffer, attributes, attributes_count, vertex_stride, vertex_data_out);
+        return WriteVertexDataByAttributes(mesh, positions_buffer, normals_buffer, tangents_buffer, attribute_infos, vertex_stride, vertex_data_out);
     }
 
     RigModelVertex* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const Matrix4& world_matrix, RigModelVertex* vertex_data_out)

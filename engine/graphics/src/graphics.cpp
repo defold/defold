@@ -416,6 +416,59 @@ namespace dmGraphics
         *data_size = attribute.m_Values.m_BinaryValues.m_Count;
     }
 
+    uint8_t* WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4& color, float** uvs, uint32_t* page_indices, uint32_t num_textures)
+    {
+        uint32_t num_texcoords = 0;
+        uint32_t num_page_indices = 0;
+
+        for (int i = 0; i < attribute_infos->m_NumInfos; ++i)
+        {
+            const VertexAttributeInfo& info = attribute_infos->m_Infos[i];
+
+            switch(info.m_SemanticType)
+            {
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
+                {
+                    if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD && world_transform)
+                    {
+                        dmVMath::Vector4 wp = *world_transform * p;
+                        memcpy(write_ptr, &wp, info.m_ValueByteSize);
+                    }
+                    else
+                    {
+                        memcpy(write_ptr, &p_local, info.m_ValueByteSize);
+                    }
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+                {
+                    uint32_t unit = num_texcoords++;
+                    if (unit >= num_textures)
+                        unit = 0;
+                    memcpy(write_ptr, uvs[unit] + vertex_index * 2, info.m_ValueByteSize);
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
+                {
+                    memcpy(write_ptr, &color, info.m_ValueByteSize);
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
+                {
+                    uint32_t unit = num_page_indices++;
+                    float page_index = (float) page_indices[unit];
+                    memcpy(write_ptr, &page_index, info.m_ValueByteSize);
+                } break;
+                default:
+                {
+                    assert(info.m_ValuePtr);
+                    memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
+                } break;
+            }
+
+            write_ptr += info.m_ValueByteSize;
+        }
+
+        return write_ptr;
+    }
+
     dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type)
     {
         switch(data_type)

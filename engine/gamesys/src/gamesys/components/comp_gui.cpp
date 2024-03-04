@@ -135,7 +135,7 @@ namespace dmGameSystem
         }
     }
 
-    static inline void FillAttribute(dmParticle::ParticleVertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
+    static inline void FillAttribute(dmGraphics::VertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
     {
         info.m_NameHash        = name_hash;
         info.m_SemanticType    = semantic_type;
