@@ -314,38 +314,6 @@ public class ShaderUtil {
                 resourceTypes.add(type);
             }
 
-            /*
-            Iterator<JsonNode> typeNodeIt = typesNode.getElements();
-            while (typeNodeIt.hasNext()) {
-                JsonNode typeNode = typeNodeIt.next();
-
-                ResourceType type = new ResourceType();
-                type.name         = typeNode.get("name").asText();
-
-                JsonNode membersNode = typeNode.get("members");
-
-                Iterator<JsonNode> membersNodeIt = membersNode.getElements();
-
-                while(membersNodeIt.hasNext()) {
-                    JsonNode memberNode = membersNodeIt.next();
-                    ResourceMember res  = new ResourceMember();
-                    res.name            = memberNode.get("name").asText();
-                    res.type            = memberNode.get("type").asText();
-
-                    JsonNode arrayNode = memberNode.get("array");
-                    if (arrayNode != null && arrayNode.isArray())
-                    {
-                        ArrayNode array = (ArrayNode) arrayNode;
-                        res.elementCount = arrayNode.get(0).asInt();
-                    }
-
-                    type.members.add(res);
-                }
-
-                resourceTypes.add(type);
-            }
-            */
-
             return resourceTypes;
         }
 

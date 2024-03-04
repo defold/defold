@@ -79,6 +79,8 @@ if __name__ == '__main__':
 		[to_glsl("glsl_vertex_program", "test_app_graphics.vs"),
 		 to_glsl("glsl_fragment_program", "test_app_graphics.fs"),
 		 to_glsl("glsl_compute_program", "test_app_graphics.cp"),
+		 to_glsl("glsl_fragment_program_ssbo", "test_app_graphics_ssbo.fs"),
 		 to_spirv("spirv_vertex_program", "test_app_graphics.vs", "vert"),
 		 to_spirv("spirv_fragment_program", "test_app_graphics.fs", "frag"),
-		 to_spirv("spirv_compute_program", "test_app_graphics.cp", "compute")])
+		 to_spirv("spirv_compute_program", "test_app_graphics.cp", "compute"),
+		 to_spirv("spirv_fragment_program_ssbo", "test_app_graphics_ssbo.fs", "frag")])

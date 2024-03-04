@@ -280,6 +280,8 @@ message ShaderDesc
         SHADER_TYPE_UIMAGE2D          = 21;
         SHADER_TYPE_IMAGE2D           = 22;
         SHADER_TYPE_SAMPLER           = 23;
+
+        SHADER_TYPE_STORAGE_BUFFER    = 24;
     }
 
     message ResourceMember

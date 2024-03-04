@@ -642,6 +642,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
             case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
+            case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
         }
         return false;
     }
@@ -1525,8 +1526,20 @@ static void LogFrameBufferError(GLenum status)
 
     static HStorageBuffer OpenGLNewStorageBuffer(HContext _context, uint32_t buffer_size)
     {
-        // Not implemented yet
+        if (!IsContextFeatureSupported(_context, CONTEXT_FEATURE_STORAGE_BUFFER))
+            return 0;
+        assert(0 && "Not supported yet!");
         return 0;
+    }
+
+    static void OpenGLDeleteStorageBuffer(HStorageBuffer storage_buffer)
+    {
+        assert(0 && "Not supported yet!");
+    }
+
+    static void OpenGLSetStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding_index)
+    {
+        assert(0 && "Not supported yet!");
     }
 
     static bool OpenGLIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)

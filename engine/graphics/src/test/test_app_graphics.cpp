@@ -377,6 +377,127 @@ struct ComputeTest : ITest
     }
 };
 
+struct StorageBufferTest : ITest
+{
+    dmGraphics::HProgram                    m_Program;
+    dmGraphics::HStorageBuffer              m_StorageBuffer;
+    dmGraphics::HVertexDeclaration          m_VertexDeclaration;
+    dmGraphics::ShaderDesc::ResourceBinding m_VertexAttributes[1];
+    dmGraphics::HVertexBuffer               m_VertexBuffer;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        const float vertex_data_no_index[] = {
+            -0.5f, -0.5f,
+             0.5f, -0.5f,
+            -0.5f,  0.5f,
+             0.5f, -0.5f,
+             0.5f,  0.5f,
+            -0.5f,  0.5f,
+        };
+
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+        dmGraphics::ShaderDesc::ResourceBinding& vx_attribute_position = m_VertexAttributes[0];
+        vx_attribute_position.m_Name         = "pos";
+        vx_attribute_position.m_NameHash     = dmHashString64(vx_attribute_position.m_Name);
+        vx_attribute_position.m_Type         = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2;
+        vx_attribute_position.m_ElementCount = 1;
+        vx_attribute_position.m_Binding      = 0;
+
+        dmGraphics::ShaderDesc::Shader vs_shader = {};
+        dmGraphics::ShaderDesc::Shader fs_shader = {};
+
+        if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
+        {
+            vs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
+            vs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::glsl_vertex_program;
+            vs_shader.m_Source.m_Count = sizeof(graphics_assets::glsl_vertex_program);
+
+            fs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
+            fs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::glsl_fragment_program_ssbo;
+            fs_shader.m_Source.m_Count = sizeof(graphics_assets::glsl_fragment_program_ssbo);
+        }
+        else
+        {
+            vs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
+            vs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_vertex_program;
+            vs_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_vertex_program);
+
+            fs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
+            fs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_fragment_program_ssbo;
+            fs_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_fragment_program_ssbo);
+        }
+
+        /*
+        message ResourceBlock
+        {
+            required string          name          = 1;
+            required uint64          name_hash     = 2;
+            repeated ResourceBinding bindings      = 3;
+            required ShaderDataType  type          = 4;
+            optional uint32          element_count = 5 [default=1];
+            optional uint32          set           = 6 [default=0];
+            optional uint32          binding       = 7 [default=0];
+        }
+
+        layout (binding = 0) buffer Test
+        {
+            Data my_data[];
+        };
+        */
+
+        dmGraphics::ShaderDesc::ResourceBinding fs_ssbo_res = {};
+        fs_ssbo_res.m_Name     = "my_data";
+        fs_ssbo_res.m_NameHash = dmHashString64(fs_ssbo_res.m_Name);
+
+        dmGraphics::ShaderDesc::ResourceBlock fs_block = {};
+        fs_block.m_Name             = "Test";
+        fs_block.m_NameHash         = dmHashString64(fs_block.m_Name);
+        fs_block.m_Type             = dmGraphics::ShaderDesc::SHADER_TYPE_STORAGE_BUFFER;
+        // fs_block.m_ElementCount     = 16;
+        fs_block.m_Set              = 1;
+        fs_block.m_Binding          = 0;
+        fs_block.m_Bindings.m_Count = 1;
+        fs_block.m_Bindings.m_Data  = &fs_ssbo_res;
+
+        fs_shader.m_Resources.m_Count = 1;
+        fs_shader.m_Resources.m_Data  = &fs_block;
+
+        vs_shader.m_Inputs.m_Data  = m_VertexAttributes;
+        vs_shader.m_Inputs.m_Count = sizeof(m_VertexAttributes) / sizeof(dmGraphics::ShaderDesc::ResourceBinding);
+
+        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader);
+        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader);
+
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
+        dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
+
+        struct StorageBuffer_Data
+        {
+            float m_Member1[4];
+        };
+
+        StorageBuffer_Data storage_data[16] = {};
+
+        m_StorageBuffer = dmGraphics::NewStorageBuffer(engine->m_GraphicsContext, sizeof(storage_data));
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, m_Program);
+
+        dmGraphics::SetStorageBuffer(engine->m_GraphicsContext, m_StorageBuffer, 0);
+
+        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
+    }
+};
+
 static void* EngineCreate(int argc, char** argv)
 {
     EngineCtx* engine = &g_EngineCtx;
@@ -405,7 +526,8 @@ static void* EngineCreate(int argc, char** argv)
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
-    engine->m_Test = new ComputeTest();
+    //engine->m_Test = new ComputeTest();
+    engine->m_Test = new StorageBufferTest();
 
     engine->m_Test->Initialize(engine);
 
@@ -437,6 +559,8 @@ static UpdateResult EngineUpdate(void* _engine)
     dmPlatform::PollEvents(engine->m_Window);
 
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
+
+    engine->m_Test->Execute(engine);
 
     dmGraphics::Flip(engine->m_GraphicsContext);
 

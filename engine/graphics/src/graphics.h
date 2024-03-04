@@ -171,6 +171,7 @@ namespace dmGraphics
         CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
         CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
+        CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -588,6 +589,8 @@ namespace dmGraphics
 
     // SSBO
     HStorageBuffer NewStorageBuffer(HContext context, uint32_t buffer_size);
+    void           DeleteStorageBuffer(HStorageBuffer storage_buffer);
+    void           SetStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t binding_index);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);

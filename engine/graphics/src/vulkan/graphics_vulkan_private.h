@@ -36,6 +36,7 @@ namespace dmGraphics
     const static uint8_t MAX_VERTEX_BUFFERS            = 2;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 16;
     const static uint8_t MAX_SET_COUNT                 = 4;
+    const static uint8_t MAX_STORAGE_BUFFERS           = 4;
 
     enum VulkanResourceType
     {
@@ -251,6 +252,7 @@ namespace dmGraphics
         dmArray<ShaderResourceBinding> m_Uniforms;
         dmArray<ShaderResourceBinding> m_Inputs;
         uint16_t                       m_UniformBufferCount;
+        uint16_t                       m_StorageBufferCount;
         uint16_t                       m_TextureSamplerCount;
         uint16_t                       m_TotalUniformCount;
     };
@@ -405,6 +407,7 @@ namespace dmGraphics
         HRenderTarget                   m_CurrentRenderTarget;
         DeviceBuffer*                   m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
+        DeviceBuffer*                   m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
         Program*                        m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
         HTexture                        m_CurrentSwapchainTexture;

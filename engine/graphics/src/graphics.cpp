@@ -722,6 +722,11 @@ namespace dmGraphics
                uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
     }
 
+    bool IsUniformStorageBuffer(ShaderDesc::ShaderDataType uniform_type)
+    {
+        return uniform_type == ShaderDesc::SHADER_TYPE_STORAGE_BUFFER;
+    }
+
     bool IsTextureFormatCompressed(dmGraphics::TextureFormat format)
     {
         switch(format)
@@ -1512,6 +1517,19 @@ namespace dmGraphics
     {
         return g_functions.m_DeleteComputeProgram(prog);
     }
+    HStorageBuffer NewStorageBuffer(HContext context, uint32_t buffer_size)
+    {
+        return g_functions.m_NewStorageBuffer(context, buffer_size);
+    }
+    void DeleteStorageBuffer(HStorageBuffer storage_buffer)
+    {
+        g_functions.m_DeleteStorageBuffer(storage_buffer);
+    }
+    void SetStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t binding_index)
+    {
+        g_functions.m_SetStorageBuffer(context, storage_buffer, binding_index);
+    }
+
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
     {

@@ -93,6 +93,7 @@ namespace dmGraphics
         {
             uint16_t               m_UniformDataIndex;
             uint16_t               m_TextureUnit;
+            uint16_t               m_StorageBufferUnit;
         };
     };
 
@@ -121,6 +122,7 @@ namespace dmGraphics
     void                 SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
     bool                 IsTextureFormatCompressed(TextureFormat format);
     bool                 IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
+    bool                 IsUniformStorageBuffer(ShaderDesc::ShaderDataType uniform_type);
     void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
     const char*          TextureFormatToString(TextureFormat format);
     bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
