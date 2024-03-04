@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -102,6 +102,8 @@ int main(int argc, char *argv[])
     window_params.m_Height = 32;
     window_params.m_Title = "gdc";
     window_params.m_PrintDeviceInfo = false;
+    window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+
     dmPlatform::HWindow window = dmPlatform::NewWindow();
     dmPlatform::OpenWindow(window, window_params);
 
@@ -118,6 +120,7 @@ int main(int argc, char *argv[])
     }
 
     g_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+    dmHID::SetWindow(g_HidContext, window);
     dmHID::Init(g_HidContext);
 
 retry:

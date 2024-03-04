@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -67,6 +67,7 @@ namespace dmRender
 
     struct MaterialAttribute
     {
+        dmhash_t m_ElementIds[4];
         int32_t  m_Location;
         uint16_t m_ValueIndex;
         uint16_t m_ValueCount;
@@ -234,9 +235,14 @@ namespace dmRender
         dmhash_t m_Tags[MAX_MATERIAL_TAG_COUNT];
     };
 
+    struct TextureBinding
+    {
+        dmhash_t             m_Samplerhash;
+        dmGraphics::HTexture m_Texture;
+    };
+
     struct RenderContext
     {
-        dmGraphics::HTexture        m_Textures[RenderObject::MAX_TEXTURE_COUNT];
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
         dmScript::HContext          m_ScriptContext;
@@ -250,6 +256,7 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortBuffer;
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
+        dmArray<TextureBinding>     m_TextureBindTable;
         dmhash_t                    m_FrustumHash;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
@@ -275,7 +282,7 @@ namespace dmRender
     {
         dmArray<HRenderBuffer> m_Buffers;
         RenderBufferType       m_Type;
-        int16_t                m_BufferIndex;
+        uint16_t               m_BufferIndex;
     };
 
     void RenderTypeTextBegin(HRenderContext rendercontext, void* user_context);
@@ -289,6 +296,8 @@ namespace dmRender
     void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out);
     void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers);
 
+    void FillElementIds(char* buffer, uint32_t buffer_size, dmhash_t element_ids[4]);
+
     // Return true if the predicate tags all exist in the material tag list
     bool                            MatchMaterialTags(uint32_t material_tag_count, const dmhash_t* material_tags, uint32_t tag_count, const dmhash_t* tags);
     // Returns a hashkey that the material can use to get the list
@@ -296,7 +305,10 @@ namespace dmRender
     // Gets the list associated with a hash of all the tags (see RegisterMaterialTagList)
     void                            GetMaterialTagList(HRenderContext context, uint32_t list_hash, MaterialTagList* list);
 
-    bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
+    void    SetTextureBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HTexture texture);
+    void    SetTextureBindingByUnit(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture);
+    bool    GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
+    int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

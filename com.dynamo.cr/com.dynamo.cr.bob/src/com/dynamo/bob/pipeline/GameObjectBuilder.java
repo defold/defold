@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,16 +19,13 @@ import java.io.IOException;
 import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Set;
 import java.util.HashSet;
 
 import org.apache.commons.io.FilenameUtils;
 
-import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Vector4;
 
 import com.dynamo.bob.Builder;

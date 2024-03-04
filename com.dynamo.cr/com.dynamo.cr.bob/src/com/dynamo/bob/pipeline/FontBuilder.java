@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,10 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.awt.FontFormatException;
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.io.IOException;
 
 import com.dynamo.bob.Builder;
@@ -26,7 +22,6 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.bob.pipeline.GlyphBankBuilder;
 

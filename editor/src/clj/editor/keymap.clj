@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -94,7 +94,7 @@
            ["Meta+R" :hot-reload]
            ["Meta+Right" :end-of-line]
            ["Meta+S" :save-all]
-           ["Meta+Slash" :toggle-comment]
+           ["Meta+'/'" :toggle-comment]
            ["Meta+T" :scene-stop]
            ["Meta+U" :rebundle]
            ["Meta+Up" :beginning-of-file]
@@ -188,7 +188,7 @@
            ["Ctrl+R" :hot-reload]
            ["Ctrl+Right" :next-word]
            ["Ctrl+S" :save-all]
-           ["Ctrl+Slash" :toggle-comment]
+           ["Ctrl+'/'" :toggle-comment]
            ["Ctrl+Space" :proposals]
            ["Ctrl+T" :scene-stop]
            ["Ctrl+U" :rebundle]
@@ -296,7 +296,7 @@
            ["Ctrl+R" :hot-reload]
            ["Ctrl+Right" :next-word]
            ["Ctrl+S" :save-all]
-           ["Ctrl+Slash" :toggle-comment]
+           ["Ctrl+'/'" :toggle-comment]
            ["Ctrl+Space" :proposals]
            ["Ctrl+T" :scene-stop]
            ["Ctrl+U" :rebundle]

@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -529,12 +529,19 @@
   (get-in (g/node-value node-id :_properties) [:properties label :error]))
 
 (defn prop! [node-id label val]
-  (let [[node-id label] (resolve-prop node-id label)]
-    (g/set-property! node-id label val)))
+  (let [prop (get-in (g/node-value node-id :_properties) [:properties label])]
+    (if-let [set-fn (-> prop :edit-type :set-fn)]
+      (g/transact
+        (g/with-auto-evaluation-context evaluation-context
+          (set-fn evaluation-context node-id (:value prop) val)))
+      (let [[node-id label] (resolve-prop node-id label)]
+        (g/set-property! node-id label val)))))
 
 (defn prop-clear! [node-id label]
-  (let [[node-id label] (resolve-prop node-id label)]
-    (g/clear-property! node-id label)))
+  (if-let [clear-fn (get-in (g/node-value node-id :_properties) [:properties label :edit-type :clear-fn])]
+    (g/transact (clear-fn node-id label))
+    (let [[node-id label] (resolve-prop node-id label)]
+      (g/clear-property! node-id label))))
 
 (defn prop-read-only? [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :read-only?]))
@@ -602,10 +609,10 @@
 
 (defmacro with-prop [binding & forms]
   (let [[node-id# property# value#] binding]
-    `(let [old-value# (g/node-value ~node-id# ~property#)]
-       (g/set-property! ~node-id# ~property# ~value#)
+    `(let [old-value# (prop ~node-id# ~property#)]
+       (prop! ~node-id# ~property# ~value#)
        ~@forms
-       (g/set-property! ~node-id# ~property# old-value#))))
+       (prop! ~node-id# ~property# old-value#))))
 
 (defn make-call-logger
   "Returns a function that keeps track of its invocations. Every
@@ -1235,6 +1242,9 @@
 
 (defmethod edit-resource-node "render" [resource-node-id]
   (g/set-property resource-node-id :script nil))
+
+(defmethod edit-resource-node "render_target" [resource-node-id]
+  (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
 
 (defmethod edit-resource-node "settings" [resource-node-id]
   (update-setting resource-node-id ["liveupdate" "zip-filepath"] str \_))

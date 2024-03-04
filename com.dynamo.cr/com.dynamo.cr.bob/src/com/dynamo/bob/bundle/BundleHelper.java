@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,15 +22,10 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.net.URL;
 import java.net.ConnectException;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.text.ParseException;
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,14 +38,11 @@ import java.util.zip.ZipInputStream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.filefilter.DirectoryFileFilter;
-import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.apache.http.NoHttpResponseException;
 
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderResource;
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.MultipleCompileException.Info;
@@ -60,8 +52,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.FileUtil;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
@@ -738,7 +729,7 @@ public class BundleHelper {
             String path = resource.getPath(); // The relative path
             if (uniquePaths.contains(path)) {
                 IResource iresource = ExtenderUtil.getResource(path, resources);
-                throw new CompileExceptionError(iresource, -1, "Duplicate file in upload zip: " + resource.getAbsPath());
+                throw new CompileExceptionError(iresource, -1, "Duplicate file in upload zip: " + resource.getPath());
             }
             uniquePaths.add(path);
         }
@@ -749,7 +740,7 @@ public class BundleHelper {
 
         try {
             zipFile = File.createTempFile("build_" + sdkVersion, ".zip");
-            zipFile.deleteOnExit();
+            FileUtil.deleteOnExit(zipFile);
         } catch (IOException e) {
             throw new CompileExceptionError("Failed to create temp zip file", e.getCause());
         }
@@ -804,7 +795,7 @@ public class BundleHelper {
                         // If it's the app manifest, let's translate it back into its original name
                         if (info.resource != null && info.resource.endsWith(ExtenderClient.appManifestFilename)) {
                             for (ExtenderResource extResource : allSource) {
-                                if (extResource.getAbsPath().endsWith(info.resource)) {
+                                if (((ExtenderUtil.FSAppManifestResource)extResource).getAbsPath().endsWith(info.resource)) {
                                     issueResource = ((ExtenderUtil.FSAppManifestResource)extResource).getResource();
                                     info.message = info.message.replace(extResource.getPath(), issueResource.getPath());
                                     break;

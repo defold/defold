@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -90,7 +90,7 @@ public class ParticleLibrary {
 
     public static native void Particle_Update(Pointer context, float dt, FetchAnimationCallback callback);
 
-    public static native int Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitterIndex, ParticleVertexAttributeInfos attributeInfos, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize);
+    public static native int Particle_GenerateVertexData(Pointer context, float dt, Pointer instance, int emitterIndex, VertexAttributeInfos attributeInfos, Vector4 color, Buffer vb, int vbMaxSize, IntByReference outVbSize);
 
     public static native void Particle_RenderEmitter(Pointer context, Pointer instance, int emitterIndex, Pointer userContext, RenderInstanceCallback callback);
 
@@ -110,28 +110,31 @@ public class ParticleLibrary {
 
     public static native Pointer Particle_WriteAttributeToScratchBuffer(Pointer context, Buffer bytes, int byte_count);
 
-    public static class ParticleVertexAttributeInfo extends Structure {
+    public static class VertexAttributeInfo extends Structure {
         public long    nameHash;
         public int     semanticType;
+        public int     dataType;
         public int     coordinateSpace;
         public Pointer valuePtr;
         public int     valueByteSize;
+        public int     elementCount;
+        public boolean normalize;
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("nameHash", "semanticType", "coordinateSpace", "valuePtr", "valueByteSize");
+            return Arrays.asList("nameHash", "semanticType", "dataType", "coordinateSpace", "valuePtr", "valueByteSize", "elementCount", "normalize");
         }
     }
 
-    public static class ParticleVertexAttributeInfos extends Structure {
-        public ParticleVertexAttributeInfos() {
+    public static class VertexAttributeInfos extends Structure {
+        public VertexAttributeInfos() {
             structSize = size();
         }
 
-        public ParticleVertexAttributeInfo[] infos = new ParticleVertexAttributeInfo[8]; // ==> dmGraphics::MAX_VERTEX_STREAM_COUNT
-        public int                           vertexStride;
-        public int                           numInfos;
-        public int                           structSize;
+        public VertexAttributeInfo[] infos = new VertexAttributeInfo[8]; // ==> dmGraphics::MAX_VERTEX_STREAM_COUNT
+        public int                   vertexStride;
+        public int                   numInfos;
+        public int                   structSize;
 
         @Override
         protected List<String> getFieldOrder() {

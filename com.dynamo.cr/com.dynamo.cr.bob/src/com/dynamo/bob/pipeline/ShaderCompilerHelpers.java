@@ -1,12 +1,12 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,21 +14,16 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.File;
 import java.io.PrintWriter;
 
-import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Locale;
 import java.util.Scanner;
 import java.util.regex.Pattern;
@@ -39,14 +34,13 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.bundle.BundlerParams;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderProgramBuilder;
 import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.MurmurHash;
 
@@ -196,11 +190,11 @@ public class ShaderCompilerHelpers {
             ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
 
             File file_in_compute = File.createTempFile(FilenameUtils.getName(resourceOutput), ".cp");
-            file_in_compute.deleteOnExit();
+            FileUtil.deleteOnExit(file_in_compute);
             FileUtils.writeByteArrayToFile(file_in_compute, es3Result.output.getBytes());
 
             file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-            file_out_spv.deleteOnExit();
+            FileUtil.deleteOnExit(file_out_spv);
 
             result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
                     "-w",
@@ -243,11 +237,11 @@ public class ShaderCompilerHelpers {
 
             // compile GLSL (ES3 or Desktop 140) to SPIR-V
             File file_in_glsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".glsl");
-            file_in_glsl.deleteOnExit();
+            FileUtil.deleteOnExit(file_in_glsl);
             FileUtils.writeByteArrayToFile(file_in_glsl, shaderSource.getBytes());
 
             file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-            file_out_spv.deleteOnExit();
+            FileUtil.deleteOnExit(file_out_spv);
 
             String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
             result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
@@ -269,7 +263,7 @@ public class ShaderCompilerHelpers {
         }
 
         File file_out_spv_opt = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
-        file_out_spv_opt.deleteOnExit();
+        FileUtil.deleteOnExit(file_out_spv_opt);
 
         // Run optimization pass
         result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-opt"),
@@ -287,7 +281,7 @@ public class ShaderCompilerHelpers {
 
         // Generate reflection data
         File file_out_refl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".json");
-        file_out_refl.deleteOnExit();
+        FileUtil.deleteOnExit(file_out_refl);
 
         result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
             file_out_spv_opt.getAbsolutePath(),

@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -132,7 +132,7 @@
                                    :scale [0.0 0.0 0.0 0.0], ; Default from legacy field added by editor.protobuf/field-desc-default. Not in actual Label$LabelDesc.
                                    :blend-mode :blend-mode-alpha,
                                    :leading 1.0,
-                                   :font "/builtins/fonts/system_font.fontc",
+                                   :font "/builtins/fonts/default.fontc",
                                    :size [128.0 32.0 0.0 0.0],
                                    :tracking 0.0,
                                    :material "/builtins/fonts/label.materialc",
@@ -618,7 +618,7 @@
         (is (= "/gui/gui.a.texturesetc" (get textures "main")))
         (is (= "/graphics/atlas.a.texturesetc" (get textures "sub_main"))))
       (let [fonts (zipmap (map :name (:fonts desc)) (map :font (:fonts desc)))]
-        (is (= "/builtins/fonts/system_font.fontc" (get fonts "system_font")))
+        (is (= "/builtins/fonts/default.fontc" (get fonts "default_font")))
         (is (= "/fonts/big_score.fontc" (get fonts "sub_font")))))))
 
 (deftest build-game-project

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -88,6 +88,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
@@ -145,6 +146,7 @@ public class Project {
 
     private TextureProfiles textureProfiles;
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
+    private Set<Class<? extends IPlugin>> pluginClasses = new HashSet<>();
     private ClassLoader classLoader = null;
 
     private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
@@ -366,6 +368,13 @@ public class Project {
                     {
                         if (!klass.equals(IShaderCompiler.class)) {
                             shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
+                        }
+                    }
+
+                    if (IPlugin.class.isAssignableFrom(klass))
+                    {
+                        if (!klass.equals(IPlugin.class)) {
+                            pluginClasses.add( (Class<? extends IPlugin>) klass);
                         }
                     }
 
@@ -1375,6 +1384,60 @@ public class Project {
         return executor.submit(callable);
     }
 
+    private boolean getSpirvRequired() throws IOException, CompileExceptionError {
+        IResource appManifestResource = this.getResource("native_extension", "app_manifest", false);
+        if (appManifestResource != null && appManifestResource.exists()) {
+            Map<String, Object> yamlAppManifest = ExtenderUtil.readYaml(appManifestResource);
+            Map<String, Object> yamlPlatforms = (Map<String, Object>) yamlAppManifest.getOrDefault("platforms", null);
+
+            if (yamlPlatforms != null) {
+                String targetPlatform = this.getPlatform().toString();
+                Map<String, Object> yamlPlatform = (Map<String, Object>) yamlPlatforms.getOrDefault(targetPlatform, null);
+
+                if (yamlPlatform != null) {
+                    Map<String, Object> yamlPlatformContext = (Map<String, Object>) yamlPlatform.getOrDefault("context", null);
+
+                    if (yamlPlatformContext != null) {
+                        boolean vulkanSymbolFound = false;
+                        boolean vulkanLibraryFound = false;
+
+                        List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
+                        List<String> libs = (List<String>) yamlPlatformContext.getOrDefault("libs", new ArrayList<String>());
+
+                        for (String symbol : symbols) {
+                            if (symbol.equals("GraphicsAdapterVulkan")) {
+                                vulkanSymbolFound = true;
+                                break;
+                            }
+                        }
+
+                        for (String lib : libs) {
+                            if (lib.equals("graphics_vulkan")) {
+                                vulkanLibraryFound = true;
+                                break;
+                            }
+                        }
+
+                        return vulkanLibraryFound && vulkanSymbolFound;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
+        // Build spir-v either if:
+        //   1. If the user has specified explicitly to build or not to build with spir-v
+        //   2. The project has an app manifest with vulkan enabled
+        if (this.hasOption("debug-output-spirv")) {
+            this.setOption("output-spirv", this.option("debug-output-spirv", "false"));
+        } else {
+            this.setOption("output-spirv", getSpirvRequired() ? "true" : "false");
+        }
+    }
+
     private List<TaskResult> createAndRunTasks(IProgress monitor) throws IOException, CompileExceptionError {
         // Do early test if report files are writable before we start building
         boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
@@ -1412,6 +1475,7 @@ public class Project {
         mrep.beginTask("Reading tasks...", 1);
         TimeProfiler.start("Create tasks");
         BundleHelper.throwIfCanceled(monitor);
+        configurePreBuildProjectOptions();
         pruneSources();
         createTasks();
         validateBuildResourceMapping();
@@ -1510,6 +1574,13 @@ public class Project {
             mrep.done();
         }
 
+        List<IPlugin> plugins = new ArrayList<>();
+        for (Class<? extends IPlugin> klass : pluginClasses) {
+            IPlugin plugin = klass.getConstructor().newInstance();
+            plugin.init(this);
+            plugins.add(plugin);
+        }
+
         loop:
         for (String command : commands) {
             BundleHelper.throwIfCanceled(monitor);
@@ -1579,6 +1650,11 @@ public class Project {
             }
             TimeProfiler.stop();
         }
+
+        for (IPlugin plugin : plugins) {
+            plugin.exit(this);
+        }
+        plugins.clear();
 
         monitor.done();
         TimeProfiler.start("Save cache");

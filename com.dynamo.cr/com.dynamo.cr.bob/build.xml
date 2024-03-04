@@ -3,6 +3,7 @@
     <property name="bob.dir" value="../com.dynamo.cr.bob"/>
     <property name="classes.dir" value="../com.dynamo.cr.bob/build"/>
     <property name="common.dir" value="../com.dynamo.cr.common"/>
+    <property name="build_tools.dir" value="../../build_tools"/>
 
     <path id="classpath">
         <fileset dir="lib" includes="*.jar"/>
@@ -22,7 +23,7 @@
 
         <sequential>
             <mkdir dir="generated"/>
-            <exec executable="protoc" failonerror="true">
+            <exec executable="${env.DYNAMO_HOME}/ext/bin/${host.platform}/protoc" failonerror="true">
                 <arg value="--java_out=generated"/>
                 <arg value="-I@{dir}"/>
                 <arg value="-I${env.DYNAMO_HOME}/ext/include"/>
@@ -34,6 +35,14 @@
             </exec>
         </sequential>
     </macrodef>
+
+    <target name="get-host-platform">
+        <exec executable="python" outputproperty="host.platform">
+            <arg value="-c"/>
+            <arg value="import sys; sys.path.append('${build_tools.dir}'); import sdk; print(sdk.get_host_platform())"/>
+        </exec>
+        <echo>Host Platform: ${host.platform}</echo>
+    </target>
 
     <target name="clean">
         <delete dir="${classes.dir}"/>
@@ -51,7 +60,7 @@
         </exec>
     </target>
 
-    <target name="compile-bob-light" depends="git.revision">
+    <target name="compile-bob-light" depends="git.revision, get-host-platform">
         <mkdir dir="${classes.dir}"/>
         <!-- NOTE: We force thread-count 10 here in order to reduce latency
              Running external processes in Java is slow -->
@@ -82,6 +91,7 @@
             <proto dir="../../engine/render/proto" file="render/font_ddf.proto"/>
             <proto dir="../../engine/render/proto" file="render/material_ddf.proto"/>
             <proto dir="../../engine/render/proto" file="render/render_ddf.proto"/>
+            <proto dir="../../engine/render/proto" file="render/render_target_ddf.proto"/>
             <proto dir="../../engine/render/proto" file="render/compute_program_ddf.proto"/>
             <proto dir="../../engine/resource/proto" file="resource/liveupdate_ddf.proto"/>
             <proto dir="../../engine/resource/proto" file="resource/resource_ddf.proto"/>

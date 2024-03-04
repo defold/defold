@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -54,14 +54,19 @@
                    "mac" "macos"
                    "win" "windows"
                    "linux" "linux")
+        arch (if (and (= "macos" platform)
+                      (= "aarch64" (System/getProperty "os.arch")))
+               "arm64"
+               "x64")
         ext (case platform
               ("macos" "linux") "tar.gz"
               "windows" "zip")
         url (format
-              "https://github.com/sass/dart-sass/releases/download/%s/dart-sass-%s-%s-x64.%s"
+              "https://github.com/sass/dart-sass/releases/download/%s/dart-sass-%s-%s-%s.%s"
               version
               version
               platform
+              arch
               ext)
         extract-path (io/file packages-path "dart-sass" version)]
     (when-not (.exists extract-path)

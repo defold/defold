@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -35,6 +35,7 @@
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.ui.updater :as ui.updater]
             [schema.core :as s]
+            [util.coll :as coll]
             [util.net :as net]
             [util.time :as time])
   (:import [clojure.lang ExceptionInfo]
@@ -43,6 +44,7 @@
            [java.time Instant]
            [java.util.zip ZipInputStream]
            [javafx.beans.property StringProperty]
+           [javafx.beans.value ChangeListener]
            [javafx.event Event]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
@@ -194,9 +196,6 @@
                    :last-opened instant
                    :title title})))))))
 
-(defn- descending-order [a b]
-  (compare b a))
-
 (defn- recent-projects
   "Returns a sequence of recently opened projects. Project files that no longer
   exist will be filtered out. If the user has an older preference file that does
@@ -205,7 +204,7 @@
   the most recently opened project first."
   [prefs]
   (sort-by :last-opened
-           descending-order
+           coll/descending-order
            (if-some [timestamps-by-path (prefs/get-prefs prefs recent-projects-prefs-key nil)]
              (into [] xform-timestamps-by-path->recent-projects timestamps-by-path)
              (if-some [paths (prefs/get-prefs prefs legacy-recent-project-paths-prefs-key nil)]
@@ -598,7 +597,27 @@
          welcome-settings {:new-project {:categories (concat default-categories custom-categories)}}
          welcome-settings-load-error (or default-welcome-settings-load-error custom-welcome-settings-load-error)
          root (ui/load-fxml "welcome/welcome-dialog.fxml")
-         stage (ui/make-dialog-stage)
+         min-width 792.0
+         min-height 338.0
+         stage (doto (ui/make-dialog-stage) (.setResizable true))
+         ;; Adapted from https://stackoverflow.com/questions/57425534/how-to-limit-how-much-the-user-can-resize-a-javafx-window
+         ;; because setting minWidth/minHeight on a resizable stage does not prevent resizing the stage to a smaller size
+         _ (.addListener (.widthProperty stage)
+                         (reify ChangeListener
+                           (changed [_ _ _ v]
+                             (when (< (double v) min-width)
+                               (doto stage
+                                 (.setResizable false)
+                                 (.setWidth min-width)
+                                 (.setResizable true))))))
+         _ (.addListener (.heightProperty stage)
+                         (reify ChangeListener
+                           (changed [_ _ _ v]
+                             (when (< (double v) min-height)
+                               (doto stage
+                                 (.setResizable false)
+                                 (.setHeight min-height)
+                                 (.setResizable true))))))
          scene (Scene. root)
          last-opened-project-directory (last-opened-project-directory prefs)
          new-project-location-directory (new-project-location-directory last-opened-project-directory)

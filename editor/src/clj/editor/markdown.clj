@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -426,7 +426,7 @@
   [markdown]
   (let [parser (.build (Parser/builder))
         doc (.parse parser markdown)
-        renderer (.build (HtmlRenderer/builder))]
+        renderer (.build (.softbreak (HtmlRenderer/builder) " "))]
     (.render renderer doc)))
 
 (g/defnode MarkdownNode

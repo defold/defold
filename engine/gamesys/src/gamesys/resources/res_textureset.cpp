@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -94,8 +94,7 @@ namespace dmGameSystem
 
         uint32_t n_animations = texture_set_ddf->m_Animations.m_Count;
         tile_set->m_AnimationIds.Clear();
-        // NOTE: 37 is rather arbitrary but probably quite reasonable for most hash-table sizes
-        tile_set->m_AnimationIds.SetCapacity(37, n_animations);
+        tile_set->m_AnimationIds.SetCapacity(dmMath::Max(1U, (2*n_animations)/3), n_animations);
         for (uint32_t i = 0; i < n_animations; ++i)
         {
             dmhash_t h = dmHashString64(texture_set_ddf->m_Animations[i].m_Id);
@@ -103,12 +102,14 @@ namespace dmGameSystem
         }
 
         // This is a mapping from the single frame image names (animation ids) to the frame number
+        const uint32_t* frame_indices = texture_set_ddf->m_FrameIndices.m_Data;
         uint32_t n_image_name_hashes = texture_set_ddf->m_ImageNameHashes.m_Count;
         tile_set->m_FrameIds.SetCapacity(dmMath::Max(1U, (n_image_name_hashes*2)/3), n_image_name_hashes);
         for (uint32_t i = 0; i < n_image_name_hashes; ++i)
         {
             dmhash_t h = texture_set_ddf->m_ImageNameHashes[i];
-            tile_set->m_FrameIds.Put(h, i);
+            uint32_t frame_index = frame_indices[i];
+            tile_set->m_FrameIds.Put(h, frame_index);
         }
 
         return r;

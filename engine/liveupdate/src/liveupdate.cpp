@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,7 +16,6 @@
 #include "liveupdate_private.h"
 #include "liveupdate_verify.h"
 #include "script_liveupdate.h"
-#include "job_thread.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -29,6 +28,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/sys.h>
+#include <dlib/job_thread.h>
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/extension/extension.h>
 
@@ -946,7 +946,11 @@ namespace dmLiveUpdate
 
         dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
 
-        g_LiveUpdate.m_JobThread = dmJobThread::Create("liveupdate_jobs");
+        dmJobThread::JobThreadCreationParams job_thread_create_param;
+        job_thread_create_param.m_ThreadNames[0] = "liveupdate_jobs";
+        job_thread_create_param.m_ThreadCount    = 1;
+
+        g_LiveUpdate.m_JobThread = dmJobThread::Create(job_thread_create_param);
 
         if (g_LiveUpdate.m_JobThread) // Make the liveupdate module `nil` if it isn't available
         {

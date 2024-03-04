@@ -4,10 +4,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -76,9 +76,12 @@ excluded_files = [
     "editor/resources/templates/template.gui_script",
     "editor/resources/templates/template.render_script",
     "editor/resources/templates/template.lua",
+    "engine/resource/src/test/empty.script",
     "engine/resource/src/test/archive_data/file5.script",
     "engine/resource/src/test/archive_data/liveupdate.file6.script",
     "engine/liveupdate/src/ringbuffer.h",
+    "engine/dlib/src/remotery/lib/Remotery.c",
+    "engine/dlib/src/remotery/lib/RemoteryMetal.mm",
 ]
 
 excluded_paths = [
@@ -91,13 +94,15 @@ excluded_paths = [
     "./engine/dlib/src/lz4",
     "./engine/dlib/src/mbedtls",
     "./engine/dlib/src/stb",
+    "./engine/dlib/src/jc",
     "./engine/dlib/src/zlib",
     "./engine/dlib/src/zip",
     "./engine/glfw/tests",
     "./engine/glfw/examples",
     "./engine/lua",
+    "./engine/jni/scripts/external",
     "./engine/physics/src/box2d",
-    "./engine/sound/src/openal",
+    "./engine/sound/src/stb_vorbis",
     "./engine/script/src/bitop",
     "./engine/script/src/luasocket",
     "./com.dynamo.cr/com.dynamo.cr.bob/src/org/jagatoo",

@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1102,17 +1102,17 @@
         (fn phase-4-run-post-build-hook! [project-build-results]
           (render-progress! (progress/make-indeterminate "Executing post-build hooks..."))
           (let [platform (engine/current-platform)
-                project-build-successful? (nil? (:error project-build-results))]
+                project-build-successful (nil? (:error project-build-results))]
             (run-on-background-thread!
               (fn run-post-build-hook-on-background-thread! []
                 (extensions/execute-hook! project
                                           :on-build-finished
                                           {:exception-policy :ignore
-                                           :opts {:success project-build-successful?
+                                           :opts {:success project-build-successful
                                                   :platform platform}}))
               (fn process-post-build-hook-results-on-ui-thread! [_]
-                (if project-build-successful?
-                  (phase-5-await-engine-build! project-build-results)
+                (if project-build-successful
+                  (phase-5-await-engine-build! (assoc project-build-results :project-build-successful true))
                   (finish-with-result! project-build-results))))))
 
         phase-3-build-project!
@@ -1186,22 +1186,18 @@
       (phase-2-start-all-build-processes!))))
 
 (defn- handle-build-results! [workspace render-build-error! build-results]
-  (let [{:keys [error warning artifact-map etags]} build-results
+  (let [{:keys [error warning artifact-map etags project-build-successful]} build-results
         rendered-error (cond
                          (and error warning) (g/map->error {:causes [error warning]})
                          error error
                          warning warning)]
-    (if (some? error)
-      (do
-        (render-build-error! rendered-error)
-        false)
-      (do
-        (when rendered-error
-          (render-build-error! rendered-error))
-        (workspace/artifact-map! workspace artifact-map)
-        (workspace/etags! workspace etags)
-        (workspace/save-build-cache! workspace)
-        true))))
+    (when rendered-error
+      (render-build-error! rendered-error))
+    (when project-build-successful
+      (workspace/artifact-map! workspace artifact-map)
+      (workspace/etags! workspace etags)
+      (workspace/save-build-cache! workspace))
+    (nil? error)))
 
 (defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
   (let [project-directory (io/file (workspace/project-path workspace))

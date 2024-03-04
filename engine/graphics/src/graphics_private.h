@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,6 +16,8 @@
 #define DM_GRAPHICS_PRIVATE_H
 
 #include <stdint.h>
+#include <dlib/mutex.h>
+#include <dlib/index_pool.h>
 #include "graphics.h"
 
 namespace dmGraphics
@@ -47,6 +49,27 @@ namespace dmGraphics
         uint8_t      m_StreamCount;
     };
 
+    struct VertexDeclaration
+    {
+        struct Stream
+        {
+            dmhash_t m_NameHash;
+            int16_t  m_Location;
+            uint16_t m_Size;
+            uint16_t m_Offset;
+            Type     m_Type;
+            bool     m_Normalize;
+        };
+
+        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
+        dmhash_t           m_PipelineHash; // Vulkan
+        uint16_t           m_StreamCount;
+        uint16_t           m_Stride;
+        VertexStepFunction m_StepFunction;
+        HProgram           m_BoundForProgram;     // OpenGL
+        uint32_t           m_ModificationVersion; // OpenGL
+    };
+
     struct UniformBlockMember
     {
         char*                      m_Name;
@@ -73,6 +96,20 @@ namespace dmGraphics
         };
     };
 
+    struct SetTextureAsyncParams
+    {
+        HTexture      m_Texture;
+        TextureParams m_Params;
+    };
+
+    struct SetTextureAsyncState
+    {
+        dmMutex::HMutex                m_Mutex;
+        dmArray<SetTextureAsyncParams> m_Params;
+        dmIndexPool16                  m_Indices;
+        dmArray<HTexture>              m_PostDeleteTextures;
+    };
+
     uint32_t             GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
     uint32_t             GetGraphicsTypeDataSize(Type type);
     const char*          GetGraphicsTypeLiteral(Type type);
@@ -90,6 +127,13 @@ namespace dmGraphics
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
     Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
+
+    void                  InitializeSetTextureAsyncState(SetTextureAsyncState& state);
+    void                  ResetSetTextureAsyncState(SetTextureAsyncState& state);
+    SetTextureAsyncParams GetSetTextureAsyncParams(SetTextureAsyncState& state, uint16_t index);
+    uint16_t              PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params);
+    void                  ReturnSetTextureAsyncIndex(SetTextureAsyncState& state, uint16_t index);
+    void                  PushSetTextureAsyncDeleteTexture(SetTextureAsyncState& state, HTexture texture);
 
     static inline void ClearTextureParamsData(TextureParams& params)
     {
@@ -118,7 +162,10 @@ namespace dmGraphics
     }
 
     // Test only functions:
+    void     ResetDrawCount();
     uint64_t GetDrawCount();
+    void     GetTextureFilters(HContext context, uint32_t unit, TextureFilter& min_filter, TextureFilter& mag_filter);
+    void     EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
     void     SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderClass shader_class, ShaderDesc::Language language);
 }
 

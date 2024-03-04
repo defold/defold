@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.pipeline.texture-set-gen
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.image-util :as image-util]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -22,6 +23,7 @@
   (:import [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$LayoutResult TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Rect TextureSetLayout$Layout]
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
            [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet$Builder]
            [com.dynamo.gamesys.proto Tile$ConvexHull Tile$Playback Tile$SpriteTrimmingMode TextureSetProto$SpriteGeometry]
            [editor.types Image]
@@ -36,14 +38,14 @@
 
 (defn- Rect->map
   [^TextureSetLayout$Rect rect]
-  {:path (.id rect)
-   :index (.index rect)
-   :x (.x rect)
-   :y (.y rect)
-   :page (.page rect)
-   :width (.width rect)
-   :height (.height rect)
-   :rotated (.rotated rect)})
+  {:path (.getId rect)
+   :index (.getIndex rect)
+   :x (.getX rect)
+   :y (.getY rect)
+   :page (.getPage rect)
+   :width (.getWidth rect)
+   :height (.getHeight rect)
+   :rotated (.getRotated rect)})
 
 (defn- Metrics->map
   [^TileSetUtil$Metrics metrics]
@@ -82,6 +84,15 @@
 (defn- sprite-trim-mode->enum
   [sprite-trim-mode]
   (protobuf/val->pb-enum Tile$SpriteTrimmingMode sprite-trim-mode))
+
+(defn resource-id
+  ([resource rename-patterns]
+   (resource-id resource nil rename-patterns))
+  ([resource animation-name rename-patterns]
+   (let [id (cond->> (resource/base-name resource) animation-name (str animation-name "/"))]
+     (if rename-patterns
+       (try (AtlasUtil/replaceStrings rename-patterns id) (catch Exception _ id))
+       id))))
 
 (defn- texture-set-layout-rect
   ^TextureSetLayout$Rect [{:keys [path width height]}]
@@ -142,6 +153,9 @@
                               (let [img (first @anim-imgs-atom)]
                                 (swap! anim-imgs-atom rest)
                                 (img-to-index img)))
+                            ; This generator is run with fake animation (i.e. no valid id's)
+                            ; See atlas.clj produce-texture-set-data for the patchup details
+                            (getFrameId [_this] "")
                             (rewind [_this]
                               (reset! anims-atom animations)
                               (reset! anim-imgs-atom [])))
@@ -249,13 +263,15 @@
                           (let [index (first @anim-indices-atom)]
                             (swap! anim-indices-atom rest)
                             index))
+                        ; The tilesets don't support lookup by image name hash, so we default to ""==0
+                        (getFrameId [_this] "")
                         (rewind [_this]
                           (reset! anims-atom animations)
                           (reset! anim-indices-atom [])))
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
         sprite-trim-mode (sprite-trim-mode->enum (:sprite-trim-mode tile-source-attributes))
         sprite-geometries (map (fn [^TextureSetLayout$Rect image-rect]
-                                 (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
+                                 (let [sub-image (.getSubimage buffered-image (.getX image-rect) (.getY image-rect) (.getWidth image-rect) (.getHeight image-rect))]
                                    (TextureSetGenerator/buildConvexHull sub-image sprite-trim-mode)))
                                image-rects)
         use-geometries (if (not= :sprite-trim-mode-off (:sprite-trim-mode tile-source-attributes)) 1 0)

@@ -1,4 +1,4 @@
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -418,9 +418,9 @@ def default_flags(self):
             extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']),'usr/lib/clang/%s/lib/darwin' % self.sdkinfo['xcode-clang']['version']),
                                 '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), 'usr/lib/arc/libarclite_iphoneos.a')]
         else:
+            #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
             extra_linkflags += ['-fobjc-link-runtime']
 
-        #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
         if 'x86_64' == build_util.get_target_architecture():

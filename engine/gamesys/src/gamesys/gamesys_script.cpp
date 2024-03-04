@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -35,6 +35,8 @@
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
 #include "scripts/script_image.h"
+#include "scripts/script_sys_gamesys.h"
+#include "scripts/script_camera.h"
 #include "components/comp_gui.h"
 
 #include <dmsdk/gamesys/script.h>
@@ -129,6 +131,7 @@ namespace dmGameSystem
         bool result = true;
 
         ScriptBufferRegister(context);
+        ScriptCameraRegister(context);
         ScriptLabelRegister(context);
         ScriptParticleFXRegister(context);
         ScriptTileMapRegister(context);
@@ -142,6 +145,7 @@ namespace dmGameSystem
         ScriptWindowRegister(context);
         ScriptCollectionProxyRegister(context);
         ScriptImageRegister(context);
+        ScriptSysGameSysRegister(context);
 
         assert(top == lua_gettop(L));
         return result;
@@ -154,6 +158,12 @@ namespace dmGameSystem
         ScriptPhysicsFinalize(context);
         ScriptResourceFinalize(context);
         ScriptWindowFinalize(context);
+        ScriptSysGameSysFinalize(context);
+    }
+
+    void UpdateScriptLibs(const ScriptLibContext& context)
+    {
+        ScriptSysGameSysUpdate(context);
     }
 
     dmGameObject::HInstance CheckGoInstance(lua_State* L) {

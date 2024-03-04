@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -2206,30 +2206,6 @@ namespace dmGameObject
             else if (descriptor == dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor)
             {
                 dmGameObject::ReleaseInputFocus(collection, instance);
-                return;
-            }
-            else if (descriptor == dmGameObjectDDF::RequestTransform::m_DDFDescriptor)
-            {
-                dmGameObjectDDF::TransformResponse response;
-                response.m_Position = dmGameObject::GetPosition(instance);
-                response.m_Rotation = dmGameObject::GetRotation(instance);
-                response.m_Scale = dmGameObject::GetUniformScale(instance);
-                response.m_Scale3 = dmGameObject::GetScale(instance);
-                response.m_WorldPosition = dmGameObject::GetWorldPosition(instance);
-                response.m_WorldRotation = dmGameObject::GetWorldRotation(instance);
-                response.m_WorldScale = dmGameObject::GetWorldUniformScale(instance);
-                response.m_WorldScale3 = dmGameObject::GetWorldScale(instance);
-                dmhash_t message_id = dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_NameHash;
-                uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::TransformResponse::m_DDFDescriptor;
-                uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
-                if (dmMessage::IsSocketValid(message->m_Sender.m_Socket))
-                {
-                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData1, gotr_descriptor, &response, data_size, 0);
-                    if (message_result != dmMessage::RESULT_OK)
-                    {
-                        dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name, message_result);
-                    }
-                }
                 return;
             }
             else if (descriptor == dmGameObjectDDF::SetParent::m_DDFDescriptor)

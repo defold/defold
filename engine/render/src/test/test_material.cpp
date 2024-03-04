@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -168,7 +168,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     ASSERT_EQ(1, attributes[2].m_ElementCount);
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[2].m_DataType);
 
-    dmGraphics::VertexAttribute attribute_overrides[3];
+    dmGraphics::VertexAttribute attribute_overrides[3] = {};
 
     // Reconfigure all streams and set new data
     uint8_t bytes_one[] = { 127, 32 };

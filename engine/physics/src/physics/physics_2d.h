@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -104,6 +104,13 @@ namespace dmPhysics
         b2Vec2 pp = p;
         pp *= scale;
         return b2Mul(t, pp);
+    }
+
+    inline b2Vec2 FromTransformScaleB2(const b2Transform& t, float inv_scale, const b2Vec2& p)
+    {
+        b2Vec2 pp = p;
+        pp *= inv_scale;
+        return b2MulT(t, pp);
     }
 }
 

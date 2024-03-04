@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -129,27 +129,6 @@ namespace dmGraphics
 
         VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, uint32_t descriptor_count, VkDescriptorSet** vk_descriptor_set_out);
         void     Reset(VkDevice vk_device);
-    };
-
-    struct VertexDeclaration
-    {
-        struct Stream
-        {
-            uint64_t m_NameHash;
-            uint16_t m_Location;
-            uint16_t m_Offset;
-            VkFormat m_Format;
-
-            // TODO: Not sure how to deal with normalizing
-            //       a vertex stream in VK.
-            // bool        m_Normalize;
-        };
-
-        uint64_t           m_Hash;
-        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
-        VertexStepFunction m_StepFunction;
-        uint16_t           m_StreamCount;
-        uint16_t           m_Stride;
     };
 
     struct ScratchBuffer

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,12 +24,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -48,8 +44,6 @@ import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.samskivert.mustache.Mustache;
-import com.samskivert.mustache.Template;
 
 @BundlerParams(platforms = {Platform.JsWeb, Platform.WasmWeb})
 public class HTML5Bundler implements IBundler {
@@ -165,6 +159,17 @@ public class HTML5Bundler implements IBundler {
             subdivisions = new ArrayList<File>();
         }
 
+        private static String insertNumberBeforeExtension(String filePath, int number) {
+            int dotIndex = filePath.indexOf('.');
+            if (dotIndex > 0) {
+                String baseName = filePath.substring(0, dotIndex);
+                String extension = filePath.substring(dotIndex);
+                return baseName + number + extension;
+            } else {
+                return filePath + number;
+            }
+        }
+
         void performSplit(File destDir) throws IOException {
             InputStream input = null;
             try {
@@ -176,8 +181,7 @@ public class HTML5Bundler implements IBundler {
                     byte[] readBuffer = new byte[thisRead];
                     long bytesRead = input.read(readBuffer, 0, thisRead);
                     assert(bytesRead == thisRead);
-
-                    File output = new File(destDir, source.getName() + subdivisions.size());
+                    File output = new File(destDir, insertNumberBeforeExtension(source.getName(), subdivisions.size()));
                     writeChunk(output, readBuffer);
                     subdivisions.add(output);
 

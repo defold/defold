@@ -1,5 +1,21 @@
+// Copyright 2020-2024 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+// 
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+// 
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 
 #include <string>
+
+#include <dlib/log.h>
 
 #include "platform_window.h"
 #include "platform_window_constants.h"
@@ -9,10 +25,13 @@ namespace dmPlatform
     struct Window
     {
         WindowParams m_CreateParams;
-        bool         m_DeviceStates[DEVICE_STATE_KEYBOARD_COUNT];
         uint32_t     m_WindowWidth;
         uint32_t     m_WindowHeight;
-        uint32_t     m_WindowOpened : 1;
+        uint32_t     m_WindowOpened             : 1;
+        uint32_t     m_StateCursor              : 1;
+        uint32_t     m_StateCursorLock          : 1;
+        uint32_t     m_StateCursorAccelerometer : 1;
+        uint32_t     m_StateKeyboard            : 3;
     };
 
     HWindow NewWindow()
@@ -100,12 +119,51 @@ namespace dmPlatform
 
     void SetDeviceState(HWindow window, DeviceState state, bool op1, bool op2)
     {
-        window->m_DeviceStates[(int) state] = op1;
+        switch(state)
+        {
+            case DEVICE_STATE_CURSOR:
+                window->m_StateCursor = op1;
+                window->m_StateCursorLock = !op1;
+                break;
+            case DEVICE_STATE_CURSOR_LOCK:
+                // We don't distinguish between locked state and visible state on the null implementation
+                break;
+            case DEVICE_STATE_ACCELEROMETER:
+                window->m_StateCursorAccelerometer = op1;
+                break;
+            case DEVICE_STATE_KEYBOARD_DEFAULT:
+                window->m_StateKeyboard = op1 ? 1 : 0;
+                break;
+            case DEVICE_STATE_KEYBOARD_NUMBER_PAD:
+                window->m_StateKeyboard = op1 ? 2 : 0;
+                break;
+            case DEVICE_STATE_KEYBOARD_EMAIL:
+                window->m_StateKeyboard = op1 ? 3 : 0;
+                break;
+            case DEVICE_STATE_KEYBOARD_PASSWORD:
+                window->m_StateKeyboard = op1 ? 4 : 0;
+                break;
+            default:
+                dmLogWarning("Unable to set device state (%d), unknown state.", (int) state);
+                break;
+        }
     }
 
     bool GetDeviceState(HWindow window, DeviceState state)
     {
-        return window->m_DeviceStates[(int) state];
+        switch(state)
+        {
+            case DEVICE_STATE_CURSOR:              return window->m_StateCursor;
+            case DEVICE_STATE_CURSOR_LOCK:         return window->m_StateCursorLock;
+            case DEVICE_STATE_ACCELEROMETER:       return window->m_StateCursorAccelerometer;
+            case DEVICE_STATE_KEYBOARD_DEFAULT:    return window->m_StateKeyboard == 1;
+            case DEVICE_STATE_KEYBOARD_NUMBER_PAD: return window->m_StateKeyboard == 2;
+            case DEVICE_STATE_KEYBOARD_EMAIL:      return window->m_StateKeyboard == 3;
+            case DEVICE_STATE_KEYBOARD_PASSWORD:   return window->m_StateKeyboard == 4;
+            default:
+                dmLogWarning("Unable to set device state (%d), unknown state.", (int) state);
+                break;
+        }
     }
 
     int32_t TriggerCloseCallback(HWindow window)

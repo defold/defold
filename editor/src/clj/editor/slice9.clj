@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -108,8 +108,8 @@
 
 (defn vertex-data
   [{:keys [width height tex-coords] :as _frame} size slice9 pivot]
-  (let [^double texture-width (or width 1.0)
-        ^double texture-height (or height 1.0)
+  (let [^double texture-width (or width (first size) 1.0)
+        ^double texture-height (or height (second size) 1.0)
         ;; Sample tex-coords if anim from tile source:
         ;;
         ;;  no flip:  [[0.0 0.140625] [0.0 1.0] [0.5566406 1.0] [0.5566406 0.140625]]   TL BL BR TR     T-B-B-T L-L-R-R

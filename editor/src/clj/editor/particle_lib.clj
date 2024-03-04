@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,8 +18,8 @@
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [util.murmur :as murmur])
-  (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback ParticleLibrary$FetchAnimationResult ParticleLibrary$InstanceStats ParticleLibrary$ParticleVertexAttributeInfo ParticleLibrary$ParticleVertexAttributeInfos ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$SemanticType]
+  (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback ParticleLibrary$FetchAnimationResult ParticleLibrary$InstanceStats ParticleLibrary$VertexAttributeInfo ParticleLibrary$VertexAttributeInfos ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.jogamp.common.nio Buffers]
            [com.sun.jna Pointer]
@@ -167,7 +167,8 @@
     :semantic-type-position Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_POSITION_VALUE
     :semantic-type-texcoord Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_TEXCOORD_VALUE
     :semantic-type-page-index Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_PAGE_INDEX_VALUE
-    :semantic-type-color Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_COLOR_VALUE))
+    :semantic-type-color Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_COLOR_VALUE
+    :semantic-type-normal Graphics$VertexAttribute$SemanticType/SEMANTIC_TYPE_NORMAL_VALUE))
 
 (defn- coordinate-space->int [coordinate-space]
   (case coordinate-space
@@ -175,27 +176,41 @@
     :coordinate-space-local Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE
     Graphics$CoordinateSpace/COORDINATE_SPACE_LOCAL_VALUE))
 
+(defn- data-type->int [data-type]
+  (case data-type
+    :type-byte Graphics$VertexAttribute$DataType/TYPE_BYTE_VALUE
+    :type-unsigned-byte Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_BYTE_VALUE
+    :type-short Graphics$VertexAttribute$DataType/TYPE_SHORT_VALUE
+    :type-unsigned-short Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_SHORT_VALUE
+    :type-int  Graphics$VertexAttribute$DataType/TYPE_INT_VALUE
+    :type-unsigned-int Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_INT_VALUE
+    :type-float Graphics$VertexAttribute$DataType/TYPE_FLOAT_VALUE))
+
 (defn- attribute-info->particle-attribute-info [^Pointer context attribute-info vertex-attribute-bytes]
   (let [attribute-name-hash (murmur/hash64 (:name attribute-info))
         attribute-semantic-type (semantic-type->int (:semantic-type attribute-info))
         attribute-coordinate-space (coordinate-space->int (:coordinate-space attribute-info))
+        attribute-data-type (data-type->int (:data-type attribute-info))
         attribute-byte-size (graphics/attribute-values+data-type->byte-size (:values attribute-info) (:data-type attribute-info))
         attribute-bytes (attribute-name-key->byte-buffer (:name-key attribute-info) vertex-attribute-bytes)
         attribute-bytes-count (if (nil? attribute-bytes)
                                 0
                                 (.capacity attribute-bytes))
-        particle-attribute-info (ParticleLibrary$ParticleVertexAttributeInfo.)
+        particle-attribute-info (ParticleLibrary$VertexAttributeInfo.)
         context-attribute-scratch-ptr (ParticleLibrary/Particle_WriteAttributeToScratchBuffer context attribute-bytes attribute-bytes-count)]
     (set! (. particle-attribute-info nameHash) attribute-name-hash)
     (set! (. particle-attribute-info semanticType) attribute-semantic-type)
+    (set! (. particle-attribute-info dataType) attribute-data-type)
     (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
     (set! (. particle-attribute-info valuePtr) context-attribute-scratch-ptr)
     (set! (. particle-attribute-info valueByteSize) attribute-byte-size)
+    (set! (. particle-attribute-info elementCount) (:element-count attribute-info))
+    (set! (. particle-attribute-info normalize) (boolean (:normalize attribute-info)))
     particle-attribute-info))
 
 (defn- make-attribute-infos [^Pointer context vertex-description attribute-infos vertex-attribute-bytes]
   (let [vertex-stride (:size vertex-description)
-        infos (ParticleLibrary$ParticleVertexAttributeInfos.)
+        infos (ParticleLibrary$VertexAttributeInfos.)
         num-attribute-infos (count attribute-infos)]
     (ParticleLibrary/Particle_ResetAttributeScratchBuffer context)
     (doseq [i (range num-attribute-infos)]

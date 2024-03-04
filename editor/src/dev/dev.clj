@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,19 +18,25 @@
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.changes-view :as changes-view]
+            [editor.collection :as collection]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
             [editor.defold-project :as project]
+            [editor.game-object :as game-object]
+            [editor.math :as math]
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.util :as eutil]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
             [internal.util :as util]
-            [util.coll :refer [pair]])
-  (:import [internal.graph.types Arc]
+            [util.coll :as coll :refer [pair]])
+  (:import [com.defold.util WeakInterner]
+           [internal.graph.types Arc]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
            [javafx.stage Window]))
@@ -72,6 +78,74 @@
        first))
 
 (def sel (comp first selection))
+
+(defn- throw-invalid-component-resource-node-id-exception [basis node-id]
+  (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
+                  {:node-id node-id
+                   :node-type (g/node-type* basis node-id)})))
+
+(defn- validate-component-resource-node-id
+  ([node-id]
+   (validate-component-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   (if (and (g/node-instance? basis resource-node/ResourceNode node-id)
+            (when-some [resource-type (resource/resource-type (resource-node/resource basis node-id))]
+              (contains? (:tags resource-type) :component)))
+     node-id
+     (throw-invalid-component-resource-node-id-exception basis node-id))))
+
+(defn to-component-resource-node-id
+  ([node-id]
+   (to-component-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [resource-node/ResourceNode
+                                                  game-object/EmbeddedComponent
+                                                  game-object/ReferencedComponent])
+     resource-node/ResourceNode
+     (validate-component-resource-node-id basis node-id)
+
+     game-object/EmbeddedComponent
+     (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :embedded-resource-id))
+
+     game-object/ReferencedComponent
+     (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :source-resource))
+
+     :else
+     (throw-invalid-component-resource-node-id-exception basis node-id))))
+
+(defn to-game-object-node-id
+  ([node-id]
+   (to-game-object-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [game-object/GameObjectNode
+                                                  collection/GameObjectInstanceNode])
+     game-object/GameObjectNode
+     node-id
+
+     collection/GameObjectInstanceNode
+     (g/node-feeding-into basis node-id :source-resource)
+
+     :else
+     (throw (ex-info "The specified node cannot be resolved to a GameObjectNode."
+                     {:node-id node-id
+                      :node-type (g/node-type* basis node-id)})))))
+
+(defn to-collection-node-id
+  ([node-id]
+   (to-collection-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [collection/CollectionNode
+                                                  collection/CollectionInstanceNode])
+     collection/CollectionNode
+     node-id
+
+     collection/CollectionInstanceNode
+     (g/node-feeding-into basis node-id :source-resource)
+
+     :else
+     (throw (ex-info "The specified node cannot be resolved to a CollectionNode."
+                     {:node-id node-id
+                      :node-type (g/node-type* basis node-id)})))))
 
 (defn prefs []
   (prefs/make-prefs "defold"))
@@ -611,3 +685,72 @@
                            :node-count (node-type-freqs node-type)})
                         dangling-outputs)))
          pprint/print-table)))
+
+(defn weak-interner-info [^WeakInterner weak-interner]
+  (into {}
+        (map (fn [[key value]]
+               (let [keyword-key (keyword key)]
+                 (pair keyword-key
+                       (case keyword-key
+                         :hash-table (mapv (fn [entry-info]
+                                             (when entry-info
+                                               (into {}
+                                                     (map (fn [[key value]]
+                                                            (let [keyword-key (keyword key)]
+                                                              (pair keyword-key
+                                                                    (case keyword-key
+                                                                      :status (keyword value)
+                                                                      value)))))
+                                                     entry-info)))
+                                           value)
+                         value)))))
+        (.getDebugInfo weak-interner)))
+
+(defn weak-interner-stats [^WeakInterner weak-interner]
+  (let [info (weak-interner-info weak-interner)
+        hash-table (:hash-table info)
+        entry-count (:count info)
+        capacity (count hash-table)
+        occupancy-factor (/ (double entry-count) (double capacity))
+
+        next-capacity
+        (util/first-where
+          #(< capacity %)
+          (:growth-sequence info))
+
+        attempt-frequencies
+        (->> hash-table
+             (keep :attempt)
+             (frequencies)
+             (into (sorted-map-by coll/descending-order)))
+
+        elapsed-nanosecond-values
+        (keep :elapsed hash-table)
+
+        median-elapsed-nanoseconds
+        (if (empty? elapsed-nanosecond-values)
+          0
+          (->> elapsed-nanosecond-values
+               (math/median)
+               (long)))
+
+        max-elapsed-nanoseconds
+        (if (empty? elapsed-nanosecond-values)
+          0
+          (->> elapsed-nanosecond-values
+               (reduce max Long/MIN_VALUE)))]
+
+    {:count entry-count
+     :capacity capacity
+     :next-capacity next-capacity
+     :growth-threshold (:growth-threshold info)
+     :occupancy-factor (math/round-with-precision occupancy-factor math/precision-general)
+     :median-elapsed-nanoseconds median-elapsed-nanoseconds
+     :max-elapsed-nanoseconds max-elapsed-nanoseconds
+     :attempt-frequencies attempt-frequencies}))
+
+(defn endpoint-interner-stats []
+  ;; Trigger a GC and give it a moment to clear out unused weak references.
+  (System/gc)
+  (Thread/sleep 500)
+  (weak-interner-stats gt/endpoint-interner))

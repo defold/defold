@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -443,7 +443,7 @@
                 "design" ["atlas" "collection" "collisionobject" "cubemap" "dae"
                           "font" "go" "gui" "label" "model" "particlefx"
                           "spinemodel" "spinescene" "sprite" "tilemap"
-                          "tilesource"]
+                          "tilesource" "render_target"]
                 "property" ["animationset" "camera" "collectionfactory"
                             "collectionproxy" "display_profiles" "factory"
                             "gamepads" "input_binding" "material" "project"

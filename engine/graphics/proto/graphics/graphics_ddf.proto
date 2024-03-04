@@ -43,6 +43,8 @@ message VertexAttribute
         SEMANTIC_TYPE_TEXCOORD   = 3;
         SEMANTIC_TYPE_PAGE_INDEX = 4;
         SEMANTIC_TYPE_COLOR      = 5;
+        SEMANTIC_TYPE_NORMAL     = 6;
+        SEMANTIC_TYPE_TANGENT    = 7;
     }
 
     message LongValues
@@ -71,6 +73,15 @@ message VertexAttribute
         DoubleValues double_values = 9;  // Saved floating point values (project files only)
         bytes        binary_values = 10 [(runtime_only) = true]; // Packed binary representation of the input values (engine only)
     }
+}
+
+enum DepthStencilFormat
+{
+    DEPTH_STENCIL_FORMAT_D32F     = 1;
+    DEPTH_STENCIL_FORMAT_D32F_S8U = 2;
+    DEPTH_STENCIL_FORMAT_D16U_S8U = 3;
+    DEPTH_STENCIL_FORMAT_D24U_S8U = 4;
+    DEPTH_STENCIL_FORMAT_S8U      = 5;
 }
 
 message TextureImage

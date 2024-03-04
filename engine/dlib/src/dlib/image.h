@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -43,10 +43,11 @@ namespace dmImage
      * @param buffer image buffer
      * @param buffer_size image buffer size
      * @param premult premultiply alpha or not
+     * @param flip_vertically flip the image vertically
      * @param image output
      * @return RESULT_OK on success
      */
-    Result Load(const void* buffer, uint32_t buffer_size, bool premult, HImage image);
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, HImage image);
 
     /**
      * Free loaded image

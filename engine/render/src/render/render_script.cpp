@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1262,11 +1262,32 @@ namespace dmRender
             {
                 render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
             }
+            else if (dmScript::IsHash(L, 1) || lua_isstring(L, 1))
+            {
+                dmhash_t rt_id                  = dmScript::CheckHashOrString(L, 1);
+                RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
+
+                if (render_resource == 0x0)
+                {
+                    char str[128];
+                    char buffer[256];
+                    dmSnPrintf(buffer, sizeof(buffer), "Could not find render target '%s' %llu",
+                        dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long) rt_id); // since lua doesn't support proper format arguments
+                    return DM_LUA_ERROR("%s", buffer);
+                }
+
+                if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
+                {
+                    return DM_LUA_ERROR("Render resource is not a render target");
+                }
+
+                render_target = (dmGraphics::HRenderTarget) render_resource->m_Resource;
+            }
             else
             {
                 if(!lua_isnil(L, 1) && luaL_checkint(L, 1) != 0)
                 {
-                    return luaL_error(L, "Invalid render target supplied to %s.set_render_target.", RENDER_SCRIPT_LIB_NAME);
+                    return DM_LUA_ERROR("Invalid render target supplied to %s.set_render_target.", RENDER_SCRIPT_LIB_NAME);
                 }
             }
         }
@@ -1292,7 +1313,7 @@ namespace dmRender
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, render_target, transient_buffer_types)))
             return 0;
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     /* DEPRECATED. NO API DOC GENERATED.
@@ -1418,15 +1439,25 @@ namespace dmRender
         return 0;
     }
 
-    /*# enables a texture for a render target
+    /*# sets a texture to the render state
      *
-     * Sets the specified render target's specified buffer to be
-     * used as texture with the specified unit.
-     * A material shader can then use the texture to sample from.
+     * Sets the specified texture handle for a render target attachment or a regular texture
+     * that should be used for rendering. The texture can be bound to either a texture unit
+     * or to a sampler name by a hash or a string.
+     * A texture can be bound to multiple units and sampler names at the same time,
+     * the actual binding will be applied to the shaders when a shader program is bound.
+     *
+     * When mixing binding using both units and sampler names, you might end up in situations
+     * where two different textures will be applied to the same bind location in the shader.
+     * In this case, the texture set to the named sampler will take precedence over the unit.
+     * 
+     * Note that you can bind multiple sampler names to the same texture, in case you want to reuse
+     * the same texture for differnt use-cases. It is however recommended that you use the same name
+     * everywhere for the textures that should be shared across different materials.
      *
      * @name render.enable_texture
-     * @param unit [type:number] texture unit to enable texture for
-     * @param render_target [type:handle] render target or texture from which to enable the specified texture unit
+     * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash for the sampler name that the texture should be bound to
+     * @param handle_or_name [type:texture|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
      * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `render.BUFFER_COLOR_BIT`. These values are supported:
      *
      * - `render.BUFFER_COLOR_BIT`
@@ -1463,74 +1494,112 @@ namespace dmRender
      *     render.draw(self.my_pred)
      * end
      * ```
+     *
+     * ```lua
+     * function update(self, dt)
+     *     -- bind a texture to the texture unit 0
+     *     render.enable_texture(0, self.my_texture_handle)
+     *     -- bind the same texture to a named sampler
+     *     render.enable_texture("my_texture_sampler", self.my_texture_handle)
+     * end
+     * ```
      */
     int RenderScript_EnableTexture(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        dmhash_t sampler_hash   = 0;
+        uint32_t unit           = 0;
 
-        uint32_t unit = luaL_checkinteger(L, 1);
-        if (lua_isnumber(L, 2))
+        if (lua_isnumber(L, 1))
         {
-            dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
-            dmGraphics::AssetType asset_type      = dmGraphics::GetAssetType(asset_handle);
-            dmGraphics::HTexture texture          = 0;
-
-            if (!dmGraphics::IsAssetHandleValid(i->m_RenderContext->m_GraphicsContext, asset_handle))
-            {
-                char buf[128];
-                return luaL_error(L, "Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
-            }
-
-            if (asset_type == dmGraphics::ASSET_TYPE_RENDER_TARGET)
-            {
-                dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
-                if (lua_isnumber(L, 3))
-                {
-                    buffer_type = CheckBufferType(L, 3);
-                }
-
-                texture = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
-
-                if (texture == 0)
-                {
-                    char buf[128];
-                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type (type=%s).",
-                        AssetHandleToString(asset_handle, buf, sizeof(buf)), dmGraphics::GetBufferTypeLiteral(buffer_type));
-                }
-            }
-            else if (asset_type == dmGraphics::ASSET_TYPE_TEXTURE)
-            {
-                texture = (dmGraphics::HTexture) asset_handle;
-            }
-
-            // Texture can potentially still be zero if it's an attachment texture
-            if(texture != 0)
-            {
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, texture)))
-                {
-                    return 0;
-                }
-                else
-                {
-                    return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-                }
-            }
-
-            char buf[128];
-            return luaL_error(L, "Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+            unit = lua_tointeger(L, 1);
         }
         else
         {
-            return luaL_error(L, "%s.enable_texture(unit, handle, buffer_type) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
+            sampler_hash = dmScript::CheckHashOrString(L, 1);
         }
+
+        dmGraphics::HAssetHandle asset_handle;
+        dmGraphics::AssetType asset_type;
+
+        if (lua_isnumber(L, 2))
+        {
+            asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
+            asset_type   = dmGraphics::GetAssetType(asset_handle);
+        }
+        else if (dmScript::IsHash(L, 2) || lua_isstring(L, 2))
+        {
+            dmhash_t rt_id                  = dmScript::CheckHashOrString(L, 2);
+            RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
+
+            if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
+            {
+                return DM_LUA_ERROR("Render resource is not a render target");
+            }
+
+            asset_handle = (dmGraphics::HRenderTarget) render_resource->m_Resource;
+            asset_type   = dmGraphics::ASSET_TYPE_RENDER_TARGET;
+        }
+        else
+        {
+            return DM_LUA_ERROR("%s.enable_texture(unit, handle, buffer_type) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
+        }
+
+        if (!dmGraphics::IsAssetHandleValid(i->m_RenderContext->m_GraphicsContext, asset_handle))
+        {
+            char buf[128];
+            return DM_LUA_ERROR("Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+        }
+
+        dmGraphics::HTexture texture = 0;
+
+        if (asset_type == dmGraphics::ASSET_TYPE_RENDER_TARGET)
+        {
+            dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            if (lua_isnumber(L, 3))
+            {
+                buffer_type = CheckBufferType(L, 3);
+            }
+
+            texture = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
+
+            if (texture == 0)
+            {
+                char buf[128];
+                return DM_LUA_ERROR("Render target '%s' does not have a texture for the specified buffer type (type=%s).",
+                    AssetHandleToString(asset_handle, buf, sizeof(buf)), dmGraphics::GetBufferTypeLiteral(buffer_type));
+            }
+        }
+        else if (asset_type == dmGraphics::ASSET_TYPE_TEXTURE)
+        {
+            texture = (dmGraphics::HTexture) asset_handle;
+        }
+
+        // Texture can potentially still be zero if it's an attachment texture
+        if(texture != 0)
+        {
+            if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, sampler_hash, unit, texture)))
+            {
+                return 0;
+            }
+            else
+            {
+                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            }
+        }
+
+        char buf[128];
+        return DM_LUA_ERROR("Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
     }
 
-    /*# disables a texture for a render target
+    /*# disables a texture on the render state
      *
-     * Disables a texture unit for a render target that has previourly been enabled.
+     * Disables a texture that has previourly been enabled.
      *
      * @name render.disable_texture
-     * @param unit [type:number] texture unit to disable
+     * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash that should be disabled
      * @examples
      *
      * ```lua
@@ -1547,8 +1616,19 @@ namespace dmRender
     int RenderScript_DisableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t unit = luaL_checkinteger(L, 1);
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_TEXTURE, unit)))
+        dmhash_t sampler_hash   = 0;
+        uint32_t unit           = 0;
+
+        if (lua_isnumber(L, 1))
+        {
+            unit = lua_tointeger(L, 1);
+        }
+        else
+        {
+            sampler_hash = dmScript::CheckHashOrString(L, 1);
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_TEXTURE, sampler_hash, unit)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -2850,8 +2930,9 @@ namespace dmRender
         if (!lua_isnil(L, 1))
         {
             dmhash_t material_id = dmScript::CheckHashOrString(L, 1);
-            dmRender::HMaterial* mat = i->m_Materials.Get(material_id);
-            if (mat == 0x0)
+            RenderResource* render_resource = i->m_RenderResources.Get(material_id);
+
+            if (render_resource == 0x0)
             {
                 assert(top == lua_gettop(L));
                 char str[128];
@@ -2859,19 +2940,21 @@ namespace dmRender
                 dmSnPrintf(buffer, sizeof(buffer), "Could not find material '%s' %llu", dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long)material_id); // since lua doesn't support proper format arguments
                 return luaL_error(L, "%s", buffer);
             }
+            else if (render_resource->m_Type != RENDER_RESOURCE_TYPE_MATERIAL)
+            {
+                return luaL_error(L, "Render resource is not a material.");
+            }
+
+            HMaterial material = (HMaterial) render_resource->m_Resource;
+            if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint64_t)material)))
+            {
+                assert(top == lua_gettop(L));
+                return 0;
+            }
             else
             {
-                HMaterial material = *mat;
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint64_t)material)))
-                {
-                    assert(top == lua_gettop(L));
-                    return 0;
-                }
-                else
-                {
-                    assert(top == lua_gettop(L));
-                    return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-                }
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
             }
         }
         else
@@ -3271,7 +3354,7 @@ bail:
         i->m_ScriptWorld = render_context->m_ScriptWorld;
         i->m_RenderContext = render_context;
         i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
-        i->m_Materials.SetCapacity(16, 8);
+        i->m_RenderResources.SetCapacity(16, 8);
 
         lua_pushvalue(L, -1);
         i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
@@ -3326,19 +3409,23 @@ bail:
         render_script_instance->m_RenderScript = render_script;
     }
 
-    void AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material)
+    void AddRenderScriptInstanceRenderResource(HRenderScriptInstance render_script_instance, const char* name, uint64_t resource, RenderResourceType type)
     {
-        if (render_script_instance->m_Materials.Full())
+        if (render_script_instance->m_RenderResources.Full())
         {
-            uint32_t new_capacity = 2 * render_script_instance->m_Materials.Capacity();
-            render_script_instance->m_Materials.SetCapacity(2 * new_capacity, new_capacity);
+            uint32_t new_capacity = 2 * render_script_instance->m_RenderResources.Capacity();
+            render_script_instance->m_RenderResources.SetCapacity(2 * new_capacity, new_capacity);
         }
-        render_script_instance->m_Materials.Put(dmHashString64(material_name), material);
+
+        RenderResource res = {};
+        res.m_Resource     = resource;
+        res.m_Type         = type;
+        render_script_instance->m_RenderResources.Put(dmHashString64(name), res);
     }
 
-    void ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance)
+    void ClearRenderScriptInstanceRenderResources(HRenderScriptInstance render_script_instance)
     {
-        render_script_instance->m_Materials.Clear();
+        render_script_instance->m_RenderResources.Clear();   
     }
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)

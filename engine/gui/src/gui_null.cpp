@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -155,7 +155,7 @@ namespace dmGui
         return 0;
     }
 
-    Result AddTexture(HScene scene, dmhash_t texture_name_hash, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    Result AddTexture(HScene scene, dmhash_t texture_name_hash, dmGui::HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
         return RESULT_OK;
     }
@@ -168,7 +168,7 @@ namespace dmGui
     {
     }
 
-    void* GetTexture(HScene scene, dmhash_t texture_name_hash)
+    HTextureSource GetTexture(HScene scene, dmhash_t texture_name_hash)
     {
         return 0;
     }
@@ -524,7 +524,7 @@ namespace dmGui
         return 0.0f;
     }
 
-    void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
+    HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         return 0;
     }

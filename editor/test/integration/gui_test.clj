@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -330,7 +330,7 @@
           text (gui-node node-id "scene/text")]
       (is (= ["" "main/particle_blob" "main_super/particle_blob"] (options box :texture)))
       (is (= ["" "layer"] (options text :layer)))
-      (is (= ["system_font" "system_font_super"] (options text :font)))
+      (is (= ["default_font" "default_font_super"] (options text :font)))
       (g/transact (g/set-property text :layer "layer"))
       (let [l (gui-layer node-id "layer")]
         (g/transact (g/set-property l :name "new-name"))

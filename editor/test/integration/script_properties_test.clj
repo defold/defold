@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -211,15 +211,19 @@
 (defn- properties [node-id]
   (:properties (g/node-value node-id :_properties)))
 
-(defn- resource-property? [ext property value]
-  (and (is (= :property-type-hash (:go-prop-type property)))
-       (is (= value (:value property)))
-       (is (= resource/Resource (:type (:edit-type property))))
-       (is (= ext (:ext (:edit-type property))))))
+(defn- resource-kind-property? [resource-kind property value]
+  (and (is (resource/resource? value))
+       (let [workspace (resource/workspace value)
+             ext (script/resource-kind-extensions workspace resource-kind)]
+         (and (is (resource/resource? value))
+              (is (= :property-type-hash (:go-prop-type property)))
+              (is (= value (:value property)))
+              (is (= resource/Resource (:type (:edit-type property))))
+              (is (= ext (:ext (:edit-type property))))))))
 
-(def ^:private atlas-resource-property? (partial resource-property? (script/resource-kind->ext "atlas")))
-(def ^:private material-resource-property? (partial resource-property? (script/resource-kind->ext "material")))
-(def ^:private texture-resource-property? (partial resource-property? (script/resource-kind->ext "texture")))
+(def ^:private atlas-resource-property? (partial resource-kind-property? "atlas"))
+(def ^:private material-resource-property? (partial resource-kind-property? "material"))
+(def ^:private texture-resource-property? (partial resource-kind-property? "texture"))
 
 (deftest resource-script-properties-test
   (tu/with-loaded-project
@@ -404,13 +408,13 @@
                       error-value (tu/prop-error props-script :__texture)]
                   (is (texture-resource-property? (:__texture properties) (resource "/from-props-script.material")))
                   (is (g/error? error-value))
-                  (is (= "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
+                  (is (= "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-value))))
                 (let [error-value (tu/build-error! props-script)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
                           error-item-of-parent-resource (first (:children error-tree))
                           error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                      (is (= "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
+                      (is (= "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                       (is (= [(resource "/props.script") props-script]
                              (error-item-open-info-without-opts error-item-of-parent-resource)))
                       (is (= [(resource "/props.script") props-script]
@@ -512,13 +516,15 @@
 
           (testing "Overrides"
             (with-open [_ (tu/make-graph-reverter project-graph)]
-              (doseq [[ext prop-kw resource build-resource] [[(script/resource-kind->ext "atlas")    :__atlas    (resource "/from-props-game-object.atlas")    (build-resource "/from-props-game-object.atlas")]
-                                                             [(script/resource-kind->ext "material") :__material (resource "/from-props-game-object.material") (build-resource "/from-props-game-object.material")]
-                                                             [(script/resource-kind->ext "texture")  :__texture  (resource "/from-props-game-object.png")      (build-resource "/from-props-game-object.png")]]]
+              (doseq [[resource-kind prop-kw resource build-resource]
+                      [["atlas"    :__atlas    (resource "/from-props-game-object.atlas")    (build-resource "/from-props-game-object.atlas")]
+                       ["material" :__material (resource "/from-props-game-object.material") (build-resource "/from-props-game-object.material")]
+                       ["texture"  :__texture  (resource "/from-props-game-object.png")      (build-resource "/from-props-game-object.png")]]]
+
                 ;; Apply override.
                 (edit-property! props-script-component prop-kw resource)
                 (is (tu/prop-overridden? props-script-component prop-kw))
-                (is (resource-property? ext (get (properties props-script-component) prop-kw) resource))
+                (is (resource-kind-property? resource-kind (get (properties props-script-component) prop-kw) resource))
                 (is (contains? (tu/node-built-build-resources props-game-object) build-resource))
 
                 (let [saved-props-game-object (save-value GameObject$PrototypeDesc props-game-object)
@@ -541,7 +547,7 @@
                 ;; Clear override.
                 (reset-property! props-script-component prop-kw)
                 (is (not (tu/prop-overridden? props-script-component prop-kw)))
-                (is (resource-property? ext (get (properties props-script-component) prop-kw) (original-property-values prop-kw)))
+                (is (resource-kind-property? resource-kind (get (properties props-script-component) prop-kw) (original-property-values prop-kw)))
                 (is (not (contains? (tu/node-built-build-resources props-game-object) build-resource)))
 
                 (let [saved-props-game-object (save-value GameObject$PrototypeDesc props-game-object)
@@ -585,13 +591,13 @@
                     error-value (tu/prop-error props-script-component :__texture)]
                 (is (texture-resource-property? (:__texture properties) (resource "/from-props-game-object.material")))
                 (is (g/error? error-value))
-                (is (= "Texture '/from-props-game-object.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
+                (is (= "Texture '/from-props-game-object.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-value))))
               (let [error-value (tu/build-error! props-game-object)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Texture '/from-props-game-object.material' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
+                    (is (= "Texture '/from-props-game-object.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/props.go") props-game-object]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.go") props-script-component]
@@ -621,7 +627,7 @@
               "Texture '/missing-resource.png' could not be found"
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png")))))))
+              "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target")))))))
 
 (deftest rename-resource-referenced-from-component-instance-test
   (with-clean-system
@@ -776,13 +782,15 @@
 
           (testing "Overrides"
             (with-open [_ (tu/make-graph-reverter project-graph)]
-              (doseq [[ext prop-kw resource build-resource] [[(script/resource-kind->ext "atlas")    :__atlas    (resource "/from-props-collection.atlas")    (build-resource "/from-props-collection.atlas")]
-                                                             [(script/resource-kind->ext "material") :__material (resource "/from-props-collection.material") (build-resource "/from-props-collection.material")]
-                                                             [(script/resource-kind->ext "texture")  :__texture  (resource "/from-props-collection.png")      (build-resource "/from-props-collection.png")]]]
+              (doseq [[resource-kind prop-kw resource build-resource]
+                      [["atlas"    :__atlas    (resource "/from-props-collection.atlas")    (build-resource "/from-props-collection.atlas")]
+                       ["material" :__material (resource "/from-props-collection.material") (build-resource "/from-props-collection.material")]
+                       ["texture"  :__texture  (resource "/from-props-collection.png")      (build-resource "/from-props-collection.png")]]]
+
                 ;; Apply override.
                 (edit-property! ov-props-script-component prop-kw resource)
                 (is (tu/prop-overridden? ov-props-script-component prop-kw))
-                (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) resource))
+                (is (resource-kind-property? resource-kind (get (properties ov-props-script-component) prop-kw) resource))
                 (is (contains? (tu/node-built-build-resources props-collection) build-resource))
 
                 (let [saved-props-collection (save-value GameObject$CollectionDesc props-collection)
@@ -807,7 +815,7 @@
                 ;; Clear override.
                 (reset-property! ov-props-script-component prop-kw)
                 (is (not (tu/prop-overridden? ov-props-script-component prop-kw)))
-                (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) (original-property-values prop-kw)))
+                (is (resource-kind-property? resource-kind (get (properties ov-props-script-component) prop-kw) (original-property-values prop-kw)))
                 (is (not (contains? (tu/node-built-build-resources props-collection) build-resource)))
 
                 (let [saved-props-collection (save-value GameObject$CollectionDesc props-collection)
@@ -851,13 +859,13 @@
                     error-value (tu/prop-error ov-props-script-component :__texture)]
                 (is (texture-resource-property? (:__texture properties) (resource "/from-props-collection.material")))
                 (is (g/error? error-value))
-                (is (= "Texture '/from-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
+                (is (= "Texture '/from-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-value))))
               (let [error-value (tu/build-error! props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Texture '/from-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
+                    (is (= "Texture '/from-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/props.collection") props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.collection") ov-props-script-component]
@@ -887,7 +895,7 @@
               "Texture '/missing-resource.png' could not be found"
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png")))))))
+              "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target")))))))
 
 (deftest rename-resource-referenced-from-game-object-instance-test
   (with-clean-system
@@ -1062,13 +1070,15 @@
 
           (testing "Overrides"
             (with-open [_ (tu/make-graph-reverter project-graph)]
-              (doseq [[ext prop-kw resource build-resource] [[(script/resource-kind->ext "atlas")    :__atlas    (resource "/from-sub-props-collection.atlas")    (build-resource "/from-sub-props-collection.atlas")]
-                                                             [(script/resource-kind->ext "material") :__material (resource "/from-sub-props-collection.material") (build-resource "/from-sub-props-collection.material")]
-                                                             [(script/resource-kind->ext "texture")  :__texture  (resource "/from-sub-props-collection.png")      (build-resource "/from-sub-props-collection.png")]]]
+              (doseq [[resource-kind prop-kw resource build-resource]
+                      [["atlas"    :__atlas    (resource "/from-sub-props-collection.atlas")    (build-resource "/from-sub-props-collection.atlas")]
+                       ["material" :__material (resource "/from-sub-props-collection.material") (build-resource "/from-sub-props-collection.material")]
+                       ["texture"  :__texture  (resource "/from-sub-props-collection.png")      (build-resource "/from-sub-props-collection.png")]]]
+
                 ;; Apply override.
                 (edit-property! ov-props-script-component prop-kw resource)
                 (is (tu/prop-overridden? ov-props-script-component prop-kw))
-                (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) resource))
+                (is (resource-kind-property? resource-kind (get (properties ov-props-script-component) prop-kw) resource))
                 (is (contains? (tu/node-built-build-resources sub-props-collection) build-resource))
 
                 (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
@@ -1096,7 +1106,7 @@
                 ;; Clear override.
                 (reset-property! ov-props-script-component prop-kw)
                 (is (not (tu/prop-overridden? ov-props-script-component prop-kw)))
-                (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) (original-property-values prop-kw)))
+                (is (resource-kind-property? resource-kind (get (properties ov-props-script-component) prop-kw) (original-property-values prop-kw)))
                 (is (not (contains? (tu/node-built-build-resources sub-props-collection) build-resource)))
 
                 (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
@@ -1140,13 +1150,13 @@
                     error-value (tu/prop-error ov-props-script-component :__texture)]
                 (is (texture-resource-property? (:__texture properties) (resource "/from-sub-props-collection.material")))
                 (is (g/error? error-value))
-                (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
+                (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-value))))
               (let [error-value (tu/build-error! sub-props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
+                    (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/sub-props.collection") sub-props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/sub-props.collection") ov-props-script-component]
@@ -1176,7 +1186,7 @@
               "Texture '/missing-resource.png' could not be found"
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png")))))))
+              "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target")))))))
 
 (deftest edit-collection-instance-embedded-game-object-resource-properties-test
   (with-clean-system
@@ -1308,13 +1318,15 @@
 
           (testing "Overrides"
             (with-open [_ (tu/make-graph-reverter project-graph)]
-              (doseq [[ext prop-kw resource build-resource] [[(script/resource-kind->ext "atlas")    :__atlas    (resource "/from-sub-props-collection.atlas")    (build-resource "/from-sub-props-collection.atlas")]
-                                                             [(script/resource-kind->ext "material") :__material (resource "/from-sub-props-collection.material") (build-resource "/from-sub-props-collection.material")]
-                                                             [(script/resource-kind->ext "texture")  :__texture  (resource "/from-sub-props-collection.png")      (build-resource "/from-sub-props-collection.png")]]]
+              (doseq [[resource-kind prop-kw resource build-resource]
+                      [["atlas"    :__atlas    (resource "/from-sub-props-collection.atlas")    (build-resource "/from-sub-props-collection.atlas")]
+                       ["material" :__material (resource "/from-sub-props-collection.material") (build-resource "/from-sub-props-collection.material")]
+                       ["texture"  :__texture  (resource "/from-sub-props-collection.png")      (build-resource "/from-sub-props-collection.png")]]]
+
                 ;; Apply override.
                 (edit-property! ov-props-script-component prop-kw resource)
                 (is (tu/prop-overridden? ov-props-script-component prop-kw))
-                (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) resource))
+                (is (resource-kind-property? resource-kind (get (properties ov-props-script-component) prop-kw) resource))
                 (is (contains? (tu/node-built-build-resources sub-props-collection) build-resource))
 
                 (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
@@ -1342,7 +1354,7 @@
                 ;; Clear override.
                 (reset-property! ov-props-script-component prop-kw)
                 (is (not (tu/prop-overridden? ov-props-script-component prop-kw)))
-                (is (resource-property? ext (get (properties ov-props-script-component) prop-kw) (original-property-values prop-kw)))
+                (is (resource-kind-property? resource-kind (get (properties ov-props-script-component) prop-kw) (original-property-values prop-kw)))
                 (is (not (contains? (tu/node-built-build-resources sub-props-collection) build-resource)))
 
                 (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
@@ -1386,13 +1398,13 @@
                     error-value (tu/prop-error ov-props-script-component :__texture)]
                 (is (texture-resource-property? (:__texture properties) (resource "/from-sub-props-collection.material")))
                 (is (g/error? error-value))
-                (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
+                (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-value))))
               (let [error-value (tu/build-error! sub-props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
+                    (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/sub-props.collection") sub-props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/sub-props.collection") ov-props-script-component]
@@ -1422,7 +1434,7 @@
               "Texture '/missing-resource.png' could not be found"
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
-              "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png")))))))
+              "Texture '/from-props-script.material' is not of type .cubemap, .jpg, .png or .render_target")))))))
 
 (deftest rename-resource-referenced-from-collection-instance-test
   (with-clean-system
@@ -1664,14 +1676,14 @@
 
               (let [prop-error (tu/prop-error props-script-component :__atlas)]
                 (is (g/error? prop-error))
-                (is (= "Atlas '/from-props-game-object.atlas' is not of type .cubemap, .jpg or .png" (:message prop-error))))
+                (is (= "Atlas '/from-props-game-object.atlas' is not of type .cubemap, .jpg, .png or .render_target" (:message prop-error))))
 
               (let [build-error (tu/build-error! props-game-object)]
                 (when (is (g/error? build-error))
                   (let [error-tree (build-errors-view/build-resource-tree build-error)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Atlas '/from-props-game-object.atlas' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
+                    (is (= "Atlas '/from-props-game-object.atlas' is not of type .cubemap, .jpg, .png or .render_target" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/props.go") props-game-object]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.go") props-script-component]

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -36,10 +36,10 @@ public class TextureSetLayoutTest {
 
     void assertRect(Layout layout, int i, String id, int index, int x, int y) {
         Rect r = layout.getRectangles().get(i);
-        assertThat(r.id, is(id));
-        assertThat(r.index, is(index));
-        assertThat(r.x, is(x));
-        assertThat(r.y, is(y));
+        assertThat(r.getId(), is(id));
+        assertThat(r.getIndex(), is(index));
+        assertThat(r.getX(), is(x));
+        assertThat(r.getY(), is(y));
     }
 
     private static List<Layout> packedLayout(int margin, List<Rect> rectangles) {
@@ -235,24 +235,24 @@ public class TextureSetLayoutTest {
         HashSet<String> recordedIds = new HashSet<String>();
 
         for (Rect r : layout.getRectangles()) {
-            assertFalse(recordedIds.contains(r.id));
-            recordedIds.add(r.id);
+            assertFalse(recordedIds.contains(r.getId()));
+            recordedIds.add(r.getId());
         }
 
         assertEquals(recordedIds.size(), rectangles.size());
     }
 
     private static boolean isOverlapping(Rect a, Rect b) {
-        if (a.x >= b.x + b.width) {
+        if (a.getX() >= b.getX() + b.getWidth()) {
             return false;
         }
-        if (a.y >= b.y + b.height) {
+        if (a.getY() >= b.getY() + b.getHeight()) {
             return false;
         }
-        if (a.x + a.width <= b.x) {
+        if (a.getX() + a.getWidth() <= b.getX()) {
             return false;
         }
-        if (a.y + a.height <= b.y) {
+        if (a.getY() + a.getHeight() <= b.getY()) {
             return false;
         }
         return true;

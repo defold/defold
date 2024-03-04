@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,31 +14,19 @@
 
 package com.dynamo.bob.cache.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
-import java.util.HashMap;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.bob.fs.DefaultResource;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.cache.ResourceCacheKey;
 import com.dynamo.bob.cache.ResourceCache;
-import com.dynamo.bob.test.util.MockFileSystem;
-import com.dynamo.bob.test.util.MockResource;
 
 
 public class ResourceCacheTest {

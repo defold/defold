@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -67,7 +67,7 @@ namespace dmImage
     {
         Image* image = new Image();
 
-        if (Load(buffer, buffer_size, premult, image) != RESULT_OK)
+        if (Load(buffer, buffer_size, premult, false, image) != RESULT_OK)
         {
             delete image;
             return 0;
@@ -82,11 +82,16 @@ namespace dmImage
         delete image;
     }
 
-    Result Load(const void* buffer, uint32_t buffer_size, bool premult, Image* image)
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
     {
         int x, y, comp;
 
+        stbi_set_flip_vertically_on_load(flip_vertically);
+
         unsigned char* ret = stbi_load_from_memory((const stbi_uc*) buffer, (int) buffer_size, &x, &y, &comp, 0);
+
+        // Reset to default state
+        stbi_set_flip_vertically_on_load(0);
 
         if (ret) {
             Image i;

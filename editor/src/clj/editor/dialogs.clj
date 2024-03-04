@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -790,16 +790,17 @@
       string/trim
       (string/replace #"[/\\]" "") ; strip path separators
       (string/replace #"[\"']" "") ; strip quotes
-      (string/replace #"^\.+" "") ; prevent hiding files (.dotfile)
       (string/replace #"[<>:|?*]" ""))) ; Additional Windows forbidden characters
 
 (defn sanitize-file-name [extension name]
-  (-> name
-      sanitize-common
-      (#(if (empty? extension) (string/replace % #"\..*" "") %)) ; disallow adding extension = resource type
-      (#(if (and (seq extension) (seq %))
-          (str % "." extension)
-          %)))) ; append extension if there was one
+  (let [name (sanitize-common name)]
+    (cond-> name
+            ; disallow dots when extension is expected
+            (seq extension) (string/replace #"\." "")
+            ; disallow "." and ".." names (only necessary when there is no extension)
+            (not (seq extension)) (string/replace #"^\.{1,2}$" "")
+            ; append extension if there was one
+            (and (seq extension) (seq name)) (str "." extension))))
 
 (defn sanitize-folder-name [name]
   (sanitize-common name))
@@ -890,11 +891,11 @@
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
-     :title (str "New " type)
+     :title (str "New " (or type "File"))
      :size :small
      :header {:fx/type fxui/label
               :variant :header
-              :text (str "Enter " type " File Name")}
+              :text (str "Enter " (or type "the") " File Name")}
      :content {:fx/type fxui/two-col-input-grid-pane
                :style-class "dialog-content-padding"
                :children [{:fx/type fxui/label

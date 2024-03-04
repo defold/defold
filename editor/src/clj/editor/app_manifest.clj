@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -350,7 +350,7 @@
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles [:x86_64-osx :arm64-osx] :frameworks ["Metal" "IOSurface" "QuartzCore"])
-    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "QuartzCore"])
+    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
     (generic-contains-toggles vulkan :symbols ["GraphicsAdapterVulkan"])))
 
 (def graphics-setting

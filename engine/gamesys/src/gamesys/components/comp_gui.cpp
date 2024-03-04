@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -61,12 +61,7 @@ namespace dmGameSystem
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
 
-    static const dmhash_t VERTEX_STREAM_POSITION   = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0  = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_COLOR      = dmHashString64("color");
-    static const dmhash_t VERTEX_STREAM_PAGE_INDEX = dmHashString64("page_index");
-
-    static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void*, dmhash_t, dmGui::TextureSetAnimDesc*);
+    static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSource, dmhash_t, dmGui::TextureSetAnimDesc*);
 
     // implemention in comp_particlefx.cpp
     extern dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
@@ -78,7 +73,7 @@ namespace dmGameSystem
     static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
-    static void DeleteTexture(dmGui::HScene scene, void* texture, void* context);
+    static void DeleteTexture(dmGui::HScene scene, dmGui::HTextureSource texture_source, dmGui::NodeTextureType type, void* context);
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
     static struct PlaybackGuiToRig
@@ -140,7 +135,7 @@ namespace dmGameSystem
         }
     }
 
-    static inline void FillAttribute(dmParticle::ParticleVertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
+    static inline void FillAttribute(dmGraphics::VertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
     {
         info.m_NameHash        = name_hash;
         info.m_SemanticType    = semantic_type;
@@ -170,27 +165,27 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
-        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_POSITION,   3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_TEXCOORD0,  2, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_COLOR,      4, dmGraphics::TYPE_FLOAT, true);
-        dmGraphics::AddVertexStream(stream_declaration, VERTEX_STREAM_PAGE_INDEX, 1, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, dmRender::VERTEX_STREAM_POSITION,   3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, dmRender::VERTEX_STREAM_TEXCOORD0,  2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, dmRender::VERTEX_STREAM_COLOR,      4, dmGraphics::TYPE_FLOAT, true);
+        dmGraphics::AddVertexStream(stream_declaration, dmRender::VERTEX_STREAM_PAGE_INDEX, 1, dmGraphics::TYPE_FLOAT, false);
 
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   3);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   2);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      4);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[3], VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, 1);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], dmRender::VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   3);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], dmRender::VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   2);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], dmRender::VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      4);
+        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[3], dmRender::VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, 1);
 
         // Another way would be to use the vertex declaration, but that currently doesn't have an api
         // and the buffer is well suited for this.
         gui_world->m_BoxVertexStreamDeclarationCount = 4;
         gui_world->m_BoxVertexStreamDeclaration = new dmBuffer::StreamDeclaration[gui_world->m_BoxVertexStreamDeclarationCount];
-        gui_world->m_BoxVertexStreamDeclaration[0] = {VERTEX_STREAM_POSITION,   dmBuffer::VALUE_TYPE_FLOAT32, 3};
-        gui_world->m_BoxVertexStreamDeclaration[1] = {VERTEX_STREAM_TEXCOORD0,  dmBuffer::VALUE_TYPE_FLOAT32, 2};
-        gui_world->m_BoxVertexStreamDeclaration[2] = {VERTEX_STREAM_COLOR,      dmBuffer::VALUE_TYPE_FLOAT32, 4};
-        gui_world->m_BoxVertexStreamDeclaration[3] = {VERTEX_STREAM_PAGE_INDEX, dmBuffer::VALUE_TYPE_FLOAT32, 1};
+        gui_world->m_BoxVertexStreamDeclaration[0] = { dmRender::VERTEX_STREAM_POSITION,   dmBuffer::VALUE_TYPE_FLOAT32, 3};
+        gui_world->m_BoxVertexStreamDeclaration[1] = { dmRender::VERTEX_STREAM_TEXCOORD0,  dmBuffer::VALUE_TYPE_FLOAT32, 2};
+        gui_world->m_BoxVertexStreamDeclaration[2] = { dmRender::VERTEX_STREAM_COLOR,      dmBuffer::VALUE_TYPE_FLOAT32, 4};
+        gui_world->m_BoxVertexStreamDeclaration[3] = { dmRender::VERTEX_STREAM_PAGE_INDEX, dmBuffer::VALUE_TYPE_FLOAT32, 1};
         dmBuffer::CalcStructSize(gui_world->m_BoxVertexStreamDeclarationCount, gui_world->m_BoxVertexStreamDeclaration, &gui_world->m_BoxVertexStructSize, 0);
 
         gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
@@ -593,19 +588,19 @@ namespace dmGameSystem
         {
             const char* name = scene_desc->m_Textures[i].m_Name;
 
-            void* texture_source;
+            dmGui::HTextureSource texture_source;
             dmGraphics::HTexture texture = scene_resource->m_GuiTextureSets[i].m_Texture->m_Texture;
             dmGui::NodeTextureType texture_source_type;
 
             if (scene_resource->m_GuiTextureSets[i].m_TextureSet)
             {
                 texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET;
-                texture_source      = (void*)scene_resource->m_GuiTextureSets[i].m_TextureSet;
+                texture_source      = (dmGui::HTextureSource) scene_resource->m_GuiTextureSets[i].m_TextureSet;
             }
             else
             {
                 texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE;
-                texture_source      = (void*) texture;
+                texture_source      = (dmGui::HTextureSource) texture;
             }
 
             dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name), texture_source, texture_source_type, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
@@ -955,17 +950,16 @@ namespace dmGameSystem
     static dmGraphics::HTexture GetNodeTexture(dmGui::HScene scene, dmGui::HNode node)
     {
         dmGui::NodeTextureType texture_type;
-        void* result = dmGui::GetNodeTexture(scene, node, &texture_type);
+        dmGui::HTextureSource texture_source = dmGui::GetNodeTexture(scene, node, &texture_type);
 
         if (texture_type == dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET)
         {
-            TextureSetResource* texture_set_res = (TextureSetResource*) result;
+            TextureSetResource* texture_set_res = (TextureSetResource*) texture_source;
             assert(texture_set_res);
-
             return texture_set_res->m_Texture->m_Texture;
         }
 
-        return (dmGraphics::HTexture) result;
+        return (dmGraphics::HTexture) texture_source;
     }
 
     static inline dmRender::HMaterial GetNodeMaterial(void* material_res)
@@ -1103,13 +1097,16 @@ namespace dmGameSystem
         dmRender::RenderObject& ro = gro.m_RenderObject;
         gro.m_SortOrder = gui_context->m_NextSortOrder++;
 
+        TextureResource* texture_res = (TextureResource*) first_emitter_render_data->m_Texture;
+        dmGraphics::HTexture texture = texture_res ? texture_res->m_Texture : 0;
+
         ro.Init();
         ro.m_VertexDeclaration = gui_world->m_VertexDeclaration;
         ro.m_VertexBuffer      = gui_world->m_VertexBuffer;
         ro.m_PrimitiveType     = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart       = gui_world->m_ClientVertexBuffer.Size();
         ro.m_Material          = GetNodeMaterial(gui_context, scene, first_node);
-        ro.m_Textures[0]       = (dmGraphics::HTexture) first_emitter_render_data->m_Texture;
+        ro.m_Textures[0]       = texture;
 
         // Offset capacity to fit vertices for all emitters we are about to render
         uint32_t vertex_count = 0;
@@ -2041,7 +2038,7 @@ namespace dmGameSystem
         return (dmGraphics::TextureFormat) 0; // Never reached
     }
 
-    static void* NewTexture(dmGui::HScene scene, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
+    static dmGui::HTextureSource NewTexture(dmGui::HScene scene, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
     {
         RenderGuiContext* gui_context = (RenderGuiContext*) context;
         dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
@@ -2064,15 +2061,18 @@ namespace dmGameSystem
 
         dmGraphics::HTexture t =  dmGraphics::NewTexture(gcontext, tcparams);
         dmGraphics::SetTexture(t, tparams);
-        return (void*) t;
+        return (dmGui::HTextureSource) t;
     }
 
-    static void DeleteTexture(dmGui::HScene scene, void* texture, void* context)
+    static void DeleteTexture(dmGui::HScene scene, dmGui::HTextureSource texture_source, dmGui::NodeTextureType type, void* context)
     {
-        dmGraphics::DeleteTexture((dmGraphics::HTexture) texture);
+        if (type == dmGui::NODE_TEXTURE_TYPE_DYNAMIC)
+        {
+            dmGraphics::DeleteTexture((dmGraphics::HTexture) texture_source);
+        }
     }
 
-    static void SetTextureData(dmGui::HScene scene, void* texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
+    static void SetTextureData(dmGui::HScene scene, dmGui::HTextureSource texture_source, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
     {
         dmGraphics::TextureParams tparams;
         tparams.m_Width = width;
@@ -2082,12 +2082,12 @@ namespace dmGameSystem
         tparams.m_Data = buffer;
         tparams.m_DataSize = dmImage::BytesPerPixel(type) * width * height;
         tparams.m_Format = ToGraphicsFormat(type);
-        dmGraphics::SetTexture((dmGraphics::HTexture) texture, tparams);
+        dmGraphics::SetTexture((dmGraphics::HTexture) texture_source, tparams);
     }
 
-    static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(void* texture_set_ptr, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
+    static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSource texture_source, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
     {
-        TextureSetResource* texture_set_res = (TextureSetResource*)texture_set_ptr;
+        TextureSetResource* texture_set_res = (TextureSetResource*)texture_source;
         dmGameSystemDDF::TextureSet* texture_set = texture_set_res->m_TextureSet;
         uint32_t* anim_index = texture_set_res->m_AnimationIds.Get(animation);
 
@@ -2507,7 +2507,7 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetTexture(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), (void*) dmGui::GetTexture(gui_component->m_Scene, params.m_Options.m_Key), out_value);
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
@@ -2556,7 +2556,7 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 dmGraphics::HTexture texture = texture_source->m_Texture->m_Texture;
-                dmGui::Result r = dmGui::AddTexture(gui_component->m_Scene, params.m_Options.m_Key, texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
+                dmGui::Result r = dmGui::AddTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
                 if (r != dmGui::RESULT_OK)
                 {
                     dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,7 +24,7 @@ import java.io.StringReader;
 
 import org.apache.commons.io.IOUtils;
 import org.junit.Test;
-
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.cr.common.cache.ETagCache;
 
 public class ETagCacheTest {
@@ -78,7 +78,7 @@ public class ETagCacheTest {
         ETagCache etagCache = new ETagCache(2);
 
         File tempFile = File.createTempFile("foo", "bar");
-        tempFile.deleteOnExit();
+        FileUtil.deleteOnExit(tempFile);
 
         FileWriter writer = new FileWriter(tempFile);
         IOUtils.copy(new StringReader("foo"), writer);

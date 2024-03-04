@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,14 +15,13 @@
 package com.dynamo.bob.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertNotNull;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.util.FileUtil;
 
 import java.nio.file.Files;
 import java.io.File;
@@ -120,7 +119,7 @@ public class BobProjectPropertiesTest {
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        file.deleteOnExit();
+        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }

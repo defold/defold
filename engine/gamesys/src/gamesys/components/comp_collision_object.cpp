@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,6 +22,7 @@
 #include <dlib/static_assert.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/profile.h>
+#include <dmsdk/gameobject/script.h>
 
 #include <physics/physics.h>
 
@@ -129,6 +130,9 @@ namespace dmGameSystem
     struct CollisionWorld
     {
         uint64_t m_Groups[16];
+
+        void* m_CallbackInfo;
+
         union
         {
             dmPhysics::HWorld2D m_World2D;
@@ -582,11 +586,17 @@ namespace dmGameSystem
         }
     }
 
+    void RunPhysicsCallback(CollisionWorld* world, const dmDDF::Descriptor* desc, const char* data)
+    {
+        RunCollisionWorldCallback(world->m_CallbackInfo, desc, data);
+    }
+
     bool CollisionCallback(void* user_data_a, uint16_t group_a, void* user_data_b, uint16_t group_b, void* user_data)
     {
         CollisionUserData* cud = (CollisionUserData*)user_data;
         if (cud->m_Count < cud->m_Context->m_MaxCollisionCount)
         {
+            CollisionWorld* world = cud->m_World;
             cud->m_Count += 1;
 
             CollisionComponent* component_a = (CollisionComponent*)user_data_a;
@@ -595,11 +605,28 @@ namespace dmGameSystem
             dmGameObject::HInstance instance_b = component_b->m_Instance;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
             dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
+            uint64_t group_hash_a = GetLSBGroupHash(world, group_a);
+            uint64_t group_hash_b = GetLSBGroupHash(world, group_b);
+
+            if (world->m_CallbackInfo != 0x0)
+            {
+                dmPhysicsDDF::CollisionEvent ddf;
+
+                dmPhysicsDDF::Collision& a = ddf.m_A;
+                a.m_Group =     group_hash_a;
+                a.m_Id =        instance_a_id;
+                a.m_Position =  dmGameObject::GetWorldPosition(instance_a);
+
+                dmPhysicsDDF::Collision& b = ddf.m_B;
+                b.m_Group =     group_hash_b;
+                b.m_Id =        instance_b_id;
+                b.m_Position =  dmGameObject::GetWorldPosition(instance_b);
+
+                RunPhysicsCallback(world, dmPhysicsDDF::CollisionEvent::m_DDFDescriptor, (const char*)&ddf);
+                return true;
+            }
 
             dmPhysicsDDF::CollisionResponse ddf;
-
-            uint64_t group_hash_a = GetLSBGroupHash(cud->m_World, group_a);
-            uint64_t group_hash_b = GetLSBGroupHash(cud->m_World, group_b);
 
             // Broadcast to A components
             ddf.m_OwnGroup = group_hash_a;
@@ -630,6 +657,7 @@ namespace dmGameSystem
         CollisionUserData* cud = (CollisionUserData*)user_data;
         if (cud->m_Count < cud->m_Context->m_MaxContactPointCount)
         {
+            CollisionWorld* world = cud->m_World;
             cud->m_Count += 1;
 
             CollisionComponent* component_a = (CollisionComponent*)contact_point.m_UserDataA;
@@ -638,13 +666,38 @@ namespace dmGameSystem
             dmGameObject::HInstance instance_b = component_b->m_Instance;
             dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
             dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
-
-            dmPhysicsDDF::ContactPointResponse ddf;
             float mass_a = dmMath::Select(-contact_point.m_MassA, 0.0f, contact_point.m_MassA);
             float mass_b = dmMath::Select(-contact_point.m_MassB, 0.0f, contact_point.m_MassB);
+            uint64_t group_hash_a = GetLSBGroupHash(world, contact_point.m_GroupA);
+            uint64_t group_hash_b = GetLSBGroupHash(world, contact_point.m_GroupB);
 
-            uint64_t group_hash_a = GetLSBGroupHash(cud->m_World, contact_point.m_GroupA);
-            uint64_t group_hash_b = GetLSBGroupHash(cud->m_World, contact_point.m_GroupB);
+            if (world->m_CallbackInfo != 0x0)
+            {
+                dmPhysicsDDF::ContactPointEvent ddf;
+                ddf.m_AppliedImpulse = contact_point.m_AppliedImpulse;
+                ddf.m_Distance = contact_point.m_Distance;
+
+                dmPhysicsDDF::ContactPoint& a = ddf.m_A;
+                a.m_Group               = group_hash_a;
+                a.m_Id                  = instance_a_id;
+                a.m_Position            = dmGameObject::GetWorldPosition(instance_a);
+                a.m_Mass                = mass_a;
+                a.m_RelativeVelocity    = -contact_point.m_RelativeVelocity;
+                a.m_Normal              = -contact_point.m_Normal;
+
+                dmPhysicsDDF::ContactPoint& b = ddf.m_B;
+                b.m_Group               = group_hash_b;
+                b.m_Id                  = instance_b_id;
+                b.m_Position            = dmGameObject::GetWorldPosition(instance_b);
+                b.m_Mass                = mass_b;
+                b.m_RelativeVelocity    = contact_point.m_RelativeVelocity;
+                b.m_Normal              = contact_point.m_Normal;
+
+                RunPhysicsCallback(world, dmPhysicsDDF::ContactPointEvent::m_DDFDescriptor, (const char*)&ddf);
+                return true;
+            }
+
+            dmPhysicsDDF::ContactPointResponse ddf;
 
             // Broadcast to A components
             ddf.m_Position = contact_point.m_PositionA;
@@ -699,11 +752,29 @@ namespace dmGameSystem
         dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
         dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
 
-        dmPhysicsDDF::TriggerResponse ddf;
-        ddf.m_Enter = 1;
-
         uint64_t group_hash_a = GetLSBGroupHash(world, trigger_enter.m_GroupA);
         uint64_t group_hash_b = GetLSBGroupHash(world, trigger_enter.m_GroupB);
+
+        if (world->m_CallbackInfo != 0x0)
+        {
+
+            dmPhysicsDDF::TriggerEvent ddf;
+            ddf.m_Enter = 1;
+
+            dmPhysicsDDF::Trigger& a = ddf.m_A;
+            a.m_Group       = group_hash_a;
+            a.m_Id          = instance_a_id;
+
+            dmPhysicsDDF::Trigger& b = ddf.m_B;
+            b.m_Group       = group_hash_b;
+            b.m_Id          = instance_b_id;
+
+            RunPhysicsCallback(world, dmPhysicsDDF::TriggerEvent::m_DDFDescriptor, (const char*)&ddf);
+            return;
+        }
+
+        dmPhysicsDDF::TriggerResponse ddf;
+        ddf.m_Enter = 1;
 
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
@@ -730,11 +801,28 @@ namespace dmGameSystem
         dmhash_t instance_a_id = dmGameObject::GetIdentifier(instance_a);
         dmhash_t instance_b_id = dmGameObject::GetIdentifier(instance_b);
 
-        dmPhysicsDDF::TriggerResponse ddf;
-        ddf.m_Enter = 0;
-
         uint64_t group_hash_a = GetLSBGroupHash(world, trigger_exit.m_GroupA);
         uint64_t group_hash_b = GetLSBGroupHash(world, trigger_exit.m_GroupB);
+
+        if (world->m_CallbackInfo != 0x0)
+        {
+            dmPhysicsDDF::TriggerEvent ddf;
+            ddf.m_Enter = 0;
+
+            dmPhysicsDDF::Trigger& a = ddf.m_A;
+            a.m_Group       = group_hash_a;
+            a.m_Id          = instance_a_id;
+
+            dmPhysicsDDF::Trigger& b = ddf.m_B;
+            b.m_Group       = group_hash_b;
+            b.m_Id          = instance_b_id;
+
+            RunPhysicsCallback(world, dmPhysicsDDF::TriggerEvent::m_DDFDescriptor, (const char*)&ddf);
+            return;
+        }
+
+        dmPhysicsDDF::TriggerResponse ddf;
+        ddf.m_Enter = 0;
 
         // Broadcast to A components
         ddf.m_OtherId = instance_b_id;
@@ -759,54 +847,46 @@ namespace dmGameSystem
 
     static void RayCastCallback(const dmPhysics::RayCastResponse& response, const dmPhysics::RayCastRequest& request, void* user_data)
     {
-        dmhash_t message_id;
-        uintptr_t descriptor;
-        uint32_t data_size;
-        void* message_data;
-        dmPhysicsDDF::RayCastResponse responsDDF;
-        dmPhysicsDDF::RayCastMissed missedDDF;
+        dmGameObject::Result message_result = dmGameObject::RESULT_OK;
+        CollisionWorld* world = (CollisionWorld*)user_data;
         if (response.m_Hit)
         {
-            CollisionWorld* world = (CollisionWorld*)user_data;
+            dmPhysicsDDF::RayCastResponse response_ddf;
             CollisionComponent* component = (CollisionComponent*)response.m_CollisionObjectUserData;
 
-            responsDDF.m_Fraction = response.m_Fraction;
-            responsDDF.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
-            responsDDF.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
-            responsDDF.m_Position = response.m_Position;
-            responsDDF.m_Normal = response.m_Normal;
-            responsDDF.m_RequestId = request.m_UserId & 0xff;
+            response_ddf.m_Fraction = response.m_Fraction;
+            response_ddf.m_Id = dmGameObject::GetIdentifier(component->m_Instance);
+            response_ddf.m_Group = GetLSBGroupHash(world, response.m_CollisionObjectGroup);
+            response_ddf.m_Position = response.m_Position;
+            response_ddf.m_Normal = response.m_Normal;
+            response_ddf.m_RequestId = request.m_UserId & 0xff;
 
-            message_id = dmPhysicsDDF::RayCastResponse::m_DDFDescriptor->m_NameHash;
-            descriptor = (uintptr_t)dmPhysicsDDF::RayCastResponse::m_DDFDescriptor;
-            data_size = sizeof(dmPhysicsDDF::RayCastResponse);
-            message_data = &responsDDF;
-        } else {
-            missedDDF.m_RequestId = request.m_UserId & 0xff;
-
-            message_id = dmPhysicsDDF::RayCastMissed::m_DDFDescriptor->m_NameHash;
-            descriptor = (uintptr_t)dmPhysicsDDF::RayCastMissed::m_DDFDescriptor;
-            data_size = sizeof(dmPhysicsDDF::RayCastMissed);
-            message_data = &missedDDF;
-        }
-
-        dmGameObject::HInstance instance = (dmGameObject::HInstance)request.m_UserData;
-        dmMessage::URL receiver;
-        receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(instance));
-        receiver.m_Path = dmGameObject::GetIdentifier(instance);
-        uint16_t component_index = request.m_UserId >> 16;
-        dmGameObject::Result result = dmGameObject::GetComponentId(instance, component_index, &receiver.m_Fragment);
-        if (result != dmGameObject::RESULT_OK)
-        {
-            dmLogError("Error when sending ray cast response: %d", result);
+            if (world->m_CallbackInfo != 0x0)
+            {
+                RunPhysicsCallback(world, dmPhysicsDDF::RayCastResponse::m_DDFDescriptor, (const char*)&response_ddf);
+            }
+            else
+            {
+                message_result = dmGameObject::PostDDF(&response_ddf, 0x0, (dmMessage::URL*)request.m_UserData, 0x0, false);
+            }
         }
         else
         {
-            dmMessage::Result message_result = dmMessage::Post(0x0, &receiver, message_id, 0, descriptor, message_data, data_size, 0);
-            if (message_result != dmMessage::RESULT_OK)
+            dmPhysicsDDF::RayCastMissed missed_ddf;
+            missed_ddf.m_RequestId = request.m_UserId & 0xff;
+            if (world->m_CallbackInfo != 0x0)
             {
-                dmLogError("Error when sending ray cast response: %d", message_result);
+                RunPhysicsCallback(world, dmPhysicsDDF::RayCastMissed::m_DDFDescriptor, (const char*)&missed_ddf);
             }
+            else
+            {
+                message_result = dmGameObject::PostDDF(&missed_ddf, 0x0, (dmMessage::URL*)request.m_UserData, 0x0, false);
+            }
+        }
+        free(request.m_UserData);
+        if (message_result != dmGameObject::RESULT_OK)
+        {
+            dmLogError("Error when sending ray cast response: %d", message_result);
         }
     }
 
@@ -847,14 +927,18 @@ namespace dmGameSystem
                     // Give that the assumption above holds, this assert will hold too.
                     assert(world->m_ComponentTypeIndex == context->m_World->m_ComponentTypeIndex);
 
+                    dmMessage::URL* receiver = (dmMessage::URL*)malloc(sizeof(dmMessage::URL));
+                    dmMessage::ResetURL(receiver);
+                    receiver->m_Socket = dmGameObject::GetMessageSocket(collection);
+                    receiver->m_Path = dmGameObject::GetIdentifier(sender_instance);
+                    
                     dmPhysics::RayCastRequest request;
                     request.m_From = ddf->m_From;
                     request.m_To = ddf->m_To;
                     request.m_IgnoredUserData = sender_instance;
                     request.m_Mask = ddf->m_Mask;
                     request.m_UserId = component_index << 16 | (ddf->m_RequestId & 0xff);
-                    request.m_UserData = (void*)sender_instance;
-
+                    request.m_UserData = (void*)receiver;
                     if (world->m_3D)
                     {
                         dmPhysics::RequestRayCast3D(world->m_World3D, request);
@@ -1428,6 +1512,10 @@ namespace dmGameSystem
             return dmPhysics::RESULT_NOT_SUPPORTED;
         }
 
+        if (dmPhysics::IsWorldLocked(world->m_World2D)) {
+            return dmPhysics::RESULT_PHYSICS_WORLD_LOCKED;
+        }
+
         CollisionComponent* component_a = (CollisionComponent*)_component_a;
         CollisionComponent* component_b = (CollisionComponent*)_component_b;
 
@@ -1682,26 +1770,6 @@ namespace dmGameSystem
         }
     }
 
-    static void CalculateBoxDimensions2D(float* vertices, uint32_t vertex_count, float* dimension2d)
-    {
-        float min_x = INT32_MAX,
-              min_y = INT32_MAX,
-              max_x = -INT32_MAX,
-              max_y = -INT32_MAX;
-
-        for (int i = 0; i < vertex_count * 2; i += 2)
-        {
-            min_x = dmMath::Min(min_x, vertices[i]);
-            max_x = dmMath::Max(max_x, vertices[i]);
-            min_y = dmMath::Min(min_y, vertices[i+1]);
-            max_y = dmMath::Max(max_y, vertices[i+1]);
-        }
-
-        dimension2d[0] = (max_x - min_x) * 0.5f;
-        dimension2d[1] = (max_y - min_y) * 0.5f;
-        dimension2d[2] = 1.0f;
-    }
-
     bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out)
     {
         CollisionComponent* component = (CollisionComponent*) _component;
@@ -1769,20 +1837,22 @@ namespace dmGameSystem
         }
         else
         {
-            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(component->m_Object2D, shape_ix);
+            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(world->m_World2D, component->m_Object2D, shape_ix);
 
             switch(shape_info->m_Type)
             {
                 case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
                 {
-                    dmPhysics::GetCollisionShapeRadius2D(shape2d, &shape_info->m_SphereDiameter);
+                    float sphere_radius;
+                    dmPhysics::GetCollisionShapeRadius2D(world->m_World2D, shape2d, &sphere_radius);
+                    shape_info->m_SphereDiameter = sphere_radius * 2.0f;
                 } break;
                 case dmPhysicsDDF::CollisionShape::TYPE_BOX:
                 {
-                    float* vertices;
-                    uint32_t vertex_count;
-                    dmPhysics::GetCollisionShapePolygonVertices2D(shape2d, &vertices, &vertex_count);
-                    CalculateBoxDimensions2D(vertices, vertex_count, shape_info->m_BoxDimensions);
+                    shape_info->m_BoxDimensions[0] = 0.0f;
+                    shape_info->m_BoxDimensions[1] = 0.0f;
+                    shape_info->m_BoxDimensions[2] = 1.0f;
+                    dmPhysics::GetCollisionShapeBoxDimensions2D(world->m_World2D, shape2d, component->m_Resource->m_ShapeRotation[shape_ix], shape_info->m_BoxDimensions[0], shape_info->m_BoxDimensions[1]);
                 } break;
                 default: assert(0);
             }
@@ -1858,18 +1928,18 @@ namespace dmGameSystem
         }
         else
         {
-            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(component->m_Object2D, shape_ix);
+            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(world->m_World2D, component->m_Object2D, shape_ix);
 
             switch(shape_info->m_Type)
             {
                 case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
                 {
-                    dmPhysics::SetCollisionShapeRadius2D(shape2d, shape_info->m_SphereDiameter);
-                    dmPhysics::SynchronizeObject2D(component->m_Object2D);
+                    dmPhysics::SetCollisionShapeRadius2D(world->m_World2D, shape2d, shape_info->m_SphereDiameter * 0.5f);
+                    dmPhysics::SynchronizeObject2D(world->m_World2D, component->m_Object2D);
                 } break;
                 case dmPhysicsDDF::CollisionShape::TYPE_BOX:
                 {
-                    dmPhysics::SetCollisionShapeBoxDimensions2D(shape2d, shape_info->m_BoxDimensions[0], shape_info->m_BoxDimensions[1]);
+                    dmPhysics::SetCollisionShapeBoxDimensions2D(world->m_World2D, shape2d, component->m_Resource->m_ShapeRotation[shape_ix], shape_info->m_BoxDimensions[0] * 0.5f, shape_info->m_BoxDimensions[1] * 0.5f);
                 } break;
                 default: assert(0);
             }
@@ -1918,6 +1988,18 @@ namespace dmGameSystem
         {
             dmPhysics::Wakeup2D(component->m_Object2D);
         }
+    }
+
+    void* GetCollisionWorldCallback(void* _world)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        return world->m_CallbackInfo;
+    }
+
+    void SetCollisionWorldCallback(void* _world, void* callback_info)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        world->m_CallbackInfo = callback_info;
     }
 
     dmhash_t GetCollisionGroup(void* _world, void* _component)
@@ -1999,6 +2081,24 @@ namespace dmGameSystem
             dmPhysics::SetMaskBit2D(component->m_Object2D, groupbit, boolvalue);
         }
         return true;
+    }
+
+    void UpdateMass(void* _world, void* _component, float mass)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        CollisionComponent* component = (CollisionComponent*)_component;
+
+        if (world->m_3D)
+        {
+            dmLogError("The Update Mass function has not been implemented for 3D yet");
+        }
+        else
+        {
+            if(!dmPhysics::UpdateMass2D(component->m_Object2D, mass))
+            {
+                dmLogError("The Update Mass function can be used only for Dynamic objects with shape area > 0");
+            }
+        }
     }
 
     static bool CompCollisionIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)

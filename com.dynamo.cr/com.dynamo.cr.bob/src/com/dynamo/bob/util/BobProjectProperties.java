@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,8 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.stream.Collectors;
 import java.lang.reflect.Field;
 import java.lang.IllegalArgumentException;

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -50,15 +50,27 @@ namespace dmScript
     struct RequestContext
     {
         dmMessage::URL  m_Requester;
+        void*           m_RequestData;
         int             m_Callback;
+    };
+
+    struct RequestParams
+    {
+        const char* m_Method;
+        const char* m_Url;
+        const char* m_Headers;
+        void* m_Args;
+        void* m_SendData;
+        size_t m_SendDataLength;
+        uint64_t m_RequestTimeout;
     };
 
     extern "C" void dmScriptHttpRequestAsync(const char* method, const char* url, const char* headers, void* arg, OnLoad onload, OnError onerror, const void* send_data, int send_data_length, int timeout);
 
-    void HttpRequestAsync(const char* method, const char* url, const char* headers, void *arg, OnLoad ol, OnError oe, const void* send_data, int send_data_length)
+    void HttpRequestAsync(const RequestParams& request_params, OnLoad ol, OnError oe)
     {
-        int timeout  = (int) g_Timeout;
-        dmScriptHttpRequestAsync(method, url, headers, arg, ol, oe, send_data, send_data_length, timeout);
+        dmScriptHttpRequestAsync(request_params.m_Method, request_params.m_Url, request_params.m_Headers,
+            request_params.m_Args, ol, oe, request_params.m_SendData, request_params.m_SendDataLength, request_params.m_RequestTimeout);
     }
 
     static void MessageDestroyCallback(dmMessage::Message* message)
@@ -96,6 +108,7 @@ namespace dmScript
     {
         RequestContext* ctx = (RequestContext*) context;
         SendResponse(ctx, status, headers, strlen(headers), (const char*) content, content_size);
+        free(ctx->m_RequestData);
         delete ctx;
     }
 
@@ -112,9 +125,11 @@ namespace dmScript
         int callback = 0;
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender)) {
+            RequestParams request_params;
+            memset(&request_params, 0, sizeof(RequestParams));
 
-            const char* url = luaL_checkstring(L, 1);
-            const char* method = luaL_checkstring(L, 2);
+            request_params.m_Url = luaL_checkstring(L, 1);
+            request_params.m_Method = luaL_checkstring(L, 2);
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
             // NOTE: By convention the runctionref is offset by LUA_NOREF
@@ -144,19 +159,18 @@ namespace dmScript
                 lua_pop(L, 1);
             }
             h.Push('\0');
+            request_params.m_Headers = h.Begin();
 
-            char* request_data = 0;
-            int request_data_length = 0;
             if (top > 4 && !lua_isnil(L, 5)) {
                 size_t len;
                 luaL_checktype(L, 5, LUA_TSTRING);
                 const char* r = luaL_checklstring(L, 5, &len);
-                request_data = (char*) malloc(len);
-                memcpy(request_data, r, len);
-                request_data_length = len;
+                request_params.m_SendData = (char*) malloc(len);
+                memcpy(request_params.m_SendData, r, len);
+                request_params.m_SendDataLength = len;
             }
 
-            uint64_t timeout = g_Timeout;
+            request_params.m_RequestTimeout = g_Timeout;
             if (top > 5 && !lua_isnil(L, 6)) {
                 luaL_checktype(L, 6, LUA_TTABLE);
                 lua_pushvalue(L, 6);
@@ -165,7 +179,7 @@ namespace dmScript
                     const char* attr = lua_tostring(L, -2);
                     if( strcmp(attr, "timeout") == 0 )
                     {
-                        timeout = luaL_checknumber(L, -1) * 1000000.0f;
+                        request_params.m_RequestTimeout = luaL_checknumber(L, -1) * 1000000.0f;
                     }
                     lua_pop(L, 1);
                 }
@@ -175,8 +189,11 @@ namespace dmScript
             RequestContext* ctx = new RequestContext;
             ctx->m_Callback = callback;
             ctx->m_Requester = sender;
+            ctx->m_RequestData = request_params.m_SendData;
 
-            HttpRequestAsync(method, url, h.Begin(), ctx, OnHttpLoad, OnHttpError, request_data, request_data_length);
+            request_params.m_Args = ctx;
+
+            HttpRequestAsync(request_params, OnHttpLoad, OnHttpError);
             assert(top == lua_gettop(L));
             return 0;
         } else {

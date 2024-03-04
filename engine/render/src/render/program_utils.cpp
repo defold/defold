@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-//
+// 
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-//
+// 
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -60,6 +60,23 @@ namespace dmRender
                language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430 ||
                language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100 ||
                language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM300;
+    }
+
+    void FillElementIds(char* buffer, uint32_t buffer_size, dmhash_t element_ids[4])
+    {
+        size_t original_size = strlen(buffer);
+        dmStrlCat(buffer, ".x", buffer_size);
+        element_ids[0] = dmHashString64(buffer);
+        buffer[original_size] = 0;
+        dmStrlCat(buffer, ".y", buffer_size);
+        element_ids[1] = dmHashString64(buffer);
+        buffer[original_size] = 0;
+        dmStrlCat(buffer, ".z", buffer_size);
+        element_ids[2] = dmHashString64(buffer);
+        buffer[original_size] = 0;
+        dmStrlCat(buffer, ".w", buffer_size);
+        element_ids[3] = dmHashString64(buffer);
+        buffer[original_size] = 0;
     }
 
     void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
@@ -151,19 +168,7 @@ namespace dmRender
 
                 if (type == dmGraphics::TYPE_FLOAT_VEC4)
                 {
-                    size_t original_size = strlen(buffer);
-                    dmStrlCat(buffer, ".x", sizeof(buffer));
-                    constant.m_ElementIds[0] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
-                    dmStrlCat(buffer, ".y", sizeof(buffer));
-                    constant.m_ElementIds[1] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
-                    dmStrlCat(buffer, ".z", sizeof(buffer));
-                    constant.m_ElementIds[2] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
-                    dmStrlCat(buffer, ".w", sizeof(buffer));
-                    constant.m_ElementIds[3] = dmHashString64(buffer);
-                    buffer[original_size] = 0;
+                    FillElementIds(buffer, buffer_size, constant.m_ElementIds);
                 } else {
                     // Clear element ids, otherwise we will compare against
                     // uninitialized values in GetMaterialProgramConstantInfo.

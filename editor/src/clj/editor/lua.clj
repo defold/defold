@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,6 +20,7 @@
             [clojure.string :as string]
             [editor.code-completion :as code-completion]
             [editor.protobuf :as protobuf]
+            [editor.system :as system]
             [internal.util :as util]
             [util.coll :refer [pair]])
   (:import [com.dynamo.scriptdoc.proto ScriptDoc$Document]
@@ -30,11 +31,11 @@
 
 (def ^:private docs
   ["base" "bit" "buffer" "builtins" "camera" "collectionfactory"
-   "collectionproxy" "coroutine" "crash" "debug" "facebook" "factory" "go" "gui"
-   "html5" "http" "iac" "iap" "image" "io" "json" "label" "math" "model" "msg"
-   "os" "package" "particlefx" "physics" "profiler" "push" "render" "resource"
+   "collectionproxy" "coroutine" "crash" "debug" "factory" "go" "gui"
+   "html5" "http" "image" "io" "json" "label" "math" "model" "msg"
+   "os" "package" "particlefx" "physics" "profiler" "render" "resource"
    "socket" "sound" "sprite" "string" "sys" "table" "tilemap" "timer" "vmath"
-   "webview" "window" "zlib"])
+   "window" "zlib"])
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))
@@ -58,16 +59,8 @@
             string/join)
        "</dl>"))
 
-(defn- make-markdown-doc [raw-name ^URI base-url {:keys [description type examples parameters] :as el}]
-  (let [site-url (.resolve base-url
-                           (str "#"
-                                (string/replace
-                                  (str
-                                    raw-name
-                                    (when (= :function type)
-                                      (str ":" (string/join "-" (mapv :name parameters)))))
-                                  #"[\"#*]" "")))
-        sections (cond-> []
+(defn- make-markdown-doc [{:keys [description type examples parameters] :as el} ^URI base-url site-url]
+  (let [sections (cond-> []
                          (pos? (count description))
                          (conj description)
 
@@ -85,11 +78,12 @@
                          (pos? (count examples))
                          (conj (str "**Examples:**\n\n" examples))
 
-                         :always
+                         site-url
                          (conj (format "[Open in Browser](%s)" site-url)))]
-    {:type :markdown
-     :base-url base-url
-     :value (string/join "\n\n" sections)}))
+    (cond-> {:type :markdown
+             :value (string/join "\n\n" sections)}
+            base-url
+            (assoc :base-url base-url))))
 
 (defn- make-display-string [{:keys [name type parameters]}]
   (str name (when (= :function type)
@@ -145,6 +139,32 @@
 (s/def ::documentation
   (s/map-of string? (s/coll-of ::code-completion/completion)))
 
+(defn- make-completion
+  "Make a lua-specific code completion
+
+  Args:
+    el    documentation map with following keys:
+            :name            string, required, element name
+            :type            keyword
+            :parameters      for :function type, optional vector of parameter
+                             maps with following keys:
+                               :name     string, required
+                               :doc      optional html string
+                               :types    coll of strings, i.e. union
+            :returnvalues    for :function type, same as :parameters
+            :description     string, optional, markdown
+            :examples        string, optional, markdown
+
+  Optional kv-args:
+    :base-url    URI for resolving relative links in the docs and examples
+    :url         string, may be relative to :base-url if it was provided"
+  [el & {:keys [base-url url]}]
+  (code-completion/make (:name el)
+                        :type (:type el)
+                        :display-string (make-display-string el)
+                        :insert (make-snippet el)
+                        :doc (make-markdown-doc el base-url url)))
+
 (defn- defold-documentation []
   {:post [(s/assert ::documentation %)]}
   (make-completion-map
@@ -157,13 +177,16 @@
              (let [raw-name (:name raw-element)
                    name-parts (string/split raw-name #"\.")
                    ns-path (pop name-parts)
-                   {:keys [name type] :as el} (assoc raw-element :name (peek name-parts))
-                   base-url (URI. (str "https://defold.com/ref/" doc-name))]
-               [ns-path (code-completion/make name
-                                              :type type
-                                              :display-string (make-display-string el)
-                                              :insert (make-snippet el)
-                                              :doc (make-markdown-doc raw-name base-url el))])))
+                   {:keys [type parameters] :as el} (assoc raw-element :name (peek name-parts))
+                   base-url (URI. (str "https://defold.com/ref/" doc-name))
+                   site-url (str "#"
+                                 (string/replace
+                                   (str
+                                     raw-name
+                                     (when (= :function type)
+                                       (str ":" (string/join "-" (mapv :name parameters)))))
+                                   #"[\"#*]" ""))]
+               [ns-path (make-completion el :base-url base-url :url site-url)])))
       docs)))
 
 (def logic-keywords #{"and" "or" "not"})
@@ -287,3 +310,70 @@
               std-libs-docs
               script-intelligence-completions
               (make-ast-completions local-completion-info required-completion-infos)))
+
+(def editor-completions
+  (let [node-param {:name "node"
+                    :types ["string" "userdata"]
+                    :doc "Either resource path (e.g. <code>\"/main/game.script\"</code>), or internal node id passed to the script by the editor"}
+        property-param {:name "property"
+                        :types ["string"]
+                        :doc "Either <code>\"path\"</code>, <code>\"text\"</code>, or a property from the Outline view (hover the label to see its editor script name)"}]
+    (make-completion-map
+      [[[] (make-completion
+             {:name "editor"
+              :type :module
+              :description "The editor module, only available when the Lua code is run as [editor script](https://defold.com/manuals/editor-scripts/)."})]
+       [["editor"] (make-completion
+                     {:name "get"
+                      :type :function
+                      :parameters [node-param property-param]
+                      :returnvalues [{:name "value"
+                                      :types ["any"]}]
+                      :description "Get a value of a node inside the editor. Some properties might be read-only, and some might be unavailable in different contexts, so you should use `editor.can_get()` before reading them and `editor.can_set()` before making the editor set them."})]
+       [["editor"] (make-completion
+                     {:name "can_get"
+                      :type :function
+                      :parameters [node-param property-param]
+                      :returnvalues [{:name "value"
+                                      :types ["boolean"]}]
+                      :description "Check if you can get this property so `editor.get()` won't throw an error"})]
+       [["editor"] (make-completion
+                     {:name "can_set"
+                      :type :function
+                      :parameters [node-param property-param]
+                      :returnvalues [{:name "value"
+                                      :types ["boolean"]}]
+                      :description "Check if `\"set\"` action with this property won't throw an error"})]
+       [["editor"] (make-completion
+                     {:name "create_directory"
+                      :type :function
+                      :parameters [{:name "resource_path"
+                                    :types ["string"]
+                                    :doc "Resource path (starting with <code>/</code>) of a directory to create"}]
+                      :description "Create a directory if it does not exist, and all non-existent parent directories. Throws an error if the directory can't be created."
+                      :examples "```\neditor.create_directory(\"/assets/gen\")\n```"})]
+       [["editor"] (make-completion
+                     {:name "delete_directory"
+                      :type :function
+                      :parameters [{:name "resource_path"
+                                    :types ["string"]
+                                    :doc "Resource path (starting with <code>/</code>) of a directory to delete"}]
+                      :description "Delete a directory if it exists, and all existent child directories and files. Throws an error if the directory can't be deleted."
+                      :examples "```\neditor.delete_directory(\"/assets/gen\")\n```"})]
+
+       [["editor"] (make-completion
+                     {:name "platform"
+                      :type :variable
+                      :description "A `string`, either:\n- `\"x86_64-win32\"`\n- `\"x86_64-macos\"`\n- `\"arm64-macos\"`\n- `\"x86_64-linux\"`"})]
+       [["editor"] (make-completion
+                     {:name "version"
+                      :type :variable
+                      :description (format "A string, version name of Defold, e.g. `\"%s\"`" (system/defold-version))})]
+       [["editor"] (make-completion
+                     {:name "engine_sha1"
+                      :type :variable
+                      :description "A string, SHA1 of Defold engine"})]
+       [["editor"] (make-completion
+                     {:name "editor_sha1"
+                      :type :variable
+                      :description "A string, SHA1 of Defold editor"})]])))

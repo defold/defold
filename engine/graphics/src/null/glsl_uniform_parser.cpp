@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -110,6 +110,11 @@ namespace dmGraphics
         else if (STRNCMP("samplerCube", string, count))
         {
             *out_type = TYPE_SAMPLER_CUBE;
+            return true;
+        }
+        else if (STRNCMP("sampler2DArray", string, count))
+        {
+            *out_type = TYPE_SAMPLER_2D_ARRAY;
             return true;
         }
         return false;
