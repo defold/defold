@@ -35,6 +35,7 @@ namespace dmJobThread
     void     Destroy(HContext context);
     void     Update(HContext context); // Flushes any items and calls PostProcess
     void     PushJob(HContext context, FProcess process, FCallback callback, void* user_context, void* data);
+    uint32_t GetWorkerCount(HContext context);
     bool     PlatformHasThreadSupport();
 }
 

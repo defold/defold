@@ -188,6 +188,15 @@ void PushJob(HContext context, FProcess process, FCallback callback, void* user_
 #endif
 }
 
+uint32_t GetWorkerCount(HContext context)
+{
+#if defined(DM_HAS_THREADS)
+    return context->m_Threads.Size();
+#else
+    return 0;
+#endif
+}
+
 void Update(HContext context)
 {
     DM_PROFILE("Update");
