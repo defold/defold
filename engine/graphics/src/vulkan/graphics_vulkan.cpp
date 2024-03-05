@@ -2323,6 +2323,12 @@ bail:
                 res.m_NameHash             = ddf->m_UniformBuffers[i].m_NameHash;
                 res.m_Binding              = ddf->m_UniformBuffers[i].m_Binding;
                 res.m_Set                  = ddf->m_UniformBuffers[i].m_Set;
+                res.m_Type.m_UseTypeIndex  = ddf->m_UniformBuffers[i].m_Type.m_UseTypeIndex;
+
+                if (res.m_Type.m_UseTypeIndex)
+                    res.m_Type.m_TypeIndex = ddf->m_UniformBuffers[i].m_Type.m_Type.m_TypeIndex;
+                else
+                    res.m_Type.m_ShaderType = ddf->m_UniformBuffers[i].m_Type.m_Type.m_ShaderType;
             }
         }
 
@@ -2338,6 +2344,12 @@ bail:
                 res.m_NameHash             = ddf->m_StorageBuffers[i].m_NameHash;
                 res.m_Binding              = ddf->m_StorageBuffers[i].m_Binding;
                 res.m_Set                  = ddf->m_StorageBuffers[i].m_Set;
+                res.m_Type.m_UseTypeIndex  = ddf->m_StorageBuffers[i].m_Type.m_UseTypeIndex;
+
+                if (res.m_Type.m_UseTypeIndex)
+                    res.m_Type.m_TypeIndex = ddf->m_StorageBuffers[i].m_Type.m_Type.m_TypeIndex;
+                else
+                    res.m_Type.m_ShaderType = ddf->m_StorageBuffers[i].m_Type.m_Type.m_ShaderType;
             }
         }
 
@@ -2353,6 +2365,12 @@ bail:
                 res.m_NameHash             = ddf->m_Textures[i].m_NameHash;
                 res.m_Binding              = ddf->m_Textures[i].m_Binding;
                 res.m_Set                  = ddf->m_Textures[i].m_Set;
+                res.m_Type.m_UseTypeIndex  = ddf->m_Textures[i].m_Type.m_UseTypeIndex;
+
+                if (res.m_Type.m_UseTypeIndex)
+                    res.m_Type.m_TypeIndex = ddf->m_Textures[i].m_Type.m_Type.m_TypeIndex;
+                else
+                    res.m_Type.m_ShaderType = ddf->m_Textures[i].m_Type.m_Type.m_ShaderType;
             }
         }
 
@@ -2364,10 +2382,12 @@ bail:
             for (uint32_t i=0; i < ddf->m_Inputs.m_Count; i++)
             {
                 ShaderResourceBinding& res = meta->m_Inputs[i];
-                res.m_Binding              = ddf->m_Inputs[i].m_Binding;
-                res.m_Set                  = ddf->m_Inputs[i].m_Set;
                 res.m_NameHash             = ddf->m_Inputs[i].m_NameHash;
                 res.m_Name                 = strdup(ddf->m_Inputs[i].m_Name);
+                res.m_Binding              = ddf->m_Inputs[i].m_Binding;
+                res.m_Set                  = ddf->m_Inputs[i].m_Set;
+                res.m_Type.m_ShaderType    = ddf->m_Inputs[i].m_Type.m_Type.m_ShaderType;
+                res.m_Type.m_UseTypeIndex  = false;
             }
         }
     }

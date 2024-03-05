@@ -114,10 +114,14 @@ namespace dmGraphics
     }
     */
 
-    union ShaderResourceType
+    struct ShaderResourceType
     {
-        dmGraphics::ShaderDesc::ShaderDataType m_ShaderType;
-        uint32_t                               m_TypeIndex;
+        union
+        {
+            dmGraphics::ShaderDesc::ShaderDataType m_ShaderType;
+            uint32_t                               m_TypeIndex;
+        };
+        uint8_t m_UseTypeIndex : 1;
     };
 
     struct ShaderResourceMember

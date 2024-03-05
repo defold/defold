@@ -300,12 +300,6 @@ public class ShaderCompilerHelpers {
         SPIRVReflector reflector       = new SPIRVReflector(result_json);
         ArrayList<String> shaderIssues = new ArrayList<String>();
 
-        // Put all shader resources on a separate list that will be sorted by binding number later
-        // ArrayList<SPIRVReflector.Resource> resources = new ArrayList();
-        // resources.addAll(reflector.getUBOs());
-        // resources.addAll(reflector.getTextures());
-        // resources.addAll(reflector.getSsbos());
-
         // This is a soft-fail mechanism just to notify that the shaders won't work in runtime.
         // At some point we should probably throw a compilation error here so that the build fails.
         if (shaderIssues.size() > 0) {
@@ -409,7 +403,7 @@ public class ShaderCompilerHelpers {
 
         for (SPIRVReflector.Resource output : compile_res.outputs) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.types, output);
-            builder.addInputs(resourceBindingBuilder);
+            builder.addOutputs(resourceBindingBuilder);
         }
 
         for (SPIRVReflector.Resource ubo : compile_res.ubos) {
