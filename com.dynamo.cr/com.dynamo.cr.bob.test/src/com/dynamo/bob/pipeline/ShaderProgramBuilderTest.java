@@ -145,10 +145,10 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
-    private static void debugPrintShader(String label, ShaderDesc.Shader shader) {
-        System.out.println("debugPrintShader: " + label);
+    private static void debugPrintResourceList(String label, List<ShaderDesc.ResourceBinding> lst) {
+        System.out.println(label);
 
-        for (ShaderDesc.ResourceBinding r : shader.getResourcesList()) {
+        for (ShaderDesc.ResourceBinding r : lst) {
             System.out.println("Resource");
             System.out.println("  name: " + r.getName());
             System.out.println("  hash: " + r.getNameHash());
@@ -162,6 +162,14 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 System.out.println("   type: " + resourceType.getTypeIndex());
             }
         }
+    }
+
+    private static void debugPrintShader(String label, ShaderDesc.Shader shader) {
+        System.out.println("debugPrintShader: " + label);
+
+        debugPrintResourceList("UBOs", shader.getUniformBuffersList());
+        debugPrintResourceList("SSBOs", shader.getStorageBuffersList());
+        debugPrintResourceList("Textures", shader.getTexturesList());
 
         for (ShaderDesc.ResourceTypeInfo t : shader.getTypesList()) {
             System.out.println("Type");
@@ -223,13 +231,13 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assert(shaderDesc.getShadersCount() > 0);
             ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
             assertNotNull(shader);
-            assert(shader.getResourcesCount() == 1);
+            assert(shader.getUniformBuffersCount() == 1);
 
             debugPrintShader("Reflection", shader);
 
             // Note: When we don't specify a version and the uniforms are not packed in constant buffers,
             //       we wrap them around generated uniform buffers, which requires us to dig out the type infomartion like this:
-            ShaderDesc.ResourceBinding binding_test = shader.getResources(0);
+            ShaderDesc.ResourceBinding binding_test = shader.getUniformBuffers(0);
             ShaderDesc.ResourceTypeInfo binding_type = shader.getTypes(binding_test.getType().getTypeIndex());
             ShaderDesc.ResourceMember binding_type_member = binding_type.getMembers(0);
             assertEquals("u_lights", binding_type_member.getName());
@@ -275,8 +283,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
             assertNotNull(shader);
 
-            assert(shader.getResourcesCount() == 1);
-            ShaderDesc.ResourceBinding binding_test = shader.getResources(0);
+            assert(shader.getStorageBuffersCount() == 1);
+            ShaderDesc.ResourceBinding binding_test = shader.getStorageBuffers(0);
             assertEquals("Test", binding_test.getName());
 
             ShaderDesc.ResourceTypeInfo binding_type = shader.getTypes(binding_test.getType().getTypeIndex());
@@ -318,17 +326,17 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
             assertNotNull(shader);
 
-            assert(shader.getResourcesCount() == 9);
-            validateResourceBindingWithKnownType(shader.getResources(0), "sampler_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D);
-            validateResourceBindingWithKnownType(shader.getResources(1), "sampler_2d_array", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
-            validateResourceBindingWithKnownType(shader.getResources(2), "sampler_cube",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE);
+            assert(shader.getTexturesCount() == 9);
+            validateResourceBindingWithKnownType(shader.getTextures(0), "sampler_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D);
+            validateResourceBindingWithKnownType(shader.getTextures(1), "sampler_2d_array", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
+            validateResourceBindingWithKnownType(shader.getTextures(2), "sampler_cube",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE);
             //TODO:
-            //validateResourceBindingWithKnownType(shader.getResources(2), "sampler_buffer",   ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_);
-            validateResourceBindingWithKnownType(shader.getResources(3), "texture_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
-            validateResourceBindingWithKnownType(shader.getResources(4), "utexture_2d",      ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D);
-            validateResourceBindingWithKnownType(shader.getResources(5), "uimage_2d",        ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D);
-            validateResourceBindingWithKnownType(shader.getResources(6), "image_2d",         ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D);
-            validateResourceBindingWithKnownType(shader.getResources(7), "sampler_name",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+            //validateResourceBindingWithKnownType(shader.getTextures(2), "sampler_buffer",   ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_);
+            validateResourceBindingWithKnownType(shader.getTextures(3), "texture_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
+            validateResourceBindingWithKnownType(shader.getTextures(4), "utexture_2d",      ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D);
+            validateResourceBindingWithKnownType(shader.getTextures(5), "uimage_2d",        ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D);
+            validateResourceBindingWithKnownType(shader.getTextures(6), "image_2d",         ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D);
+            validateResourceBindingWithKnownType(shader.getTextures(7), "sampler_name",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
         }
     }
 
@@ -581,7 +589,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
         assertNotNull(shader);
 
-        ShaderDesc.ResourceBinding ubo = shader.getResources(0);
+        ShaderDesc.ResourceBinding ubo = shader.getUniformBuffers(0);
         assertTrue(ubo.getName().equals("uniform_buffer"));
 
         // ShaderDesc.ResourceBinding binding_one = ubo.getBindings(0);

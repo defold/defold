@@ -2305,24 +2305,88 @@ bail:
             shader->m_StorageBufferCount     = storage_buffer_count;
             shader->m_TotalUniformCount      = total_uniform_count;
         }
+        */
+    }
+
+    // TODO: Move to graphics
+    void CreateShaderMeta(ShaderDesc::Shader* ddf, ShaderMeta* meta)
+    {   
+        if (ddf->m_UniformBuffers.m_Count > 0)
+        {
+            meta->m_UniformBuffers.SetCapacity(ddf->m_UniformBuffers.m_Count);
+            meta->m_UniformBuffers.SetSize(ddf->m_UniformBuffers.m_Count);
+
+            for (int i = 0; i < ddf->m_UniformBuffers.m_Count; ++i)
+            {
+                ShaderResourceBinding& res = meta->m_UniformBuffers[i];
+                res.m_Name                 = strdup(ddf->m_UniformBuffers[i].m_Name);
+                res.m_NameHash             = ddf->m_UniformBuffers[i].m_NameHash;
+                res.m_Binding              = ddf->m_UniformBuffers[i].m_Binding;
+                res.m_Set                  = ddf->m_UniformBuffers[i].m_Set;
+            }
+        }
+
+        if (ddf->m_StorageBuffers.m_Count > 0)
+        {
+            meta->m_StorageBuffers.SetCapacity(ddf->m_StorageBuffers.m_Count);
+            meta->m_StorageBuffers.SetSize(ddf->m_StorageBuffers.m_Count);
+
+            for (int i = 0; i < ddf->m_StorageBuffers.m_Count; ++i)
+            {
+                ShaderResourceBinding& res = meta->m_StorageBuffers[i];
+                res.m_Name                 = strdup(ddf->m_StorageBuffers[i].m_Name);
+                res.m_NameHash             = ddf->m_StorageBuffers[i].m_NameHash;
+                res.m_Binding              = ddf->m_StorageBuffers[i].m_Binding;
+                res.m_Set                  = ddf->m_StorageBuffers[i].m_Set;
+            }
+        }
+
+        if (ddf->m_Textures.m_Count > 0)
+        {
+            meta->m_Textures.SetCapacity(ddf->m_Textures.m_Count);
+            meta->m_Textures.SetSize(ddf->m_Textures.m_Count);
+
+            for (int i = 0; i < ddf->m_Textures.m_Count; ++i)
+            {
+                ShaderResourceBinding& res = meta->m_Textures[i];
+                res.m_Name                 = strdup(ddf->m_Textures[i].m_Name);
+                res.m_NameHash             = ddf->m_Textures[i].m_NameHash;
+                res.m_Binding              = ddf->m_Textures[i].m_Binding;
+                res.m_Set                  = ddf->m_Textures[i].m_Set;
+            }
+        }
 
         if (ddf->m_Inputs.m_Count > 0)
         {
-            shader->m_Inputs.SetCapacity(ddf->m_Inputs.m_Count);
-            shader->m_Inputs.SetSize(ddf->m_Inputs.m_Count);
+            meta->m_Inputs.SetCapacity(ddf->m_Inputs.m_Count);
+            meta->m_Inputs.SetSize(ddf->m_Inputs.m_Count);
 
             for (uint32_t i=0; i < ddf->m_Inputs.m_Count; i++)
             {
-                ShaderResourceBinding& res = shader->m_Inputs[i];
+                ShaderResourceBinding& res = meta->m_Inputs[i];
                 res.m_Binding              = ddf->m_Inputs[i].m_Binding;
                 res.m_Set                  = ddf->m_Inputs[i].m_Set;
-                res.m_Type                 = ddf->m_Inputs[i].m_Type;
                 res.m_NameHash             = ddf->m_Inputs[i].m_NameHash;
-                res.m_ElementCount         = ddf->m_Inputs[i].m_ElementCount;
                 res.m_Name                 = strdup(ddf->m_Inputs[i].m_Name);
             }
         }
-        */
+    }
+
+    bool ValidateShaderModule(VulkanContext* context, ShaderModule* shader)
+    {
+        if (shader->m_ShaderMeta.m_UniformBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        {
+            dmLogError("Maximum number of uniform buffers exceeded: vertex shader has %d buffers, but maximum is %d.",
+                shader->m_ShaderMeta.m_UniformBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
+            return false;
+        }
+        else if (shader->m_ShaderMeta.m_Textures.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
+        {
+            dmLogError("Maximum number of texture samplers exceeded: vertex shader has %d samplers, but maximum is %d.",
+                shader->m_ShaderMeta.m_Textures.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
+            return false;
+        }
+        return true;
     }
 
     static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc::Shader* ddf)
@@ -2331,26 +2395,16 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VulkanContext* context = (VulkanContext*) _context;
 
-        /*
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-        CreateShaderResourceBindings(shader, ddf);
 
-        if (shader->m_UniformBufferCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        CreateShaderMeta(ddf, &shader->m_ShaderMeta);
+
+        if (!ValidateShaderModule(context, shader))
         {
             DeleteVertexProgram((HVertexProgram) shader);
-            dmLogError("Maximum number of uniform buffers exceeded: vertex shader has %d buffers, but maximum is %d.",
-                shader->m_UniformBufferCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
             return 0;
         }
-        else if (shader->m_TextureSamplerCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
-        {
-            DeleteVertexProgram((HVertexProgram) shader);
-            dmLogError("Maximum number of texture samplers exceeded: vertex shader has %d samplers, but maximum is %d.",
-                shader->m_TextureSamplerCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
-            return 0;
-        }
-        */
 
         return (HVertexProgram) shader;
     }
@@ -2361,26 +2415,16 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VulkanContext* context = (VulkanContext*) _context;
 
-        /*
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
-        CreateShaderResourceBindings(shader, ddf);
 
-        if (shader->m_UniformBufferCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
+        CreateShaderMeta(ddf, &shader->m_ShaderMeta);
+
+        if (!ValidateShaderModule(context, shader))
         {
-            DeleteFragmentProgram((HVertexProgram) shader);
-            dmLogError("Maximum number of uniform buffers exceeded: fragment shader has %d buffers, but maximum is %d.",
-                shader->m_UniformBufferCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
+            DeleteFragmentProgram((HFragmentProgram) shader);
             return 0;
         }
-        else if (shader->m_TextureSamplerCount > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
-        {
-            DeleteFragmentProgram((HVertexProgram) shader);
-            dmLogError("Maximum number of texture samplers exceeded: fragment shader has %d samplers, but maximum is %d.",
-                shader->m_TextureSamplerCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
-            return 0;
-        }
-        */
 
         return (HFragmentProgram) shader;
     }
@@ -2578,12 +2622,10 @@ bail:
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
 
-        /*
-        for (uint32_t i=0; i < vertex_module->m_Inputs.Size(); i++)
+        for (uint32_t i=0; i < vertex_module->m_ShaderMeta.m_Inputs.Size(); i++)
         {
-            dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Inputs[i].m_Binding, sizeof(vertex_module->m_Inputs[i].m_Binding));
+            dmHashUpdateBuffer64(&program_hash, &vertex_module->m_ShaderMeta.m_Inputs[i].m_Binding, sizeof(vertex_module->m_ShaderMeta.m_Inputs[i].m_Binding));
         }
-        */
 
         dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Hash, sizeof(vertex_module->m_Hash));
         dmHashUpdateBuffer64(&program_hash, &fragment_module->m_Hash, sizeof(fragment_module->m_Hash));
@@ -2626,15 +2668,13 @@ bail:
 
         DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
 
+
+        // TODO
+
         /*
         for (uint32_t i=0; i < shader->m_Uniforms.Size(); i++)
         {
             free(shader->m_Uniforms[i].m_Name);
-
-            for (uint32_t j = 0; j < shader->m_Uniforms[i].m_BlockMembers.Size(); ++j)
-            {
-                free(shader->m_Uniforms[i].m_BlockMembers[j].m_Name);
-            }
         }
 
         for (uint32_t i=0; i < shader->m_Inputs.Size(); i++)
@@ -2730,24 +2770,21 @@ bail:
 
     static uint32_t VulkanGetAttributeCount(HProgram prog)
     {
-        return 0;
-        // Program* program_ptr = (Program*) prog;
-        // return program_ptr->m_VertexModule->m_Inputs.Size();
+        Program* program_ptr = (Program*) prog;
+        return program_ptr->m_VertexModule->m_ShaderMeta.m_Inputs.Size();
     }
 
     static void VulkanGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
-        // Program* program_ptr = (Program*) prog;
-        // assert(index < program_ptr->m_VertexModule->m_Inputs.Size());
-        // ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_Inputs[index];
+        Program* program_ptr = (Program*) prog;
+        assert(index < program_ptr->m_VertexModule->m_ShaderMeta.m_Inputs.Size());
+        ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_ShaderMeta.m_Inputs[index];
 
-        /*
         *name_hash     = attr.m_NameHash;
-        *type          = ShaderDataTypeToGraphicsType(attr.m_Type);
-        *num_values    = attr.m_ElementCount;
+        *type          = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
+        *num_values    = 1;
         *location      = attr.m_Binding;
-        *element_count = GetShaderTypeSize(attr.m_Type) / sizeof(float);
-        */
+        *element_count = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
     }
 
     static uint32_t VulkanGetUniformCount(HProgram prog)
@@ -4617,6 +4654,8 @@ bail:
         context->m_CurrentVertexDeclaration[binding]             = &context->m_MainVertexDeclaration[binding];
 
         uint32_t stream_ix = 0;
+
+        assert(0);
 
         /*
         for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)

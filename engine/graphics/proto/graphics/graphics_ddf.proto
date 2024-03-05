@@ -291,6 +291,10 @@ message ShaderDesc
             ShaderDataType shader_type = 1;
             int32          type_index  = 2;
         }
+
+        // The engine doesn't know which of the oneofs has been set
+        // (we should at some point support that for oneofs)
+        optional bool use_type_index = 3 [default=false];
     }
 
     message ResourceMember
@@ -322,11 +326,13 @@ message ShaderDesc
         required Language           language              = 1;
         optional bytes              source                = 2;
         optional string             name                  = 3;
-        repeated ResourceBinding    resources             = 4;
-        repeated ResourceBinding    inputs                = 5;
-        repeated ResourceBinding    outputs               = 6;
-        optional bool               variant_texture_array = 7 [default = false];
-        repeated ResourceTypeInfo   types                 = 8;
+        repeated ResourceBinding    uniform_buffers       = 4;
+        repeated ResourceBinding    storage_buffers       = 5;
+        repeated ResourceBinding    textures              = 6;
+        repeated ResourceBinding    inputs                = 7;
+        repeated ResourceBinding    outputs               = 8;
+        repeated ResourceTypeInfo   types                 = 9;
+        optional bool               variant_texture_array = 10 [default = false];
     }
 
     repeated Shader shaders           = 1;

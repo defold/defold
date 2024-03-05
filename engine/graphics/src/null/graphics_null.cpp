@@ -777,19 +777,22 @@ namespace dmGraphics
         p->m_Data[ddf->m_Source.m_Count] = '\0';
         p->m_Language = ddf->m_Language;
 
-        for (int i = 0; i < ddf->m_Resources.m_Count; ++i)
+        for (int i = 0; i < ddf->m_UniformBuffers.m_Count; ++i)
         {
-            ShaderDesc::ResourceBinding& res = ddf->m_Resources[i];
-
+            ShaderDesc::ResourceBinding& res = ddf->m_UniformBuffers[i];
             PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
+        }
 
-            /*
-            for (int j = 0; j < ddf->m_Resources[i].m_Bindings.m_Count; ++j)
-            {
-                ShaderDesc::ResourceBinding& res = ddf->m_Resources[i].m_Bindings[j];
-                PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type), res.m_ElementCount);
-            }
-            */
+        for (int i = 0; i < ddf->m_StorageBuffers.m_Count; ++i)
+        {
+            ShaderDesc::ResourceBinding& res = ddf->m_StorageBuffers[i];
+            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
+        }
+
+        for (int i = 0; i < ddf->m_Textures.m_Count; ++i)
+        {
+            ShaderDesc::ResourceBinding& res = ddf->m_Textures[i];
+            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
         }
 
         return p;

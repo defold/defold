@@ -301,11 +301,10 @@ public class ShaderCompilerHelpers {
         ArrayList<String> shaderIssues = new ArrayList<String>();
 
         // Put all shader resources on a separate list that will be sorted by binding number later
-        ArrayList<SPIRVReflector.Resource> resources = new ArrayList();
-
-        resources.addAll(reflector.getUBOs());
-        resources.addAll(reflector.getTextures());
-        resources.addAll(reflector.getSsbos());
+        // ArrayList<SPIRVReflector.Resource> resources = new ArrayList();
+        // resources.addAll(reflector.getUBOs());
+        // resources.addAll(reflector.getTextures());
+        // resources.addAll(reflector.getSsbos());
 
         // This is a soft-fail mechanism just to notify that the shaders won't work in runtime.
         // At some point we should probably throw a compilation error here so that the build fails.
@@ -316,13 +315,17 @@ public class ShaderCompilerHelpers {
 
         res.inputs    = reflector.getInputs();
         res.outputs   = reflector.getOutputs();
-        res.resources = resources;
+        res.ubos      = reflector.getUBOs();
+        res.ssbos     = reflector.getSsbos();
+        res.textures  = reflector.getTextures();
         res.types     = reflector.getTypes();
         res.source    = FileUtils.readFileToByteArray(file_out_spv);
 
         Collections.sort(res.inputs, new SortBindingsComparator());
         Collections.sort(res.outputs, new SortBindingsComparator());
-        Collections.sort(res.resources, new SortBindingsComparator());
+        Collections.sort(res.ubos, new SortBindingsComparator());
+        Collections.sort(res.ssbos, new SortBindingsComparator());
+        Collections.sort(res.textures, new SortBindingsComparator());
 
         return res;
     }
@@ -339,7 +342,9 @@ public class ShaderCompilerHelpers {
         public ArrayList<String> compile_warnings           = new ArrayList<String>();
         public ArrayList<SPIRVReflector.Resource> inputs    = new ArrayList<SPIRVReflector.Resource>();
         public ArrayList<SPIRVReflector.Resource> outputs   = new ArrayList<SPIRVReflector.Resource>();
-        public ArrayList<SPIRVReflector.Resource> resources = new ArrayList<SPIRVReflector.Resource>();
+        public ArrayList<SPIRVReflector.Resource> ubos      = new ArrayList<SPIRVReflector.Resource>();
+        public ArrayList<SPIRVReflector.Resource> ssbos     = new ArrayList<SPIRVReflector.Resource>();
+        public ArrayList<SPIRVReflector.Resource> textures  = new ArrayList<SPIRVReflector.Resource>();
         public ArrayList<SPIRVReflector.ResourceType> types = new ArrayList<SPIRVReflector.ResourceType>();
     };
 
@@ -364,11 +369,24 @@ public class ShaderCompilerHelpers {
 
         if (knownType == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
             resourceTypeBuilder.setTypeIndex(getTypeIndex(types, typeName));
+            resourceTypeBuilder.setUseTypeIndex(true);
         } else {
             resourceTypeBuilder.setShaderType(knownType);
+            resourceTypeBuilder.setUseTypeIndex(false);
         }
 
         return resourceTypeBuilder;
+    }
+
+    static private ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(ArrayList<SPIRVReflector.ResourceType> types, SPIRVReflector.Resource res) {
+        ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+        ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(types, res.type);
+        resourceBindingBuilder.setType(typeBuilder);
+        resourceBindingBuilder.setName(res.name);
+        resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
+        resourceBindingBuilder.setSet(res.set);
+        resourceBindingBuilder.setBinding(res.binding);
+        return resourceBindingBuilder;
     }
 
     static public ShaderProgramBuilder.ShaderBuildResult buildSpirvFromGLSL(String source, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
@@ -385,41 +403,31 @@ public class ShaderCompilerHelpers {
         builder.setSource(ByteString.copyFrom(compile_res.source));
 
         for (SPIRVReflector.Resource input : compile_res.inputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-
-            ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(compile_res.types, input.type);
-            resourceBindingBuilder.setType(typeBuilder);
-            resourceBindingBuilder.setName(input.name);
-            resourceBindingBuilder.setNameHash(MurmurHash.hash64(input.name));
-            resourceBindingBuilder.setSet(input.set);
-            resourceBindingBuilder.setBinding(input.binding);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.types, input);
             builder.addInputs(resourceBindingBuilder);
         }
 
         for (SPIRVReflector.Resource output : compile_res.outputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-            ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(compile_res.types, output.type);
-            resourceBindingBuilder.setType(typeBuilder);
-            resourceBindingBuilder.setName(output.name);
-            resourceBindingBuilder.setNameHash(MurmurHash.hash64(output.name));
-            resourceBindingBuilder.setSet(output.set);
-            resourceBindingBuilder.setBinding(output.binding);
-            builder.addOutputs(resourceBindingBuilder);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.types, output);
+            builder.addInputs(resourceBindingBuilder);
         }
 
-        for (SPIRVReflector.Resource resource : compile_res.resources) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-            ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(compile_res.types, resource.type);
-            resourceBindingBuilder.setType(typeBuilder);
-            resourceBindingBuilder.setName(resource.name);
-            resourceBindingBuilder.setNameHash(MurmurHash.hash64(resource.name));
-            resourceBindingBuilder.setSet(resource.set);
-            resourceBindingBuilder.setBinding(resource.binding);
-            builder.addResources(resourceBindingBuilder);
+        for (SPIRVReflector.Resource ubo : compile_res.ubos) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.types, ubo);
+            builder.addUniformBuffers(resourceBindingBuilder);
+        }
+
+        for (SPIRVReflector.Resource ssbo : compile_res.ssbos) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.types, ssbo);
+            builder.addStorageBuffers(resourceBindingBuilder);
+        }
+
+        for (SPIRVReflector.Resource texture : compile_res.textures) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.types, texture);
+            builder.addTextures(resourceBindingBuilder);
         }
 
         for (SPIRVReflector.ResourceType type : compile_res.types) {
-
             ShaderDesc.ResourceTypeInfo.Builder resourceTypeInfoBuilder = ShaderDesc.ResourceTypeInfo.newBuilder();
 
             resourceTypeInfoBuilder.setName(type.name);
