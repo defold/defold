@@ -940,6 +940,7 @@ namespace dmGraphics
     //   E.g see: engine/render/src/render/material.cpp#L446"
     bool GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out)
     {
+        /*
         assert(uniforms.Size() < UNIFORM_LOCATION_MAX);
         for (uint32_t i = 0; i < uniforms.Size(); ++i)
         {
@@ -963,6 +964,7 @@ namespace dmGraphics
                 }
             }
         }
+        */
 
         return false;
     }

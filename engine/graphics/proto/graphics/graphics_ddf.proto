@@ -284,15 +284,24 @@ message ShaderDesc
         SHADER_TYPE_STORAGE_BUFFER    = 24;
     }
 
+    message ResourceType
+    {
+        oneof Type
+        {
+            ShaderDataType shader_type = 1;
+            int32          type_index  = 2;
+        }
+    }
+
     message ResourceMember
     {
         required string         name          = 1;
         required uint64         name_hash     = 2;
-        required ShaderDataType type          = 3;
+        required ResourceType   type          = 3;
         optional uint32         element_count = 4 [default=1];
     }
 
-    message ResourceType
+    message ResourceTypeInfo
     {
         required string         name          = 1;
         required uint64         name_hash     = 2;
@@ -303,34 +312,21 @@ message ShaderDesc
     {
         required string         name          = 1;
         required uint64         name_hash     = 2;
-        required ShaderDataType type          = 3;
-        optional uint32         element_count = 4 [default=1];
-        optional uint32         set           = 5 [default=0];
-        optional uint32         binding       = 6 [default=0];
-        optional int32          type_index    = 7;
-    }
-
-    message ResourceBlock
-    {
-        required string          name          = 1;
-        required uint64          name_hash     = 2;
-        repeated ResourceBinding bindings      = 3;
-        required ShaderDataType  type          = 4;
-        optional uint32          element_count = 5 [default=1];
-        optional uint32          set           = 6 [default=0];
-        optional uint32          binding       = 7 [default=0];
+        required ResourceType   type          = 3;
+        optional uint32         set           = 4 [default=0];
+        optional uint32         binding       = 5 [default=0];
     }
 
     message Shader
     {
-        required Language        language              = 1;
-        optional bytes           source                = 2;
-        optional string          name                  = 3;
-        repeated ResourceBlock   resources             = 4;
-        repeated ResourceBinding inputs                = 5;
-        repeated ResourceBinding outputs               = 6;
-        optional bool            variant_texture_array = 7 [default = false];
-        repeated ResourceType    types                 = 8;
+        required Language           language              = 1;
+        optional bytes              source                = 2;
+        optional string             name                  = 3;
+        repeated ResourceBinding    resources             = 4;
+        repeated ResourceBinding    inputs                = 5;
+        repeated ResourceBinding    outputs               = 6;
+        optional bool               variant_texture_array = 7 [default = false];
+        repeated ResourceTypeInfo   types                 = 8;
     }
 
     repeated Shader shaders           = 1;

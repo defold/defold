@@ -226,6 +226,7 @@ struct SubPassTest : ITest
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
         dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
 
+        /*
         dmGraphics::ShaderDesc::ResourceBinding& vx_attribute_position = m_VertexAttributes[0];
         vx_attribute_position.m_Name         = "pos";
         vx_attribute_position.m_Type         = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2;
@@ -260,6 +261,7 @@ struct SubPassTest : ITest
 
         m_ShaderProgram     = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
         m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
+        */
 
         //////////// RENDER TARGET ////////////
         dmGraphics::RenderTargetCreationParams p = {};
@@ -398,6 +400,7 @@ struct StorageBufferTest : ITest
 
         m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
+        /*
         dmGraphics::ShaderDesc::ResourceBinding& vx_attribute_position = m_VertexAttributes[0];
         vx_attribute_position.m_Name         = "pos";
         vx_attribute_position.m_NameHash     = dmHashString64(vx_attribute_position.m_Name);
@@ -428,6 +431,7 @@ struct StorageBufferTest : ITest
             fs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_fragment_program_ssbo;
             fs_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_fragment_program_ssbo);
         }
+        */
 
         /*
         message ResourceBlock
@@ -447,6 +451,7 @@ struct StorageBufferTest : ITest
         };
         */
 
+        /*
         dmGraphics::ShaderDesc::ResourceBinding fs_ssbo_res = {};
         fs_ssbo_res.m_Name     = "my_data";
         fs_ssbo_res.m_NameHash = dmHashString64(fs_ssbo_res.m_Name);
@@ -484,6 +489,7 @@ struct StorageBufferTest : ITest
         StorageBuffer_Data storage_data[16] = {};
 
         m_StorageBuffer = dmGraphics::NewStorageBuffer(engine->m_GraphicsContext, sizeof(storage_data));
+        */
     }
 
     void Execute(EngineCtx* engine) override

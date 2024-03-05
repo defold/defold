@@ -1826,6 +1826,7 @@ bail:
 
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
 
+        /*
         uint32_t stream_ix = 0;
         uint32_t num_inputs = vertex_shader->m_Inputs.Size();
 
@@ -1851,6 +1852,7 @@ bail:
                 }
             }
         }
+        */
     }
 
     static void VulkanDisableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration)
@@ -1865,6 +1867,8 @@ bail:
 
     static inline bool IsUniformTextureSampler(const ShaderResourceBinding& uniform)
     {
+        return false;
+        /*
         return uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D       ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER3D       ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY ||
@@ -1875,11 +1879,12 @@ bail:
                uniform.m_Type == ShaderDesc::SHADER_TYPE_IMAGE2D         ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_SAMPLER         ||
                uniform.m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT;
+               */
     }
 
     static inline bool IsUniformStorageBuffer(const ShaderResourceBinding& uniform)
     {
-        return uniform.m_Type == ShaderDesc::SHADER_TYPE_STORAGE_BUFFER;
+        return false; // return uniform.m_Type == ShaderDesc::SHADER_TYPE_STORAGE_BUFFER;
     }
 
     static inline VulkanTexture* GetDefaultTexture(VulkanContext* context, ShaderDesc::ShaderDataType type)
@@ -1905,6 +1910,7 @@ bail:
         HTexture texture_handle = context->m_TextureUnits[texture_unit];
         VulkanTexture* texture  = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_handle);
 
+        /*
         if (texture == 0x0)
         {
             texture = GetDefaultTexture(context, binding->m_Type);
@@ -1939,6 +1945,7 @@ bail:
 
         vk_write_desc_info.descriptorType = descriptor_type;
         vk_write_desc_info.pImageInfo     = &vk_image_info;
+        */
     }
 
     static void UpdateUniformBufferDescriptor(VulkanContext* context, VkBuffer vk_buffer, VkDescriptorBufferInfo& vk_buffer_info, VkWriteDescriptorSet& vk_write_desc_info, uint32_t uniform_size)
@@ -1986,6 +1993,8 @@ bail:
                 vk_write_desc_info.pBufferInfo           = 0;
                 vk_write_desc_info.pTexelBufferView      = 0;
 
+                /*
+
                 if (IsUniformTextureSampler(*pgm_res.m_Res))
                 {
                     UpdateImageDescriptor(context, pgm_res.m_TextureUnit, pgm_res.m_Res, vk_write_image_descriptors[image_to_write_index++], vk_write_desc_info);
@@ -2020,6 +2029,7 @@ bail:
 
                     scratch_buffer->m_MappedDataCursor += uniform_size_align;
                 }
+                */
             }
         }
 
@@ -2232,7 +2242,8 @@ bail:
     }
 
     static void CreateShaderResourceBindings(ShaderModule* shader, ShaderDesc::Shader* ddf)
-    {
+    {   
+        /*
         if (ddf->m_Resources.m_Count > 0)
         {
             shader->m_Uniforms.SetCapacity(ddf->m_Resources.m_Count);
@@ -2311,6 +2322,7 @@ bail:
                 res.m_Name                 = strdup(ddf->m_Inputs[i].m_Name);
             }
         }
+        */
     }
 
     static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc::Shader* ddf)
@@ -2319,6 +2331,7 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VulkanContext* context = (VulkanContext*) _context;
 
+        /*
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
         CreateShaderResourceBindings(shader, ddf);
@@ -2337,6 +2350,7 @@ bail:
                 shader->m_TextureSamplerCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
             return 0;
         }
+        */
 
         return (HVertexProgram) shader;
     }
@@ -2346,6 +2360,8 @@ bail:
         ShaderModule* shader = new ShaderModule;
         memset(shader, 0, sizeof(*shader));
         VulkanContext* context = (VulkanContext*) _context;
+
+        /*
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
         CHECK_VK_ERROR(res);
         CreateShaderResourceBindings(shader, ddf);
@@ -2364,12 +2380,14 @@ bail:
                 shader->m_TextureSamplerCount, context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
             return 0;
         }
+        */
 
         return (HFragmentProgram) shader;
     }
 
     static inline VkDescriptorType GetDescriptorType(const ShaderResourceBinding& res)
     {
+        /*
         if (IsUniformTextureSampler(res))
         {
             switch(res.m_Type)
@@ -2389,6 +2407,7 @@ bail:
         {
             return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         }
+        */
         return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     }
 
@@ -2429,6 +2448,7 @@ bail:
     static void FillProgramResourceBindings(Program* program, ShaderModule* module, VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], uint32_t ubo_alignment, uint32_t ssbo_alignment, VkShaderStageFlagBits stage_flag,
         uint32_t& buffer_count, uint32_t& sampler_count, uint32_t& uniform_count, uint32_t& data_size, uint32_t& data_size_aligned, uint32_t& max_set, uint32_t& max_binding)
     {
+        /*
         for (int i = 0; i < module->m_Uniforms.Size(); ++i)
         {
             ShaderResourceBinding& res            = module->m_Uniforms[i];
@@ -2471,6 +2491,7 @@ bail:
 
             binding.stageFlags |= stage_flag;
         }
+        */
     }
 
     static void CreateProgramResourceBindings(VulkanContext* context, Program* program)
@@ -2557,10 +2578,12 @@ bail:
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
 
+        /*
         for (uint32_t i=0; i < vertex_module->m_Inputs.Size(); i++)
         {
             dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Inputs[i].m_Binding, sizeof(vertex_module->m_Inputs[i].m_Binding));
         }
+        */
 
         dmHashUpdateBuffer64(&program_hash, &vertex_module->m_Hash, sizeof(vertex_module->m_Hash));
         dmHashUpdateBuffer64(&program_hash, &fragment_module->m_Hash, sizeof(fragment_module->m_Hash));
@@ -2603,6 +2626,7 @@ bail:
 
         DestroyShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, shader);
 
+        /*
         for (uint32_t i=0; i < shader->m_Uniforms.Size(); i++)
         {
             free(shader->m_Uniforms[i].m_Name);
@@ -2617,6 +2641,7 @@ bail:
         {
             free(shader->m_Inputs[i].m_Name);
         }
+        */
     }
 
     static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf)
@@ -2705,21 +2730,24 @@ bail:
 
     static uint32_t VulkanGetAttributeCount(HProgram prog)
     {
-        Program* program_ptr = (Program*) prog;
-        return program_ptr->m_VertexModule->m_Inputs.Size();
+        return 0;
+        // Program* program_ptr = (Program*) prog;
+        // return program_ptr->m_VertexModule->m_Inputs.Size();
     }
 
     static void VulkanGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
-        Program* program_ptr = (Program*) prog;
-        assert(index < program_ptr->m_VertexModule->m_Inputs.Size());
-        ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_Inputs[index];
+        // Program* program_ptr = (Program*) prog;
+        // assert(index < program_ptr->m_VertexModule->m_Inputs.Size());
+        // ShaderResourceBinding& attr = program_ptr->m_VertexModule->m_Inputs[index];
 
+        /*
         *name_hash     = attr.m_NameHash;
         *type          = ShaderDataTypeToGraphicsType(attr.m_Type);
         *num_values    = attr.m_ElementCount;
         *location      = attr.m_Binding;
         *element_count = GetShaderTypeSize(attr.m_Type) / sizeof(float);
+        */
     }
 
     static uint32_t VulkanGetUniformCount(HProgram prog)
@@ -2731,6 +2759,7 @@ bail:
 
     static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
+        /*
         assert(prog);
         Program* program      = (Program*) prog;
         uint32_t search_index = 0;
@@ -2772,6 +2801,7 @@ bail:
                 }
             }
         }
+        */
 
         assert(0);
         return 0;
@@ -2779,6 +2809,7 @@ bail:
 
     static HUniformLocation VulkanGetUniformLocation(HProgram prog, const char* name)
     {
+        /*
         assert(prog);
         Program* program_ptr = (Program*) prog;
         dmhash_t name_hash   = dmHashString64(name);
@@ -2808,6 +2839,7 @@ bail:
                 }
             }
         }
+        */
 
         return INVALID_UNIFORM_LOCATION;
     }
@@ -2819,6 +2851,7 @@ bail:
 
     static void VulkanSetConstantV4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
+        /*
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
@@ -2835,10 +2868,12 @@ bail:
             program_ptr->m_UniformData,
             (uint8_t*) data,
             sizeof(dmVMath::Vector4) * count);
+            */
     }
 
     static void VulkanSetConstantM4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
+        /*
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
@@ -2856,10 +2891,12 @@ bail:
             program_ptr->m_UniformData,
             (uint8_t*) data,
             sizeof(dmVMath::Vector4) * 4 * count);
+        */
     }
 
     static void VulkanSetSampler(HContext _context, HUniformLocation location, int32_t unit)
     {
+        /*
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentProgram);
         assert(location != INVALID_UNIFORM_LOCATION);
@@ -2875,6 +2912,7 @@ bail:
 
         assert(program_ptr->m_ResourceBindings[set][binding].m_Res);
         program_ptr->m_ResourceBindings[set][binding].m_TextureUnit = unit;
+        */
     }
 
     static void VulkanSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -4480,6 +4518,7 @@ bail:
 
     void VulkanSetConstantBuffer(HContext _context, dmGraphics::HVertexBuffer _buffer, uint32_t buffer_offset, HUniformLocation base_location)
     {
+        /*
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
@@ -4502,6 +4541,7 @@ bail:
             program_ptr->m_ResourceBindings[set][binding].m_Res->m_DataSize);
 
         buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
+        */
     }
 
     HTexture VulkanGetActiveSwapChainTexture(HContext _context)
@@ -4578,6 +4618,7 @@ bail:
 
         uint32_t stream_ix = 0;
 
+        /*
         for (int i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
             for (int j = 0; j < vertex_shader->m_Inputs.Size(); ++j)
@@ -4596,6 +4637,7 @@ bail:
                 }
             }
         }
+        */
     }
 
     void VulkanDisableVertexDeclaration(HContext _context, uint32_t binding)
@@ -4699,8 +4741,10 @@ bail:
     {
         assert(prog);
         Program* program = (Program*) prog;
-        uint32_t search_index = 0;
+        uint32_t search_index = 0;  
 
+
+        /*
         for (int set = 0; set < program->m_MaxSet; ++set)
         {
             for (int binding = 0; binding < program->m_MaxBinding; ++binding)
@@ -4738,6 +4782,7 @@ bail:
                 }
             }
         }
+        */
 
         assert(0); // Should not happen
     }

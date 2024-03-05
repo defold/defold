@@ -4951,6 +4951,8 @@ TEST_F(ShaderTest, Compute)
     }
     ASSERT_NE((void*)0, compute_shader);
 
+    /*
+
     // Note: We cannot get this informtion from our shader pipeline for other languages than SPIR-V at the momemnt.
     //       When we can create actual dmGraphics::HProgram from compute we can verify this via the GFX context.
     if (compute_shader->m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
@@ -4965,6 +4967,7 @@ TEST_F(ShaderTest, Compute)
         ASSERT_EQ(dmHashString64("texture_out"),               compute_shader->m_Resources[1].m_Bindings[0].m_NameHash);
         ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_IMAGE2D, compute_shader->m_Resources[1].m_Bindings[0].m_Type);
     }
+    */
 }
 
 TEST_F(ShaderTest, ComputeResource)

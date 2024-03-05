@@ -79,23 +79,91 @@ namespace dmGraphics
         uint16_t                   m_ElementCount;
     };
 
+    /*
+    message ResourceType
+    {
+        oneof Type
+        {
+            ShaderDataType shader_type = 1;
+            int32          type_index  = 2;
+        }
+    }
+
+    message ResourceMember
+    {
+        required string         name          = 1;
+        required uint64         name_hash     = 2;
+        required ResourceType   type          = 3;
+        optional uint32         element_count = 4 [default=1];
+    }
+
+    message ResourceTypeInfo
+    {
+        required string         name          = 1;
+        required uint64         name_hash     = 2;
+        repeated ResourceMember members       = 3;
+    }
+
+    message ResourceBinding
+    {
+        required string         name          = 1;
+        required uint64         name_hash     = 2;
+        required ResourceType   type          = 3;
+        optional uint32         set           = 4 [default=0];
+        optional uint32         binding       = 5 [default=0];
+    }
+    */
+
+    union ShaderResourceType
+    {
+        dmGraphics::ShaderDesc::ShaderDataType m_ShaderType;
+        uint32_t                               m_TypeIndex;
+    };
+
+    struct ShaderResourceMember
+    {
+        char*                       m_Name;
+        dmhash_t                    m_NameHash;
+        ShaderResourceType          m_Type;
+        uint32_t                    m_ElementCount;
+    };
+
+    struct ShaderResourceTypeInfo
+    {
+        char*                         m_Name;
+        dmhash_t                      m_NameHash;
+        dmArray<ShaderResourceMember> m_Members;
+    };
+
     struct ShaderResourceBinding
     {
         char*                       m_Name;
-        uint64_t                    m_NameHash;
-        ShaderDesc::ShaderDataType  m_Type;
-        dmArray<UniformBlockMember> m_BlockMembers;
-        uint32_t                    m_DataSize;
-        uint16_t                    m_ElementCount;
+        dmhash_t                    m_NameHash;
+        ShaderResourceType          m_Type;
         uint16_t                    m_Set;
         uint16_t                    m_Binding;
-        union
-        {
-            uint16_t               m_UniformDataIndex;
-            uint16_t               m_TextureUnit;
-            uint16_t               m_StorageBufferUnit;
-        };
     };
+
+    struct ShaderMeta
+    {
+        dmArray<ShaderResourceBinding> m_UniformBuffers;
+        dmArray<ShaderResourceBinding> m_StorageBuffers;
+        dmArray<ShaderResourceBinding> m_Textures;
+        dmArray<ShaderResourceBinding> m_Inputs;
+    };
+
+    /*
+    ShaderDesc::ShaderDataType  m_Type;
+    dmArray<UniformBlockMember> m_BlockMembers;
+    uint32_t                    m_DataSize;
+    uint16_t                    m_ElementCount;
+    union
+    {
+        uint16_t               m_UniformDataIndex;
+        uint16_t               m_TextureUnit;
+        uint16_t               m_StorageBufferUnit;
+    };
+    */
 
     struct SetTextureAsyncParams
     {

@@ -247,14 +247,17 @@ namespace dmGraphics
 
     struct ShaderModule
     {
+        ShaderMeta                     m_ShaderMeta;                   
         uint64_t                       m_Hash;
         VkShaderModule                 m_Module;
+        /*
         dmArray<ShaderResourceBinding> m_Uniforms;
         dmArray<ShaderResourceBinding> m_Inputs;
         uint16_t                       m_UniformBufferCount;
         uint16_t                       m_StorageBufferCount;
         uint16_t                       m_TextureSamplerCount;
         uint16_t                       m_TotalUniformCount;
+        */
     };
 
     struct Program
