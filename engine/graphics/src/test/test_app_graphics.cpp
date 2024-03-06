@@ -464,6 +464,7 @@ struct StorageBufferTest : ITest
         }
 
         m_StorageBuffer = dmGraphics::NewStorageBuffer(engine->m_GraphicsContext, sizeof(storage_data));
+        dmGraphics::SetStorageBufferData(engine->m_GraphicsContext, m_StorageBuffer, sizeof(storage_data), (void*) storage_data);
     }
 
     void Execute(EngineCtx* engine) override
