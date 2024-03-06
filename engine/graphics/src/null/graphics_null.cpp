@@ -785,7 +785,13 @@ namespace dmGraphics
         for (int i = 0; i < ddf->m_UniformBuffers.m_Count; ++i)
         {
             ShaderDesc::ResourceBinding& res = ddf->m_UniformBuffers[i];
-            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
+
+            ShaderDesc::ResourceTypeInfo& type = ddf->m_Types[res.m_Type.m_Type.m_TypeIndex];
+
+            for (int j = 0; j < type.m_Members.m_Count; ++j)
+            {
+                PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), 1);
+            }
         }
 
         for (int i = 0; i < ddf->m_StorageBuffers.m_Count; ++i)

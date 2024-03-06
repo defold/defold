@@ -343,13 +343,7 @@ public class ShaderCompilerHelpers {
     };
 
     static private int getTypeIndex(ArrayList<SPIRVReflector.ResourceType> types, String typeName) {
-
-        // System.out.println("getTypeIndex " + typeName);
-
         for (int i=0; i < types.size(); i++) {
-
-            // System.out.println("  testing " + types.get(i).name + ", key " + types.get(i).key);
-
             if (types.get(i).key.equals(typeName)) {
                 return i;
             }
