@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -118,6 +118,9 @@ namespace dmExtension
         EVENT_ID_DEACTIVATEAPP,
         EVENT_ID_ICONIFYAPP,
         EVENT_ID_DEICONIFYAPP,
+
+        EVENT_ID_ENGINE_INITIALIZED,// After Init() has been run, before first Step()
+        EVENT_ID_ENGINE_DELETE,     // At the top of the Delete() of the engine
     };
 
     /*# extra callback enumeration
