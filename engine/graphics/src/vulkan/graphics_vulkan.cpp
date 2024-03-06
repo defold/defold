@@ -1903,15 +1903,13 @@ bail:
         return 0x0;
     }
 
-    static void UpdateImageDescriptor(VulkanContext* context, uint32_t texture_unit, ShaderResourceBinding* binding, VkDescriptorImageInfo& vk_image_info, VkWriteDescriptorSet& vk_write_desc_info)
+    static void UpdateImageDescriptor(VulkanContext* context, HTexture texture_handle, ShaderResourceBinding* binding, VkDescriptorImageInfo& vk_image_info, VkWriteDescriptorSet& vk_write_desc_info)
     {
-        HTexture texture_handle = context->m_TextureUnits[texture_unit];
         VulkanTexture* texture  = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture_handle);
 
-        /*
         if (texture == 0x0)
         {
-            texture = GetDefaultTexture(context, binding->m_Type);
+            texture = GetDefaultTexture(context, binding->m_Type.m_ShaderType);
         }
 
         VkImageLayout image_layout       = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1919,18 +1917,18 @@ bail:
         VkImageView image_view           = texture->m_Handle.m_ImageView;
         VkDescriptorType descriptor_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
-        if (binding->m_Type == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
+        if (binding->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT)
         {
             image_sampler   = 0;
             descriptor_type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
         }
-        else if (binding->m_Type == ShaderDesc::SHADER_TYPE_IMAGE2D || binding->m_Type == ShaderDesc::SHADER_TYPE_UIMAGE2D)
+        else if (binding->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_IMAGE2D || binding->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_UIMAGE2D)
         {
             image_layout    = VK_IMAGE_LAYOUT_GENERAL;
             image_sampler   = 0;
             descriptor_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         }
-        else if (binding->m_Type == ShaderDesc::SHADER_TYPE_SAMPLER)
+        else if (binding->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
         {
             descriptor_type = VK_DESCRIPTOR_TYPE_SAMPLER;
             image_layout    = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -1943,10 +1941,9 @@ bail:
 
         vk_write_desc_info.descriptorType = descriptor_type;
         vk_write_desc_info.pImageInfo     = &vk_image_info;
-        */
     }
 
-    static void UpdateUniformBufferDescriptor(VulkanContext* context, VkBuffer vk_buffer, VkDescriptorBufferInfo& vk_buffer_info, VkWriteDescriptorSet& vk_write_desc_info, uint32_t uniform_size)
+    static void UpdateUniformBufferDescriptor(VulkanContext* context, VkBuffer vk_buffer, VkDescriptorType descriptor_type, VkDescriptorBufferInfo& vk_buffer_info, VkWriteDescriptorSet& vk_write_desc_info, size_t uniform_size)
     {
         // Note in the spec about the offset being zero:
         //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
@@ -1956,7 +1953,7 @@ bail:
         vk_buffer_info.offset = 0;
         vk_buffer_info.range  = uniform_size;
 
-        vk_write_desc_info.descriptorType   = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        vk_write_desc_info.descriptorType   = descriptor_type;
         vk_write_desc_info.pBufferInfo      = &vk_buffer_info;
     }
 
@@ -1991,42 +1988,46 @@ bail:
                 vk_write_desc_info.pBufferInfo           = 0;
                 vk_write_desc_info.pTexelBufferView      = 0;
 
-                /*
-                if (IsUniformTextureSampler(*pgm_res.m_Res))
+                switch(pgm_res.m_Res->m_BindingFamily)
                 {
-                    UpdateImageDescriptor(context, pgm_res.m_TextureUnit, pgm_res.m_Res, vk_write_image_descriptors[image_to_write_index++], vk_write_desc_info);
+                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                        UpdateImageDescriptor(context,
+                            context->m_TextureUnits[pgm_res.m_TextureUnit],
+                            pgm_res.m_Res,
+                            vk_write_image_descriptors[image_to_write_index++], 
+                            vk_write_desc_info);
+                        break;
+                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                    {
+                        DeviceBuffer* buffer = context->m_CurrentStorageBuffers[pgm_res.m_StorageBufferUnit];
+                        UpdateUniformBufferDescriptor(context,
+                            buffer->m_Handle.m_Buffer,
+                            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                            vk_write_buffer_descriptors[buffer_to_write_index++],
+                            vk_write_desc_info,
+                            VK_WHOLE_SIZE);
+                    } break;
+                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                    {
+                        dynamic_offsets[pgm_res.m_DynamicOffsetIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
+                        const uint32_t uniform_size_nonalign          = pgm_res.m_Res->m_BlockSize;
+                        const uint32_t uniform_size_align             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
+
+                        assert(uniform_size_nonalign > 0);
+
+                        // Copy client data to aligned host memory
+                        // The data_offset here is the offset into the programs uniform data,
+                        // i.e the source buffer.
+                        memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
+                            &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
+
+                        UpdateUniformBufferDescriptor(context, scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, vk_write_buffer_descriptors[buffer_to_write_index++], vk_write_desc_info, uniform_size_align);
+
+                        scratch_buffer->m_MappedDataCursor += uniform_size_align;
+                    } break;
+                    case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                    default: continue;
                 }
-                else if (IsUniformStorageBuffer(*pgm_res.m_Res))
-                {
-                    DeviceBuffer* buffer = context->m_CurrentStorageBuffers[pgm_res.m_Res->m_StorageBufferUnit];
-
-                    VkDescriptorBufferInfo& vk_buffer_info = vk_write_buffer_descriptors[buffer_to_write_index++];
-                    vk_buffer_info.buffer                  = buffer->m_Handle.m_Buffer;
-                    vk_buffer_info.offset                  = 0;
-                    vk_buffer_info.range                   = VK_WHOLE_SIZE;
-
-                    vk_write_desc_info.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-                    vk_write_desc_info.pBufferInfo    = &vk_buffer_info;
-                }
-                else
-                {
-                    dynamic_offsets[pgm_res.m_DynamicOffsetIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                    const uint32_t uniform_size_nonalign          = pgm_res.m_Res->m_DataSize;
-                    const uint32_t uniform_size_align             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
-
-                    assert(uniform_size_nonalign > 0);
-
-                    // Copy client data to aligned host memory
-                    // The data_offset here is the offset into the programs uniform data,
-                    // i.e the source buffer.
-                    memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
-                        &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
-
-                    UpdateUniformBufferDescriptor(context, scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer, vk_write_buffer_descriptors[buffer_to_write_index++], vk_write_desc_info, uniform_size_align);
-
-                    scratch_buffer->m_MappedDataCursor += uniform_size_align;
-                }
-                */
             }
         }
 
@@ -2529,19 +2530,22 @@ bail:
                 switch(res.m_BindingFamily)
                 {
                     case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                        program_resource_binding.m_TextureUnit = info.m_TextureCount;
                         info.m_TextureCount++;
                         info.m_TotalUniformCount++;
                         break;
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                        program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                         info.m_StorageBufferCount++;
                         info.m_TotalUniformCount++;
                         break;
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
-                        const ShaderResourceTypeInfo& type_info = stage_type_infos[res.m_Type.m_TypeIndex];
+                        const ShaderResourceTypeInfo& type_info       = stage_type_infos[res.m_Type.m_TypeIndex];
+                        program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
+                        program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
 
-                        program_resource_binding.m_DataOffset = info.m_UniformDataSize;
                         info.m_UniformBufferCount++;
                         info.m_UniformDataSize        += res.m_BlockSize;
                         info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BlockSize, ubo_alignment);

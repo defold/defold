@@ -280,6 +280,7 @@ namespace dmGraphics
             {
                 uint16_t m_DynamicOffsetIndex;
                 uint16_t m_TextureUnit;
+                uint16_t m_StorageBufferUnit;
             };
         };
 

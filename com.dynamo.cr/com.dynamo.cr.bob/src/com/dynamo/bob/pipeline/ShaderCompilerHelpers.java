@@ -380,6 +380,7 @@ public class ShaderCompilerHelpers {
         resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
+        resourceBindingBuilder.setBlockSize(res.blockSize);
         return resourceBindingBuilder;
     }
 
