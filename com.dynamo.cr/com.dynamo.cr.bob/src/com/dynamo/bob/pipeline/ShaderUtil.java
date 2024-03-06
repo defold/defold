@@ -249,6 +249,7 @@ public class ShaderUtil {
             public String name;
             public String type;
             public int    elementCount;
+            public int    offset;
         }
 
         public static class Resource {
@@ -256,6 +257,7 @@ public class ShaderUtil {
             public String type;
             public int    binding;
             public int    set;
+            public int    blockSize;
         }
 
         public static class ResourceType {
@@ -288,6 +290,7 @@ public class ShaderUtil {
                     ResourceMember res  = new ResourceMember();
                     res.name            = memberNode.get("name").asText();
                     res.type            = memberNode.get("type").asText();
+                    res.offset          = memberNode.get("offset").asInt();
 
                     JsonNode arrayNode = memberNode.get("array");
                     if (arrayNode != null && arrayNode.isArray())
@@ -317,11 +320,12 @@ public class ShaderUtil {
             while (uniformBlockNodeIt.hasNext()) {
                 JsonNode uboNode = uniformBlockNodeIt.next();
 
-                Resource ubo = new Resource();
-                ubo.name     = uboNode.get("name").asText();
-                ubo.set      = uboNode.get("set").asInt();
-                ubo.binding  = uboNode.get("binding").asInt();
-                ubo.type     = uboNode.get("type").asText();
+                Resource ubo  = new Resource();
+                ubo.name      = uboNode.get("name").asText();
+                ubo.set       = uboNode.get("set").asInt();
+                ubo.binding   = uboNode.get("binding").asInt();
+                ubo.type      = uboNode.get("type").asText();
+                ubo.blockSize = uboNode.get("block_size").asInt();
                 ubos.add(ubo);
             }
 
@@ -341,11 +345,12 @@ public class ShaderUtil {
             while (ssboBlockIt.hasNext()) {
                 JsonNode ssboBlockNode = ssboBlockIt.next();
 
-                Resource ssbo = new Resource();
-                ssbo.name     = ssboBlockNode.get("name").asText();
-                ssbo.set      = ssboBlockNode.get("set").asInt();
-                ssbo.binding  = ssboBlockNode.get("binding").asInt();
-                ssbo.type     = ssboBlockNode.get("type").asText();
+                Resource ssbo  = new Resource();
+                ssbo.name      = ssboBlockNode.get("name").asText();
+                ssbo.set       = ssboBlockNode.get("set").asInt();
+                ssbo.binding   = ssboBlockNode.get("binding").asInt();
+                ssbo.type      = ssboBlockNode.get("type").asText();
+                ssbo.blockSize = ssboBlockNode.get("block_size").asInt();
                 ssbos.add(ssbo);
             }
 
@@ -361,6 +366,7 @@ public class ShaderUtil {
                     res.type         = textureNode.get("type").asText();
                     res.binding      = textureNode.get("binding").asInt();
                     res.set          = textureNode.get("set").asInt();
+                    res.blockSize    = 0;
                     textures.add(res);
                 }
             }

@@ -247,17 +247,9 @@ namespace dmGraphics
 
     struct ShaderModule
     {
-        ShaderMeta                     m_ShaderMeta;
-        uint64_t                       m_Hash;
-        VkShaderModule                 m_Module;
-        /*
-        dmArray<ShaderResourceBinding> m_Uniforms;
-        dmArray<ShaderResourceBinding> m_Inputs;
-        uint16_t                       m_UniformBufferCount;
-        uint16_t                       m_StorageBufferCount;
-        uint16_t                       m_TextureSamplerCount;
-        uint16_t                       m_TotalUniformCount;
-        */
+        ShaderMeta     m_ShaderMeta;
+        uint64_t       m_Hash;
+        VkShaderModule m_Module;
     };
 
     struct Program
@@ -280,8 +272,9 @@ namespace dmGraphics
 
         struct ProgramResourceBinding
         {
-            ShaderResourceBinding* m_Res;
-            uint32_t               m_DataOffset;
+            ShaderResourceBinding*           m_Res;
+            dmArray<ShaderResourceTypeInfo>* m_TypeInfos;
+            uint32_t                         m_DataOffset;
 
             union
             {
@@ -304,9 +297,10 @@ namespace dmGraphics
 
         uint32_t                        m_UniformDataSizeAligned;
         uint16_t                        m_UniformBufferCount;
+        uint16_t                        m_StorageBufferCount;
         uint16_t                        m_TextureSamplerCount;
-        uint16_t                        m_TotalUniformCount;
         uint16_t                        m_TotalResourcesCount;
+        uint16_t                        m_TotalUniformCount;
 
         uint8_t                         m_MaxSet;
         uint8_t                         m_MaxBinding;

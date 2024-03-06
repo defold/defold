@@ -748,7 +748,8 @@ namespace dmGraphics
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
 
-    uint32_t GetTypeSize(Type type);
+    uint32_t    GetTypeSize(Type type);
+    const char* GetGraphicsTypeLiteral(Type type);
 
     // Both experimental + tests only:
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);

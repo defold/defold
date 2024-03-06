@@ -97,6 +97,10 @@ namespace dmRender
             uint32_t name_str_length              = dmGraphics::GetUniformName(program, i, buffer, buffer_size, &type, &num_values);
             dmGraphics::HUniformLocation location = dmGraphics::GetUniformLocation(program, buffer);
 
+        #if 1
+            dmLogInfo("Uniform[%d]: name=%s, type=%s, num_values=%d", i, buffer, dmGraphics::GetGraphicsTypeLiteral(type), num_values);
+        #endif
+
             // DEF-2971-hotfix
             // Previously this check was an assert. In Emscripten 1.38.3 they made changes
             // to how uniforms are collected and reported back from WebGL. Simply speaking
