@@ -290,7 +290,11 @@ public class ShaderUtil {
                     ResourceMember res  = new ResourceMember();
                     res.name            = memberNode.get("name").asText();
                     res.type            = memberNode.get("type").asText();
-                    res.offset          = memberNode.get("offset").asInt();
+
+                    JsonNode offsetNode = memberNode.get("offset");
+                    if (offsetNode != null) {
+                        res.offset = offsetNode.asInt();
+                    }
 
                     JsonNode arrayNode = memberNode.get("array");
                     if (arrayNode != null && arrayNode.isArray())

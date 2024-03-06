@@ -70,17 +70,6 @@ namespace dmGraphics
         uint32_t           m_ModificationVersion; // OpenGL
     };
 
-    /*
-    struct UniformBlockMember
-    {
-        char*                      m_Name;
-        uint64_t                   m_NameHash;
-        ShaderDesc::ShaderDataType m_Type;
-        uint32_t                   m_Offset;
-        uint16_t                   m_ElementCount;
-    };
-    */
-
     struct ShaderResourceType
     {
         union
@@ -135,19 +124,6 @@ namespace dmGraphics
         dmArray<ShaderResourceTypeInfo> m_TypeInfos;
     };
 
-    /*
-    ShaderDesc::ShaderDataType  m_Type;
-    dmArray<UniformBlockMember> m_BlockMembers;
-    uint32_t                    m_DataSize;
-    uint16_t                    m_ElementCount;
-    union
-    {
-        uint16_t               m_UniformDataIndex;
-        uint16_t               m_TextureUnit;
-        uint16_t               m_StorageBufferUnit;
-    };
-    */
-
     struct SetTextureAsyncParams
     {
         HTexture      m_Texture;
@@ -175,10 +151,13 @@ namespace dmGraphics
     bool                 IsUniformStorageBuffer(ShaderDesc::ShaderDataType uniform_type);
     void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
     const char*          TextureFormatToString(TextureFormat format);
-    bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
     Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
+
+    void                 CreateShaderMeta(ShaderDesc::Shader* ddf, ShaderMeta* meta);
+    void                 DestroyShaderMeta(ShaderMeta& meta);
+    bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
 
     void                  InitializeSetTextureAsyncState(SetTextureAsyncState& state);
     void                  ResetSetTextureAsyncState(SetTextureAsyncState& state);

@@ -97,7 +97,7 @@ namespace dmRender
             uint32_t name_str_length              = dmGraphics::GetUniformName(program, i, buffer, buffer_size, &type, &num_values);
             dmGraphics::HUniformLocation location = dmGraphics::GetUniformLocation(program, buffer);
 
-        #if 1
+        #if 0
             dmLogInfo("Uniform[%d]: name=%s, type=%s, num_values=%d, location=%lld", i, buffer, dmGraphics::GetGraphicsTypeLiteral(type), num_values, location);
         #endif
 

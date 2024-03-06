@@ -226,12 +226,10 @@ struct SubPassTest : ITest
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
         dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
 
-        /*
         dmGraphics::ShaderDesc::ResourceBinding& vx_attribute_position = m_VertexAttributes[0];
-        vx_attribute_position.m_Name         = "pos";
-        vx_attribute_position.m_Type         = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2;
-        vx_attribute_position.m_ElementCount = 1;
-        vx_attribute_position.m_Binding      = 0;
+        vx_attribute_position.m_Name                     = "pos";
+        vx_attribute_position.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2;
+        vx_attribute_position.m_Binding                  = 0;
 
         dmGraphics::ShaderDesc::Shader vs_shader = {};
         vs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
@@ -245,23 +243,22 @@ struct SubPassTest : ITest
         fs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_fragment_program;
         fs_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_fragment_program);
 
-        dmGraphics::ShaderDesc::ResourceBlock fs_uniform_block = {};
+        dmGraphics::ShaderDesc::ResourceBinding fs_input_color = {};
 
-        fs_uniform_block.m_Name     = "inputColor";
-        fs_uniform_block.m_NameHash = dmHashString64(fs_uniform_block.m_Name);
-        fs_uniform_block.m_Type     = dmGraphics::ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT;
-        fs_uniform_block.m_Set      = 0;
-        fs_uniform_block.m_Binding  = 0;
+        fs_input_color.m_Name                     = "inputColor";
+        fs_input_color.m_NameHash                 = dmHashString64(fs_input_color.m_Name);
+        fs_input_color.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT;
+        fs_input_color.m_Set                      = 0;
+        fs_input_color.m_Binding                  = 0;
 
-        fs_shader.m_Resources.m_Data  = &fs_uniform_block;
-        fs_shader.m_Resources.m_Count = 1;
+        fs_shader.m_Textures.m_Data  = &fs_input_color;
+        fs_shader.m_Textures.m_Count = 1;
 
         dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader);
         dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader);
 
         m_ShaderProgram     = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
         m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
-        */
 
         //////////// RENDER TARGET ////////////
         dmGraphics::RenderTargetCreationParams p = {};
@@ -400,13 +397,11 @@ struct StorageBufferTest : ITest
 
         m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
-        /*
         dmGraphics::ShaderDesc::ResourceBinding& vx_attribute_position = m_VertexAttributes[0];
-        vx_attribute_position.m_Name         = "pos";
-        vx_attribute_position.m_NameHash     = dmHashString64(vx_attribute_position.m_Name);
-        vx_attribute_position.m_Type         = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2;
-        vx_attribute_position.m_ElementCount = 1;
-        vx_attribute_position.m_Binding      = 0;
+        vx_attribute_position.m_Name                     = "pos";
+        vx_attribute_position.m_NameHash                 = dmHashString64(vx_attribute_position.m_Name);
+        vx_attribute_position.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2;
+        vx_attribute_position.m_Binding                  = 0;
 
         dmGraphics::ShaderDesc::Shader vs_shader = {};
         dmGraphics::ShaderDesc::Shader fs_shader = {};
@@ -431,43 +426,15 @@ struct StorageBufferTest : ITest
             fs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_fragment_program_ssbo;
             fs_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_fragment_program_ssbo);
         }
-        */
 
-        /*
-        message ResourceBlock
-        {
-            required string          name          = 1;
-            required uint64          name_hash     = 2;
-            repeated ResourceBinding bindings      = 3;
-            required ShaderDataType  type          = 4;
-            optional uint32          element_count = 5 [default=1];
-            optional uint32          set           = 6 [default=0];
-            optional uint32          binding       = 7 [default=0];
-        }
+        dmGraphics::ShaderDesc::ResourceBinding fs_binding = {};
+        fs_binding.m_Name                     = "Test";
+        fs_binding.m_NameHash                 = dmHashString64(fs_binding.m_Name);
+        fs_binding.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_STORAGE_BUFFER;
+        fs_binding.m_Set                      = 1;
 
-        layout (binding = 0) buffer Test
-        {
-            Data my_data[];
-        };
-        */
-
-        /*
-        dmGraphics::ShaderDesc::ResourceBinding fs_ssbo_res = {};
-        fs_ssbo_res.m_Name     = "my_data";
-        fs_ssbo_res.m_NameHash = dmHashString64(fs_ssbo_res.m_Name);
-
-        dmGraphics::ShaderDesc::ResourceBlock fs_block = {};
-        fs_block.m_Name             = "Test";
-        fs_block.m_NameHash         = dmHashString64(fs_block.m_Name);
-        fs_block.m_Type             = dmGraphics::ShaderDesc::SHADER_TYPE_STORAGE_BUFFER;
-        // fs_block.m_ElementCount     = 16;
-        fs_block.m_Set              = 1;
-        fs_block.m_Binding          = 0;
-        fs_block.m_Bindings.m_Count = 1;
-        fs_block.m_Bindings.m_Data  = &fs_ssbo_res;
-
-        fs_shader.m_Resources.m_Count = 1;
-        fs_shader.m_Resources.m_Data  = &fs_block;
+        fs_shader.m_StorageBuffers.m_Count = 1;
+        fs_shader.m_StorageBuffers.m_Data  = &fs_binding;
 
         vs_shader.m_Inputs.m_Data  = m_VertexAttributes;
         vs_shader.m_Inputs.m_Count = sizeof(m_VertexAttributes) / sizeof(dmGraphics::ShaderDesc::ResourceBinding);
@@ -488,8 +455,15 @@ struct StorageBufferTest : ITest
 
         StorageBuffer_Data storage_data[16] = {};
 
+        for (int i = 0; i < DM_ARRAY_SIZE(storage_data); ++i)
+        {
+            storage_data[i].m_Member1[0] = (float) (10 * i + 0);
+            storage_data[i].m_Member1[1] = (float) (10 * i + 1);
+            storage_data[i].m_Member1[2] = (float) (10 * i + 2);
+            storage_data[i].m_Member1[3] = (float) (10 * i + 3);
+        }
+
         m_StorageBuffer = dmGraphics::NewStorageBuffer(engine->m_GraphicsContext, sizeof(storage_data));
-        */
     }
 
     void Execute(EngineCtx* engine) override

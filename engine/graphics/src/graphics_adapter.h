@@ -170,6 +170,7 @@ namespace dmGraphics
     typedef HStorageBuffer (*NewStorageBufferFn)(HContext context, uint32_t buffer_size);
     typedef void (*DeleteStorageBufferFn)(HStorageBuffer storage_buffer);
     typedef void (*SetStorageBufferFn)(HContext context, HStorageBuffer storage_buffer, uint32_t binding_index);
+    typedef void (*SetStorageBufferDataFn)(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data);
 
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     typedef void* (*MapVertexBufferFn)(HContext context, HVertexBuffer buffer, BufferAccess access);
@@ -296,6 +297,7 @@ namespace dmGraphics
         NewStorageBufferFn      m_NewStorageBuffer;
         DeleteStorageBufferFn   m_DeleteStorageBuffer;
         SetStorageBufferFn      m_SetStorageBuffer;
+        SetStorageBufferDataFn  m_SetStorageBufferData;
 
     #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
         MapVertexBufferFn   m_MapVertexBuffer;
@@ -419,7 +421,8 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteComputeProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewStorageBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteStorageBuffer); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStorageBuffer);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStorageBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStorageBufferData);
     #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
         #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(tbl, adapter_name) \
             DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapVertexBuffer); \

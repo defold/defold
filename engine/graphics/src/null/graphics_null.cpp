@@ -383,6 +383,11 @@ namespace dmGraphics
         assert(0 && "Not supported yet!");
     }
 
+    static void NullSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
+    {
+        assert(0 && "Not supported yet!");
+    }
+
     static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = new VertexBuffer();

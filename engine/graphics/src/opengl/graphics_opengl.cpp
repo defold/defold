@@ -1542,6 +1542,11 @@ static void LogFrameBufferError(GLenum status)
         assert(0 && "Not supported yet!");
     }
 
+    static void OpenGLSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
+    {
+
+    }
+
     static bool OpenGLIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
         return (((OpenGLContext*) context)->m_IndexBufferFormatSupport & (1 << format)) != 0;

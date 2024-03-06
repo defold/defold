@@ -591,6 +591,7 @@ namespace dmGraphics
     HStorageBuffer NewStorageBuffer(HContext context, uint32_t buffer_size);
     void           DeleteStorageBuffer(HStorageBuffer storage_buffer);
     void           SetStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t binding_index);
+    void           SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);

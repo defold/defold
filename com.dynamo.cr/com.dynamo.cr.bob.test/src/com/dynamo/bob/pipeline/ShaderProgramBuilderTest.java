@@ -165,28 +165,29 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private static void debugPrintShader(String label, ShaderDesc.Shader shader) {
-        System.out.println("debugPrintShader: " + label);
+        if (true) {
+            System.out.println("debugPrintShader: " + label);
+            debugPrintResourceList("UBOs", shader.getUniformBuffersList());
+            debugPrintResourceList("SSBOs", shader.getStorageBuffersList());
+            debugPrintResourceList("Textures", shader.getTexturesList());
 
-        debugPrintResourceList("UBOs", shader.getUniformBuffersList());
-        debugPrintResourceList("SSBOs", shader.getStorageBuffersList());
-        debugPrintResourceList("Textures", shader.getTexturesList());
+            for (ShaderDesc.ResourceTypeInfo t : shader.getTypesList()) {
+                System.out.println("Type");
+                System.out.println(" name: " + t.getName());
+                System.out.println(" hash: " + t.getNameHash());
 
-        for (ShaderDesc.ResourceTypeInfo t : shader.getTypesList()) {
-            System.out.println("Type");
-            System.out.println(" name: " + t.getName());
-            System.out.println(" hash: " + t.getNameHash());
+                for (ShaderDesc.ResourceMember m : t.getMembersList()) {
+                    System.out.println(" Members:");
+                    System.out.println("   name: " + m.getName());
+                    System.out.println("   hash: " + m.getNameHash());
+                    System.out.println("   count: " + m.getElementCount());
 
-            for (ShaderDesc.ResourceMember m : t.getMembersList()) {
-                System.out.println(" Members:");
-                System.out.println("   name: " + m.getName());
-                System.out.println("   hash: " + m.getNameHash());
-                System.out.println("   count: " + m.getElementCount());
-
-                ShaderDesc.ResourceType resourceType = m.getType();
-                if (resourceType.hasShaderType()) {
-                    System.out.println("   type: " + resourceType.getShaderType());
-                } else {
-                    System.out.println("   type: " + resourceType.getTypeIndex());
+                    ShaderDesc.ResourceType resourceType = m.getType();
+                    if (resourceType.hasShaderType()) {
+                        System.out.println("   type: " + resourceType.getShaderType());
+                    } else {
+                        System.out.println("   type: " + resourceType.getTypeIndex());
+                    }
                 }
             }
         }
@@ -233,7 +234,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assertNotNull(shader);
             assert(shader.getUniformBuffersCount() == 1);
 
-            debugPrintShader("Reflection", shader);
+            debugPrintShader("Reflection Test 0", shader);
 
             // Note: When we don't specify a version and the uniforms are not packed in constant buffers,
             //       we wrap them around generated uniform buffers, which requires us to dig out the type infomartion like this:
@@ -283,6 +284,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
             assertNotNull(shader);
 
+            debugPrintShader("Reflection Test 1", shader);
+
             assert(shader.getStorageBuffersCount() == 1);
             ShaderDesc.ResourceBinding binding_test = shader.getStorageBuffers(0);
             assertEquals("Test", binding_test.getName());
@@ -325,6 +328,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assert(shaderDesc.getShadersCount() > 0);
             ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
             assertNotNull(shader);
+
+            debugPrintShader("Reflection Test 2", shader);
 
             assert(shader.getTexturesCount() == 9);
             validateResourceBindingWithKnownType(shader.getTextures(0), "sampler_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D);
@@ -589,13 +594,19 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
         assertNotNull(shader);
 
+        debugPrintShader("uniform_buffer_test", shader);
+
         ShaderDesc.ResourceBinding ubo = shader.getUniformBuffers(0);
         assertTrue(ubo.getName().equals("uniform_buffer"));
 
-        // ShaderDesc.ResourceBinding binding_one = ubo.getBindings(0);
-        // assertTrue(binding_one.getName().equals("color_one"));
-        // ShaderDesc.ResourceBinding binding_two = ubo.getBindings(1);
-        // assertTrue(binding_two.getName().equals("color_two"));
+        ShaderDesc.ResourceTypeInfo ubo_type = shader.getTypes(ubo.getType().getTypeIndex());
+        assertEquals("uniform_buffer", ubo_type.getName());
+
+        assertEquals("color_one", ubo_type.getMembers(0).getName());
+        assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4, ubo_type.getMembers(0).getType().getShaderType());
+
+        assertEquals("color_two", ubo_type.getMembers(1).getName());
+        assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4, ubo_type.getMembers(1).getType().getShaderType());
     }
 
     @Test
