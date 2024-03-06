@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -422,41 +422,7 @@ namespace dmGameObject
         return instance;
     }
 
-    static Result GetComponentUserData(HInstance instance, dmhash_t component_id, uint32_t* component_type, uintptr_t* user_data)
-    {
-        // TODO: We should probably not store user-data sparse.
-        // A lot of loops just to find user-data such as the code below
-        assert(instance != 0x0);
-        const Prototype::Component* components = instance->m_Prototype->m_Components;
-        uint32_t n = instance->m_Prototype->m_ComponentCount;
-        uint32_t component_instance_data = 0;
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            const Prototype::Component* component = &components[i];
-            if (component->m_Id == component_id)
-            {
-                if (component->m_Type->m_InstanceHasUserData)
-                {
-                    *user_data = instance->m_ComponentInstanceUserData[component_instance_data];
-                }
-                else
-                {
-                    *user_data = 0;
-                }
-                *component_type = component->m_TypeIndex;
-                return RESULT_OK;
-            }
-
-            if (component->m_Type->m_InstanceHasUserData)
-            {
-                component_instance_data++;
-            }
-        }
-
-        return RESULT_COMPONENT_NOT_FOUND;
-    }
-
-    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url, void** out_world)
+    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
     {
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -476,17 +442,18 @@ namespace dmGameObject
                 return; // Actually never reached
             }
 
+            dmGameObject::HComponentWorld world;
             uint32_t component_type_index;
-            dmGameObject::Result result = GetComponentUserData(instance, receiver.m_Fragment, &component_type_index, user_data);
-            if ((component_ext != 0x0 || user_data != 0x0) && result != dmGameObject::RESULT_OK)
+            dmGameObject::Result result = dmGameObject::GetComponent(instance, receiver.m_Fragment, &component_type_index, out_component, &world);
+            if ((component_ext != 0x0 || out_component != 0x0) && result != dmGameObject::RESULT_OK)
             {
                 char buffer[128];
                 luaL_error(L, "The component could not be found: '%s'", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
                 return; // Actually never reached
             }
 
-            void* world = GetWorld(instance->m_Collection->m_HCollection, component_type_index);
-            if (out_world != 0) {
+            if (out_world != 0)
+            {
                 *out_world = world;
             }
 
@@ -505,12 +472,6 @@ namespace dmGameObject
                     luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
                     return; // Actually never reached
                 }
-
-                // If there is a GetComponent function, then use it to translate from user_data to the correct struct
-                if (type->m_GetFunction) {
-                    ComponentGetParams params = {world, user_data};
-                    *user_data = (uintptr_t)type->m_GetFunction(params);
-                }
             }
             if (url)
             {
@@ -524,11 +485,11 @@ namespace dmGameObject
         }
     }
 
-    void GetComponentFromLua(lua_State* L, int index, const char* component_type, void** out_world, void** component, dmMessage::URL* url)
+    void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
-        GetComponentUserDataFromLua(L, index, instance->m_Collection->m_HCollection, component_type, (uintptr_t*)component, url, out_world);
+        GetComponentUserDataFromLua(L, index, instance->m_Collection->m_HCollection, component_type, component, url, out_world);
     }
 
     HInstance GetInstanceFromLua(lua_State* L) {
@@ -790,7 +751,7 @@ namespace dmGameObject
 
             return 1;
         }
-        
+
         return CheckGoGetResult(L, result, property_desc, property_id, target_instance, target, property_options, index_requested);
     }
 
@@ -965,7 +926,7 @@ namespace dmGameObject
 
             lua_getfield(L, -1, "index");
             if (!lua_isnil(L, -1)) // make it optional
-            {   
+            {
                 if (property_options.m_HasKey)
                 {
                     return luaL_error(L, "Options table cannot contain both 'key' and 'index'.");
@@ -1670,7 +1631,7 @@ namespace dmGameObject
      * [icon:attention] If you call `go.animate()` from a game object's `final()` function,
      * any passed `complete_function` will be ignored and never called upon animation completion.
      *
-     * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how 
+     * See the <a href="/manuals/properties">properties guide</a> for which properties can be animated and the <a href="/manuals/animation">animation guide</a> for how
      them.
      *
      * @name go.animate
@@ -1865,15 +1826,15 @@ namespace dmGameObject
      * ```lua
      * go.cancel_animations(go.get_id(), "position")
      * ```
-     * 
+     *
      * Cancel all property animations of the current game object:
-     * 
+     *
      * ```lua
      * go.cancel_animations(".")
      * ```
-     * 
+     *
      * Cancel all property animations of the sprite component of the current game object:
-     * 
+     *
      * ```lua
      * go.cancel_animations("#sprite")
      * ```

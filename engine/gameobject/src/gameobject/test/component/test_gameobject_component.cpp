@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -486,10 +486,10 @@ static int LuaTestCompType(lua_State* L)
     int top = lua_gettop(L);
 
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
-    uintptr_t user_data = 0;
+    dmGameObject::HComponent component = 0;
     dmMessage::URL receiver;
-    dmGameObject::GetComponentUserDataFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &user_data, &receiver, 0);
-    assert(user_data == 1);
+    dmGameObject::GetComponentUserDataFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &component, &receiver, 0);
+    assert(*(uintptr_t*)component == 1);
 
     assert(top == lua_gettop(L));
 

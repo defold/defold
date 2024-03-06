@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1957,7 +1957,7 @@ namespace dmGameObject
         assert(instance->m_LevelIndex < collection->m_LevelIndices[instance->m_Depth].Size());
 
         ReparentChildNodes(collection, instance);
-        
+
         // Unlink "me" from parent
         Unlink(collection, instance);
         EraseSwapLevelIndex(collection, instance);
@@ -2077,6 +2077,60 @@ namespace dmGameObject
             *component_id = instance->m_Prototype->m_Components[component_index].m_Id;
             return RESULT_OK;
         }
+        return RESULT_COMPONENT_NOT_FOUND;
+    }
+
+    Result GetComponent(HInstance instance, dmhash_t component_id, uint32_t* component_type, HComponent* out_component, HComponentWorld* out_world)
+    {
+        // TODO: We should probably not store user-data sparse.
+        // A lot of loops just to find user-data such as the code below
+        assert(instance != 0x0);
+        const Prototype::Component* components = instance->m_Prototype->m_Components;
+        uint32_t n = instance->m_Prototype->m_ComponentCount;
+        uint32_t component_instance_data = 0;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const Prototype::Component* component = &components[i];
+            const ComponentType* type = component->m_Type;
+            if (component->m_Id == component_id)
+            {
+                *component_type = component->m_TypeIndex;
+
+                dmGameObject::HComponentInternal user_data = 0;
+                if (type->m_InstanceHasUserData)
+                {
+                    user_data = instance->m_ComponentInstanceUserData[component_instance_data];
+                }
+
+                dmGameObject::HComponentWorld world = 0;
+                if (type->m_GetFunction || (out_world != 0))
+                {
+                    world = GetWorld(GetCollection(instance), component->m_TypeIndex);
+                }
+
+                if (type->m_GetFunction && user_data != 0)
+                {
+                    ComponentGetParams params = {world, user_data};
+                    *out_component = (dmGameObject::HComponent)type->m_GetFunction(params);
+                }
+                else
+                {
+                    *out_component = (dmGameObject::HComponent)user_data;
+                }
+
+                if (out_world != 0)
+                {
+                    *out_world = world;
+                }
+                return RESULT_OK;
+            }
+
+            if (type->m_InstanceHasUserData)
+            {
+                component_instance_data++;
+            }
+        }
+
         return RESULT_COMPONENT_NOT_FOUND;
     }
 

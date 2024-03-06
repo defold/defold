@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -399,11 +399,8 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
-        dmMessage::URL receiver;
-        ModelWorld* world = 0;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, MODEL_EXT, &user_data, &receiver, (void**) &world);
-        ModelComponent* component = CompModelGetComponent(world, user_data);
+        ModelComponent* component;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
         if (!component)
         {
             return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
@@ -528,18 +525,13 @@ namespace dmGameSystem
         return 0;
     }
 
-    static void LuaModelComp_GetSetMeshEnabled_Internal(lua_State* L, ModelComponent** component, dmhash_t* mesh_id)
+    static void LuaModelComp_GetSetMeshEnabled_Internal(lua_State* L, ModelComponent** out_component, dmhash_t* out_mesh_id)
     {
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
-        dmMessage::URL receiver;
-        ModelWorld* world = 0;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, MODEL_EXT, &user_data, &receiver, (void**) &world);
-
-        *component = CompModelGetComponent(world, user_data);
-        *mesh_id = dmScript::CheckHashOrString(L, 2);
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)out_component, 0, 0);
+        *out_mesh_id = dmScript::CheckHashOrString(L, 2);
     }
 
     /*# enable or disable a mesh

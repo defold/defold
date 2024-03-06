@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -846,9 +846,9 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void* CompGuiGetComponent(const dmGameObject::ComponentGetParams& params)
+    static dmGameObject::HComponent CompGuiGetComponent(const dmGameObject::ComponentGetParams& params)
     {
-        return (GuiComponent*)*params.m_UserData;
+        return (dmGameObject::HComponent)params.m_UserData;
     }
 
     struct RenderGuiContext
@@ -2195,7 +2195,7 @@ namespace dmGameSystem
             gui_component->m_AddedToUpdate = 1;
             return dmGameObject::CREATE_RESULT_OK;
         }
-        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR; 
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
     static dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
