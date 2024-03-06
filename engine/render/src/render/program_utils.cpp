@@ -98,7 +98,7 @@ namespace dmRender
             dmGraphics::HUniformLocation location = dmGraphics::GetUniformLocation(program, buffer);
 
         #if 1
-            dmLogInfo("Uniform[%d]: name=%s, type=%s, num_values=%d", i, buffer, dmGraphics::GetGraphicsTypeLiteral(type), num_values);
+            dmLogInfo("Uniform[%d]: name=%s, type=%s, num_values=%d, location=%lld", i, buffer, dmGraphics::GetGraphicsTypeLiteral(type), num_values, location);
         #endif
 
             // DEF-2971-hotfix

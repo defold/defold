@@ -2863,30 +2863,30 @@ bail:
         {
             for (int binding = 0; binding < program->m_MaxBinding; ++binding)
             {
-                Program::ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[set][binding];
+                Program::ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
 
-                if (program_resource_binding.m_Res == 0x0)
+                if (pgm_res.m_Res == 0x0)
                     continue;
 
-                if (program_resource_binding.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
-                    program_resource_binding.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
+                if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
+                    pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
                 {
                     if (search_index == index)
                     {
-                        ShaderResourceBinding* res = program_resource_binding.m_Res;
+                        ShaderResourceBinding* res = pgm_res.m_Res;
                         *type = ShaderDataTypeToGraphicsType(res->m_Type.m_ShaderType);
                         *size = 1;
                         return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
                     }
                     search_index++;
                 }
-                else if (program_resource_binding.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
+                else if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
                 {
                     // TODO: Generic type lookup is not supported yet!
                     // We can only support one level of indirection here right now
-                    assert(program_resource_binding.m_Res->m_Type.m_UseTypeIndex);
-                    const dmArray<ShaderResourceTypeInfo>& type_infos = *program_resource_binding.m_TypeInfos;
-                    const ShaderResourceTypeInfo& type_info = type_infos[program_resource_binding.m_Res->m_Type.m_TypeIndex];
+                    assert(pgm_res.m_Res->m_Type.m_UseTypeIndex);
+                    const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
+                    const ShaderResourceTypeInfo& type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
                     const uint32_t num_members = type_info.m_Members.Size();
                     for (int i = 0; i < num_members; ++i)
@@ -2953,7 +2953,6 @@ bail:
 
     static HUniformLocation VulkanGetUniformLocation(HProgram prog, const char* name)
     {
-        /*
         assert(prog);
         Program* program_ptr = (Program*) prog;
         dmhash_t name_hash   = dmHashString64(name);
@@ -2971,11 +2970,19 @@ bail:
                 {
                     return set | binding << 16;
                 }
-                else
+                else if (pgm_res.m_Res->m_Type.m_UseTypeIndex)
                 {
-                    for (uint32_t i = 0; i < pgm_res.m_Res->m_BlockMembers.Size(); ++i)
+                    // TODO: Generic type lookup is not supported yet!
+                    // We can only support one level of indirection here right now
+                    const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
+                    const ShaderResourceTypeInfo& type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
+
+                    const uint32_t num_members = type_info.m_Members.Size();
+                    for (int i = 0; i < num_members; ++i)
                     {
-                        if (pgm_res.m_Res->m_BlockMembers[i].m_NameHash == name_hash)
+                        const ShaderResourceMember& member = type_info.m_Members[i];
+
+                        if (member.m_NameHash == name_hash)
                         {
                             return set | binding << 16 | ((uint64_t) i) << 32;
                         }
@@ -2983,7 +2990,6 @@ bail:
                 }
             }
         }
-        */
 
         return INVALID_UNIFORM_LOCATION;
     }
@@ -2995,7 +3001,6 @@ bail:
 
     static void VulkanSetConstantV4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
-        /*
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
@@ -3006,18 +3011,16 @@ bail:
         uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        Program::ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
-        WriteConstantData(
-            pgm_res.m_DataOffset + pgm_res.m_Res->m_BlockMembers[member].m_Offset,
-            program_ptr->m_UniformData,
-            (uint8_t*) data,
-            sizeof(dmVMath::Vector4) * count);
-            */
+        Program::ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
+        const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
+        const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
+
+        uint32_t offset = pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset;
+        WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
     static void VulkanSetConstantM4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
-        /*
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
@@ -3028,19 +3031,16 @@ bail:
         uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        Program::ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
+        Program::ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
+        const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
+        const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
-        WriteConstantData(
-            pgm_res.m_DataOffset + pgm_res.m_Res->m_BlockMembers[member].m_Offset,
-            program_ptr->m_UniformData,
-            (uint8_t*) data,
-            sizeof(dmVMath::Vector4) * 4 * count);
-        */
+        uint32_t offset = pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset;
+        WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
     }
 
     static void VulkanSetSampler(HContext _context, HUniformLocation location, int32_t unit)
     {
-        /*
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentProgram);
         assert(location != INVALID_UNIFORM_LOCATION);
@@ -3056,7 +3056,6 @@ bail:
 
         assert(program_ptr->m_ResourceBindings[set][binding].m_Res);
         program_ptr->m_ResourceBindings[set][binding].m_TextureUnit = unit;
-        */
     }
 
     static void VulkanSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
