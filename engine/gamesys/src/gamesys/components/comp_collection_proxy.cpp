@@ -59,6 +59,7 @@ namespace dmGameSystem
     static const dmhash_t COLLECTION_PROXY_ASYNC_LOAD_HASH = dmHashString64("async_load");
     static const dmhash_t COLLECTION_PROXY_UNLOAD_HASH = dmHashString64("unload");
     static const dmhash_t COLLECTION_PROXY_INIT_HASH = dmHashString64("init");
+    static const dmhash_t COLLECTION_PROXY_FINAL_HASH = dmHashString64("final");
     static const dmhash_t COLLECTION_PROXY_LOADED_HASH = dmHashString64("proxy_loaded");
     static const dmhash_t COLLECTION_PROXY_UNLOADED_HASH = dmHashString64("proxy_unloaded");
 
@@ -658,11 +659,6 @@ namespace dmGameSystem
         proxy->m_TimeStepMode = mode == 0 ? dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS : dmGameSystemDDF::TIME_STEP_MODE_DISCRETE;
     }
 
-    // The same effect as sending the "finalize" message to the proxy
-    dmGameObject::Result CompCollectionProxyFinalize(HCollectionProxyWorld world, HCollectionProxyComponent proxy);
-    // The same effect as sending the "enable" message to the proxy
-    dmGameObject::Result CompCollectionProxyEnable(HCollectionProxyWorld world, HCollectionProxyComponent proxy, bool enable);
-
     dmGameObject::UpdateResult CompCollectionProxyOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
@@ -686,7 +682,7 @@ namespace dmGameSystem
             dmGameObject::Result r = CompCollectionProxyInitializeInternal(proxy, params.m_Message);
             return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
-        else if (params.m_Message->m_Id == dmHashString64("final"))
+        else if (params.m_Message->m_Id == COLLECTION_PROXY_FINAL_HASH)
         {
             dmGameObject::Result r = CompCollectionProxyFinalizeInternal(proxy, params.m_Message);
             return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
