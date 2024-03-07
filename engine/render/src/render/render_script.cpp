@@ -1180,6 +1180,37 @@ namespace dmRender
         return asset_handle;
     }
 
+    static dmGraphics::HRenderTarget CheckRenderTarget(lua_State* L, int index, RenderScriptInstance* i)
+    {
+        if(lua_isnumber(L, index))
+        {
+            return (dmGraphics::HRenderTarget) CheckAssetHandle(L, index, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        }
+        else if (dmScript::IsHash(L, index) || lua_isstring(L, index))
+        {
+            dmhash_t rt_id                  = dmScript::CheckHashOrString(L, index);
+            RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
+
+            if (render_resource == 0x0)
+            {                
+                char str[128];
+                char buffer[256];
+                dmSnPrintf(buffer, sizeof(buffer), "Could not find render target '%s' %llu",
+                    dmScript::GetStringFromHashOrString(L, index, str, sizeof(str)), (unsigned long long) rt_id); // since lua doesn't support proper format arguments
+
+                return luaL_error(L, "%s", buffer);
+            }
+
+            if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
+            {
+                return luaL_error(L, "Render resource is not a render target");
+            }
+
+            return render_resource->m_Resource;
+        }
+        return luaL_error(L, "Invalid render target.");;
+    }
+
     /*# deletes a render target
      *
      * Deletes a previously created render target.
@@ -1252,44 +1283,14 @@ namespace dmRender
     */
     int RenderScript_SetRenderTarget(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmGraphics::HRenderTarget render_target = 0x0;
         DM_LUA_STACK_CHECK(L, 0);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        dmGraphics::HRenderTarget render_target = 0;
 
         if (lua_gettop(L) > 0)
         {
-            if(lua_isnumber(L, 1))
-            {
-                render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-            }
-            else if (dmScript::IsHash(L, 1) || lua_isstring(L, 1))
-            {
-                dmhash_t rt_id                  = dmScript::CheckHashOrString(L, 1);
-                RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
-
-                if (render_resource == 0x0)
-                {
-                    char str[128];
-                    char buffer[256];
-                    dmSnPrintf(buffer, sizeof(buffer), "Could not find render target '%s' %llu",
-                        dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long) rt_id); // since lua doesn't support proper format arguments
-                    return DM_LUA_ERROR("%s", buffer);
-                }
-
-                if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
-                {
-                    return DM_LUA_ERROR("Render resource is not a render target");
-                }
-
-                render_target = (dmGraphics::HRenderTarget) render_resource->m_Resource;
-            }
-            else
-            {
-                if(!lua_isnil(L, 1) && luaL_checkint(L, 1) != 0)
-                {
-                    return DM_LUA_ERROR("Invalid render target supplied to %s.set_render_target.", RENDER_SCRIPT_LIB_NAME);
-                }
-            }
+            if (!lua_isnil(L, 1))
+                render_target = CheckRenderTarget(L, 1, i);
         }
 
         uint32_t transient_buffer_types = 0;
@@ -1427,12 +1428,7 @@ namespace dmRender
     int RenderScript_SetRenderTargetSize(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        if (!lua_isnumber(L, 1))
-        {
-            return luaL_error(L, "Expected render target as the second argument to %s.set_render_target_size.", RENDER_SCRIPT_LIB_NAME);
-        }
-
-        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
         uint32_t width = luaL_checkinteger(L, 2);
         uint32_t height = luaL_checkinteger(L, 3);
         dmGraphics::SetRenderTargetSize(render_target, width, height);
@@ -1661,14 +1657,8 @@ namespace dmRender
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        (void)i;
 
-        if (!lua_isnumber(L, 1))
-        {
-            return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
-        }
-
-        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
         dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
 
         uint32_t width, height;
@@ -1704,14 +1694,7 @@ namespace dmRender
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        (void)i;
-
-        if (!lua_isnumber(L, 1))
-        {
-            return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
-        }
-
-        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
         dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
         uint32_t width, height;
         dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
