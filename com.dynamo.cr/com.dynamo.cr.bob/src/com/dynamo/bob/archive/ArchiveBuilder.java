@@ -48,7 +48,6 @@ import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
 import com.dynamo.bob.archive.publisher.PublisherSettings;
-import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.util.TimeProfiler;
 

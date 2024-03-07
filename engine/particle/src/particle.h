@@ -139,28 +139,6 @@ namespace dmParticle
         GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED = 2,
     };
 
-    struct ParticleVertexAttributeInfo
-    {
-        dmhash_t                                  m_NameHash;
-        dmGraphics::VertexAttribute::SemanticType m_SemanticType;
-        dmGraphics::CoordinateSpace               m_CoordinateSpace;
-        uint8_t*                                  m_ValuePtr;
-        uint32_t                                  m_ValueByteSize;
-    };
-
-    struct ParticleVertexAttributeInfos
-    {
-        ParticleVertexAttributeInfos()
-        {
-            m_StructSize = sizeof(*this);
-        }
-
-        ParticleVertexAttributeInfo m_Infos[dmGraphics::MAX_VERTEX_STREAM_COUNT];
-        uint32_t                    m_VertexStride;
-        uint32_t                    m_NumInfos;
-        uint32_t                    m_StructSize;
-    };
-
     struct EmitterRenderData
     {
         EmitterRenderData()
@@ -384,7 +362,7 @@ namespace dmParticle
      * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
      * @return Result enum value
      */
-    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const ParticleVertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
 
     /**
      * Debug render the status of the instances within the specified context.

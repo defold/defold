@@ -17,7 +17,6 @@ package com.dynamo.bob.tile.test;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertArrayEquals;
 
 import java.awt.Color;
 import java.awt.Graphics;
@@ -36,7 +35,6 @@ import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.tile.TileSetGenerator;
 import com.dynamo.bob.tile.TileSetGenerator.IndexedAnimDesc;
 import com.dynamo.bob.tile.TileSetGenerator.IndexedAnimIterator;
-import com.dynamo.gamesys.proto.TextureSetProto;
 import com.dynamo.gamesys.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
@@ -44,7 +42,6 @@ import com.dynamo.gamesys.proto.Tile;
 import com.dynamo.gamesys.proto.Tile.ConvexHull;
 import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
 import com.dynamo.gamesys.proto.Tile.TileSet;
-import com.google.protobuf.ByteString;
 
 public class TileSetGeneratorTest {
 

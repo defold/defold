@@ -16,12 +16,10 @@ package com.dynamo.bob.bundle;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;

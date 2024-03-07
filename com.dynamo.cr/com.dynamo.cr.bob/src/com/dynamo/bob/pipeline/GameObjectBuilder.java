@@ -19,16 +19,13 @@ import java.io.IOException;
 import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Set;
 import java.util.HashSet;
 
 import org.apache.commons.io.FilenameUtils;
 
-import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Vector4;
 
 import com.dynamo.bob.Builder;

@@ -14,17 +14,12 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.File;
-import java.io.InputStream;
 import java.io.IOException;
-import java.nio.ByteOrder;
-import java.nio.ShortBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,12 +39,8 @@ import org.junit.Test;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 
-import com.dynamo.proto.DdfMath.Point3;
-import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
-import com.dynamo.proto.DdfMath.Transform;
 import com.dynamo.rig.proto.Rig;
-import com.dynamo.rig.proto.Rig.RigAnimation;
 
 public class ModelUtilTest {
 

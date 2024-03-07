@@ -15,23 +15,19 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.EnumSet;
 
 import org.junit.Test;
 
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.bob.Platform;
 import com.dynamo.bob.TexcLibrary.FlipAxis;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative.CompressionLevel;
-import com.dynamo.graphics.proto.Graphics.TextureImage.CompressionType;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;

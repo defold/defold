@@ -23,7 +23,6 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashSet;
-import java.util.Map;
 
 import org.apache.commons.io.FilenameUtils;
 
@@ -33,7 +32,6 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;

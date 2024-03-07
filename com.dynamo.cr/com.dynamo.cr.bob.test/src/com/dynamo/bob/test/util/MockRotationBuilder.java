@@ -16,8 +16,6 @@ package com.dynamo.bob.test.util;
 
 import javax.vecmath.Quat4d;
 
-import org.openmali.vecmath2.Point3d;
-
 import com.dynamo.bob.util.RigUtil.RotationBuilder;
 import com.dynamo.rig.proto.Rig.AnimationTrack.Builder;
 

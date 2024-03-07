@@ -26,8 +26,6 @@ import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.textureset.TextureSetLayout.Grid;
 import com.dynamo.bob.textureset.TextureSetLayout.Rect;
 import com.dynamo.bob.tile.TileSetUtil.ConvexHulls;
-import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.gamesys.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.Tile;
 import com.dynamo.gamesys.proto.Tile.Animation;

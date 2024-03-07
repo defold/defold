@@ -17,8 +17,6 @@ package com.dynamo.bob.pipeline;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,8 +26,6 @@ import java.util.HashSet;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
-
-import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -41,7 +37,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
-import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;

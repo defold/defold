@@ -24,7 +24,6 @@ import java.lang.Math;
 import javax.vecmath.Vector2d;
 
 // for easier debugging standalone
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.File;
 import javax.imageio.ImageIO;

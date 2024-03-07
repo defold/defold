@@ -47,7 +47,6 @@ import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.font.Fontc.FontResourceResolver;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.render.proto.Font.FontDesc;
-import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.GlyphBank;
 import com.dynamo.render.proto.Font.GlyphBank.Glyph;
 

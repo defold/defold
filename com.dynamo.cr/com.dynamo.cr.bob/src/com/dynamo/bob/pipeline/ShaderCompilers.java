@@ -19,8 +19,6 @@ import java.util.ArrayList;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.bundle.BundlerParams;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
 import com.dynamo.bob.pipeline.ShaderProgramBuilder;
