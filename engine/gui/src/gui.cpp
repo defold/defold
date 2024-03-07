@@ -99,13 +99,6 @@ namespace dmGui
     { dmHashString64(#name ".z"), prop, 2 }, \
     { dmHashString64(#name ".w"), prop, 3 },
 
-    struct PropDesc
-    {
-        dmhash_t m_Hash;
-        Property m_Property;
-        uint8_t  m_Component;
-    };
-
     PropDesc g_Properties[] = {
             PROP(position, PROPERTY_POSITION )
             PROP(rotation, PROPERTY_ROTATION )
@@ -133,7 +126,7 @@ namespace dmGui
             { dmHashString64("slice"), PROPERTY_SLICE9, 0xff },
     };
 
-    static PropDesc* GetPropertyDesc(dmhash_t property_hash)
+    PropDesc* GetPropertyDesc(dmhash_t property_hash)
     {
         int n_props = sizeof(g_Properties) / sizeof(g_Properties[0]);
         for (int i = 0; i < n_props; ++i) {

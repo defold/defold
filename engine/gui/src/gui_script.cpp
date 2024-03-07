@@ -597,6 +597,171 @@ namespace dmGui
         return 0;
     }
 
+    /*# gets the named property of a specified gui node 
+     * 
+     * Instead of using specific getters such as gui.get_position or gui.get_scale,
+     * you can use gui.get instead and supply the property as a string or a hash.
+     * While this function is similar to go.get, there are a few more restrictions
+     * when operating in the gui namespace. Most notably, only these propertie identifiers are supported:
+     *
+     * - `"position"`
+     * - `"rotation"`
+     * - `"scale"`
+     * - `"color"`
+     * - `"outline"`
+     * - `"shadow"`
+     * - `"size"`
+     * - `"fill_angle"` (pie)
+     * - `"inner_radius"` (pie)
+     * - `"slice9"` (slice9)
+     *
+     * The value returned will either be a vmath.vector4 or a single number, i.e getting the "position"
+     * property will return a vec4 while getting the "position.x" property will return a single value.
+     *
+     * @name gui.get
+     * @param node [type:node] node to get the property for
+     * @param property [type:string|hash|constant] the property to retrieve 
+     * @examples
+     *
+     * Get properties on existing nodes:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * local node_position = gui.get(node, "position")
+     * ```
+     */
+    int LuaGet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
+
+        dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
+
+        dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
+        if (!pd)
+        {
+            char buffer[128];
+            DM_LUA_ERROR("property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
+        }
+
+        Vector4 base_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+
+        if (pd->m_Component == 0xff)
+        {
+            dmScript::PushVector4(L, base_value);
+        }
+        else
+        {
+            lua_pushnumber(L, base_value.getElem(pd->m_Component));
+        }
+
+        return 1;
+    }
+
+    /*# sets the named property of a specified gui node 
+     * 
+     * Instead of using specific setteres such as gui.set_position or gui.set_scale,
+     * you can use gui.set instead and supply the property as a string or a hash.
+     * While this function is similar to go.get and go.set, there are a few more restrictions
+     * when operating in the gui namespace. Most notably, only these propertie identifiers are supported:
+     *
+     * - `"position"`
+     * - `"rotation"`
+     * - `"scale"`
+     * - `"color"`
+     * - `"outline"`
+     * - `"shadow"`
+     * - `"size"`
+     * - `"fill_angle"` (pie)
+     * - `"inner_radius"` (pie)
+     * - `"slice9"` (slice9)
+     *
+     * The value to set must either be a vmath.vector4, vmath.vector3 or a single number and depends on the property name you want to set.
+     * I.e when setting the "position" property, you need to use a vmath.vector4 and when setting a single component of the property,
+     * such as "position.x", you need to use a single value. 
+     *
+     * @name gui.set
+     * @param node [type:node] node to set the property for
+     * @param property [type:string|hash|constant] the property to set 
+     * @param value [type:number|vector4|vector3] the property to set
+     * @examples
+     *
+     * Updates the position property on an existing node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * local node_position = gui.get(node, "position")
+     * gui.set(node, "position.x", node_position.x + 128)
+     * ```
+     */
+    int LuaSet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
+
+        dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
+        dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
+
+        if (!pd)
+        {
+            char buffer[128];
+            DM_LUA_ERROR("property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
+        }
+
+        bool is_vector4 = dmScript::IsVector4(L, 3);
+        bool is_vector3 = dmScript::IsVector3(L, 3);
+        bool is_number  = lua_isnumber(L, 3);
+
+        if (!(is_vector3 || is_vector4 || is_number))
+        {
+            char buffer[128];
+            DM_LUA_ERROR("Unable to set property '%s', only vmath.vector4, vmath.vector3 or float values are supported", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
+        }
+        else if (pd->m_Component == 0xff && !(is_vector4 || is_vector3))
+        {
+            char buffer[128];
+            DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.vector4 or a vmath.vector3", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
+        }
+        else if (pd->m_Component != 0xff && !is_number)
+        {
+            char buffer[128];
+            DM_LUA_ERROR("Unable to set property '%s', vector elements can only be set by numbers", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
+        }
+
+        if (pd->m_Component == 0xff)
+        {
+            if (is_vector3)
+            {
+                Vector3* new_value = dmScript::ToVector3(L, 3);
+                Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+                current_value.setXYZ(*new_value);
+                dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
+            }
+            else
+            {
+                Vector4* new_value = dmScript::ToVector4(L, 3);
+                dmGui::SetNodeProperty(scene, hnode, pd->m_Property, *new_value);
+            }
+        }
+        else
+        {
+            Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+            float new_element_value = (float) lua_tonumber(L, 3);
+            current_value.setElem(pd->m_Component, new_element_value);
+            dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
+        }
+
+        return 0;
+    }
+
     /*# gets the index of the specified node
      *
      * Retrieve the index of the specified node among its siblings.
@@ -4421,6 +4586,8 @@ namespace dmGui
         {"get_node",        LuaGetNode},
         {"get_id",          LuaGetId},
         {"set_id",          LuaSetId},
+        {"get",             LuaGet},
+        {"set",             LuaSet},
         {"get_index",       LuaGetIndex},
         {"delete_node",     LuaDeleteNode},
         {"animate",         LuaAnimate},

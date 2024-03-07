@@ -1098,6 +1098,62 @@ TEST_F(dmGuiScriptTest, TestVisibilityApi)
     dmGui::DeleteScript(script);
 }
 
+TEST_F(dmGuiScriptTest, TestGuiGetSet)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "local EPSILON = 0.001\n"
+            "function assert_near_vector4(a,b)\n"
+            "    assert(math.abs(a.x-b.x) < EPSILON)\n"
+            "    assert(math.abs(a.y-b.y) < EPSILON)\n"
+            "    assert(math.abs(a.z-b.z) < EPSILON)\n"
+            "    assert(math.abs(a.w-b.w) < EPSILON)\n"
+            "end\n"
+            "local function assert_error(func)\n"
+            "    local r, err = pcall(func)\n"
+            "    if not r then\n"
+            "        print(err)\n"
+            "    end\n"
+            "    assert(not r)\n"
+            "end\n"
+            "function init(self)\n"
+            // Test valid
+            "   local node = gui.new_box_node(vmath.vector3(1, 2, 3), vmath.vector3(4, 5, 6))\n"
+            "   assert_near_vector4(vmath.vector4(1, 2, 3, 1), gui.get(node, 'position'))\n"
+            "   assert_near_vector4(vmath.vector4(4, 5, 6, 0), gui.get(node, 'size'))\n"
+            "   gui.set(node, 'position', vmath.vector3(99, 98, 97))\n"
+            "   assert_near_vector4(vmath.vector4(99, 98, 97, 1), gui.get(node, 'position'))\n"
+            "   gui.set(node, 'position', vmath.vector4(99, 98, 97, 1337))\n"
+            "   assert_near_vector4(vmath.vector4(99, 98, 97, 1337), gui.get(node, 'position'))\n"
+            // Incorrect input for get
+            "   assert_error(function() gui.get('invalid', 'position') end)\n"
+            "   assert_error(function() gui.get(hash('invalid'), 'position') end)\n"
+            "   assert_error(function() gui.get(node, 'this_doesnt_exist') end)\n"
+            // Incorrect input for set
+            "   assert_error(function() gui.set('invalid', 'position', vmath.vector3()) end)\n"
+            "   assert_error(function() gui.set(node, 'position', 'incorrect-string') end)\n"
+            "   assert_error(function() gui.set(node, 'this_doesnt_exist', vmath.vector4()) end)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
 TEST_F(dmGuiScriptTest, TestRecreateDynamicTexture)
 {
     dmGui::HScript script = NewScript(m_Context);
