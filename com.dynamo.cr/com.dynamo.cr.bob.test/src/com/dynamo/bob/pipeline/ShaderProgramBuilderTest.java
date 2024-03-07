@@ -165,29 +165,32 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private static void debugPrintShader(String label, ShaderDesc.Shader shader) {
-        if (true) {
-            System.out.println("debugPrintShader: " + label);
-            debugPrintResourceList("UBOs", shader.getUniformBuffersList());
-            debugPrintResourceList("SSBOs", shader.getStorageBuffersList());
-            debugPrintResourceList("Textures", shader.getTexturesList());
+        // Remove for debugging:
+        if (false) {
+            return;
+        }
 
-            for (ShaderDesc.ResourceTypeInfo t : shader.getTypesList()) {
-                System.out.println("Type");
-                System.out.println(" name: " + t.getName());
-                System.out.println(" hash: " + t.getNameHash());
+        System.out.println("debugPrintShader: " + label);
+        debugPrintResourceList("UBOs", shader.getUniformBuffersList());
+        debugPrintResourceList("SSBOs", shader.getStorageBuffersList());
+        debugPrintResourceList("Textures", shader.getTexturesList());
 
-                for (ShaderDesc.ResourceMember m : t.getMembersList()) {
-                    System.out.println(" Members:");
-                    System.out.println("   name: " + m.getName());
-                    System.out.println("   hash: " + m.getNameHash());
-                    System.out.println("   count: " + m.getElementCount());
+        for (ShaderDesc.ResourceTypeInfo t : shader.getTypesList()) {
+            System.out.println("Type");
+            System.out.println(" name: " + t.getName());
+            System.out.println(" hash: " + t.getNameHash());
 
-                    ShaderDesc.ResourceType resourceType = m.getType();
-                    if (resourceType.hasShaderType()) {
-                        System.out.println("   type: " + resourceType.getShaderType());
-                    } else {
-                        System.out.println("   type: " + resourceType.getTypeIndex());
-                    }
+            for (ShaderDesc.ResourceMember m : t.getMembersList()) {
+                System.out.println(" Members:");
+                System.out.println("   name: " + m.getName());
+                System.out.println("   hash: " + m.getNameHash());
+                System.out.println("   count: " + m.getElementCount());
+
+                ShaderDesc.ResourceType resourceType = m.getType();
+                if (resourceType.hasShaderType()) {
+                    System.out.println("   type: " + resourceType.getShaderType());
+                } else {
+                    System.out.println("   type: " + resourceType.getTypeIndex());
                 }
             }
         }
