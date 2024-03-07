@@ -551,7 +551,7 @@ namespace dmGameObject
         return 0xFFFFFFFF;
     }
 
-    void* GetWorld(HCollection hcollection, uint32_t component_type_index)
+    HComponentWorld GetWorld(HCollection hcollection, uint32_t component_type_index)
     {
         Register* regist = GetRegister(hcollection);
         if (component_type_index < regist->m_ComponentTypeCount)
