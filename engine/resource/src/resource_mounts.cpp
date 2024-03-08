@@ -377,7 +377,7 @@ static dmResource::Result ReadCustomResource(HContext ctx, dmhash_t path_hash, u
 
         memcpy(buffer, file->m_Resource, buffer_size);
 
-        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: %s  " DM_HASH_FMT " (%u bytes) (custom file)\n", path_hash, buffer_size);
+        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: " DM_HASH_FMT " (%u bytes) (custom file)\n", path_hash, buffer_size);
         return dmResource::RESULT_OK;
     }
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
@@ -396,7 +396,7 @@ dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char*
             continue;
         if (dmResourceProvider::RESULT_OK == result)
         {
-            DM_RESOURCE_DBG_LOG(3, "GetResourceSize OK: %s  " DM_HASH_FMT " (%u bytes)\n", path, path_hash, *resource_size);
+            DM_RESOURCE_DBG_LOG(3, "GetResourceSize OK: %s  " DM_HASH_FMT " (%u bytes) (mount: '%s')\n", path, path_hash, *resource_size, mount.m_Name);
             DebugPrintMount(3, mount);
             return dmResource::RESULT_OK;
         }
@@ -406,6 +406,7 @@ dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char*
     if (!ctx->m_CustomFiles.Empty())
         return GetCustomResourceSize(ctx, path_hash, path, resource_size);
 
+    DM_RESOURCE_DBG_LOG(3, "GetResourceSize RESOURCE_NOT_FOUND: %s  " DM_HASH_FMT "\n", path, path_hash);
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 

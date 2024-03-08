@@ -32,9 +32,11 @@ namespace dmGameSystem
     {
         resource->m_SceneDesc = desc;
 
-        dmResource::Result fr = dmResource::Get(factory, resource->m_SceneDesc->m_Material, (void**) &resource->m_Material);
-        if (fr != dmResource::RESULT_OK) {
-            return fr;
+        dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Material, (void**) &resource->m_Material);
+        if (r != dmResource::RESULT_OK)
+        {
+            dmLogError("Failed to get resource '%s': %s", resource->m_SceneDesc->m_Material, dmResource::ResultToString(r));
+            return r;
         }
         if(dmRender::GetMaterialVertexSpace(resource->m_Material->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
         {
@@ -44,9 +46,12 @@ namespace dmGameSystem
 
         if (resource->m_SceneDesc->m_Script != 0x0 && *resource->m_SceneDesc->m_Script != '\0')
         {
-            dmResource::Result fr = dmResource::Get(factory, resource->m_SceneDesc->m_Script, (void**) &resource->m_Script);
-            if (fr != dmResource::RESULT_OK)
-                return fr;
+            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Script, (void**) &resource->m_Script);
+            if (r != dmResource::RESULT_OK)
+            {
+                dmLogError("Failed to get resource '%s': %s", resource->m_SceneDesc->m_Script, dmResource::ResultToString(r));
+                return r;
+            }
         }
 
         uint32_t table_size = dmMath::Max(1U, resource->m_SceneDesc->m_Resources.m_Count/3);
@@ -57,7 +62,10 @@ namespace dmGameSystem
             void* custom_resource = 0;
             dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Resources[i].m_Path, &custom_resource);
             if (r != dmResource::RESULT_OK)
+            {
+                dmLogError("Failed to get resource '%s': %s", resource->m_SceneDesc->m_Resources[i].m_Path, dmResource::ResultToString(r));
                 return r;
+            }
             const char* suffix = strrchr(resource->m_SceneDesc->m_Resources[i].m_Path, '.');
 
             dmhash_t resource_id = dmHashString64(resource->m_SceneDesc->m_Resources[i].m_Name);
@@ -73,7 +81,10 @@ namespace dmGameSystem
             dmParticle::HPrototype pfx_res = 0x0;
             dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Particlefxs.m_Data[i].m_Particlefx, (void**) &pfx_res);
             if (r != dmResource::RESULT_OK)
+            {
+                dmLogError("Failed to get resource '%s': %s", resource->m_SceneDesc->m_Particlefxs.m_Data[i].m_Particlefx, dmResource::ResultToString(r));
                 return r;
+            }
             resource->m_ParticlePrototypes.Push(pfx_res);
         }
 
@@ -86,7 +97,10 @@ namespace dmGameSystem
             dmRender::HFontMap font_map;
             dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Fonts[i].m_Font, (void**) &font_map);
             if (r != dmResource::RESULT_OK)
+            {
+                dmLogError("Failed to get resource '%s': %s", resource->m_SceneDesc->m_Fonts[i].m_Font, dmResource::ResultToString(r));
                 return r;
+            }
             resource->m_FontMaps.Push(font_map);
 
             dmhash_t path_hash = 0;
@@ -103,6 +117,7 @@ namespace dmGameSystem
             dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Materials[i].m_Material, (void**) &material_res);
             if (r != dmResource::RESULT_OK)
             {
+                dmLogError("Failed to get resource '%s': %s", resource->m_SceneDesc->m_Materials[i].m_Material, dmResource::ResultToString(r));
                 return r;
             }
 
@@ -122,6 +137,7 @@ namespace dmGameSystem
             dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Textures[i].m_Texture, (void**) &texture_set_resource);
             if (r != dmResource::RESULT_OK)
             {
+                dmLogError("Failed to get resource '%s': %s", resource->m_SceneDesc->m_Textures[i].m_Texture, dmResource::ResultToString(r));
                 return r;
             }
 

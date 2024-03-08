@@ -535,8 +535,10 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
             *resource_size = file_size;
             return RESULT_OK;
         }
+        DM_RESOURCE_DBG_LOG(3, "Resource DoLoadResourceLocked: '%s': ReadResource: '%s'\n", path, ResultToString(r));
         return r;
     }
+    DM_RESOURCE_DBG_LOG(3, "Resource DoLoadResourceLocked: '%s': RESOURCE_NOT_FOUND\n", path);
     return RESULT_RESOURCE_NOT_FOUND;
 }
 
@@ -777,6 +779,7 @@ Result Get(HFactory factory, const char* name, void** resource)
     assert(resource);
     *resource = 0;
 
+    DM_RESOURCE_DBG_LOG(3, "Resource Get(name): '%s'\n", name);
     Result chk = CheckSuppliedResourcePath(name);
     if (chk != RESULT_OK)
         return chk;
@@ -821,9 +824,11 @@ Result Get(HFactory factory, const char* name, void** resource)
 
 Result Get(HFactory factory, dmhash_t name, void** resource)
 {
+    DM_RESOURCE_DBG_LOG(3, "Resource Get(hash): '%s'\n", dmHashReverseSafe64(name));
     dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, name);
     if (!rd)
     {
+        DM_RESOURCE_DBG_LOG(3, "Resource Get(hash): '%s' error: RESOURCE_NOT_FOUND\n", dmHashReverseSafe64(name));
         return RESULT_RESOURCE_NOT_FOUND;
     }
     dmResource::IncRef(factory, rd->m_Resource);
