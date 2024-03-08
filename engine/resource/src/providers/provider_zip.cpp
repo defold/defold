@@ -139,7 +139,7 @@ static void CreateEntryMap(ZipProviderContext* archive)
         manifest_info.m_Size = entry->m_Size;
         manifest_info.m_EntryIndex = info->m_EntryIndex;
         entry_map->Put(entry->m_UrlHash, manifest_info);
-        DM_RESOURCE_DBG_LOG(3, "Added entry: %s %llx (%u bytes)\n", archive_path_buffer, archive_path_hash, manifest_info.m_Size);
+        DM_RESOURCE_DBG_LOG(3, "Added entry: %s " DM_HASH_FMT " (%u bytes)\n", archive_path_buffer, archive_path_hash, manifest_info.m_Size);
     }
 
     // Also add any other files that the developer might have added to the zip archive
@@ -154,7 +154,7 @@ static void CreateEntryMap(ZipProviderContext* archive)
         }
         dmhash_t hash_key = archive_entries_iter.GetKey();
         entry_map->Put(hash_key, info);
-        DM_RESOURCE_DBG_LOG(3, "Added extra entry: %llx (%u bytes)\n", hash_key, info.m_Size);
+        DM_RESOURCE_DBG_LOG(3, "Added extra entry: " DM_HASH_FMT " (%u bytes)\n", hash_key, info.m_Size);
     }
 
 }
@@ -239,12 +239,12 @@ static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveIntern
     EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
     if (entry)
     {
-        DM_RESOURCE_DBG_LOG(3, "ZIP: %s: File size: %s %llx -> %u\n", __FUNCTION__, path, path_hash, entry->m_Size);
+        DM_RESOURCE_DBG_LOG(3, "ZIP: %s: File size: %s " DM_HASH_FMT " -> %u\n", __FUNCTION__, path, path_hash, entry->m_Size);
         *file_size = entry->m_Size;
         return dmResourceProvider::RESULT_OK;
     }
 
-    DM_RESOURCE_DBG_LOG(3, "ZIP: %s: Failed to find: %s %llx\n", __FUNCTION__, path, path_hash);
+    DM_RESOURCE_DBG_LOG(3, "ZIP: %s: Failed to find: %s " DM_HASH_FMT "\n", __FUNCTION__, path, path_hash);
     return dmResourceProvider::RESULT_NOT_FOUND;
 }
 

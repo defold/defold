@@ -120,7 +120,7 @@ namespace dmResourceProviderArchive
             }
             archive->m_EntryMap.Put(entry->m_UrlHash, info);
 
-            DM_RESOURCE_DBG_LOG(3, "Archive: Added entry: %s %llx (%u bytes)\n", entry->m_Url, entry->m_UrlHash, dmEndian::ToNetwork(info.m_ArchiveInfo->m_ResourceSize));
+            DM_RESOURCE_DBG_LOG(3, "Archive: Added entry: %s " DM_HASH_FMT " (%u bytes)\n", entry->m_Url, entry->m_UrlHash, dmEndian::ToNetwork(info.m_ArchiveInfo->m_ResourceSize));
         }
     }
 
