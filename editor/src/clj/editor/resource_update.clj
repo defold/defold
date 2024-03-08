@@ -27,8 +27,9 @@
             [editor.graph-util :as gu]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [util.coll :as coll])
-  (:import [editor.resource ZipResource]))
+            [util.coll :as coll]))
+
+(set! *warn-on-reflection* true)
 
 (defn print-plan [plan]
   (let [resource-info (fn [r] (pr-str r))
@@ -117,20 +118,25 @@
     ;; than simply adding new nodes for the introduced resources.
     (replace-resources-plan plan-info non-moved-added true)))
 
-(defn- resource-may-linger-on-disk? [resource]
-  (instance? ZipResource resource))
-
 (defn- resource-removed-plan [{:keys [removed]} {:keys [move-source-paths resource->old-node]}]
-  ;; Ideally, for stateless (external) resources, we should only have to invalidate-outputs
-  ;; and the next attempt to access the data will cause an appropriate "file not found" error.
-  ;; But since the .zip file that hosts ZipResources may remain cached on disk, those have
-  ;; to be explicitly marked deleted as well. Note that marking a node as deleted will
-  ;; implicitly invalidate its cached outputs.
-  (let [non-moved-removed (remove (comp move-source-paths resource/proj-path) removed)
-        {loadable-removed true stateless-removed false} (group-by stateful? non-moved-removed)
-        {stateless-lingering true stateless-external false} (group-by resource-may-linger-on-disk? stateless-removed)]
-    {:mark-deleted (mapv resource->old-node (concat loadable-removed stateless-lingering))
-     :invalidate-outputs (mapv resource->old-node stateless-external)}))
+  ;; You might think that we should only have to invalidate-outputs for
+  ;; stateless (external) resources, and the next attempt to access the data
+  ;; would cause an appropriate "file not found" error. However, we actually
+  ;; want the node to be marked defective, as we specifically check for this in
+  ;; some places. For example, double-clicking a build error will navigate to
+  ;; the referencing resource rather than the missing resource when the missing
+  ;; resource node is marked defective with a :file-not-found error type.
+  ;;
+  ;; Marking stateless nodes as defective when their resources are deleted is
+  ;; also consistent with what happens to them when we load the project.
+  ;;
+  ;; The additional complexities around ZipResources detailed in the comment in
+  ;; the resource-changed-plan function below also apply.
+  ;;
+  ;; Note that marking a node as deleted will implicitly invalidate its cached
+  ;; outputs, so no need to emit :invalidate-outputs instructions here.
+  (let [non-moved-removed (remove (comp move-source-paths resource/proj-path) removed)]
+    {:mark-deleted (mapv resource->old-node non-moved-removed)}))
 
 (defn- resource-changed-plan [{:keys [changed]}
                               {:keys [move-source-paths
