@@ -611,6 +611,7 @@ namespace dmRender
             graphics_attribute.m_ElementCount               = graphics_attribute_in.m_ElementCount;
             graphics_attribute.m_SemanticType               = graphics_attribute_in.m_SemanticType;
             graphics_attribute.m_CoordinateSpace            = graphics_attribute_in.m_CoordinateSpace;
+            graphics_attribute.m_StepFunction               = graphics_attribute_in.m_StepFunction;
 
             update_attributes = true;
         }

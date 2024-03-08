@@ -439,6 +439,8 @@ namespace dmGraphics
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = 14,
     };
 
+    // TODO: We should remove this since we have it in the graphcis proto file
+
     /*#
      * Vertex step function. Dictates how the data for a vertex attribute should be read in a vertex shader.
      * @enum

@@ -589,6 +589,13 @@ namespace dmGraphics
         return vertex_declaration->m_Stride;
     }
 
+    uint32_t GetVertexDeclarationStreamCount(HVertexDeclaration vertex_declaration)
+    {
+        if (!vertex_declaration)
+            return 0;
+        return vertex_declaration->m_StreamCount;
+    }
+
     #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
     const char* TextureFormatToString(TextureFormat format)
     {

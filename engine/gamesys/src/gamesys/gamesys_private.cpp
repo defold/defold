@@ -332,6 +332,7 @@ namespace dmGameSystem
             info.m_CoordinateSpace  = material_attributes[i].m_CoordinateSpace;
             info.m_ElementCount     = material_attributes[i].m_ElementCount;
             info.m_Normalize        = material_attributes[i].m_Normalize;
+            info.m_StepFunction     = material_attributes[i].m_StepFunction;
 
             dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
         }
