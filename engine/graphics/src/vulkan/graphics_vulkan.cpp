@@ -3411,6 +3411,9 @@ bail:
                     VK_IMAGE_LAYOUT_PREINITIALIZED,
                     texture_color);
                 CHECK_VK_ERROR(res);
+
+                texture_color->m_Width  = width;
+                texture_color->m_Height = height;
             }
         }
 
@@ -3439,6 +3442,9 @@ bail:
                 VK_IMAGE_ASPECT_DEPTH_BIT,
                 depth_stencil_texture);
             CHECK_VK_ERROR(res);
+
+            depth_stencil_texture->m_Width  = width;
+            depth_stencil_texture->m_Height = height;
         }
 
         DestroyRenderTarget(g_VulkanContext, rt);
