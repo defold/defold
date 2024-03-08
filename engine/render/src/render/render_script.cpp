@@ -1193,12 +1193,7 @@ namespace dmRender
 
             if (render_resource == 0x0)
             {
-                char str[128];
-                char buffer[256];
-                dmSnPrintf(buffer, sizeof(buffer), "Could not find render target '%s' %llu",
-                    dmScript::GetStringFromHashOrString(L, index, str, sizeof(str)), (unsigned long long) rt_id); // since lua doesn't support proper format arguments
-
-                return luaL_error(L, "%s", buffer);
+                return luaL_error(L, "Could not find render target '%s'", dmHashReverseSafe64(rt_id));
             }
 
             if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
@@ -1518,7 +1513,7 @@ namespace dmRender
      *     render.draw(self.my_pred)
      *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
      *
-     *     render.enable_texture(0, 'my_rt_resource, render.BUFFER_COLOR_BIT)
+     *     render.enable_texture(0, 'my_rt_resource', render.BUFFER_COLOR_BIT)
      *     -- draw a predicate with the render target available as texture 0 in the predicate
      *     -- material shader.
      *     render.draw(self.my_pred)
@@ -2944,8 +2939,7 @@ namespace dmRender
      */
     int RenderScript_EnableMaterial(lua_State* L)
     {
-        int top = lua_gettop(L);
-        (void)top;
+        DM_LUA_STACK_CHECK(L, 0);
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (!lua_isnil(L, 1))
@@ -2955,33 +2949,26 @@ namespace dmRender
 
             if (render_resource == 0x0)
             {
-                assert(top == lua_gettop(L));
-                char str[128];
-                char buffer[256];
-                dmSnPrintf(buffer, sizeof(buffer), "Could not find material '%s' %llu", dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long)material_id); // since lua doesn't support proper format arguments
-                return luaL_error(L, "%s", buffer);
+                return DM_LUA_ERROR("Could not find material '%s'", dmHashReverseSafe64(material_id));
             }
             else if (render_resource->m_Type != RENDER_RESOURCE_TYPE_MATERIAL)
             {
-                return luaL_error(L, "Render resource is not a material.");
+                return DM_LUA_ERROR("Render resource is not a material.");
             }
 
             HMaterial material = (HMaterial) render_resource->m_Resource;
             if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint64_t)material)))
             {
-                assert(top == lua_gettop(L));
                 return 0;
             }
             else
             {
-                assert(top == lua_gettop(L));
-                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
             }
         }
         else
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "%s.enable_material was supplied nil as material.", RENDER_SCRIPT_LIB_NAME);
+            return DM_LUA_ERROR("%s.enable_material was supplied nil as material.", RENDER_SCRIPT_LIB_NAME);
         }
     }
 
