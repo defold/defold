@@ -592,6 +592,7 @@ static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmap
     else
     {
         image_data = new uint8_t[image_data_size];
+        memset(image_data, 0, image_data_size);
     }
 
     // Note: Right now we only support creating compressed 2D textures with 1 mipmap,
@@ -652,6 +653,7 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * registered will trigger an error. If the intention is to instead modify an existing texture, use the [ref:resource.set_texture]
  * function. Also note that the path to the new texture resource must have a '.texturec' extension,
  * meaning "/path/my_texture" is not a valid path but "/path/my_texture.texturec" is.
+ * If the texture is created without a buffer, the pixel data will be blank.
  *
  * @name resource.create_texture
  *
