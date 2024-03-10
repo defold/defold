@@ -38,6 +38,7 @@ import java.util.zip.ZipInputStream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.NoHttpResponseException;
 
 import com.defold.extender.client.ExtenderClient;
@@ -128,6 +129,7 @@ public class BundleHelper {
     }
 
     public static String projectNameToBinaryName(String projectName) {
+        String projectNameNoAccents = StringUtils.stripAccents(projectName);
         String output = projectName.replaceAll("[^a-zA-Z0-9_]", "");
         if (output.equals("")) {
             return "dmengine";
