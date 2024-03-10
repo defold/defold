@@ -112,7 +112,8 @@ public class BundleHelperTest {
         assertEquals("dmengine", BundleHelper.projectNameToBinaryName(" "));
         assertEquals("dmengine", BundleHelper.projectNameToBinaryName("Лорем ипсум"));
         assertEquals("aao", BundleHelper.projectNameToBinaryName("åäö"));
-        assertEquals("Ky Hoang", BundleHelper.projectNameToBinaryName("Kỳ Hoàng"));
+        assertEquals("aao", BundleHelper.projectNameToBinaryName("âäó"));
+        assertEquals("KyHoang", BundleHelper.projectNameToBinaryName("Kỳ Hoàng"));
         assertEquals("test_project", BundleHelper.projectNameToBinaryName("test_projectЛорем ипсум"));
         assertEquals("test_project", BundleHelper.projectNameToBinaryName("test_project"));
         assertEquals("testproject", BundleHelper.projectNameToBinaryName("test project"));

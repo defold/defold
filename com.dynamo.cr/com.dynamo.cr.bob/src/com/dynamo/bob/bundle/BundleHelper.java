@@ -130,7 +130,7 @@ public class BundleHelper {
 
     public static String projectNameToBinaryName(String projectName) {
         String projectNameNoAccents = StringUtils.stripAccents(projectName);
-        String output = projectName.replaceAll("[^a-zA-Z0-9_]", "");
+        String output = projectNameNoAccents.replaceAll("[^a-zA-Z0-9_]", "");
         if (output.equals("")) {
             return "dmengine";
         }
