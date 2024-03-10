@@ -1710,7 +1710,7 @@ namespace dmGameObject
         {
             if (instance->m_Initialized)
             {
-                dmLogWarning("Instance is initialized twice, this may lead to undefined behaviour.");
+                dmLogWarning("Instance '%s' is initialized twice, this may lead to undefined behaviour.", dmHashReverseSafe64(instance->m_Identifier));
             }
             else
             {
