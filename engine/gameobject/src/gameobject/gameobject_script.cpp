@@ -34,6 +34,8 @@
 #include "gameobject_private.h"
 #include "gameobject_props_lua.h"
 
+#include "gameobject/gameobject_ddf.h"
+
 // Not to pretty to include res_lua.h here but lua-modules
 // are released at system shutdown and not on a per parent-resource basis
 // as all other resource are. Due to the nature of lua-code and

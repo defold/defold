@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -31,7 +31,7 @@ namespace dmGameObject
         {
             Prototype::Component& c = prototype->m_Components[i];
             dmResource::Release(factory, c.m_Resource);
-            DestroyPropertyContainerCallback(c.m_PropertySet.m_UserData);
+            PropertyContainerDestroyCallback(c.m_PropertySet.m_UserData);
         }
 
         UnloadPropertyResources(factory, prototype->m_PropertyResources);
@@ -114,7 +114,7 @@ namespace dmGameObject
                                                                               component_desc.m_Scale);
                 c.m_PropertySet.m_GetPropertyCallback = PropertyContainerGetPropertyCallback;
 
-                c.m_PropertySet.m_UserData = (uintptr_t)CreatePropertyContainerFromDDF(&component_desc.m_PropertyDecls);
+                c.m_PropertySet.m_UserData = (uintptr_t)PropertyContainerCreateFromDDF(&component_desc.m_PropertyDecls);
                 if (c.m_PropertySet.m_UserData == 0)
                 {
                     return dmResource::RESULT_FORMAT_ERROR;

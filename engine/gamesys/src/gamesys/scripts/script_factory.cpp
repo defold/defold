@@ -21,6 +21,8 @@
 #include <dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gamesys/script.h>
+#include <dmsdk/gameobject/gameobject.h>
+#include <gameobject/gameobject_props_lua.h>
 #include <dmsdk/gameobject/script.h>
 #include <gameobject/script.h>
 

@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef GAMEOBJECT_H
-#define GAMEOBJECT_H
+#ifndef DM_GAMEOBJECT_H
+#define DM_GAMEOBJECT_H
 
 #include <stdint.h>
 
@@ -48,6 +48,7 @@ namespace dmGameObject
 
     extern const dmhash_t UNNAMED_IDENTIFIER;
 
+    typedef struct PropertyContainer* HPropertyContainer;
 
     /**
      * Create a new component type register
@@ -119,20 +120,6 @@ namespace dmGameObject
      * @param collection Collection that the index should be returned to.
      */
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
-
-    /**
-     * Spawns a new gameobject instance. The actual creation is performed after the update is completed.
-     * @param collection Gameobject collection
-     * @param prototype_name Prototype file name
-     * @param id Id of the spawned instance
-     * @param property_buffer Buffer with serialized properties
-     * @param property_buffer_size Size of property buffer
-     * @param position Position of the spawed object
-     * @param rotation Rotation of the spawned object
-     * @param scale Scale of the spawned object
-     * return the spawned instance, 0 at failure
-     */
-    HInstance Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale);
 
     struct InstancePropertyBuffer
     {
@@ -403,4 +390,4 @@ namespace dmGameObject
     void RemoveDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
 }
 
-#endif // GAMEOBJECT_H
+#endif // DM_GAMEOBJECT_H

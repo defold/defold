@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -165,7 +165,7 @@ namespace dmGameObject
                             const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
                             if (dmHashString64(comp_prop.m_Id) == component.m_Id)
                             {
-                                set_params.m_PropertySet.m_UserData = (uintptr_t)CreatePropertyContainerFromDDF(&comp_prop.m_PropertyDecls);
+                                set_params.m_PropertySet.m_UserData = (uintptr_t)PropertyContainerCreateFromDDF(&comp_prop.m_PropertyDecls);
                                 if (set_params.m_PropertySet.m_UserData == 0x0)
                                 {
                                     dmLogError("Could not read properties of game object '%s' in collection %s.", instance_desc.m_Id, filename);
@@ -175,7 +175,7 @@ namespace dmGameObject
                                 else
                                 {
                                     set_params.m_PropertySet.m_GetPropertyCallback = PropertyContainerGetPropertyCallback;
-                                    set_params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertyContainerCallback;
+                                    set_params.m_PropertySet.m_FreeUserDataCallback = PropertyContainerDestroyCallback;
                                 }
                                 break;
                             }

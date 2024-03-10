@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,6 +22,7 @@
 
 #include "../gameobject.h"
 #include "../gameobject_private.h"
+#include "../gameobject_props_lua.h"
 
 using namespace dmVMath;
 
@@ -137,11 +138,11 @@ dmResource::FResourceDestroy FactoryTest::ADestroy            = NullResourceDest
 dmGameObject::ComponentCreate FactoryTest::AComponentCreate   = TestComponentCreate;
 dmGameObject::ComponentDestroy FactoryTest::AComponentDestroy = TestComponentDestroy;
 
-static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties, const Point3& position, const Quat& rotation, const Vector3& scale)
 {
     dmGameObject::HPrototype prototype = 0x0;
     if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
         dmResource::Release(factory, prototype);
         return result;
     }
@@ -157,7 +158,7 @@ TEST_F(FactoryTest, Factory)
         dmhash_t id = dmGameObject::ConstructInstanceId(index);
 
         ASSERT_NE(0u, id);
-        dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(1, 1, 1));
+        dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(1, 1, 1));
         ASSERT_NE(0u, (uintptr_t)instance);
     }
 }
@@ -167,7 +168,7 @@ TEST_F(FactoryTest, FactoryScale)
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
     ASSERT_NE(0u, id);
-    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_EQ(2.0f, dmGameObject::GetUniformScale(instance));
 }
 
@@ -177,13 +178,13 @@ TEST_F(FactoryTest, FactoryScaleAlongZ)
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
 
     m_Collection->m_Collection->m_ScaleAlongZ = 1;
-    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_TRUE(dmGameObject::ScaleAlongZ(instance));
 
     index = dmGameObject::AcquireInstanceIndex(m_Collection);
     id = dmGameObject::ConstructInstanceId(index);
     m_Collection->m_Collection->m_ScaleAlongZ = 0;
-    instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
+    instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_FALSE(dmGameObject::ScaleAlongZ(instance));
 }
 
@@ -191,44 +192,50 @@ TEST_F(FactoryTest, FactoryProperties)
 {
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     lua_newtable(L);
-    lua_pushliteral(L, "number");
     lua_pushnumber(L, 3);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "hash");
+    lua_setfield(L, -2, "number");
+
     dmScript::PushHash(L, dmHashString64("hash3"));
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "url");
+    lua_setfield(L, -2, "hash");
+
     dmMessage::URL url;
     url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
     url.m_Path = dmHashString64("/url3");
     url.m_Fragment = 0;
     dmScript::PushURL(L, url);
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "vec3");
+    lua_setfield(L, -2, "url");
+
     dmScript::PushVector3(L, Vector3(11, 12, 13));
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "vec4");
+    lua_setfield(L, -2, "vec3");
+
     dmScript::PushVector4(L, Vector4(14, 15, 16, 17));
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "quat");
+    lua_setfield(L, -2, "vec4");
+
     dmScript::PushQuat(L, Quat(18, 19, 20, 21));
-    lua_rawset(L, -3);
-    lua_pushliteral(L, "bool");
+    lua_setfield(L, -2, "quat");
+
     lua_pushboolean(L, 1);
-    lua_rawset(L, -3);
+    lua_setfield(L, -2, "bool");
+
     char DM_ALIGNED(16) buffer[256];
-    uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
+    uint32_t buffer_size = dmScript::CheckTable(L, buffer, sizeof(buffer), -1);
     lua_pop(L, 1);
+
+    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, (uint8_t*)buffer, buffer_size);
+
+    dmGameObject::PropertyContainerPrint(properties);
 
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
-    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_NE((void*)0, instance);
 
     index = dmGameObject::AcquireInstanceIndex(m_Collection);
     id = dmGameObject::ConstructInstanceId(index);
-    instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
+    instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_NE((void*)0, instance);
+
+    dmGameObject::PropertyContainerDestroy(properties);
 }
 
 TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
@@ -242,10 +249,14 @@ TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
     uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
     lua_pop(L, 1);
 
+    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, (uint8_t*)buffer, buffer_size);
+
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
-    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_EQ((void*)0, instance);
+
+    dmGameObject::PropertyContainerDestroy(properties);
 }
 
 TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
@@ -259,16 +270,20 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
     uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
     lua_pop(L, 1);
 
+    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, (uint8_t*)buffer, buffer_size);
+
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
-    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, (unsigned char*)buffer, buffer_size, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_EQ((void*)0, instance);
+
+    dmGameObject::PropertyContainerDestroy(properties);
 }
 
 TEST_F(FactoryTest, FactoryCreateCallback)
 {
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
-    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0x0, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
     ASSERT_NE((void*)0, instance);
 }

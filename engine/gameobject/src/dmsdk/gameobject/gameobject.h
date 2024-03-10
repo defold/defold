@@ -86,9 +86,33 @@ namespace dmGameObject
      */
     typedef struct CollectionHandle* HCollection;
 
-    typedef void*       HComponent; // TODO: perhaps change to uint64_t
-    typedef uintptr_t   HComponentInternal; // TODO: perhaps change to uint64_t
-    typedef void*       HComponentWorld; // TODO: perhaps change to uint64_t
+    /*#
+     * Handle to a list of properties (gameobject_props.h)
+     * @typedef
+     * @name HPropertyContainer
+     */
+    typedef struct PropertyContainer* HPropertyContainer;
+
+    /*#
+     * Opaque handle to component instance
+     * @typedef
+     * @name HComponent
+     */
+    typedef void* HComponent;
+
+    /*#
+     * Opaque handle to internal representation of a component instance
+     * @typedef
+     * @name HComponentInternal
+     */
+    typedef uintptr_t HComponentInternal;
+
+    /*#
+     * Opaque handle to a component world
+     * @typedef
+     * @name HComponentWorld
+     */
+    typedef void* HComponentWorld;
 
     typedef void* HCollectionDesc;
 
@@ -476,6 +500,22 @@ namespace dmGameObject
      * @return socket [type: dmMessage::HSocket] The message socket of the specified collection
      */
     dmMessage::HSocket GetMessageSocket(HCollection collection);
+
+    /*# spawn a new game object
+     * Spawns a new gameobject instance. The actual creation is performed after the update is completed.
+     * @name Spawn
+     * @param collection [type: HCollection] Gameobject collection
+     * @param prototype [type: HPrototype] Prototype
+     * @param prototype_name [type: const char*] Prototype file name (.goc)
+     * @param id [type: dmhash_t] Id of the spawned instance
+     * @param properties [type: HPropertyContainer] Container with override properties
+     * @param position [type: dmVMath::Vector3] Position of the spawed object
+     * @param rotation [type: dmVMath::Quat] Rotation of the spawned object
+     * @param scale [type: dmVMath::Vector3] Scale of the spawned object
+     * return instance [type: HInstance] the spawned instance, 0 at failure
+     */
+    HInstance Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id,
+                      HPropertyContainer properties, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale);
 
     /*#
      * Retrieve a collection from the specified instance

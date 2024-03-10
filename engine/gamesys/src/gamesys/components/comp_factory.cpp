@@ -23,6 +23,7 @@
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <gameobject/gameobject.h>
+#include <gameobject/gameobject_props.h>
 #include <dmsdk/dlib/vmath.h>
 #include "../resources/res_factory.h"
 
@@ -174,6 +175,7 @@ namespace dmGameSystem
     {
         if (params.m_Message->m_Descriptor == (uintptr_t)dmGameSystemDDF::Create::m_DDFDescriptor)
         {
+            HFactoryWorld world = (HFactoryWorld)params.m_World;
             dmGameObject::HInstance instance = params.m_Instance;
             dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
             dmMessage::Message* message = params.m_Message;
@@ -181,10 +183,13 @@ namespace dmGameSystem
             dmGameSystemDDF::Create* create = (dmGameSystemDDF::Create*) params.m_Message->m_Data;
             uint32_t msg_size = sizeof(dmGameSystemDDF::Create);
             uint32_t property_buffer_size = message->m_DataSize - msg_size;
-            uint8_t* property_buffer = 0x0;
+            dmGameObject::HPropertyContainer properties = 0;
             if (property_buffer_size > 0)
             {
-                property_buffer = (uint8_t*)(((uintptr_t)create) + msg_size);
+                uint8_t* property_buffer = (uint8_t*)(((uintptr_t)create) + msg_size);
+
+                properties = dmGameObject::PropertyContainerAllocateWithSize(property_buffer_size);
+                PropertyContainerDeserialize(property_buffer, property_buffer_size, properties);
             }
             FactoryComponent* fc = (FactoryComponent*) *params.m_UserData;
 
@@ -217,9 +222,9 @@ namespace dmGameSystem
             {
                 scale = create->m_Scale3;
             }
-            dmGameObject::HPrototype prototype = CompFactoryGetPrototype(collection, fc);
-            dmGameObject::HInstance spawned_instance =  dmGameObject::Spawn(collection, prototype, CompFactoryGetPrototypePath(fc), id, property_buffer, property_buffer_size,
-                create->m_Position, create->m_Rotation, scale);
+            dmGameObject::HPrototype prototype = CompFactoryGetPrototype(world, fc);
+            dmGameObject::HInstance spawned_instance =  dmGameObject::Spawn(collection, prototype, CompFactoryGetPrototypePath(world, fc),
+                                                                            id, properties, create->m_Position, create->m_Rotation, scale);
             if (index != dmGameObject::INVALID_INSTANCE_POOL_INDEX)
             {
                 if (spawned_instance != 0x0)
@@ -231,6 +236,9 @@ namespace dmGameSystem
                     dmGameObject::ReleaseInstanceIndex(index, collection);
                 }
             }
+
+            if (properties)
+                dmGameObject::PropertyContainerDestroy(properties);
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
