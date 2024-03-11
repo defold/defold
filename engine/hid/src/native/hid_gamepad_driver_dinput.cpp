@@ -490,8 +490,6 @@ namespace dmHID
                     packet.m_Hat[hat_index] = hat_state;
                     hat_index++;
 
-                    assert(button_index == 0);
-
                     // North pad
                     SET_BUTTON(button_index, (hat_state & GLFW_HAT_UP) == GLFW_HAT_UP);
                     button_index++;
