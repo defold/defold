@@ -2245,6 +2245,7 @@ namespace dmGameObject
 
 
     /*# convert position to game object's coordinate space
+    * [icon:attention] The function uses world transformation calculated at the end of previous frame.
     *
     * @name go.world_to_local_position
     * @param position [type:vector3] position which need to be converted
@@ -2275,6 +2276,7 @@ namespace dmGameObject
 
 
     /*# convert transformation matrix to game object's coordinate space
+    * [icon:attention] The function uses world transformation calculated at the end of previous frame.
     *
     * @name go.world_to_local_transform
     * @param transformation [type:matrix4] transformation which need to be converted
