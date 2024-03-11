@@ -167,7 +167,6 @@ namespace dmGraphics
     typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc::Shader* ddf);
     typedef HProgram (*NewProgramFromComputeFn)(HContext context, HComputeProgram compute_program);
     typedef void (*DeleteComputeProgramFn)(HComputeProgram prog);
-    typedef HStorageBuffer (*NewStorageBufferFn)(HContext context, uint32_t buffer_size);
 
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     typedef void* (*MapVertexBufferFn)(HContext context, HVertexBuffer buffer, BufferAccess access);

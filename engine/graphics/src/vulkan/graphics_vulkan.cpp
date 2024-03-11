@@ -2398,7 +2398,9 @@ bail:
                         info.m_StorageBufferCount++;
                         info.m_TotalUniformCount++;
 
+                    #if 0
                         dmLogInfo("SSBO: name=%s, set=%d, binding=%d, ssbo-unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_StorageBufferUnit);
+                    #endif
 
                         break;
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:

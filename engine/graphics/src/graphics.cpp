@@ -954,11 +954,6 @@ namespace dmGraphics
                 res.m_Type.m_TypeIndex = bindings[i].m_Type.m_Type.m_TypeIndex;
             else
                 res.m_Type.m_ShaderType = bindings[i].m_Type.m_Type.m_ShaderType;
-
-            if (family == ShaderResourceBinding::BINDING_FAMILY_GENERIC)
-            {
-                dmLogInfo("Input: name=%s", res.m_Name);
-            }
         }
     }
 

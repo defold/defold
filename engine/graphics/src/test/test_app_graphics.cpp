@@ -408,6 +408,8 @@ struct StorageBufferTest : ITest
 
         if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
         {
+            assert(false && "TODO: storage buffers are only supported on vulkan currently");
+
             vs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
             vs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::glsl_vertex_program;
             vs_shader.m_Source.m_Count = sizeof(graphics_assets::glsl_vertex_program);
@@ -463,8 +465,8 @@ struct StorageBufferTest : ITest
             storage_data[i].m_Member1[3] = (float) (10 * i + 3);
         }
 
-        m_StorageBuffer = dmGraphics::NewStorageBuffer(engine->m_GraphicsContext, sizeof(storage_data));
-        dmGraphics::SetStorageBufferData(engine->m_GraphicsContext, m_StorageBuffer, sizeof(storage_data), (void*) storage_data);
+        m_StorageBuffer = dmGraphics::VulkanNewStorageBuffer(engine->m_GraphicsContext, sizeof(storage_data));
+        dmGraphics::VulkanSetStorageBufferData(engine->m_GraphicsContext, m_StorageBuffer, sizeof(storage_data), (void*) storage_data);
     }
 
     void Execute(EngineCtx* engine) override
@@ -473,7 +475,8 @@ struct StorageBufferTest : ITest
         dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
         dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, m_Program);
 
-        dmGraphics::SetStorageBuffer(engine->m_GraphicsContext, m_StorageBuffer, 0);
+        dmGraphics::HUniformLocation loc = dmGraphics::GetUniformLocation(m_Program, "Test");
+        dmGraphics::VulkanSetStorageBuffer(engine->m_GraphicsContext, m_StorageBuffer, 0, 0, loc);
 
         dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
     }
