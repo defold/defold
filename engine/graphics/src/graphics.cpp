@@ -972,6 +972,8 @@ namespace dmGraphics
         meta->m_TypeInfos.SetCapacity(ddf->m_Types.m_Count);
         meta->m_TypeInfos.SetSize(ddf->m_Types.m_Count);
 
+        memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
+
         for (int i = 0; i < ddf->m_Types.m_Count; ++i)
         {
             ShaderResourceTypeInfo& info = meta->m_TypeInfos[i];
