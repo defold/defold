@@ -153,7 +153,7 @@ public class TextureSetGeneratorTest {
         TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, ids, iterator, 5, 0, 0, true, false, null, 0, 0);
         BufferedImage image = result.images.get(0);
         assertThat(image.getWidth(), is(32));
-        assertThat(image.getHeight(), is(32));
+        assertThat(image.getHeight(), is(64));
 
         for (UVTransform uv : result.uvTransforms)
         {
