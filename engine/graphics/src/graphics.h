@@ -587,12 +587,6 @@ namespace dmGraphics
     uint32_t         GetUniformCount(HProgram prog);
     HUniformLocation GetUniformLocation(HProgram prog, const char* name);
 
-    // SSBO
-    HStorageBuffer NewStorageBuffer(HContext context, uint32_t buffer_size);
-    void           DeleteStorageBuffer(HStorageBuffer storage_buffer);
-    void           SetStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t binding_index);
-    void           SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data);
-
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetSampler(HContext context, HUniformLocation location, int32_t unit);

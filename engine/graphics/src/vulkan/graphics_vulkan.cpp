@@ -1921,15 +1921,15 @@ bail:
         vk_write_desc_info.pImageInfo     = &vk_image_info;
     }
 
-    static void UpdateUniformBufferDescriptor(VulkanContext* context, VkBuffer vk_buffer, VkDescriptorType descriptor_type, VkDescriptorBufferInfo& vk_buffer_info, VkWriteDescriptorSet& vk_write_desc_info, size_t uniform_size)
+    static void UpdateUniformBufferDescriptor(VulkanContext* context, VkBuffer vk_buffer, VkDescriptorType descriptor_type, VkDescriptorBufferInfo& vk_buffer_info, VkWriteDescriptorSet& vk_write_desc_info, size_t offset, size_t buffer_size)
     {
         // Note in the spec about the offset being zero:
         //   "For VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC and VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC descriptor types,
         //    offset is the base offset from which the dynamic offset is applied and range is the static size
         //    used for all dynamic offsets."
         vk_buffer_info.buffer = vk_buffer;
-        vk_buffer_info.offset = 0;
-        vk_buffer_info.range  = uniform_size;
+        vk_buffer_info.offset = offset;
+        vk_buffer_info.range  = buffer_size;
 
         vk_write_desc_info.descriptorType   = descriptor_type;
         vk_write_desc_info.pBufferInfo      = &vk_buffer_info;
@@ -1977,12 +1977,13 @@ bail:
                         break;
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
                     {
-                        DeviceBuffer* buffer = context->m_CurrentStorageBuffers[pgm_res.m_StorageBufferUnit];
+                        const StorageBufferBinding binding = context->m_CurrentStorageBuffers[pgm_res.m_StorageBufferUnit];
                         UpdateUniformBufferDescriptor(context,
-                            buffer->m_Handle.m_Buffer,
+                            ((DeviceBuffer*) binding.m_Buffer)->m_Handle.m_Buffer,
                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                             vk_write_buffer_descriptors[buffer_to_write_index++],
                             vk_write_desc_info,
+                            binding.m_BufferOffset,
                             VK_WHOLE_SIZE);
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
@@ -1999,7 +2000,13 @@ bail:
                         memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
                             &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
 
-                        UpdateUniformBufferDescriptor(context, scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, vk_write_buffer_descriptors[buffer_to_write_index++], vk_write_desc_info, uniform_size_align);
+                        UpdateUniformBufferDescriptor(context,
+                            scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer,
+                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                            vk_write_buffer_descriptors[buffer_to_write_index++],
+                            vk_write_desc_info,
+                            0,
+                            uniform_size_align);
 
                         scratch_buffer->m_MappedDataCursor += uniform_size_align;
                     } break;
@@ -2390,6 +2397,9 @@ bail:
                         program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                         info.m_StorageBufferCount++;
                         info.m_TotalUniformCount++;
+
+                        dmLogInfo("SSBO: name=%s, set=%d, binding=%d, ssbo-unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_StorageBufferUnit);
+
                         break;
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
@@ -4050,7 +4060,7 @@ bail:
         delete shader;
     }
 
-    static HStorageBuffer VulkanNewStorageBuffer(HContext _context, uint32_t buffer_size)
+    HStorageBuffer VulkanNewStorageBuffer(HContext _context, uint32_t buffer_size)
     {
         VulkanContext* context       = (VulkanContext*) _context;
         DeviceBuffer* storage_buffer = new DeviceBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -4062,7 +4072,7 @@ bail:
         return (HStorageBuffer) storage_buffer;
     }
 
-    static void VulkanDeleteStorageBuffer(HStorageBuffer storage_buffer)
+    void VulkanDeleteStorageBuffer(HStorageBuffer storage_buffer)
     {
         if (!storage_buffer)
             return;
@@ -4075,13 +4085,27 @@ bail:
         delete buffer_ptr;
     }
 
-    static void VulkanSetStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding_index)
+    void VulkanSetStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding_index, uint32_t data_offset, HUniformLocation base_location)
     {
-        VulkanContext* context                          = (VulkanContext*) _context;
-        context->m_CurrentStorageBuffers[binding_index] = (DeviceBuffer*) storage_buffer;
+        VulkanContext* context = (VulkanContext*) _context;
+        context->m_CurrentStorageBuffers[binding_index].m_Buffer       = storage_buffer;
+        context->m_CurrentStorageBuffers[binding_index].m_BufferOffset = data_offset;
+
+        assert(context->m_CurrentProgram);
+        assert(base_location != INVALID_UNIFORM_LOCATION);
+
+        Program* program_ptr = (Program*) context->m_CurrentProgram;
+        uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        // TODO!
+        assert(program_ptr->m_ComputeModule == 0x0);
+        assert(program_ptr->m_ResourceBindings[set][binding].m_Res);
+        program_ptr->m_ResourceBindings[set][binding].m_StorageBufferUnit = binding_index;
     }
 
-    static void VulkanSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
+    void VulkanSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
     {
         DM_PROFILE(__FUNCTION__);
         if (size == 0)

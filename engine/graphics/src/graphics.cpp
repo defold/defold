@@ -954,6 +954,11 @@ namespace dmGraphics
                 res.m_Type.m_TypeIndex = bindings[i].m_Type.m_Type.m_TypeIndex;
             else
                 res.m_Type.m_ShaderType = bindings[i].m_Type.m_Type.m_ShaderType;
+
+            if (family == ShaderResourceBinding::BINDING_FAMILY_GENERIC)
+            {
+                dmLogInfo("Input: name=%s", res.m_Name);
+            }
         }
     }
 
@@ -1601,22 +1606,6 @@ namespace dmGraphics
     void DeleteComputeProgram(HComputeProgram prog)
     {
         return g_functions.m_DeleteComputeProgram(prog);
-    }
-    HStorageBuffer NewStorageBuffer(HContext context, uint32_t buffer_size)
-    {
-        return g_functions.m_NewStorageBuffer(context, buffer_size);
-    }
-    void DeleteStorageBuffer(HStorageBuffer storage_buffer)
-    {
-        g_functions.m_DeleteStorageBuffer(storage_buffer);
-    }
-    void SetStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t binding_index)
-    {
-        g_functions.m_SetStorageBuffer(context, storage_buffer, binding_index);
-    }
-    void SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
-    {
-        g_functions.m_SetStorageBufferData(context, storage_buffer, size, data);
     }
 
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES

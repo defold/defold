@@ -187,6 +187,12 @@ namespace dmGraphics
         const VulkanResourceType GetType();
     };
 
+    struct StorageBufferBinding
+    {
+        HStorageBuffer m_Buffer;
+        uint32_t       m_BufferOffset;
+    };
+
     struct Viewport
     {
         uint16_t m_X;
@@ -405,7 +411,7 @@ namespace dmGraphics
         HRenderTarget                   m_CurrentRenderTarget;
         DeviceBuffer*                   m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
-        DeviceBuffer*                   m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
+        StorageBufferBinding            m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
         Program*                        m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
         HTexture                        m_CurrentSwapchainTexture;

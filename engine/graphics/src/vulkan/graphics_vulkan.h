@@ -88,6 +88,11 @@ namespace dmGraphics
     void     VulkanClearTexture(HContext context, HTexture texture, float values[4]);
     void     VulkanMemorybarrier(HContext context, HTexture _texture, uint32_t src_stage_flags, uint32_t dst_stage_flags, uint32_t src_access_flags, uint32_t dst_access_flags);
     void     VulkanGetUniformBinding(HContext context, HProgram program, uint32_t index, uint32_t* set, uint32_t* binding, uint32_t* member_index);
+
+    HStorageBuffer VulkanNewStorageBuffer(HContext context, uint32_t buffer_size);
+    void           VulkanDeleteStorageBuffer(HStorageBuffer storage_buffer);
+    void           VulkanSetStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t binding_index, uint32_t buffer_offset, HUniformLocation base_location);
+    void           VulkanSetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data);
 }
 
 #endif

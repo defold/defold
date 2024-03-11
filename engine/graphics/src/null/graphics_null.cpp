@@ -367,27 +367,6 @@ namespace dmGraphics
 
     #undef NATIVE_HANDLE_IMPL
 
-    static HStorageBuffer NullNewStorageBuffer(HContext _context, uint32_t buffer_size)
-    {
-        assert(0 && "Not supported yet!");
-        return 0;
-    }
-
-    static void NullDeleteStorageBuffer(HStorageBuffer storage_buffer)
-    {
-        assert(0 && "Not supported yet!");
-    }
-
-    static void NullSetStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding_index)
-    {
-        assert(0 && "Not supported yet!");
-    }
-
-    static void NullSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
-    {
-        assert(0 && "Not supported yet!");
-    }
-
     static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VertexBuffer* vb = new VertexBuffer();

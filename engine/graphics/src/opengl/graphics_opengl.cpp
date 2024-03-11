@@ -1524,29 +1524,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static HStorageBuffer OpenGLNewStorageBuffer(HContext _context, uint32_t buffer_size)
-    {
-        if (!IsContextFeatureSupported(_context, CONTEXT_FEATURE_STORAGE_BUFFER))
-            return 0;
-        assert(0 && "Not supported yet!");
-        return 0;
-    }
-
-    static void OpenGLDeleteStorageBuffer(HStorageBuffer storage_buffer)
-    {
-        assert(0 && "Not supported yet!");
-    }
-
-    static void OpenGLSetStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding_index)
-    {
-        assert(0 && "Not supported yet!");
-    }
-
-    static void OpenGLSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
-    {
-
-    }
-
     static bool OpenGLIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
         return (((OpenGLContext*) context)->m_IndexBufferFormatSupport & (1 << format)) != 0;
