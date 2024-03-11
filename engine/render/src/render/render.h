@@ -62,6 +62,13 @@ namespace dmRender
         RENDER_SCRIPT_RESULT_OK = 1
     };
 
+    enum RenderResourceType
+    {
+        RENDER_RESOURCE_TYPE_INVALID       = 0,
+        RENDER_RESOURCE_TYPE_MATERIAL      = 1,
+        RENDER_RESOURCE_TYPE_RENDER_TARGET = 2,
+    };
+
     enum RenderBufferType
     {
         RENDER_BUFFER_TYPE_VERTEX_BUFFER = 0,
@@ -207,8 +214,10 @@ namespace dmRender
     HRenderScriptInstance   NewRenderScriptInstance(HRenderContext render_context, HRenderScript render_script);
     void                    DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance);
     void                    SetRenderScriptInstanceRenderScript(HRenderScriptInstance render_script_instance, HRenderScript render_script);
-    void                    AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material);
-    void                    ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance);
+
+    void                    AddRenderScriptInstanceRenderResource(HRenderScriptInstance render_script_instance, const char* name, uint64_t resource, RenderResourceType type);
+    void                    ClearRenderScriptInstanceRenderResources(HRenderScriptInstance render_script_instance);
+
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      DispatchRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance, float dt);
@@ -229,7 +238,17 @@ namespace dmRender
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
+    struct MaterialProgramAttributeInfo
+    {
+        dmhash_t                           m_AttributeNameHash;
+        const dmGraphics::VertexAttribute* m_Attribute;
+        const uint8_t*                     m_ValuePtr;
+        dmhash_t                           m_ElementIds[4];
+        uint32_t                           m_ElementIndex;
+    };
+
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
+    bool                            GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, MaterialProgramAttributeInfo& info);
     void                            GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count);
     void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* num_values);
     void                            SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count);

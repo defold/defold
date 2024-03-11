@@ -16,7 +16,6 @@
 #define __GRAPHICS_DEVICE_OPENGL__
 
 #include <dlib/math.h>
-#include <dlib/mutex.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
 #include <platform/platform_window.h>
@@ -72,11 +71,13 @@ namespace dmGraphics
     {
         OpenGLContext(const ContextParams& params);
 
-        // Async queue data and synchronization objects
-        dmMutex::HMutex         m_AsyncMutex;
+        SetTextureAsyncState    m_SetTextureAsyncState;
         dmPlatform::HWindow     m_Window;
+        dmJobThread::HContext   m_JobThread;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
+        void*                   m_AuxContext;
+        volatile bool           m_AuxContextJobPending;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 
@@ -87,7 +88,6 @@ namespace dmGraphics
         TextureFilter           m_DefaultTextureMinFilter;
         TextureFilter           m_DefaultTextureMagFilter;
         uint32_t                m_MaxElementVertices;
-        uint32_t                m_MaxElementIndices;
         // Counter to keep track of various modifications. Used for cache flush etc
         // Version zero is never used
         uint32_t                m_ModificationVersion;
@@ -96,6 +96,7 @@ namespace dmGraphics
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
         float                   m_MaxAnisotropy;
+        uint32_t                m_AsyncProcessingSupport           : 1;
         uint32_t                m_AnisotropySupport                : 1;
         uint32_t                m_TextureArraySupport              : 1;
         uint32_t                m_MultiTargetRenderingSupport      : 1;
@@ -107,27 +108,6 @@ namespace dmGraphics
         uint32_t                m_PrintDeviceInfo                  : 1;
         uint32_t                m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3
         uint32_t                m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
-    };
-
-    // JG: dmsdk/graphics.h defines this as a struct ptr so don't want to rename it yet..
-    struct VertexDeclaration
-    {
-        struct Stream
-        {
-            dmhash_t m_NameHash;
-            uint16_t m_LogicalIndex;
-            int16_t  m_PhysicalIndex;
-            uint16_t m_Size;
-            uint16_t m_Offset;
-            Type     m_Type;
-            bool     m_Normalize;
-        };
-
-        Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
-        uint16_t    m_StreamCount;
-        uint16_t    m_Stride;
-        HProgram    m_BoundForProgram;
-        uint32_t    m_ModificationVersion;
     };
 
     struct OpenGLShader

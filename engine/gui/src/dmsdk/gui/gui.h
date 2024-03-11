@@ -58,6 +58,14 @@ namespace dmGui
     typedef struct Script* HScript;
 
     /*#
+     * A handle to a texture source, which can be a pointer to a resource,
+     * a dmGraphics::HTexture or a dynamic texture created from a gui script.
+     * @name HTextureSource
+     * @type typedef
+     */
+    typedef uint64_t HTextureSource;
+
+    /*#
      * Invalid node handle
      * @name INVALID_HANDLE
      * @type HNode
@@ -382,7 +390,7 @@ namespace dmGui
      * @param type [type:NodeTextureType] the type of texture
      * @param texture [type: void*] A pointer to a e.g. dmGameSystem::TextureSetResource*
      */
-    Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, void* texture);
+    Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, HTextureSource texture);
 
     // possibly use "add texture instead"
 

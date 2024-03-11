@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,13 +17,21 @@ package com.dynamo.bob.util;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+
+import javax.imageio.ImageIO;
 
 import com.google.protobuf.ByteString;
-
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.bob.pipeline.TextureGeneratorException;
 import com.dynamo.graphics.proto.Graphics.PathSettings;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
@@ -207,7 +215,7 @@ public class TextureUtil {
         return null;
     }
 
-    public static TextureImage createCombinedTextureImage(TextureImage[] textures, Type type) throws IOException {
+    public static TextureImage createCombinedTextureImage(TextureImage[] textures, Type type) throws TextureGeneratorException {
         int numTextures = textures.length;
         if (numTextures == 0) {
             return null;
@@ -225,23 +233,29 @@ public class TextureUtil {
 
             alternativeImageBuilder.clearMipMapSizeCompressed();
 
-            ByteArrayOutputStream os = new ByteArrayOutputStream(1024 * 4);
-            for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
+            try {
+                ByteArrayOutputStream os = new ByteArrayOutputStream(1024 * 4);
+                for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
 
-                for (int k = 0; k < numTextures; k++) {
-                    int mipSize = textures[k].getAlternatives(i).getMipMapSize(j);
-                    ByteString data = textures[k].getAlternatives(i).getData();
-                    int mipOffset = alternativeImageBuilder.getMipMapOffset(j);
-                    alternativeImageBuilder.addMipMapSizeCompressed(mipSize);
+                    for (int k = 0; k < numTextures; k++) {
+                        int mipSize = textures[k].getAlternatives(i).getMipMapSize(j);
+                        ByteString data = textures[k].getAlternatives(i).getData();
+                        int mipOffset = alternativeImageBuilder.getMipMapOffset(j);
+                        alternativeImageBuilder.addMipMapSizeCompressed(mipSize);
 
-                    // Sizes can change between textures (maybe resize only if needed)
-                    byte[] buf = new byte[mipSize];
-                    data.copyTo(buf, mipOffset, 0, mipSize);
-                    os.write(buf);
+                        // Sizes can change between textures (maybe resize only if needed)
+                        byte[] buf = new byte[mipSize];
+                        data.copyTo(buf, mipOffset, 0, mipSize);
+                        os.write(buf);
+                    }
                 }
+                os.flush();
+                alternativeImageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
+
+            } catch (IOException e) {
+                throw new TextureGeneratorException(e.getMessage());
             }
-            os.flush();
-            alternativeImageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
+
             for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
                 alternativeImageBuilder.setMipMapOffset(j, alternativeImageBuilder.getMipMapOffset(j) * numTextures);
             }
@@ -251,5 +265,53 @@ public class TextureUtil {
         combinedImageBuilder.setCount(numTextures);
         combinedImageBuilder.setType(type);
         return combinedImageBuilder.build();
+    }
+
+    // Public api
+    public static TextureImage createMultiPageTexture(List<BufferedImage> images, TextureImage.Type textureType, TextureProfile texProfile, boolean compress) throws TextureGeneratorException {
+        TextureImage textureImages[] = new TextureImage[images.size()];
+        for (int i = 0; i < images.size(); i++)
+        {
+            try {
+                textureImages[i] = TextureGenerator.generate(images.get(i), texProfile, compress);
+            } catch (IOException e) {
+                throw new TextureGeneratorException(e.getMessage());
+            }
+        }
+        return TextureUtil.createCombinedTextureImage(textureImages, textureType);
+    }
+
+    // Public api
+    public static List<BufferedImage> loadImages(List<IResource> resources) throws IOException, CompileExceptionError {
+        List<BufferedImage> images = new ArrayList<BufferedImage>(resources.size());
+
+        for (IResource resource : resources) {
+            BufferedImage image = ImageIO.read(new ByteArrayInputStream(resource.getContent()));
+            if (image == null) {
+                throw new CompileExceptionError(resource, -1, "Unable to load image " + resource.getPath());
+            }
+            images.add(image);
+        }
+        return images;
+    }
+
+    static HashMap<String, String> ATLAS_FILE_TYPES = new HashMap<>();
+    static {
+        ATLAS_FILE_TYPES.put(".atlas", ".a.texturesetc");
+        ATLAS_FILE_TYPES.put(".tileset", ".t.texturesetc");
+        ATLAS_FILE_TYPES.put(".tilesource", ".t.texturesetc");
+    }
+
+    public static Map<String, String> getAtlasFileTypes() {
+        return ATLAS_FILE_TYPES;
+    }
+
+    public static boolean isAtlasFileType(String srcSuffix) {
+        return ATLAS_FILE_TYPES.containsKey(srcSuffix);
+    }
+
+    // Public SDK api for extensions!
+    public static void registerAtlasFileType(String srcSuffix) {
+        ATLAS_FILE_TYPES.put(srcSuffix, ATLAS_FILE_TYPES.get(".atlas"));
     }
 }

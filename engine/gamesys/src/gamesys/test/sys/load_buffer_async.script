@@ -31,7 +31,6 @@ local function test_1(self)
 
     local r1 = sys.load_buffer_async("/sys/sys_buffer_test_content.rawc",
         function(self, request_id, result)
-            pprint(result)
             assert(request_id == self.data.requests[1])
             local s = buffer.get_bytes(result.buffer, "data")
             assert(s == expected_lorem_ipsum)

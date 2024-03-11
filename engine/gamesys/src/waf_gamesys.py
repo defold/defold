@@ -330,9 +330,25 @@ def transform_collectionfactory(task, msg):
     return msg
 
 def transform_render(task, msg):
+    import render.render_ddf_pb2
     msg.script = msg.script.replace('.render_script', '.render_scriptc')
+
+    # Migrate from the old format to the new format for render prototypes
     for m in msg.materials:
-        m.material = m.material.replace('.material', '.materialc')
+        entry = render.render_ddf_pb2.RenderPrototypeDesc.RenderResourceDesc()
+        entry.name = m.name
+        entry.path = m.material
+        msg.render_resources.append(entry)
+
+    for r in msg.render_resources:
+        r.path = r.path.replace('.material', '.materialc')
+        r.path = r.path.replace('.render_target', '.render_targetc')
+
+    msg.materials.clear()
+    return msg
+
+def transform_render_target(task, msg):
+    msg.prototype = msg.prototype.replace('.render_target', '.render_targetc')
     return msg
 
 def transform_sprite(task, msg):
@@ -503,6 +519,7 @@ proto_compile_task('collectionfactory', 'gamesys_ddf_pb2', 'CollectionFactoryDes
 proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
 proto_compile_task('label', 'label_ddf_pb2', 'LabelDesc', '.label', '.labelc', transform_label)
 proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', '.render', '.renderc', transform_render)
+proto_compile_task('render_target', 'render.render_target_ddf_pb2', 'render_target_ddf_pb2.RenderTargetDesc', '.render_target', '.render_targetc')
 proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.spritec', transform_sprite)
 proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilemapc', transform_tilegrid)
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilemapc', transform_tilegrid)
@@ -723,7 +740,7 @@ waflib.Task.task_factory('material', '${JAVA} -classpath ${CLASSPATH} com.dynamo
                       shell=False)
 
 @extension('.material')
-def tileset_file(self, node):
+def material_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
     material = self.create_task('material')
     material.env['CLASSPATH'] = os.pathsep.join(classpath)
@@ -731,4 +748,3 @@ def tileset_file(self, node):
     obj_ext = '.materialc'
     out = node.change_ext(obj_ext)
     material.set_outputs(out)
-

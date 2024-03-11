@@ -22,22 +22,18 @@ To see the actual, ordered, list of engine libraries, look for `ENGINE_LIBS` in 
 * **docs** -
 * **engine** - Engine create, destroy and update lifecycle
 * **extension** - Extension lifecycle
-* **facebook** - Facebook stub implementation. Actual implementation moved to [extension-facebook](https://github.com/defold/extension-facebook)
 * **gameobject** - Game object and component lifecycle
 * **gamesys** - Component and resource types are registered here
 * **glfw** - Somewhat modified version of GLFW, used to set up a window/graphics context and read from input devices. Defold uses an old GLFW 2.7 version with some features backported from GLFW 3.0. We have also added support for iOS and Android.
 * **graphics** - OpenGL, Vulkan (and null) implementations of graphics backend
 * **gui** - The GUI component
 * **hid** - Human interface device systems (GLFW and null)
-* **iac** - Inter-App Communication stub implementation. Actual implementation moved to [extension-iac](https://github.com/defold/extension-iac)
-* **iap** - In-App Purchases stub implementation. Actual implementation moved to [extension-iap](https://github.com/defold/extension-iap)
 * **input** - Input bindings and propagation of input actions to listeners. Reads input data from **hid**.
 * **liveupdate** - Resource update system
 * **lua** - Lua 5.1.4
 * **particle** - Component
 * **physics** - 2D and 3D physics
 * **profiler** - Engine profiler
-* **push** - Push notification stub implementation. Actual implementation moved to [extension-push](https://github.com/defold/extension-push)
 * **record** - Screen recorder
 * **render** - Rendering pipeline
 * **resource** - Resource system (create, load, destroy, ref count etc)
@@ -47,7 +43,6 @@ To see the actual, ordered, list of engine libraries, look for `ENGINE_LIBS` in 
 * **sound** - Sound systems
 * **texc** - Texture compression
 * **tools** - Tools such as the gamepad configurator
-* **webview** - WebView stub implementation. Actual implementation moved to [extension-webview](https://github.com/defold/extension-webview)
 
 </details>
 

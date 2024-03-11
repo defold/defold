@@ -47,6 +47,8 @@
 
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
+(def ^:private supported-image-exts (conj image/exts "cubemap" "render_target"))
+
 (g/defnk produce-animation-set-build-target-single [_node-id resource animations-resource animation-set]
   (let [is-single-anim (and (not (empty? animation-set))
                             (not (animation-set/is-animation-set? animations-resource)))]
@@ -459,7 +461,7 @@
                                                                                                          (format "'%s' is not defined in the material. Clear the field to delete it."
                                                                                                                  sampler)))
                                                                                      :edit-type {:type resource/Resource
-                                                                                                 :ext (conj image/exts "cubemap")
+                                                                                                 :ext supported-image-exts
                                                                                                  :clear-fn (fn [_ _] (g/delete-node _node-id))}}
                                                                                     texture-binding-should-be-deleted
                                                                                     (assoc :original-value fake-resource))])
@@ -471,7 +473,7 @@
                                                                              :value nil
                                                                              :type resource/Resource
                                                                              :edit-type {:type resource/Resource
-                                                                                         :ext (conj image/exts "cubemap")
+                                                                                         :ext supported-image-exts
                                                                                          :set-fn (fn [_ _ _ new] (create-texture-binding-tx material-binding-node-id sampler new))}}])))))
                                                                  (sort-by key all-sampler-name+orders))]
                           (into combined-material-properties material-attribute-properties))

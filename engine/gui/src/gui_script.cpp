@@ -1414,6 +1414,7 @@ namespace dmGui
      * - `gui.BLEND_ADD`
      * - `gui.BLEND_ADD_ALPHA`
      * - `gui.BLEND_MULT`
+     * - `gui.BLEND_SCREEN`
      */
     static int LuaGetBlendMode(lua_State* L)
     {
@@ -1434,6 +1435,7 @@ namespace dmGui
      * - `gui.BLEND_ADD`
      * - `gui.BLEND_ADD_ALPHA`
      * - `gui.BLEND_MULT`
+     * - `gui.BLEND_SCREEN`
      */
     static int LuaSetBlendMode(lua_State* L)
     {
@@ -1702,7 +1704,7 @@ namespace dmGui
      * Dynamically create a new texture.
      *
      * @name gui.new_texture
-     * @param texture [type:string|hash] texture id
+     * @param texture_id [type:string|hash] texture id
      * @param width [type:number] texture width
      * @param height [type:number] texture height
      * @param type [type:string|constant] texture type
@@ -4598,6 +4600,12 @@ namespace dmGui
      * @variable
      */
 
+    /*# screen blending
+     *
+     * @name gui.BLEND_SCREEN
+     * @variable
+     */
+
     /*# clipping mode none
      *
      * @name gui.CLIPPING_MODE_NONE
@@ -4852,6 +4860,7 @@ namespace dmGui
         SETBLEND(ADD)
         SETBLEND(ADD_ALPHA)
         SETBLEND(MULT)
+        SETBLEND(SCREEN)
 
 #undef SETBLEND
 
@@ -4862,7 +4871,7 @@ namespace dmGui
         SETCLIPPINGMODE(NONE)
         SETCLIPPINGMODE(STENCIL)
 
-#undef SETBLEND
+#undef SETCLIPPINGMODE
 
 #define SETKEYBOARD(name) \
         lua_pushnumber(L, (lua_Number) dmHID::KEYBOARD_TYPE_##name); \

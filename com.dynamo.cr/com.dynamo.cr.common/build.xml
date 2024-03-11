@@ -1,6 +1,6 @@
-
 <project default="compile">
     <property environment="env"/>
+    <property name="build_tools.dir" value="../../build_tools"/>
 
     <macrodef name="proto">
         <attribute name="dir"/>
@@ -8,7 +8,7 @@
 
         <sequential>
             <mkdir dir="generated"/>
-            <exec executable="protoc" failonerror="true">
+            <exec executable="${env.DYNAMO_HOME}/ext/bin/${host.platform}/protoc" failonerror="true">
                 <arg value="--java_out=generated"/>
                 <arg value="-I@{dir}"/>
                 <arg value="-I${env.DYNAMO_HOME}/ext/include"/>
@@ -21,6 +21,14 @@
         </sequential>
     </macrodef>
 
+    <target name="get-host-platform">
+        <exec executable="python" outputproperty="host.platform">
+            <arg value="-c"/>
+            <arg value="import sys; sys.path.append('${build_tools.dir}'); import sdk; print(sdk.get_host_platform())"/>
+        </exec>
+        <echo>Host Platform: ${host.platform}</echo>
+    </target>
+
     <target name="clean">
         <delete dir="generated"/>
     </target>
@@ -32,7 +40,7 @@
             <arg value="-n1" />
         </exec>
     </target>
-    <target name="ext.generated.copy" depends="git.revision">
+    <target name="ext.generated.copy" depends="git.revision, get-host-platform">
         <mkdir dir="ext_generated"/>
         <copy todir="ext_generated">
             <fileset dir="${env.DYNAMO_HOME}/archive/${git.revision}/engine/share/java" includes="dlib.jar" erroronmissingdir="false" />

@@ -258,23 +258,11 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static inline int32_t GetEmitterAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash)
-    {
-        for (int i = 0; i < attributes_count; ++i)
-        {
-            if (attributes[i].m_NameHash == name_hash)
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
-
     static void FillEmitterAttributeInfos(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmParticle::ParticleVertexAttributeInfos* infos)
     {
         for (int i = 0; i < infos->m_NumInfos; ++i)
         {
-            int32_t emitter_attribute_index = GetEmitterAttributeIndex(attributes, attributes_count, infos->m_Infos[i].m_NameHash);
+            int32_t emitter_attribute_index = FindAttributeIndex(attributes, attributes_count, infos->m_Infos[i].m_NameHash);
             if (emitter_attribute_index >= 0)
             {
                 infos->m_Infos[i].m_NameHash = attributes[emitter_attribute_index].m_NameHash;
@@ -378,11 +366,14 @@ namespace dmGameSystem
             dmRender::AddRenderBuffer(render_context, pfx_world->m_VertexBuffer);
         }
 
+        TextureResource* texture_res = (TextureResource*) first->m_Texture;
+        dmGraphics::HTexture texture = texture_res ? texture_res->m_Texture : 0;
+
         dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];
         ro.Init();
         ro.m_Material          = material_res->m_Material;
         ro.m_VertexDeclaration = dmRender::GetVertexDeclaration(material_res->m_Material);
-        ro.m_Textures[0]       = (dmGraphics::HTexture) first->m_Texture;
+        ro.m_Textures[0]       = texture;
         ro.m_VertexStart       = vertex_offset;
         ro.m_VertexCount       = ro_vertex_count;
         ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, pfx_world->m_VertexBuffer);
@@ -688,10 +679,7 @@ namespace dmGameSystem
                 return dmParticle::FETCH_ANIMATION_UNKNOWN_ERROR;
             }
 
-            TextureResource* texture_res = texture_set_res->m_Texture;
-            dmGraphics::HTexture texture = texture_res ? texture_res->m_Texture : 0;
-
-            out_data->m_Texture = (void*) texture;
+            out_data->m_Texture = (void*) texture_set_res->m_Texture;
             out_data->m_TexCoords = (float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
             out_data->m_TexDims = (float*) texture_set_res->m_TextureSet->m_TexDims.m_Data;
             out_data->m_PageIndices = texture_set_res->m_TextureSet->m_PageIndices.m_Data;
@@ -735,5 +723,11 @@ namespace dmGameSystem
         {
             return dmParticle::FETCH_ANIMATION_NOT_FOUND;
         }
+    }
+
+    void GetParticleFXWorldRenderBuffers(void* pfx_world, dmRender::HBufferedRenderBuffer* vx_buffer)
+    {
+        ParticleFXWorld* world = (ParticleFXWorld*) pfx_world;
+        *vx_buffer = world->m_VertexBuffer;
     }
 }
