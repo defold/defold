@@ -424,7 +424,7 @@ namespace dmGameObject
         return instance;
     }
 
-    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
+    void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
     {
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -485,13 +485,6 @@ namespace dmGameObject
             luaL_error(L, "function called is not available from this script-type.");
             return; // Actually never reached
         }
-    }
-
-    void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url)
-    {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
-        GetComponentUserDataFromLua(L, index, instance->m_Collection->m_HCollection, component_type, component, url, out_world);
     }
 
     HInstance GetInstanceFromLua(lua_State* L) {

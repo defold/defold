@@ -21,6 +21,7 @@
 
 namespace dmGameObject
 {
+    typedef struct CollectionHandle* HCollection;
     typedef struct PropertyContainer* HPropertyContainer;
     typedef struct Instance* HInstance;
 }

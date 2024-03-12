@@ -488,7 +488,7 @@ static int LuaTestCompType(lua_State* L)
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     dmGameObject::HComponent component = 0;
     dmMessage::URL receiver;
-    dmGameObject::GetComponentUserDataFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &component, &receiver, 0);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &component, &receiver, 0);
     assert(*(uintptr_t*)component == 1);
 
     assert(top == lua_gettop(L));
@@ -526,9 +526,10 @@ static int LuaTestGetComponentFromLua(lua_State* L)
     lua_pushnumber(L, expect_fail);
     lua_setglobal(L, "expected_error");
 
+    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     void* component = 0;
     dmMessage::URL receiver; // needed for error output
-    dmGameObject::GetComponentFromLua(L, 1, component_ext, 0, (void**)&component, &receiver);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(instance), component_ext, (void**)&component, &receiver, 0);
 
     // If it fails, it will not return here
 
@@ -539,11 +540,11 @@ static int LuaTestGetComponentFromLua(lua_State* L)
 
     if (expect_fail && !call_failed)
     {
-        return luaL_error(L, "GetComponentUserDataFromLua succeeded unexpectedly");
+        return luaL_error(L, "GetComponentFromLua succeeded unexpectedly");
     }
     else if(!expect_fail && call_failed)
     {
-        return luaL_error(L, "GetComponentUserDataFromLua failed unexpectedly");
+        return luaL_error(L, "GetComponentFromLua failed unexpectedly");
     }
 
     assert(top == lua_gettop(L));

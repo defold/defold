@@ -400,7 +400,7 @@ namespace dmGameSystem
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
         ModelComponent* component;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
         if (!component)
         {
             return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
@@ -530,7 +530,7 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)out_component, 0, 0);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)out_component, 0, 0);
         *out_mesh_id = dmScript::CheckHashOrString(L, 2);
     }
 

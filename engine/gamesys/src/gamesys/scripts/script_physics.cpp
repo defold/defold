@@ -524,7 +524,7 @@ namespace dmGameSystem
     static void GetCollisionObject(lua_State* L, int indx, dmGameObject::HCollection collection, dmGameObject::HComponent* comp, dmGameObject::HComponentWorld* comp_world)
     {
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, indx, collection, COLLISION_OBJECT_EXT, comp, &receiver, comp_world);
+        dmGameObject::GetComponentFromLua(L, indx, collection, COLLISION_OBJECT_EXT, comp, &receiver, comp_world);
     }
 
     static int GetTableField(lua_State* L, int table_index, const char* table_field, int expected_type)

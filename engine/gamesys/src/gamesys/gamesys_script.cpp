@@ -108,7 +108,7 @@ namespace dmScript {
     {
         dmGameObject::HInstance instance = CheckGOInstance(L, index);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-        GetComponentUserDataFromLua(L, index, collection, component_type, component, url, out_world);
+        dmGameObject::GetComponentFromLua(L, index, collection, component_type, component, url, out_world);
     }
 }
 
