@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -3407,6 +3407,9 @@ bail:
                     VK_IMAGE_LAYOUT_PREINITIALIZED,
                     texture_color);
                 CHECK_VK_ERROR(res);
+
+                texture_color->m_Width  = width;
+                texture_color->m_Height = height;
             }
         }
 
@@ -3435,6 +3438,9 @@ bail:
                 VK_IMAGE_ASPECT_DEPTH_BIT,
                 depth_stencil_texture);
             CHECK_VK_ERROR(res);
+
+            depth_stencil_texture->m_Width  = width;
+            depth_stencil_texture->m_Height = height;
         }
 
         DestroyRenderTarget(g_VulkanContext, rt);

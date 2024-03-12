@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1130,7 +1130,7 @@ static void LogFrameBufferError(GLenum status)
             glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
             DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, 4, 4, 2, 0, 32, &fakeZeroBuffer);
             GLint err = glGetError();
-            if (err != 0) 
+            if (err != 0)
             {
                 context->m_TextureFormatSupport &= ~(1 << TEXTURE_FORMAT_RGBA_ASTC_4x4);
             }
@@ -1210,7 +1210,8 @@ static void LogFrameBufferError(GLenum status)
         }
 
 #if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
-        if ((OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint")))
+        if (OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint") ||
+            OpenGLIsExtensionSupported(context, "OES_element_index_uint"))
         {
             context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
         }
@@ -2968,7 +2969,7 @@ static void LogFrameBufferError(GLenum status)
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
 
         // TODO: If we use multiple workers, we either need more secondary contexts,
-        //       or we need to guard this call with a mutex. 
+        //       or we need to guard this call with a mutex.
         //       The window handle (pointer) isn't protected by a mutex either,
         //       but it is currently not used with our GLFW version (yet) so
         //       we don't necessarily need to guard it right now.

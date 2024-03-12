@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -3374,16 +3374,32 @@ namespace dmGui
     {
         uint32_t index = start_index;
         dmGui::Result result = dmGui::RESULT_OK;
+
+        dmArray<uint32_t> indices;
+
+        // Make sure we know the indices to copy up front, as the cloning will modify the "node->m_NextIndex" list.
         while (index != INVALID_INDEX && result == dmGui::RESULT_OK)
         {
+            if (indices.Full())
+                indices.OffsetCapacity(32);
+
+            indices.Push(index);
+
             InternalNode* node = &scene->m_Nodes[index];
+            index = node->m_NextIndex;
+        }
+
+        for (uint32_t i = 0; i < indices.Size(); ++i)
+        {
+            index = indices[i];
+            InternalNode* node = &scene->m_Nodes[index];
+
             dmGui::HNode out_node;
             result = CloneNodeToTable(L, scene, node, &out_node);
             if (result == dmGui::RESULT_OK)
             {
                 dmGui::SetNodeParent(scene, out_node, parent, false);
             }
-            index = node->m_NextIndex;
         }
         return result;
     }

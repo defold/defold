@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -284,7 +284,7 @@ namespace dmGameSystem
         dmImage::Result r = dmImage::Load(buffer, buffer_len, premult, flip_vertically, &image);
         if (r == dmImage::RESULT_OK) {
 
-            int bytes_per_pixel = dmImage::BytesPerPixel(image.m_Type);
+            uint8_t bytes_per_pixel = dmImage::BytesPerPixel(image.m_Type);
             if (bytes_per_pixel == 0) {
                 dmImage::Free(&image);
                 luaL_error(L, "unknown image type %d", image.m_Type);
@@ -294,33 +294,17 @@ namespace dmGameSystem
 
             PushImageParameters(L, image);
 
-            uint32_t datasize = bytes_per_pixel * image.m_Width * image.m_Height;
+            uint32_t imagesize = image.m_Width * image.m_Height;
+            uint32_t datasize = bytes_per_pixel * imagesize;
 
             lua_pushliteral(L, "buffer");
 
-            uint8_t num_components = 1;
-            switch(image.m_Type)
-            {
-                case dmImage::TYPE_RGB:
-                    num_components = 3;
-                    break;
-                case dmImage::TYPE_RGBA:
-                    num_components = 4;
-                    break;
-                case dmImage::TYPE_LUMINANCE:
-                    num_components = 1;
-                    break;
-                case dmImage::TYPE_LUMINANCE_ALPHA:
-                    num_components = 2;
-                default:break;
-            }
-
             dmBuffer::StreamDeclaration streams_decl[] = {
-                { dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, num_components }
+                { dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, bytes_per_pixel }
             };
 
             dmBuffer::HBuffer buffer = 0;
-            dmBuffer::Create(datasize, streams_decl, 1, &buffer);
+            dmBuffer::Create(imagesize, streams_decl, 1, &buffer);
 
             uint8_t* buffer_data     = 0;
             uint32_t buffer_datasize = 0;
