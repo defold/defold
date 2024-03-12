@@ -1139,7 +1139,6 @@ namespace dmGameObject
     }
 
     // Supplied 'proto' will be released after this function is done.
-    //static HInstance SpawnInternal(Collection* collection, Prototype *proto, const char *prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
     static HInstance SpawnInternal(Collection* collection, Prototype *proto, const char *prototype_name, dmhash_t id, HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale)
     {
         if (collection->m_ToBeDeleted) {

@@ -87,7 +87,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < MAX_PROPERTY_LAYER_COUNT; ++i)
         {
             const PropertySet& set = properties->m_Set[i];
-            if (set.m_GetPropertyCallback != 0x0 && set.m_UserData != 0)
+            if (set.m_GetPropertyCallback != 0x0)
             {
                 PropertyResult result = set.m_GetPropertyCallback(properties, set.m_UserData, id, var);
                 if (result != PROPERTY_RESULT_NOT_FOUND)
