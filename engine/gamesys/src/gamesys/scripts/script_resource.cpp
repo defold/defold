@@ -1032,7 +1032,28 @@ static int ReleaseResource(lua_State* L)
  *
  *   local resource_path = go.get("#model", "texture0")
  *   local args = { width=self.width, height=self.height, x=self.x, y=self.y, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
- *   resource.set_texture( resource_path, args, self.buffer )
+ *   resource.set_texture(resource_path, args, self.buffer )
+ * end
+ * ```
+ *
+ * @examples
+ * Update a texture from a buffer resource
+ * ```lua
+ * go.property("my_buffer", resource.buffer("/my_default_buffer.buffer"))
+ *
+ * function init(self)
+ *     local resource_path = go.get("#model", "texture0")
+ *     -- the "my_buffer" resource is expected to hold 128 * 128 * 3 bytes!
+ *     local args = {
+ *          width  = 128,
+ *          height = 128,
+ *          type   = resource.TEXTURE_TYPE_2D,
+ *          format = resource.TEXTURE_FORMAT_RGB
+ *      }
+ *     -- Note that the extra resource.get_buffer call is a requirement here
+ *     -- since the "self.my_buffer" is just pointing to a buffer resource path
+ *     -- and not an actual buffer object or buffer resource.
+ *     resource.set_texture(resource_path, args, resource.get_buffer(self.my_buffer))
  * end
  * ```
  */
@@ -1074,11 +1095,12 @@ static int SetTexture(lua_State* L)
 
     uint8_t layer_count = type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
 
-    dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 3);
+    dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, 3);
+    dmBuffer::HBuffer buffer_handle  = dmGameSystem::UnpackLuaBuffer(lua_buffer);
 
     uint8_t* data = 0;
     uint32_t datasize = 0;
-    dmBuffer::GetBytes(buffer->m_Buffer, (void**)&data, &datasize);
+    dmBuffer::GetBytes(buffer_handle, (void**)&data, &datasize);
 
     dmGraphics::TextureImage::Image image  = {};
     dmGraphics::TextureImage texture_image = {};
