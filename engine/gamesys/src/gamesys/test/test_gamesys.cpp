@@ -4974,15 +4974,16 @@ TEST_F(ShaderTest, Compute)
     //       When we can create actual dmGraphics::HProgram from compute we can verify this via the GFX context.
     if (compute_shader->m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
     {
-        ASSERT_EQ(2, compute_shader->m_Resources.m_Count);
+        dmGraphics::ShaderDesc::ResourceTypeInfo color_type_info = compute_shader->m_Types[compute_shader->m_UniformBuffers[0].m_Type.m_Type.m_TypeIndex];
+
         // Slot 1
-        ASSERT_EQ(1,                                        compute_shader->m_Resources[0].m_Bindings.m_Count);
-        ASSERT_EQ(dmHashString64("color"),                  compute_shader->m_Resources[0].m_Bindings[0].m_NameHash);
-        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, compute_shader->m_Resources[0].m_Bindings[0].m_Type);
+        ASSERT_EQ(1,                                        compute_shader->m_UniformBuffers.m_Count);
+        ASSERT_EQ(dmHashString64("color"),                  color_type_info.m_Members[0].m_NameHash);
+        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, color_type_info.m_Members[0].m_Type.m_Type.m_ShaderType);
         // Slot 2,
-        ASSERT_EQ(1,                                           compute_shader->m_Resources[1].m_Bindings.m_Count);
-        ASSERT_EQ(dmHashString64("texture_out"),               compute_shader->m_Resources[1].m_Bindings[0].m_NameHash);
-        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_IMAGE2D, compute_shader->m_Resources[1].m_Bindings[0].m_Type);
+        ASSERT_EQ(1,                                           compute_shader->m_Textures.m_Count);
+        ASSERT_EQ(dmHashString64("texture_out"),               compute_shader->m_Textures[0].m_NameHash);
+        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_IMAGE2D, compute_shader->m_Textures[0].m_Type.m_Type.m_ShaderType);
     }
 }
 

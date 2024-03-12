@@ -583,6 +583,7 @@ namespace dmGraphics
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, max_descriptors},
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, max_descriptors},
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          max_descriptors},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         max_descriptors},
         };
 
         VkDescriptorPoolCreateInfo vk_pool_create_info;

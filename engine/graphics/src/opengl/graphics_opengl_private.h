@@ -101,6 +101,7 @@ namespace dmGraphics
         uint32_t                m_TextureArraySupport              : 1;
         uint32_t                m_MultiTargetRenderingSupport      : 1;
         uint32_t                m_ComputeSupport                   : 1;
+        uint32_t                m_StorageBufferSupport             : 1;
         uint32_t                m_FrameBufferInvalidateAttachments : 1;
         uint32_t                m_PackedDepthStencilSupport        : 1;
         uint32_t                m_VerifyGraphicsCalls              : 1;

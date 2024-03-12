@@ -722,6 +722,11 @@ namespace dmGraphics
                uniform_type == ShaderDesc::SHADER_TYPE_SAMPLER_CUBE;
     }
 
+    bool IsUniformStorageBuffer(ShaderDesc::ShaderDataType uniform_type)
+    {
+        return uniform_type == ShaderDesc::SHADER_TYPE_STORAGE_BUFFER;
+    }
+
     bool IsTextureFormatCompressed(dmGraphics::TextureFormat format)
     {
         switch(format)
@@ -929,27 +934,114 @@ namespace dmGraphics
         }
     }
 
+    static void PutShaderResourceBindings(const ShaderDesc::ResourceBinding* bindings, uint32_t bindings_count, dmArray<ShaderResourceBinding>& bindings_out, ShaderResourceBinding::BindingFamily family)
+    {
+        bindings_out.SetCapacity(bindings_count);
+        bindings_out.SetSize(bindings_count);
+
+        for (int i = 0; i < bindings_count; ++i)
+        {
+            ShaderResourceBinding& res = bindings_out[i];
+            res.m_Name                 = strdup(bindings[i].m_Name);
+            res.m_NameHash             = bindings[i].m_NameHash;
+            res.m_Binding              = bindings[i].m_Binding;
+            res.m_Set                  = bindings[i].m_Set;
+            res.m_BlockSize            = bindings[i].m_BlockSize;
+            res.m_Type.m_UseTypeIndex  = bindings[i].m_Type.m_UseTypeIndex;
+            res.m_BindingFamily        = family;
+
+            if (res.m_Type.m_UseTypeIndex)
+                res.m_Type.m_TypeIndex = bindings[i].m_Type.m_Type.m_TypeIndex;
+            else
+                res.m_Type.m_ShaderType = bindings[i].m_Type.m_Type.m_ShaderType;
+        }
+    }
+
+    void CreateShaderMeta(ShaderDesc::Shader* ddf, ShaderMeta* meta)
+    {
+        PutShaderResourceBindings(ddf->m_UniformBuffers.m_Data, ddf->m_UniformBuffers.m_Count, meta->m_UniformBuffers, ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER);
+        PutShaderResourceBindings(ddf->m_StorageBuffers.m_Data, ddf->m_StorageBuffers.m_Count, meta->m_StorageBuffers, ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER);
+        PutShaderResourceBindings(ddf->m_Textures.m_Data, ddf->m_Textures.m_Count, meta->m_Textures, ShaderResourceBinding::BINDING_FAMILY_TEXTURE);
+        PutShaderResourceBindings(ddf->m_Inputs.m_Data, ddf->m_Inputs.m_Count, meta->m_Inputs, ShaderResourceBinding::BINDING_FAMILY_GENERIC);
+
+        meta->m_TypeInfos.SetCapacity(ddf->m_Types.m_Count);
+        meta->m_TypeInfos.SetSize(ddf->m_Types.m_Count);
+
+        memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
+
+        for (int i = 0; i < ddf->m_Types.m_Count; ++i)
+        {
+            ShaderResourceTypeInfo& info = meta->m_TypeInfos[i];
+            info.m_Name     = strdup(ddf->m_Types[i].m_Name);
+            info.m_NameHash = ddf->m_Types[i].m_NameHash;
+            info.m_Members.SetCapacity(ddf->m_Types[i].m_Members.m_Count);
+            info.m_Members.SetSize(ddf->m_Types[i].m_Members.m_Count);
+
+            for (int j = 0; j < ddf->m_Types[i].m_Members.m_Count; ++j)
+            {
+                ShaderResourceMember& member = info.m_Members[j];
+                member.m_Name                = strdup(ddf->m_Types[i].m_Members[j].m_Name);
+                member.m_NameHash            = ddf->m_Types[i].m_Members[j].m_NameHash;
+                member.m_ElementCount        = ddf->m_Types[i].m_Members[j].m_ElementCount;
+                member.m_Offset              = ddf->m_Types[i].m_Members[j].m_Offset;
+                member.m_Type.m_UseTypeIndex = ddf->m_Types[i].m_Members[j].m_Type.m_UseTypeIndex;
+
+                if (member.m_Type.m_UseTypeIndex)
+                    member.m_Type.m_TypeIndex = ddf->m_Types[i].m_Members[j].m_Type.m_Type.m_TypeIndex;
+                else
+                    member.m_Type.m_ShaderType = ddf->m_Types[i].m_Members[j].m_Type.m_Type.m_ShaderType;
+            }
+        }
+    }
+
+    static void FreeShaderResourceBindings(dmArray<ShaderResourceBinding>& bindings)
+    {
+        for (int i = 0; i < bindings.Size(); ++i)
+        {
+            free(bindings[i].m_Name);
+        }
+    }
+
+    void DestroyShaderMeta(ShaderMeta& meta)
+    {
+        FreeShaderResourceBindings(meta.m_UniformBuffers);
+        FreeShaderResourceBindings(meta.m_StorageBuffers);
+        FreeShaderResourceBindings(meta.m_Textures);
+        FreeShaderResourceBindings(meta.m_Inputs);
+
+        for (int i = 0; i < meta.m_TypeInfos.Size(); ++i)
+        {
+            free(meta.m_TypeInfos[i].m_Name);
+            for (int j = 0; j < meta.m_TypeInfos[i].m_Members.Size(); ++j)
+            {
+                free(meta.m_TypeInfos[i].m_Members[j].m_Name);
+            }
+        }
+    }
+
     // TODO, comment from the PR (#4544):
     //   "These frequent lookups could be improved by sorting on the key beforehand,
     //   and during lookup, do a lower_bound, to find the item (or not).
     //   E.g see: engine/render/src/render/material.cpp#L446"
-    bool GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out)
+    bool GetUniformIndices(const dmArray<ShaderResourceTypeInfo> types, const dmArray<ShaderResourceBinding>& bindings, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out)
     {
-        assert(uniforms.Size() < UNIFORM_LOCATION_MAX);
-        for (uint32_t i = 0; i < uniforms.Size(); ++i)
+        // JG: WHERE IS THIS FUNCTION USED
+        assert(bindings.Size() < UNIFORM_LOCATION_MAX);
+        for (uint32_t i = 0; i < bindings.Size(); ++i)
         {
-            if (uniforms[i].m_NameHash == name_hash)
+            if (bindings[i].m_NameHash == name_hash)
             {
                 *index_out = i;
                 *index_member_out = 0;
                 return true;
             }
-            else
+            else if (bindings[i].m_Type.m_UseTypeIndex)
             {
-                assert(uniforms[i].m_BlockMembers.Size() < UNIFORM_LOCATION_MAX);
-                for (uint32_t j = 0; j < uniforms[i].m_BlockMembers.Size(); ++j)
+                const ShaderResourceTypeInfo& type_info = types[bindings[i].m_Type.m_TypeIndex];
+                const uint32_t num_members = type_info.m_Members.Size();
+                for (int j = 0; j < num_members; ++j)
                 {
-                    if (uniforms[i].m_BlockMembers[j].m_NameHash == name_hash)
+                    if (type_info.m_NameHash == name_hash)
                     {
                         *index_out = i;
                         *index_member_out = j;
@@ -1512,6 +1604,7 @@ namespace dmGraphics
     {
         return g_functions.m_DeleteComputeProgram(prog);
     }
+
 #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
     {

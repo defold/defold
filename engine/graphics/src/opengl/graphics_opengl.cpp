@@ -642,6 +642,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
             case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
+            case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
         }
         return false;
     }

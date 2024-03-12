@@ -66,6 +66,8 @@ namespace dmGraphics
 
     typedef uintptr_t HComputeProgram;
 
+    typedef uintptr_t HStorageBuffer;
+
     const static uint64_t MAX_ASSET_HANDLE_VALUE       = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_COLOR_ATTACHMENTS = 4;
     static const uint8_t  MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
@@ -169,6 +171,7 @@ namespace dmGraphics
         CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
         CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
+        CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -740,7 +743,8 @@ namespace dmGraphics
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
 
-    uint32_t GetTypeSize(Type type);
+    uint32_t    GetTypeSize(Type type);
+    const char* GetGraphicsTypeLiteral(Type type);
 
     // Both experimental + tests only:
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
