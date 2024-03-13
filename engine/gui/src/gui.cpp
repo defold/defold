@@ -108,6 +108,7 @@ namespace dmGui
             PROP(outline, PROPERTY_OUTLINE )
             PROP(shadow, PROPERTY_SHADOW )
             PROP(slice9, PROPERTY_SLICE9 )
+            PROP(euler, PROPERTY_EULER )
             { dmHashString64("inner_radius"), PROPERTY_PIE_PARAMS, 0 },
             { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
             { dmHashString64("leading"), PROPERTY_TEXT_PARAMS, 0 },
@@ -124,6 +125,7 @@ namespace dmGui
             { dmHashString64("outline"), PROPERTY_OUTLINE, 0xff },
             { dmHashString64("shadow"), PROPERTY_SHADOW, 0xff },
             { dmHashString64("slice"), PROPERTY_SLICE9, 0xff },
+            { dmHashString64("euler"), PROPERTY_EULER, 0xff },
     };
 
     PropDesc* GetPropertyDesc(dmhash_t property_hash)
@@ -2397,6 +2399,7 @@ namespace dmGui
         node->m_Node.m_Properties[PROPERTY_SLICE9] = Vector4(0,0,0,0);
         node->m_Node.m_Properties[PROPERTY_PIE_PARAMS] = Vector4(0,360,0,0);
         node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 0, 0);
+        node->m_Node.m_Properties[PROPERTY_EULER] = Vector4(0);
         node->m_Node.m_LocalTransform = Matrix4::identity();
         node->m_Node.m_LocalAdjustScale = Vector4(1.0, 1.0, 1.0, 1.0);
         node->m_Node.m_PerimeterVertices = 32;
@@ -2779,9 +2782,11 @@ namespace dmGui
             reference_scale = CalculateReferenceScale(scene, n);
             AdjustPosScale(scene, n, reference_scale, position, node.m_LocalAdjustScale);
         }
-        const Vector3& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION].getXYZ();
-        Quat r = dmVMath::EulerToQuat(rotation);
-        r = normalize(r);
+
+        // const Vector3& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION].getXYZ();
+        // Quat r = dmVMath::EulerToQuat(rotation);
+        // r = normalize(r);
+        Quat r(node.m_Properties[dmGui::PROPERTY_ROTATION]);
 
         node.m_LocalTransform.setUpper3x3(Matrix3::rotation(r) * Matrix3::scale( mulPerElem(node.m_LocalAdjustScale, prop_scale).getXYZ() ));
         node.m_LocalTransform.setTranslation(position.getXYZ());
@@ -2902,6 +2907,20 @@ namespace dmGui
     {
         assert(property < PROPERTY_COUNT);
         InternalNode* n = GetNode(scene, node);
+
+        if (property == PROPERTY_EULER)
+        {
+            dmVMath::Quat qr = dmVMath::EulerToQuat(value.getXYZ());
+            n->m_Node.m_Properties[PROPERTY_ROTATION] = dmVMath::Vector4(qr);
+        }
+        else if (property == PROPERTY_ROTATION)
+        {
+            Quat q = dmVMath::Quat(value);
+            Vector4 v_original = n->m_Node.m_Properties[PROPERTY_EULER]; 
+            Vector4 v = Vector4(dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), v_original.getW()));
+            n->m_Node.m_Properties[PROPERTY_EULER] = v;
+        }
+
         n->m_Node.m_Properties[property] = value;
         n->m_Node.m_DirtyLocal = 1;
     }

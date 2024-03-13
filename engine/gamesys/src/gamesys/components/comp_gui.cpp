@@ -292,7 +292,8 @@ namespace dmGameSystem
 
         // properties
         dmGui::SetNodePosition(scene, n, Point3(node_desc->m_Position.getXYZ()));
-        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, node_desc->m_Rotation);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_EULER, node_desc->m_Rotation);
+        dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_ROTATION, dmVMath::Vector4(dmVMath::EulerToQuat(node_desc->m_Rotation.getXYZ())));
         dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SCALE, node_desc->m_Scale);
         Vector4 color;
         color.setXYZ(node_desc->m_Color.getXYZ());
@@ -2713,6 +2714,7 @@ namespace dmGameSystem
         const char* property_names[] = {
             "position",
             "rotation",
+            "euler",
             "scale",
             "color",
             "size",
@@ -2728,9 +2730,17 @@ namespace dmGameSystem
 
 
         const dmGui::Property properties_all[] = {
-            dmGui::PROPERTY_POSITION, dmGui::PROPERTY_ROTATION, dmGui::PROPERTY_SCALE, dmGui::PROPERTY_COLOR,
-            dmGui::PROPERTY_SIZE, dmGui::PROPERTY_OUTLINE, dmGui::PROPERTY_SHADOW, dmGui::PROPERTY_SLICE9,
-            dmGui::PROPERTY_PIE_PARAMS, dmGui::PROPERTY_TEXT_PARAMS,
+            dmGui::PROPERTY_POSITION,
+            dmGui::PROPERTY_ROTATION,
+            dmGui::PROPERTY_EULER,
+            dmGui::PROPERTY_SCALE,
+            dmGui::PROPERTY_COLOR,
+            dmGui::PROPERTY_SIZE,
+            dmGui::PROPERTY_OUTLINE,
+            dmGui::PROPERTY_SHADOW,
+            dmGui::PROPERTY_SLICE9,
+            dmGui::PROPERTY_PIE_PARAMS,
+            dmGui::PROPERTY_TEXT_PARAMS,
         };
         properties = properties_all;
         num_properties = DM_ARRAY_SIZE(properties_all);

@@ -477,7 +477,7 @@ namespace dmGui
      * gui.set_color(node, red)
      * ```
      */
-    int LuaGetNode(lua_State* L)
+    static int LuaGetNode(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -533,7 +533,7 @@ namespace dmGui
      * print(id) --> hash: [my_node]
      * ```
      */
-    int LuaGetId(lua_State* L)
+    static int LuaGetId(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -572,7 +572,7 @@ namespace dmGui
      * gui.set_id(node, "my_new_node")
      * ```
      */
-    int LuaSetId(lua_State* L)
+    static int LuaSetId(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -606,6 +606,7 @@ namespace dmGui
      *
      * - `"position"`
      * - `"rotation"`
+     * - `"euler"`
      * - `"scale"`
      * - `"color"`
      * - `"outline"`
@@ -630,7 +631,7 @@ namespace dmGui
      * local node_position = gui.get(node, "position")
      * ```
      */
-    int LuaGet(lua_State* L)
+    static int LuaGet(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -644,15 +645,22 @@ namespace dmGui
         dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
         if (!pd)
         {
-            char buffer[128];
-            DM_LUA_ERROR("property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
+            return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
         }
 
         Vector4 base_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
 
         if (pd->m_Component == 0xff)
         {
-            dmScript::PushVector4(L, base_value);
+            if (pd->m_Property == PROPERTY_ROTATION)
+            {
+                dmVMath::Quat r = dmVMath::Quat(base_value);
+                dmScript::PushQuat(L, r);
+            }
+            else
+            {
+                dmScript::PushVector4(L, base_value);
+            }
         }
         else
         {
@@ -698,7 +706,7 @@ namespace dmGui
      * gui.set(node, "position.x", node_position.x + 128)
      * ```
      */
-    int LuaSet(lua_State* L)
+    static int LuaSet(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -712,53 +720,55 @@ namespace dmGui
 
         if (!pd)
         {
-            char buffer[128];
-            DM_LUA_ERROR("property '%s' not found", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
-        }
-
-        bool is_vector4 = dmScript::IsVector4(L, 3);
-        bool is_vector3 = dmScript::IsVector3(L, 3);
-        bool is_number  = lua_isnumber(L, 3);
-
-        if (!(is_vector3 || is_vector4 || is_number))
-        {
-            char buffer[128];
-            DM_LUA_ERROR("Unable to set property '%s', only vmath.vector4, vmath.vector3 or float values are supported", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
-        }
-        else if (pd->m_Component == 0xff && !(is_vector4 || is_vector3))
-        {
-            char buffer[128];
-            DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.vector4 or a vmath.vector3", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
-        }
-        else if (pd->m_Component != 0xff && !is_number)
-        {
-            char buffer[128];
-            DM_LUA_ERROR("Unable to set property '%s', vector elements can only be set by numbers", dmScript::GetStringFromHashOrString(L, 2, buffer, sizeof(buffer)));
+            return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
         }
 
         if (pd->m_Component == 0xff)
         {
-            if (is_vector3)
+            if (pd->m_Property == dmGui::PROPERTY_ROTATION)
             {
-                Vector3* new_value = dmScript::ToVector3(L, 3);
-                Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
-                current_value.setXYZ(*new_value);
-                dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
+                Quat* q = dmScript::ToQuat(L, 3);
+                if (q)
+                {
+                    dmGui::SetNodeProperty(scene, hnode, pd->m_Property, Vector4(*q));
+                    return 0;
+                }
+                return DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.quat", dmHashReverseSafe64(property_hash));
             }
             else
             {
-                Vector4* new_value = dmScript::ToVector4(L, 3);
-                dmGui::SetNodeProperty(scene, hnode, pd->m_Property, *new_value);
+                Vector4* v4 = dmScript::ToVector4(L, 3);
+
+                if (v4)
+                {
+                    Vector4* new_value = dmScript::ToVector4(L, 3);
+                    dmGui::SetNodeProperty(scene, hnode, pd->m_Property, *new_value);
+                    return 0;
+                }
+
+                Vector3* v3 = dmScript::ToVector3(L, 3);
+
+                if (v3)
+                {
+                    Vector3* new_value = dmScript::ToVector3(L, 3);
+                    Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+                    current_value.setXYZ(*new_value);
+                    dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
+                    return 0;
+                }
+
+                return DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.vector4 or a vmath.vector3", dmHashReverseSafe64(property_hash));
             }
         }
-        else
+        else if (!lua_isnumber(L, 3))
         {
-            Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
-            float new_element_value = (float) lua_tonumber(L, 3);
-            current_value.setElem(pd->m_Component, new_element_value);
-            dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
+            return DM_LUA_ERROR("Unable to set property '%s', vector elements can only be set by numbers", dmHashReverseSafe64(property_hash));
         }
 
+        Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+        float new_element_value = (float) lua_tonumber(L, 3);
+        current_value.setElem(pd->m_Component, new_element_value);
+        dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
         return 0;
     }
 
@@ -786,7 +796,7 @@ namespace dmGui
      * end
      * ```
      */
-    int LuaGetIndex(lua_State* L)
+    static int LuaGetIndex(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -831,7 +841,7 @@ namespace dmGui
      * gui.delete_node(node)
      * ```
      */
-    int LuaDeleteNode(lua_State* L)
+    static int LuaDeleteNode(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -848,7 +858,7 @@ namespace dmGui
         return 0;
     }
 
-    void LuaCurveRelease(dmEasing::Curve* curve)
+    static void LuaCurveRelease(dmEasing::Curve* curve)
     {
         HScene scene = (HScene)curve->userdata1;
         lua_State* L = scene->m_Context->m_LuaState;
@@ -883,7 +893,7 @@ namespace dmGui
         lua_pop(L, 1);
     }
 
-    void LuaAnimationComplete(HScene scene, HNode node, bool finished, void* userdata1, void* userdata2)
+    static void LuaAnimationComplete(HScene scene, HNode node, bool finished, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Context->m_LuaState;
         DM_LUA_STACK_CHECK(L, 0);
@@ -1249,7 +1259,7 @@ namespace dmGui
      * end
      * ```
      */
-    int LuaAnimate(lua_State* L)
+    static int LuaAnimate(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1381,7 +1391,7 @@ namespace dmGui
      * gui.cancel_animation(node, "position.x")
      * ```
      */
-    int LuaCancelAnimation(lua_State* L)
+    static int LuaCancelAnimation(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -3970,8 +3980,8 @@ namespace dmGui
     int LuaGetRotation(lua_State* L)
     {
         InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
-        const Vector4& v = n->m_Node.m_Properties[PROPERTY_ROTATION];
-        dmScript::PushVector3(L, Vector3(v.getX(), v.getY(), v.getZ()));
+        const Vector4& v = n->m_Node.m_Properties[PROPERTY_EULER];
+        dmScript::PushVector3(L, v.getXYZ());
         return 1;
     }
 
@@ -3982,23 +3992,33 @@ namespace dmGui
         if (n->m_Node.m_IsBone) {
             return 0;
         }
+        Quat r;
         Vector4 v;
         Vector3* v3;
         Vector4* v4;
         if ((v3 = dmScript::ToVector3(L, 2)))
         {
             Scene* scene = GetScene(L);
-            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_EULER);
             v = Vector4(*v3, original.getW());
-        } else if ((v4 = dmScript::ToVector4(L, 2))) {
+            r = dmVMath::EulerToQuat(v.getXYZ());
+        }
+        else if ((v4 = dmScript::ToVector4(L, 2)))
+        {
             v = *v4;
-        } else {
+            r = dmVMath::EulerToQuat(v.getXYZ());
+        }
+        else
+        {
             Scene* scene = GetScene(L);
-            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_EULER);
             Quat* q = dmScript::CheckQuat(L, 2);
             v = Vector4(dmVMath::QuatToEuler(q->getX(), q->getY(), q->getZ(), q->getW()), original.getW());
+            r = *q;
         }
-        n->m_Node.m_Properties[PROPERTY_ROTATION] = v;
+
+        n->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(r);
+        n->m_Node.m_Properties[PROPERTY_EULER] = v;
         n->m_Node.m_DirtyLocal = 1;
         return 0;
     }
