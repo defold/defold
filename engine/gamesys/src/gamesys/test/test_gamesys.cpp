@@ -4767,6 +4767,7 @@ TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -4791,6 +4792,7 @@ TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
