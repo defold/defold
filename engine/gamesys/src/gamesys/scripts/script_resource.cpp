@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -592,6 +592,7 @@ static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmap
     else
     {
         image_data = new uint8_t[image_data_size];
+        memset(image_data, 0, image_data_size);
     }
 
     // Note: Right now we only support creating compressed 2D textures with 1 mipmap,
@@ -652,6 +653,7 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * registered will trigger an error. If the intention is to instead modify an existing texture, use the [ref:resource.set_texture]
  * function. Also note that the path to the new texture resource must have a '.texturec' extension,
  * meaning "/path/my_texture" is not a valid path but "/path/my_texture.texturec" is.
+ * If the texture is created without a buffer, the pixel data will be blank.
  *
  * @name resource.create_texture
  *
@@ -1030,7 +1032,28 @@ static int ReleaseResource(lua_State* L)
  *
  *   local resource_path = go.get("#model", "texture0")
  *   local args = { width=self.width, height=self.height, x=self.x, y=self.y, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
- *   resource.set_texture( resource_path, args, self.buffer )
+ *   resource.set_texture(resource_path, args, self.buffer )
+ * end
+ * ```
+ *
+ * @examples
+ * Update a texture from a buffer resource
+ * ```lua
+ * go.property("my_buffer", resource.buffer("/my_default_buffer.buffer"))
+ *
+ * function init(self)
+ *     local resource_path = go.get("#model", "texture0")
+ *     -- the "my_buffer" resource is expected to hold 128 * 128 * 3 bytes!
+ *     local args = {
+ *          width  = 128,
+ *          height = 128,
+ *          type   = resource.TEXTURE_TYPE_2D,
+ *          format = resource.TEXTURE_FORMAT_RGB
+ *      }
+ *     -- Note that the extra resource.get_buffer call is a requirement here
+ *     -- since the "self.my_buffer" is just pointing to a buffer resource path
+ *     -- and not an actual buffer object or buffer resource.
+ *     resource.set_texture(resource_path, args, resource.get_buffer(self.my_buffer))
  * end
  * ```
  */
@@ -1072,11 +1095,12 @@ static int SetTexture(lua_State* L)
 
     uint8_t layer_count = type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
 
-    dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 3);
+    dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, 3);
+    dmBuffer::HBuffer buffer_handle  = dmGameSystem::UnpackLuaBuffer(lua_buffer);
 
     uint8_t* data = 0;
     uint32_t datasize = 0;
-    dmBuffer::GetBytes(buffer->m_Buffer, (void**)&data, &datasize);
+    dmBuffer::GetBytes(buffer_handle, (void**)&data, &datasize);
 
     dmGraphics::TextureImage::Image image  = {};
     dmGraphics::TextureImage texture_image = {};

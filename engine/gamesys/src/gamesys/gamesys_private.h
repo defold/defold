@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -98,9 +98,6 @@ namespace dmGameSystem
     dmRender::RenderResourceType ResourcePathToRenderResourceType(const char* path);
 
     // Vertex attributes
-    int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash);
-
-    // Dynamic Vertex Attribute
     static const uint16_t INVALID_DYNAMIC_ATTRIBUTE_INDEX  = 0xFFFF;
     static const uint8_t  DYNAMIC_ATTRIBUTE_INCREASE_COUNT = 1;
 
@@ -118,6 +115,10 @@ namespace dmGameSystem
 
     typedef dmObjectPool<DynamicAttributeInfo> DynamicAttributePool;
     typedef bool (*CompGetMaterialAttributeCallback)(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute);
+
+    int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash);
+    void    FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos);
+    void    FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos);
 
     int32_t                      FindMaterialAttributeIndex(const DynamicAttributeInfo& info, dmhash_t name_hash);
     void                         GetMaterialAttributeValues(const DynamicAttributeInfo& info, uint32_t dynamic_attribute_index, uint32_t max_value_size, const uint8_t** value_ptr, uint32_t* value_size);

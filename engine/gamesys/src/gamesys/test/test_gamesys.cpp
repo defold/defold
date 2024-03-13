@@ -4760,6 +4760,49 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
     dmResource::Release(m_Factory, material_res);
 }
 
+TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_animate.goc", dmHashString64("/attributes_go_animate"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    for (int i = 0; i < 10; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_set_get_sparse.goc", dmHashString64("/attributes_dynamic_go_set_get_sparse"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 TEST_F(MaterialTest, GoGetSetConstants)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -4950,15 +4993,16 @@ TEST_F(ShaderTest, Compute)
     //       When we can create actual dmGraphics::HProgram from compute we can verify this via the GFX context.
     if (compute_shader->m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
     {
-        ASSERT_EQ(2, compute_shader->m_Resources.m_Count);
+        dmGraphics::ShaderDesc::ResourceTypeInfo color_type_info = compute_shader->m_Types[compute_shader->m_UniformBuffers[0].m_Type.m_Type.m_TypeIndex];
+
         // Slot 1
-        ASSERT_EQ(1,                                        compute_shader->m_Resources[0].m_Bindings.m_Count);
-        ASSERT_EQ(dmHashString64("color"),                  compute_shader->m_Resources[0].m_Bindings[0].m_NameHash);
-        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, compute_shader->m_Resources[0].m_Bindings[0].m_Type);
+        ASSERT_EQ(1,                                        compute_shader->m_UniformBuffers.m_Count);
+        ASSERT_EQ(dmHashString64("color"),                  color_type_info.m_Members[0].m_NameHash);
+        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, color_type_info.m_Members[0].m_Type.m_Type.m_ShaderType);
         // Slot 2,
-        ASSERT_EQ(1,                                           compute_shader->m_Resources[1].m_Bindings.m_Count);
-        ASSERT_EQ(dmHashString64("texture_out"),               compute_shader->m_Resources[1].m_Bindings[0].m_NameHash);
-        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_IMAGE2D, compute_shader->m_Resources[1].m_Bindings[0].m_Type);
+        ASSERT_EQ(1,                                           compute_shader->m_Textures.m_Count);
+        ASSERT_EQ(dmHashString64("texture_out"),               compute_shader->m_Textures[0].m_NameHash);
+        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_IMAGE2D, compute_shader->m_Textures[0].m_Type.m_Type.m_ShaderType);
     }
 }
 
