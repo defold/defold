@@ -27,6 +27,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         to_send = ""
+        extra_headers = None
+
         if self.path == "/":
             a,b = self.headers.get('X-A', None), self.headers.get('X-B', None)
             if a and b:
@@ -51,6 +53,16 @@ class Handler(BaseHTTPRequestHandler):
             sys.stdout.flush()
             time.sleep( sleeptime )
             to_send = "slept for %f" % sleeptime
+        else:
+            try:
+                import test_script_server_plugin
+                result = test_script_server_plugin.do_GET(self.path)
+
+                to_send = result['to_send']
+                extra_headers = result['headers']
+
+            except Exception as e:
+                pass
 
         if to_send:
             self.send_response(200)
@@ -58,6 +70,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(404)
 
         self.send_header("Content-type", "text/plain")
+
+        if extra_headers:
+            for k,v in extra_headers.items():
+                self.send_header(k, v)
+
         self.end_headers()
         self.wfile.write(to_send.encode('ascii'))
 

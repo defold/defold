@@ -40,7 +40,7 @@ extern "C"
 
 #include "script_http_util.h"
 
-namespace dmScript
+namespace dmGameSystem
 {
     uint64_t g_Timeout = 0;
 

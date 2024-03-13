@@ -27,7 +27,6 @@
 #include "script_sys.h"
 #include "script_module.h"
 #include "script_json.h"
-#include "script_http.h"
 #include "script_zlib.h"
 #include "script_html5.h"
 #include "script_luasocket.h"
@@ -205,7 +204,6 @@ namespace dmScript
         lua_newtable(L);
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
-        InitializeHttp(context);
         InitializeTimer(context);
         if (context->m_EnableExtensions)
         {

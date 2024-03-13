@@ -12,16 +12,16 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_SCRIPT_HTTP_H
-#define DM_SCRIPT_HTTP_H
+#ifndef DM_GAMESYS_SCRIPT_HTTP_H
+#define DM_GAMESYS_SCRIPT_HTTP_H
 
-namespace dmScript
+#include "../gamesys.h"
+
+namespace dmGameSystem
 {
-    typedef struct Context* HContext;
-
-    void InitializeHttp(HContext context);
-
+    void ScriptHttpRegister(const ScriptLibContext& context);
+    void ScriptHttpFinalize(const ScriptLibContext& context);
     void SetHttpRequestTimeout(uint64_t timeout);
 }
 
-#endif // DM_SCRIPT_HTTP_H
+#endif // DM_GAMESYS_SCRIPT_HTTP_H

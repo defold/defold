@@ -12,12 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#ifndef DM_GAMESYS_SCRIPT_HTTP_UTIL_H
+#define DM_GAMESYS_SCRIPT_HTTP_UTIL_H
+
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/path.h>
 #include <dlib/sys.h>
 
-namespace dmScript
+namespace dmGameSystem
 {
     static bool WriteResponseToFile(const char* path, const void* data, uint32_t data_len)
     {
@@ -46,7 +49,7 @@ namespace dmScript
         return true;
     }
 
-    Result HttpResponseDecoder(lua_State* L, const dmDDF::Descriptor* desc, const char* data)
+    dmScript::Result HttpResponseDecoder(lua_State* L, const dmDDF::Descriptor* desc, const char* data)
     {
         assert(desc == dmHttpDDF::HttpResponse::m_DDFDescriptor);
         dmHttpDDF::HttpResponse* resp = (dmHttpDDF::HttpResponse*) data;
@@ -109,6 +112,8 @@ namespace dmScript
         }
         lua_rawset(L, -3);
 
-        return RESULT_OK;
+        return dmScript::RESULT_OK;
     }
 }
+
+#endif // DM_GAMESYS_SCRIPT_HTTP_UTIL_H

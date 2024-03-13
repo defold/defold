@@ -119,7 +119,7 @@ namespace dmHttpCacheVerify
         return verify_context->m_Result;
     }
 
-    static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
     {
         VerifyContext* verify_context = (VerifyContext*) user_data;
 
