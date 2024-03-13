@@ -477,7 +477,7 @@ namespace dmGui
      * gui.set_color(node, red)
      * ```
      */
-    int LuaGetNode(lua_State* L)
+    static int LuaGetNode(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -533,7 +533,7 @@ namespace dmGui
      * print(id) --> hash: [my_node]
      * ```
      */
-    int LuaGetId(lua_State* L)
+    static int LuaGetId(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -572,7 +572,7 @@ namespace dmGui
      * gui.set_id(node, "my_new_node")
      * ```
      */
-    int LuaSetId(lua_State* L)
+    static int LuaSetId(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -594,6 +594,200 @@ namespace dmGui
 
         assert(top == lua_gettop(L));
 
+        return 0;
+    }
+
+    /*# gets the named property of a specified gui node 
+     * 
+     * Instead of using specific getters such as gui.get_position or gui.get_scale,
+     * you can use gui.get instead and supply the property as a string or a hash.
+     * While this function is similar to go.get, there are a few more restrictions
+     * when operating in the gui namespace. Most notably, only these propertie identifiers are supported:
+     *
+     * - `"position"`
+     * - `"rotation"`
+     * - `"euler"`
+     * - `"scale"`
+     * - `"color"`
+     * - `"outline"`
+     * - `"shadow"`
+     * - `"size"`
+     * - `"fill_angle"` (pie)
+     * - `"inner_radius"` (pie)
+     * - `"slice9"` (slice9)
+     *
+     * The value returned will either be a vmath.vector4 or a single number, i.e getting the "position"
+     * property will return a vec4 while getting the "position.x" property will return a single value.
+     *
+     * @name gui.get
+     * @param node [type:node] node to get the property for
+     * @param property [type:string|hash|constant] the property to retrieve 
+     * @examples
+     *
+     * Get properties on existing nodes:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * local node_position = gui.get(node, "position")
+     * ```
+     */
+    static int LuaGet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
+
+        dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
+
+        dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
+        if (!pd)
+        {
+            return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
+        }
+
+        Vector4 base_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+
+        if (pd->m_Component == 0xff)
+        {
+            if (pd->m_Property == PROPERTY_ROTATION)
+            {
+                dmVMath::Quat r = dmVMath::Quat(base_value);
+                dmScript::PushQuat(L, r);
+            }
+            else
+            {
+                dmScript::PushVector4(L, base_value);
+            }
+        }
+        else
+        {
+            lua_pushnumber(L, base_value.getElem(pd->m_Component));
+        }
+
+        return 1;
+    }
+
+    /*# sets the named property of a specified gui node 
+     * 
+     * Instead of using specific setteres such as gui.set_position or gui.set_scale,
+     * you can use gui.set instead and supply the property as a string or a hash.
+     * While this function is similar to go.get and go.set, there are a few more restrictions
+     * when operating in the gui namespace. Most notably, only these propertie identifiers are supported:
+     *
+     * - `"position"`
+     * - `"rotation"`
+     * - `"euler"`
+     * - `"scale"`
+     * - `"color"`
+     * - `"outline"`
+     * - `"shadow"`
+     * - `"size"`
+     * - `"fill_angle"` (pie)
+     * - `"inner_radius"` (pie)
+     * - `"slice9"` (slice9)
+     *
+     * The value to set must either be a vmath.vector4, vmath.vector3, vmath.quat or a single number and depends on the property name you want to set.
+     * I.e when setting the "position" property, you need to use a vmath.vector4 and when setting a single component of the property,
+     * such as "position.x", you need to use a single value.
+     *
+     * Note: When setting the rotation using the "rotation" property, you need to pass in a vmath.quat. This behaviour is different than from the gui.set_rotation function,
+     * the intention is to move new functionality closer to go namespace so that migrating between gui and go is easier. To set the rotation using degrees instead,
+     * use the "euler" property instead. The rotation and euler properties are linked, changing one of them will change the backing data of the other.
+     *
+     * @name gui.set
+     * @param node [type:node] node to set the property for
+     * @param property [type:string|hash|constant] the property to set 
+     * @param value [type:number|vector4|vector3|quat] the property to set
+     *
+     * @examples
+     *
+     * Updates the position property on an existing node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * local node_position = gui.get(node, "position")
+     * gui.set(node, "position.x", node_position.x + 128)
+     * ```
+     *
+     * Updates the rotation property on an existing node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * gui.set(node, "rotation", vmath.quat_rotation_z(math.rad(45)))
+     * -- this is equivalent to:
+     * gui.set(node, "euler.z", 45)
+     * -- or using the entire vector:
+     * gui.set(node, "euler", vmath.vector3(0,0,45))
+     * -- or using the set_rotation
+     * gui.set_rotation(node, vmath.vector3(0,0,45))
+     * ```
+     */
+    static int LuaSet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        Scene* scene = GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
+
+        dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
+        dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
+
+        if (!pd)
+        {
+            return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
+        }
+
+        if (pd->m_Component == 0xff)
+        {
+            if (pd->m_Property == dmGui::PROPERTY_ROTATION)
+            {
+                Quat* q = dmScript::ToQuat(L, 3);
+                if (q)
+                {
+                    dmGui::SetNodeProperty(scene, hnode, pd->m_Property, Vector4(*q));
+                    return 0;
+                }
+                return DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.quat", dmHashReverseSafe64(property_hash));
+            }
+            else
+            {
+                Vector4* v4 = dmScript::ToVector4(L, 3);
+
+                if (v4)
+                {
+                    Vector4* new_value = dmScript::ToVector4(L, 3);
+                    dmGui::SetNodeProperty(scene, hnode, pd->m_Property, *new_value);
+                    return 0;
+                }
+
+                Vector3* v3 = dmScript::ToVector3(L, 3);
+
+                if (v3)
+                {
+                    Vector3* new_value = dmScript::ToVector3(L, 3);
+                    Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+                    current_value.setXYZ(*new_value);
+                    dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
+                    return 0;
+                }
+
+                return DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.vector4 or a vmath.vector3", dmHashReverseSafe64(property_hash));
+            }
+        }
+        else if (!lua_isnumber(L, 3))
+        {
+            return DM_LUA_ERROR("Unable to set property '%s', vector elements can only be set by numbers", dmHashReverseSafe64(property_hash));
+        }
+
+        Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+        float new_element_value = (float) lua_tonumber(L, 3);
+        current_value.setElem(pd->m_Component, new_element_value);
+        dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
         return 0;
     }
 
@@ -621,7 +815,7 @@ namespace dmGui
      * end
      * ```
      */
-    int LuaGetIndex(lua_State* L)
+    static int LuaGetIndex(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -666,7 +860,7 @@ namespace dmGui
      * gui.delete_node(node)
      * ```
      */
-    int LuaDeleteNode(lua_State* L)
+    static int LuaDeleteNode(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -683,7 +877,7 @@ namespace dmGui
         return 0;
     }
 
-    void LuaCurveRelease(dmEasing::Curve* curve)
+    static void LuaCurveRelease(dmEasing::Curve* curve)
     {
         HScene scene = (HScene)curve->userdata1;
         lua_State* L = scene->m_Context->m_LuaState;
@@ -718,7 +912,7 @@ namespace dmGui
         lua_pop(L, 1);
     }
 
-    void LuaAnimationComplete(HScene scene, HNode node, bool finished, void* userdata1, void* userdata2)
+    static void LuaAnimationComplete(HScene scene, HNode node, bool finished, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Context->m_LuaState;
         DM_LUA_STACK_CHECK(L, 0);
@@ -1000,6 +1194,7 @@ namespace dmGui
      *
      * - `"position"`
      * - `"rotation"`
+     * - `"euler"`
      * - `"scale"`
      * - `"color"`
      * - `"outline"`
@@ -1013,6 +1208,7 @@ namespace dmGui
      *
      * - `gui.PROP_POSITION`
      * - `gui.PROP_ROTATION`
+     * - `gui.PROP_EULER`
      * - `gui.PROP_SCALE`
      * - `gui.PROP_COLOR`
      * - `gui.PROP_OUTLINE`
@@ -1084,7 +1280,7 @@ namespace dmGui
      * end
      * ```
      */
-    int LuaAnimate(lua_State* L)
+    static int LuaAnimate(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -1192,6 +1388,7 @@ namespace dmGui
      *
      * - `"position"`
      * - `"rotation"`
+     * - `"euler"`
      * - `"scale"`
      * - `"color"`
      * - `"outline"`
@@ -1216,7 +1413,7 @@ namespace dmGui
      * gui.cancel_animation(node, "position.x")
      * ```
      */
-    int LuaCancelAnimation(lua_State* L)
+    static int LuaCancelAnimation(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -3805,8 +4002,8 @@ namespace dmGui
     int LuaGetRotation(lua_State* L)
     {
         InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
-        const Vector4& v = n->m_Node.m_Properties[PROPERTY_ROTATION];
-        dmScript::PushVector3(L, Vector3(v.getX(), v.getY(), v.getZ()));
+        const Vector4& v = n->m_Node.m_Properties[PROPERTY_EULER];
+        dmScript::PushVector3(L, v.getXYZ());
         return 1;
     }
 
@@ -3817,23 +4014,33 @@ namespace dmGui
         if (n->m_Node.m_IsBone) {
             return 0;
         }
+        Quat r;
         Vector4 v;
         Vector3* v3;
         Vector4* v4;
         if ((v3 = dmScript::ToVector3(L, 2)))
         {
             Scene* scene = GetScene(L);
-            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_EULER);
             v = Vector4(*v3, original.getW());
-        } else if ((v4 = dmScript::ToVector4(L, 2))) {
+            r = dmVMath::EulerToQuat(v.getXYZ());
+        }
+        else if ((v4 = dmScript::ToVector4(L, 2)))
+        {
             v = *v4;
-        } else {
+            r = dmVMath::EulerToQuat(v.getXYZ());
+        }
+        else
+        {
             Scene* scene = GetScene(L);
-            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_EULER);
             Quat* q = dmScript::CheckQuat(L, 2);
             v = Vector4(dmVMath::QuatToEuler(q->getX(), q->getY(), q->getZ(), q->getW()), original.getW());
+            r = *q;
         }
-        n->m_Node.m_Properties[PROPERTY_ROTATION] = v;
+
+        n->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(r);
+        n->m_Node.m_Properties[PROPERTY_EULER] = v;
         n->m_Node.m_DirtyLocal = 1;
         return 0;
     }
@@ -4421,6 +4628,8 @@ namespace dmGui
         {"get_node",        LuaGetNode},
         {"get_id",          LuaGetId},
         {"set_id",          LuaSetId},
+        {"get",             LuaGet},
+        {"set",             LuaSet},
         {"get_index",       LuaGetIndex},
         {"delete_node",     LuaDeleteNode},
         {"animate",         LuaAnimate},
@@ -4541,6 +4750,12 @@ namespace dmGui
     /*# rotation property
      *
      * @name gui.PROP_ROTATION
+     * @variable
+     */
+
+    /*# euler property
+     *
+     * @name gui.PROP_EULER
      * @variable
      */
 
@@ -4796,6 +5011,7 @@ namespace dmGui
 
         SETPROP(position, POSITION)
         SETPROP(rotation, ROTATION)
+        SETPROP(euler, EULER)
         SETPROP(scale, SCALE)
         SETPROP(color, COLOR)
         SETPROP(outline, OUTLINE)

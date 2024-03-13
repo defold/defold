@@ -530,6 +530,15 @@ namespace dmGui
     dmVMath::Vector4 CalculateReferenceScale(HScene scene, InternalNode* node);
 
     HNode GetNodeHandle(InternalNode* node);
+
+    struct PropDesc
+    {
+        dmhash_t m_Hash;
+        Property m_Property;
+        uint8_t  m_Component;
+    };
+
+    PropDesc* GetPropertyDesc(dmhash_t property_hash);
 }
 
 #endif

@@ -302,8 +302,9 @@ namespace dmGui
         PROPERTY_SLICE9     = 7,
         PROPERTY_PIE_PARAMS = 8,
         PROPERTY_TEXT_PARAMS= 9,
+        PROPERTY_EULER      = 10,
 
-        PROPERTY_COUNT      = 10,
+        PROPERTY_COUNT      = 11,
     };
 
     /*#
