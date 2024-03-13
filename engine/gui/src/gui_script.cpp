@@ -679,6 +679,7 @@ namespace dmGui
      *
      * - `"position"`
      * - `"rotation"`
+     * - `"euler"`
      * - `"scale"`
      * - `"color"`
      * - `"outline"`
@@ -688,14 +689,19 @@ namespace dmGui
      * - `"inner_radius"` (pie)
      * - `"slice9"` (slice9)
      *
-     * The value to set must either be a vmath.vector4, vmath.vector3 or a single number and depends on the property name you want to set.
+     * The value to set must either be a vmath.vector4, vmath.vector3, vmath.quat or a single number and depends on the property name you want to set.
      * I.e when setting the "position" property, you need to use a vmath.vector4 and when setting a single component of the property,
-     * such as "position.x", you need to use a single value. 
+     * such as "position.x", you need to use a single value.
+     *
+     * Note: When setting the rotation using the "rotation" property, you need to pass in a vmath.quat. This behaviour is different than from the gui.set_rotation function,
+     * the intention is to move new functionality closer to go namespace so that migrating between gui and go is easier. To set the rotation using degrees instead,
+     * use the "euler" property instead. The rotation and euler properties are linked, changing one of them will change the backing data of the other.
      *
      * @name gui.set
      * @param node [type:node] node to set the property for
      * @param property [type:string|hash|constant] the property to set 
-     * @param value [type:number|vector4|vector3] the property to set
+     * @param value [type:number|vector4|vector3|quat] the property to set
+     *
      * @examples
      *
      * Updates the position property on an existing node:
@@ -704,6 +710,19 @@ namespace dmGui
      * local node = gui.get_node("my_box_node")
      * local node_position = gui.get(node, "position")
      * gui.set(node, "position.x", node_position.x + 128)
+     * ```
+     *
+     * Updates the rotation property on an existing node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * gui.set(node, "rotation", vmath.quat_rotation_z(math.rad(45)))
+     * -- this is equivalent to:
+     * gui.set(node, "euler.z", 45)
+     * -- or using the entire vector:
+     * gui.set(node, "euler", vmath.vector3(0,0,45))
+     * -- or using the set_rotation
+     * gui.set_rotation(node, vmath.vector3(0,0,45))
      * ```
      */
     static int LuaSet(lua_State* L)
@@ -1175,6 +1194,7 @@ namespace dmGui
      *
      * - `"position"`
      * - `"rotation"`
+     * - `"euler"`
      * - `"scale"`
      * - `"color"`
      * - `"outline"`
@@ -1188,6 +1208,7 @@ namespace dmGui
      *
      * - `gui.PROP_POSITION`
      * - `gui.PROP_ROTATION`
+     * - `gui.PROP_EULER`
      * - `gui.PROP_SCALE`
      * - `gui.PROP_COLOR`
      * - `gui.PROP_OUTLINE`
@@ -1367,6 +1388,7 @@ namespace dmGui
      *
      * - `"position"`
      * - `"rotation"`
+     * - `"euler"`
      * - `"scale"`
      * - `"color"`
      * - `"outline"`
@@ -4731,6 +4753,12 @@ namespace dmGui
      * @variable
      */
 
+    /*# euler property
+     *
+     * @name gui.PROP_EULER
+     * @variable
+     */
+
     /*# scale property
      *
      * @name gui.PROP_SCALE
@@ -4983,6 +5011,7 @@ namespace dmGui
 
         SETPROP(position, POSITION)
         SETPROP(rotation, ROTATION)
+        SETPROP(euler, EULER)
         SETPROP(scale, SCALE)
         SETPROP(color, COLOR)
         SETPROP(outline, OUTLINE)

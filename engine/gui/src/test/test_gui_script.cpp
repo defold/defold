@@ -1111,6 +1111,9 @@ TEST_F(dmGuiScriptTest, TestGuiGetSet)
 
     const char* src =
             "local EPSILON = 0.001\n"
+            "function assert_near(a,b)\n"
+            "    assert(math.abs(a-b) < EPSILON)\n"
+            "end\n"
             "function assert_near_vector4(a,b)\n"
             "    assert(math.abs(a.x-b.x) < EPSILON)\n"
             "    assert(math.abs(a.y-b.y) < EPSILON)\n"
@@ -1125,14 +1128,34 @@ TEST_F(dmGuiScriptTest, TestGuiGetSet)
             "    assert(not r)\n"
             "end\n"
             "function init(self)\n"
-            // Test valid
             "   local node = gui.new_box_node(vmath.vector3(1, 2, 3), vmath.vector3(4, 5, 6))\n"
+            // Test valid
             "   assert_near_vector4(vmath.vector4(1, 2, 3, 1), gui.get(node, 'position'))\n"
             "   assert_near_vector4(vmath.vector4(4, 5, 6, 0), gui.get(node, 'size'))\n"
             "   gui.set(node, 'position', vmath.vector3(99, 98, 97))\n"
             "   assert_near_vector4(vmath.vector4(99, 98, 97, 1), gui.get(node, 'position'))\n"
             "   gui.set(node, 'position', vmath.vector4(99, 98, 97, 1337))\n"
             "   assert_near_vector4(vmath.vector4(99, 98, 97, 1337), gui.get(node, 'position'))\n"
+            // Test valid subcomponents
+            "   gui.set(node, 'position.x', 2001)\n"
+            "   assert_near(2001, gui.get(node, 'position.x'))\n"
+            "   gui.set(node, 'position.y', 2002)\n"
+            "   assert_near(2002, gui.get(node, 'position.y'))\n"
+            "   gui.set(node, 'position.z', 2003)\n"
+            "   assert_near(2003, gui.get(node, 'position.z'))\n"
+            "   gui.set(node, 'position.w', 2004)\n"
+            "   assert_near(2004, gui.get(node, 'position.w'))\n"
+            "   assert_near_vector4(vmath.vector4(2001, 2002, 2003, 2004), gui.get(node, 'position'))\n"
+            // Test rotation <-> euler conversion
+            "   gui.set(node, 'rotation', vmath.quat_rotation_z(math.rad(45)))\n"
+            "   assert_near_vector4(vmath.vector4(0, 0, 45, 0), gui.get(node, 'euler'))\n"
+            "   gui.set(node, 'euler', vmath.vector3(0, 0, 45))\n"
+            "   assert_near_vector4(vmath.quat_rotation_z(math.rad(45)), gui.get(node, 'rotation'))\n"
+            // Test rotation <-> euler conversion subcomponents
+            "   gui.set(node, 'euler', vmath.vector4())\n"
+            "   assert_near_vector4(vmath.vector4(0,0,0,1), gui.get(node, 'rotation'))\n"
+            "   gui.set(node, 'euler.x', 180)\n"
+            "   assert_near(1, gui.get(node, 'rotation.x'))\n"
             // Incorrect input for get
             "   assert_error(function() gui.get('invalid', 'position') end)\n"
             "   assert_error(function() gui.get(hash('invalid'), 'position') end)\n"
@@ -1141,6 +1164,10 @@ TEST_F(dmGuiScriptTest, TestGuiGetSet)
             "   assert_error(function() gui.set('invalid', 'position', vmath.vector3()) end)\n"
             "   assert_error(function() gui.set(node, 'position', 'incorrect-string') end)\n"
             "   assert_error(function() gui.set(node, 'this_doesnt_exist', vmath.vector4()) end)\n"
+            "   assert_error(function() gui.set(node, 'rotation', vmath.vector3()) end)\n"
+            "   assert_error(function() gui.set(node, 'rotation', vmath.vector4()) end)\n"
+            "   assert_error(function() gui.set(node, 'rotation', 1) end)\n"
+            "   assert_error(function() gui.set(node, 'rotation.x', vmath.vector3()) end)\n"
             "end\n";
 
     dmGui::Result result = SetScript(script, LuaSourceFromStr(src));

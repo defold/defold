@@ -2916,8 +2916,7 @@ namespace dmGui
         else if (property == PROPERTY_ROTATION)
         {
             Quat q = dmVMath::Quat(value);
-            Vector4 v_original = n->m_Node.m_Properties[PROPERTY_EULER]; 
-            Vector4 v = Vector4(dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), v_original.getW()));
+            Vector4 v = Vector4(dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW()));
             n->m_Node.m_Properties[PROPERTY_EULER] = v;
         }
 
