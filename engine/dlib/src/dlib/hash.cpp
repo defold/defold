@@ -727,6 +727,14 @@ DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash)
     return s != 0 ? s : "<unknown>";
 }
 
+#if defined(DM_PLATFORM_VENDOR)
+    #include <dmsdk/dlib/hash_vendor.h>
+#elif defined(__linux__) && !defined(__ANDROID__)
+    #define DM_HASH_LONG_FMT "%lu"
+#else
+    #define DM_HASH_LONG_FMT "%llu"
+#endif
+
 DM_DLLEXPORT const char* dmHashReverseSafe64Alloc(dmAllocator* allocator, uint64_t hash)
 {
     uint32_t length = 0;
@@ -741,9 +749,11 @@ DM_DLLEXPORT const char* dmHashReverseSafe64Alloc(dmAllocator* allocator, uint64
     if (!out)
         return "<unknown>";
 
-    dmSnPrintf(out, out_length, "<unknown:%llu>", hash);
+    dmSnPrintf(out, out_length, "<unknown:" DM_HASH_LONG_FMT ">", hash);
     return out;
 }
+
+#undef DM_HASH_LONG_FMT
 
 DM_DLLEXPORT const char* dmHashReverseSafe32Alloc(dmAllocator* allocator, uint32_t hash)
 {
