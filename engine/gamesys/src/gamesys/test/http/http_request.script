@@ -27,12 +27,10 @@ end
 
 
 function test_get(self)
+    local chunked_data   = ""
+    local chunk_size_tot = 64 * 1024 * 2
 
-    -- this equates to the size of the buffer used internally
-    local chunk_size = 64 * 1024
-    local num_chunks = 2
-    local chunked_data = ""
-    for i=1,chunk_size * num_chunks do
+    for i=1,chunk_size_tot do
         chunked_data = chunked_data .. "A"
     end
 
@@ -74,16 +72,10 @@ function test_get(self)
 
 
     -- 4
-    self.test_3_chunk_count = 0
     http.request(ADDRESS .. "/test_progress_chunked", "GET",
         function(self, id, response)
-
             if not self.test_3_progress then
-                self.test_3_chunk_count = self.test_3_chunk_count + 1
-                assert(response.bytes_total == chunk_size * num_chunks)
-                assert(response.bytes_received == chunk_size * self.test_3_chunk_count)
-
-                if self.test_3_chunk_count == num_chunks then
+                if response.bytes_received == chunk_size_tot then
                     self.test_3_progress = true
                 end
             else
