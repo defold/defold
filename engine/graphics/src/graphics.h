@@ -691,6 +691,12 @@ namespace dmGraphics
 
     uint32_t    GetTypeSize(Type type);
     const char* GetGraphicsTypeLiteral(Type type);
+
+    // Test functions:
+    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
+    bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
+    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
+    bool  UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
 }
 
 #endif // DM_GRAPHICS_H
