@@ -1903,6 +1903,9 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * * `geometries`
  * : [type:table] A list of the geometries that should map to the texture data. Supports the following fields:
  *
+ * * `id`
+ * : [type:string] The name of the geometry. Used when matching animations between multiple atlases
+ *
  * * `vertices`
  * : [type:table] a list of the vertices in texture space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
  *
@@ -1948,6 +1951,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *         },
  *         geometries = {
  *             {
+ *                 id = 'idle0',
  *                 vertices  = {
  *                     0,   0,
  *                     0,   128,
