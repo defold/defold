@@ -66,12 +66,9 @@ namespace dmGraphics
 
     typedef uintptr_t HComputeProgram;
 
-    typedef uintptr_t HStorageBuffer;
-
-    const static uint64_t MAX_ASSET_HANDLE_VALUE       = 0x20000000000000-1; // 2^53 - 1
-    static const uint8_t  MAX_BUFFER_COLOR_ATTACHMENTS = 4;
-    static const uint8_t  MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
-    const static uint8_t  MAX_VERTEX_STREAM_COUNT      = 8;
+    const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
+    static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
+    const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
 
     const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
@@ -181,14 +178,6 @@ namespace dmGraphics
         AttachmentToBufferType();
     };
 
-    enum AttachmentOp
-    {
-        ATTACHMENT_OP_DONT_CARE,
-        ATTACHMENT_OP_LOAD,
-        ATTACHMENT_OP_STORE,
-        ATTACHMENT_OP_CLEAR,
-    };
-
     enum TextureUsageHint
     {
         TEXTURE_USAGE_HINT_NONE       = 0,
@@ -270,14 +259,10 @@ namespace dmGraphics
         TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthBufferParams;
         TextureParams         m_StencilBufferParams;
-
-    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
         AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
-
         // TODO: Depth/Stencil
-    #endif
 
         uint8_t               m_DepthTexture   : 1;
         uint8_t               m_StencilTexture : 1;
@@ -300,45 +285,6 @@ namespace dmGraphics
         uint8_t               m_RenderDocSupport : 1;           // Vulkan only
         uint8_t               m_UseValidationLayers : 1;        // Vulkan only
         uint8_t               : 4;
-    };
-
-    struct PipelineState
-    {
-        uint64_t m_WriteColorMask           : 4;
-        uint64_t m_WriteDepth               : 1;
-        uint64_t m_PrimtiveType             : 3;
-        // Depth Test
-        uint64_t m_DepthTestEnabled         : 1;
-        uint64_t m_DepthTestFunc            : 3;
-        // Stencil Test
-        uint64_t m_StencilEnabled           : 1;
-
-        // Front
-        uint64_t m_StencilFrontOpFail       : 3;
-        uint64_t m_StencilFrontOpPass       : 3;
-        uint64_t m_StencilFrontOpDepthFail  : 3;
-        uint64_t m_StencilFrontTestFunc     : 3;
-
-        // Back
-        uint64_t m_StencilBackOpFail        : 3;
-        uint64_t m_StencilBackOpPass        : 3;
-        uint64_t m_StencilBackOpDepthFail   : 3;
-        uint64_t m_StencilBackTestFunc      : 3;
-
-        uint64_t m_StencilWriteMask         : 8;
-        uint64_t m_StencilCompareMask       : 8;
-        uint64_t m_StencilReference         : 8;
-        // Blending
-        uint64_t m_BlendEnabled             : 1;
-        uint64_t m_BlendSrcFactor           : 4;
-        uint64_t m_BlendDstFactor           : 4;
-        // Culling
-        uint64_t m_CullFaceEnabled          : 1;
-        uint64_t m_CullFaceType             : 2;
-        // Face winding
-        uint64_t m_FaceWinding              : 1;
-        // Polygon offset
-        uint64_t m_PolygonOffsetFillEnabled : 1;
     };
 
     struct VertexAttributeInfo
@@ -745,12 +691,6 @@ namespace dmGraphics
 
     uint32_t    GetTypeSize(Type type);
     const char* GetGraphicsTypeLiteral(Type type);
-
-    // Both experimental + tests only:
-    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
-    bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
-    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
-    bool  UnmapIndexBuffer(HContext context, HIndexBuffer buffer);
 }
 
 #endif // DM_GRAPHICS_H

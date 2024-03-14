@@ -132,6 +132,11 @@ namespace dmGraphics
         uint32_t                           m_PrintDeviceInfo        : 1;
         uint32_t                           m_ContextFeatures        : 3;
     };
+
+    void* NullMapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
+    bool  NullUnmapVertexBuffer(HContext context, HVertexBuffer buffer);
+    void* NullMapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);
+    bool  NullUnmapIndexBuffer(HContext context, HIndexBuffer buffer);
 }
 
 #endif // __GRAPHICS_DEVICE_NULL__

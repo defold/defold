@@ -173,7 +173,7 @@ struct CopyToBufferTest : ITest
 
         m_CopyBufferToTextureBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, 128 * 128 * 4, 0, dmGraphics::BUFFER_USAGE_TRANSFER);
 
-        uint8_t* pixels = (uint8_t*) dmGraphics::MapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
+        uint8_t* pixels = (uint8_t*) dmGraphics::VulkanMapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
 
         for (int i = 0; i < 128; i++)
         {
@@ -190,7 +190,7 @@ struct CopyToBufferTest : ITest
             }
         }
 
-        dmGraphics::UnmapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer);
+        dmGraphics::VulkanUnmapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer);
     }
 
     void Execute(EngineCtx* engine) override
