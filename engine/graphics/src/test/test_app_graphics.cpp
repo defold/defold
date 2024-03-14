@@ -25,7 +25,8 @@
 
 #include "../graphics.h"
 #include "../graphics_private.h"
-#include "../vulkan/graphics_vulkan.h"
+
+#include <dmsdk/graphics/graphics_vulkan.h>
 
 #include "test_app_graphics_assets.h"
 
@@ -195,10 +196,7 @@ struct CopyToBufferTest : ITest
 
     void Execute(EngineCtx* engine) override
     {
-        dmGraphics::TextureParams copy_params = {};
-        copy_params.m_Width                   = dmGraphics::GetTextureWidth(m_CopyBufferToTextureTexture);
-        copy_params.m_Height                  = dmGraphics::GetTextureHeight(m_CopyBufferToTextureTexture);
-        dmGraphics::VulkanCopyBufferToTexture(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, m_CopyBufferToTextureTexture, copy_params);
+        dmGraphics::VulkanCopyBufferToTexture(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, m_CopyBufferToTextureTexture, dmGraphics::GetTextureWidth(m_CopyBufferToTextureTexture), dmGraphics::GetTextureHeight(m_CopyBufferToTextureTexture));
     }
 };
 
