@@ -34,7 +34,7 @@ namespace dmGraphics
      * @constant
      * @name INVALID_STREAM_OFFSET
      */
-	static const uint32_t MAX_SUBPASSES             = 4;
+	static const uint32_t MAX_SUBPASSES = 4;
 
     /*#
      * Max subpass dependencies
@@ -48,7 +48,7 @@ namespace dmGraphics
      * @constant
      * @name SUBPASS_EXTERNAL
      */
-    static const uint8_t  SUBPASS_EXTERNAL 		    = -1;
+    static const uint8_t  SUBPASS_EXTERNAL = -1;
 
     /*#
      * Subpass attachment unused flag
