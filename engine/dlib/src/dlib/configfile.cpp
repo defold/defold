@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -398,7 +398,7 @@ namespace dmConfigFile
         (void) value;
     }
 
-    void HttpContent(dmHttpClient::HResponse response , void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    void HttpContent(dmHttpClient::HResponse response , void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
     {
         HttpContext* context = (HttpContext*) user_data;
         if (status_code != 200)

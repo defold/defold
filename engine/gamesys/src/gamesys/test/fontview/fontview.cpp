@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -124,13 +124,14 @@ namespace dmFontView
             else
                 context->m_TestString = "The quick brown fox jumps over the lazy dog";
 
-            dmGraphics::WindowParams window_params;
+            context->m_Window = dmPlatform::NewWindow();
 
-            window_params.m_Width = 960;
-            window_params.m_Height = 540;
-            window_params.m_Title = "FontView";
-            window_params.m_Fullscreen = false;
-            window_params.m_PrintDeviceInfo = false;
+            dmPlatform::WindowParams window_params = {};
+            window_params.m_Width           = 960;
+            window_params.m_Height          = 540;
+            window_params.m_Title           = "FontView";
+
+            dmPlatform::OpenWindow(context->m_Window, window_params);
 
             context->m_ScreenWidth = window_params.m_Width;
             context->m_ScreenHeight = window_params.m_Height;
@@ -138,10 +139,12 @@ namespace dmFontView
             context->m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
             dmHID::Init(context->m_HidContext);
 
-            dmGraphics::Initialize();
-            context->m_GraphicsContext = dmGraphics::NewContext(dmGraphics::ContextParams());
+            dmGraphics::InstallAdapter();
 
-            dmGraphics::OpenWindow(context->m_GraphicsContext, &window_params);
+            dmGraphics::ContextParams graphics_context_params;
+            graphics_context_params.m_Window = context->m_Window;
+
+            context->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
             dmGraphics::EnableState(context->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
 
@@ -203,5 +206,8 @@ namespace dmFontView
         if (context->m_RenderContext)
             dmRender::DeleteRenderContext(context->m_RenderContext, 0);
         dmGraphics::DeleteContext(context->m_GraphicsContext);
+
+        dmPlatform::CloseWindow(context->m_Window);
+        dmPlatform::DeleteWindow(context->m_Window);
     }
 }

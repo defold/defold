@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,7 +16,6 @@
 #include "liveupdate_private.h"
 #include "liveupdate_verify.h"
 #include "script_liveupdate.h"
-#include "job_thread.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -29,6 +28,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/sys.h>
+#include <dlib/job_thread.h>
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/extension/extension.h>
 
@@ -92,6 +92,7 @@ namespace dmLiveUpdate
             DM_LU_RESULT_TO_STR(FORMAT_ERROR);
             DM_LU_RESULT_TO_STR(IO_ERROR);
             DM_LU_RESULT_TO_STR(INVAL);
+            DM_LU_RESULT_TO_STR(NOT_INITIALIZED);
             DM_LU_RESULT_TO_STR(UNKNOWN);
             default: break;
         }
@@ -116,6 +117,7 @@ namespace dmLiveUpdate
         dmResource::HFactory            m_ResourceFactory;      // Resource system factory
         dmResourceProvider::HArchive    m_LiveupdateArchive;
         dmResource::HManifest           m_LiveupdateArchiveManifest;
+        bool                            m_IsEnabled;
 
     } g_LiveUpdate;
 
@@ -368,7 +370,13 @@ namespace dmLiveUpdate
         return archive;
     }
 
-    static bool IsLiveupdateDisabled()
+    static bool IsLiveupdateEnabled()
+    {
+        return g_LiveUpdate.m_IsEnabled;
+    }
+
+
+    static bool IsLiveupdateThreadDisabled()
     {
         if (!g_LiveUpdate.m_JobThread)
         {
@@ -479,6 +487,9 @@ namespace dmLiveUpdate
 
     Result StoreResourceAsync(const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data)
     {
+        if (!IsLiveupdateEnabled())
+            return RESULT_NOT_INITIALIZED;
+
         if (resource->m_Data == 0x0)
         {
             return RESULT_MEM_ERROR;
@@ -490,7 +501,7 @@ namespace dmLiveUpdate
             return RESULT_INVALID_RESOURCE;
         }
 
-        if(IsLiveupdateDisabled())
+        if(IsLiveupdateThreadDisabled())
         {
             return RESULT_INVAL;
         }
@@ -581,12 +592,15 @@ namespace dmLiveUpdate
 
     Result StoreManifestAsync(const uint8_t* manifest_data, uint32_t manifest_len, void (*callback)(int, void*), void* callback_data)
     {
+        if (!IsLiveupdateEnabled())
+            return RESULT_NOT_INITIALIZED;
+
         if (!manifest_data || manifest_len == 0)
         {
             return RESULT_INVAL;
         }
 
-        if(IsLiveupdateDisabled())
+        if(IsLiveupdateThreadDisabled())
         {
             return RESULT_INVAL;
         }
@@ -689,12 +703,15 @@ namespace dmLiveUpdate
 
     Result StoreArchiveAsync(const char* path, void (*callback)(const char*, int, void*), void* callback_data, const char* mountname, int priority, bool verify_archive)
     {
+        if (!IsLiveupdateEnabled())
+            return RESULT_NOT_INITIALIZED;
+
         if (!dmSys::Exists(path)) {
             dmLogError("File does not exist: '%s'", path);
             return RESULT_INVALID_RESOURCE;
         }
 
-        if(IsLiveupdateDisabled())
+        if(IsLiveupdateThreadDisabled())
         {
             return RESULT_INVAL;
         }
@@ -780,10 +797,10 @@ namespace dmLiveUpdate
 
     Result AddMountAsync(const char* name, const char* uri, int priority, void (*callback)(const char*, const char*, int, void*), void* callback_data)
     {
-        if(IsLiveupdateDisabled())
-        {
-            return RESULT_INVAL;
-        }
+        if (!IsLiveupdateEnabled())
+            return RESULT_NOT_INITIALIZED;
+        if(IsLiveupdateThreadDisabled())
+            return RESULT_NOT_INITIALIZED;
 
         AddMountInfo* info = new AddMountInfo;
         info->m_Archive = g_LiveUpdate.m_LiveupdateArchive;
@@ -795,6 +812,32 @@ namespace dmLiveUpdate
 
         bool res = dmLiveUpdate::PushAsyncJob((dmJobThread::FProcess)AddMountProcess, (dmJobThread::FCallback)AddMountFinished, (void*)&g_LiveUpdate, info);
         return res == true ? RESULT_OK : RESULT_INVALID_RESOURCE;
+    }
+
+    Result RemoveMountSync(const char* name)
+    {
+        if (!IsLiveupdateEnabled())
+            return RESULT_NOT_INITIALIZED;
+
+        dmResourceMounts::HContext mounts = g_LiveUpdate.m_ResourceMounts;
+        dmMutex::HMutex mutex = dmResourceMounts::GetMutex(mounts);
+        DM_MUTEX_SCOPED_LOCK(mutex);
+
+        dmResource::Result result = dmResourceMounts::RemoveAndUnmountByName(mounts, name);
+        if (result != dmResource::RESULT_OK)
+        {
+            dmLogError("Failed to remove mount '%s': %s (%d)", name, dmResource::ResultToString(result), result);
+            return dmLiveUpdate::ResourceResultToLiveupdateResult(result);
+        }
+
+        result = dmResourceMounts::SaveMounts(mounts, g_LiveUpdate.m_AppSupportPath);
+        if (result != dmResource::RESULT_OK)
+        {
+            dmLogError("Failed to save mounts file");
+            return dmLiveUpdate::ResourceResultToLiveupdateResult(result);
+        }
+
+        return RESULT_OK;
     }
 
     // ******************************************************************
@@ -818,6 +861,9 @@ namespace dmLiveUpdate
 
     bool HasLiveUpdateMount()
     {
+        if (!IsLiveupdateEnabled())
+            return false;
+
         dmMutex::HMutex mutex = dmResourceMounts::GetMutex(g_LiveUpdate.m_ResourceMounts);
         DM_MUTEX_SCOPED_LOCK(mutex);
 
@@ -864,10 +910,15 @@ namespace dmLiveUpdate
 
     static dmExtension::Result Initialize(dmExtension::Params* params)
     {
-        dmResource::HFactory factory = (dmResource::HFactory)params->m_ResourceFactory;
+        int32_t liveupdate_enabled = dmConfigFile::GetInt(params->m_ConfigFile, "liveupdate.enabled", 1);
+        if (!liveupdate_enabled)
+        {
+            dmLogError("Liveupdate disabled due to project setting %s=%d", "liveupdate.enabled", liveupdate_enabled);
+            return dmExtension::RESULT_OK;
+        }
+        g_LiveUpdate.m_IsEnabled = true;
 
-        if (params->m_L) // TODO: until unit tests have been updated with a Lua context
-            ScriptInit(params->m_L, factory);
+        dmResource::HFactory factory = (dmResource::HFactory)params->m_ResourceFactory;
 
         g_LiveUpdate.m_ResourceFactory = factory;
         g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
@@ -875,7 +926,6 @@ namespace dmLiveUpdate
 
         if (!g_LiveUpdate.m_ResourceBaseArchive)
         {
-            dmLogInfo("Could not find base .arci/.arcd. Liveupdate disabled");
             return dmExtension::RESULT_OK;
         }
 
@@ -896,7 +946,17 @@ namespace dmLiveUpdate
 
         dmLogInfo("Liveupdate folder located at: %s", g_LiveUpdate.m_AppSupportPath);
 
-        g_LiveUpdate.m_JobThread = dmJobThread::Create("liveupdate_jobs");
+        dmJobThread::JobThreadCreationParams job_thread_create_param;
+        job_thread_create_param.m_ThreadNames[0] = "liveupdate_jobs";
+        job_thread_create_param.m_ThreadCount    = 1;
+
+        g_LiveUpdate.m_JobThread = dmJobThread::Create(job_thread_create_param);
+
+        if (g_LiveUpdate.m_JobThread) // Make the liveupdate module `nil` if it isn't available
+        {
+            if (params->m_L) // TODO: until unit tests have been updated with a Lua context
+                ScriptInit(params->m_L, factory);
+        }
 
         // initialize legacy mode
         InitializeLegacy(params);
@@ -906,6 +966,9 @@ namespace dmLiveUpdate
 
     static dmExtension::Result Finalize(dmExtension::Params* params)
     {
+        if (!IsLiveupdateEnabled())
+            return dmExtension::RESULT_OK;
+
         if (g_LiveUpdate.m_JobThread)
             dmJobThread::Destroy(g_LiveUpdate.m_JobThread);
         g_LiveUpdate.m_JobThread = 0;
@@ -915,6 +978,9 @@ namespace dmLiveUpdate
 
     static dmExtension::Result Update(dmExtension::Params* params)
     {
+        if (!IsLiveupdateEnabled())
+            return dmExtension::RESULT_OK;
+
         if (!g_LiveUpdate.m_ResourceBaseArchive)
             return dmExtension::RESULT_OK;
 

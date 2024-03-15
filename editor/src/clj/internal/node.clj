@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,7 +29,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas *assert*))
+(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas (and *assert* (not (Boolean/getBoolean "defold.schema.check.disable")))))
 
 (defn trace-expr [node-id label evaluation-context label-type deferred-expr]
   (if-let [tracer (:tracer evaluation-context)]
@@ -461,12 +461,23 @@
 
 (def ^:dynamic *suppress-schema-warnings* false)
 
+(defn- output-schema->declared-schema [output-schema]
+  ;; The schema declared using g/deftype is wrapped in a ConditionalSchema also
+  ;; accepting ErrorValues. This ConditionalSchema is in turn wrapped in a Maybe
+  ;; to allow nil values.
+  (let [conditional-schema (:schema output-schema) ; Maybe -> Conditional
+        conditional-cases (:preds-and-schemas conditional-schema)
+        [_ declared-schema] (peek conditional-cases)]
+    declared-schema))
+
 (defn warn-output-schema [node-id label node-type-name value output-schema error]
   (when-not *suppress-schema-warnings*
-    (println "Schema validation failed for node " node-id "(" node-type-name " ) label " label)
-    (println "Output value:" value)
-    (println "Should match:" (s/explain output-schema))
-    (println "But:" error)))
+    (let [output-name (symbol label)
+          declared-schema (output-schema->declared-schema output-schema)]
+      (println "Schema validation failed for output" output-name "on" node-type-name node-id)
+      (println "Output value:" (pr-str value))
+      (println "Should match:" (s/explain declared-schema))
+      (println "But:" (pr-str error)))))
 
 ;;; ----------------------------------------
 ;; Type checking
@@ -1507,7 +1518,8 @@
 (defn- schema-check-result-form [description label node-id-sym label-sym evaluation-context-sym result-sym forms]
   (if *check-schemas*
     `(do
-       (schema-check-result ~node-id-sym ~label-sym ~evaluation-context-sym ~(deduce-output-type-form description label) ~result-sym)
+       (when ~`*check-schemas* ; Inner check to support disabling the schema check post compile-time.
+         (schema-check-result ~node-id-sym ~label-sym ~evaluation-context-sym ~(deduce-output-type-form description label) ~result-sym))
        ~forms)
     forms))
 

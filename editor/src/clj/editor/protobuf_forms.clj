@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,8 +17,8 @@
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
             [editor.util :as util])
-  (:import [com.dynamo.input.proto Input$InputBinding Input$Key Input$Mouse Input$GamepadMaps Input$Gamepad Input$GamepadType Input$Touch Input$Text]
-           [com.dynamo.graphics.proto Graphics$TextureProfiles Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat Graphics$TextureImage$CompressionType]))
+  (:import [com.dynamo.graphics.proto Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$CompressionType Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
+           [com.dynamo.input.proto Input$Gamepad Input$GamepadMaps Input$GamepadType Input$InputBinding Input$Key Input$Mouse Input$Text Input$Touch]))
 
 (set! *warn-on-reflection* true)
 
@@ -62,9 +62,9 @@
   (let [keys (map (comp first :path) (mapcat :fields (:sections form-data)))]
     (make-values pb keys)))
 
-(defmulti protobuf-form-data (fn [node-id pb def] (:pb-class def)))
+(defmulti protobuf-form-data (fn [_node-id _pb def] (:pb-class def)))
 
-(defmethod protobuf-form-data Input$InputBinding [node-id pb def]
+(defmethod protobuf-form-data Input$InputBinding [_node-id _pb _def]
   (let [key-values (butlast (protobuf/enum-values Input$Key)) ; skip MAX_KEY_COUNT
         mouse-values (butlast (protobuf/enum-values Input$Mouse)) ; skip MAX_MOUSE_COUNT
         gamepad-values (butlast (protobuf/enum-values Input$Gamepad)) ; skip MAX_GAMEPAD_COUNT
@@ -134,10 +134,10 @@
   (letfn [(bools->mods [{:keys [negate clamp scale]}]
             {:mod
              (vec
-              (concat
-               (when negate [{:mod :gamepad-modifier-negate}])
-               (when clamp [{:mod :gamepad-modifier-clamp}])
-               (when scale [{:mod :gamepad-modifier-scale}])))})
+               (concat
+                 (when negate [{:mod :gamepad-modifier-negate}])
+                 (when clamp [{:mod :gamepad-modifier-clamp}])
+                 (when scale [{:mod :gamepad-modifier-scale}])))})
           (f-map->map [f-map]
             (merge (dissoc f-map :negate :clamp :scale) (bools->mods f-map)))
           (f-device->device [f-device]
@@ -150,7 +150,7 @@
         upd-form-pb (assoc-in old-form-pb path value)]
     (g/set-property! node-id :pb (form-pb->gamepad-pb upd-form-pb))))
 
-(defmethod protobuf-form-data Input$GamepadMaps [node-id pb def]
+(defmethod protobuf-form-data Input$GamepadMaps [node-id pb _def]
   (let [gamepad-values (butlast (protobuf/enum-values Input$Gamepad)) ; skip MAX_GAMEPAD_COUNT
         gamepad-type-values (protobuf/enum-values Input$GamepadType)]
     {:navigation false
@@ -198,23 +198,46 @@
                                                :type :boolean}
                                               {:path [:clamp]
                                                :label "Clamp"
-                                               :type :boolean}]}]}]}}]}]
+                                               :type :boolean}
+                                              {:path [:hat-mask]
+                                               :label "Hat Mask"
+                                               :type :integer}]}]}]}}]}]
      :values (make-values (gamepad-pb->form-pb pb) [:driver])}))
 
-(def texture-profiles-unsupported-formats #{:texture-format-rgb16f
-                                            :texture-format-rgb32f
-                                            :texture-format-rgba16f
-                                            :texture-format-rgba32f
-                                            :texture-format-r16f
-                                            :texture-format-rg16f
-                                            :texture-format-r32f
-                                            :texture-format-rg32f})
-(defmethod protobuf-form-data Graphics$TextureProfiles [node-id pb def]
+(def texture-profiles-unsupported-formats
+  #{:texture-format-rgb16f
+    :texture-format-rgb32f
+    :texture-format-rgba16f
+    :texture-format-rgba32f
+    :texture-format-r16f
+    :texture-format-rg16f
+    :texture-format-r32f
+    :texture-format-rg32f
+    :texture-format-r-bc4
+    :texture-format-rg-bc5
+    :texture-format-rgb-bc1
+    :texture-format-rgb-etc1
+    :texture-format-rgba-pvrtc-2bppv1
+    :texture-format-rgba-pvrtc-4bppv1
+    :texture-format-rgb-pvrtc-2bppv1
+    :texture-format-rgb-pvrtc-4bppv1
+    :texture-format-rgba-bc3
+    :texture-format-rgba-bc7
+    :texture-format-rgba-etc2
+    :texture-format-rgba-astc-4x4})
+
+(def texture-profiles-unsupported-compressions
+  #{:compression-type-webp
+    :compression-type-webp-lossy
+    :compression-type-basis-etc1s})
+
+(defmethod protobuf-form-data Graphics$TextureProfiles [_node-id pb _def]
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
         format-values (protobuf/enum-values Graphics$TextureImage$TextureFormat)
         format-values-filtered (filterv (fn [fmt] (not (contains? texture-profiles-unsupported-formats (first fmt)))) format-values)
         compression-values (protobuf/enum-values Graphics$TextureFormatAlternative$CompressionLevel)
         compression-types (protobuf/enum-values Graphics$TextureImage$CompressionType)
+        compression-types-filtered (filterv (fn [fmt] (not (contains? texture-profiles-unsupported-compressions (first fmt)))) compression-types)
         profile-options (mapv #(do [% %]) (map :name (:profiles pb)))]
     {:navigation false
      :sections
@@ -265,8 +288,8 @@
                                                      {:path [:compression-type]
                                                       :label "Type"
                                                       :type :choicebox
-                                                      :options (make-options compression-types) ; Unsorted.
-                                                      :default (ffirst compression-types)}]}
+                                                      :options (make-options compression-types-filtered) ; Unsorted.
+                                                      :default (ffirst compression-types-filtered)}]}
                                           {:path [:mipmaps]
                                            :type :boolean
                                            :label "Mipmaps"}
@@ -284,7 +307,7 @@
 (defn produce-form-data
   ([node-id pb def]
    (produce-form-data node-id pb def (protobuf-form-data node-id pb def)))
-  ([node-id pb def form-data]
+  ([node-id pb _def form-data]
    (let [form-data (merge (default-form-ops node-id) form-data)]
      (if (contains? form-data :values)
        form-data

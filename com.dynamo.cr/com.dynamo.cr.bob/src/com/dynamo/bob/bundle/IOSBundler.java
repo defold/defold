@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,14 +21,11 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringWriter;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +52,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.FileUtil;
 
 @BundlerParams(platforms = {Platform.Arm64Ios, Platform.X86_64Ios})
 public class IOSBundler implements IBundler {
@@ -82,7 +80,7 @@ public class IOSBundler implements IBundler {
     private static File createTempDirectory() throws IOException {
         final File temp;
 
-        temp = File.createTempFile("temp", Long.toString(System.nanoTime()));
+        temp = File.createTempFile("temp_defold_", Long.toString(System.nanoTime()));
 
         if(!(temp.delete()))
         {
@@ -187,15 +185,18 @@ public class IOSBundler implements IBundler {
     private static final String SYMBOL_EXE_RELATIVE_PATH = String.format("Contents/Resources/DWARF/dmengine");
 
     public static List<File> getSymbolDirsFromArchitectures(File buildDir, List<Platform> architectures) {
+        final String[] prefixes = {"", "src" + File.separator};
         List<File> symbolDirectories = new ArrayList<File>();
         for (Platform architecture : architectures) {
 
             File platformDir = new File(buildDir, architecture.getExtenderPair());
-            File symbolsDir = new File(platformDir, "dmengine.dSYM");
-            if (symbolsDir.exists()) {
-                File symbols = new File(symbolsDir, SYMBOL_EXE_RELATIVE_PATH);
-                if (symbols.exists()) {
-                    symbolDirectories.add(symbolsDir);
+            for (String prefix: prefixes) {
+                File symbolsDir = new File(platformDir, prefix + "dmengine.dSYM");
+                if (symbolsDir.exists()) {
+                    File symbols = new File(symbolsDir, SYMBOL_EXE_RELATIVE_PATH);
+                    if (symbols.exists()) {
+                        symbolDirectories.add(symbolsDir);
+                    }
                 }
             }
         }
@@ -368,7 +369,7 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if (BundleHelper.isArchiveExcluded(project)) {
+        if (BundleHelper.isArchiveIncluded(project)) {
             // Copy archive and game.projectc
             for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
                 FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
@@ -466,7 +467,7 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         // Create fat/universal binary
         File exe = File.createTempFile("dmengine", "");
-        exe.deleteOnExit();
+        FileUtil.deleteOnExit(exe);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -516,8 +517,7 @@ public class IOSBundler implements IBundler {
 
         // Package zip file
         File tmpZipDir = createTempDirectory();
-        tmpZipDir.deleteOnExit();
-
+        FileUtil.deleteOnExit(tmpZipDir);
         File swiftSupportDir = new File(tmpZipDir, "SwiftSupport");
 
         // Copy any libswift*.dylib files from the Frameworks folder
@@ -554,7 +554,7 @@ public class IOSBundler implements IBundler {
             FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
 
             File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
-            textProvisionFile.deleteOnExit();
+            FileUtil.deleteOnExit(textProvisionFile);
 
             Result securityResult = Exec.execResult("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
             if (securityResult.ret != 0) {
@@ -628,7 +628,7 @@ public class IOSBundler implements IBundler {
                     entitlements.initFileLocator(locator);
                     entitlements.write(writer);
                     writer.close();
-                    entitlementOut.deleteOnExit();
+                    FileUtil.deleteOnExit(entitlementOut);
                 }
                 catch (ConfigurationException e) {
                     logger.severe("Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );

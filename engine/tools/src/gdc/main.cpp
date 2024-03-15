@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,13 +20,15 @@
 #include <string.h>
 #include <signal.h>
 
+#include <dlib/platform.h>
+
+#include <graphics/graphics.h>
+
 #include <dlib/log.h>
 #include <dlib/math.h>
-#include <dlib/platform.h>
 #include <dlib/time.h>
 #include <ddf/ddf.h>
 
-#include <graphics/graphics.h>
 #include <hid/hid.h>
 #include <input/input_ddf.h>
 
@@ -93,11 +95,23 @@ int main(int argc, char *argv[])
     if (argc > 1)
         filename = argv[1];
 
+    dmGraphics::InstallAdapter();
+
+    dmPlatform::WindowParams window_params = {};
+    window_params.m_Width = 32;
+    window_params.m_Height = 32;
+    window_params.m_Title = "gdc";
+    window_params.m_PrintDeviceInfo = false;
+    window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+
+    dmPlatform::HWindow window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(window, window_params);
+
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-    graphics_context_params.m_VerifyGraphicsCalls = false;
-    dmGraphics::Initialize();
+    graphics_context_params.m_Window                  = window;
+
     dmGraphics::HContext graphics_context = dmGraphics::NewContext(graphics_context_params);
     if (graphics_context == 0x0)
     {
@@ -105,18 +119,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    dmGraphics::WindowParams window_params;
-    memset(&window_params, 0, sizeof(window_params));
-    window_params.m_Width = 32;
-    window_params.m_Height = 32;
-    window_params.m_Samples = 0;
-    window_params.m_Title = "gdc";
-    window_params.m_Fullscreen = 0;
-    window_params.m_PrintDeviceInfo = false;
-    window_params.m_HighDPI = 0;
-    (void)dmGraphics::OpenWindow(graphics_context, &window_params);
-
     g_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+    dmHID::SetWindow(g_HidContext, window);
     dmHID::Init(g_HidContext);
 
 retry:

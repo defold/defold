@@ -1,0 +1,54 @@
+name: "attributes_dynamic_go_set_get_sparse"
+vertex_program: "/material/attributes_custom_multiple.vp"
+fragment_program: "/fragment_program/valid.fp"
+
+attributes {
+  name: "custom_value_1"
+  data_type: TYPE_FLOAT
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 4
+  double_values {
+    v: 1.0
+    v: 2.0
+    v: 3.0
+    v: 4.0
+  }
+}
+attributes {
+  name: "custom_value_2"
+  data_type: TYPE_FLOAT
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 4
+  double_values {
+    v: 11.0
+    v: 12.0
+    v: 13.0
+    v: 14.0
+  }
+}
+
+attributes {
+  name: "custom_value_3"
+  data_type: TYPE_FLOAT
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 4
+  double_values {
+    v: 21.0
+    v: 22.0
+    v: 23.0
+    v: 24.0
+  }
+}
+
+attributes {
+  name: "custom_value_4"
+  data_type: TYPE_FLOAT
+  semantic_type: SEMANTIC_TYPE_NONE
+  element_count: 4
+  double_values {
+    v: 31.0
+    v: 32.0
+    v: 33.0
+    v: 34.0
+  }
+}

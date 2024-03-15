@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -168,7 +168,7 @@
 (def custom-engine-pref-key "dev-custom-engine")
 
 (defn current-platform []
-  (.getPair (Platform/getJavaPlatform)))
+  (.getPair (Platform/getHostPlatform)))
 
 (defn- dev-custom-engine
   [prefs platform]
@@ -189,7 +189,7 @@
   [project evaluation-context prefs platform]
   (or (dev-custom-engine prefs platform)
       (if (native-extensions/has-engine-extensions? project evaluation-context)
-        (let [build-server-url (native-extensions/get-build-server-url prefs)
+        (let [build-server-url (native-extensions/get-build-server-url prefs project evaluation-context)
               build-server-headers (native-extensions/get-build-server-headers prefs)]
           (native-extensions/get-engine-archive project evaluation-context platform build-server-url build-server-headers))
         (bundled-engine platform))))
@@ -234,16 +234,6 @@
 (defn- engine-install-path ^File [^File project-directory engine-descriptor]
   (let [unpack-dir (io/file project-directory "build" (:extender-platform engine-descriptor))]
     (io/file unpack-dir (dmengine-filename (current-platform)))))
-
-(defn copy-engine-executable! ^File [^File target-dmengine platform {:keys [^File dmengine ^File engine-archive] :as engine-descriptor}]
-  (assert (or dmengine engine-archive))
-  (cond
-    (some? dmengine)
-    (fs/copy-file! dmengine target-dmengine)
-
-    (some? engine-archive)
-    (unpack-dmengine! engine-archive (dmengine-filename platform) target-dmengine))
-  target-dmengine)
 
 (defn install-engine! ^File [^File project-directory {:keys [^File dmengine ^File engine-archive extender-platform] :as engine-descriptor}]
   (assert (or dmengine engine-archive))

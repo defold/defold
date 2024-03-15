@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,20 +17,13 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 
 import javax.xml.stream.XMLStreamException;
 
 import org.apache.commons.io.FilenameUtils;
 
-import java.util.Objects;
-
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
-import java.nio.channels.FileChannel;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
@@ -187,11 +180,9 @@ public class MeshsetBuilder extends Builder<Void>  {
 
         // Animationset
         {
-            ArrayList<ModelImporter.Bone> skeleton = ModelUtil.loadSkeleton(scene);
-
             AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
-            if (skeleton.size() > 0) {
-                ModelUtil.loadAnimations(scene, skeleton, animationSetBuilder, FilenameUtils.getBaseName(task.input(0).getPath()), new ArrayList<String>());
+            if (ModelUtil.getNumAnimations(scene) > 0) {
+                ModelUtil.loadAnimations(scene, animationSetBuilder, "", new ArrayList<String>());
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);

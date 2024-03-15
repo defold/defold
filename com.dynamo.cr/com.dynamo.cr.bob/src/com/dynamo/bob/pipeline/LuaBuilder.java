@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,13 +24,9 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Set;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.net.URLClassLoader;
-import java.net.URL;
-import java.lang.Math;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
@@ -54,7 +50,6 @@ import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
-import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
@@ -503,15 +498,15 @@ public abstract class LuaBuilder extends Builder<Void> {
             if ( needs32bit ^ needs64bit ) { // if only one of them is set
                 if (needs64bit) {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
-                    logger.info("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.fine("Writing 64-bit bytecode without delta for %s", task.input(0).getPath());
                 }
                 else {
                     srcBuilder.setBytecode(ByteString.copyFrom(bytecode32));
-                    logger.info("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
+                    logger.fine("Writing 32-bit bytecode without delta for %s", task.input(0).getPath());
                 }
             }
             else if (!useLuaBytecodeDelta) {
-                logger.info("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
+                logger.fine("Writing 32 and 64-bit bytecode for %s", task.input(0).getPath());
                 srcBuilder.setBytecode32(ByteString.copyFrom(bytecode32));
                 srcBuilder.setBytecode64(ByteString.copyFrom(bytecode64));
             }
@@ -519,7 +514,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                 byte[] delta = constructBytecodeDelta(bytecode32, bytecode64);
                 srcBuilder.setDelta(ByteString.copyFrom(delta));
 
-                logger.info("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
+                logger.fine("Writing 64-bit bytecode with 32-bit delta for %s", task.input(0).getPath());
                 srcBuilder.setBytecode(ByteString.copyFrom(bytecode64));
             }
         }
@@ -550,7 +545,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                     case PROPERTY_TYPE_HASH:
                         String value = (String)property.value;
                         if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
-                            value = PropertiesUtil.transformResourcePropertyValue(value);
+                            value = PropertiesUtil.transformResourcePropertyValue(resource, value);
                             propertyResources.add(value);
                         }
                         entryBuilder.setIndex(builder.getHashValuesCount());

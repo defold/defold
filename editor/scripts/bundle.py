@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,21 +20,23 @@ import os.path as path
 import stat
 import sys
 import optparse
+import platform
 import re
 import shutil
 import subprocess
 import zipfile
+import tarfile
 import configparser
 import datetime
-import imp
 import fnmatch
 import urllib
 import urllib.parse
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
+
 # TODO: collect common functions in a more suitable reusable module
 try:
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
     sys.dont_write_bytecode = True
     import build_private
 except Exception as e:
@@ -47,6 +49,7 @@ finally:
 
 # defold/build_tools
 import run
+import http_cache
 
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
@@ -60,11 +63,13 @@ java_version = '17.0.5+8'
 
 platform_to_java = {'x86_64-linux': 'linux-x64',
                     'x86_64-macos': 'macos-x64',
+                    'arm64-macos': 'macos-arm64',
                     'x86_64-win32': 'windows-x64'}
 
-python_platform_to_java = {'linux': 'linux-x64',
-                           'win32': 'windows-x64',
-                           'darwin': 'macos-x64'}
+python_platform_to_java = {'x86_64-linux': 'linux-x64',
+                           'x86_64-win32': 'windows-x64',
+                           'x86_64-darwin': 'macos-x64',
+                           'arm64-darwin': 'macos-arm64'}
 
 def log(msg):
     print(msg)
@@ -99,13 +104,8 @@ def extract(file, path, is_mac):
     else:
         assert False, "Don't know how to extract " + file
 
-modules = {}
-
 def download(url):
-    if not modules.__contains__('http_cache'):
-        modules['http_cache'] = imp.load_source('http_cache', os.path.join('..', 'build_tools', 'http_cache.py'))
-    log('Downloading %s' % (url))
-    path = modules['http_cache'].download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+    path = http_cache.download(url, lambda count, total: log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
     if not path:
         log('Downloading %s failed' % (url))
     return path
@@ -124,6 +124,22 @@ def ziptree(path, outfile, directory = None):
 
     zip.close()
     return outfile
+
+def gz_tree(path, outfile, directory=None):
+    # compress files and folders in path to outfile using tar:gz compression
+
+    archive = tarfile.open(outfile, 'w:gz')
+    for root, dirs, files in os.walk(path):
+        for f in files:
+            p = os.path.join(root, f)
+            an = p
+            if directory:
+                an = os.path.relpath(p, directory)
+            archive.add(p, an)
+
+    archive.close()
+    return outfile
+
 
 def _get_tag_name(version, channel): # from build.py
     if channel and channel != 'stable' and not channel.startswith('editor-'):
@@ -177,9 +193,34 @@ def mac_certificate(codesigning_identity):
     else:
         return None
 
-def sign_files(platform, options, dir):
+def sign_file(platform, options, file):
     if options.skip_codesign:
         return
+    if 'win32' in platform:
+        run.command([
+            'gcloud',
+            'auth',
+            'activate-service-account',
+            '--key-file', options.gcloud_keyfile], silent = True)
+
+        storepass = run.command([
+            'gcloud',
+            'auth',
+            'print-access-token'], silent = True)
+
+        jsign = os.path.join(os.environ['DYNAMO_HOME'], 'ext','share','java','jsign-4.2.jar')
+        keystore = "projects/%s/locations/%s/keyRings/%s" % (options.gcloud_projectid, options.gcloud_location, options.gcloud_keyringname)
+        run.command([
+            'java', '-jar', jsign,
+            '--storetype', 'GOOGLECLOUD',
+            '--storepass', storepass,
+            '--keystore', keystore,
+            '--alias', options.gcloud_keyname,
+            '--certfile', options.gcloud_certfile,
+            '--tsmode', 'RFC3161',
+            '--tsaurl', 'http://timestamp.globalsign.com/tsa/r6advanced1',
+            file], silent = True)
+
     if 'macos' in platform:
         codesigning_identity = options.codesigning_identity
         certificate = mac_certificate(codesigning_identity)
@@ -194,7 +235,7 @@ def sign_files(platform, options, dir):
             '--options', 'runtime',
             '--entitlements', './scripts/entitlements.plist',
             '-s', certificate,
-            dir])
+            file])
 
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:
@@ -217,7 +258,7 @@ def full_jdk_url(jdk_platform):
     return '%s/OpenJDK17U-jdk_%s_hotspot_%s.%s' % (CDN_PACKAGES_URL, platform, version, extension)
 
 def full_build_jdk_url():
-    return full_jdk_url(python_platform_to_java[sys.platform])
+    return full_jdk_url(python_platform_to_java["%s-%s" % (platform.machine(), sys.platform)])
 
 def download_build_jdk():
     print('Downloading build jdk')
@@ -281,7 +322,7 @@ def build(options):
     else:
         run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'test'])
 
-    run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
+    run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'prerelease'])
 
 
 def get_exe_suffix(platform):
@@ -295,6 +336,7 @@ def remove_platform_files_from_archive(platform, jar):
 
     # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
+    _unpack_platform = "_unpack/" + platform
     for file in files:
         if file.startswith("libexec"):
             # don't remove any folders
@@ -311,11 +353,28 @@ def remove_platform_files_from_archive(platform, jar):
                 continue
             # anything else should be removed
             files_to_remove.append(file)
+        # keep files needed only for this particular platform (+ shared files in '_defold' and 'shared')
+        if file.startswith("_unpack"):
+            # don't touch '_unpack/'
+            if file == "_unpack/":
+                continue
+            # don't touch anything for the current platform
+            if file.startswith(_unpack_platform):
+                continue
+            # keep shared files
+            if file.startswith("_unpack/shared"):
+                continue
+            # keep _defold folder
+            if file.startswith("_unpack/_defold"):
+                continue
+            # anything else should be removed
+            files_to_remove.append(file)
+
 
     # find libs to remove in the root folder
     for file in files:
         if "/" not in file:
-            if platform == "x86_64-macos" and (file.endswith(".so") or file.endswith(".dll")):
+            if (platform == "x86_64-macos" or platform == "arm64-macos") and (file.endswith(".so") or file.endswith(".dll")):
                 files_to_remove.append(file)
             elif platform == "x86_64-win32" and (file.endswith(".so") or file.endswith(".dylib")):
                 files_to_remove.append(file)
@@ -337,12 +396,15 @@ def remove_platform_files_from_archive(platform, jar):
 
 
 def create_bundle(options):
-    jar_file = 'target/defold-editor-2.0.0-SNAPSHOT-standalone.jar'
     build_jdk = download_build_jdk()
     extracted_build_jdk = extract_build_jdk(build_jdk)
+    java_cmd_env = 'JAVA_CMD=%s/bin/java' % extracted_build_jdk
 
     mkdirs('target/editor')
     for platform in options.target_platform:
+        print("Creating uberjar for platform %s" % platform)
+        run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', 'release,%s' % platform, 'uberjar'])
+        jar_file = 'target/editor-%s-standalone.jar' % platform
         print("Creating bundle for platform %s" % platform)
         rmtree('tmp')
 
@@ -369,7 +431,7 @@ def create_bundle(options):
             packages_dir = os.path.join(tmp_dir, 'Defold/packages')
             bundle_dir = os.path.join(tmp_dir, 'Defold')
             exe_dir = os.path.join(tmp_dir, 'Defold')
-            icon = None
+            icon = 'logo_blue.png'
 
         mkdirs(tmp_dir)
         mkdirs(bundle_dir)
@@ -434,6 +496,16 @@ def create_bundle(options):
         print("Creating '%s' bundle from '%s'" % (zipfile, bundle_dir))
         ziptree(bundle_dir, zipfile, tmp_dir)
 
+        # create additional tar.gz bundle in case of Linux
+        is_linux = 'linux' in platform
+        if is_linux:
+            gz_file = 'target/editor/Defold-%s.tar.gz' % platform
+            if os.path.exists(gz_file):
+                os.remove(gz_file)
+
+            print("Creating '%s' bundle from '%s'" % (gz_file, bundle_dir))
+            gz_tree(bundle_dir, gz_file, tmp_dir)
+
 
 def sign(options):
     for platform in options.target_platform:
@@ -441,7 +513,7 @@ def sign(options):
         if 'win32' in platform:
             bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-win32.zip")
         elif 'macos' in platform:
-            bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-macos.zip")
+            bundle_file = os.path.join(options.bundle_dir, "Defold-%s.zip" % platform)
         else:
             print("No signing support for platform %s" % platform)
             continue
@@ -466,13 +538,13 @@ def sign(options):
             jdk_dir = "jdk-%s" % (java_version)
             jdk_path = os.path.join(sign_dir, "Defold.app", "Contents", "Resources", "packages", jdk_dir)
             for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
-                sign_files('macos', options, exe)
+                sign_file('macos', options, exe)
             for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
-                sign_files('macos', options, lib)
-            sign_files('macos', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
-            sign_files('macos', options, os.path.join(sign_dir, "Defold.app"))
+                sign_file('macos', options, lib)
+            sign_file('macos', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
+            sign_file('macos', options, os.path.join(sign_dir, "Defold.app"))
         elif 'win32' in platform:
-            sign_files('win32', options, os.path.join(sign_dir, "Defold", "Defold.exe"))
+            sign_file('win32', options, os.path.join(sign_dir, "Defold", "Defold.exe"))
 
         # create editor bundle with signed files
         os.remove(bundle_file)
@@ -490,11 +562,11 @@ def find_files(root_dir, file_pattern):
                 matches.append(fullname)
     return matches
 
-def create_dmg(options):
+def create_dmg(options, platform):
     print("Creating .dmg from file in '%s'" % options.bundle_dir)
 
     # check that we have an editor bundle to create a dmg from
-    bundle_file = os.path.join(options.bundle_dir, "Defold-x86_64-macos.zip")
+    bundle_file = os.path.join(options.bundle_dir, "Defold-%s.zip" % platform)
     if not os.path.exists(bundle_file):
         print('Editor bundle %s does not exist' % bundle_file)
         run.command(['ls', '-la', options.bundle_dir])
@@ -514,7 +586,7 @@ def create_dmg(options):
     run.command(['ln', '-sf', '/Applications', '%s/Applications' % dmg_dir])
 
     # create dmg
-    dmg_file = os.path.join(options.bundle_dir, "Defold-x86_64-macos.dmg")
+    dmg_file = os.path.join(options.bundle_dir, "Defold-%s.dmg" % platform)
     if os.path.exists(dmg_file):
         os.remove(dmg_file)
     run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
@@ -532,9 +604,9 @@ def create_dmg(options):
 def create_installer(options):
     print("Creating installers")
     for platform in options.target_platform:
-        if platform == "x86_64-macos":
+        if platform == "x86_64-macos" or platform == "arm64-macos":
             print("Creating installer for platform %s" % platform)
-            create_dmg(options)
+            create_dmg(options, platform)
         else:
             print("Ignoring platform %s" % platform)
 
@@ -553,7 +625,7 @@ Commands:
     parser.add_option('--platform', dest='target_platform',
                       default = None,
                       action = 'append',
-                      choices = ['x86_64-linux', 'x86_64-macos', 'x86_64-win32'],
+                      choices = ['x86_64-linux', 'arm64-macos', 'x86_64-macos', 'x86_64-win32'],
                       help = 'Target platform to create editor bundle for. Specify multiple times for multiple platforms')
 
     parser.add_option('--version', dest='version',
@@ -591,13 +663,29 @@ Commands:
                       default = 'Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
                       help = 'Codesigning identity for macOS')
 
-    parser.add_option('--windows-cert', dest='windows_cert',
+    parser.add_option('--gcloud-projectid', dest='gcloud_projectid',
                       default = None,
-                      help = 'Path to Windows certificate (pfx)')
+                      help = 'Google Cloud project id where key ring is stored')
 
-    parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
+    parser.add_option('--gcloud-location', dest='gcloud_location',
                       default = None,
-                      help = 'Windows certificate password')
+                      help = 'Google cloud region where key ring is located')
+
+    parser.add_option('--gcloud-keyringname', dest='gcloud_keyringname',
+                      default = None,
+                      help = 'Google Cloud key ring name')
+
+    parser.add_option('--gcloud-keyname', dest='gcloud_keyname',
+                      default = None,
+                      help = 'Google Cloud key name')
+
+    parser.add_option('--gcloud-certfile', dest='gcloud_certfile',
+                      default = None,
+                      help = 'Google Cloud certificate chain file')
+
+    parser.add_option('--gcloud-keyfile', dest='gcloud_keyfile',
+                      default = None,
+                      help = 'Google Cloud service account key file')
 
     parser.add_option('--bundle-dir', dest='bundle_dir',
                       default = "target/editor",

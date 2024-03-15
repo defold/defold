@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,13 +31,10 @@ import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -47,8 +44,10 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.security.auth.DestroyFailedException;
 
-import com.dynamo.bob.pipeline.ResourceNode;
+import com.dynamo.bob.pipeline.graph.ResourceNode;
+import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.HashDigest;
@@ -284,15 +283,12 @@ public class ManifestBuilder {
     private String privateKeyFilepath = null;
     private String publicKeyFilepath = null;
     private String projectIdentifier = null;
-    private ResourceNode root = null;
+    private ResourceGraph resourceGraph = null;
     private boolean outputManifestHash = false;
     private byte[] manifestDataHash = null;
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
-    private Set<String> excludedResources = new HashSet<>();
-    private HashMap<String, ResourceNode> pathToNode = new HashMap<>();
-    private HashMap<String, List<String>> pathToDependants = new HashMap<>();
+    private HashMap<ResourceNode, HashSet<ResourceNode>> pathToDependants = new HashMap<>();
     private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
-    private HashMap<String, List<ResourceNode>> pathToOccurrances = null; // We build it at first request
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
         // We need to make sure the entries are sorted properly in order to do the binary search
@@ -353,12 +349,12 @@ public class ManifestBuilder {
         return this.signatureSignAlgorithm;
     }
 
-    public void setRoot(ResourceNode root) {
-        this.root = root;
+    public void setResourceGraph(ResourceGraph resourceGraph) {
+        this.resourceGraph = resourceGraph;
     }
 
-    public ResourceNode getRoot() {
-        return this.root;
+    public ResourceGraph getResourceGraph() {
+        return this.resourceGraph;
     }
 
     public void setPrivateKeyFilepath(String filepath) {
@@ -418,58 +414,7 @@ public class ManifestBuilder {
         }
     }
 
-    private void buildResourceOccurrancesMap(ResourceNode node) {
-        // The resource may occur at many instances in the tree
-        // This map contains the mapping url -> occurrances (i.e. nodes)
-
-        String key = node.relativeFilepath;
-        if (!pathToOccurrances.containsKey(key)) {
-            pathToOccurrances.put(key, new ArrayList<ResourceNode>());
-        }
-
-        List<ResourceNode> list = pathToOccurrances.get(key);
-        list.add(node);
-
-        for (ResourceNode child : node.getChildren()) {
-            buildResourceOccurrancesMap(child);
-        }
-    }
-
-    // Calculate all parent collection paths (to the root) for a resource
-    // Resource could occur multiple times in the tree (referenced from several collections) or several times within the same collection
-    public List<ArrayList<String>> getParentCollections(String filepath) {
-        if (pathToOccurrances == null) {
-            pathToOccurrances = new HashMap<>();
-
-            ResourceNode root = getRoot();
-            if (root != null) // for tests really
-                buildResourceOccurrancesMap(root);
-        }
-
-        List<ArrayList<String>> result = new ArrayList<ArrayList<String>>();
-
-        List<ResourceNode> candidates = pathToOccurrances.get(filepath);
-        if (candidates == null)
-            return result;
-
-        int i = 0;
-        while (!candidates.isEmpty()) {
-            ResourceNode current = candidates.remove(0).getParent();
-            result.add(new ArrayList<String>());
-            while (current != null) {
-                if (current.relativeFilepath.endsWith("collectionproxyc") ||
-                    current.relativeFilepath.endsWith("collectionc")) {
-                    result.get(i).add(current.relativeFilepath);
-                }
-
-                current = current.getParent();
-            }
-            ++i;
-        }
-        return result;
-    }
-
-    public List<String> getDependants(String filepath) throws IOException {
+    public HashSet<ResourceNode> getAllDependants(ResourceNode node) throws IOException {
         /* Once a candidate has been found the children, the children, and so
            on are added to the list of dependants. If a CollectionProxy is
            found that resource itself is added to the list of dependants, but
@@ -482,27 +427,26 @@ public class ManifestBuilder {
            LiveUpdate) before that CollectionProxy can be loaded.
         */
 
-        ResourceNode candidate = pathToNode.get(filepath);
+        if (node == null) {
+            return new HashSet<ResourceNode>();
+        }
 
-        if (candidate == null)
-            return new ArrayList<String>();
-
-        List<String> dependants = pathToDependants.get(filepath);
+        HashSet<ResourceNode> dependants = pathToDependants.get(node);
         if (dependants != null) {
             return dependants;
         }
 
-        dependants = new ArrayList<String>();
+        dependants = new HashSet<ResourceNode>();
 
-        for (ResourceNode child : candidate.getChildren()) {
-            dependants.add(child.relativeFilepath);
+        for (ResourceNode child : node.getChildren()) {
+            dependants.add(child);
 
-            if (!child.relativeFilepath.endsWith("collectionproxyc")) {
-                dependants.addAll(getDependants(child.relativeFilepath));
+            if (!child.checkType(ResourceNode.Type.CollectionProxy)) {
+                dependants.addAll(getAllDependants(child));
             }
         }
 
-        pathToDependants.put(filepath, dependants);
+        pathToDependants.put(node, dependants);
 
         return dependants;
     }
@@ -523,13 +467,6 @@ public class ManifestBuilder {
         return builder.build();
     }
 
-    private void buildPathToNodeMap(ResourceNode node) {
-        pathToNode.put(node.relativeFilepath, node);
-        for (ResourceNode child : node.getChildren()) {
-            buildPathToNodeMap(child);
-        }
-    }
-
     private void buildUrlToResourceMap(Set<ResourceEntry> entries) throws IOException {
         for (ResourceEntry entry : entries) {
             if (entry.hasHash()) {
@@ -541,11 +478,8 @@ public class ManifestBuilder {
         }
     }
 
-    public void setExcludedResources(List<String> excludedResources) {
-        this.excludedResources.addAll(excludedResources);
-    }
-
     public ManifestData buildManifestData() throws IOException {
+        TimeProfiler.start("buildManifestData");
         logger.info("buildManifestData begin");
         long tstart = System.currentTimeMillis();
 
@@ -554,7 +488,6 @@ public class ManifestBuilder {
         ManifestHeader manifestHeader = this.buildManifestHeader();
         builder.setHeader(manifestHeader);
 
-        buildPathToNodeMap(getRoot());
         buildUrlToResourceMap(this.resourceEntries);
 
         builder.addAllEngineVersions(this.supportedEngineVersions);
@@ -571,20 +504,20 @@ public class ManifestBuilder {
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
             // Since we'll only ever ask collection proxies, we only store those lists
-            if (url.endsWith("collectionproxyc"))
-            {
-                // We'll only store the dependencies for the excluded collection proxies
-                if (excludedResources.contains(url)) {
-                    List<String> dependants = this.getDependants(url);
-
-                    for (String dependant : dependants) {
-                        ResourceEntry resource = urlToResource.get(dependant);
-                        if (resource == null) {
-                            continue;
-                        }
-
-                        resourceEntryBuilder.addDependants(resource.getUrlHash());
+            ResourceNode proxyNode = resourceGraph.getResourceNodeFromPath(url);
+            // We'll only store the dependencies for the excluded collection proxies
+            if (proxyNode != null && proxyNode.checkType(ResourceNode.Type.ExcludedCollectionProxy)) {
+                HashSet<ResourceNode> allProxyDependants = this.getAllDependants(proxyNode);
+                for (ResourceNode dependant : allProxyDependants) {
+                    // Exclude resources referenced from the main bundle
+                    if (dependant.isInMainBundle()) {
+                        continue;
                     }
+                    ResourceEntry resource = urlToResource.get(dependant.getPath());
+                    if (resource == null) {
+                        continue;
+                    }
+                    resourceEntryBuilder.addDependants(resource.getUrlHash());
                 }
             }
 
@@ -593,11 +526,12 @@ public class ManifestBuilder {
 
         long tend = System.currentTimeMillis();
         logger.info("ManifestBuilder.buildManifestData took %f", (tend-tstart)/1000.0);
-
+        TimeProfiler.stop();
         return builder.build();
     }
 
     public ManifestFile buildManifestFile() throws IOException {
+        TimeProfiler.start("buildManifestFile");
         ManifestFile.Builder builder = ManifestFile.newBuilder();
 
         ManifestData manifestData = this.buildManifestData();
@@ -619,6 +553,7 @@ public class ManifestBuilder {
         } catch (IllegalBlockSizeException | BadPaddingException | NoSuchPaddingException exception) {
             throw new IOException("Unable to create ManifestFile, cryptographic error!");
         } finally {
+            TimeProfiler.stop();
             if (privateKey != null && !privateKey.isDestroyed()) {
                 try {
                     privateKey.destroy();
@@ -630,7 +565,6 @@ public class ManifestBuilder {
                 }
             }
         }
-
         return builder.build();
     }
 

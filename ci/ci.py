@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,7 @@ from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_platform_private, is_repo_private
 
 # The platforms we deploy our editor on
-PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos')
+PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
 
 def call(args, failonerror = True):
     print(args)
@@ -66,6 +66,14 @@ def mingwget(package):
     call("mingw-get install " + package)
 
 
+def string_to_file(str, destfile):
+    with open(destfile, "wb") as f:
+        f.write(str.encode())
+
+def b64decode_to_file(str, destfile):
+    with open(destfile, "wb") as f:
+        f.write(base64.decodebytes(str.encode()))
+
 def setup_keychain(args):
     print("Setting up keychain")
     keychain_pass = "foobar"
@@ -88,8 +96,8 @@ def setup_keychain(args):
     print("Decoding certificate")
     cert_path = os.path.join("ci", "cert.p12")
     cert_pass = args.keychain_cert_pass
-    with open(cert_path, "wb") as file:
-        file.write(base64.decodebytes(args.keychain_cert.encode()))
+    b64decode_to_file(args.keychain_cert, cert_path)
+
     print("Importing certificate")
     # -A = allow access to the keychain without warning (https://stackoverflow.com/a/19550453)
     call("security import {} -k {} -P {} -A".format(cert_path, keychain_name, cert_pass))
@@ -108,25 +116,13 @@ def setup_keychain(args):
 def get_github_token():
     return os.environ.get('SERVICES_GITHUB_TOKEN', None)
 
-def setup_windows_cert(args):
-    print("Setting up certificate")
-    cert_path = os.path.abspath(os.path.join("ci", "windows_cert.pfx"))
-    with open(cert_path, "wb") as file:
-        file.write(base64.decodebytes(args.windows_cert_b64.encode()))
-    print("Wrote cert to", cert_path)
-    cert_pass_path = os.path.abspath(os.path.join("ci", "windows_cert.pass"))
-    with open(cert_pass_path, "wb") as file:
-        file.write(args.windows_cert_pass.encode())
-    print("Wrote cert password to", cert_pass_path)
-
 def setup_steam_config(args):
     print("Setting up Steam config")
     system = platform.system()
     steam_config_path = "~/.local/share/Steam/config"
     os.makedirs(steam_config_path)
     steam_config_file = os.path.abspath(os.path.join(steam_config_path, "config.vdf"))
-    with open(steam_config_file, "wb") as file:
-        file.write(base64.decodebytes(args.steam_config_b64.encode()))
+    b64decode_to_file(args.steam_config_b64, steam_config_file)
     print("Wrote config to", steam_config_file)
 
 def install(args):
@@ -134,14 +130,14 @@ def install(args):
     system = platform.system()
     print("Installing dependencies for system '%s' " % (system))
     if system == "Linux":
-        # we use apt-fast to speed up apt-get downloads
-        # https://github.com/ilikenwf/apt-fast
-        call("sudo add-apt-repository ppa:apt-fast/stable")
+        # # we use apt-fast to speed up apt-get downloads
+        # # https://github.com/ilikenwf/apt-fast
+        # call("sudo add-apt-repository ppa:apt-fast/stable")
         call("sudo apt-get update", failonerror=False)
-        call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
-        call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
-        call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
-        call("sudo apt-get install -y apt-fast aria2")
+        # call("echo debconf apt-fast/maxdownloads string 16 | sudo debconf-set-selections")
+        # call("echo debconf apt-fast/dlflag boolean true | sudo debconf-set-selections")
+        # call("echo debconf apt-fast/aptmanager string apt-get | sudo debconf-set-selections")
+        # call("sudo apt-get install -y apt-fast aria2")
 
         call("sudo apt-get install -y software-properties-common")
 
@@ -152,25 +148,25 @@ def install(args):
         call("sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 120 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-12")
 
         packages = [
-            "libssl-dev",
-            "openssl",
-            "libtool",
             "autoconf",
             "automake",
             "build-essential",
-            "uuid-dev",
+            "freeglut3-dev",
+            "libssl-dev",
+            "libtool",
             "libxi-dev",
             "libopenal-dev",
             "libgl1-mesa-dev",
             "libglw1-mesa-dev",
-            "freeglut3-dev",
+            "lib32z1",
+            "openssl",
             "tofrodos",
             "tree",
             "valgrind",
-            "lib32z1",
+            "uuid-dev",
             "xvfb"
         ]
-        aptfast(" ".join(packages))
+        aptget(" ".join(packages))
 
         if args.steam_config_b64:
             # for steamcmd
@@ -186,15 +182,12 @@ def install(args):
                 "lib32gcc1",
                 "hfsprogs"   # for mounting DMG files
             ]
-            aptfast(" ".join(packages))
+            aptget(" ".join(packages))
             setup_steam_config(args)
 
     elif system == "Darwin":
         if args.keychain_cert:
             setup_keychain(args)
-    elif system == "Windows":
-        if args.windows_cert_b64:
-            setup_windows_cert(args)
 
 
 def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_tsan = False,
@@ -245,6 +238,9 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
     if with_vanilla_lua:
         waf_opts.append('--use-vanilla-lua')
 
+    if platform == 'x86_64-linux':
+        args.append('build_sdk_headers') # gather headers after a successful build
+
     cmd = ' '.join(args + opts)
 
     # Add arguments to waf after a double-dash
@@ -293,29 +289,38 @@ def download_editor2(channel, platform = None):
         call('python scripts/build.py %s install_ext download_editor2 --platform=%s %s' % (install_sdk, platform, ' '.join(opts)))
 
 
-def sign_editor2(platform, windows_cert = None, windows_cert_pass = None):
+def sign_editor2(platform, gcloud_keyfile = None, gcloud_certfile = None):
     args = 'python scripts/build.py sign_editor2'.split()
     opts = []
 
     opts.append('--platform=%s' % platform)
 
-    if windows_cert:
-        windows_cert = os.path.abspath(windows_cert)
-        if not os.path.exists(windows_cert):
-            print("Certificate file not found:", windows_cert)
-            sys.exit(1)
-        print("Using cert", windows_cert)
-        opts.append('--windows-cert=%s' % windows_cert)
+    # windows EV Code Signing with key in Google Cloud KMS
+    if gcloud_keyfile and gcloud_certfile:
+        opts.append("--gcloud-location=europe-west3")
+        opts.append("--gcloud-keyname=ev-windows-key")
+        opts.append("--gcloud-keyringname=ev-key-ring")
+        opts.append("--gcloud-projectid=defold-editor")
 
-    if windows_cert_pass:
-        windows_cert_pass = os.path.abspath(windows_cert_pass)
-        opts.append("--windows-cert-pass=%s" % windows_cert_pass)
+        gcloud_keyfile = os.path.abspath(gcloud_keyfile)
+        if not os.path.exists(gcloud_keyfile):
+            print("Google Cloud key file not found:", gcloud_keyfile)
+            sys.exit(1)
+        print("Using Google Cloud key file", gcloud_keyfile)
+        opts.append('--gcloud-keyfile=%s' % gcloud_keyfile)
+
+        gcloud_certfile = os.path.abspath(gcloud_certfile)
+        if not os.path.exists(gcloud_certfile):
+            print("Google Cloud certificate not found:", gcloud_certfile)
+            sys.exit(1)
+        print("Using Google Cloud certificate ", gcloud_certfile)
+        opts.append('--gcloud-certfile=%s' % gcloud_certfile)
 
     cmd = ' '.join(args + opts)
     call(cmd)
 
 
-def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None):
+def notarize_editor2(notarization_username = None, notarization_password = None, notarization_itc_provider = None, platform = None):
     if not notarization_username or not notarization_password:
         print("No notarization username or password")
         exit(1)
@@ -324,7 +329,7 @@ def notarize_editor2(notarization_username = None, notarization_password = None,
     args = 'python scripts/build.py notarize_editor2'.split()
     opts = []
 
-    opts.append('--platform=x86_64-macos')
+    opts.append('--platform=%s' % platform)
 
     opts.append('--notarization-username="%s"' % notarization_username)
     opts.append('--notarization-password="%s"' % notarization_password)
@@ -364,7 +369,7 @@ def install_ext(platform = None):
     call("python scripts/build.py install_ext %s" % ' '.join(opts))
 
 def build_bob(channel, branch = None):
-    args = "python scripts/build.py install_ext sync_archive build_bob archive_bob".split()
+    args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
     opts = []
     opts.append("--channel=%s" % channel)
 
@@ -447,9 +452,7 @@ def main(argv):
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
-    parser.add_argument("--windows-cert-b64", dest="windows_cert_b64", help="String containing Windows certificate (pfx) encoded as base 64")
-    parser.add_argument("--windows-cert", dest="windows_cert", help="File containing Windows certificate (pfx)")
-    parser.add_argument("--windows-cert-pass", dest="windows_cert_pass", help="File containing password for the Windows certificate")
+    parser.add_argument("--gcloud-service-key", dest="gcloud_service_key", help="String containing Google Cloud service account key")
     parser.add_argument('--notarization-username', dest='notarization_username', help="Username to use when sending the editor for notarization")
     parser.add_argument('--notarization-password', dest='notarization_password', help="Password to use when sending the editor for notarization")
     parser.add_argument('--notarization-itc-provider', dest='notarization_itc_provider', help="Optional iTunes Connect provider to use when sending the editor for notarization")
@@ -546,11 +549,18 @@ def main(argv):
             notarize_editor2(
                 notarization_username = args.notarization_username,
                 notarization_password = args.notarization_password,
-                notarization_itc_provider = args.notarization_itc_provider)
+                notarization_itc_provider = args.notarization_itc_provider,
+                platform = platform)
         elif command == "sign-editor":
             if not platform:
                 raise Exception("No --platform specified.")
-            sign_editor2(platform, windows_cert = args.windows_cert, windows_cert_pass = args.windows_cert_pass)
+            gcloud_certfile = None
+            gcloud_keyfile = None
+            if args.gcloud_service_key:
+                gcloud_certfile = os.path.join("ci", "gcloud_certfile.cer")
+                gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
+                b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
+            sign_editor2(platform, gcloud_keyfile = gcloud_keyfile, gcloud_certfile = gcloud_certfile)
         elif command == "archive-editor":
             archive_editor2(editor_channel, engine_artifacts = engine_artifacts, platform = platform)
         elif command == "bob":

@@ -42,7 +42,20 @@ def build(bld):
     python_path = os.environ.get('PYTHONPATH', '')
     os.environ['PYTHONPATH'] = os.path.abspath('build/src/script') + os.pathsep + python_path
     bld.recurse('src')
+
+    bld.install_files('${PREFIX}/lib/python', 'test_script_server.py')
+
     TestContext.initialize_test_context(test_context, bld)
+
+def _get_local_ip(self):
+    hostname = socket.gethostname()
+    try:
+        local_ip = socket.gethostbyname(hostname)
+    except socket.gaierror as e:
+        print(e)
+        print(f"Hostname was '{hostname}', now trying empty ('') string now")
+        local_ip = socket.gethostbyname("")
+    return local_ip
 
 def shutdown(self):
     if not TestContext.is_valid(test_context):
@@ -57,10 +70,9 @@ def shutdown(self):
     os.environ['DM_SAVEGAME_HOME'] = 'build'
     sys.path.append('.')
 
-    import server
+    import test_script_server
 
-    hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
+    local_ip = _get_local_ip(self)
 
     if test_context.env.PLATFORM in ('win32', 'x86_64-win32', 'x86_64-linux', 'x86_64-macos', 'arm64-macos'):
         local_ip = "localhost"
@@ -68,7 +80,7 @@ def shutdown(self):
     PORT=9001
     configfile = waf_dynamo.create_test_server_config(self, port=PORT, ip=local_ip)
 
-    serv = server.Server(port=PORT, ip=local_ip)
+    serv = test_script_server.Server(port=PORT, ip=local_ip)
     serv.start()
     try:
         waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfile)

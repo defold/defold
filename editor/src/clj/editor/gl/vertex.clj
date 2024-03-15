@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -326,21 +326,6 @@ the `do-gl` macro from `editor.gl`."
 (defn- not-allowed
   [_ _]
   (assert false "Vertex overlay buffers cannot be accessed by index."))
-
-(defn vertex-overlay
-  "Use a vertex layout together with an existing ByteBuffer. Returns a vertex buffer suitable
-   for the `use-with` function.
-
-   This will assume the ByteBuffer is an integer multiple of the vertex size."
-  [layout ^ByteBuffer buffer]
-  (assert layout)
-  (assert (= 0 (mod (.limit buffer) (:vertex-size layout))))
-  (let [^ByteBuffer buffer (.duplicate buffer)
-        limit         (.limit buffer)
-        count         (mod limit (:vertex-size layout))
-        buffer-starts (buffer-starts limit layout)
-        slices        (b/slice buffer (map min (repeat limit) buffer-starts))]
-    (->PersistentVertexBuffer layout count buffer slices (AtomicLong. count) not-allowed not-allowed)))
 
 (defn new-transient-vertex-buffer
   ([^PersistentVertexBuffer persistent-vertex-buffer]

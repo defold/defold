@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -398,7 +398,7 @@ TEST_P(DrawCountTest, DrawCount)
 
 DrawCountParams draw_count_params[] =
 {
-    {"/game.projectc", 2, 2},    // 1 draw call for sprite, 1 for debug physics
+    {"/game.projectc", 3, 3},    // 1 draw call for sprite, 2 for debug physics
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
 
@@ -465,7 +465,7 @@ int main(int argc, char **argv)
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     dmHashEnableReverseHash(true);
-    dmGraphics::Initialize();
+    dmGraphics::InstallAdapter();
 
     int ret = jc_test_run_all();
     dmProfile::Finalize();

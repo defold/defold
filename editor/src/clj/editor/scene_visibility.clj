@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -240,19 +240,18 @@
             (g/node-value scene-visibility :unselected-hideable-outline-name-paths evaluation-context))
   (run [scene-visibility] (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :unselected-hideable-outline-name-paths))))
 
-(handler/defhandler :hide-selected :workbench
+(handler/defhandler :hide-toggle-selected :workbench
   (active? [scene-visibility evaluation-context]
            (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (enabled? [scene-visibility evaluation-context]
-            (g/node-value scene-visibility :selected-hideable-outline-name-paths evaluation-context))
-  (run [scene-visibility] (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-hideable-outline-name-paths))))
-
-(handler/defhandler :show-selected :workbench
-  (active? [scene-visibility evaluation-context]
-           (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
-  (enabled? [scene-visibility evaluation-context]
-            (g/node-value scene-visibility :selected-showable-outline-name-paths evaluation-context))
-  (run [scene-visibility] (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-showable-outline-name-paths))))
+            (or (g/node-value scene-visibility :selected-hideable-outline-name-paths evaluation-context)
+                (g/node-value scene-visibility :selected-showable-outline-name-paths evaluation-context)))
+  (run [scene-visibility]
+       (g/with-auto-evaluation-context evaluation-context
+         (let [should-hide (g/node-value scene-visibility :selected-hideable-outline-name-paths evaluation-context)]
+           (if should-hide
+             (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-hideable-outline-name-paths))
+             (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-showable-outline-name-paths)))))))
 
 (handler/defhandler :show-last-hidden :workbench
   (active? [scene-visibility evaluation-context]

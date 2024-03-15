@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,18 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#else
-#include <alloca.h>
-#endif
-
 #include "resource.h"
 #include "resource_manifest.h"
 #include "resource_manifest_private.h"
 #include "resource_util.h"
 
+#include <dlib/dalloca.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/memory.h>
@@ -31,12 +25,6 @@
 #include <dlib/sys.h>
 #include <dlib/uri.h>
 #include <resource/liveupdate_ddf.h>
-
-#if defined(__linux__) && !defined(__ANDROID__)
-    #define DM_HASH_FMT "%016lx"
-#else
-    #define DM_HASH_FMT "%016llx"
-#endif
 
 namespace dmResource
 {
@@ -124,21 +112,28 @@ dmResource::Result LoadManifest(const char* path, dmResource::HManifest* out)
     uint32_t manifest_length = 0;
     uint8_t* manifest_buffer = 0x0;
 
+    char mount_path[1024];
+    if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(mount_path, sizeof(mount_path), path))
+    {
+        dmLogError("Could not resolve a mount path '%s'", path);
+        return dmResource::RESULT_RESOURCE_NOT_FOUND;
+    }
+
     uint32_t dummy_file_size = 0;
-    dmSys::ResourceSize(path, &manifest_length);
+    dmSys::ResourceSize(mount_path, &manifest_length);
     dmMemory::AlignedMalloc((void**)&manifest_buffer, 16, manifest_length);
     assert(manifest_buffer);
-    dmSys::Result sys_result = dmSys::LoadResource(path, manifest_buffer, manifest_length, &dummy_file_size);
+    dmSys::Result sys_result = dmSys::LoadResource(mount_path, manifest_buffer, manifest_length, &dummy_file_size);
 
     if (sys_result != dmSys::RESULT_OK)
     {
         if (sys_result == dmSys::RESULT_NOENT)
         {
-            dmLogError("LoadManifest: No such file %s (%i)", path, sys_result);
+            dmLogError("LoadManifest: No such file %s (%i)", mount_path, sys_result);
             return dmResource::RESULT_RESOURCE_NOT_FOUND;
         }
 
-        dmLogError("LoadManifest: Failed to read manifest %s (%i)", path, sys_result);
+        dmLogError("LoadManifest: Failed to read manifest %s (%i)", mount_path, sys_result);
         dmMemory::AlignedFree(manifest_buffer);
         return dmResource::RESULT_INVALID_DATA;
     }
@@ -239,9 +234,8 @@ static void BuildDigestToUrlMapping(dmResource::HManifest manifest, bool liveupd
 {
     uint32_t hash_length = GetEntryHashLength(manifest);
 
-    uint32_t hash_buffer_length = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA512);
-    char* hash_buffer = (char*)alloca(hash_buffer_length+1); // currently the longest hash
-    hash_buffer[hash_buffer_length] = 0;
+    char* hash_buffer = (char*)alloca(hash_length*2+1); // currently the longest hash
+    hash_buffer[hash_length*2] = 0;
 
     uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
     dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
@@ -259,7 +253,7 @@ static void BuildDigestToUrlMapping(dmResource::HManifest manifest, bool liveupd
             manifest->m_DigestToUrl.SetCapacity((capacity*2)/3, capacity);
         }
 
-        dmResource::BytesToHexString(entry->m_Hash.m_Data.m_Data, hash_length, hash_buffer, hash_buffer_length);
+        dmResource::BytesToHexString(entry->m_Hash.m_Data.m_Data, hash_length, hash_buffer, hash_length*2+1);
 
         dmhash_t digest_hash = dmHashBuffer64(hash_buffer, hash_length*2);
 
@@ -297,5 +291,4 @@ void DebugPrintManifest(dmResource::HManifest manifest)
 
 } // namespace
 
-#undef DM_HASH_FMT
 

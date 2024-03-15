@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -81,6 +81,10 @@
 (defn prop-anim-missing? [animation anim-ids]
   (when (and anim-ids (not-any? #(= animation %) anim-ids))
     (format "'%s' could not be found in the specified image" animation)))
+
+(defn prop-anim-missing-in? [animation anim-data in]
+  (when-not (contains? anim-data animation)
+    (format "'%s' could not be found in '%s'" animation in)))
 
 (defn prop-outside-range? [[min max] v name]
   (let [tmpl (if (integer? min)

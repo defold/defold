@@ -1,29 +1,30 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/math.h>
+#include <dlib/log.h>
 
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
 namespace dmGraphics
 {
-    void InitializeVulkanTexture(Texture* t)
+    void InitializeVulkanTexture(VulkanTexture* t)
     {
         t->m_Type                = TEXTURE_TYPE_2D;
         t->m_GraphicsFormat      = TEXTURE_FORMAT_RGBA;
-        t->m_DeviceBuffer        = VK_IMAGE_USAGE_SAMPLED_BIT;
+        t->m_DeviceBuffer        = 0;
         t->m_Format              = VK_FORMAT_UNDEFINED;
         t->m_Width               = 0;
         t->m_Height              = 0;
@@ -36,15 +37,17 @@ namespace dmGraphics
     }
 
     RenderTarget::RenderTarget(const uint32_t rtId)
-        : m_TextureDepthStencil(0)
-        , m_RenderPass(VK_NULL_HANDLE)
-        , m_Framebuffer(VK_NULL_HANDLE)
+        : m_SubPasses(0)
+        , m_TextureDepthStencil(0)
         , m_Id(rtId)
         , m_IsBound(0)
+        , m_SubPassCount(0)
+        , m_SubPassIndex(0)
     {
         m_Extent.width  = 0;
         m_Extent.height = 0;
         memset(m_TextureColor, 0, sizeof(m_TextureColor));
+        memset(&m_Handle, 0, sizeof(m_Handle));
     }
 
     Program::Program()
@@ -52,21 +55,113 @@ namespace dmGraphics
         memset(this, 0, sizeof(*this));
     }
 
-    static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs)
+    static inline VkFormat GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
+    {
+        if (type == TYPE_FLOAT)
+        {
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_SFLOAT;
+                case 2: return VK_FORMAT_R32G32_SFLOAT;
+                case 3: return VK_FORMAT_R32G32B32_SFLOAT;
+                case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_INT)
+        {
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_SINT;
+                case 2: return VK_FORMAT_R32G32_SINT;
+                case 3: return VK_FORMAT_R32G32B32_SINT;
+                case 4: return VK_FORMAT_R32G32B32A32_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_INT)
+        {
+            switch(size)
+            {
+                case 1: return VK_FORMAT_R32_UINT;
+                case 2: return VK_FORMAT_R32G32_UINT;
+                case 3: return VK_FORMAT_R32G32B32_UINT;
+                case 4: return VK_FORMAT_R32G32B32A32_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_BYTE)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R8_SNORM : VK_FORMAT_R8_SINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_SINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_BYTE)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R8_UNORM : VK_FORMAT_R8_UINT;
+                case 2: return normalized ? VK_FORMAT_R8G8_UNORM : VK_FORMAT_R8G8_UINT;
+                case 3: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
+                case 4: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_SHORT)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R16_SNORM : VK_FORMAT_R16_SINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_SINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_UNSIGNED_SHORT)
+        {
+            switch(size)
+            {
+                case 1: return normalized ? VK_FORMAT_R16_UNORM : VK_FORMAT_R16_UINT;
+                case 2: return normalized ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R16G16_UINT;
+                case 3: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
+                case 4: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
+                default:break;
+            }
+        }
+        else if (type == TYPE_FLOAT_MAT4)
+        {
+            return VK_FORMAT_R32_SFLOAT;
+        }
+        else if (type == TYPE_FLOAT_VEC4)
+        {
+            return VK_FORMAT_R32G32B32A32_SFLOAT;
+        }
+
+        assert(0 && "Unable to deduce type from dmGraphics::Type");
+        return VK_FORMAT_UNDEFINED;
+    }
+
+    static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs, uint32_t binding)
     {
         uint16_t num_attributes = 0;
         for (uint16_t i = 0; i < vertexDeclaration->m_StreamCount; ++i)
         {
-            if (vertexDeclaration->m_Streams[i].m_Location == 0xffff)
+            if (vertexDeclaration->m_Streams[i].m_Location == -1)
             {
                 continue;
             }
 
-            VertexDeclaration::Stream& stream_in           = vertexDeclaration->m_Streams[i];
-            vk_vertex_input_descs[num_attributes].binding  = 0;
-            vk_vertex_input_descs[num_attributes].location = stream_in.m_Location;
-            vk_vertex_input_descs[num_attributes].format   = stream_in.m_Format;
-            vk_vertex_input_descs[num_attributes].offset   = stream_in.m_Offset;
+            VertexDeclaration::Stream& stream              = vertexDeclaration->m_Streams[i];
+            vk_vertex_input_descs[num_attributes].binding  = binding;
+            vk_vertex_input_descs[num_attributes].location = stream.m_Location;
+            vk_vertex_input_descs[num_attributes].format   = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
+            vk_vertex_input_descs[num_attributes].offset   = stream.m_Offset;
 
             num_attributes++;
         }
@@ -74,45 +169,114 @@ namespace dmGraphics
         return num_attributes;
     }
 
-    VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out)
+    static VkResult AllocateDescriptorPool(DescriptorAllocator* allocator, VkDevice vk_device)
     {
-        assert(m_DescriptorMax >= (m_DescriptorIndex + setCount));
-        *vk_descriptor_set_out  = &m_Handle.m_DescriptorSets[m_DescriptorIndex];
-        m_DescriptorIndex      += setCount;
+        VkDescriptorPool pool_handle = VK_NULL_HANDLE;
+        VkResult res = CreateDescriptorPool(vk_device, allocator->m_DescriptorsPerPool, &pool_handle);
+
+        DescriptorPool new_pool    = {};
+        new_pool.m_DescriptorPool  = pool_handle;
+        new_pool.m_DescriptorCount = 0;
+
+        allocator->m_DescriptorPools.OffsetCapacity(1);
+        allocator->m_DescriptorPools.Push(new_pool);
+
+        return res;
+    }
+
+    static void AllocateDescriptorSets(DescriptorAllocator* allocator)
+    {
+        if (allocator->m_DescriptorSets == 0)
+        {
+            allocator->m_DescriptorSets = (VkDescriptorSet*) malloc(sizeof(VkDescriptorSet) * allocator->m_DescriptorSetMax);
+        }
+        else
+        {
+            allocator->m_DescriptorSets = (VkDescriptorSet*) realloc(allocator->m_DescriptorSets, sizeof(VkDescriptorSet) * allocator->m_DescriptorSetMax);
+        }
+    }
+
+    static VkResult Prepare(DescriptorAllocator* allocator, VkDevice vk_device, uint32_t num_descriptors, uint32_t num_sets)
+    {
+        VkResult res = VK_SUCCESS;
+
+        DescriptorPool& pool = allocator->m_DescriptorPools[allocator->m_DescriptorPoolIndex];
+
+        if ((allocator->m_DescriptorsPerPool - pool.m_DescriptorCount) < num_descriptors)
+        {
+            allocator->m_DescriptorPoolIndex++;
+            if (allocator->m_DescriptorPoolIndex >= allocator->m_DescriptorPools.Size())
+            {
+                res = AllocateDescriptorPool(allocator, vk_device);
+            }
+        }
+
+        if ((allocator->m_DescriptorSetMax - allocator->m_DescriptorSetIndex) < num_sets)
+        {
+            allocator->m_DescriptorSetMax += allocator->m_DescriptorsPerPool;
+            AllocateDescriptorSets(allocator);
+        }
+
+    #ifdef _DEBUG
+        if (allocator->m_DescriptorsPerPool * allocator->m_DescriptorPools.Size() > 16384)
+        {
+            dmLogOnceWarning("Vulkan: There are more than 16768 descriptors (%d) in flight, this might be a performance issue.", m_DescriptorPools.Size());
+        }
+    #endif
+        return res;
+    }
+
+    VkResult DescriptorAllocator::Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, uint32_t descriptor_count, VkDescriptorSet** vk_descriptor_set_out)
+    {
+        Prepare(this, vk_device, descriptor_count, setCount);
+
+        *vk_descriptor_set_out  = &m_DescriptorSets[m_DescriptorSetIndex];
+        m_DescriptorSetIndex   += setCount;
+
+        DescriptorPool& pool    = m_DescriptorPools[m_DescriptorPoolIndex];
+        pool.m_DescriptorCount += descriptor_count;
 
         VkDescriptorSetAllocateInfo vk_descriptor_set_alloc;
         vk_descriptor_set_alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        vk_descriptor_set_alloc.descriptorSetCount = DM_MAX_SET_COUNT;
+        vk_descriptor_set_alloc.descriptorSetCount = setCount;
         vk_descriptor_set_alloc.pSetLayouts        = vk_descriptor_set_layout;
-        vk_descriptor_set_alloc.descriptorPool     = m_Handle.m_DescriptorPool;
+        vk_descriptor_set_alloc.descriptorPool     = pool.m_DescriptorPool;
         vk_descriptor_set_alloc.pNext              = 0;
 
         return vkAllocateDescriptorSets(vk_device, &vk_descriptor_set_alloc, *vk_descriptor_set_out);
     }
 
-    void DescriptorAllocator::Release(VkDevice vk_device)
+    void DescriptorAllocator::Reset(VkDevice vk_device)
     {
-        if (m_DescriptorIndex > 0)
+        if (m_DescriptorSetIndex > 0)
         {
-            vkFreeDescriptorSets(vk_device, m_Handle.m_DescriptorPool, m_DescriptorIndex, m_Handle.m_DescriptorSets);
-            m_DescriptorIndex = 0;
+            for (int i = 0; i < m_DescriptorPools.Size(); ++i)
+            {
+                vkResetDescriptorPool(vk_device, m_DescriptorPools[i].m_DescriptorPool, 0);
+                m_DescriptorPools[i].m_DescriptorCount = 0;
+            }
+            m_DescriptorSetIndex  = 0;
+            m_DescriptorPoolIndex = 0;
         }
-    }
-
-    const VulkanResourceType DescriptorAllocator::GetType()
-    {
-        return RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR;
     }
 
     VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
     {
+        if (m_MappedDataPtr)
+        {
+            return VK_SUCCESS;
+        }
         return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_MemorySize, 0, &m_MappedDataPtr);
     }
 
     void DeviceBuffer::UnmapMemory(VkDevice vk_device)
     {
-        assert(m_MappedDataPtr);
+        if (m_MappedDataPtr == 0)
+        {
+            return;
+        }
         vkUnmapMemory(vk_device, m_Handle.m_Memory);
+        m_MappedDataPtr = 0;
     }
 
     const VulkanResourceType DeviceBuffer::GetType()
@@ -120,7 +284,7 @@ namespace dmGraphics
         return RESOURCE_TYPE_DEVICE_BUFFER;
     }
 
-    const VulkanResourceType Texture::GetType()
+    const VulkanResourceType VulkanTexture::GetType()
     {
         return RESOURCE_TYPE_TEXTURE;
     }
@@ -142,7 +306,7 @@ namespace dmGraphics
         return vk_device_count;
     }
 
-    void GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize)
+    void GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize, void* pNextFeatures)
     {
         assert(deviceListOut);
         PhysicalDevice* device_list = *deviceListOut;
@@ -156,8 +320,12 @@ namespace dmGraphics
             VkPhysicalDevice vk_device = vk_device_list[i];
             uint32_t vk_device_extension_count, vk_queue_family_count;
 
+            device_list[i].m_Features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+            device_list[i].m_Features2.pNext = pNextFeatures;
+
             vkGetPhysicalDeviceProperties(vk_device, &device_list[i].m_Properties);
             vkGetPhysicalDeviceFeatures(vk_device, &device_list[i].m_Features);
+            vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
             vkGetPhysicalDeviceMemoryProperties(vk_device, &device_list[i].m_MemoryProperties);
 
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, 0);
@@ -344,6 +512,14 @@ namespace dmGraphics
             vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         }
+        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_GENERAL)
+        {
+            vk_memory_barrier.srcAccessMask = 0;
+            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+
+            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        }
         else
         {
             assert(0);
@@ -397,16 +573,26 @@ namespace dmGraphics
         return res;
     }
 
-    VkResult CreateDescriptorPool(VkDevice vk_device, VkDescriptorPoolSize* vk_pool_sizes, uint8_t numPoolSizes, uint16_t maxDescriptors, VkDescriptorPool* vk_descriptor_pool_out)
+    VkResult CreateDescriptorPool(VkDevice vk_device, uint16_t max_descriptors, VkDescriptorPool* vk_descriptor_pool_out)
     {
         assert(vk_descriptor_pool_out && *vk_descriptor_pool_out == VK_NULL_HANDLE);
+
+        VkDescriptorPoolSize vk_pool_size[] = {
+            {VK_DESCRIPTOR_TYPE_SAMPLER,                max_descriptors},
+            {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,       max_descriptors},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, max_descriptors},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, max_descriptors},
+            {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          max_descriptors},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         max_descriptors},
+        };
+
         VkDescriptorPoolCreateInfo vk_pool_create_info;
         memset(&vk_pool_create_info, 0, sizeof(vk_pool_create_info));
 
         vk_pool_create_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        vk_pool_create_info.poolSizeCount = numPoolSizes;
-        vk_pool_create_info.pPoolSizes    = vk_pool_sizes;
-        vk_pool_create_info.maxSets       = maxDescriptors;
+        vk_pool_create_info.poolSizeCount = DM_ARRAY_SIZE(vk_pool_size);
+        vk_pool_create_info.pPoolSizes    = vk_pool_size;
+        vk_pool_create_info.maxSets       = max_descriptors;
         vk_pool_create_info.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
         return vkCreateDescriptorPool(vk_device, &vk_pool_create_info, 0, vk_descriptor_pool_out);
@@ -428,13 +614,12 @@ namespace dmGraphics
         return vkCreateFramebuffer(vk_device, &vk_framebuffer_create_info, 0, vk_framebuffer_out);
     }
 
-    VkResult DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer)
+    void DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer)
     {
         if (vk_framebuffer != VK_NULL_HANDLE)
         {
             vkDestroyFramebuffer(vk_device, vk_framebuffer, 0);
         }
-        return VK_SUCCESS;
     }
 
     VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool, uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out)
@@ -531,20 +716,10 @@ bail:
 
     VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, DescriptorAllocator* descriptorAllocator)
     {
-        assert(descriptor_count < 0x8000); // Should match the bit count in graphics_vulkan_private.h
-
-        VkDescriptorPoolSize vk_pool_size[] = {
-            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, descriptor_count},
-            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, descriptor_count}
-        };
-
-        descriptorAllocator->m_Handle.m_DescriptorPool = VK_NULL_HANDLE;
-        descriptorAllocator->m_Handle.m_DescriptorSets = new VkDescriptorSet[descriptor_count];
-        descriptorAllocator->m_DescriptorMax           = descriptor_count;
-        descriptorAllocator->m_DescriptorIndex         = 0;
-        descriptorAllocator->m_Destroyed               = 0;
-
-        return CreateDescriptorPool(vk_device, vk_pool_size, sizeof(vk_pool_size) / sizeof(vk_pool_size[0]), descriptor_count, &descriptorAllocator->m_Handle.m_DescriptorPool);
+        descriptorAllocator->m_DescriptorSetMax   = descriptor_count;
+        descriptorAllocator->m_DescriptorsPerPool = descriptor_count;
+        AllocateDescriptorSets(descriptorAllocator);
+        return AllocateDescriptorPool(descriptorAllocator, vk_device);
     }
 
     VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
@@ -597,7 +772,7 @@ bail:
         VkMemoryPropertyFlags vk_memory_flags,
         VkImageAspectFlags    vk_aspect,
         VkImageLayout         vk_initial_layout,
-        Texture*              textureOut)
+        VulkanTexture*        textureOut)
     {
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
         TextureType tex_type = textureOut->m_Type;
@@ -651,6 +826,13 @@ bail:
         vk_memory_alloc_info.memoryTypeIndex = 0;
 
         uint32_t memory_type_index = 0;
+
+        // Lazy / memorless might not be supported on this platform
+        if (vk_memory_flags & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT && !GetMemoryTypeIndex(vk_physical_device, vk_memory_req.memoryTypeBits, vk_memory_flags, &memory_type_index))
+        {
+            vk_memory_flags ^= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
+        }
+
         if (!GetMemoryTypeIndex(vk_physical_device, vk_memory_req.memoryTypeBits, vk_memory_flags, &memory_type_index))
         {
             res = VK_ERROR_INITIALIZATION_FAILED;
@@ -752,12 +934,17 @@ bail:
 
             attachment_color.format         = colorAttachments[i].m_Format;
             attachment_color.samples        = vk_sample_flags;
-            attachment_color.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment_color.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+            attachment_color.loadOp         = colorAttachments[i].m_LoadOp;
+            attachment_color.storeOp        = colorAttachments[i].m_StoreOp;
             attachment_color.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             attachment_color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             attachment_color.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_color.finalLayout    = colorAttachments[i].m_ImageLayout;
+
+            if (colorAttachments[i].m_LoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+            {
+                attachment_color.initialLayout = colorAttachments[i].m_ImageLayoutInitial;
+            }
 
             VkAttachmentReference& ref = vk_attachment_color_ref[i];
             ref.attachment = i;
@@ -903,28 +1090,32 @@ bail:
     };
 
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
-        PipelineState pipelineState, Program* program, HVertexDeclaration vertexDeclaration,
+        PipelineState pipelineState, Program* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
         RenderTarget* render_target, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
-        VkVertexInputAttributeDescription vk_vertex_input_descs[MAX_VERTEX_STREAM_COUNT];
-        uint16_t active_attributes = FillVertexInputAttributeDesc(vertexDeclaration, vk_vertex_input_descs);
+        uint16_t active_attributes = 0;
+        VkVertexInputAttributeDescription vk_vertex_input_descs[MAX_VERTEX_STREAM_COUNT] = {};
+        VkVertexInputBindingDescription vk_vx_input_descriptions[MAX_VERTEX_BUFFERS] = {};
+
+        for (int i = 0; i < vertexDeclarationCount; ++i)
+        {
+            active_attributes += FillVertexInputAttributeDesc(vertexDeclarations[i], &vk_vertex_input_descs[active_attributes], i);
+
+            vk_vx_input_descriptions[i].binding   = i;
+            vk_vx_input_descriptions[i].stride    = vertexDeclarations[i]->m_Stride;
+            vk_vx_input_descriptions[i].inputRate = vertexDeclarations[i]->m_StepFunction == VERTEX_STEP_FUNCTION_VERTEX ?
+                                                        VK_VERTEX_INPUT_RATE_VERTEX : VK_VERTEX_INPUT_RATE_INSTANCE;
+        }
+
         assert(active_attributes != 0);
 
-        VkVertexInputBindingDescription vk_vx_input_description;
-        memset(&vk_vx_input_description, 0, sizeof(vk_vx_input_description));
-
-        vk_vx_input_description.binding   = 0;
-        vk_vx_input_description.stride    = vertexDeclaration->m_Stride;
-        vk_vx_input_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        VkPipelineVertexInputStateCreateInfo vk_vertex_input_info;
-        memset(&vk_vertex_input_info, 0, sizeof(vk_vertex_input_info));
+        VkPipelineVertexInputStateCreateInfo vk_vertex_input_info = {};
 
         vk_vertex_input_info.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vk_vertex_input_info.vertexBindingDescriptionCount   = 1;
-        vk_vertex_input_info.pVertexBindingDescriptions      = &vk_vx_input_description;
+        vk_vertex_input_info.vertexBindingDescriptionCount   = vertexDeclarationCount;
+        vk_vertex_input_info.pVertexBindingDescriptions      = vk_vx_input_descriptions;
         vk_vertex_input_info.vertexAttributeDescriptionCount = active_attributes;
         vk_vertex_input_info.pVertexAttributeDescriptions    = vk_vertex_input_descs;
 
@@ -987,12 +1178,21 @@ bail:
 
         uint8_t state_write_mask    = pipelineState.m_WriteColorMask;
         uint8_t vk_color_write_mask = 0;
+
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_R) ? VK_COLOR_COMPONENT_R_BIT : 0;
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_G) ? VK_COLOR_COMPONENT_G_BIT : 0;
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
 
-        for (int i = 0; i < render_target->m_ColorAttachmentCount; ++i)
+        uint8_t blend_attachment_count = render_target->m_ColorAttachmentCount;
+
+        if (render_target->m_SubPasses)
+        {
+            SubPass& sub_pass_desc = render_target->m_SubPasses[render_target->m_SubPassIndex];
+            blend_attachment_count = sub_pass_desc.m_ColorAttachments.Size();
+        }
+
+        for (int i = 0; i < blend_attachment_count; ++i)
         {
             VkPipelineColorBlendAttachmentState& blend_attachment = vk_color_blend_attachments[i];
             blend_attachment.colorWriteMask      = vk_color_write_mask;
@@ -1011,7 +1211,7 @@ bail:
         vk_color_blending.sType             = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         vk_color_blending.logicOpEnable     = VK_FALSE;
         vk_color_blending.logicOp           = VK_LOGIC_OP_COPY;
-        vk_color_blending.attachmentCount   = render_target->m_ColorAttachmentCount;
+        vk_color_blending.attachmentCount   = blend_attachment_count;
         vk_color_blending.pAttachments      = vk_color_blend_attachments;
         vk_color_blending.blendConstants[0] = 0.0f;
         vk_color_blending.blendConstants[1] = 0.0f;
@@ -1073,8 +1273,8 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
-        vk_pipeline_info.renderPass          = render_target->m_RenderPass;
-        vk_pipeline_info.subpass             = 0;
+        vk_pipeline_info.renderPass          = render_target->m_Handle.m_RenderPass;
+        vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
 
@@ -1084,7 +1284,7 @@ bail:
     void ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer)
     {
         assert(scratchBuffer);
-        scratchBuffer->m_DescriptorAllocator->Release(vk_device);
+        scratchBuffer->m_DescriptorAllocator->Reset(vk_device);
         scratchBuffer->m_MappedDataCursor = 0;
     }
 
@@ -1097,12 +1297,12 @@ bail:
             handle->m_PipelineLayout = VK_NULL_HANDLE;
         }
 
-        for (int i = 0; i < Program::MODULE_TYPE_COUNT; ++i)
+        for (int i = 0; i < handle->m_DescriptorSetLayoutsCount; ++i)
         {
-            if (handle->m_DescriptorSetLayout[i] != VK_NULL_HANDLE)
+            if (handle->m_DescriptorSetLayouts[i] != VK_NULL_HANDLE)
             {
-                vkDestroyDescriptorSetLayout(vk_device, handle->m_DescriptorSetLayout[i], 0);
-                handle->m_DescriptorSetLayout[i] = VK_NULL_HANDLE;
+                vkDestroyDescriptorSetLayout(vk_device, handle->m_DescriptorSetLayouts[i], 0);
+                handle->m_DescriptorSetLayouts[i] = VK_NULL_HANDLE;
             }
         }
     }
@@ -1124,23 +1324,19 @@ bail:
         memset((void*)device, 0, sizeof(*device));
     }
 
-    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator::VulkanHandle* handle)
+    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* allocator)
     {
-        assert(handle);
-        if (handle->m_DescriptorSets)
-        {
-            delete[] handle->m_DescriptorSets;
-            handle->m_DescriptorSets = 0x0;
-        }
+        assert(allocator);
+        delete[] allocator->m_DescriptorSets;
+        allocator->m_DescriptorSets = 0x0;
 
-        if (handle->m_DescriptorPool != VK_NULL_HANDLE)
+        for (int i = 0; i < allocator->m_DescriptorPools.Size(); ++i)
         {
-            vkDestroyDescriptorPool(vk_device, handle->m_DescriptorPool, 0);
-            handle->m_DescriptorPool = VK_NULL_HANDLE;
+            vkDestroyDescriptorPool(vk_device, allocator->m_DescriptorPools[i].m_DescriptorPool, 0);
         }
     }
 
-    void DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle)
+    void DestroyTexture(VkDevice vk_device, VulkanTexture::VulkanHandle* handle)
     {
         assert(handle);
         if (handle->m_ImageView != VK_NULL_HANDLE)
@@ -1164,6 +1360,14 @@ bail:
             vkDestroySampler(vk_device, sampler->m_Sampler, 0);
             sampler->m_Sampler = VK_NULL_HANDLE;
         }
+    }
+
+    void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle)
+    {
+        DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
+        DestroyRenderPass(vk_device, handle->m_RenderPass);
+        handle->m_Framebuffer = VK_NULL_HANDLE;
+        handle->m_RenderPass = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)
@@ -1274,7 +1478,7 @@ bail:
     VkResult CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily,
         const char** deviceExtensions, const uint8_t deviceExtensionCount,
         const char** validationLayers, const uint8_t validationLayerCount,
-        LogicalDevice* logicalDeviceOut)
+        void* pNext, LogicalDevice* logicalDeviceOut)
     {
         assert(device);
 
@@ -1309,9 +1513,10 @@ bail:
         memset(&vk_device_create_info, 0, sizeof(vk_device_create_info));
 
         vk_device_create_info.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        vk_device_create_info.pNext                   = pNext;
         vk_device_create_info.pQueueCreateInfos       = vk_device_queue_create_info;
         vk_device_create_info.queueCreateInfoCount    = queue_family_c;
-        vk_device_create_info.pEnabledFeatures        = 0;
+        vk_device_create_info.pEnabledFeatures        = &device->m_Features;
         vk_device_create_info.enabledExtensionCount   = deviceExtensionCount;
         vk_device_create_info.ppEnabledExtensionNames = deviceExtensions;
         vk_device_create_info.enabledLayerCount       = validationLayerCount;

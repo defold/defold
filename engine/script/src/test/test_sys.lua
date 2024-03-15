@@ -1,4 +1,4 @@
--- Copyright 2020-2023 The Defold Foundation
+-- Copyright 2020-2024 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,11 +16,19 @@ function test_sys()
 
     -- get_host_path
     print("Load existing resource")
-    local host_path = sys.get_host_path("src/test/test_resource.txt")
+    local host_path = sys.get_host_path("src/test/does_not_exists")
+    print("Checking file does not exist: " .. host_path)
+    assert(false == sys.exists(host_path))
+
+    host_path = sys.get_host_path("src/test/test_resource.txt")
+    print("Checking file does exist: " .. host_path)
+    assert(true == sys.exists(host_path))
+
     local f, err, res = io.open(host_path, "rb")
     local content     = f:read("*all")
     f:close()
     assert(content == "defold")
+
 
     --
     local filename = "save001.save"

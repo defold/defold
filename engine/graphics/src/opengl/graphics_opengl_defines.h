@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -41,6 +41,7 @@
 #include <win32/glut.h>
 
 #include "win32/glext.h"
+#include "win32/glcorearb.h"
 
 #elif defined (ANDROID)
 #define GL_GLEXT_PROTOTYPES
@@ -55,15 +56,15 @@
 #endif
 
 #ifdef __ANDROID__
-	#define DMGRAPHICS_TEX_IMAGE_3D                PFN_glTexImage3D
-	#define DMGRAPHICS_TEX_SUB_IMAGE_3D            PFN_glTexSubImage3D
-	#define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     PFN_glCompressedTexImage3D
-	#define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D PFN_glCompressedTexSubImage3D
+    #define DMGRAPHICS_TEX_IMAGE_3D                PFN_glTexImage3D
+    #define DMGRAPHICS_TEX_SUB_IMAGE_3D            PFN_glTexSubImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     PFN_glCompressedTexImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D PFN_glCompressedTexSubImage3D
 #else
-	#define DMGRAPHICS_TEX_IMAGE_3D                glTexImage3D
-	#define DMGRAPHICS_TEX_SUB_IMAGE_3D            glTexSubImage3D
-	#define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     glCompressedTexImage3D
-	#define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D glCompressedTexSubImage3D
+    #define DMGRAPHICS_TEX_IMAGE_3D                glTexImage3D
+    #define DMGRAPHICS_TEX_SUB_IMAGE_3D            glTexSubImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D     glCompressedTexImage3D
+    #define DMGRAPHICS_COMPRESSED_TEX_SUB_IMAGE_3D glCompressedTexSubImage3D
 #endif
 
 // Types
@@ -77,11 +78,29 @@
 #define DMGRAPHICS_TYPE_HALF_FLOAT                          (0x140B)
 #endif
 
+#ifdef GL_HALF_FLOAT_OES
+#define DMGRAPHICS_TYPE_HALF_FLOAT_OES                      (GL_HALF_FLOAT_OES)
+#else
+#define DMGRAPHICS_TYPE_HALF_FLOAT_OES                      (0x8D61)
+#endif
+
 // Texture arrays
 #ifdef GL_SAMPLER_2D_ARRAY
-#define DMGRAPHICS_SAMPLER_2D_ARRAY 						(GL_SAMPLER_2D_ARRAY)
+#define DMGRAPHICS_SAMPLER_2D_ARRAY                         (GL_SAMPLER_2D_ARRAY)
 #else
-#define DMGRAPHICS_SAMPLER_2D_ARRAY 						(0x8DC1)
+#define DMGRAPHICS_SAMPLER_2D_ARRAY                         (0x8DC1)
+#endif
+
+#ifdef GL_DEPTH_STENCIL_OES
+#define DMGRAPHICS_FORMAT_DEPTH_STENCIL (GL_DEPTH_STENCIL_OES)
+#else
+#define DMGRAPHICS_FORMAT_DEPTH_STENCIL (GL_DEPTH_STENCIL)
+#endif
+
+#ifdef GL_UNSIGNED_INT_24_8_OES
+#define DMGRAPHICS_TYPE_UNSIGNED_INT_24_8 (GL_UNSIGNED_INT_24_8_OES)
+#else
+#define DMGRAPHICS_TYPE_UNSIGNED_INT_24_8 (GL_UNSIGNED_INT_24_8)
 #endif
 
 // Render buffer storage formats
@@ -90,20 +109,39 @@
 #else
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL       (GL_DEPTH_STENCIL)
 #endif
+
 #ifdef GL_DEPTH_COMPONENT24_OES
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24             (GL_DEPTH_COMPONENT24_OES)
 #else
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24             (GL_DEPTH_COMPONENT)
 #endif
+
 #ifdef GL_DEPTH_COMPONENT16_OES
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16             (GL_DEPTH_COMPONENT16_OES)
 #else
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16             (GL_DEPTH_COMPONENT16)
 #endif
+
 #ifdef GL_STENCIL_INDEX8_OES
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL            (GL_STENCIL_INDEX8_OES)
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8            (GL_STENCIL_INDEX8_OES)
 #else
-#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL            (GL_STENCIL_INDEX8)
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8            (GL_STENCIL_INDEX8)
+#endif
+
+#ifdef GL_DEPTH24_STENCIL8_OES
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8    (GL_DEPTH24_STENCIL8_OES)
+#elif defined(GL_DEPTH24_STENCIL8)
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8    (GL_DEPTH24_STENCIL8)
+#else
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8    (0x88F0)
+#endif
+
+#ifdef GL_STENCIL_INDEX_OES
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL             (GL_STENCIL_INDEX_OES)
+#elif defined(GL_STENCIL_INDEX)
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL             (GL_STENCIL_INDEX)
+#else
+#define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL             (0x1901)
 #endif
 #ifdef GL_COLOR_EXT
 #define DMGRAPHICS_RENDER_BUFFER_COLOR                      (GL_COLOR_EXT)
@@ -379,6 +417,12 @@
 #define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ALPHA8_ASTC_4x4_KHR (GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR)
 #else
 #define DMGRAPHICS_TEXTURE_FORMAT_SRGB8_ALPHA8_ASTC_4x4_KHR 0x93D0
+#endif
+
+#ifdef GL_COMPUTE_SHADER
+#define DMGRAPHICS_TYPE_COMPUTE_SHADER                      (GL_COMPUTE_SHADER)
+#else
+#define DMGRAPHICS_TYPE_COMPUTE_SHADER                      (0x91B9)
 #endif
 
 #endif // DMGRAPHICS_OPENGL_DEFINES_H

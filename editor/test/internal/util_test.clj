@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -249,3 +249,42 @@
         partitions (partition 10 (map dedupe-fn (concat original-items additional-items)))]
     (is (every? (partial elements-identical? (first partitions))
                 partitions))))
+
+(deftest name-index-test
+  (testing "renames"
+    (letfn [(renames [xs ys]
+              (util/detect-renames
+                (util/name-index xs identity)
+                (util/name-index ys identity)))]
+      (is (= {}
+             (renames [:a :b :c]
+                      [:b :c :a])))
+      (is (= {[:a 0] [:d 0]}
+             (renames [:a :b :c]
+                      [:b :c :d])))
+      (is (= {[:a 1] [:c 0]}
+             (renames [:a :b :b :a]
+                      [:b :a :b :c])))
+      (is (= {}
+             (renames [:b :a :b :c]
+                      [:a :b])))
+      (is (= {}
+             (renames [:a :b]
+                      [:b :a :b :c])))))
+  (testing "deletions"
+    (letfn [(deletions [xs ys]
+              (util/detect-deletions
+                (util/name-index xs identity)
+                (util/name-index ys identity)))]
+      (is (= #{[:b 0]}
+             (deletions [:a :b :c]
+                        [:a :c])))
+      (is (= #{}
+             (deletions [:a :b :c]
+                        [:a :c :d :e])))
+      (is (= #{[:a 0] [:b 0]}
+             (deletions [:a :b :c]
+                        [:c])))
+      (is (= #{[:b 0] [:c 0]}
+             (deletions [:a :b :c]
+                        [:d]))))))

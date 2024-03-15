@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,7 +28,7 @@
 (def linux #{:x86_64-linux})
 
 (def vulkan
-  #{:x86_64-osx
+  #{:x86_64-osx :arm64-osx
     :x86_64-linux
     :x86-win32 :x86_64-win32
     :armv7-android :arm64-android
@@ -40,7 +40,7 @@
     ;; android
     :armv7-android :arm64-android
     ;; osx
-    :x86_64-osx
+    :x86_64-osx :arm64-osx
     ;; linux
     :x86_64-linux
     ;; windows
@@ -345,12 +345,12 @@
 
 (def vulkan-toggles
   (concat
-    (libs-toggles [:x86_64-osx :arm64-ios] ["graphics_vulkan" "MoltenVK"])
+    (libs-toggles [:x86_64-osx :arm64-osx :arm64-ios] ["graphics_vulkan" "MoltenVK"])
     (libs-toggles android ["graphics_vulkan"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
-    (generic-contains-toggles [:x86_64-osx] :frameworks ["Metal" "IOSurface" "QuartzCore"])
-    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "QuartzCore"])
+    (generic-contains-toggles [:x86_64-osx :arm64-osx] :frameworks ["Metal" "IOSurface" "QuartzCore"])
+    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
     (generic-contains-toggles vulkan :symbols ["GraphicsAdapterVulkan"])))
 
 (def graphics-setting
@@ -390,6 +390,7 @@
                   [:armv7-android platform-pattern]
                   [:arm64-android platform-pattern]
                   ;; osx
+                  [:arm64-osx platform-pattern]
                   [:x86_64-osx platform-pattern]
                   ;; linux
                   [:x86_64-linux platform-pattern]

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -73,7 +73,7 @@ namespace dmGameObject
         CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         if (script_world->m_Instances.Full())
         {
-            dmLogError("Could not create script component, out of resources.");
+            dmLogError("Could not create script component, out of resources. Increase the 'collection.max_instances' value in [game.project](defold://open?path=/game.project)");
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
 
@@ -184,10 +184,8 @@ namespace dmGameObject
         {
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
-        else
-        {
-            return CREATE_RESULT_OK;
-        }
+        script_instance->m_Initialized = 1;
+        return CREATE_RESULT_OK;
     }
 
     CreateResult CompScriptFinal(const ComponentFinalParams& params)
@@ -212,9 +210,13 @@ namespace dmGameObject
     CreateResult CompScriptAddToUpdate(const ComponentAddToUpdateParams& params)
     {
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
-        HScript script = script_instance->m_Script;
-        script_instance->m_Update = script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE] != LUA_NOREF || script->m_FunctionReferences[SCRIPT_FUNCTION_FIXED_UPDATE] != LUA_NOREF;
-        return CREATE_RESULT_OK;
+        if (script_instance->m_Initialized)
+        {
+            HScript script = script_instance->m_Script;
+            script_instance->m_Update = script->m_FunctionReferences[SCRIPT_FUNCTION_UPDATE] != LUA_NOREF || script->m_FunctionReferences[SCRIPT_FUNCTION_FIXED_UPDATE] != LUA_NOREF;
+            return CREATE_RESULT_OK;
+        }
+        return CREATE_RESULT_UNKNOWN_ERROR;
     }
 
 

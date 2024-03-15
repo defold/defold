@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,54 +20,33 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.FileInputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.IntBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Vector;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 
-import javax.vecmath.Matrix4d;
-import javax.vecmath.Matrix4f;
-import javax.vecmath.Point3d;
-import javax.vecmath.Point3f;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
-import javax.vecmath.Vector3f;
-import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.util.MathUtil;
 
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
-import com.dynamo.bob.util.RigUtil.Weight;
-import com.dynamo.proto.DdfMath.Point3;
-import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
-import com.dynamo.proto.DdfMath.Matrix4;
 import com.dynamo.proto.DdfMath.Transform;
 
-import com.dynamo.bob.pipeline.ModelImporter.Aabb;
 import com.dynamo.bob.pipeline.ModelImporter.Bone;
 import com.dynamo.bob.pipeline.ModelImporter.Material;
 import com.dynamo.bob.pipeline.ModelImporter.Mesh;
@@ -79,8 +58,6 @@ import com.dynamo.bob.pipeline.ModelImporter.Scene;
 
 
 import com.dynamo.rig.proto.Rig;
-import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
-import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.google.protobuf.ByteString;
 
 public class ModelUtil {
@@ -224,11 +201,11 @@ public class ModelUtil {
     }
 
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder, ModelImporter.NodeAnimation nodeAnimation,
-                                                    Bone bone, double duration, double startTime, double sampleRate) {
+                                                    String bone_name, double duration, double startTime, double sampleRate) {
         double spf = 1.0 / sampleRate;
 
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneId(MurmurHash.hash64(bone.name));
+        animTrackBuilder.setBoneId(MurmurHash.hash64(bone_name));
 
         {
             RigUtil.AnimationTrack sparseTrack = new RigUtil.AnimationTrack();
@@ -254,16 +231,11 @@ public class ModelUtil {
         animBuilder.addTracks(animTrackBuilder.build());
     }
 
-    public static void setBoneList(Rig.AnimationSet.Builder animationSetBuilder, ArrayList<Bone> bones) {
-        for (Bone bone : bones) {
-            animationSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
-        }
-    }
-
     public static void loadAnimations(byte[] content, String suffix, ModelImporter.Options options, ModelImporter.DataResolver dataResolver,
-                                        ArrayList<ModelImporter.Bone> bones, Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, ArrayList<String> animationIds) throws IOException {
+                                        Rig.AnimationSet.Builder animationSetBuilder, String parentAnimationId, boolean selectLongest,
+                                        ArrayList<String> animationIds) throws IOException {
         Scene scene = loadScene(content, suffix, options, dataResolver);
-        loadAnimations(scene, bones, animationSetBuilder, parentAnimationId, animationIds);
+        loadAnimations(scene, animationSetBuilder, parentAnimationId, animationIds);
     }
 
     private static Bone findBoneByName(ArrayList<ModelImporter.Bone> bones, String name) {
@@ -283,30 +255,17 @@ public class ModelUtil {
         }
     }
 
-    private static class SortOnNodeIndex implements Comparator<ModelImporter.NodeAnimation> {
-        public SortOnNodeIndex(ArrayList<ModelImporter.Bone> bones) {
-            this.bones = bones;
-        }
-        public int compare(ModelImporter.NodeAnimation a, ModelImporter.NodeAnimation b) {
-            Bone bonea = findBoneByName(this.bones, a.node.name);
-            Bone boneb = findBoneByName(this.bones, b.node.name);
-            return bonea.index - boneb.index;
-        }
-        private ArrayList<ModelImporter.Bone> bones;
-    }
-
-    public static void loadAnimations(Scene scene, ArrayList<ModelImporter.Bone> fullSetBones, Rig.AnimationSet.Builder animationSetBuilder,
+    public static void loadAnimations(Scene scene, Rig.AnimationSet.Builder animationSetBuilder,
                                       String parentAnimationId, ArrayList<String> animationIds) {
 
-        Arrays.sort(scene.animations, new SortAnimations());
-
-        if (scene.animations.length > 1) {
-            System.out.printf("Scene contains more than one animation. Picking the the longest one ('%s')\n", scene.animations[0].name);
+        ArrayList<ModelImporter.Bone> bones = loadSkeleton(scene);
+        String prevRootName = null;
+        if (!bones.isEmpty()) {
+            prevRootName = bones.get(0).node.name;
         }
 
-        // We want to use the internal skeleton from this scene to calculate the relative
-        // animation keys
-        ArrayList<ModelImporter.Bone> bones = ModelUtil.loadSkeleton(scene);
+        boolean topLevel = parentAnimationId.isEmpty();
+        boolean selectLongest = !topLevel;
 
         for (ModelImporter.Animation animation : scene.animations) {
 
@@ -319,15 +278,20 @@ public class ModelUtil {
 
             animBuilder.setSampleRate(sampleRate);
 
-            // Each file is supposed to only have one animation
-            // And the animation name is created from outside of this function, depending on the source
-            // E.g. if the animation is from within nested .animationset files
-            // So we _dont_ do this:
-            //   animationName = animation.name;
-            // but instead do this:
-            String animationName = parentAnimationId;
-            animBuilder.setId(MurmurHash.hash64(animationName));
-            animationIds.add(animationName);
+            // If the model file was selected directly
+            if (topLevel) {
+                animBuilder.setId(MurmurHash.hash64(animation.name));
+                animationIds.add(animation.name);
+            }
+            else {
+                // For animation sets, each model file should be named after the model file itself
+                // Each file is supposed to only have one animation
+                // And the animation name is created from outside of this function, depending on the source
+                // E.g. if the animation is from within nested .animationset files
+                animBuilder.setId(MurmurHash.hash64(parentAnimationId));
+                animationIds.add(parentAnimationId);
+                selectLongest = true;
+            }
 
             // TODO: add the start time to the Animation struct!
             for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
@@ -349,30 +313,31 @@ public class ModelUtil {
 
             animBuilder.setDuration(animation.duration);
 
-            Arrays.sort(animation.nodeAnimations, new SortOnNodeIndex(fullSetBones));
-
             for (ModelImporter.NodeAnimation nodeAnimation : animation.nodeAnimations) {
-
-                Bone skeleton_bone = findBoneByName(fullSetBones, nodeAnimation.node.name);
-                Bone anim_bone = findBoneByName(bones, nodeAnimation.node.name);
-                if (skeleton_bone == null) {
-                    System.out.printf("Warning: Animation uses bone '%s' that isn't present in the skeleton!\n", nodeAnimation.node.name);
-                    continue;
-                }
-                if (anim_bone == null) {
-                    System.out.printf("Warning: Animation uses bone '%s' that isn't present in the animation file!\n", nodeAnimation.node.name);
-                    continue;
+                String nodeName = nodeAnimation.node.name;
+                if (prevRootName != null && prevRootName.equals(nodeName)) {
+                    nodeName = "root";
                 }
 
-                createAnimationTracks(animBuilder, nodeAnimation, skeleton_bone, animation.duration, startTime, sampleRate);
+                createAnimationTracks(animBuilder, nodeAnimation, nodeName, animation.duration, startTime, sampleRate);
             }
 
             animationSetBuilder.addAnimations(animBuilder.build());
 
-            break; // we only support one animation per file
+            if (selectLongest)
+            {
+                break;
+            }
         }
+    }
 
-        ModelUtil.setBoneList(animationSetBuilder, bones);
+    // For editor
+    public static ArrayList<String> getAnimationNames(Scene scene) {
+        ArrayList<String> names = new ArrayList<>();
+        for (ModelImporter.Animation animation : scene.animations) {
+            names.add(animation.name);
+        }
+        return names;
     }
 
     public static ArrayList<String> loadMaterialNames(Scene scene) {
@@ -654,8 +619,9 @@ public class ModelUtil {
             modelBuilder.addMeshes(loadMesh(mesh));
         }
 
-        modelBuilder.setId(MurmurHash.hash64(model.name));
+        modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
         modelBuilder.setLocal(toDDFTransform(node.local));
+        modelBuilder.setBoneId(MurmurHash.hash64(model.boneParentName));
 
         return modelBuilder.build();
     }
@@ -672,60 +638,69 @@ public class ModelUtil {
         }
     }
 
-    private static Node findFirstModelNode(Node node) {
+    private static void findModelNodes(Node node, List<Node> modelNodes) {
         if (node.model != null) {
-            return node;
+            modelNodes.add(node);
+        }
+        for (Node child : node.children) {
+            findModelNodes(child, modelNodes);
+        }
+    }
+
+    private static void calcCenterNode(Node node, Aabb aabb) {
+        if (node.model != null) {
+            // As a default, we only count nodes with models, as the user
+            // cannot currently see/use the lights or cameras etc that are present in the scene.
+            aabb.expand(node.world.translation.x, node.world.translation.y, node.world.translation.z);
         }
 
         for (Node child : node.children) {
-            Node modelNode = findFirstModelNode(child);
-            if (modelNode != null) {
-                return modelNode;
-            }
+            calcCenterNode(child, aabb);
         }
-
-        return null;
     }
 
+    // Currently finds the center point using the world positions of each node
     private static ModelImporter.Vec4 calcCenter(Scene scene) {
-        ModelImporter.Vec4 center = new ModelImporter.Vec4(0.0f, 0.0f, 0.0f, 0.0f);
-        float count = 0.0f;
+        Aabb aabb = new Aabb();
         for (Node root : scene.rootNodes) {
-            Node modelNode = findFirstModelNode(root);
-            if (modelNode == null) {
-                continue;
-            }
-            center.x += modelNode.local.translation.x;
-            center.y += modelNode.local.translation.y;
-            center.z += modelNode.local.translation.z;
-            count++;
-            break; // TODO: Support more than one root node
+            calcCenterNode(root, aabb);
         }
-        center.x /= (float)count;
-        center.z /= (float)count;
-        center.x /= (float)count;
+
+        ModelImporter.Vec4 center = new ModelImporter.Vec4(0.0f, 0.0f, 0.0f, 0.0f);
+        if (aabb.isValid())
+            center = aabb.center();
         return center;
     }
 
-    private static void shiftModels(Scene scene, ModelImporter.Vec4 center) {
-        for (Node root : scene.rootNodes) {
-            Node modelNode = findFirstModelNode(root);
-            if (modelNode == null)
-                continue;
-            modelNode.local.translation.x -= center.x;
-            modelNode.local.translation.y -= center.y;
-            modelNode.local.translation.z -= center.z;
-            modelNode.world.translation.x -= center.x;
-            modelNode.world.translation.y -= center.y;
-            modelNode.world.translation.z -= center.z;
+    private static void shiftNodes(Node node, ModelImporter.Vec4 center) {
+        node.world.translation.x -= center.x;
+        node.world.translation.y -= center.y;
+        node.world.translation.z -= center.z;
+
+        for (Node child : node.children) {
+            shiftNodes(child, center);
+        }
+    }
+
+    private static void shiftNodes(Scene scene, ModelImporter.Vec4 center) {
+        for (Node node : scene.rootNodes) {
+            shiftNodes(node, center);
+
+            node.local.translation.x -= center.x;
+            node.local.translation.y -= center.y;
+            node.local.translation.z -= center.z;
         }
     }
 
     private static Scene loadInternal(Scene scene, Options options) {
         ModelImporter.Vec4 center = calcCenter(scene);
-        shiftModels(scene, center); // We might make this optional
+        shiftNodes(scene, center); // We might make this optional
+
+        // Sort on duration. This allows us to return a list of sorted animation names
+        Arrays.sort(scene.animations, new SortAnimations());
         return scene;
     }
+
 
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
         ArrayList<ModelImporter.Bone> skeleton = loadSkeleton(scene);
@@ -734,13 +709,12 @@ public class ModelUtil {
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
-            Node modelNode = findFirstModelNode(root);
-            if (modelNode == null) {
-                continue;
-            }
+            ArrayList<Node> modelNodes = new ArrayList<>();
+            findModelNodes(root, modelNodes);
 
-            loadModelInstances(modelNode, skeleton, models);
-            break; // TODO: Support more than one root node
+            for (Node modelNode : modelNodes) {
+                loadModelInstances(modelNode, skeleton, models);
+            }
         }
         meshSetBuilder.addAllModels(models);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
@@ -754,6 +728,10 @@ public class ModelUtil {
         return scene.skins.length;
     }
 
+    public static int getNumAnimations(Scene scene) {
+        return scene.animations.length;
+    }
+
     public static ArrayList<ModelImporter.Bone> loadSkeleton(Scene scene) {
         ArrayList<ModelImporter.Bone> skeleton = new ArrayList<>();
 
@@ -765,6 +743,9 @@ public class ModelUtil {
         // get the first skeleton
         ModelImporter.Skin skin = scene.skins[0];
         for (Bone bone : skin.bones) {
+            if (bone.index == 0) {
+                bone.name = "root";
+            }
             skeleton.add(bone);
         }
 
@@ -812,6 +793,10 @@ public class ModelUtil {
         // Generate DDF representation of bones.
         ArrayList<Rig.Bone> ddfBones = new ArrayList<Rig.Bone>();
         for (Bone bone : boneList) {
+            if (bone.index == 0) {
+                bone.name = "root";
+            }
+
             boneToDDF(bone, ddfBones);
         }
         skeletonBuilder.addAllBones(ddfBones);
@@ -919,6 +904,16 @@ public class ModelUtil {
         }
         System.out.printf("--------------------------------------------\n");
 
+        System.out.printf("Root Nodes:\n");
+
+        for (Node node : scene.rootNodes) {
+            System.out.printf("  Scene Node: %s  index: %d  id: %d  parent: %s\n", node.name, node.index, ModelImporter.AddressOf(node), node.parent != null ? node.parent.name : "");
+            System.out.printf("      local: id: %d\n", ModelImporter.AddressOf(node.local));
+            ModelImporter.DebugPrintTransform(node.local, 3);
+        }
+
+        System.out.printf("--------------------------------------------\n");
+
         System.out.printf("Materials:\n");
         for (Material material : scene.materials) {
             System.out.printf("  Material: %s\n", material.name, material.index);
@@ -926,16 +921,16 @@ public class ModelUtil {
         System.out.printf("--------------------------------------------\n");
 
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
-        loadModels(scene, meshSetBuilder);
+        loadModels(scene, meshSetBuilder); // testing the function
 
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        loadSkeleton(scene, skeletonBuilder);
+        loadSkeleton(scene, skeletonBuilder); // testing the function
 
         System.out.printf("Animations:\n");
 
         Rig.AnimationSet.Builder animationSetBuilder = Rig.AnimationSet.newBuilder();
         ArrayList<String> animationIds = new ArrayList<>();
-        loadAnimations(scene, bones, animationSetBuilder, file.getName(), animationIds);
+        loadAnimations(scene, animationSetBuilder, "", animationIds);
 
         for (ModelImporter.Animation animation : scene.animations) {
             System.out.printf("  Animation: %s\n", animation.name);

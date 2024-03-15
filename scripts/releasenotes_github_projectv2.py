@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -184,8 +184,7 @@ def get_labels(issue_or_pr):
         labels.append(l["name"])
     return labels
 
-def get_issue_type(issue):
-    labels = get_labels(issue)
+def get_issue_type_from_labels(labels):
     if "breaking change" in labels:
         return TYPE_BREAKING_CHANGE
     elif "bug" in labels:
@@ -199,7 +198,8 @@ def get_issue_type(issue):
 def get_closing_pr(issue):
     for t in issue["timelineItems"]["nodes"]:
         if "source" in t and t["source"]:
-            return t["source"]
+            if t["source"].get("merged") == True:
+                return t["source"]
     return issue
 
 def issue_to_markdown(issue, hide_details = True, title_only = False):
@@ -239,9 +239,14 @@ def generate(version, hide_details = False):
         if "skip release notes" in issue_labels:
             continue
 
-        issue_type = get_issue_type(content)
         if is_issue:
             content = get_closing_pr(content)
+            # merge labels skipping duplicates
+            for label in get_labels(content):
+                if not label in issue_labels:
+                    issue_labels.append(label)
+
+        issue_type = get_issue_type_from_labels(issue_labels)
 
         entry = {
             "title": content.get("title"),

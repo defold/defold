@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -267,12 +267,10 @@
    {:label "Move Down"
     :command :move-down}
    {:label :separator}
-   {:label "Hide Objects"
-    :command :hide-selected}
+   {:label "Show/Hide Objects"
+    :command :hide-toggle-selected}
    {:label "Hide Unselected Objects"
     :command :hide-unselected}
-   {:label "Show Objects"
-    :command :show-selected}
    {:label "Show Last Hidden Objects"
     :command :show-last-hidden}
    {:label "Show All Hidden Objects"

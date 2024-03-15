@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,10 +15,10 @@
 
 # add build_tools folder to the import search path
 import sys, os, platform
-from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
+from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath, splitext
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
-import shutil, zipfile, re, itertools, json, platform, math, mimetypes
+import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import run
@@ -46,6 +46,7 @@ sys.dont_write_bytecode = True
 try:
     import build_vendor
     sys.modules['build_private'] = build_vendor
+    print("Imported %s from %s" % ('build_private', build_vendor.__file__))
 except ModuleNotFoundError:
     pass
 except Exception as e:
@@ -93,18 +94,18 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.1.108".split()
-PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-0.0.8".split()
-PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77 MoltenVK-1.0.41".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb MoltenVK-1.2.3 sassc-5472db213ec223a67482df2226622be372921847".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-0.0.8 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb MoltenVK-1.2.3".split() # sassc-5472db213ec223a67482df2226622be372921847
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.1.108".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108".split()
-PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-0.0.8 bullet-2.77".split()
-PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.3.261.1".split()
+PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-b0cb4d1".split()
+PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslc-31bddbb moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-2.7.1".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-40bced4 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-2.7.1".split() # sassc-5472db213ec223a67482df2226622be372921847
+PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-2.7.1".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.3.261.1 lipo-9ffdea2 glfw-2.7.1".split()
+PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -131,10 +132,10 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib texc modelc ddf particle glfw graphics lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
-HOST_LIBS = "testmain dlib texc modelc".split()
+ENGINE_LIBS = "testmain dlib texc modelc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
+HOST_LIBS = "testmain dlib jni texc modelc".split()
 
-EXTERNAL_LIBS = "bullet3d".split()
+EXTERNAL_LIBS = "glfw bullet3d".split()
 
 def get_host_platform():
     return sdk.get_host_platform()
@@ -254,8 +255,12 @@ class Configuration(object):
                  github_sha1 = None,
                  version = None,
                  codesigning_identity = None,
-                 windows_cert = None,
-                 windows_cert_pass = None,
+                 gcloud_projectid = None,
+                 gcloud_location = None,
+                 gcloud_keyringname = None,
+                 gcloud_keyname = None,
+                 gcloud_certfile = None,
+                 gcloud_keyfile = None,
                  verbose = False):
 
         if sys.platform == 'win32':
@@ -296,8 +301,12 @@ class Configuration(object):
         self.github_sha1 = github_sha1
         self.version = version
         self.codesigning_identity = codesigning_identity
-        self.windows_cert = windows_cert
-        self.windows_cert_pass = windows_cert_pass
+        self.gcloud_projectid = gcloud_projectid
+        self.gcloud_location = gcloud_location
+        self.gcloud_keyringname = gcloud_keyringname
+        self.gcloud_keyname = gcloud_keyname
+        self.gcloud_certfile = gcloud_certfile
+        self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
 
         if self.github_token is None:
@@ -434,8 +443,6 @@ class Configuration(object):
 
         def make_package_paths(root, platform, packages):
             return [make_package_path(root, platform, package) for package in packages]
-
-        self._check_package_path()
 
         print("Installing common packages")
         for p in PACKAGES_ALL:
@@ -712,9 +719,50 @@ class Configuration(object):
     def is_desktop_target(self):
         return self.target_platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']
 
+    def _package_platform_sdk_headers(self, path):
+        with open(path, 'wb') as outfile:
+            zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
+
+            basedir = self.dynamo_home
+            topfolder = 'defoldsdk'
+
+            # Includes
+            includes = []
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "sdk/include")):
+                for file in files:
+                    if file.endswith('.h'):
+                        includes.append(os.path.join(root, file))
+
+            # proto _ddf.h + "res_*.h"
+            for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "include")):
+                for file in files:
+                    if file.endswith('.h') and ('ddf' in file or file.startswith('res_')):
+                        includes.append(os.path.join(root, file))
+
+            self._add_files_to_zip(zip, includes, basedir, topfolder)
+
+            zip.close()
+
+    def _create_sha256_signature_file(self, input_filepath):
+        file_sha256 = hashlib.sha256()
+        with open(input_filepath, 'rb') as source_archive:
+            for byte_block in iter(lambda: source_archive.read(4096), b""):
+                file_sha256.update(byte_block)
+            source_archive.close()
+
+        print("File {} sha256 signature is {}".format(input_filepath, file_sha256.hexdigest()))
+        sig_filename = None
+        with open(splitext(input_filepath)[0] + '.sha256', 'w') as sig_file:
+            sig_filename = sig_file.name
+            sig_file.write(file_sha256.hexdigest())
+            sig_file.close()
+        return sig_filename
+
     # package the native SDK, return the path to the zip file
+    # and path to zip sha256 signature file
     def _package_platform_sdk(self, platform):
-        with open(join(self.dynamo_home, 'defoldsdk.zip'), 'wb') as outfile:
+        sdk_archive_path = join(self.dynamo_home, 'defoldsdk.zip')
+        with open(sdk_archive_path, 'wb') as outfile:
             zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
 
             topfolder = 'defoldsdk'
@@ -789,7 +837,8 @@ class Configuration(object):
 
                 # Android Jars (external)
                 external_jars = ("android-support-multidex.jar",
-                                 "androidx-multidex.jar")
+                                 "androidx-multidex.jar",
+                                 "glfw_android.jar")
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -803,18 +852,16 @@ class Configuration(object):
             if platform in ['js-web']:
                 # JavaScript files
                 # js-web-pre-x files
-                jsdir = os.path.join(self.dynamo_home, 'share')
-                paths = _findjslibs(jsdir)
-                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-
-                jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
-                paths = _findjslibs(jsdir)
-                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+                for subdir in ['share', 'lib/js-web/js/', 'ext/lib/js-web/js/']:
+                    jsdir = os.path.join(self.dynamo_home, subdir)
+                    paths = _findjslibs(jsdir)
+                    self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             if platform in ['wasm-web']:
-                jsdir = os.path.join(self.dynamo_home, 'lib/wasm-web/js/')
-                paths = _findjslibs(jsdir)
-                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+                for subdir in ['lib/wasm-web/js/', 'ext/lib/wasm-web/js/']:
+                    jsdir = os.path.join(self.dynamo_home, subdir)
+                    paths = _findjslibs(jsdir)
+                    self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             if platform in ['x86_64-ps4', 'x86_64-ps5']:
                 memory_init = os.path.join(self.dynamo_home, 'ext/lib/%s/memory_init.o' % platform)
@@ -876,17 +923,19 @@ class Configuration(object):
                 print(x)
 
             zip.close()
-            return outfile.name
-        return None
+
+            sig_filename = self._create_sha256_signature_file(sdk_archive_path)
+            return outfile.name, sig_filename
+        return None, None
 
     def build_platform_sdk(self):
         # Helper function to make it easier to build a platform sdk locally
         try:
-            path = self._package_platform_sdk(self.target_platform)
+            path, sig_path = self._package_platform_sdk(self.target_platform)
         except Exception as e:
             print ("Failed to package sdk for platform %s: %s" % (self.target_platform, e))
         else:
-            print ("Wrote %s" % path)
+            print ("Wrote %s, %s" % (path, sig_path))
 
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
@@ -993,8 +1042,9 @@ class Configuration(object):
                 lib_path = join(dynamo_home, 'lib', lib_dir, lib_name)
                 self.upload_to_archive(lib_path, '%s/%s' % (full_archive_path, lib_name))
 
-        sdkpath = self._package_platform_sdk(self.target_platform)
+        sdkpath, sdk_sig_path = self._package_platform_sdk(self.target_platform)
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % full_archive_path)
+        self.upload_to_archive(sdk_sig_path, '%s/defoldsdk.sha256' % full_archive_path)
 
     def _can_run_tests(self):
         supported_tests = {}
@@ -1241,6 +1291,19 @@ class Configuration(object):
             args = [ant, 'test-clean', 'test'] + ant_args
             run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
 
+    def build_sdk_headers(self):
+        # Used to provide a small sized bundle with the headers for any C++ auto completion tools
+
+        # Step 1: Generate the package
+        filename = 'defoldsdk_headers.zip'
+        headers_path = join(self.dynamo_home, filename)
+        self._package_platform_sdk_headers(headers_path)
+
+        # Step 2: Upload the package
+        sha1 = self._git_sha1()
+
+        sdkurl = join(sha1, 'engine').replace('\\', '/')
+        self.upload_to_archive(headers_path, f'{sdkurl}/{filename}')
 
     def build_sdk(self):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
@@ -1298,6 +1361,10 @@ class Configuration(object):
         sdkurl = join(sha1, 'engine').replace('\\', '/')
         self.upload_to_archive(sdkpath, '%s/defoldsdk.zip' % sdkurl)
 
+        print("Create sdk signature")
+        sig_filename = self._create_sha256_signature_file(sdkpath)
+        self.upload_to_archive(join(dirname(sdkpath), sig_filename), '%s/defoldsdk.sha256' % sdkurl)
+
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)
 
@@ -1332,10 +1399,13 @@ class Configuration(object):
         full_archive_path = join(sha1, self.channel, 'editor2')
 
         zip_file = "Defold-%s.zip" % self.target_platform
+        gz_file = "Defold-%s.tar.gz" % self.target_platform
         dmg_file = "Defold-%s.dmg" % self.target_platform
         zip_path = join(self.defold_root, 'editor', 'target', 'editor', zip_file)
+        gz_path = join(self.defold_root, 'editor', 'target', 'editor', gz_file)
         dmg_path = join(self.defold_root, 'editor', 'target', 'editor', dmg_file)
         if os.path.exists(zip_path): self.upload_to_archive(zip_path, '%s/%s' % (full_archive_path, zip_file))
+        if os.path.exists(gz_path): self.upload_to_archive(gz_path, '%s/%s' % (full_archive_path, gz_file))
         if os.path.exists(dmg_path): self.upload_to_archive(dmg_path, '%s/%s' % (full_archive_path, dmg_file))
         self.wait_uploads()
 
@@ -1377,10 +1447,18 @@ class Configuration(object):
         if self.skip_codesign:
             cmd.append('--skip-codesign')
         else:
-            if self.windows_cert:
-                cmd.append('--windows-cert=%s' % self.windows_cert)
-            if self.windows_cert_pass:
-                cmd.append("--windows-cert-pass=%s" % self.windows_cert_pass)
+            if self.gcloud_keyname:
+                cmd.append('--gcloud-keyname=%s' % self.gcloud_keyname)
+            if self.gcloud_certfile:
+                cmd.append("--gcloud-certfile=%s" % self.gcloud_certfile)
+            if self.gcloud_keyfile:
+                cmd.append("--gcloud-keyfile=%s" % self.gcloud_keyfile)
+            if self.gcloud_location:
+                cmd.append("--gcloud-location=%s" % self.gcloud_location)
+            if self.gcloud_projectid:
+                cmd.append("--gcloud-projectid=%s" % self.gcloud_projectid)
+            if self.gcloud_keyringname:
+                cmd.append("--gcloud-keyringname=%s" % self.gcloud_keyringname)
             if self.codesigning_identity:
                 cmd.append('--codesigning-identity="%s"' % self.codesigning_identity)
         self.run_editor_script(cmd)
@@ -1565,7 +1643,7 @@ class Configuration(object):
         # Used by www.defold.com/download
         # For example;
         #   redirect: /editor2/channels/editor-alpha/Defold-x86_64-macos.dmg -> /archive/<sha1>/editor-alpha/Defold-x86_64-macos.dmg
-        for name in ['Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.zip']:
+        for name in ['Defold-arm64-macos.dmg', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.tar.gz', 'Defold-x86_64-linux.zip']:
             key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
             redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
@@ -1681,7 +1759,7 @@ class Configuration(object):
             body = self._get_github_release_body()
             release_name = 'v%s - %s' % (self.version, engine_channel or self.channel)
             release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease, editor_only=is_editor_branch)
-        
+
         # Release to steam for stable only
         # if tag_name and (self.channel == 'editor-alpha'):
         #     self.release_to_steam()
@@ -1772,6 +1850,7 @@ class Configuration(object):
 #
     def _download_editor2(self, channel, sha1):
         bundles = {
+            'arm64-macos': 'Defold-arm64-macos.dmg',
             'x86_64-macos': 'Defold-x86_64-macos.dmg',
             'x86_64-linux' : 'Defold-x86_64-linux.zip',
             'x86_64-win32' : 'Defold-x86_64-win32.zip'
@@ -2076,8 +2155,6 @@ class Configuration(object):
 
         env['ANDROID_HOME'] = os.path.join(self.dynamo_home, 'ext', 'SDKs', 'android-sdk')
 
-        go_root = '%s/ext/go/%s/go' % (self.dynamo_home, self.target_platform)
-
         android_host = self.host
         if 'win32' in android_host:
             android_host = 'windows'
@@ -2085,7 +2162,6 @@ class Configuration(object):
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
                                       '%s/ext/bin/%s' % (self.dynamo_home, host),
-                                      '%s/bin' % go_root,
                                       '%s/platform-tools' % env['ANDROID_HOME'],
                                       '%s/ext/SDKs/%s/toolchains/llvm/prebuilt/%s-x86_64/bin' % (self.dynamo_home,PACKAGES_ANDROID_NDK,android_host)])
 
@@ -2096,11 +2172,6 @@ class Configuration(object):
         is_mingw = env.get('MSYSTEM', '') in ('MINGW64',)
         if is_mingw:
             env['ORIGINAL_PATH'] = env['PATH']
-
-        go_paths = os.path.pathsep.join(['%s/go' % self.dynamo_home,
-                                         join(self.defold, 'go')])
-        env['GOPATH'] = go_paths
-        env['GOROOT'] = go_root
 
         env['MAVEN_OPTS'] = '-Xms256m -Xmx700m -XX:MaxPermSize=1024m'
 
@@ -2144,6 +2215,7 @@ archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
 notarize_editor2 - Notarize the macOS version of the editor
 build_bob        - Build bob with native libraries included for cross platform deployment
+build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path
 build_docs       - Build documentation
 build_builtins   - Build builtin content archive
@@ -2258,13 +2330,29 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = None,
                       help = 'Codesigning identity for macOS version of the editor')
 
-    parser.add_option('--windows-cert', dest='windows_cert',
+    parser.add_option('--gcloud-projectid', dest='gcloud_projectid',
                       default = None,
-                      help = 'Path to codesigning certificate for Windows version of the editor')
+                      help = 'Google Cloud project id where key ring is stored')
 
-    parser.add_option('--windows-cert-pass', dest='windows_cert_pass',
+    parser.add_option('--gcloud-location', dest='gcloud_location',
                       default = None,
-                      help = 'Path to file containing password to codesigning certificate for Windows version of the editor')
+                      help = 'Google cloud region where key ring is located')
+
+    parser.add_option('--gcloud-keyringname', dest='gcloud_keyringname',
+                      default = None,
+                      help = 'Google Cloud key ring name')
+
+    parser.add_option('--gcloud-keyname', dest='gcloud_keyname',
+                      default = None,
+                      help = 'Google Cloud key name')
+
+    parser.add_option('--gcloud-certfile', dest='gcloud_certfile',
+                      default = None,
+                      help = 'Google Cloud certificate chain file')
+
+    parser.add_option('--gcloud-keyfile', dest='gcloud_keyfile',
+                      default = None,
+                      help = 'Google Cloud service account key file')
 
     parser.add_option('--verbose', dest='verbose',
                       action = 'store_true',
@@ -2307,8 +2395,12 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       github_sha1 = options.github_sha1,
                       version = options.version,
                       codesigning_identity = options.codesigning_identity,
-                      windows_cert = options.windows_cert,
-                      windows_cert_pass = options.windows_cert_pass,
+                      gcloud_projectid = options.gcloud_projectid,
+                      gcloud_location = options.gcloud_location,
+                      gcloud_keyringname = options.gcloud_keyringname,
+                      gcloud_keyname = options.gcloud_keyname,
+                      gcloud_certfile = options.gcloud_certfile,
+                      gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
 
     for cmd in args:

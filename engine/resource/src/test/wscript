@@ -87,6 +87,8 @@ def build(bld):
     bld(source = bld.path.ant_glob('overrides/**/*.*') + bld.path.ant_glob('zipfiles/**/*.*'),
         name = 'overides')
 
+    bld.add_group()
+
     bld(rule = add_to_zip_file,
         target = bld.path.find_or_declare('luresources.zip'),
         source = bld.path.ant_glob('zipfiles/**/*'),
@@ -177,7 +179,7 @@ def build(bld):
     bld.program(features     = 'cxx embed test',
                 includes     = '.. ../../proto',
                 defines      = defines,
-                use          = 'TESTMAIN DDF DLIB PROFILE_NULL THREAD LUA resource',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
                 web_libs     = ['library_sys.js'],
                 proto_gen_py = True,
                 exported_symbols = ['ResourceProviderFile', 'ResourceProviderHttp', 'ResourceProviderArchive'],

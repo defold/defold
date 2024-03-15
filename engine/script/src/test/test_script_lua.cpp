@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -67,7 +67,11 @@ TEST_F(ScriptTestLua, TestPrint)
     char* log = GetLog();
 
     ASSERT_EQ(top, lua_gettop(L));
+#if defined(DM_NO_HTTP_CACHE)
+    ASSERT_STREQ("WARNING:SCRIPT: Http cache disabled\nDEBUG:SCRIPT: test print\nDEBUG:SCRIPT: test\tmultiple\n", log);
+#else
     ASSERT_STREQ("DEBUG:SCRIPT: test print\nDEBUG:SCRIPT: test\tmultiple\n", log);
+#endif
 }
 
 TEST_F(ScriptTestLua, TestPPrint)
@@ -78,8 +82,12 @@ TEST_F(ScriptTestLua, TestPPrint)
 
     const char* log = GetLog();
     const char* result = RemoveTableAddresses(GetLog());
-    printf("MAWE: log:\n***\n%s\n***\n", result!=0?result:"null log");
+
+#if defined(DM_NO_HTTP_CACHE)
+    ASSERT_EQ(result, strstr(result, "WARNING:SCRIPT: Http cache disabled\nDEBUG:SCRIPT: testing pprint\n"));
+#else
     ASSERT_EQ(result, strstr(result, "DEBUG:SCRIPT: testing pprint\n"));
+#endif
     ASSERT_NE((const char*)0, strstr(result, "{ --[[]]"));
     ASSERT_NE((const char*)0, strstr(result, "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)"));
     ASSERT_NE((const char*)0, strstr(result, "  3 = { } --[[]]"));
@@ -99,7 +107,11 @@ TEST_F(ScriptTestLua, TestCircularRefPPrint)
     ASSERT_EQ(top, lua_gettop(L));
 
     const char* result = RemoveTableAddresses(GetLog());
+#if defined(DM_NO_HTTP_CACHE)
+    ASSERT_EQ(result, strstr(result, "WARNING:SCRIPT: Http cache disabled\nDEBUG:SCRIPT: testing pprint with circular ref\n"));
+#else
     ASSERT_EQ(result, strstr(result, "DEBUG:SCRIPT: testing pprint with circular ref\n"));
+#endif
     ASSERT_NE((const char*)0, strstr(result, "DEBUG:SCRIPT: \n"));
     ASSERT_NE((const char*)0, strstr(result, "{ --[[]]"));
     ASSERT_NE((const char*)0, strstr(result, "  foo = \"an old man was telling stories of circular references.\""));
@@ -173,7 +185,7 @@ static int LuaCallCallback(lua_State* L)
 }
 
 /*
- * This test mimicks how callbacks are handled in extensions, e.g. facebook, iap, push, with respect to coroutine safety
+ * This test mimicks how callbacks are handled in extensions, with respect to coroutine safety
  */
 TEST_F(ScriptTestLua, TestCoroutineCallback)
 {

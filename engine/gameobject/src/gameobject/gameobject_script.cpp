@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -762,7 +762,7 @@ namespace dmGameObject
         dmGameObject::PropertyDesc property_desc;
         dmGameObject::PropertyResult result = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
 
-        if (result == dmGameObject::PROPERTY_RESULT_OK && !index_requested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && property_desc.m_ArrayLength > 0)
+        if (result == dmGameObject::PROPERTY_RESULT_OK && !index_requested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && property_desc.m_ArrayLength > 1)
         {
             lua_newtable(L);
 
@@ -1118,7 +1118,7 @@ namespace dmGameObject
      * local s = go.get_scale("x")
      * ```
      */
-    int Script_GetScale(lua_State* L)
+    static int Script_GetScale(lua_State* L)
     {
         Instance* instance = ResolveInstance(L, 1);
         dmScript::PushVector3(L, dmGameObject::GetScale(instance));
@@ -1145,11 +1145,9 @@ namespace dmGameObject
      * local s = go.get_scale_vector("x")
      * ```
      */
-    int Script_GetScaleVector(lua_State* L)
+    static int Script_GetScaleVector(lua_State* L)
     {
-        Instance* instance = ResolveInstance(L, 1);
-        dmScript::PushVector3(L, dmGameObject::GetScale(instance));
-        return 1;
+        return Script_GetScale(L);
     }
 
     /*# gets the uniform scale factor of the game object instance
@@ -1394,7 +1392,7 @@ namespace dmGameObject
      *
      * @name go.get_parent
      * @param [id] [type:string|hash|url] optional id of the game object instance to get parent for, defaults to the instance containing the calling script
-     * @return parent_id [type:hash] parent instance or nil
+     * @return parent_id [type:hash|nil] parent instance or `nil`
      * @examples
      *
      * Get parent of the instance containing the calling script:
@@ -2031,7 +2029,7 @@ namespace dmGameObject
      * ```
      *
      */
-    int Script_Delete(lua_State* L)
+    static int Script_Delete(lua_State* L)
     {
         int args = lua_gettop(L);
 
@@ -2130,43 +2128,9 @@ namespace dmGameObject
      * go.delete_all(ids)
      * ```
      */
-    int Script_DeleteAll(lua_State* L)
+    static int Script_DeleteAll(lua_State* L)
     {
-        const int top = lua_gettop(L);
-        if (lua_gettop(L) != 1 || !lua_istable(L, 1)) {
-            dmLogWarning("go.delete_all() needs a table as its first argument");
-            return 0;
-        }
-        int result = DeleteGOTable(L, false);
-        if(result == 0)
-        {
-            assert(top == lua_gettop(L));
-        }
-        return result;
-    }
-
-    /* OMITTED FROM API DOCS!
-     * constructs a ray in world space from a position in screen space
-     *
-     * [icon:alert] Do not use this function, WIP!
-     *
-     * @name go.screen_ray
-     * @param x [type:number] x-coordinate of the screen space position
-     * @param y [type:number] y-coordinate of the screen space position
-     * @return position [type:vector3] of the ray in world-space
-     * @return direction [type:vector3] of the ray in world space
-     */
-    int Script_ScreenRay(lua_State* L)
-    {
-        lua_Number x = luaL_checknumber(L, 1);
-        lua_Number y = luaL_checknumber(L, 2);
-        // TODO: This temporarily assumes the worldspace is simply screen space
-        // Should be fixed in a more robust way.
-        Vector3 p((float) x, (float) y, 1.0f);
-        Vector3 d(0.0f, 0.0f, -1.0f);
-        dmScript::PushVector3(L, p);
-        dmScript::PushVector3(L, d);
-        return 2;
+        return Script_Delete(L);
     }
 
     /*# define a property for the script
@@ -2279,6 +2243,66 @@ namespace dmGameObject
         return 1;
     }
 
+
+    /*# convert position to game object's coordinate space
+    * [icon:attention] The function uses world transformation calculated at the end of previous frame.
+    *
+    * @name go.world_to_local_position
+    * @param position [type:vector3] position which need to be converted
+    * @param url [type:string|hash|url] url of the game object which coordinate system convert to
+    * @return converted_postion [type:vector3] converted position
+    *
+    * @examples
+    * Convert position of "test" game object into coordinate space of "child" object.
+    *
+    * ```lua
+    *   local test_pos = go.get_world_position("/test")
+    *   local child_pos = go.get_world_position("/child")
+    *   local new_position = go.world_to_local_position(test_pos, "/child")
+    * ```
+    */
+    int Script_WorldToLocalPosition(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmVMath::Vector3* world_position = dmScript::CheckVector3(L, 1);
+        Instance* instance = ResolveInstance(L, 2);
+        dmVMath::Matrix4 go_transform = dmGameObject::GetWorldMatrix(instance);
+        dmVMath::Matrix4 world_transform = dmVMath::Matrix4::identity();
+        world_transform.setTranslation(*world_position);
+        dmVMath::Matrix4 result_transfrom = world_transform * go_transform;
+        dmScript::PushVector3(L, result_transfrom.getTranslation());
+        return 1;
+    }
+
+
+    /*# convert transformation matrix to game object's coordinate space
+    * [icon:attention] The function uses world transformation calculated at the end of previous frame.
+    *
+    * @name go.world_to_local_transform
+    * @param transformation [type:matrix4] transformation which need to be converted
+    * @param url [type:string|hash|url] url of the game object which coordinate system convert to
+    * @return converted_transform [type:matrix4] converted transformation
+    *
+    * @examples
+    * Convert transformation of "test" game object into coordinate space of "child" object.
+    *
+    * ```lua
+    *    local test_transform = go.get_world_transform("/test")
+    *    local child_transform = go.get_world_transform("/child")
+    *    local result_transform = go.world_to_local_transform(test_transform, "/child")
+    * ```
+    */
+    int Script_WorldToLocalTransfrom(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmVMath::Matrix4* world_transform = dmScript::CheckMatrix4(L, 1);
+        Instance* instance = ResolveInstance(L, 2);
+        const dmVMath::Matrix4& go_transform = dmGameObject::GetWorldMatrix(instance);
+
+        dmScript::PushMatrix4(L,  *world_transform * go_transform);
+        return 1;
+    }
+
     static const luaL_reg GO_methods[] =
     {
         {"get",                     Script_Get},
@@ -2303,9 +2327,10 @@ namespace dmGameObject
         {"cancel_animations",       Script_CancelAnimations},
         {"delete",                  Script_Delete},
         {"delete_all",              Script_DeleteAll},
-        {"screen_ray",              Script_ScreenRay},
         {"property",                Script_Property},
         {"exists",                  Script_Exists},
+        {"world_to_local_position", Script_WorldToLocalPosition},
+        {"world_to_local_transform",Script_WorldToLocalTransfrom},
         {0, 0}
     };
 
@@ -2842,6 +2867,19 @@ bail:
      * ```
      */
 
+    /*# called at fixed intervals to update the script component
+     *
+     * This is a callback-function, which is called by the engine at fixed intervals to update the state of a script
+     * component. The function will be called if 'Fixed Update Frequency' is enabled in the Engine section of game.project.
+     * It can for instance be used to update game logic with the physics simulation if using a fixed timestep for the
+     * physics (enabled by ticking 'Use Fixed Timestep' in the Physics section of game.project).
+     *
+     * @name fixed_update
+     * @param self [type:object] reference to the script state to be used for storing data
+     * @param dt [type:number] the time-step of the frame update
+     * @examples
+     */
+
     /*# called when a message has been sent to the script component
      *
      * This is a callback-function, which is called by the engine whenever a message has been sent to the script component.
@@ -2951,7 +2989,7 @@ bail:
      * @param self [type:object] reference to the script state to be used for storing data
      * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
      * @param action [type:table] a table containing the input data, see above for a description
-     * @return [consume] [type:boolean] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
+     * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *
      * This example demonstrates how a game object instance can be moved as a response to user input.

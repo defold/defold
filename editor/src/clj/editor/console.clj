@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,24 +13,38 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.console
-  (:require [clojure.data.json :as json]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.button :as fx.button]
+            [cljfx.fx.check-box :as fx.check-box]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.label :as fx.label]
+            [cljfx.fx.list-view :as fx.list-view]
+            [cljfx.fx.region :as fx.region]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
+            [cljfx.fx.text-field :as fx.text-field]
+            [cljfx.fx.v-box :as fx.v-box]
+            [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :refer [re-match-result-seq split-lines]]
+            [editor.code.util :as util :refer [re-match-result-seq split-lines]]
             [editor.code.view :as view]
+            [editor.error-reporting :as error-reporting]
+            [editor.fxui :as fxui]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [util.coll :as coll]
             [util.http-util :as http-util])
-  (:import [clojure.lang PersistentQueue]
-           [editor.code.data Cursor CursorRange LayoutInfo Rect]
+  (:import [editor.code.data Cursor CursorRange LayoutInfo Rect]
            [java.util.regex MatchResult]
            [javafx.beans.property SimpleStringProperty]
-           [javafx.scene Parent Scene]
+           [javafx.scene Node Parent Scene]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.control Button Tab TextField]
            [javafx.scene.input Clipboard KeyEvent MouseEvent ScrollEvent]
@@ -43,8 +57,19 @@
 
 (defonce ^:const url-prefix "/console")
 
+(def ^:const console-filters-prefs-key "console-filters")
+
 (def ^:private pending-atom
-  (atom {:clear? false :entries PersistentQueue/EMPTY}))
+  ;; Implementation notes:
+  ;; For filtering, we have to keep all received output entries. Each frame,
+  ;; the console view consumes a batch of entries — this is implemented by
+  ;; incrementing the consumption :index.
+  ;; Filtering is implemented by changing :filter-set (and updating :entry-pred,
+  ;; which is derived from :filter-set and stored for performance), and then
+  ;; by resetting the :index to 0, marking the view to :clear while keeping the
+  ;; :entries. Hence, from the point of view of the console view, there is no
+  ;; such thing as filters, only clearing the output.
+  (atom {:clear false :entries [] :index 0 :filter-set #{} :entry-pred nil}))
 
 (def ^:private gutter-bubble-font
   (Font. "Source Sans Pro", 10.5))
@@ -65,33 +90,189 @@
 (defn clear-console!
   "Clear the console. Callable from a background thread."
   []
-  (reset! pending-atom {:clear? true :entries PersistentQueue/EMPTY}))
+  (swap! pending-atom assoc :clear true :entries [] :index 0))
 
-(defn- pop-n [coll ^long n]
-  (let [max-n (min n (count coll))]
-    (loop [i 0
-           xs coll]
-      (if (= max-n i)
-        xs
-        (recur (inc i) (pop xs))))))
+(defn- consume-entries-in-state [state ^long n]
+  (let [{:keys [^long index entries]} state]
+    (assoc state :index (min (count entries) (+ index n)) :clear false)))
+
+(defn- get-entries-from-state [state ^long n]
+  (let [{:keys [^long index entries entry-pred]} state
+        unfiltered (subvec entries index (min (count entries) (+ index n)))]
+    (if entry-pred
+      (filterv entry-pred unfiltered)
+      unfiltered)))
 
 (defn- dequeue-pending! [n]
-  (let [batch (first (swap-vals!
-                       pending-atom
-                       (fn [{:keys [entries]}]
-                         {:clear? false
-                          :entries (pop-n entries n)})))]
-    (update batch :entries #(take n %))))
+  (let [old-state (first (swap-vals! pending-atom consume-entries-in-state n))]
+    (assoc old-state :entries (get-entries-from-state old-state n))))
+
+(defn- compile-entry-predicate [filter-set]
+  (letfn [(make-inclusion-pred [inclusion]
+            (fn inclusion-pred [entry]
+              (string/includes? (entry 1) inclusion)))
+          (make-exclusion-pred [exclusion-with-prefix]
+            (let [exclusion (subs exclusion-with-prefix 1)]
+              (fn exclusion-pred [entry]
+                (not (string/includes? (entry 1) exclusion)))))
+          (combine-preds [pred-combinator preds]
+            (case (count preds)
+              0 nil
+              1 (first preds)
+              (apply pred-combinator preds)))]
+    (let [[exclusions inclusions] (coll/separate-by #(and (<= 2 (count %))
+                                                          (string/starts-with? % "!"))
+                                                    filter-set)
+          inclusions-pred (combine-preds some-fn (mapv make-inclusion-pred inclusions))
+          exclusions-pred (combine-preds every-pred (mapv make-exclusion-pred exclusions))]
+      (combine-preds every-pred (filterv some? [inclusions-pred exclusions-pred])))))
+
+(defn- set-filters! [filters]
+  (let [filter-set (into #{}
+                         (keep (fn [[text enabled]]
+                                 (when enabled text)))
+                         filters)]
+    (swap! pending-atom (fn [state]
+                          (if (= filter-set (:filter-set state))
+                            state
+                            (assoc state
+                              :filter-set filter-set
+                              :entry-pred (compile-entry-predicate filter-set)
+                              :clear true
+                              :index 0))))))
+
+(defn- save-filters! [prefs filters]
+  (prefs/set-prefs prefs console-filters-prefs-key filters)
+  (set-filters! filters))
 
 ;; -----------------------------------------------------------------------------
 ;; Tool Bar
 ;; -----------------------------------------------------------------------------
+(def ^:private ext-with-button-props
+  (fx/make-ext-with-props fx.button/props))
+
+(defn filter-console-list-cell-view [[i [text selected] :as in]]
+  (if-not in
+    {}
+    {:style-class "console-filter-popup-list-cell"
+     ;; somehow this line makes the check-box's label to limit its width, so it
+     ;; does not produce a horizontal scrollbar, but instead truncates the text
+     ;; with ellipsis.
+     :pref-width 100
+     :graphic {:fx/type fx.h-box/lifecycle
+               :style-class "console-filter-popup-list-cell-h-box"
+               :alignment :center-left
+               :spacing 2
+               :children [{:fx/type fx.check-box/lifecycle
+                           :h-box/hgrow :always
+                           :focus-traversable false
+                           :max-width ##Inf
+                           :selected selected
+                           :mnemonic-parsing false
+                           :on-selected-changed {:event-type :select :index i}
+                           :text text}
+                          {:fx/type fx.button/lifecycle
+                           :focus-traversable false
+                           :style-class "console-filter-popup-list-cell-remove-button"
+                           :graphic {:fx/type fx.region/lifecycle
+                                     :style-class "cross"}
+                           :on-action {:event-type :delete :index i}}]}}))
+
+(defn- filter-console-view [^Node filter-console-button {:keys [open filters text]}]
+  (let [active-filters-count (count (filterv second filters))
+        show-counter (pos? active-filters-count)
+        anchor (.localToScreen filter-console-button
+                               -12.0 ;; shadow offset
+                               (- (.getMaxY (.getBoundsInLocal filter-console-button))
+                                  ;; shadow offset
+                                  4.0))]
+    {:fx/type fxui/with-popup
+     :desc {:fx/type ext-with-button-props
+            :desc {:fx/type fxui/ext-value
+                   :value filter-console-button}
+            :props {:on-action {:event-type :show-or-hide}
+                    :graphic {:fx/type fx.h-box/lifecycle
+                              :style-class "content"
+                              :children [{:fx/type fx.label/lifecycle
+                                          :visible show-counter
+                                          :managed show-counter
+                                          :id "filter-console-counter"
+                                          :text (str active-filters-count)}
+                                         {:fx/type fx.region/lifecycle
+                                          :pseudo-classes (if open #{:open} #{})
+                                          :h-box/margin {:left 10}
+                                          :id "filter-console-arrow"}]}}}
+     :showing open
+     :anchor-location :window-bottom-left
+     :anchor-x (.getX anchor)
+     :anchor-y (.getY anchor)
+     :auto-hide true
+     :auto-fix true
+     :hide-on-escape true
+     :consume-auto-hiding-events true
+     :on-auto-hide {:event-type :hide}
+     :content [{:fx/type fx.stack-pane/lifecycle
+                :stylesheets [(str (io/resource "editor.css"))]
+                :style-class "console-filter-popup"
+                :children [{:fx/type fx.region/lifecycle
+                            :mouse-transparent true
+                            :style-class "console-filter-popup-background"}
+                           {:fx/type fx.v-box/lifecycle
+                            :children
+                            [{:fx/type fx.list-view/lifecycle
+                              :focus-traversable false
+                              :style-class "console-filter-popup-list-view"
+                              :items (into [] (map-indexed vector) filters)
+                              :fixed-cell-size 27
+                              :max-height (* 27 (min 10 (count filters)))
+                              :cell-factory {:fx/cell-type :list-cell
+                                             :describe filter-console-list-cell-view}}
+                             {:fx/type fxui/ext-focused-by-default
+                              :v-box/margin 4
+                              :desc {:fx/type fx.text-field/lifecycle
+                                     :text text
+                                     :on-text-changed {:event-type :type}
+                                     :on-action {:event-type :add}
+                                     :prompt-text "Add filter (e.g. text, !exclude)"}}]}]}]}))
+
+(defn- handle-filter-event! [state prefs e]
+  (case (:event-type e)
+    :hide (swap! state assoc :open false)
+    :show-or-hide (swap! state update :open not)
+    :type (swap! state assoc :text (:fx/event e))
+    :delete (let [new-state (swap! state update :filters util/remove-index (:index e))]
+              (save-filters! prefs (:filters new-state)))
+    :add (let [new-state (swap! state #(-> %
+                                           (assoc :text "")
+                                           (cond-> (not (string/blank? (:text %)))
+                                                   (update :filters conj [(:text %) true]))))]
+           (save-filters! prefs (:filters new-state)))
+    :select (let [new-state (swap! state assoc-in [:filters (:index e) 1] (:fx/event e))]
+              (save-filters! prefs (:filters new-state)))))
+
+(defn- init-console-filter! [filter-console-button prefs]
+  (let [filters (prefs/get-prefs prefs console-filters-prefs-key [])
+        state (atom {:open false :text "" :filters filters})]
+    (set-filters! filters)
+    (fx/mount-renderer
+      state
+      (fx/create-renderer
+        :error-handler error-reporting/report-exception!
+        :opts {:fx.opt/map-event-handler #(handle-filter-event! state prefs %)}
+        :middleware (comp
+                      fxui/wrap-dedupe-desc
+                      (fx/wrap-map-desc #(filter-console-view filter-console-button %)))))))
 
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
 
 (defn- setup-tool-bar!
-  ^Parent [^Parent tool-bar view-node]
-  (ui/with-controls tool-bar [^TextField search-console ^Button prev-console ^Button next-console ^Button clear-console]
+  ^Parent [^Parent tool-bar view-node prefs]
+  (ui/with-controls tool-bar [^TextField search-console
+                              ^Button prev-console
+                              ^Button next-console
+                              ^Button clear-console
+                              filter-console]
+    (init-console-filter! filter-console prefs)
     (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node} nil)
     (.bindBidirectional (.textProperty search-console) find-term-property)
     (ui/bind-key-commands! search-console {"Enter" :find-next
@@ -481,28 +662,28 @@
           (partition-by #(nil? (first %)) entries)))
 
 (defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
-  (let [{:keys [clear? entries]} (dequeue-pending! 1000)]
-    (when (or clear? (seq entries))
+  (let [{:keys [clear entries]} (dequeue-pending! 1024)]
+    (when (or clear (seq entries))
       (g/with-auto-evaluation-context evaluation-context
         (let [resource-map (g/node-value workspace :resource-map evaluation-context)
               ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
               prev-lines (g/node-value view-node :lines evaluation-context)
               prev-regions (g/node-value view-node :regions evaluation-context)
-              prev-document-width (if clear? 0.0 (.document-width prev-layout))
+              prev-document-width (if clear 0.0 (.document-width prev-layout))
               appended-width (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) (mapv second entries))
               document-width (max prev-document-width ^double appended-width)
               was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
               resource-suffix-map-delay (make-resource-suffix-map-delay resource-map)
-              props (append-entries {:lines (if clear? [""] prev-lines)
-                                     :regions (if clear? [] prev-regions)}
+              props (append-entries {:lines (if clear [""] prev-lines)
+                                     :regions (if clear [] prev-regions)}
                                     entries resource-map resource-suffix-map-delay on-region-click!)]
           (view/set-properties! view-node nil
                                 (cond-> (assoc props :document-width document-width)
                                         was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
-                                        clear? (assoc :cursor-ranges [data/document-start-cursor-range])
-                                        clear? (assoc :invalidated-row 0)
-                                        clear? (data/frame-cursor prev-layout)))))))
-  (view/repaint-view! view-node elapsed-time {:cursor-visible? false}))
+                                        clear (assoc :cursor-ranges [data/document-start-cursor-range])
+                                        clear (assoc :invalidated-row 0)
+                                        clear (data/frame-cursor prev-layout)))))))
+  (view/repaint-view! view-node elapsed-time {:cursor-visible false}))
 
 (def ^:private console-grammar
   {:name "Console"
@@ -547,7 +728,7 @@
 
 (def ^:private resource->menu-item (comp ui/string->menu-item resource/proj-path))
 
-(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn]
+(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
         view-node (setup-view! (g/make-node! graph ConsoleNode)
@@ -561,7 +742,7 @@
                                              :highlighted-find-term (.getValue find-term-property)
                                              :line-height-factor 1.2
                                              :resize-reference :bottom))
-        tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node)
+        tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node prefs)
         on-region-click! (fn on-region-click! [region ^MouseEvent event]
                            (when (= :resource-reference (:type region))
                              (let [open-resource! (fn open-resource! [resource]

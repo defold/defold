@@ -25,6 +25,8 @@
 engine/.clang_complete
 /.vscode
 .npm
+/**/.project
+/**/.gradle
 
 # When opening the folder through certain IDE's (e.g. VSCode)
 scripts/android-v4/.classpath
@@ -49,6 +51,7 @@ com.dynamo.cr/com.dynamo.cr.bob.test/src/com/dynamo/bob/archive/EngineVersion.ja
 com.dynamo.cr/extensions/**/build
 
 /local_sdks
+engine/**/build/
 external/**/build/
 editor/resources/splash.css
 editor/.calva/output-window/output.calva-repl
@@ -59,3 +62,5 @@ editor/.lsp/sqlite.db
 /packages/lib/
 /com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.interp
 /com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.tokens
+
+/com.dynamo.cr/com.dynamo.cr.bob/libexec/**/lipo*

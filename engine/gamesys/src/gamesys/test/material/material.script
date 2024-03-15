@@ -1,0 +1,63 @@
+-- Copyright 2020-2024 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+-- 
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+-- 
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+local function string_starts_with(str, prefix)
+    return string.sub(str,1,string.len(prefix))==prefix
+end
+
+local EPSILON = 0.001
+local function assert_near_vector4(a,b)
+    assert(math.abs(a.x-b.x) < EPSILON)
+    assert(math.abs(a.y-b.y) < EPSILON)
+    assert(math.abs(a.z-b.z) < EPSILON)
+    assert(math.abs(a.w-b.w) < EPSILON)
+end
+
+local v_a = vmath.vector4(1,2,3,4)
+local v_b = vmath.vector4(4,3,2,1)
+
+local function test_vector()
+    local c_array_values = go.get("#constant_array", "tint")
+    assert(type(c_array_values) == "table")
+    assert(#c_array_values == 2)
+
+    go.set("#constant_array", "tint", { v_a, v_b })
+
+    c_array_values = go.get("#constant_array", "tint")
+    assert_near_vector4(c_array_values[1], v_a)
+    assert_near_vector4(c_array_values[2], v_b)
+
+    -- Set a table value with a table as argument
+    go.set("#constant_array", "tint", v_b)
+    assert_near_vector4(go.get("#constant_array", "tint")[1], v_b)
+end
+
+local function test_single()
+    local c_single_value = go.get("#constant_single", "tint")
+    assert(type(c_single_value) == "userdata")
+    assert(string_starts_with(tostring(c_single_value), "vmath.vector4"))
+
+    go.set("#constant_single", "tint", v_a)
+
+    assert_near_vector4(go.get("#constant_single", "tint"), v_a)
+
+    -- Set a single constant with a table
+    go.set("#constant_single", "tint", { v_b })
+    assert_near_vector4(go.get("#constant_single", "tint"), v_b)
+end
+
+function init(self)
+    test_vector()
+    test_single()
+end

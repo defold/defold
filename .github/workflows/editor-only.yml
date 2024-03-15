@@ -15,8 +15,7 @@ env:
   DM_PACKAGES_URL: ${{ secrets.DM_PACKAGES_URL }}
   DM_ARCHIVE_DOMAIN: ${{ secrets.DM_ARCHIVE_DOMAIN }}
   DM_RELEASE_REPOSITORY: ${{ secrets.DM_RELEASE_REPOSITORY }}
-  WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-  WINDOWS_CERTIFICATE_PASS: ${{ secrets.WINDOWS_CERTIFICATE_PASS }}
+  GCLOUD_EDITOR_SERVICE_KEY: ${{ secrets.GCLOUD_EDITOR_SERVICE_KEY }}
   MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
   MACOS_CERTIFICATE_PASS: ${{ secrets.MACOS_CERTIFICATE_PASS }}
   SERVICES_GITHUB_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
@@ -29,10 +28,10 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
-      { name: 'Install dependencies', run: sudo apt-get install -y libopenal-dev libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
+      { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
         run: 'ci/ci.sh build-editor'
@@ -47,10 +46,10 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        platform: [x86_64-macos]
+        platform: [x86_64-macos, arm64-macos]
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
         name: 'Download editor',
@@ -66,7 +65,7 @@ jobs:
       },
       {
         name: 'Notarize editor',
-        run: 'ci/ci.sh --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}" notarize-editor'
       },
       {
         name: 'Archive editor',
@@ -75,13 +74,13 @@ jobs:
 
   sign-editor-windows:
     needs: [build-editor]
-    runs-on: windows-latest
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
         platform: [x86_64-win32]
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
         name: 'Download editor',
@@ -91,7 +90,7 @@ jobs:
       {
         name: 'Install dependencies',
         shell: bash,
-        run: 'ci/ci.sh --windows-cert-b64="${{env.WINDOWS_CERTIFICATE}}" --windows-cert-pass="${{env.WINDOWS_CERTIFICATE_PASS}}" install'
+        run: 'ci/ci.sh install'
       },
       {
         name: 'Install ext dependencies',
@@ -101,7 +100,7 @@ jobs:
       {
         name: 'Sign editor',
         shell: bash,
-        run: 'ci/ci.sh sign-editor --windows-cert=./ci/windows_cert.pfx --windows-cert-pass=./ci/windows_cert.pass --platform=${{ matrix.platform }}'
+        run: 'ci/ci.sh sign-editor --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}" --platform=${{ matrix.platform }}'
       },
       {
         name: 'Archive editor',
@@ -117,7 +116,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3 },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.x, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
         name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)

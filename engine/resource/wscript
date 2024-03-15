@@ -53,7 +53,12 @@ def kill_proc(proc):
 
 def _get_local_ip(self):
     hostname = socket.gethostname()
-    local_ip = socket.gethostbyname(hostname)
+    try:
+        local_ip = socket.gethostbyname(hostname)
+    except socket.gaierror as e:
+        print(e)
+        print(f"Hostname was '{hostname}', now trying empty ('') string now")
+        local_ip = socket.gethostbyname("")
     return local_ip
 
 def _start_server(self, local_ip, port, configname=None):

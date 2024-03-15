@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -39,23 +39,25 @@ namespace dmLoadQueue
 
     struct Request
     {
-        const char* m_Name;
-        const char* m_CanonicalPath;
+        const char*                m_Name;
+        const char*                m_CanonicalPath;
         dmResource::LoadBufferType m_Buffer;
-        PreloadInfo m_PreloadInfo;
-        LoadResult m_Result;
+        PreloadInfo                m_PreloadInfo;
+        LoadResult                 m_Result;
     };
 
     struct Queue
     {
-        dmResource::HFactory m_Factory;
-        dmMutex::HMutex m_Mutex;
+        Request                                 m_Request[QUEUE_SLOTS];
+        dmResource::HFactory                    m_Factory;
+        dmMutex::HMutex                         m_Mutex;
         dmConditionVariable::HConditionVariable m_WakeupCond;
-        dmThread::Thread m_Thread;
-        Request m_Request[QUEUE_SLOTS];
-        uint32_t m_Front, m_Back, m_Loaded;
-        uint64_t m_BytesWaiting;
-        bool m_Shutdown;
+        dmThread::Thread                        m_Thread;
+        uint32_t                                m_Front;
+        uint32_t                                m_Back;
+        uint32_t                                m_Loaded;
+        uint64_t                                m_BytesWaiting;
+        bool                                    m_Shutdown;
 
         // Circular queue with indexing as follow (exclusive end)
         //
@@ -94,7 +96,7 @@ namespace dmLoadQueue
                 dmMutex::ScopedLock lk(queue->m_Mutex);
                 if (current != 0)
                 {
-                    // Just finished one (from previous iteratino)
+                    // Just finished one (from previous iteration)
                     queue->m_BytesWaiting += current->m_Buffer.Capacity();
                     queue->m_Loaded++;
                     current->m_Result = result;
@@ -129,21 +131,22 @@ namespace dmLoadQueue
             if (current)
             {
                 // We use the temporary result object here to fill in the data so it can be written with the mutex held.
-                uint32_t size;
+                uint32_t size = 0;
 
                 assert(current->m_Buffer.Size() == 0);
                 if (current->m_Buffer.Capacity() != DEFAULT_CAPACITY)
                 {
                     current->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
                 }
-                result.m_LoadResult    = DoLoadResource(queue->m_Factory, current->m_CanonicalPath, current->m_Name, &size, &current->m_Buffer);
+
+                result.m_LoadResult = dmResource::LoadResourceFromBuffer(queue->m_Factory, current->m_CanonicalPath, current->m_Name, &size, &current->m_Buffer);
                 result.m_PreloadResult = dmResource::RESULT_PENDING;
                 result.m_PreloadData   = 0;
 
                 if (result.m_LoadResult == dmResource::RESULT_OK)
                 {
                     assert(current->m_Buffer.Size() == size);
-                    if (current->m_PreloadInfo.m_Function)
+                    if (current->m_PreloadInfo.m_CompleteFunction)
                     {
                         dmResource::ResourcePreloadParams params;
                         params.m_Factory       = queue->m_Factory;
@@ -152,7 +155,7 @@ namespace dmLoadQueue
                         params.m_BufferSize    = current->m_Buffer.Size();
                         params.m_HintInfo      = &current->m_PreloadInfo.m_HintInfo;
                         params.m_PreloadData   = &result.m_PreloadData;
-                        result.m_PreloadResult = current->m_PreloadInfo.m_Function(params);
+                        result.m_PreloadResult = current->m_PreloadInfo.m_CompleteFunction(params);
                     }
                     else
                     {

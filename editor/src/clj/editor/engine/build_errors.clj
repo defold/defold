@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -463,12 +463,8 @@
       :message (.getMessage exception)
       :severity :fatal})])
 
-(defn build-error [platform status log]
-  (ex-info (format "Failed to build engine, status %d: %s" status log)
-           {:type ::build-error
-            :platform platform
-            :status status
-            :log log}))
+(defn build-error [message log]
+  (ex-info message {:type ::build-error :log log}))
 
 (defn build-error? [exception]
   (= ::build-error (:type (ex-data exception))))
@@ -490,6 +486,7 @@
     [(g/map->error
       {:_node-id nil ;; The editor cannot currently reference files in the /build folder
        :message (str "For the full log, see " log-path)
+       :file-path log-path
        :severity :warning})]))
 
 (defn- multiple-compile-exception-error-causes [project evaluation-context ^MultipleCompileException exception]

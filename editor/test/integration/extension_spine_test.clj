@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,21 +20,21 @@
             [editor.build-errors-view :as build-errors-view]
             [editor.collection-string-data :as collection-string-data]
             [editor.defold-project :as project]
-            [editor.diff-view :as diff-view]
             [editor.game-project :as game-project]
             [editor.gui :as gui]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support]))
+            [support.test-support :as test-support]
+            [util.coll :refer [pair]]
+            [util.diff :as diff]))
 
 (set! *warn-on-reflection* true)
 
-;; TODO: Restore this to main after 1.4.8 has been released.
-(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/refs/tags/2.10.6.zip")
+(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/main.zip")
 
-(def ^:private error-item-open-info-without-opts (comp pop build-errors-view/error-item-open-info))
+(def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
 (defn- save-data-content-by-proj-path [project]
   (into {}
@@ -42,26 +42,13 @@
                    :content))
         (project/all-save-data project)))
 
-(defn- diff-lines-range [{:keys [begin end]} text]
-  (into []
-        (comp (drop begin)
-              (take (- end begin)))
-        (string/split-lines text)))
-
 (defn- diff-save-data-content-by-proj-path [save-data-content-by-proj-path-before save-data-content-by-proj-path-after]
   (into {}
         (keep (fn [[proj-path save-data-content-after]]
                 (let [save-data-content-before (save-data-content-by-proj-path-before proj-path)
-                      differences (filter (comp (partial not= :nop) :type)
-                                          (diff-view/diff save-data-content-before save-data-content-after))]
-                  (when-not (empty? differences)
-                    [proj-path (mapv (fn [difference]
-                                       (case (:type difference)
-                                         :replace (-> difference
-                                                      (update :left diff-lines-range save-data-content-before)
-                                                      (update :right diff-lines-range save-data-content-after))
-                                         difference))
-                                     differences)]))))
+                      diff-lines (diff/make-diff-output-lines save-data-content-before save-data-content-after 0)]
+                  (when-not (empty? diff-lines)
+                    (pair proj-path diff-lines)))))
         save-data-content-by-proj-path-after))
 
 (deftest legacy-spine-project-user-migration-test
@@ -225,14 +212,13 @@
                   (let [save-data-content-by-proj-path-after (save-data-content-by-proj-path project)
                         save-data-diffs-by-proj-path (diff-save-data-content-by-proj-path save-data-content-by-proj-path-before save-data-content-by-proj-path-after)]
                     (is (= {"/assets/spineboy.spinescene"
-                            [{:type  :replace
-                              :left  ["spine_json: \"/assets/spineboy.json\""
-                                      "atlas: \"/assets/spineboy.atlas\""]
-                              :right ["spine_json: \"/assets/spineboy/spineboy.spinejson\""
-                                      "atlas: \"/assets/spineboy/spineboy.atlas\""]}]
+                            ["1   - spine_json: \"/assets/spineboy.json\""
+                             "2   - atlas: \"/assets/spineboy.atlas\""
+                             "  1 + spine_json: \"/assets/spineboy/spineboy.spinejson\""
+                             "  2 + atlas: \"/assets/spineboy/spineboy.atlas\""]
 
                             "/main/main.collection"
-                            [{:type  :replace
-                              :left  ["  \"material: \\\\\\\"/builtins/materials/spine.material\\\\\\\"\\\\n\""]
-                              :right ["  \"material: \\\\\\\"/defold-spine/assets/spine.material\\\\\\\"\\\\n\""]}]}
+                            ["29    -   \"material: \\\\\\\"/builtins/materials/spine.material\\\\\\\"\\\\n\""
+                             "   29 +   \"material: \\\\\\\"/defold-spine/assets/spine.material\\\\\\\"\\\\n\""]}
+
                            save-data-diffs-by-proj-path))))))))))))

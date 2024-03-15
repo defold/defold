@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,8 +19,6 @@ import java.util.ArrayList;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.bundle.BundlerParams;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
 import com.dynamo.bob.pipeline.ShaderProgramBuilder;
@@ -76,7 +74,12 @@ public class ShaderCompilers {
     public static class MacOSShaderCompiler implements IShaderCompiler {
         public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+
+            // Compute shaders not supported on osx for OpenGL
+            if (shaderType != ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+            }
+
             if (outputSpirv)
             {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -89,7 +92,13 @@ public class ShaderCompilers {
     public static class Win32ShaderCompiler implements IShaderCompiler {
         public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+
+            if (shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            } else {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+            }
+
             if (outputSpirv)
             {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -102,7 +111,13 @@ public class ShaderCompilers {
     public static class LinuxShaderCompiler implements IShaderCompiler {
         public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+
+            if (shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            } else {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+            }
+
             if (outputSpirv)
             {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -115,11 +130,16 @@ public class ShaderCompilers {
     public static class IOSShaderCompiler implements IShaderCompiler {
         public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-            if (outputSpirv)
-            {
-                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+
+            if (shaderType != ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+
+                if (outputSpirv)
+                {
+                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+                }
             }
+
             return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "es", isDebug, softFail);
         }
     }
@@ -127,11 +147,15 @@ public class ShaderCompilers {
     public static class AndroidShaderCompiler implements IShaderCompiler {
         public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
-            if (outputSpirv)
-            {
-                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+
+            if (shaderType != ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+
+                if (outputSpirv)
+                {
+                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+                }
             }
 
             return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
@@ -141,8 +165,12 @@ public class ShaderCompilers {
     public static class WebShaderCompiler implements IShaderCompiler {
         public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+
+            if (shaderType != ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+            }
+
             return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
         }
     }

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,6 +25,7 @@
 namespace dmGameSystem
 {
     struct MaterialResource;
+    struct RenderTargetResource;
     struct MeshResource
     {
         dmMeshDDF::MeshDesc*    m_MeshDDF;
@@ -32,6 +33,7 @@ namespace dmGameSystem
         MaterialResource*       m_Material;
 
         TextureResource*        m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        RenderTargetResource*   m_RenderTargets[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmhash_t                m_TexturePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
 
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;

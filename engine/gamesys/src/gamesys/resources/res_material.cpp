@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -35,13 +35,6 @@ namespace dmGameSystem
                                                  dmGraphics::TEXTURE_WRAP_MIRRORED_REPEAT,
                                                  dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE};
 
-    static dmGraphics::TextureFilter filter_lut[] = {dmGraphics::TEXTURE_FILTER_NEAREST,
-                                                     dmGraphics::TEXTURE_FILTER_LINEAR,
-                                                     dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST,
-                                                     dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR,
-                                                     dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST,
-                                                     dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR};
-
     static dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
     {
         assert(wrap_mode <= dmRenderDDF::MaterialDesc::WRAP_MODE_CLAMP_TO_EDGE);
@@ -50,14 +43,30 @@ namespace dmGameSystem
 
     static dmGraphics::TextureFilter FilterMinFromDDF(dmRenderDDF::MaterialDesc::FilterModeMin min_filter)
     {
-        assert(min_filter <= dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR);
-        return filter_lut[min_filter];
+        switch(min_filter)
+        {
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST:                return dmGraphics::TEXTURE_FILTER_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR:                 return dmGraphics::TEXTURE_FILTER_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST_MIPMAP_NEAREST: return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST_MIPMAP_LINEAR:  return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_NEAREST:  return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR:   return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_DEFAULT:                return dmGraphics::TEXTURE_FILTER_DEFAULT;
+            default:break;
+        }
+        return dmGraphics::TEXTURE_FILTER_DEFAULT;
     }
 
     static dmGraphics::TextureFilter FilterMagFromDDF(dmRenderDDF::MaterialDesc::FilterModeMag mag_filter)
     {
-        assert(mag_filter <= dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_LINEAR);
-        return filter_lut[mag_filter];
+        switch(mag_filter)
+        {
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_NEAREST: return dmGraphics::TEXTURE_FILTER_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_LINEAR:  return dmGraphics::TEXTURE_FILTER_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_DEFAULT: return dmGraphics::TEXTURE_FILTER_DEFAULT;
+            default:break;
+        }
+        return dmGraphics::TEXTURE_FILTER_DEFAULT;
     }
 
     static bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
@@ -101,6 +110,9 @@ namespace dmGameSystem
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources)
     {
+        memset(resources->m_Textures, 0, sizeof(resources->m_Textures));
+        memset(resources->m_SamplerNames, 0, sizeof(resources->m_SamplerNames));
+
         dmResource::Result factory_e;
         factory_e = dmResource::Get(factory, ddf->m_VertexProgram, (void**) &resources->m_VertexProgram);
         if ( factory_e != dmResource::RESULT_OK)
@@ -116,19 +128,16 @@ namespace dmGameSystem
             return factory_e;
         }
 
-        memset(resources->m_Textures, 0, sizeof(resources->m_Textures));
-        memset(resources->m_SamplerNames, 0, sizeof(resources->m_SamplerNames));
-
         // Later, in the render.cpp, we do a mapping between the sampler's location and the texture unit.
         // We assume that the textures[8] are always sorted in the sampler appearance.
         // however, the order of samplers here may be different from the order in the actual material!
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
         for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
         {
+            resources->m_SamplerNames[i] = sampler[i].m_NameHash;
             const char* texture_path = sampler[i].m_Texture;
             if (*texture_path != 0)
             {
-                resources->m_SamplerNames[i] = sampler[i].m_NameHash;
                 factory_e = dmResource::Get(factory, texture_path, (void**)&resources->m_Textures[i]);
                 if ( factory_e != dmResource::RESULT_OK)
                 {
@@ -237,13 +246,14 @@ namespace dmGameSystem
         }
 
         // Now we need to sort the textures based on sampler appearance
-        memset(resource->m_Textures, 0, sizeof(resource->m_Textures));
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             uint32_t unit = dmRender::GetMaterialSamplerUnit(material, resources->m_SamplerNames[i]);
             if (unit == 0xFFFFFFFF)
                 continue;
             resource->m_Textures[unit] = resources->m_Textures[i];
+            resource->m_SamplerNames[unit] = resources->m_SamplerNames[i];
+            resource->m_NumTextures++;
         }
     }
 
@@ -277,6 +287,8 @@ namespace dmGameSystem
             dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, material);
 
             MaterialResource* resource = new MaterialResource;
+            memset(resource, 0, sizeof(MaterialResource));
+
             resource->m_Material = material;
             SetMaterial(params.m_Filename, resource, &resources, ddf);
 

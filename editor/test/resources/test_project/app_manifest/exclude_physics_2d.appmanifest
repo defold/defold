@@ -1,6 +1,15 @@
 # App manifest generated Fri Sep 02 2022 16:09:29 GMT+0200 (Central European Summer Time)
 # Settings: Physics2D,OpenGL
 platforms:
+    arm64-osx:
+        context:
+            excludeLibs: ["physics","Box2D"]
+            excludeSymbols: []
+            symbols: []
+            libs: ["physics_3d"]
+            frameworks: []
+            linkFlags: []
+
     x86_64-osx:
         context:
             excludeLibs: ["physics","Box2D"]

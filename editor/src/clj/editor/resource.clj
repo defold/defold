@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,8 @@
             [schema.core :as s]
             [util.coll :refer [pair]]
             [util.digest :as digest])
-  (:import [java.io File FilterInputStream IOException InputStream]
+  (:import [clojure.lang PersistentHashMap]
+           [java.io File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
            [java.util.zip ZipEntry ZipFile ZipInputStream]
@@ -106,6 +107,9 @@
   ;; path->{:mtime ... :pred ...}
   (atom {}))
 
+;; The same logic implemented in Project.java.
+;; If you change something here, plese change it there as well
+;; Search for excluedFilesAndFoldersEntries.
 ;; root -> pred if project path (string starting with /) is ignored
 (defn- defignore-pred [^File root]
   (let [defignore-file (io/file root ".defignore")
@@ -433,21 +437,36 @@
         (io/copy in f))
       (.getAbsolutePath f))))
 
+(def ^:private ext->style-class
+  (let [config {"script" ["fp" "gui_script" "lua" "render_script" "script" "vp"
+                          "glsl"]
+                "design" ["atlas" "collection" "collisionobject" "cubemap" "dae"
+                          "font" "go" "gui" "label" "model" "particlefx"
+                          "spinemodel" "spinescene" "sprite" "tilemap"
+                          "tilesource" "render_target"]
+                "property" ["animationset" "camera" "collectionfactory"
+                            "collectionproxy" "display_profiles" "factory"
+                            "gamepads" "input_binding" "material" "project"
+                            "render" "sound" "texture_profiles"]}]
+   (->> (for [[kind extensions] config
+              :let [style-class (str "resource-kind-" kind)]
+              ext extensions
+              el [ext style-class]]
+          el)
+        seq
+        PersistentHashMap/createWithCheck)))
+
 (defn style-classes [resource]
-  (into #{"resource"}
-        (keep not-empty)
-        [(when (or (not (editable? resource))
-                   (read-only? resource))
-           "resource-read-only")
-         (case (source-type resource)
-           :file (some->> resource ext not-empty (str "resource-ext-"))
-           :folder "resource-folder"
-           nil)]))
+  (let [resource-kind-class (case (source-type resource)
+                              :file (some->> resource ext ext->style-class)
+                              :folder "resource-folder"
+                              nil)]
+    (cond-> #{"resource"} resource-kind-class (conj resource-kind-class))))
 
 (defn ext-style-classes [resource-ext]
   (assert (or (nil? resource-ext) (string? resource-ext)))
-  (if-some [ext (not-empty resource-ext)]
-    #{"resource" (str "resource-ext-" ext)}
+  (if-some [style-class (ext->style-class resource-ext)]
+    #{"resource" style-class}
     #{"resource"}))
 
 (defn filter-resources [resources query]

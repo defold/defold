@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -236,12 +236,12 @@
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
-(defn- generic-bundle-bob-args [prefs {:keys [variant texture-compression generate-debug-symbols? generate-build-report? publish-live-update-content? bundle-contentless? platform ^File output-directory] :as _bundle-options}]
+(defn- generic-bundle-bob-args [prefs project {:keys [variant texture-compression generate-debug-symbols? generate-build-report? publish-live-update-content? bundle-contentless? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
   (assert (string? (not-empty platform)))
-  (let [build-server-url (native-extensions/get-build-server-url prefs)
+  (let [build-server-url (native-extensions/get-build-server-url prefs project)
         editor-texture-compression (if (prefs/get-prefs prefs "general-enable-texture-compression" false) "true" "false")
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
@@ -339,14 +339,14 @@
 
 (def bundle-bob-commands ["distclean" "build" "bundle"])
 
-(defmulti bundle-bob-args (fn [_prefs platform _bundle-options] platform))
-(defmethod bundle-bob-args :default [_prefs platform _bundle-options] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
-(defmethod bundle-bob-args :android [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (android-bundle-bob-args bundle-options)))
-(defmethod bundle-bob-args :html5   [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (html5-bundle-bob-args bundle-options)))
-(defmethod bundle-bob-args :ios     [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (ios-bundle-bob-args bundle-options)))
-(defmethod bundle-bob-args :linux   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
-(defmethod bundle-bob-args :macos   [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (macos-bundle-bob-args bundle-options)))
-(defmethod bundle-bob-args :windows [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) {"architectures" (bundle-options :platform)}))
+(defmulti bundle-bob-args (fn [_prefs _project platform _bundle-options] platform))
+(defmethod bundle-bob-args :default [_prefs _project platform _bundle-options] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
+(defmethod bundle-bob-args :android [prefs project _platform bundle-options] (merge (generic-bundle-bob-args prefs project bundle-options) (android-bundle-bob-args bundle-options)))
+(defmethod bundle-bob-args :html5   [prefs project _platform bundle-options] (merge (generic-bundle-bob-args prefs project bundle-options) (html5-bundle-bob-args bundle-options)))
+(defmethod bundle-bob-args :ios     [prefs project _platform bundle-options] (merge (generic-bundle-bob-args prefs project bundle-options) (ios-bundle-bob-args bundle-options)))
+(defmethod bundle-bob-args :linux   [prefs project _platform bundle-options] (generic-bundle-bob-args prefs project bundle-options))
+(defmethod bundle-bob-args :macos   [prefs project _platform bundle-options] (merge (generic-bundle-bob-args prefs project bundle-options) (macos-bundle-bob-args bundle-options)))
+(defmethod bundle-bob-args :windows [prefs project _platform bundle-options] (merge (generic-bundle-bob-args prefs project bundle-options) {"architectures" (bundle-options :platform)}))
 
 ;; -----------------------------------------------------------------------------
 ;; Build HTML5
@@ -362,7 +362,7 @@
 (defn build-html5-bob-args [project prefs]
   (let [output-path (build-html5-output-path project)
         proj-settings (project/settings project)
-        build-server-url (native-extensions/get-build-server-url prefs)
+        build-server-url (native-extensions/get-build-server-url prefs project)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
         compress-archive? (get proj-settings ["project" "compress_archive"])]
     (cond-> {"platform" "js-web"

@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -44,6 +44,7 @@
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
             [editor.slice9 :as slice9]
+            [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.util :as eutil]
             [editor.validation :as validation]
@@ -51,9 +52,9 @@
             [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
-            [util.coll :refer [pair]])
-  (:import [com.dynamo.gamesys.proto Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$NodeDesc Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor
-            Gui$NodeDesc$Pivot Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$SizeMode]
+            [util.coll :as coll :refer [pair]]
+            [util.fn :as fn])
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
@@ -92,7 +93,8 @@
 (vtx2/defvertex uv-color-vtx
   (vec3 position)
   (vec2 texcoord0)
-  (vec4 color))
+  (vec4 color)
+  (vec1 page_index))
 
 (shader/defshader vertex-shader
   (attribute vec4 position)
@@ -155,20 +157,13 @@
         vs (mapv (comp vec concat) vs colors)]
     (persistent! (reduce conj! vb vs))))
 
-(defn- ->uv-color-vtx-vb [vs uvs colors vcount]
-  (let [vb (->uv-color-vtx vcount)
-        vs (mapv (comp vec concat) vs uvs colors)]
-    (persistent! (reduce conj! vb vs))))
-
 (defn- gen-lines-vb
   [renderables]
   (let [vcount (transduce (map (comp count :line-data :user-data)) + renderables)]
     (when (pos? vcount)
       (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data selected] :as renderable}]
                             (let [{:keys [line-data line-color]} user-data
-                                  [r g b a] (or line-color
-                                                (and selected colors/selected-outline-color)
-                                                colors/outline-color)]
+                                  [r g b a] (or line-color (colors/renderable-outline-color renderable))]
                               (reduce (fn [vb [x y z]]
                                         (color-vtx-put! vb x y z r g b a))
                                       vb
@@ -192,12 +187,13 @@
     (when (pos? vcount)
       (vtx2/flip! (reduce (fn [vb {:keys [world-transform user-data] :as renderable}]
                             (if-let [geom-data (seq (:geom-data user-data))]
-                              (let [[r g b a] (premul (:color user-data))]
+                              (let [[r g b a] (premul (:color user-data))
+                                    page-index (:page-index user-data)]
                                 (loop [vb vb
                                        [[x y z :as vtx] & vs] (geom/transf-p world-transform geom-data)
                                        [[u v :as uv] & uvs] (:uv-data user-data)]
                                   (if vtx
-                                    (recur (uv-color-vtx-put! vb x y z u v r g b a) vs uvs)
+                                    (recur (uv-color-vtx-put! vb x y z u v r g b a page-index) vs uvs)
                                     vb)))
                               vb))
                           (->uv-color-vtx vcount)
@@ -229,7 +225,7 @@
       (contains? user-data :gen-vb)
       ((:gen-vb user-data) user-data renderables))))
 
-(defn render-tris [^GL2 gl render-args renderables rcount]
+(defn render-tris [^GL2 gl render-args renderables _rcount]
   (let [user-data (get-in renderables [0 :user-data])
         clipping-state (:clipping-state user-data)
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
@@ -245,6 +241,7 @@
                                (vtx2/use-with ::tris vb shader)
                                (vtx/use-with ::tris vb shader))]
           (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+            (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
             (clipping/setup-gl gl clipping-state)
             (gl/set-blend-mode gl blend-mode)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
@@ -256,6 +253,7 @@
                                (vtx2/use-with ::tris vb id-shader)
                                (vtx/use-with ::tris vb id-shader))]
           (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
+            (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
             (clipping/setup-gl gl clipping-state)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
             (clipping/restore-gl gl clipping-state)))))))
@@ -336,7 +334,7 @@
   (-> (doto (Quat4d.)
         (math/clj->vecmath clj-quat))
       math/quat->euler
-      properties/round-vec
+      properties/round-vec-coarse
       (conj 1.0)))
 
 (declare get-registered-node-type-info get-registered-node-type-infos)
@@ -346,9 +344,8 @@
 (def gui-node-parent-attachments
   [[:id :parent]
    [:texture-gpu-textures :texture-gpu-textures]
-   [:texture-anim-datas :texture-anim-datas]
-   [:texture-names :texture-names]
-   [:material-names :material-names]
+   [:texture-infos :texture-infos]
+   [:material-infos :material-infos]
    [:material-shaders :material-shaders]
    [:font-shaders :font-shaders]
    [:font-datas :font-datas]
@@ -431,13 +428,20 @@
 ;; You might want to enable these before making drastic changes to Gui nodes.
 
 ;; SDK api
-(g/deftype GuiResourceNames s/Any #_(sorted-set s/Str))
+(g/deftype GuiResourceNames s/Any #_(s/constrained #{s/Str} sorted?))
+
+(s/def ^:private MaterialInfo {(s/optional-key :max-page-count) s/Int})
+
+(s/def ^:private TextureInfo {(s/optional-key :anim-data) {s/Keyword s/Any}
+                              (s/optional-key :page-count) s/Int})
+
 (g/deftype ^:private GuiResourceTextures s/Any #_{s/Str TextureLifecycle})
 (g/deftype ^:private GuiResourceShaders s/Any #_{s/Str ShaderLifecycle})
-(g/deftype ^:private TextureAnimDatas s/Any #_{s/Str (s/maybe {s/Keyword s/Any})})
+(g/deftype ^:private GuiResourceMaterialInfos s/Any #_{s/Str MaterialInfo})
+(g/deftype ^:private GuiResourceTextureInfos s/Any #_{s/Str TextureInfo})
 (g/deftype ^:private FontDatas s/Any #_{s/Str {s/Keyword s/Any}})
-(g/deftype ^:private SpineSceneElementIds s/Any #_{s/Str {:spine-anim-ids (sorted-set s/Str)
-                                                          :spine-skin-ids (sorted-set s/Str)}})
+(g/deftype ^:private SpineSceneElementIds s/Any #_{s/Str {:spine-anim-ids (s/constrained #{s/Str} sorted?)
+                                                          :spine-skin-ids (s/constrained #{s/Str} sorted?)}})
 (g/deftype ^:private SpineSceneInfos s/Any #_{s/Str {:spine-data-handle (s/maybe {s/Int s/Any})
                                                      :spine-bones (s/maybe {s/Keyword s/Any})
                                                      :spine-scene-scene (s/maybe {s/Keyword s/Any})
@@ -616,12 +620,10 @@
 
   (input texture-gpu-textures GuiResourceTextures)
   (output texture-gpu-textures GuiResourceTextures (gu/passthrough texture-gpu-textures))
-  (input texture-anim-datas TextureAnimDatas)
-  (output texture-anim-datas TextureAnimDatas (gu/passthrough texture-anim-datas))
-  (input texture-names GuiResourceNames)
-  (output texture-names GuiResourceNames (gu/passthrough texture-names))
-  (input material-names GuiResourceNames)
-  (output material-names GuiResourceNames (gu/passthrough material-names))
+  (input texture-infos GuiResourceTextureInfos)
+  (output texture-infos GuiResourceTextureInfos (gu/passthrough texture-infos))
+  (input material-infos GuiResourceMaterialInfos)
+  (output material-infos GuiResourceMaterialInfos (gu/passthrough material-infos))
 
   (input material-shaders GuiResourceShaders)
   (output material-shaders GuiResourceShaders (gu/passthrough material-shaders))
@@ -751,7 +753,15 @@
                              "Adjust mode \"Stretch\" not supported for particlefx nodes."))
                          adjust-mode))
 
-(def ^:private validate-material (partial validate-optional-gui-resource "material '%s' does not exist in the scene" :material))
+(def ^:private validate-material-resource (partial validate-optional-gui-resource "Material '%s' does not exist in the scene" :material))
+
+(defn- validate-material-capabilities [_node-id material-infos material material-shader texture-infos texture]
+  (let [is-paged-material (shader/is-using-array-samplers? material-shader)
+        material-info (or (material-infos material)
+                          (material-infos ""))
+        material-max-page-count (:max-page-count material-info)
+        texture-page-count (:page-count (texture-infos texture))]
+    (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Texture")))
 
 (g/defnk produce-visual-base-node-msg [gui-base-node-msg visible blend-mode adjust-mode material pivot x-anchor y-anchor]
   (assoc gui-base-node-msg
@@ -784,8 +794,9 @@
 
   (property material g/Str
             (default "")
-            (dynamic edit-type (g/fnk [material-names] (optional-gui-resource-choicebox material-names)))
-            (dynamic error (g/fnk [_node-id material-names material] (validate-material _node-id material-names material))))
+            (dynamic edit-type (g/fnk [material-infos] (optional-gui-resource-choicebox (keys material-infos))))
+            (dynamic error (g/fnk [_node-id material-infos material]
+                             (validate-material-resource _node-id material-infos material))))
 
   (output visual-base-node-msg g/Any produce-visual-base-node-msg)
   (output gui-scene g/Any (g/fnk [_node-id]
@@ -799,6 +810,7 @@
   (output scene-renderable g/Any :cached
           (g/fnk [_node-id child-index layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data visible enabled]
                  (let [clipping-state (:clipping-state scene-renderable-user-data)
+                       page-index (or (:page-index scene-renderable-user-data) 0)
                        gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))
                        material-shader (or (:override-material-shader scene-renderable-user-data)
                                            material-shader)]
@@ -809,7 +821,8 @@
                                       :blend-mode blend-mode
                                       :gpu-texture gpu-texture
                                       :inherit-alpha inherit-alpha
-                                      :material-shader material-shader)
+                                      :material-shader material-shader
+                                      :page-index page-index)
                     :batch-key {:clipping-state clipping-state
                                 :blend-mode blend-mode
                                 :gpu-texture gpu-texture
@@ -836,10 +849,15 @@
                   :visible-self? (and visible enabled)
                   :visible-children? enabled}))
 
-  (output build-errors-visual-node g/Any (gu/passthrough build-errors-gui-node))
+  (output build-errors-visual-node g/Any :cached
+          (g/fnk [_node-id build-errors-gui-node material material-infos]
+            (g/package-errors _node-id
+                              build-errors-gui-node
+                              (validate-material-resource _node-id material-infos material))))
+
   (output own-build-errors g/Any (gu/passthrough build-errors-visual-node)))
 
-(def ^:private validate-texture (partial validate-optional-gui-resource "texture '%s' does not exist in the scene" :texture))
+(def ^:private validate-texture-resource (partial validate-optional-gui-resource "Texture '%s' does not exist in the scene" :texture))
 
 (def ^:private size-prop-index (prop-key->prop-index :manual-size))
 
@@ -914,15 +932,22 @@
                               (= :size-mode-manual new-value)
                               (properties/user-edit? self :size-mode evaluation-context))
                      (when-some [texture (not-empty (g/node-value self :texture evaluation-context))]
-                       (when-some [texture-anim-datas (not-empty (g/node-value self :texture-anim-datas evaluation-context))]
-                         (when-some [anim-data (texture-anim-datas texture)]
+                       (when-some [texture-infos (not-empty (g/node-value self :texture-infos evaluation-context))]
+                         (when-some [anim-data (:anim-data (texture-infos texture))]
                            (let [texture-size [(double (:width anim-data)) (double (:height anim-data)) 0.0]]
                              (g/set-property self :manual-size texture-size))))))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
+  (property material g/Str
+            (default "")
+            (dynamic edit-type (g/fnk [material-infos] (optional-gui-resource-choicebox (keys material-infos))))
+            (dynamic error (g/fnk [_node-id material material-infos material-shader texture texture-infos]
+                             (or (validate-material-resource _node-id material-infos material)
+                                 (validate-material-capabilities _node-id material-infos material material-shader texture-infos texture)))))
   (property texture g/Str
             (default "")
-            (dynamic edit-type (g/fnk [texture-names] (optional-gui-resource-choicebox texture-names)))
-            (dynamic error (g/fnk [_node-id texture-names texture] (validate-texture _node-id texture-names texture))))
+            (dynamic edit-type (g/fnk [texture-infos] (optional-gui-resource-choicebox (keys texture-infos))))
+            (dynamic error (g/fnk [_node-id texture-infos texture]
+                             (validate-texture-resource _node-id texture-infos texture))))
 
   (property clipping-mode g/Keyword (default :clipping-mode-none)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
@@ -931,19 +956,21 @@
 
   (output shape-base-node-msg g/Any produce-shape-base-node-msg)
   (output aabb g/Any :cached (g/fnk [pivot size] (calc-aabb pivot size)))
-  (output anim-data g/Any (g/fnk [texture-anim-datas texture]
-                            (or (texture-anim-datas texture)
-                                (texture-anim-datas ""))))
+  (output anim-data g/Any (g/fnk [texture-infos texture]
+                            (let [texture-info (or (texture-infos texture)
+                                                   (texture-infos ""))]
+                              (:anim-data texture-info))))
   (output gpu-texture TextureLifecycle (g/fnk [texture-gpu-textures texture]
                                          (or (texture-gpu-textures texture)
                                              (texture-gpu-textures ""))))
   (output texture-size g/Any (g/fnk [anim-data]
                                     (when (some? anim-data)
                                       [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
-  (output build-errors-shape-node g/Any (g/fnk [build-errors-visual-node _node-id texture texture-names]
+  (output build-errors-shape-node g/Any (g/fnk [build-errors-visual-node _node-id material material-infos material-shader texture texture-infos]
                                           (g/package-errors _node-id
-                                                            build-errors-visual-node
-                                                            (validate-texture _node-id texture-names texture))))
+                                                            build-errors-visual-node ; Validates material name.
+                                                            (validate-texture-resource _node-id texture-infos texture)
+                                                            (validate-material-capabilities _node-id material-infos material material-shader texture-infos texture))))
   (output own-build-errors g/Any (gu/passthrough build-errors-shape-node)))
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
@@ -985,11 +1012,14 @@
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
             (let [frame (get-in anim-data [:frames 0])
-                  slice9-data (slice9/vertex-data frame size slice9 pivot)
-                  user-data {:geom-data (:position-data slice9-data)
-                             :line-data (:line-data slice9-data)
-                             :uv-data (:uv-data slice9-data)
+                  vertex-data (if (and (:use-geometries frame))
+                                (texture-set/vertex-data frame)
+                                (slice9/vertex-data frame size slice9 pivot))
+                  user-data {:geom-data (:position-data vertex-data)
+                             :line-data (:line-data vertex-data)
+                             :uv-data (:uv-data vertex-data)
                              :color color+alpha
+                             :page-index (:page-index frame 0)
                              :renderable-tags #{:gui-shape}}]
               (cond-> user-data
                       (not= :clipping-mode-none clipping-mode)
@@ -1036,6 +1066,7 @@
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color+alpha pie-data anim-data clipping-mode clipping-visible clipping-inverted]
                  (let [[w h _] size
+                       anim-frame (get-in anim-data [:frames 0])
                        offset (mapv + (pivot-offset pivot size) [(* 0.5 w) (* 0.5 h) 0])
                        {:keys [outer-bounds inner-radius perimeter-vertices ^double pie-fill-angle]} pie-data
                        outer-rect? (= :piebounds-rectangle outer-bounds)
@@ -1079,6 +1110,7 @@
                                   :line-data lines
                                   :uv-data uvs
                                   :color color+alpha
+                                  :page-index (:page-index anim-frame 0)
                                   :renderable-tags #{:gui-shape}}]
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
@@ -1310,9 +1342,8 @@
                                                    (g/connect or-scene from self to))
                                                  (for [[from to] [[:layer-names :layer-names]
                                                                   [:texture-gpu-textures :aux-texture-gpu-textures]
-                                                                  [:texture-anim-datas :aux-texture-anim-datas]
-                                                                  [:texture-names :aux-texture-names]
-                                                                  [:material-names :aux-material-names]
+                                                                  [:texture-infos :aux-texture-infos]
+                                                                  [:material-infos :aux-material-infos]
                                                                   [:material-shaders :aux-material-shaders]
                                                                   [:font-shaders :aux-font-shaders]
                                                                   [:font-datas :aux-font-datas]
@@ -1472,21 +1503,8 @@
 (g/defnode InternalTextureNode
   (property name g/Str)
   (property gpu-texture TextureLifecycle)
-  (output texture-anim-datas TextureAnimDatas (g/fnk [name] {name nil}))
+  (output texture-infos GuiResourceTextureInfos (g/fnk [name] (sorted-map name {:page-count texture/non-paged-page-count})))
   (output texture-gpu-textures GuiResourceTextures (g/fnk [name gpu-texture] {name gpu-texture})))
-
-(g/defnk produce-texture-anim-datas [_node-id anim-data name]
-  ;; If the referenced texture-resource is missing, we don't return an entry.
-  ;; This will cause every usage to fall back on the no-texture entry for "".
-  (when (some? anim-data)
-    ;; Input anim-data is a map of anim-ids to anim-data.
-    ;; The produced anim-data prefixes the anim-id with the texture name like so: "texture/anim".
-    ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
-    (if (empty? anim-data)
-      {name nil}
-      (into {}
-            (map (fn [[id data]] [(if id (format "%s/%s" name id) name) data]))
-            anim-data))))
 
 (g/defnk produce-texture-gpu-textures [_node-id anim-data name gpu-texture default-tex-params samplers]
   ;; If the referenced texture-resource is missing, we don't return an entry.
@@ -1501,30 +1519,23 @@
               (map (fn [id] [(if id (format "%s/%s" name id) name) gpu-texture]))
               (keys anim-data))))))
 
-(g/defnk produce-texture-names [anim-data name]
-  ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
-  (if (empty? anim-data)
-    (sorted-set name)
-    (into (sorted-set)
-          (map (fn [id] (if id (format "%s/%s" name id) name)))
-          (keys anim-data))))
-
-(defn- paged-atlas-not-supported-error-message [texture-page-count]
-  (when (and (some? texture-page-count)
-             (pos? texture-page-count))
-    "Guis do not support paged Atlases, but the selected Texture is paged"))
-
-(defn- paged-material-not-supported-error-message [is-paged-material]
-  (when is-paged-material
-    "Guis do not support paged Materials, but the selected Material is paged"))
-
-(defn- validate-material-resource [_node-id material material-shader]
-  (or (prop-resource-error _node-id :material material "Material")
-      (validation/prop-error :fatal _node-id :material paged-material-not-supported-error-message (shader/is-using-array-samplers? material-shader))))
-
-(defn- validate-texture-resource [_node-id texture texture-page-count]
-  (or (prop-resource-error _node-id :texture texture "Texture")
-      (validation/prop-error :fatal _node-id :texture paged-atlas-not-supported-error-message texture-page-count)))
+(g/defnk produce-texture-infos [anim-data name texture-page-count]
+  ;; The anim-data and the texture-page-count will be nil if the referenced
+  ;; texture is missing or defective.
+  (let [has-animations (not (coll/empty? anim-data))
+        texture-info (cond-> {}
+                             (some? texture-page-count) (assoc :page-count texture-page-count)
+                             has-animations (assoc :anim-data anim-data))]
+    ;; If the texture does not contain animations, we emit an entry for the
+    ;; "texture" name only.
+    (if-not has-animations
+      (sorted-map name texture-info)
+      (into (sorted-map)
+            (map (fn [[anim-id anim-data]]
+                   (let [texture-id (if anim-id (format "%s/%s" name anim-id) name)
+                         texture-info (assoc texture-info :anim-data anim-data)]
+                     (pair texture-id texture-info))))
+            anim-data))))
 
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
@@ -1542,11 +1553,11 @@
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
                                             [:build-targets :dep-build-targets])))
-            (dynamic error (g/fnk [_node-id texture texture-page-count]
-                             (validate-texture-resource _node-id texture texture-page-count)))
-            (dynamic edit-type (g/constantly
+            (dynamic error (g/fnk [_node-id texture]
+                             (prop-resource-error _node-id :texture texture "Texture")))
+            (dynamic edit-type (g/fnk [_node-id]
                                  {:type resource/Resource
-                                  :ext ["atlas" "tilesource"]})))
+                                  :ext (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)})))
 
   (input name-counts NameCounts)
   (input default-tex-params g/Any)
@@ -1571,13 +1582,12 @@
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
                           :texture (resource/resource->proj-path texture-resource)}))
-  (output texture-anim-datas TextureAnimDatas :cached produce-texture-anim-datas)
   (output texture-gpu-textures GuiResourceTextures :cached produce-texture-gpu-textures)
-  (output texture-names GuiResourceNames :cached produce-texture-names)
-  (output build-errors g/Any (g/fnk [_node-id name name-counts texture texture-page-count]
+  (output texture-infos GuiResourceTextureInfos :cached produce-texture-infos)
+  (output build-errors g/Any (g/fnk [_node-id name name-counts texture]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                 (validate-texture-resource _node-id texture texture-page-count)))))
+                                                 (prop-resource-error _node-id :texture texture "Texture")))))
 
 (g/defnode FontNode
   (inherits outline/OutlineNode)
@@ -1647,18 +1657,19 @@
                      evaluation-context self old-value new-value
                      [:resource :material-resource]
                      [:shader :material-shader]
+                     [:max-page-count :material-max-page-count]
                      [:build-targets :dep-build-targets])))
-            (dynamic error (g/fnk [_node-id material material-shader]
-                             (validate-material-resource _node-id material material-shader)))
+            (dynamic error (g/fnk [_node-id material]
+                             (prop-resource-error _node-id :material material "Material")))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))
 
   (input name-counts NameCounts)
 
+  (input material-max-page-count g/Int :substitute nil)
   (input material-resource resource/Resource)
-
-  (input material-shader ShaderLifecycle :substitute (constantly nil))
+  (input material-shader ShaderLifecycle :substitute nil)
 
   (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
   (output name+child-index NameIndex (g/fnk [name child-index] [name child-index]))
@@ -1679,11 +1690,17 @@
                                                     ;; If the referenced material-resource is missing, we don't return an entry.
                                                     (when (some? material-shader)
                                                       {name material-shader})))
-  (output material-names GuiResourceNames (g/fnk [name] (sorted-set name)))
-  (output build-errors g/Any (g/fnk [_node-id name name-counts material material-shader]
+  (output material-infos GuiResourceMaterialInfos (g/fnk [name material-max-page-count]
+                                                    ;; If the referenced material-resource is missing, material-max-page-count will be nil.
+                                                    ;; We still want an entry in the map, but we will not attempt to validate the page count against the texture.
+                                                    (let [material-info (if material-max-page-count
+                                                                          {:max-page-count material-max-page-count}
+                                                                          {})]
+                                                      (sorted-map name material-info))))
+  (output build-errors g/Any (g/fnk [_node-id name name-counts material]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                 (validate-material-resource _node-id material material-shader)))))
+                                                 (prop-resource-error _node-id :material material "Material")))))
 
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
@@ -1786,8 +1803,8 @@
                               {:name name
                                :particlefx (resource/resource->proj-path particlefx)}))
   (output particlefx-resource-names GuiResourceNames (g/fnk [name] (sorted-set name)))
-  (output particlefx-infos g/Any (g/fnk [name particlefx-scene]
-                                   {name {:particlefx-scene particlefx-scene}}))
+  (output particlefx-infos ParticleFXInfos (g/fnk [name particlefx-scene]
+                                             {name {:particlefx-scene particlefx-scene}}))
   (output build-errors g/Any (g/fnk [_node-id name name-counts particlefx]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
@@ -1909,12 +1926,10 @@
   (output node-ids IDMap :cached (g/fnk [node-ids] (reduce merge node-ids)))
   (input texture-gpu-textures GuiResourceTextures)
   (output texture-gpu-textures GuiResourceTextures (gu/passthrough texture-gpu-textures))
-  (input texture-anim-datas TextureAnimDatas)
-  (output texture-anim-datas TextureAnimDatas (gu/passthrough texture-anim-datas))
-  (input texture-names GuiResourceNames)
-  (output texture-names GuiResourceNames (gu/passthrough texture-names))
-  (input material-names GuiResourceNames)
-  (output material-names GuiResourceNames (gu/passthrough material-names))
+  (input texture-infos GuiResourceTextureInfos)
+  (output texture-infos GuiResourceTextureInfos (gu/passthrough texture-infos))
+  (input material-infos GuiResourceMaterialInfos)
+  (output material-infos GuiResourceMaterialInfos (gu/passthrough material-infos))
 
   (input material-shaders GuiResourceShaders)
   (output material-shaders GuiResourceShaders (gu/passthrough material-shaders))
@@ -1988,10 +2003,9 @@
    (concat
     (g/connect texture :_node-id self :nodes)
     (g/connect texture :texture-gpu-textures self :texture-gpu-textures)
-    (g/connect texture :texture-anim-datas self :texture-anim-datas)
+    (g/connect texture :texture-infos self :texture-infos)
     (when (not internal?)
       (concat
-       (g/connect texture :texture-names self :texture-names)
        (g/connect texture :dep-build-targets self :dep-build-targets)
        (g/connect texture :pb-msg self :texture-msgs)
        (g/connect texture :build-errors textures-node :build-errors)
@@ -2007,7 +2021,7 @@
 
 (defn- add-textures-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-   "Textures" ["atlas" "tilesource"] (g/node-value parent :name-counts) project select-fn
+   "Textures" (workspace/resource-kind-extensions (project/workspace project) :atlas) (g/node-value parent :name-counts) project select-fn
    (partial add-texture scene parent)))
 
 (g/defnode TexturesNode
@@ -2032,7 +2046,7 @@
      (g/connect material :material-shaders self :material-shaders)
      (when (not internal?)
        (concat
-         (g/connect material :material-names self :material-names)
+         (g/connect material :material-infos self :material-infos)
          (g/connect material :dep-build-targets self :dep-build-targets)
          (g/connect material :pb-msg self :material-msgs)
          (g/connect material :build-errors materials-node :build-errors)
@@ -2449,17 +2463,17 @@
                                                                     (when (> c max-nodes)
                                                                       (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))
 
-(g/defnk produce-own-build-errors [_node-id material material-shader max-nodes node-ids script ^:try template-build-targets]
+(g/defnk produce-own-build-errors [_node-id material max-nodes node-ids script]
   (g/package-errors _node-id
                     (when script (prop-resource-error _node-id :script script "Script"))
-                    (validate-material-resource _node-id material material-shader)
-                    (validation/prop-error :fatal _node-id nil validate-template-build-targets (gu/array-subst-remove-errors template-build-targets))
+                    (prop-resource-error _node-id :material material "Material")
                     (validate-max-nodes _node-id max-nodes node-ids)))
 
-(g/defnk produce-build-errors [_node-id build-errors own-build-errors]
+(g/defnk produce-build-errors [_node-id build-errors own-build-errors ^:try template-build-targets]
   (g/package-errors _node-id
                     build-errors
-                    own-build-errors))
+                    own-build-errors
+                    (validation/prop-error :fatal _node-id nil validate-template-build-targets (gu/array-subst-remove-errors template-build-targets))))
 
 (defn- get-ids [outline]
   (map :label (tree-seq (constantly true) :children outline)))
@@ -2492,10 +2506,11 @@
              evaluation-context self old-value new-value
              [:resource :material-resource]
              [:shader :material-shader]
+             [:max-page-count :material-max-page-count]
              [:samplers :samplers]
              [:build-targets :dep-build-targets])))
-    (dynamic error (g/fnk [_node-id material material-shader]
-                     (validate-material-resource _node-id material material-shader)))
+    (dynamic error (g/fnk [_node-id material]
+                     (prop-resource-error _node-id :material material "Material")))
     (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext ["material"]})))
@@ -2547,22 +2562,22 @@
   (input aux-texture-gpu-textures GuiResourceTextures :array)
   (input texture-gpu-textures GuiResourceTextures :array)
   (output texture-gpu-textures GuiResourceTextures :cached (g/fnk [aux-texture-gpu-textures texture-gpu-textures] (into {} (concat aux-texture-gpu-textures texture-gpu-textures))))
-  (input aux-texture-anim-datas TextureAnimDatas :array)
-  (input texture-anim-datas TextureAnimDatas :array)
-  (output texture-anim-datas TextureAnimDatas :cached (g/fnk [aux-texture-anim-datas texture-anim-datas] (into {} (concat aux-texture-anim-datas texture-anim-datas))))
-  (input aux-texture-names GuiResourceNames :array)
-  (input texture-names GuiResourceNames :array)
-  (output texture-names GuiResourceNames :cached (g/fnk [aux-texture-names texture-names] (into (sorted-set) cat (concat aux-texture-names texture-names))))
+
+  (input aux-texture-infos GuiResourceTextureInfos :array)
+  (input texture-infos GuiResourceTextureInfos :array)
+  (output texture-infos GuiResourceTextureInfos :cached (g/fnk [aux-texture-infos texture-infos] (into (sorted-map) (concat aux-texture-infos texture-infos))))
 
   (input aux-material-shaders GuiResourceShaders :array)
   (input material-shaders GuiResourceShaders :array)
   (output material-shaders GuiResourceShaders :cached (g/fnk [aux-material-shaders material-shaders material-shader]
-                                                        (into {"" material-shader} (concat aux-material-shaders material-shaders))))
+                                                        (into {"" material-shader}
+                                                              (concat aux-material-shaders material-shaders))))
 
-
-  (input aux-material-names GuiResourceNames :array)
-  (input material-names GuiResourceNames :array)
-  (output material-names GuiResourceNames :cached (g/fnk [aux-material-names material-names] (into (sorted-set) cat (concat aux-material-names material-names))))
+  (input aux-material-infos GuiResourceMaterialInfos :array)
+  (input material-infos GuiResourceMaterialInfos :array)
+  (output material-infos GuiResourceMaterialInfos :cached (g/fnk [aux-material-infos material-infos material-max-page-count]
+                                                            (into (sorted-map "" {:max-page-count material-max-page-count})
+                                                                  (concat aux-material-infos material-infos))))
 
   (input aux-font-shaders GuiResourceShaders :array)
   (input font-shaders GuiResourceShaders :array)
@@ -2600,6 +2615,7 @@
   (input resource-names GuiResourceNames :array)
   (output resource-names GuiResourceNames :cached (g/fnk [aux-resource-names resource-names] (into (sorted-set) cat (concat aux-resource-names resource-names))))
 
+  (input material-max-page-count g/Int :substitute nil)
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
@@ -2776,19 +2792,19 @@
         root {:id ""}]
     (rest (tree-seq parent->children parent->children root))))
 
-
-(def ^:private custom-gui-scene-loaders (atom ()))
+(def ^:private custom-gui-scene-loaders (atom (sorted-map)))
 
 ;; SDK api
-(defn register-gui-scene-loader! [loader]
-  (swap! custom-gui-scene-loaders conj loader))
+(defn register-gui-scene-loader! [load-fn]
+  (let [load-fn-sym (fn/declared-symbol load-fn)]
+    (swap! custom-gui-scene-loaders assoc load-fn-sym load-fn)))
 
 ;; Used by tests
 (defn clear-custom-gui-scene-loaders-for-tests! []
-  (reset! custom-gui-scene-loaders ()))
+  (reset! custom-gui-scene-loaders (sorted-map)))
 
 (defn- get-registered-gui-scene-loaders []
-  @custom-gui-scene-loaders)
+  (vals @custom-gui-scene-loaders))
 
 (defn load-gui-scene [project self resource scene]
   (let [def                pb-def
@@ -2829,7 +2845,7 @@
       (g/make-nodes graph-id [fonts-node FontsNode
                               no-font [FontNode
                                        :name ""
-                                       :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
+                                       :font (workspace/resolve-resource resource "/builtins/fonts/default.font")]]
                     (g/connect fonts-node :_node-id self :fonts-node) ; for the tests :/
                     (g/connect fonts-node :_node-id self :nodes)
                     (g/connect fonts-node :build-errors self :build-errors)
@@ -2919,9 +2935,8 @@
                                      [:template-build-targets :template-build-targets]]]
                       (g/connect node-tree from self to))
                     (for [[from to] [[:texture-gpu-textures :texture-gpu-textures]
-                                     [:texture-anim-datas :texture-anim-datas]
-                                     [:texture-names :texture-names]
-                                     [:material-names :material-names]
+                                     [:texture-infos :texture-infos]
+                                     [:material-infos :material-infos]
                                      [:material-shaders :material-shaders]
                                      [:font-shaders :font-shaders]
                                      [:font-datas :font-datas]
@@ -3075,10 +3090,8 @@
         child-indices (g/node-value parent :child-indices)
         before? (partial > node-index)
         after? (partial < node-index)
-        ascending-order #(compare %1 %2)
-        descending-order #(compare %2 %1)
         neighbour (first (sort-by second
-                                  (if (= offset -1) descending-order ascending-order)
+                                  (if (= offset -1) coll/descending-order coll/ascending-order)
                                   (filter (comp (if (= offset -1) before? after?) second)
                                           child-indices)))]
     (when neighbour
@@ -3184,10 +3197,12 @@
                                       :custom-type 0
                                       :icon particlefx/particle-fx-icon}])
 
-(def ^:private custom-node-type-infos (atom []))
+(def ^:private custom-node-type-infos (atom {}))
 
 (defn- get-registered-node-type-infos []
-  (concat base-node-type-infos @custom-node-type-infos))
+  (into base-node-type-infos
+        (map val)
+        @custom-node-type-infos))
 
 (defn- get-registered-node-type-info [node-type custom-type]
   (or (some (fn [info]
@@ -3200,13 +3215,17 @@
                               custom-type)
                       {:node-type node-type
                        :custom-type custom-type
-                       :custom-node-type-infos @custom-node-type-infos}))))
+                       :custom-node-type-infos (vals @custom-node-type-infos)}))))
 
 (defn- get-registered-node-type-cls [node-type custom-type]
   (:node-cls (get-registered-node-type-info node-type custom-type)))
 
 ;; SDK api
-(defn register-node-type-info! [{:keys [node-cls] :as type-info}]
+(defn register-node-type-info! [{:keys [custom-type node-cls] :as type-info}]
+  (when-not (integer? custom-type)
+    (throw (ex-info (format "Plugin GUI node type %s does not specify a valid custom type."
+                            (:name @node-cls))
+                    {:node-cls node-cls})))
   (when-some [abstract-output-labels (not-empty (g/abstract-output-labels node-cls))]
     (throw (ex-info (format "Plugin GUI node type %s does not implement required outputs: %s"
                             (:name @node-cls)
@@ -3216,4 +3235,18 @@
                                  (str/join ", ")))
                     {:node-cls node-cls
                      :abstract-output-labels abstract-output-labels})))
-  (swap! custom-node-type-infos conj type-info))
+  (swap! custom-node-type-infos update custom-type
+         (fn [old-type-info]
+           (if (nil? old-type-info)
+             type-info
+             (let [old-node-cls (:node-cls old-type-info)
+                   old-node-type-key (:k old-node-cls)
+                   new-node-type-key (:k node-cls)]
+               (if (= old-node-type-key new-node-type-key)
+                 type-info
+                 (throw (ex-info (format "Plugin GUI node type %s custom-type conflicts with %s."
+                                         (:name @node-cls)
+                                         (:name @old-node-cls))
+                                 {:custom-type custom-type
+                                  :node-cls node-cls
+                                  :conflicting-node-cls old-node-cls}))))))))

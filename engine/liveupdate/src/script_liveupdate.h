@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -50,6 +50,7 @@ namespace dmLiveUpdate
  * add a resource to the data archive and runtime index. The resource will be verified
  * internally before being added to the data archive.
  *
+ * @note deprecated
  * @name liveupdate.store_resource
  * @param manifest_reference [type:number] The manifest to check against.
  * @param data [type:string] The resource data that should be stored.
@@ -110,6 +111,7 @@ namespace dmLiveUpdate
  * developer to update the game, modify existing resources, or add new
  * resources to the game through LiveUpdate.
  *
+ * @note deprecated
  * @name liveupdate.store_manifest
  * @param manifest_buffer [type:string] the binary data that represents the manifest
  * @param callback [type:function(self, status)] the callback function
@@ -135,7 +137,7 @@ namespace dmLiveUpdate
  *
  * ```lua
  * local function store_manifest_cb(self, status)
- *   if status == liveupdate.LIVEUPATE_OK then
+ *   if status == liveupdate.LIVEUPDATE_OK then
  *     pprint("Successfully stored manifest. This manifest will be loaded instead of the bundled manifest the next time the engine starts.")
  *   else
  *     pprint("Failed to store manifest")
@@ -160,6 +162,7 @@ namespace dmLiveUpdate
  * to this function.
  * The path is stored in the (internal) live update location.
  *
+ * @note deprecated
  * @name liveupdate.store_archive
  * @param path [type:string] the path to the original file on disc
  * @param callback [type:function(self, status)] the callback function
@@ -280,6 +283,7 @@ namespace dmLiveUpdate
  * Is any liveupdate data mounted and currently in use?
  * This can be used to determine if a new manifest or zip file should be downloaded.
  *
+ * @note deprecated
  * @name liveupdate.is_using_liveupdate_data
  * @return bool [type:bool] true if a liveupdate archive (any format) has been loaded
  * @note: Old downloaded files are automatically discarded upon startup, if their signatures mismatch with the bundled manifest.
@@ -294,12 +298,30 @@ namespace dmLiveUpdate
  * @name liveupdate.get_mounts
  * @return mounts [type:array] Array of mounts
  * @note: Any mount with priority < 0 is considered a base archive and it cannot be removed. All other mounts are considered "live update" content
- * @example
+ * @examples
  *
  * Output the current resource mounts
  *
  * ```lua
  * pprint("MOUNTS", liveupdate.get_mounts())
+ * ```
+ *
+ * Give an output like:
+ *
+ * ```lua
+ * DEBUG:SCRIPT: MOUNTS,
+ * { --[[0x119667bf0]]
+ *   1 = { --[[0x119667c50]]
+ *     name = "liveupdate",
+ *     uri = "zip:/device/path/to/acchives/liveupdate.zip",
+ *     priority = 5
+ *   },
+ *   2 = { --[[0x119667d50]]
+ *     name = "_base",
+ *     uri = "archive:build/default/game.dmanifest",
+ *     priority = -10
+ *   }
+ * }
  * ```
  */
 
@@ -322,7 +344,7 @@ namespace dmLiveUpdate
  *
  * @return result [type:number] The result of the request
  *
- * @example
+ * @examples
  *
  * Add multiple mounts. Higher priority takes precedence.
  *
@@ -347,7 +369,7 @@ namespace dmLiveUpdate
  * @param name [type:string] Unique name of the mount
  * @return result [type:number] The result of the call
  *
- * @example
+ * @examples
  *
  * Add multiple mounts. Higher priority takes precedence.
  *

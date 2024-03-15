@@ -1,18 +1,19 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 package com.dynamo.bob.util;
+import com.dynamo.bob.Platform;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -38,12 +39,27 @@ public class Exec {
         }
     }
 
+    private static void addJavaBinPath(ProcessBuilder pb) {
+        Platform platform = Platform.getHostPlatform();
+        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+            // On Windows `exe` files often require vcruntime140_1.dll and vcruntime140.dll
+            // these files are available in jdk/bin folder
+            // see https://github.com/defold/defold/issues/8277#issuecomment-1836823183
+            String path = System.getenv("PATH");
+            String javaHome = System.getProperty("java.home");
+            String binPath = javaHome + File.separator + "bin";
+            path = binPath + ";" + path;
+            pb.environment().put("PATH", path);
+        }
+    }
+
     public static int exec(String... args) throws IOException {
         if (getVerbosity() >= 2) {
             logger.info("CMD: " + String.join(" ", args));
         }
-
-        Process p = new ProcessBuilder(args).redirectErrorStream(true).start();
+        ProcessBuilder pb = new ProcessBuilder(args);
+        addJavaBinPath(pb);
+        Process p = pb.redirectErrorStream(true).start();
         int ret = 127;
         byte[] buf = new byte[16 * 1024];
         try {
@@ -79,7 +95,9 @@ public class Exec {
         if (getVerbosity() >= 2) {
             logger.info("CMD: " + String.join(" ", args));
         }
-        Process p = new ProcessBuilder(args).redirectErrorStream(true).start();
+        ProcessBuilder pb = new ProcessBuilder(args);
+        addJavaBinPath(pb);
+        Process p = pb.redirectErrorStream(true).start();
         int ret = 127;
         byte[] buf = new byte[16 * 1024];
         ByteArrayOutputStream out = new ByteArrayOutputStream(10 * 1024);
@@ -103,6 +121,7 @@ public class Exec {
             logger.info("CMD: " + String.join(" ", args));
         }
         ProcessBuilder pb = new ProcessBuilder(args);
+        addJavaBinPath(pb);
         pb.redirectErrorStream(true);
 
         Map<String, String> pbenv = pb.environment();

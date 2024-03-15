@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -165,7 +165,7 @@ namespace dmGameSystem
      * ```
      */
 
-    int LuaModelComp_Play(lua_State* L)
+    static int LuaModelComp_Play(lua_State* L)
     {
         dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, MODEL_MODULE_NAME, "play", MODEL_MODULE_NAME, "play_anim");
 
@@ -247,7 +247,7 @@ namespace dmGameSystem
      * `playback_rate`
      * : [type:number] The rate with which the animation will be played. Must be positive.
      *
-     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the animation has completed.
+     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the animation has completed.
      *
      * `self`
      * : [type:object] The current object.
@@ -289,7 +289,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int LuaModelComp_PlayAnim(lua_State* L)
+    static int LuaModelComp_PlayAnim(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
@@ -352,7 +352,7 @@ namespace dmGameSystem
      * @name model.cancel
      * @param url [type:string|hash|url] the model for which to cancel the animation
      */
-    int LuaModelComp_Cancel(lua_State* L)
+    static int LuaModelComp_Cancel(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -392,7 +392,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int LuaModelComp_GetGO(lua_State* L)
+    static int LuaModelComp_GetGO(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -436,7 +436,7 @@ namespace dmGameSystem
         }
         dmScript::PushHash(L, instance_id);
 
-        assert(top + 1 == lua_gettop(L));
+        assert((top + 1) == lua_gettop(L));
         return 1;
     }
 
@@ -464,7 +464,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int LuaModelComp_SetConstant(lua_State* L)
+    static int LuaModelComp_SetConstant(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -509,7 +509,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int LuaModelComp_ResetConstant(lua_State* L)
+    static int LuaModelComp_ResetConstant(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -528,6 +528,97 @@ namespace dmGameSystem
         return 0;
     }
 
+    static void LuaModelComp_GetSetMeshEnabled_Internal(lua_State* L, ModelComponent** component, dmhash_t* mesh_id)
+    {
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        ModelWorld* world = 0;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, MODEL_EXT, &user_data, &receiver, (void**) &world);
+
+        *component = CompModelGetComponent(world, user_data);
+        *mesh_id = dmScript::CheckHashOrString(L, 2);
+    }
+
+    /*# enable or disable a mesh
+     * Enable or disable visibility of a mesh
+     *
+     * @name model.set_mesh_enabled
+     * @param url [type:string|hash|url] the model
+     * @param mesh_id [type:string|hash|url] the id of the mesh
+     * @param enabled [type:boolean] true if the mesh should be visible, false if it should be hideen
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     model.set_mesh_enabled("#model", "Sword", false) -- hide the sword
+     *     model.set_mesh_enabled("#model", "Axe", true)    -- show the axe
+     * end
+     * ```
+     */
+    static int LuaModelComp_SetMeshEnabled(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        ModelComponent* component = 0;
+        dmhash_t mesh_id = 0;
+        LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        bool enable = dmScript::CheckBoolean(L, 3);
+        bool result = CompModelSetMeshEnabled(component, mesh_id, enable);
+        if (!result)
+            return luaL_error(L, "Component %s had no mesh with id %s", lua_tostring(L, 1), lua_tostring(L, 2));
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
+    /*# get the enabled state of a mesh
+     * Get the enabled state of a mesh
+     *
+     * @name model.get_mesh_enabled
+     * @param url [type:string|hash|url] the model
+     * @param mesh_id [type:string|hash|url] the id of the mesh
+     * @return enabled [type:boolean] true if the mesh is visible, false otherwise
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     if model.get_mesh_enabled("#model", "Sword") then
+     *        -- set properties specific for the sword
+     *        self.weapon_properties = game.data.weapons["Sword"]
+     *     end
+     * end
+     * ```
+     */
+    static int LuaModelComp_GetMeshEnabled(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        ModelComponent* component = 0;
+        dmhash_t mesh_id = 0;
+        LuaModelComp_GetSetMeshEnabled_Internal(L, &component, &mesh_id);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        bool enabled = true;
+        bool result = CompModelGetMeshEnabled(component, mesh_id, &enabled);
+        if (!result)
+            return luaL_error(L, "Component %s had no mesh with id %s", lua_tostring(L, 1), lua_tostring(L, 2));
+
+        lua_pushboolean(L, enabled);
+        assert((top + 1) == lua_gettop(L));
+        return 1;
+    }
+
     static const luaL_reg MODEL_COMP_FUNCTIONS[] =
     {
             {"play",    LuaModelComp_Play}, // Deprecated
@@ -536,6 +627,9 @@ namespace dmGameSystem
             {"get_go",  LuaModelComp_GetGO},
             {"set_constant",    LuaModelComp_SetConstant},
             {"reset_constant",  LuaModelComp_ResetConstant},
+
+            {"set_mesh_enabled",  LuaModelComp_SetMeshEnabled},
+            {"get_mesh_enabled",  LuaModelComp_GetMeshEnabled},
             {0, 0}
     };
 

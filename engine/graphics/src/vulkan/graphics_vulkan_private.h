@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,21 +20,30 @@
 #include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
+#include "graphics_vulkan.h"
 
 namespace dmGraphics
 {
-    const static uint8_t DM_MAX_SET_COUNT              = 2;
+    struct ResourceToDestroy;
+
+    typedef VkPipeline                 Pipeline;
+    typedef dmHashTable64<Pipeline>    PipelineCache;
+    typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
+
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
-    static const uint8_t DM_MAX_FRAMES_IN_FLIGHT       = 2; // In flight frames - number of concurrent frames being processed
+    const static uint8_t DM_MAX_FRAMES_IN_FLIGHT       = 2; // In flight frames - number of concurrent frames being processed
+    const static uint8_t MAX_VERTEX_BUFFERS            = 2;
+    const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 16;
+    const static uint8_t MAX_SET_COUNT                 = 4;
+    const static uint8_t MAX_STORAGE_BUFFERS           = 4;
 
     enum VulkanResourceType
     {
-        RESOURCE_TYPE_DEVICE_BUFFER        = 0,
-        RESOURCE_TYPE_TEXTURE              = 1,
-        RESOURCE_TYPE_DESCRIPTOR_ALLOCATOR = 2,
-        RESOURCE_TYPE_PROGRAM              = 3,
-        RESOURCE_TYPE_RENDER_TARGET        = 4,
+        RESOURCE_TYPE_DEVICE_BUFFER = 0,
+        RESOURCE_TYPE_TEXTURE       = 1,
+        RESOURCE_TYPE_PROGRAM       = 2,
+        RESOURCE_TYPE_RENDER_TARGET = 3,
     };
 
     struct DeviceBuffer
@@ -59,7 +68,7 @@ namespace dmGraphics
         VulkanHandle       m_Handle;
         VkBufferUsageFlags m_Usage;
         uint32_t           m_MemorySize : 31;
-        uint32_t           m_Destroyed : 1;
+        uint32_t           m_Destroyed  : 1;
 
         VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
         void     UnmapMemory(VkDevice vk_device);
@@ -67,7 +76,7 @@ namespace dmGraphics
         const VulkanResourceType GetType();
     };
 
-    struct Texture
+    struct VulkanTexture
     {
         struct VulkanHandle
         {
@@ -75,19 +84,20 @@ namespace dmGraphics
             VkImageView m_ImageView;
         };
 
-        VulkanHandle   m_Handle;
-        TextureType    m_Type;
-        TextureFormat  m_GraphicsFormat;
-        VkFormat       m_Format;
-        DeviceBuffer   m_DeviceBuffer;
-        uint16_t       m_Width;
-        uint16_t       m_Height;
-        uint16_t       m_Depth;
-        uint16_t       m_OriginalWidth;
-        uint16_t       m_OriginalHeight;
-        uint16_t       m_MipMapCount         : 5;
-        uint16_t       m_TextureSamplerIndex : 10;
-        uint32_t       m_Destroyed           : 1;
+        VulkanHandle      m_Handle;
+        TextureType       m_Type;
+        TextureFormat     m_GraphicsFormat;
+        VkFormat          m_Format;
+        VkImageUsageFlags m_UsageFlags;
+        DeviceBuffer      m_DeviceBuffer;
+        uint16_t          m_Width;
+        uint16_t          m_Height;
+        uint16_t          m_Depth;
+        uint16_t          m_OriginalWidth;
+        uint16_t          m_OriginalHeight;
+        uint16_t          m_MipMapCount         : 5;
+        uint16_t          m_TextureSamplerIndex : 10;
+        uint32_t          m_Destroyed           : 1;
 
         const VulkanResourceType GetType();
     };
@@ -103,52 +113,23 @@ namespace dmGraphics
         uint8_t       m_MaxLod;
     };
 
-    struct DescriptorAllocator
+    struct DescriptorPool
     {
-        DescriptorAllocator()
-        : m_DescriptorMax(0)
-        , m_DescriptorIndex(0)
-        , m_Destroyed(0)
-        {
-            memset(&m_Handle, 0, sizeof(m_Handle));
-        }
-
-        struct VulkanHandle
-        {
-            VkDescriptorPool m_DescriptorPool;
-            VkDescriptorSet* m_DescriptorSets;
-        };
-
-        VulkanHandle     m_Handle;
-        // 15 bits supports max 32768 draw calls
-        uint32_t         m_DescriptorMax   : 15;
-        uint32_t         m_DescriptorIndex : 15;
-        uint32_t         m_Destroyed       : 1;
-        uint32_t                           : 1; // unused
-
-        VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, VkDescriptorSet** vk_descriptor_set_out);
-        void     Release(VkDevice vk_device);
-        const    VulkanResourceType GetType();
+        VkDescriptorPool m_DescriptorPool;
+        uint32_t         m_DescriptorCount;
     };
 
-    struct VertexDeclaration
+    struct DescriptorAllocator
     {
-        struct Stream
-        {
-            uint64_t m_NameHash;
-            uint16_t m_Location;
-            uint16_t m_Offset;
-            VkFormat m_Format;
+        dmArray<DescriptorPool> m_DescriptorPools;
+        VkDescriptorSet*        m_DescriptorSets;
+        uint32_t                m_DescriptorSetIndex;
+        uint32_t                m_DescriptorSetMax;
+        uint32_t                m_DescriptorPoolIndex;
+        uint32_t                m_DescriptorsPerPool;
 
-            // TODO: Not sure how to deal with normalizing
-            //       a vertex stream in VK.
-            // bool        m_Normalize;
-        };
-
-        uint64_t    m_Hash;
-        Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
-        uint16_t    m_StreamCount;
-        uint16_t    m_Stride;
+        VkResult Allocate(VkDevice vk_device, VkDescriptorSetLayout* vk_descriptor_set_layout, uint8_t setCount, uint32_t descriptor_count, VkDescriptorSet** vk_descriptor_set_out);
+        void     Reset(VkDevice vk_device);
     };
 
     struct ScratchBuffer
@@ -163,22 +144,53 @@ namespace dmGraphics
         uint32_t             m_MappedDataCursor;
     };
 
+    struct SubPass
+    {
+        dmArray<uint8_t> m_ColorAttachments;
+        dmArray<uint8_t> m_InputAttachments;
+        bool             m_DepthStencilAttachment;
+    };
+
     struct RenderTarget
     {
     	RenderTarget(const uint32_t rtId);
-        HTexture       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        Texture*       m_TextureDepthStencil;
+
+        struct VulkanHandle
+        {
+            VkRenderPass  m_RenderPass;
+            VkFramebuffer m_Framebuffer;
+        };
+
+        VulkanHandle   m_Handle;
+
+        AttachmentOp   m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp   m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        float          m_ColorAttachmentClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+
         BufferType     m_ColorAttachmentBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
-        TextureParams  m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
-        VkRenderPass   m_RenderPass;
-        VkFramebuffer  m_Framebuffer;
+        TextureParams  m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams  m_DepthStencilTextureParams;
+        SubPass*       m_SubPasses;
+        HTexture       m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture       m_TextureDepthStencil;
+
         VkExtent2D     m_Extent;
+        VkRect2D       m_Scissor;
+
         const uint16_t m_Id;
-        uint8_t        m_IsBound              : 1;
-        uint8_t        m_ColorAttachmentCount : 2;
-        uint8_t                               : 5; // unused
+        uint32_t       m_Destroyed            : 1;
+        uint32_t       m_IsBound              : 1;
+        uint32_t       m_ColorAttachmentCount : 7;
+        uint32_t       m_SubPassCount         : 8;
+        uint32_t       m_SubPassIndex         : 8;
 
         const VulkanResourceType GetType();
+    };
+
+    struct StorageBufferBinding
+    {
+        HStorageBuffer m_Buffer;
+        uint32_t       m_BufferOffset;
     };
 
     struct Viewport
@@ -198,8 +210,11 @@ namespace dmGraphics
 
     struct RenderPassAttachment
     {
-        VkFormat      m_Format;
-        VkImageLayout m_ImageLayout;
+        VkFormat            m_Format;
+        VkImageLayout       m_ImageLayout;
+        VkImageLayout       m_ImageLayoutInitial;
+        VkAttachmentLoadOp  m_LoadOp;
+        VkAttachmentStoreOp m_StoreOp;
     };
 
     struct QueueFamily
@@ -222,6 +237,7 @@ namespace dmGraphics
         VkPhysicalDevice                 m_Device;
         VkPhysicalDeviceProperties       m_Properties;
         VkPhysicalDeviceFeatures         m_Features;
+        VkPhysicalDeviceFeatures2        m_Features2;
         VkPhysicalDeviceMemoryProperties m_MemoryProperties;
         uint16_t                         m_QueueFamilyCount;
         uint16_t                         m_DeviceExtensionCount;
@@ -235,34 +251,11 @@ namespace dmGraphics
         VkCommandPool m_CommandPool;
     };
 
-    typedef VkPipeline Pipeline;
-
-    struct ShaderResourceBinding
-    {
-        char*                      m_Name;
-        uint64_t                   m_NameHash;
-        ShaderDesc::ShaderDataType m_Type;
-        uint16_t                   m_ElementCount;
-        uint16_t                   m_Set;
-        uint16_t                   m_Binding;
-        union
-        {
-            uint16_t               m_UniformDataIndex;
-            uint16_t               m_TextureUnit;
-        };
-    };
-
     struct ShaderModule
     {
-        uint64_t               m_Hash;
-        VkShaderModule         m_Module;
-        ShaderResourceBinding* m_Uniforms;
-        ShaderResourceBinding* m_Inputs;
-        uint32_t               m_UniformDataSizeAligned;
-        uint16_t               m_UniformCount;
-        uint16_t               m_UniformBufferCount;
-        uint16_t               m_InputCount;
-        uint16_t               m_TextureSamplerCount;
+        ShaderMeta     m_ShaderMeta;
+        uint64_t       m_Hash;
+        VkShaderModule m_Module;
     };
 
     struct Program
@@ -278,17 +271,46 @@ namespace dmGraphics
 
         struct VulkanHandle
         {
-            VkDescriptorSetLayout m_DescriptorSetLayout[MODULE_TYPE_COUNT];
+            VkDescriptorSetLayout m_DescriptorSetLayouts[MAX_SET_COUNT];
             VkPipelineLayout      m_PipelineLayout;
+            uint8_t               m_DescriptorSetLayoutsCount;
+        };
+
+        struct ProgramResourceBinding
+        {
+            ShaderResourceBinding*           m_Res;
+            dmArray<ShaderResourceTypeInfo>* m_TypeInfos;
+            uint32_t                         m_DataOffset;
+
+            union
+            {
+                uint16_t m_DynamicOffsetIndex;
+                uint16_t m_TextureUnit;
+                uint16_t m_StorageBufferUnit;
+            };
         };
 
         uint64_t                        m_Hash;
-        uint32_t*                       m_UniformDataOffsets;
         uint8_t*                        m_UniformData;
         VulkanHandle                    m_Handle;
+        ProgramResourceBinding          m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
+        ShaderModule*                   m_ComputeModule;
+
         VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
+        ShaderDesc::Language            m_Language;
+
+        uint32_t                        m_UniformDataSizeAligned;
+        uint16_t                        m_UniformBufferCount;
+        uint16_t                        m_StorageBufferCount;
+        uint16_t                        m_TextureSamplerCount;
+        uint16_t                        m_TotalResourcesCount;
+        uint16_t                        m_TotalUniformCount;
+
+        uint8_t                         m_MaxSet;
+        uint8_t                         m_MaxBinding;
         uint8_t                         m_Destroyed : 1;
 
         const VulkanResourceType GetType();
@@ -298,10 +320,10 @@ namespace dmGraphics
     {
         union
         {
-            DeviceBuffer::VulkanHandle        m_DeviceBuffer;
-            Texture::VulkanHandle             m_Texture;
-            DescriptorAllocator::VulkanHandle m_DescriptorAllocator;
-            Program::VulkanHandle             m_Program;
+            DeviceBuffer::VulkanHandle  m_DeviceBuffer;
+            VulkanTexture::VulkanHandle m_Texture;
+            Program::VulkanHandle       m_Program;
+            RenderTarget::VulkanHandle  m_RenderTarget;
         };
         VulkanResourceType m_ResourceType;
     };
@@ -325,9 +347,15 @@ namespace dmGraphics
 
     struct SwapChain
     {
+        SwapChain(const VkSurfaceKHR     surface,
+            VkSampleCountFlagBits        vk_sample_flag,
+            const SwapChainCapabilities& capabilities,
+            const QueueFamily            queueFamily,
+            VulkanTexture*               resolveTexture);
+
         dmArray<VkImage>      m_Images;
         dmArray<VkImageView>  m_ImageViews;
-        Texture*              m_ResolveTexture;
+        VulkanTexture*        m_ResolveTexture;
         const VkSurfaceKHR    m_Surface;
         const QueueFamily     m_QueueFamily;
         VkSurfaceFormatKHR    m_SurfaceFormat;
@@ -336,43 +364,36 @@ namespace dmGraphics
         VkSampleCountFlagBits m_SampleCountFlag;
         uint8_t               m_ImageIndex;
 
-        SwapChain(const VkSurfaceKHR surface, VkSampleCountFlagBits vk_sample_flag,
-            const SwapChainCapabilities& capabilities, const QueueFamily queueFamily,
-            Texture* resolveTexture);
         VkResult Advance(VkDevice vk_device, VkSemaphore);
         bool     HasMultiSampling();
-    };
 
-    typedef dmHashTable64<Pipeline>    PipelineCache;
-    typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
+        VkImage     Image()     { return m_Images[m_ImageIndex]; }
+        VkImageView ImageView() { return m_ImageViews[m_ImageIndex]; }
+    };
 
     struct VulkanContext
     {
         VulkanContext(const ContextParams& params, const VkInstance vk_instance);
 
-        HTexture                        m_TextureUnits[DM_MAX_TEXTURE_UNITS];
+        dmPlatform::HWindow                m_Window;
+        dmPlatform::WindowResizeCallback   m_WindowResizeCallback;
+        HTexture                           m_TextureUnits[DM_MAX_TEXTURE_UNITS];
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
-        PipelineCache                   m_PipelineCache;
-        PipelineState                   m_PipelineState;
-        SwapChain*                      m_SwapChain;
-        SwapChainCapabilities           m_SwapChainCapabilities;
-        PhysicalDevice                  m_PhysicalDevice;
-        LogicalDevice                   m_LogicalDevice;
-        FrameResource                   m_FrameResources[DM_MAX_FRAMES_IN_FLIGHT];
-        VkInstance                      m_Instance;
-        VkSurfaceKHR                    m_WindowSurface;
-        dmArray<TextureSampler>         m_TextureSamplers;
-        uint32_t*                       m_DynamicOffsetBuffer;
-        uint16_t                        m_DynamicOffsetBufferSize;
-        // Window callbacks
-        WindowResizeCallback            m_WindowResizeCallback;
-        void*                           m_WindowResizeCallbackUserData;
-        WindowCloseCallback             m_WindowCloseCallback;
-        void*                           m_WindowCloseCallbackUserData;
-        WindowFocusCallback             m_WindowFocusCallback;
-        void*                           m_WindowFocusCallbackUserData;
-        WindowIconifyCallback           m_WindowIconifyCallback;
-        void*                           m_WindowIconifyCallbackUserData;
+        PipelineCache                      m_PipelineCache;
+        PipelineState                      m_PipelineState;
+        SwapChain*                         m_SwapChain;
+        SwapChainCapabilities              m_SwapChainCapabilities;
+        PhysicalDevice                     m_PhysicalDevice;
+        LogicalDevice                      m_LogicalDevice;
+        FrameResource                      m_FrameResources[DM_MAX_FRAMES_IN_FLIGHT];
+        VkInstance                         m_Instance;
+        VkSurfaceKHR                       m_WindowSurface;
+        dmArray<TextureSampler>            m_TextureSamplers;
+        uint32_t*                          m_DynamicOffsetBuffer;
+        uint16_t                           m_DynamicOffsetBufferSize;
+
+        VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT m_FragmentShaderInterlockFeatures;
+
         // Main device rendering constructs
         dmArray<VkFramebuffer>          m_MainFrameBuffers;
         dmArray<VkCommandBuffer>        m_MainCommandBuffers;
@@ -381,23 +402,30 @@ namespace dmGraphics
         dmArray<ScratchBuffer>          m_MainScratchBuffers;
         dmArray<DescriptorAllocator>    m_MainDescriptorAllocators;
         VkRenderPass                    m_MainRenderPass;
-        Texture                         m_MainTextureDepthStencil;
+        VulkanTexture                   m_MainTextureDepthStencil;
         HRenderTarget                   m_MainRenderTarget;
         Viewport                        m_MainViewport;
-        VertexDeclaration               m_MainVertexDeclaration;
+        VertexDeclaration               m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
+
         // Rendering state
         HRenderTarget                   m_CurrentRenderTarget;
-        DeviceBuffer*                   m_CurrentVertexBuffer;
-        VertexDeclaration*              m_CurrentVertexDeclaration;
+        DeviceBuffer*                   m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
+        VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
+        StorageBufferBinding            m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
         Program*                        m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
+        HTexture                        m_CurrentSwapchainTexture;
+
         // Misc state
         TextureFilter                   m_DefaultTextureMinFilter;
         TextureFilter                   m_DefaultTextureMagFilter;
-        Texture*                        m_DefaultTexture2D;
-        Texture*                        m_DefaultTexture2DArray;
-        Texture*                        m_DefaultTextureCubeMap;
-        Texture                         m_ResolveTexture;
+        VulkanTexture*                  m_DefaultTexture2D;
+        VulkanTexture*                  m_DefaultTexture2DArray;
+        VulkanTexture*                  m_DefaultTextureCubeMap;
+        VulkanTexture*                  m_DefaultTexture2D32UI;
+        VulkanTexture*                  m_DefaultStorageImage2D;
+        VulkanTexture                   m_ResolveTexture;
+
         uint64_t                        m_TextureFormatSupport;
         uint32_t                        m_Width;
         uint32_t                        m_Height;
@@ -405,13 +433,12 @@ namespace dmGraphics
         uint32_t                        m_WindowHeight;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 1;
-        uint32_t                        m_WindowOpened         : 1;
+        uint32_t                        m_NumFramesInFlight    : 2;
         uint32_t                        m_VerifyGraphicsCalls  : 1;
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_RenderDocSupport     : 1;
-        uint32_t                                               : 24;
     };
 
     // Implemented in graphics_vulkan_context.cpp
@@ -427,92 +454,66 @@ namespace dmGraphics
     // Implemented in graphics_vulkan.cpp
     VkResult CreateMainFrameBuffers(VulkanContext* context);
     VkResult DestroyMainFrameBuffers(VulkanContext* context);
-    void SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
+    void     SwapChainChanged(VulkanContext* context, uint32_t* width, uint32_t* height, VkResult (*cb)(void* ctx), void* cb_ctx);
 
     // Implemented in graphics_vulkan_device.cpp
     // Create functions
-    VkResult CreateFramebuffer(VkDevice vk_device, VkRenderPass vk_render_pass,
-        uint32_t width, uint32_t height,
-        VkImageView* vk_attachments, uint8_t attachmentCount, // Color & depth/stencil attachments
-        VkFramebuffer* vk_framebuffer_out);
-    VkResult DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer);
-    VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool,
-        uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out);
-    VkResult CreateDescriptorPool(VkDevice vk_device, VkDescriptorPoolSize* vk_pool_sizes, uint8_t numPoolSizes,
-        uint16_t maxDescriptors, VkDescriptorPool* vk_descriptor_pool_out);
-    VkResult CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily,
-        const char** deviceExtensions, const uint8_t deviceExtensionCount,
-        const char** validationLayers, const uint8_t validationLayerCount,
-        LogicalDevice* logicalDeviceOut);
+    VkResult CreateFramebuffer(VkDevice vk_device, VkRenderPass vk_render_pass, uint32_t width, uint32_t height, VkImageView* vk_attachments, uint8_t attachmentCount, VkFramebuffer* vk_framebuffer_out);
+    VkResult CreateCommandBuffers(VkDevice vk_device, VkCommandPool vk_command_pool, uint32_t numBuffersToCreate, VkCommandBuffer* vk_command_buffers_out);
+    VkResult CreateDescriptorPool(VkDevice vk_device, uint16_t maxDescriptors, VkDescriptorPool* vk_descriptor_pool_out);
+    VkResult CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily, const char** deviceExtensions, const uint8_t deviceExtensionCount, const char** validationLayers, const uint8_t validationLayerCount, void* pNext, LogicalDevice* logicalDeviceOut);
     VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, DescriptorAllocator* descriptorAllocator);
-    VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut);
-    VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        uint32_t imageWidth, uint32_t imageHeight, uint32_t imageLayers, uint16_t imageMips,
-        VkSampleCountFlagBits vk_sample_count, VkFormat vk_format, VkImageTiling vk_tiling,
-        VkImageUsageFlags vk_usage, VkMemoryPropertyFlags vk_memory_flags,
-        VkImageAspectFlags vk_aspect, VkImageLayout vk_initial_layout, Texture* textureOut);
-    VkResult CreateTextureSampler(VkDevice vk_device,
-        VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
-        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v,
-        float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
-    VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags,
-        RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
-        RenderPassAttachment* depthStencilAttachment,
-        RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
-    void DestroyRenderPass(VkDevice vk_device, VkRenderPass render_pass);
-    VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
-    VkResult CreateShaderModule(VkDevice vk_device,
-        const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut);
-    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
-        const PipelineState pipelineState, Program* program, HVertexDeclaration vertexDeclaration, RenderTarget* render_target, Pipeline* pipelineOut);
-    // Reset functions
-    void           ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
-    // Destroy functions
-    void           DestroyPhysicalDevice(PhysicalDevice* device);
-    void           DestroyLogicalDevice(LogicalDevice* device);
-    void           DestroyTexture(VkDevice vk_device, Texture::VulkanHandle* handle);
-    void           DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle);
-    void           DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
-    void           DestroyPipeline(VkDevice vk_device, Pipeline* pipeline);
-    void           DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator::VulkanHandle* handle);
-    void           DestroyScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
-    void           DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler);
-    void           DestroyProgram(VkDevice vk_device, Program::VulkanHandle* handle);
-    // Get functions
-    uint32_t       GetPhysicalDeviceCount(VkInstance vkInstance);
-    void           GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize);
-    bool           GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut);
-    QueueFamily    GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
-    const VkFormat GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates,
-        uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
-    void           GetFormatProperties(VkPhysicalDevice vk_physical_device, VkFormat vk_format, VkFormatProperties* properties);
-    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount);
-    // Misc functions
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout,
-        uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
-    VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
+    VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut);
+    VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device, uint32_t imageWidth, uint32_t imageHeight, uint32_t imageLayers, uint16_t imageMips, VkSampleCountFlagBits vk_sample_count, VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage, VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, VkImageLayout vk_initial_layout, VulkanTexture* textureOut);
+    VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode, VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
+    VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
+    VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
+    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut);
+    VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count, const PipelineState pipelineState, Program* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount, RenderTarget* render_target, Pipeline* pipelineOut);
 
-    void DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
-    void FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list);
+    // Destroy functions
+    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle);
+    void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* allocator);
+    void DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer);
+    void DestroyLogicalDevice(LogicalDevice* device);
+    void DestroyPhysicalDevice(PhysicalDevice* device);
+    void DestroyPipeline(VkDevice vk_device, Pipeline* pipeline);
+    void DestroyProgram(VkDevice vk_device, Program::VulkanHandle* handle);
+    void DestroyRenderPass(VkDevice vk_device, VkRenderPass render_pass);
+    void DestroyScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
+    void DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule);
+    void DestroyTextureSampler(VkDevice vk_device, TextureSampler* sampler);
+    void DestroyTexture(VkDevice vk_device, VulkanTexture::VulkanHandle* handle);
+    void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle);
+
+    // Get functions
+    uint32_t              GetPhysicalDeviceCount(VkInstance vkInstance);
+    void                  GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize, void* pNextFeature);
+    bool                  GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut);
+    QueueFamily           GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
+    const VkFormat        GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates, uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
+    void                  GetFormatProperties(VkPhysicalDevice vk_physical_device, VkFormat vk_format, VkFormatProperties* properties);
+    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount);
+
+    // Misc functions
+    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
+    VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
+    void     DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
+    void     FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list);
+    void     ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer);
 
     // Implemented in graphics_vulkan_swap_chain.cpp
     //   wantedWidth and wantedHeight might be written to, we might not get the
     //   dimensions we wanted from Vulkan.
-    VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice,
-        uint32_t* wantedWidth, uint32_t* wantedHeight, bool wantVSync,
-        SwapChainCapabilities& capabilities, SwapChain* swapChain);
+    VkResult UpdateSwapChain(PhysicalDevice* physicalDevice, LogicalDevice* logicalDevice, uint32_t* wantedWidth, uint32_t* wantedHeight, bool wantVSync, SwapChainCapabilities& capabilities, SwapChain* swapChain);
     void     DestroySwapChain(VkDevice vk_device, SwapChain* swapChain);
     void     GetSwapChainCapabilities(VkPhysicalDevice vk_device, const VkSurfaceKHR surface, SwapChainCapabilities& capabilities);
 
-    // called from OpenWindow
-    bool InitializeVulkan(HContext context, const WindowParams* params);
-    void InitializeVulkanTexture(Texture* t);
+    bool InitializeVulkan(HContext context);
+    void InitializeVulkanTexture(VulkanTexture* t);
 
     void OnWindowResize(int width, int height);
-    int OnWindowClose();
+    int  OnWindowClose();
     void OnWindowFocus(int focus);
 
     static inline void SynchronizeDevice(VkDevice vk_device)
@@ -521,38 +522,35 @@ namespace dmGraphics
     }
 
     // Implemented per supported platform
-
     const char** GetExtensionNames(uint16_t* num_extensions);
     const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_renderdoc);
     const char** GetValidationLayersExt(uint16_t* num_layers);
 
-    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
+    VkResult     CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
 
-    bool     LoadVulkanLibrary();
-    void     LoadVulkanFunctions(VkInstance vk_instance);
+    bool         LoadVulkanLibrary();
+    void         LoadVulkanFunctions(VkInstance vk_instance);
 
+    void         NativeSwapBuffers(HContext context);
+    bool         NativeInit(const struct ContextParams& params);
+    void         NativeExit();
+    void         NativeBeginFrame(HContext context);
+    bool         NativeInitializeContext(HContext context);
 
-    void NativeSwapBuffers(HContext context);
-    bool NativeInit(const struct ContextParams& params);
-    void NativeExit();
-
-    void NativeBeginFrame(HContext context);
-
-    WindowResult VulkanOpenWindow(HContext context, WindowParams* params);
-    void         VulkanCloseWindow(HContext context);
-    void         VulkanDestroyResources(HContext context);
-    uint32_t     VulkanGetDisplayDpi(HContext context);
-    uint32_t     VulkanGetWidth(HContext context);
-    uint32_t     VulkanGetHeight(HContext context);
-    uint32_t     VulkanGetWindowWidth(HContext context);
-    uint32_t     VulkanGetWindowHeight(HContext context);
-    float        VulkanGetDisplayScaleFactor(HContext context);
-    uint32_t     VulkanGetWindowRefreshRate(HContext context);
-    void         VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
-    void         VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
-    void         VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
-    void         VulkanGetNativeWindowSize(uint32_t* width, uint32_t* height);
-    void         VulkanIconifyWindow(HContext context);
-    uint32_t     VulkanGetWindowState(HContext context, WindowState state);
+    void                       VulkanCloseWindow(HContext context);
+    void                       VulkanDestroyResources(HContext context);
+    uint32_t                   VulkanGetDisplayDpi(HContext context);
+    uint32_t                   VulkanGetWidth(HContext context);
+    uint32_t                   VulkanGetHeight(HContext context);
+    uint32_t                   VulkanGetWindowWidth(HContext context);
+    uint32_t                   VulkanGetWindowHeight(HContext context);
+    float                      VulkanGetDisplayScaleFactor(HContext context);
+    void                       VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void                       VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
+    void                       VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void                       VulkanGetNativeWindowSize(HContext context, uint32_t* width, uint32_t* height);
+    void                       VulkanIconifyWindow(HContext context);
+    uint32_t                   VulkanGetWindowStateParam(HContext context, dmPlatform::WindowState state);
+    dmPlatform::HWindow        VulkanGetWindow(HContext context);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__

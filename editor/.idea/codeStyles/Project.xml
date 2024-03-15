@@ -49,6 +49,7 @@
           <entry key="editor.ui/on-action!" value="-1" />
           <entry key="editor.ui/on-closing!" value="-1" />
           <entry key="editor.ui/with-controls" value="-1" />
+          <entry key="editor.ui/with-on-edit-event-suppressed" value="-1" />
           <entry key="editor.ui/with-progress" value="-1" />
           <entry key="editor.updater-test/with-server" value="2" />
           <entry key="editor.workspace/register-resource-type" value="-1" />
@@ -57,6 +58,7 @@
           <entry key="integration.test-util/with-loaded-project" value="-1" />
           <entry key="integration.test-util/with-logged-calls" value="-1" />
           <entry key="integration.test-util/with-prop" value="-1" />
+          <entry key="integration.test-util/with-scratch-project" value="-1" />
           <entry key="integration.test-util/with-temp-dir!" value="-1" />
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />

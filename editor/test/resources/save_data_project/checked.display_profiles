@@ -1,0 +1,23 @@
+profiles {
+  name: "Landscape"
+  qualifiers {
+    width: 640
+    height: 480
+  }
+}
+profiles {
+  name: "Portrait"
+  qualifiers {
+    width: 480
+    height: 640
+  }
+}
+profiles {
+  name: "Special Landscape"
+  qualifiers {
+    width: 640
+    height: 480
+    device_models: "iPhone10,3"
+    device_models: "iPhone10,6"
+  }
+}

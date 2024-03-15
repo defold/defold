@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,6 +28,9 @@
 (def ^:const recip-180 (/ 1.0 180.0))
 (def ^:const recip-pi (/ 1.0 Math/PI))
 
+(def ^:const precision-general 0.000001)
+(def ^:const precision-coarse 0.001)
+
 (defn deg->rad
   ^double [^double deg]
   (* deg Math/PI recip-180))
@@ -35,6 +38,19 @@
 (defn rad->deg
   ^double [^double rad]
   (* rad 180.0 recip-pi))
+
+(defn median [numbers]
+  (let [sorted-numbers (sort numbers)
+        count (count sorted-numbers)]
+    (if (zero? count)
+      (throw (ex-info "Cannot calculate the median of an empty sequence." {:numbers numbers}))
+      (let [middle-index (quot count 2)
+            middle-number (nth sorted-numbers middle-index)]
+        (if (odd? count)
+          middle-number
+          (-> middle-number
+              (+ (nth sorted-numbers (dec middle-index)))
+              (/ 2.0)))))))
 
 (defn round-with-precision
   "Slow but precise rounding to a specified precision. Use with UI elements that

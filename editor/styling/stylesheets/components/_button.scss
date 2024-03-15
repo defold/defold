@@ -76,7 +76,7 @@
   }
   &:selected {
     -fx-background-color: -df-background;
-    .image-view {
+    & > .image-view {
       @include effect-lighten-blue()
     }
   }

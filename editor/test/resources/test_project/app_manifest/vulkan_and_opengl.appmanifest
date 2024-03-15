@@ -1,6 +1,15 @@
 # App manifest generated Fri Sep 02 2022 16:20:52 GMT+0200 (Central European Summer Time)
 # Settings: Vulkan,OpenGL
 platforms:
+    arm64-osx:
+        context:
+            excludeLibs: []
+            excludeSymbols: []
+            symbols: ["GraphicsAdapterVulkan"]
+            libs: ["graphics_vulkan","MoltenVK"]
+            frameworks: ["Metal","IOSurface","QuartzCore"]
+            linkFlags: []
+
     x86_64-osx:
         context:
             excludeLibs: []
@@ -87,7 +96,7 @@ platforms:
             excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan","MoltenVK"]
-            frameworks: ["Metal","QuartzCore"]
+            frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 
     x86_64-ios:

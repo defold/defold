@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -724,7 +724,7 @@ namespace dmScript
      *
      * @name  timer.get_info
      * @param handle [type:hash] the timer handle returned by timer.delay()
-     * @return data [type:table] or nil if timer is cancelled/completed. table with data in the following fields:
+     * @return data [type:table|nil] table or `nil` if timer is cancelled/completed. table with data in the following fields:
      *
      * `time_remaining`
      * : [type:number] Time remaining until the next time a timer.delay() fires.

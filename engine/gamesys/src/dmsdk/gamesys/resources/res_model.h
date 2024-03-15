@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -39,6 +39,7 @@ namespace dmGameSystem
     struct MaterialResource;
     struct RigSceneResource;
     struct TextureResource;
+    struct RenderTargetResource;
 
     struct ModelResourceBuffers
     {
@@ -60,15 +61,17 @@ namespace dmGameSystem
     {
         dmhash_t                m_SamplerNameHash;
         TextureResource*        m_Texture;
+        RenderTargetResource*   m_RenderTarget;
     };
 
     struct MaterialInfo
     {
-        const char*             m_Name;
-        MaterialResource*       m_Material;
-
-        MaterialTextureInfo*    m_Textures;
-        uint32_t                m_TexturesCount;
+        const char*                  m_Name;
+        MaterialResource*            m_Material;
+        dmGraphics::VertexAttribute* m_Attributes;
+        uint32_t                     m_AttributeCount;
+        MaterialTextureInfo*         m_Textures;
+        uint32_t                     m_TexturesCount;
     };
 
     struct ModelResource

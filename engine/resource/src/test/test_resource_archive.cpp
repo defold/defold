@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -97,9 +97,9 @@ static const uint8_t content_hash[][20] = {
 static const uint8_t compressed_content_hash[][20] = {
     { 206U, 246U, 241U, 188U, 170U, 142U,  34U, 244U, 115U,  87U,  65U,  38U,  88U,  34U, 188U,  33U, 144U,  44U,  18U,  46U },
     { 205U,  82U, 220U, 208U,  16U, 146U, 230U, 113U, 118U,  43U,   6U,  77U,  19U,  47U, 181U, 219U, 201U,  63U,  81U, 143U },
-    { 0x5F, 0x9E, 0x1B, 0x6C, 0x70, 0x5D, 0x9F, 0xDC, 0xBC, 0x41, 0x80, 0x62, 0xF3, 0xEA, 0x3F, 0x6A, 0x33, 0x64, 0x09, 0x14 },
+    { 0x29, 0xB0, 0x62, 0xDB, 0x2F, 0xDD, 0x91, 0x9F, 0xB6, 0x81, 0xF8, 0x43, 0xB5, 0x64, 0xF2, 0x96, 0xA2, 0xD0, 0x0B, 0x50 },
     { 110U, 207U, 167U,  68U,  57U, 224U,  20U,  24U, 135U, 248U, 166U, 192U, 197U, 173U,  48U, 150U,   3U,  64U, 180U,  88U },
-    { 0x03, 0x56, 0xAC, 0x9F, 0x6E, 0xBB, 0x8B, 0xD3, 0xDB, 0x05, 0xCB, 0x73, 0x96, 0x2B, 0xB6, 0xFC, 0x88, 0xE4, 0x7A, 0xB5 },
+    { 0x42, 0x31, 0xB3, 0xD1, 0x76, 0x31, 0xC4, 0x64, 0xAE, 0x92, 0xAA, 0xC0, 0x7C, 0xA8, 0x05, 0xA7, 0xF4, 0x84, 0xB5, 0x7C },
     {  16U, 184U, 254U, 147U, 172U,  48U,  89U, 214U,  29U,  90U, 128U, 156U,  37U,  60U, 100U,  69U, 246U, 252U, 122U,  99U },
     {  90U,  15U,  50U,  67U, 184U,   5U, 147U, 194U, 160U, 203U,  45U, 150U,  20U, 194U,  55U, 123U, 189U, 218U, 105U, 103U }
 };
@@ -580,10 +580,7 @@ TEST(dmResourceArchive, ResourceEntries)
         ASSERT_STREQ(path_name[i], current_path);
         ASSERT_EQ(path_hash[i], current_hash);
 
-        for (uint32_t n = 0; n < manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
-            uint8_t current_byte = manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Data[n];
-            ASSERT_EQ(content_hash[i][n], current_byte);
-        }
+        ASSERT_ARRAY_EQ_LEN(content_hash[i], manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Data, manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Count);
     }
 
     dmDDF::FreeMessage(manifest->m_DDFData);

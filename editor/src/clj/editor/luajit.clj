@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -33,7 +33,7 @@
 
 (defn- luajit-exec-path
   [arch]
-  (str (system/defold-unpack-path) "/" (.getPair (Platform/getJavaPlatform)) (str (case arch
+  (str (system/defold-unpack-path) "/" (.getPair (Platform/getHostPlatform)) (str (case arch
                                                                                         :32-bit "/bin/luajit-32"
                                                                                         :64-bit "/bin/luajit-64"))))
 

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,18 +24,34 @@
 #include <dmsdk/gamesys/resources/res_textureset.h>
 namespace dmGameSystem
 {
-    dmResource::Result AcquireResources(dmResource::HFactory factory,
-        SpriteResource* resource, const char* filename)
+    dmResource::Result AcquireResources(dmResource::HFactory factory, SpriteResource* resource, const char* filename)
     {
         // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
         if (resource->m_DDF->m_BlendMode == dmGameSystemDDF::SpriteDesc::BLEND_MODE_ADD_ALPHA)
             resource->m_DDF->m_BlendMode = dmGameSystemDDF::SpriteDesc::BLEND_MODE_ADD;
 
-        dmResource::Result fr = dmResource::Get(factory, resource->m_DDF->m_TileSet, (void**)&resource->m_TextureSet);
-        if (fr != dmResource::RESULT_OK)
+
+        dmResource::Result fr = dmResource::RESULT_OK;
+
+        uint32_t num_textures = resource->m_DDF->m_Textures.m_Count;
+        if (num_textures)
         {
-            return fr;
+            resource->m_NumTextures = num_textures;
+            resource->m_Textures = (SpriteTexture*)malloc(num_textures * sizeof(SpriteTexture));
+            memset(resource->m_Textures, 0, num_textures * sizeof(SpriteTexture));
+
+            dmResource::Result fr = dmResource::RESULT_OK;
+            for (uint32_t i = 0; i < num_textures; ++i)
+            {
+                fr = dmResource::Get(factory, resource->m_DDF->m_Textures[i].m_Texture, (void**)&resource->m_Textures[i].m_TextureSet);
+                if (fr != dmResource::RESULT_OK)
+                {
+                    return fr;
+                }
+                resource->m_Textures[i].m_SamplerNameHash = dmHashString64(resource->m_DDF->m_Textures[i].m_Sampler);
+            }
         }
+
         fr = dmResource::Get(factory, resource->m_DDF->m_Material, (void**)&resource->m_Material);
         if (fr != dmResource::RESULT_OK)
         {
@@ -47,7 +63,7 @@ namespace dmGameSystem
             return dmResource::RESULT_NOT_SUPPORTED;
         }
         resource->m_DefaultAnimation = dmHashString64(resource->m_DDF->m_DefaultAnimation);
-        if (!resource->m_TextureSet->m_AnimationIds.Get(resource->m_DefaultAnimation))
+        if (num_textures && !resource->m_Textures[0].m_TextureSet->m_AnimationIds.Get(resource->m_DefaultAnimation))
         {
             if (resource->m_DDF->m_DefaultAnimation == 0 || resource->m_DDF->m_DefaultAnimation[0] == '\0')
             {
@@ -69,10 +85,15 @@ namespace dmGameSystem
     {
         if (resource->m_DDF != 0x0)
             dmDDF::FreeMessage(resource->m_DDF);
-        if (resource->m_TextureSet != 0x0)
-            dmResource::Release(factory, resource->m_TextureSet);
         if (resource->m_Material != 0x0)
             dmResource::Release(factory, resource->m_Material);
+
+        for (uint32_t i = 0; i < resource->m_NumTextures; ++i)
+        {
+            if (resource->m_Textures[i].m_TextureSet)
+                dmResource::Release(factory, resource->m_Textures[i].m_TextureSet);
+        }
+        free((void*)resource->m_Textures);
     }
 
     dmResource::Result ResSpritePreload(const dmResource::ResourcePreloadParams& params)
@@ -84,7 +105,18 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_TileSet);
+        uint32_t num_textures = ddf->m_Textures.m_Count;
+        if (num_textures)
+        {
+            for (uint32_t i = 0; i < num_textures; ++i)
+            {
+                dmResource::PreloadHint(params.m_HintInfo, ddf->m_Textures[i].m_Texture);
+            }
+        }
+        else
+        {
+            dmResource::PreloadHint(params.m_HintInfo, ddf->m_TileSet);
+        }
         dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
 
         *params.m_PreloadData = ddf;

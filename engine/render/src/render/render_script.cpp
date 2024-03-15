@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -64,12 +64,15 @@ namespace dmRender
     #define RENDER_SCRIPT_MAG_FILTER_NAME "mag_filter"
     #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
+    #define RENDER_SCRIPT_FLAGS_NAME "flags"
 
     static uint32_t RENDER_SCRIPT_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_PREDICATE_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_CONSTANTBUFFER_ARRAY_TYPE_HASH = 0;
+
+    static uint32_t RENDER_SCRIPT_FLAG_TEXTURE_BIT = 1;
 
     const char* RENDER_SCRIPT_FUNCTION_NAMES[MAX_RENDER_SCRIPT_FUNCTION_COUNT] =
     {
@@ -241,7 +244,7 @@ namespace dmRender
 
                 if (RenderScriptSetNamedValueFromLua(L, -1, cb, name_hash, table_index_lua - 1) != RESULT_OK)
                 {
-                    return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);                    
+                    return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);
                 }
                 lua_pop(L, 1);
             }
@@ -298,7 +301,7 @@ namespace dmRender
 
         if (RenderScriptSetNamedValueFromLua(L, 3, cb, name_hash, table_index_lua - 1) != RESULT_OK)
         {
-            return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);                    
+            return luaL_error(L, "Constant %s[%d] not set. Mixing types in array not allowed", dmHashReverseSafe64(name_hash), table_index_lua);
         }
         assert(top == lua_gettop(L));
 
@@ -376,7 +379,7 @@ namespace dmRender
      * Then use the constant buffer when drawing a predicate:
      *
      * ```lua
-     * render.draw(self.my_pred, constants)
+     * render.draw(self.my_pred, {constants = constants})
      * ```
      *
      * The constant buffer also supports array values by specifying constants in a table:
@@ -398,7 +401,7 @@ namespace dmRender
      *      vmath.vector4(0, 1, 0, 1)
      *      vmath.vector4(0, 0, 1, 1)
      * }
-     * 
+     *
      * -- Add more constant to the array
      * constants.light_colors[4] = vmath.vector4(1, 1, 1, 1)
      * ```
@@ -581,6 +584,23 @@ namespace dmRender
         {dmScript::META_GET_INSTANCE_DATA_TABLE_REF,    RenderScriptGetInstanceDataTableRef},
         {0, 0}
     };
+
+    static inline dmGraphics::BufferType CheckBufferType(lua_State* L, int index)
+    {
+        dmGraphics::BufferType buffer_type = (dmGraphics::BufferType) luaL_checkinteger(L, index);
+
+        if (!(buffer_type == dmGraphics::BUFFER_TYPE_COLOR0_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_COLOR1_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_COLOR2_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_COLOR3_BIT ||
+              buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT  ||
+              buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT))
+        {
+            return (dmGraphics::BufferType) luaL_error(L, "Unknown buffer type supplied (%d).", (int) buffer_type);
+        }
+
+        return buffer_type;
+    }
 
     bool InsertCommand(RenderScriptInstance* i, const Command& command)
     {
@@ -851,15 +871,16 @@ namespace dmRender
      * with what parameters. Each buffer key should have a table value consisting
      * of parameters. The following parameter keys are available:
      *
-     * Key          | Values
-     * ------------ | ----------------------------
-     * `format`     |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>`render.FORMAT_RGBA32F`<br/>`render.FORMAT_RGBA16F`<br/>
-     * `width`      | number
-     * `height`     | number
-     * `min_filter` | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
-     * `mag_filter` | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
-     * `u_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`<br/>
-     * `v_wrap`     | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`
+     * Key                     | Values
+     * ----------------------- | ----------------------------
+     * `format`                |  `render.FORMAT_LUMINANCE`<br/>`render.FORMAT_RGB`<br/>`render.FORMAT_RGBA`<br/>`render.FORMAT_DEPTH`<br/>`render.FORMAT_STENCIL`<br/>`render.FORMAT_RGBA32F`<br/>`render.FORMAT_RGBA16F`<br/>
+     * `width`                 | number
+     * `height`                | number
+     * `min_filter` (optional) | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
+     * `mag_filter` (optional) | `render.FILTER_LINEAR`<br/>`render.FILTER_NEAREST`
+     * `u_wrap`     (optional) | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`<br/>
+     * `v_wrap`     (optional) | `render.WRAP_CLAMP_TO_BORDER`<br/>`render.WRAP_CLAMP_TO_EDGE`<br/>`render.WRAP_MIRRORED_REPEAT`<br/>`render.WRAP_REPEAT`
+     * `flags`      (optional) | `render.TEXTURE_BIT` (only applicable to depth and stencil buffers)
      *
      * The render target can be created to support multiple color attachments. Each attachment can have different format settings and texture filters,
      * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
@@ -967,18 +988,39 @@ namespace dmRender
         uint32_t buffer_type_flags = 0;
         uint32_t max_tex_size = dmGraphics::GetMaxTextureSize(i->m_RenderContext->m_GraphicsContext);
         luaL_checktype(L, table_index, LUA_TTABLE);
-        dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
-        dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+
+        dmGraphics::RenderTargetCreationParams params = {};
+
         lua_pushnil(L);
         while (lua_next(L, table_index))
         {
-            bool required_found[]  = { false, false, false };
-            uint32_t buffer_type   = (uint32_t) luaL_checkinteger(L, -2);
-            buffer_type_flags     |= buffer_type;
+            bool required_found[]                 = { false, false, false };
+            dmGraphics::BufferType buffer_type    = CheckBufferType(L, -2);
+            buffer_type_flags                    |= (uint32_t) buffer_type;
+            dmGraphics::TextureParams* p          = 0;
+            dmGraphics::TextureCreationParams* cp = 0;
 
-            uint32_t index                        = dmGraphics::GetBufferTypeIndex((dmGraphics::BufferType)buffer_type);
-            dmGraphics::TextureParams* p          = &params[index];
-            dmGraphics::TextureCreationParams* cp = &creation_params[index];
+            if (dmGraphics::IsColorBufferType(buffer_type))
+            {
+                uint32_t color_index = dmGraphics::GetBufferTypeIndex(buffer_type);
+                p  = &params.m_ColorBufferParams[color_index];
+                cp = &params.m_ColorBufferCreationParams[color_index];
+            }
+            else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+            {
+                p  = &params.m_DepthBufferParams;
+                cp = &params.m_DepthBufferCreationParams;
+            }
+            else if (buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+            {
+                p  = &params.m_StencilBufferParams;
+                cp = &params.m_StencilBufferCreationParams;
+            }
+            else
+            {
+                return luaL_error(L, "Invalid buffer type supplied to %s.render_target: (%d)", RENDER_SCRIPT_LIB_NAME, (uint32_t) buffer_type);
+            }
+
             luaL_checktype(L, -1, LUA_TTABLE);
             lua_pushnil(L);
 
@@ -1056,11 +1098,23 @@ namespace dmRender
                 {
                     p->m_VWrap = (dmGraphics::TextureWrap)(int)luaL_checkinteger(L, -1);
                 }
+                else if (strncmp(key, RENDER_SCRIPT_FLAGS_NAME, strlen(RENDER_SCRIPT_FLAGS_NAME)) == 0)
+                {
+                    int flags = luaL_checkinteger(L, -1);
+                    if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+                    {
+                        params.m_DepthTexture = flags & RENDER_SCRIPT_FLAG_TEXTURE_BIT;
+                    }
+                    else if (buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT && flags & RENDER_SCRIPT_FLAG_TEXTURE_BIT)
+                    {
+                        dmLogWarning("Creating a render target with a stencil texture attachment is currently not supported, defaulting to render buffer.");
+                    }
+                }
                 else
                 {
                     lua_pop(L, 2);
                     assert(top == lua_gettop(L));
-                    return luaL_error(L, "Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s.",
+                    return luaL_error(L, "Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s, %s.",
                         RENDER_SCRIPT_LIB_NAME, key,
                         RENDER_SCRIPT_FORMAT_NAME,
                         RENDER_SCRIPT_WIDTH_NAME,
@@ -1068,27 +1122,28 @@ namespace dmRender
                         RENDER_SCRIPT_MIN_FILTER_NAME,
                         RENDER_SCRIPT_MAG_FILTER_NAME,
                         RENDER_SCRIPT_U_WRAP_NAME,
-                        RENDER_SCRIPT_V_WRAP_NAME);
+                        RENDER_SCRIPT_V_WRAP_NAME,
+                        RENDER_SCRIPT_FLAGS_NAME);
                 }
                 lua_pop(L, 1);
             }
             lua_pop(L, 1);
 
-            if (creation_params[index].m_Width > max_tex_size || creation_params[index].m_Height > max_tex_size)
+            if (cp->m_Width > max_tex_size || cp->m_Height > max_tex_size)
             {
                 lua_pop(L, 1);
                 assert(top == lua_gettop(L));
                 return luaL_error(L, "Render target (type %s) of width %d and height %d is greater than max supported texture size %d for this platform.",
-                    dmGraphics::GetBufferTypeLiteral((dmGraphics::BufferType)buffer_type), creation_params[index].m_Width, creation_params[index].m_Height, max_tex_size);
+                    dmGraphics::GetBufferTypeLiteral(buffer_type), cp->m_Width, cp->m_Height, max_tex_size);
             }
         }
 
-        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, creation_params, params);
+        dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, params);
         assert(dmGraphics::GetAssetType(render_target) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
 
         if (render_target == 0)
         {
-            luaL_error(L, "Unable to create render target.");
+            return luaL_error(L, "Unable to create render target.");
         }
 
         lua_pushnumber(L, render_target);
@@ -1125,9 +1180,36 @@ namespace dmRender
         return asset_handle;
     }
 
+    static dmGraphics::HRenderTarget CheckRenderTarget(lua_State* L, int index, RenderScriptInstance* i)
+    {
+        if(lua_isnumber(L, index))
+        {
+            return (dmGraphics::HRenderTarget) CheckAssetHandle(L, index, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        }
+        else if (dmScript::IsHash(L, index) || lua_isstring(L, index))
+        {
+            dmhash_t rt_id                  = dmScript::CheckHashOrString(L, index);
+            RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
+
+            if (render_resource == 0x0)
+            {
+                return luaL_error(L, "Could not find render target '%s'", dmHashReverseSafe64(rt_id));
+            }
+
+            if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
+            {
+                return luaL_error(L, "Render resource is not a render target");
+            }
+
+            return render_resource->m_Resource;
+        }
+        return luaL_error(L, "Invalid render target.");;
+    }
+
     /*# deletes a render target
      *
-     * Deletes a previously created render target.
+     * Deletes a render target created by a render script.
+     * You cannot delete a render target resource.
      *
      * @name render.delete_render_target
      * @param render_target [type:render_target] render target to delete
@@ -1161,6 +1243,7 @@ namespace dmRender
      *
      * Sets a render target. Subsequent draw operations will be to the
      * render target until it is replaced by a subsequent call to set_render_target.
+     * This function supports render targets created by a render script, or a render target resource.
      *
      * @name render.set_render_target
      * @param render_target [type:render_target] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
@@ -1194,26 +1277,31 @@ namespace dmRender
      *
      * end
      * ```
+     *
+     * ```lua
+     * function update(self, dt)
+     *     -- set render target by a render target resource identifier
+     *     render.set_render_target('my_rt_resource')
+     *
+     *     -- draw a predicate to the render target
+     *     render.draw(self.my_pred)
+     *
+     *     -- reset the render target to the default backbuffer
+     *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
+     *
+     * end
+     * ```
     */
     int RenderScript_SetRenderTarget(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmGraphics::HRenderTarget render_target = 0x0;
         DM_LUA_STACK_CHECK(L, 0);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        dmGraphics::HRenderTarget render_target = 0;
 
         if (lua_gettop(L) > 0)
         {
-            if(lua_isnumber(L, 1))
-            {
-                render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-            }
-            else
-            {
-                if(!lua_isnil(L, 1) && luaL_checkint(L, 1) != 0)
-                {
-                    return luaL_error(L, "Invalid render target supplied to %s.set_render_target.", RENDER_SCRIPT_LIB_NAME);
-                }
-            }
+            if (!lua_isnil(L, 1))
+                render_target = CheckRenderTarget(L, 1, i);
         }
 
         uint32_t transient_buffer_types = 0;
@@ -1237,7 +1325,7 @@ namespace dmRender
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, render_target, transient_buffer_types)))
             return 0;
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     /* DEPRECATED. NO API DOC GENERATED.
@@ -1336,45 +1424,57 @@ namespace dmRender
 
     /*# sets the render target size
      *
+     * Sets the render target size for a render target created from
+     * either a render script, or from a render target resource.
+     *
      * @name render.set_render_target_size
      * @param render_target [type:render_target] render target to set size for
      * @param width [type:number] new render target width
      * @param height [type:number] new render target height
      * @examples
      *
-     * Set the render target size to the window size:
+     * Resize render targets to the current window size:
      *
      * ```lua
      * render.set_render_target_size(self.my_render_target, render.get_window_width(), render.get_window_height())
+     * render.set_render_target_size('my_rt_resource', render.get_window_width(), render.get_window_height())
      * ```
      */
     int RenderScript_SetRenderTargetSize(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        if (!lua_isnumber(L, 1))
-        {
-            return luaL_error(L, "Expected render target as the second argument to %s.set_render_target_size.", RENDER_SCRIPT_LIB_NAME);
-        }
-
-        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
         uint32_t width = luaL_checkinteger(L, 2);
         uint32_t height = luaL_checkinteger(L, 3);
         dmGraphics::SetRenderTargetSize(render_target, width, height);
         return 0;
     }
 
-    /*# enables a texture for a render target
+    /*# sets a texture to the render state
      *
-     * Sets the specified render target's specified buffer to be
-     * used as texture with the specified unit.
-     * A material shader can then use the texture to sample from.
+     * Sets the specified texture handle for a render target attachment or a regular texture
+     * that should be used for rendering. The texture can be bound to either a texture unit
+     * or to a sampler name by a hash or a string.
+     * A texture can be bound to multiple units and sampler names at the same time,
+     * the actual binding will be applied to the shaders when a shader program is bound.
+     *
+     * When mixing binding using both units and sampler names, you might end up in situations
+     * where two different textures will be applied to the same bind location in the shader.
+     * In this case, the texture set to the named sampler will take precedence over the unit.
+     *
+     * Note that you can bind multiple sampler names to the same texture, in case you want to reuse
+     * the same texture for differnt use-cases. It is however recommended that you use the same name
+     * everywhere for the textures that should be shared across different materials.
      *
      * @name render.enable_texture
-     * @param unit [type:number] texture unit to enable texture for
-     * @param render_target [type:handle] render target or texture from which to enable the specified texture unit
-     * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to render.BUFFER_COLOR_BIT
+     * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash for the sampler name that the texture should be bound to
+     * @param handle_or_name [type:texture|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
+     * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `render.BUFFER_COLOR_BIT`. These values are supported:
      *
      * - `render.BUFFER_COLOR_BIT`
+     *
+     * If The render target has been created as depth and/or stencil textures, these buffer types can be used:
+     *
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
      *
@@ -1405,73 +1505,126 @@ namespace dmRender
      *     render.draw(self.my_pred)
      * end
      * ```
+     *
+     * ```lua
+     * function update(self, dt)
+     *     -- enable render target by resource id
+     *     render.set_render_target('my_rt_resource')
+     *     render.draw(self.my_pred)
+     *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
+     *
+     *     render.enable_texture(0, 'my_rt_resource', render.BUFFER_COLOR_BIT)
+     *     -- draw a predicate with the render target available as texture 0 in the predicate
+     *     -- material shader.
+     *     render.draw(self.my_pred)
+     * end
+     * ```
+     *
+     * ```lua
+     * function update(self, dt)
+     *     -- bind a texture to the texture unit 0
+     *     render.enable_texture(0, self.my_texture_handle)
+     *     -- bind the same texture to a named sampler
+     *     render.enable_texture("my_texture_sampler", self.my_texture_handle)
+     * end
+     * ```
      */
     int RenderScript_EnableTexture(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
+
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        dmhash_t sampler_hash   = 0;
+        uint32_t unit           = 0;
 
-        uint32_t unit = luaL_checkinteger(L, 1);
-        if (lua_isnumber(L, 2))
+        if (lua_isnumber(L, 1))
         {
-            dmGraphics::HAssetHandle asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
-            dmGraphics::AssetType asset_type      = dmGraphics::GetAssetType(asset_handle);
-            dmGraphics::HTexture texture          = 0;
-
-            if (!dmGraphics::IsAssetHandleValid(i->m_RenderContext->m_GraphicsContext, asset_handle))
-            {
-                char buf[128];
-                return luaL_error(L, "Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
-            }
-
-            if (asset_type == dmGraphics::ASSET_TYPE_RENDER_TARGET)
-            {
-                dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
-                if (lua_isnumber(L, 3))
-                {
-                    buffer_type = (dmGraphics::BufferType) lua_tointeger(L, 3);
-                }
-
-                texture = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
-
-                if (texture == 0)
-                {
-                    char buf[128];
-                    return luaL_error(L, "Render target '%s' does not have a texture for the specified buffer type.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
-                }
-            }
-            else if (asset_type == dmGraphics::ASSET_TYPE_TEXTURE)
-            {
-                texture = (dmGraphics::HTexture) asset_handle;
-            }
-
-            // Texture can potentially still be zero if it's an attachment texture
-            if(texture != 0)
-            {
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, unit, texture)))
-                {
-                    return 0;
-                }
-                else
-                {
-                    return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-                }
-            }
-
-            char buf[128];
-            return luaL_error(L, "Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+            unit = lua_tointeger(L, 1);
         }
         else
         {
-            return luaL_error(L, "%s.enable_texture(unit, handle, buffer_type) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
+            sampler_hash = dmScript::CheckHashOrString(L, 1);
         }
+
+        dmGraphics::HAssetHandle asset_handle;
+        dmGraphics::AssetType asset_type;
+
+        if (lua_isnumber(L, 2))
+        {
+            asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
+            asset_type   = dmGraphics::GetAssetType(asset_handle);
+        }
+        else if (dmScript::IsHash(L, 2) || lua_isstring(L, 2))
+        {
+            dmhash_t rt_id                  = dmScript::CheckHashOrString(L, 2);
+            RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
+
+            if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
+            {
+                return DM_LUA_ERROR("Render resource is not a render target");
+            }
+
+            asset_handle = (dmGraphics::HRenderTarget) render_resource->m_Resource;
+            asset_type   = dmGraphics::ASSET_TYPE_RENDER_TARGET;
+        }
+        else
+        {
+            return DM_LUA_ERROR("%s.enable_texture(unit, handle, buffer_type) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
+        }
+
+        if (!dmGraphics::IsAssetHandleValid(i->m_RenderContext->m_GraphicsContext, asset_handle))
+        {
+            char buf[128];
+            return DM_LUA_ERROR("Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+        }
+
+        dmGraphics::HTexture texture = 0;
+
+        if (asset_type == dmGraphics::ASSET_TYPE_RENDER_TARGET)
+        {
+            dmGraphics::BufferType buffer_type = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            if (lua_isnumber(L, 3))
+            {
+                buffer_type = CheckBufferType(L, 3);
+            }
+
+            texture = dmGraphics::GetRenderTargetTexture(asset_handle, buffer_type);
+
+            if (texture == 0)
+            {
+                char buf[128];
+                return DM_LUA_ERROR("Render target '%s' does not have a texture for the specified buffer type (type=%s).",
+                    AssetHandleToString(asset_handle, buf, sizeof(buf)), dmGraphics::GetBufferTypeLiteral(buffer_type));
+            }
+        }
+        else if (asset_type == dmGraphics::ASSET_TYPE_TEXTURE)
+        {
+            texture = (dmGraphics::HTexture) asset_handle;
+        }
+
+        // Texture can potentially still be zero if it's an attachment texture
+        if(texture != 0)
+        {
+            if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_TEXTURE, sampler_hash, unit, texture)))
+            {
+                return 0;
+            }
+            else
+            {
+                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            }
+        }
+
+        char buf[128];
+        return DM_LUA_ERROR("Texture handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
     }
 
-    /*# disables a texture for a render target
+    /*# disables a texture on the render state
      *
-     * Disables a texture unit for a render target that has previourly been enabled.
+     * Disables a texture that has previourly been enabled.
      *
      * @name render.disable_texture
-     * @param unit [type:number] texture unit to disable
+     * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash that should be disabled
      * @examples
      *
      * ```lua
@@ -1488,8 +1641,19 @@ namespace dmRender
     int RenderScript_DisableTexture(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        uint32_t unit = luaL_checkinteger(L, 1);
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_TEXTURE, unit)))
+        dmhash_t sampler_hash   = 0;
+        uint32_t unit           = 0;
+
+        if (lua_isnumber(L, 1))
+        {
+            unit = lua_tointeger(L, 1);
+        }
+        else
+        {
+            sampler_hash = dmScript::CheckHashOrString(L, 1);
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_TEXTURE, sampler_hash, unit)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1504,6 +1668,7 @@ namespace dmRender
      * @param buffer_type [type:constant] which type of buffer to retrieve the width from
      *
      * - `render.BUFFER_COLOR_BIT`
+     * - `render.BUFFER_COLOR[x]_BIT` (x: [0..3], if supported!)
      * - `render.BUFFER_DEPTH_BIT`
      * - `render.BUFFER_STENCIL_BIT`
      *
@@ -1513,6 +1678,8 @@ namespace dmRender
      * ```lua
      * -- get the width of the render target color buffer
      * local w = render.get_render_target_width(self.target_right, render.BUFFER_COLOR_BIT)
+     * -- get the width of a render target resource
+     * local w = render.get_render_target_width('my_rt_resource', render.BUFFER_COLOR_BIT)
      * ```
      */
     int RenderScript_GetRenderTargetWidth(lua_State* L)
@@ -1521,23 +1688,12 @@ namespace dmRender
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        (void)i;
 
-        if (!lua_isnumber(L, 1))
-        {
-            return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
-        }
+        dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
+        dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
 
-        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        uint32_t buffer_type = (uint32_t) luaL_checkinteger(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
-        {
-            return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
-        }
         uint32_t width, height;
-        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType) buffer_type, width, height);
+        dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
         lua_pushnumber(L, width);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -1561,6 +1717,8 @@ namespace dmRender
      * ```lua
      * -- get the height of the render target color buffer
      * local h = render.get_render_target_height(self.target_right, render.BUFFER_COLOR_BIT)
+     * -- get the height of a render target resource
+     * local w = render.get_render_target_height('my_rt_resource', render.BUFFER_COLOR_BIT)
      * ```
      */
     int RenderScript_GetRenderTargetHeight(lua_State* L)
@@ -1569,23 +1727,10 @@ namespace dmRender
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        (void)i;
-
-        if (!lua_isnumber(L, 1))
-        {
-            return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
-        }
-
-        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        uint32_t buffer_type = (uint32_t) luaL_checkinteger(L, 2);
-        if (buffer_type != dmGraphics::BUFFER_TYPE_COLOR0_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT &&
-            buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
-        {
-            return luaL_error(L, "Unknown buffer type supplied to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
-        }
+        dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
+        dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
         uint32_t width, height;
-        dmGraphics::GetRenderTargetSize(render_target, (dmGraphics::BufferType)buffer_type, width, height);
+        dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
         lua_pushnumber(L, height);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -1713,7 +1858,13 @@ namespace dmRender
      * @param [options] [type:table] optional table with properties:
      *
      * `frustum`
-     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
+     *
+     * `frustum_planes`
+     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
+     *
+     * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
+     * - render.FRUSTUM_PLANES_ALL : All 6 sides of the frustum.
      *
      * `constants`
      * : [type:constant_buffer] optional constants to use while rendering
@@ -1740,11 +1891,18 @@ namespace dmRender
      * render.draw(self.my_pred, {constants = constants})
      * ```
 
-     * Draw with predicate and frustum culling:
+     * Draw with predicate and frustum culling (without near+far planes):
      *
      * ```lua
      * local frustum = self.proj * self.view
-     * render.draw(self.my_pred, {frustum = frustum, constants = constants})
+     * render.draw(self.my_pred, {frustum = frustum})
+     * ```
+
+     * Draw with predicate and frustum culling (with near+far planes):
+     *
+     * ```lua
+     * local frustum = self.proj * self.view
+     * render.draw(self.my_pred, {frustum = frustum, frustum_planes = render.FRUSTUM_PLANES_ALL})
      * ```
 
      */
@@ -1763,6 +1921,7 @@ namespace dmRender
         }
 
         dmVMath::Matrix4* frustum_matrix = 0;
+        dmRender::FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
         HNamedConstantBuffer constant_buffer = 0;
 
         if (lua_istable(L, 2))
@@ -1772,6 +1931,10 @@ namespace dmRender
 
             lua_getfield(L, -1, "frustum");
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "frustum_planes");
+            frustum_num_planes = lua_isnil(L, -1) ? frustum_num_planes : (dmRender::FrustumPlanes)luaL_checkinteger(L, -1);
             lua_pop(L, 1);
 
             lua_getfield(L, -1, "constants");
@@ -1787,15 +1950,16 @@ namespace dmRender
             constant_buffer = *tmp;
         }
 
+        // we need to pass ownership to the command queue
+        FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            // we need to pass ownership to the command queue
-            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
-            *copy = *frustum_matrix;
-            frustum_matrix = copy;
+            frustum_options = new FrustumOptions;
+            frustum_options->m_Matrix = *frustum_matrix;
+            frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t) constant_buffer, (uint64_t) frustum_options)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1808,6 +1972,12 @@ namespace dmRender
      *
      * `frustum`
      * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     *
+     * `frustum_planes`
+     * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
+     *
+     * - render.FRUSTUM_PLANES_SIDES : The left, right, top and bottom sides of the frustum.
+     * - render.FRUSTUM_PLANES_ALL : All sides of the frustum.
      *
      * @replaces render.draw_debug2d
      * @examples
@@ -1823,6 +1993,7 @@ namespace dmRender
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmVMath::Matrix4* frustum_matrix = 0;
+        dmRender::FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
 
         if (lua_istable(L, 1))
         {
@@ -1833,18 +2004,23 @@ namespace dmRender
             frustum_matrix = lua_isnil(L, -1) ? 0 : dmScript::CheckMatrix4(L, -1);
             lua_pop(L, 1);
 
+            lua_getfield(L, -1, "frustum_planes");
+            frustum_num_planes = lua_isnil(L, -1) ? frustum_num_planes : (dmRender::FrustumPlanes)luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+
             lua_pop(L, 1);
         }
 
+        // we need to pass ownership to the command queue
+        FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            // we need to pass ownership to the command queue
-            dmVMath::Matrix4* copy = new dmVMath::Matrix4;
-            *copy = *frustum_matrix;
-            frustum_matrix = copy;
+            frustum_options = new FrustumOptions;
+            frustum_options->m_Matrix = *frustum_matrix;
+            frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_matrix)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_options)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
@@ -1933,6 +2109,16 @@ namespace dmRender
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
+
+    /*#
+     * @name render.FRUSTUM_PLANES_SIDES
+     * @variable
+     */
+
+    /*#
+     * @name render.FRUSTUM_PLANES_ALL
+     * @variable
+     */
 
     /*#
      * @name render.BLEND_ZERO
@@ -2753,41 +2939,36 @@ namespace dmRender
      */
     int RenderScript_EnableMaterial(lua_State* L)
     {
-        int top = lua_gettop(L);
-        (void)top;
+        DM_LUA_STACK_CHECK(L, 0);
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (!lua_isnil(L, 1))
         {
             dmhash_t material_id = dmScript::CheckHashOrString(L, 1);
-            dmRender::HMaterial* mat = i->m_Materials.Get(material_id);
-            if (mat == 0x0)
+            RenderResource* render_resource = i->m_RenderResources.Get(material_id);
+
+            if (render_resource == 0x0)
             {
-                assert(top == lua_gettop(L));
-                char str[128];
-                char buffer[256];
-                dmSnPrintf(buffer, sizeof(buffer), "Could not find material '%s' %llu", dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long)material_id); // since lua doesn't support proper format arguments
-                return luaL_error(L, "%s", buffer);
+                return DM_LUA_ERROR("Could not find material '%s'", dmHashReverseSafe64(material_id));
+            }
+            else if (render_resource->m_Type != RENDER_RESOURCE_TYPE_MATERIAL)
+            {
+                return DM_LUA_ERROR("Render resource is not a material.");
+            }
+
+            HMaterial material = (HMaterial) render_resource->m_Resource;
+            if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint64_t)material)))
+            {
+                return 0;
             }
             else
             {
-                HMaterial material = *mat;
-                if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint64_t)material)))
-                {
-                    assert(top == lua_gettop(L));
-                    return 0;
-                }
-                else
-                {
-                    assert(top == lua_gettop(L));
-                    return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
-                }
+                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
             }
         }
         else
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "%s.enable_material was supplied nil as material.", RENDER_SCRIPT_LIB_NAME);
+            return DM_LUA_ERROR("%s.enable_material was supplied nil as material.", RENDER_SCRIPT_LIB_NAME);
         }
     }
 
@@ -3020,8 +3201,20 @@ namespace dmRender
         }
         REGISTER_BUFFER_CONSTANT(DEPTH_BIT,   DEPTH_BIT);
         REGISTER_BUFFER_CONSTANT(STENCIL_BIT, STENCIL_BIT);
-
 #undef REGISTER_BUFFER_CONSTANT
+
+#define REGISTER_FRUSTUM_PLANES_CONSTANT(name)\
+        lua_pushnumber(L, (lua_Number) dmRender::FRUSTUM_PLANES_##name); \
+        lua_setfield(L, -2, "FRUSTUM_PLANES_"#name);
+
+        REGISTER_FRUSTUM_PLANES_CONSTANT(SIDES);
+        REGISTER_FRUSTUM_PLANES_CONSTANT(ALL);
+
+#undef REGISTER_FRUSTUM_PLANES_CONSTANT
+
+        // Flags (only flag here currently, so no need for an enum)
+        lua_pushnumber(L, RENDER_SCRIPT_FLAG_TEXTURE_BIT);
+        lua_setfield(L, -2, "TEXTURE_BIT");
 
         lua_pop(L, 1);
 
@@ -3169,7 +3362,7 @@ bail:
         i->m_ScriptWorld = render_context->m_ScriptWorld;
         i->m_RenderContext = render_context;
         i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
-        i->m_Materials.SetCapacity(16, 8);
+        i->m_RenderResources.SetCapacity(16, 8);
 
         lua_pushvalue(L, -1);
         i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
@@ -3224,19 +3417,23 @@ bail:
         render_script_instance->m_RenderScript = render_script;
     }
 
-    void AddRenderScriptInstanceMaterial(HRenderScriptInstance render_script_instance, const char* material_name, dmRender::HMaterial material)
+    void AddRenderScriptInstanceRenderResource(HRenderScriptInstance render_script_instance, const char* name, uint64_t resource, RenderResourceType type)
     {
-        if (render_script_instance->m_Materials.Full())
+        if (render_script_instance->m_RenderResources.Full())
         {
-            uint32_t new_capacity = 2 * render_script_instance->m_Materials.Capacity();
-            render_script_instance->m_Materials.SetCapacity(2 * new_capacity, new_capacity);
+            uint32_t new_capacity = 2 * render_script_instance->m_RenderResources.Capacity();
+            render_script_instance->m_RenderResources.SetCapacity(2 * new_capacity, new_capacity);
         }
-        render_script_instance->m_Materials.Put(dmHashString64(material_name), material);
+
+        RenderResource res = {};
+        res.m_Resource     = resource;
+        res.m_Type         = type;
+        render_script_instance->m_RenderResources.Put(dmHashString64(name), res);
     }
 
-    void ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance)
+    void ClearRenderScriptInstanceRenderResources(HRenderScriptInstance render_script_instance)
     {
-        render_script_instance->m_Materials.Clear();
+        render_script_instance->m_RenderResources.Clear();
     }
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)

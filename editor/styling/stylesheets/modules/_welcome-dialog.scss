@@ -14,11 +14,6 @@
       -fx-background-color: transparent;
       -fx-border-width: 0;
       -fx-padding: 0;
-
-      // Counteract too-broad application of styling from _file-extensions.scss.
-      .image-view {
-        -fx-effect: none;
-      }
     }
   }
 

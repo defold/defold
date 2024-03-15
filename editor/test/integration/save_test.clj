@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,10 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.save-test
-  (:require [clojure.data :as data]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.set :as set]
-            [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
@@ -31,283 +29,13 @@
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [service.log :as log]
             [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime with-clean-system]]
             [util.text-util :as text-util])
-  (:import [java.io File StringReader]
+  (:import [java.io File]
            [org.apache.commons.io FileUtils]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]))
 
-(deftest save-all
-  ;; These tests bypass the dirty check in order to verify that the information
-  ;; saved is equivalent to the data loaded. Failures might signal that we've
-  ;; forgotten to read data from the file, or somehow we're not writing all
-  ;; properties to disk.
-  (let [queries ["**/env.cubemap"
-                 "**/switcher.atlas"
-                 "**/atlas_sprite.collection"
-                 "**/props.collection"
-                 "**/sub_props.collection"
-                 "**/sub_sub_props.collection"
-                 "**/go_with_scale3.collection"
-                 "**/all_embedded.collection"
-                 "**/all_referenced.collection"
-                 "**/collection_with_scale3.collection"
-                 "**/atlas_sprite.go"
-                 "**/atlas.sprite"
-                 "**/material_attributes.sprite"
-                 "**/props.go"
-                 "game.project"
-                 "**/super_scene.gui"
-                 "**/scene.gui"
-                 "**/simple.gui"
-                 "**/gui_resources.gui"
-                 "**/gui_resources_missing_files.gui"
-                 "**/broken_gui_resources.gui"
-                 "**/breaks_gui_resources.gui"
-                 "**/uses_gui_resources.gui"
-                 "**/uses_gui_resources_missing_files.gui"
-                 "**/uses_broken_gui_resources.gui"
-                 "**/replaces_gui_resources.gui"
-                 "**/replaces_broken_gui_resources.gui"
-                 "**/fireworks_big.particlefx"
-                 "**/new.collisionobject"
-                 "**/three_shapes.collisionobject"
-                 "**/tile_map_collision_shape.collisionobject"
-                 "**/treasure_chest.model"
-                 "**/new.factory"
-                 "**/with_prototype.factory"
-                 "**/new.sound"
-                 "**/tink.sound"
-                 "**/new.camera"
-                 "**/non_default.camera"
-                 "**/new.tilemap"
-                 "**/with_cells.tilemap"
-                 "**/with_layers.tilemap"
-                 "**/test_attributes.material"
-                 "**/test.model"
-                 "**/empty_mesh.model"
-                 "**/test.label"
-                 "**/with_collection.collectionproxy"
-                 "**/ice.tilesource"
-                 "**/level.tilesource"
-                 "**/test.tileset"]]
-    (with-clean-system
-      (let [workspace (test-util/setup-workspace! world)
-            project (test-util/setup-project! workspace)
-            save-data-by-resource (into {}
-                                        (map (juxt :resource identity))
-                                        (project/all-save-data project))]
-        (doseq [query queries]
-          (testing (format "Saving %s" query)
-            (let [resource (ffirst (project/find-resources project query))
-                  resource-type (resource/resource-type resource)
-                  save-string (:content (save-data-by-resource resource))]
-              (if-some [read-fn (:read-fn resource-type)]
-
-                ;; We have a read-fn. Compare the read data representations.
-                (let [disk-pb-msg (read-fn resource)
-                      save-pb-msg (with-open [reader (StringReader. save-string)]
-                                    (read-fn reader))
-                      [only-in-disk-pb-msg only-in-save-pb-msg] (data/diff disk-pb-msg save-pb-msg)]
-                  (is (nil? only-in-disk-pb-msg))
-                  (is (nil? only-in-save-pb-msg))
-                  (when (or (some? only-in-disk-pb-msg)
-                            (some? only-in-save-pb-msg))
-                    (println "When comparing" (resource/proj-path resource))
-                    (prn 'disk only-in-disk-pb-msg)
-                    (prn 'save only-in-save-pb-msg)))
-
-                ;; We don't have a read-fn. Compare the strings.
-                (let [disk-string (slurp resource)]
-                  (is (= disk-string save-string)))))))))))
-
-(deftest save-all-literal-equality
-  (let [paths ["/collection/embedded_instances.collection"
-               "/editor1/test.collection"
-               "/game_object/embedded_components.go"
-               "/editor1/ship_thruster_trail.particlefx"
-               "/editor1/camera_fx.gui"
-               "/editor1/body_font.font"
-               "/editor1/test.gui"
-               "/editor1/test.model"
-               "/editor1/test.particlefx"]]
-    (test-util/with-loaded-project
-      (doseq [path paths]
-        (testing (format "Saving %s" path)
-          (let [node-id (test-util/resource-node project path)
-                resource (g/node-value node-id :resource)
-                save-data (g/node-value node-id :save-data)
-                save-string (:content save-data)
-                disk-string (slurp resource)
-                print-line-diff! (fn print-line-diff! []
-                                   (let [diff-lines
-                                         (keep (fn [[f s]]
-                                                 (when (not= f s)
-                                                   [f s]))
-                                               (map vector
-                                                    (str/split-lines disk-string)
-                                                    (str/split-lines save-string)))]
-                                     (println "When comparing" path)
-                                     (doseq [[disk-line save-line] diff-lines]
-                                       (prn 'disk disk-line)
-                                       (prn 'save save-line))))]
-            (is (not (g/error? save-data)))
-            (when-not (is (= disk-string save-string))
-              (if-some [read-raw-fn (:read-raw-fn (resource/resource-type resource))]
-
-                ;; We have a read-fn. Compare the read data representations.
-                (let [disk-pb-msg (read-raw-fn resource)
-                      save-pb-msg (with-open [reader (StringReader. save-string)]
-                                    (read-raw-fn reader))
-                      [only-in-disk-pb-msg only-in-save-pb-msg] (data/diff disk-pb-msg save-pb-msg)]
-                  (is (nil? only-in-disk-pb-msg))
-                  (is (nil? only-in-save-pb-msg))
-                  (if (and (nil? only-in-disk-pb-msg)
-                           (nil? only-in-save-pb-msg))
-
-                    ;; The strings differ, but the read data does not. Print a line diff.
-                    (print-line-diff!)
-
-                    ;; The read data differs. Print a data diff.
-                    (do
-                      (println "When comparing" path)
-                      (prn 'disk only-in-disk-pb-msg)
-                      (prn 'save only-in-save-pb-msg))))
-
-                ;; We don't have a read-fn. Print a line diff.
-                (print-line-diff!)))))))))
-
-(defn- dirty? [node-id]
-  (some-> (g/node-value node-id :save-data)
-    :dirty?))
-
-(defn- set-prop-fn
-  ([prop-label value]
-   (set-prop-fn [] prop-label value))
-  ([outline-path prop-label value]
-   (fn [node-id]
-     (let [prop-node-id (:node-id (test-util/outline node-id outline-path))]
-       (test-util/prop! prop-node-id prop-label value)))))
-
-(defn- delete-first-child! [node-id]
-  (g/transact (g/delete-node (:node-id (test-util/outline node-id [0])))))
-
-(defn- append-lua-code-line! [node-id]
-  (test-util/update-code-editor-lines! node-id conj "-- added line"))
-
-(defn- append-shader-code-line! [node-id]
-  (test-util/update-code-editor-lines! node-id conj "// added line"))
-
-(defn- append-c-code-line! [node-id]
-  (test-util/update-code-editor-lines! node-id conj "// added line"))
-
-(defn- set-setting!
-  [node-id path value]
-  (log/without-logging
-    (let [form-data (g/node-value node-id :form-data)]
-      (let [{:keys [user-data set]} (:form-ops form-data)]
-        (set user-data path value)))))
-
-(deftest save-dirty
-  (let [black-list #{"/game_object/type_faulty_props.go"
-                     "/collection/type_faulty_props.collection"}
-        paths [["/sprite/atlas.sprite" (set-prop-fn :default-animation "no-anim")]
-               ["/collection/empty_go.collection" delete-first-child!]
-               ["/collection/embedded_embedded_sounds.collection" delete-first-child!]
-               ["/collection/empty_props_go.collection" delete-first-child!]
-               ["/collection/props_embed.collection" delete-first-child!]
-               ["/collection/sub_embed.collection" delete-first-child!]
-               ["/logic/session/ball.go" delete-first-child!]
-               ["/logic/session/block.go" delete-first-child!]
-               ["/logic/session/hud.go" delete-first-child!]
-               ["/logic/session/pow.go" delete-first-child!]
-               ["/logic/session/roof.go" delete-first-child!]
-               ["/logic/session/wall.go" delete-first-child!]
-               ["/logic/embedded_sprite.go" delete-first-child!]
-               ["/logic/main.go" delete-first-child!]
-               ["/logic/one_embedded.go" delete-first-child!]
-               ["/logic/tilegrid_embedded_collision.go" delete-first-child!]
-               ["/logic/two_embedded.go" delete-first-child!]
-               ["/collection/all_embedded.collection" delete-first-child!]
-               ["/materials/test.material" (set-prop-fn :name "new-name")]
-               ["/materials/test_attributes.material" (set-prop-fn :name "new-name")]
-               ["/collection/components/test.label" (set-prop-fn :text "new-text")]
-               ["/label/test.label" (set-prop-fn :text "new-text")]
-               ["/label/embedded_label.go" (set-prop-fn [0] :text "new-text")]
-               ["/label/embedded_label.collection" (set-prop-fn [0 0] :text "new-text")]
-               ["/editor1/test.atlas" (set-prop-fn :margin 500)]
-               ["/collection/components/test.collisionobject" (set-prop-fn :mass 2.0)]
-               ["/collision_object/embedded_shapes.collisionobject" (set-prop-fn :restitution 0.0)]
-               ["/game_object/empty_props.go" delete-first-child!]
-               ["/editor1/ice.tilesource" (set-prop-fn :inner-padding 1)]
-               ["/tilesource/valid.tilesource" (set-prop-fn :inner-padding 1)]
-               ["/graphics/sprites.tileset" (set-prop-fn :inner-padding 1)]
-               ["/editor1/test.particlefx" delete-first-child!]
-               ["/particlefx/blob.particlefx" delete-first-child!]
-               ["/editor1/camera_fx.gui" delete-first-child!]
-               ["/editor1/test.gui" delete-first-child!]
-               ["/editor1/template_test.gui" delete-first-child!]
-               ["/gui/legacy_alpha.gui" delete-first-child!]
-               ["/model/empty_mesh.model" (set-prop-fn :name "new-name")]
-               ["/script/props.script" append-lua-code-line!]
-               ["/logic/default.render_script" append-lua-code-line!]
-               ["/logic/main.gui_script" append-lua-code-line!]
-               ["/script/test_module.lua" append-lua-code-line!]
-               ["/sprite/material_attributes.sprite" (set-prop-fn :playback-rate 0.5)]
-               ["/logic/test.vp" append-shader-code-line!]
-               ["/logic/test.fp" append-shader-code-line!]
-               ["/native_ext/main.cpp" append-c-code-line!]
-               ["/game.project" #(set-setting! % ["project" "title"] "new-title")]
-               ["/live_update/live_update.settings" #(set-setting! % ["liveupdate" "mode"] "Zip")]]]
-    (with-clean-system
-      (let [workspace (test-util/setup-scratch-workspace! world)
-            project   (test-util/setup-project! workspace)]
-        (let [xf (comp (map :resource)
-                   (map resource/resource->proj-path)
-                   (filter (complement black-list)))
-              clean? (fn [] (empty? (into [] xf (g/node-value project :dirty-save-data))))]
-          ;; This first check is intended to verify that changes to the file
-          ;; formats do not cause undue changes to existing content in game
-          ;; projects. For example, adding fields to component protobuf
-          ;; definitions may cause the default values to be written to every
-          ;; instance of those components embedded in collection or game object
-          ;; files, because the embedded components are written as a string
-          ;; literal. If you get errors here, you need to ensure the loaded data
-          ;; is migrated to the new format by adding a :sanitize-fn when
-          ;; registering your resource type (Example: `collision_object.clj`).
-          ;; Non-embedded components do not have this issue as long as your
-          ;; added protobuf field has a default value. But more drastic file
-          ;; format changes have happened in the past, and you can find other
-          ;; examples of :sanitize-fn usage in non-component resource types.
-          (is (clean?))
-          (doseq [[path f] paths]
-            (testing (format "Verifying %s" path)
-              (let [resource (test-util/resource workspace path)
-                    node-id (test-util/resource-node project resource)]
-                (when-not (is (false? (dirty? node-id)))
-                  (let [save-string (:content (g/node-value node-id :save-data))
-                        resource-type (resource/resource-type resource)
-                        read-fn (:read-fn resource-type)]
-                    (println "When comparing" path)
-                    (if (some? read-fn)
-                      (let [disk-pb-msg (read-fn resource)
-                            save-pb-msg (with-open [reader (StringReader. save-string)]
-                                          (read-fn reader))
-                            [only-in-disk-pb-msg only-in-save-pb-msg] (data/diff disk-pb-msg save-pb-msg)]
-                        (prn 'disk only-in-disk-pb-msg)
-                        (prn 'save only-in-save-pb-msg))
-                      (let [disk-string (slurp resource)]
-                        (prn 'disk disk-string)
-                        (prn 'save save-string))))))))
-          (doseq [[path f] paths]
-            (testing (format "Dirtyfying %s" path)
-              (let [node-id (test-util/resource-node project path)]
-                (f node-id)
-                (is (true? (dirty? node-id))))))
-          (is (not (clean?)))
-          (test-util/save-project! project)
-          (is (clean?)))))))
+(set! *warn-on-reflection* true)
 
 (defn- setup-scratch
   [ws-graph]
@@ -315,14 +43,14 @@
         project (test-util/setup-project! workspace)]
     [workspace project]))
 
-(deftest save-after-delete []
+(deftest save-after-delete
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[_workspace project] (setup-scratch world)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
       (asset-browser/delete [(g/node-value atlas-id :resource)])
       (is (not (g/error? (project/all-save-data project)))))))
 
-(deftest save-after-external-delete []
+(deftest save-after-external-delete
   (with-clean-system
     (let [[workspace project] (setup-scratch world)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")
@@ -331,9 +59,9 @@
       (workspace/resource-sync! workspace)
       (is (not (g/error? (project/all-save-data project)))))))
 
-(deftest save-after-rename []
+(deftest save-after-rename
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[_workspace project] (setup-scratch world)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
       (asset-browser/rename (g/node-value atlas-id :resource) "/switcher/switcher2.atlas")
       (is (not (g/error? (project/all-save-data project)))))))
@@ -357,7 +85,7 @@
   nil)
 
 (defn- clean-checkout! [^Git git]
-  (doseq [file (-> git .getRepository .getWorkTree .listFiles)]
+  (doseq [^File file (-> git .getRepository .getWorkTree .listFiles)]
     (when-not (= ".git" (.getName file))
       (FileUtils/deleteQuietly file)))
   (-> git .reset (.setRef "HEAD") (.setMode ResetCommand$ResetType/HARD) .call)
@@ -406,8 +134,6 @@
   (let [f (workspace-file workspace proj-path)]
     (fs/create-parent-directories! f)
     (spit-until-new-mtime f content)))
-
-(def ^:private slurp-file (comp slurp workspace-file))
 
 (defn- touch-file!
   [workspace proj-path]

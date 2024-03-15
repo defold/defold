@@ -1,0 +1,8 @@
+mesh: "/builtins/assets/meshes/cube.dae"
+material: "/builtins/materials/model.material"
+textures: "/referenced/images/red.png"
+textures: "/referenced/images/green.png"
+skeleton: "/builtins/assets/meshes/cube.dae"
+animations: "/builtins/assets/meshes/cube.dae"
+default_animation: "cube"
+name: "legacy_material_and_textures"

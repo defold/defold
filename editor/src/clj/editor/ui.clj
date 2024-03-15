@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -570,16 +570,43 @@
 
 (defn auto-commit! [^Node node commit-fn]
   (on-focus! node (fn [got-focus] (if got-focus
-                                    (user-data! node ::auto-commit? false)
-                                    (when (user-data node ::auto-commit?)
+                                    (user-data! node ::auto-commit false)
+                                    (when (user-data node ::auto-commit)
                                       (commit-fn nil)))))
-  (on-edit! node (fn [_old new]
-                   (if (user-data node ::suppress-auto-commit?)
-                     (user-data! node ::suppress-auto-commit? false)
-                     (user-data! node ::auto-commit? true)))))
+  (on-edit! node (fn [_old _new]
+                   (if (user-data node ::suppress-auto-commit)
+                     (user-data! node ::suppress-auto-commit false)
+                     (user-data! node ::auto-commit true)))))
 
 (defn suppress-auto-commit! [^Node node]
-  (user-data! node ::suppress-auto-commit? true))
+  (user-data! node ::suppress-auto-commit true))
+
+(defn increase-on-edit-event-suppress-count! [editable]
+  (when-some [suppress-count (user-data editable ::on-edit-event-suppress-count)]
+    (user-data! editable ::on-edit-event-suppress-count (inc (long suppress-count)))))
+
+(defn decrease-on-edit-event-suppress-count! [editable]
+  (when-some [suppress-count (user-data editable ::on-edit-event-suppress-count)]
+    (let [suppress-count (long suppress-count)]
+      (assert (pos? suppress-count))
+      (user-data! editable ::on-edit-event-suppress-count (dec suppress-count)))))
+
+(defmacro with-on-edit-event-suppressed! [editable & body]
+  `(let [editable# ~editable]
+     (increase-on-edit-event-suppress-count! editable#)
+     (try
+       ~@body
+       (finally
+         (decrease-on-edit-event-suppress-count! editable#)))))
+
+(defn- add-on-edit-event-fn! [editable observed-property listen-fn]
+  (when (nil? (user-data editable ::on-edit-event-suppress-count))
+    (user-data! editable ::on-edit-event-suppress-count 0))
+  (observe observed-property
+           (fn [_this old new]
+             (let [^long suppress-count (or (user-data editable ::on-edit-event-suppress-count) 0)]
+               (when (zero? suppress-count)
+                 (listen-fn old new))))))
 
 (defn- apply-default-css! [^Parent root]
   (.. root getStylesheets (add (str (io/resource "editor.css"))))
@@ -673,7 +700,7 @@
 (extend-type LongField
   HasValue
   (value [this] (Integer/parseInt (.getText this)))
-  (value! [this val] (.setText this (str val))))
+  (value! [this val] (text! this (str val))))
 
 (extend-type TextInputControl
   HasValue
@@ -682,28 +709,29 @@
   Text
   (text [this] (.getText this))
   (text! [this val]
-    (doto this
-      (.setText val)
-      (.end))
-    (when (.isFocused this)
-      (.selectAll this)))
+    (with-on-edit-event-suppressed! this
+      (doto this
+        (.setText val)
+        (.end))
+      (when (.isFocused this)
+        (.selectAll this))))
   Editable
   (editable [this] (.isEditable this))
   (editable! [this val] (.setEditable this val))
-  (on-edit! [this f] (observe (.textProperty this) (fn [this old new] (f old new)))))
+  (on-edit! [this f] (add-on-edit-event-fn! this (.textProperty this) f)))
 
 (extend-type ChoiceBox
   HasAction
   (on-action! [this fn] (.setOnAction this (event-handler e (fn e))))
   HasValue
   (value [this] (.getValue this))
-  (value! [this val] (.setValue this val)))
+  (value! [this val] (with-on-edit-event-suppressed! this (.setValue this val))))
 
 (extend-type ComboBoxBase
   Editable
   (editable [this] (not (.isDisabled this)))
   (editable! [this val] (.setDisable this (not val)))
-  (on-edit! [this f] (observe (.valueProperty this) (fn [this old new] (f old new)))))
+  (on-edit! [this f] (add-on-edit-event-fn! this (.valueProperty this) f)))
 
 (defn allow-user-input! [^ComboBoxBase cb e]
   (.setEditable cb e))
@@ -711,20 +739,25 @@
 (extend-type CheckBox
   HasValue
   (value [this] (.isSelected this))
-  (value! [this val] (.setSelected this val))
+  (value! [this val] (with-on-edit-event-suppressed! this (.setSelected this val)))
   Editable
   (editable [this] (not (.isDisabled this)))
   (editable! [this val] (.setDisable this (not val)))
-  (on-edit! [this f] (observe (.selectedProperty this) (fn [this old new] (f old new)))))
+  (on-edit! [this f] (add-on-edit-event-fn! this (.selectedProperty this) f)))
 
 (extend-type ColorPicker
   HasValue
   (value [this] (.getValue this))
-  (value! [this val] (.setValue this val)))
+  (value! [this val] (with-on-edit-event-suppressed! this (.setValue this val))))
 
 (extend-type TextField
   HasAction
-  (on-action! [this fn] (.setOnAction this (event-handler e (fn e)))))
+  (on-action! [node fn]
+    (.setOnAction node (event-handler e
+                         ;; Clear the auto-commit flag. Further edits will re-apply it.
+                         (when (user-data node ::auto-commit)
+                           (user-data! node ::auto-commit false))
+                         (fn e)))))
 
 (extend-type Labeled
   Text
@@ -1213,11 +1246,6 @@
   {:control control
    :menu-id menu-id})
 
-(defn- wrap-menu-image [node]
-  (doto (Pane.)
-    (children! [node])
-    (add-style! "menu-image-wrapper")))
-
 (defn- make-submenu [id label icon ^Collection style-classes menu-items on-open]
   (when (seq menu-items)
     (let [menu (Menu. label)]
@@ -1225,7 +1253,7 @@
       (when on-open
         (.setOnShowing menu (event-handler e (on-open))))
       (when icon
-        (.setGraphic menu (wrap-menu-image (icons/get-image-view icon 16))))
+        (.setGraphic menu (icons/get-image-view icon 16)))
       (when style-classes
         (assert (set? style-classes))
         (doto (.getStyleClass menu)
@@ -1261,7 +1289,7 @@
     (when (and (some? key-combo) (nil? user-data))
       (.setAccelerator menu-item key-combo))
     (when icon
-      (.setGraphic menu-item (wrap-menu-image (icons/get-image-view icon 16))))
+      (.setGraphic menu-item (icons/get-image-view icon 16)))
     (when style-classes
       (assert (set? style-classes))
       (doto (.getStyleClass menu-item)
@@ -1571,6 +1599,13 @@
                   [id menu-data-entry])))
         (tree-seq :children :children {:children menu-data})))
 
+(defn- menu-data-without-icons [menu-data]
+  (util/deep-keep-kv
+    (fn [key value]
+      (when (not= :icon key)
+        value))
+    menu-data))
+
 (defn- refresh-menubar-items!
   [^MenuBar menu-bar menu-data visible-command-contexts command->shortcut evaluation-context]
   (let [id->menu-item (menu->id-map menu-bar)
@@ -1803,7 +1838,9 @@
         root (.getRoot scene)]
     (when-let [md (user-data root ::menubar)]
       (let [^MenuBar menu-bar (:control md)
-            menu (handler/realize-menu (:menu-id md))]
+            menu (cond-> (handler/realize-menu (:menu-id md))
+                         (eutil/is-mac-os?)
+                         (menu-data-without-icons))]
         (cond
           (refresh-menubar? menu-bar menu visible-command-contexts)
           (refresh-menubar! menu-bar menu visible-command-contexts command->shortcut evaluation-context)

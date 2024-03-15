@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -49,8 +49,8 @@ typedef enum dmExtensionEventID
 
 typedef enum dmExtensionCallbackType
 {
-    CALLBACK_PRE_RENDER,
-    CALLBACK_POST_RENDER,
+    DM_EXTENSION_CALLBACK_PRE_RENDER,
+    DM_EXTENSION_CALLBACK_POST_RENDER,
 } dmExtensionCallbackType;
 
 
@@ -212,8 +212,8 @@ namespace dmExtension
      */
     enum CallbackType
     {
-        DM_ENUM_COPY(dmExtensionCallbackType, CALLBACK_PRE_RENDER),
-        DM_ENUM_COPY(dmExtensionCallbackType, CALLBACK_POST_RENDER),
+        CALLBACK_PRE_RENDER     = DM_EXTENSION_CALLBACK_PRE_RENDER,
+        CALLBACK_POST_RENDER    = DM_EXTENSION_CALLBACK_POST_RENDER,
     };
 
     /*# event callback data

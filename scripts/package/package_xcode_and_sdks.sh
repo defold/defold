@@ -1,5 +1,5 @@
 #! /usr/bin/env bash
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -97,11 +97,6 @@ function package_xcode() {
         for f in ${_name}/usr/lib/*.dylib
         do
            EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
-        done
-    else
-        for f in ${_name}/usr/bin/swift*
-        do
-            EXTRA_ARGS="--exclude=${f} ${EXTRA_ARGS}"
         done
     fi
 

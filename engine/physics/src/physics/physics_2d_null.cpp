@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -248,7 +248,13 @@ namespace dmPhysics
         return false;
     }
 
-    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue) {
+    void SetMaskBit2D(HCollisionObject2D collision_object, uint16_t groupbit, bool boolvalue)
+    {
+    }
+
+    bool UpdateMass2D(HCollisionObject2D collision_object, float mass)
+    {
+        return false;
     }
 
     void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
@@ -310,6 +316,36 @@ namespace dmPhysics
     }
 
     void FlipV2D(HCollisionObject2D collision_object)
+    {
+    }
+
+    bool IsWorldLocked(HWorld2D world)
+    {
+        return false;
+    }
+
+    void GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D shape, float* radius)
+    {
+    }
+
+    void GetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D shape, dmVMath::Quat rotation, float& w, float& h)
+    {
+    }
+
+    HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index)
+    {
+        return 0;
+    }
+
+    void SetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D shape, float radius)
+    {
+    }
+
+    void SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D shape, dmVMath::Quat rotation, float w, float h)
+    {
+    }
+
+    void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
     {
     }
 }

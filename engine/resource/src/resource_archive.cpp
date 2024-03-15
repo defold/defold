@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -524,6 +524,9 @@ namespace dmResourceArchive
             fseek(resource_file, resource_offset, SEEK_SET);
 
             Result result = dmResourceArchive::RESULT_OK;
+            // Note, we don't need to check if it's encrypted here, as it's guaranteed to
+            // have the same size after decryption
+            // So, we only need a temp buffer if the file is compressed
             if (!compressed)
             {
                 // we can read directly to the output buffer
@@ -532,11 +535,11 @@ namespace dmResourceArchive
                     result = dmResourceArchive::RESULT_IO_ERROR;
                 }
                 source_data = (uint8_t*)buffer;
-                source_data_size = size;
+                source_data_size = (uint32_t)size;
             }
             else
             {
-                // We need a temp buffer to read to, since we can't decompress to the same folder
+                // We need a temp buffer to read to, since we can't decompress to the same buffer
                 temp_data = new uint8_t[compressed_size];
                 if (fread(temp_data, 1, compressed_size, resource_file) != compressed_size)
                 {
@@ -554,18 +557,47 @@ namespace dmResourceArchive
         }
         else
         {
-            source_data = (uint8_t*) (((uintptr_t)afi->m_ResourceData + resource_offset));
-            source_data_size = compressed ? compressed_size : size;
+            const uint8_t* archive_data = (uint8_t*) (((uintptr_t)afi->m_ResourceData + resource_offset));
 
             if (!compressed)
             {
                 // we can copy it directly to the output buffer
-                memcpy(buffer, source_data, source_data_size);
+                memcpy(buffer, archive_data, size);
+
+                source_data = (uint8_t*)buffer;
+                source_data_size = (uint32_t)size;
+            }
+            else if (!encrypted) // && compressed
+            {
+                // We don't need to decrypt (destructive process of the source data)
+                // so we can use the archive data directly
+                source_data = (uint8_t*)archive_data;
+                source_data_size = compressed_size;
+            }
+            else
+            {
+                // We need a temp buffer to read to, since we can't decompress to the same buffer
+                temp_data = new uint8_t[compressed_size];
+                memcpy(temp_data, archive_data, compressed_size);
+
+                source_data = temp_data;
+                source_data_size = compressed_size;
             }
         }
 
         // At this point the source_data is the file "stored on disc"
         // and will be treated as the input
+
+        // Encryption is done in-place
+        if(encrypted)
+        {
+            dmResource::Result r = dmResource::DecryptBuffer((uint8_t*)source_data, source_data_size);
+            if (dmResource::RESULT_OK != r)
+            {
+                delete[] temp_data;
+                return dmResourceArchive::RESULT_UNKNOWN;
+            }
+        }
 
         if (compressed)
         {
@@ -577,18 +609,6 @@ namespace dmResourceArchive
                 return dmResourceArchive::RESULT_OUTBUFFER_TOO_SMALL;
             }
         }
-
-        // Encryption can be done in-place
-        if(encrypted)
-        {
-            dmResource::Result r = dmResource::DecryptBuffer((uint8_t*)buffer, size);
-            if (dmResource::RESULT_OK != r)
-            {
-                delete[] temp_data;
-                return dmResourceArchive::RESULT_UNKNOWN;
-            }
-        }
-
 
         delete[] temp_data;
         return dmResourceArchive::RESULT_OK;

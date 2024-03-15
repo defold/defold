@@ -4,12 +4,14 @@ import sys, os
 
 import waflib.Task, waflib.TaskGen, waflib.Options
 from waflib.TaskGen import extension
+from waf_dynamo import platform_supports_feature
 
 sys.path.insert(0, "src")
 import waf_gamesys
 
 def configure(conf):
-    pass
+    if platform_supports_feature(conf.env.PLATFORM, 'compute', None):
+        conf.env.append_unique('DEFINES', 'DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
 
 def build(bld):
     dirs = ['animationset/*',
@@ -24,26 +26,37 @@ def build(bld):
             'font/*',
             'fragment_program/*',
             'gui/*',
+            'image/*',
             'input/*',
             'label/*',
             'light/*',
             'material/*',
             'mesh/*',
             'meshset/*',
+            'misc/**',
             'model/*',
             'particlefx/*',
             'render/*',
             'render_script/*',
+            'render_target/*',
             'display_profiles/*',
             'resource/*',
             'script/*',
+            'shader/*',
             'sound/*',
             'sprite/**',
+            'sys/**',
             'tile/*',
             'texture/*',
             'textureset/*',
             'vertex_program/*',
             'window/*']
+
+    excl_pattern = ['**/*.ttf', '**/*.basis', '**/*.psd']
+
+    if not platform_supports_feature(bld.env.PLATFORM, 'compute', None):
+        excl_pattern.append('**/*.cp')
+        excl_pattern.append('**/*.compute_program')
 
     exported_symbols = ['ResourceTypeGameObject',
                         'ResourceTypeCollection',
@@ -58,15 +71,34 @@ def build(bld):
                         'ResourceTypeGui','ResourceTypeGuiScript',
                         'GraphicsAdapterNull']
 
-    test_task_gen = bld.program(features = 'cxx cprogram test',
-                                includes = '../../../src ../../../proto',
-                                use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys',
-                                exported_symbols = exported_symbols,
-                                web_libs = ['library_sys.js', 'library_script.js'],
-                                proto_gen_py = True,
-                                content_root='../test',
-                                source = bld.path.ant_glob('test_gamesys.cpp') + bld.path.ant_glob(dirs, excl=['**/*.ttf', '**/*.basis']),
-                                target = 'test_gamesys')
+    test_gamesys = bld.program(features = 'cxx cprogram test',
+                               includes = '../../../src ../../../proto',
+                               use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys',
+                               exported_symbols = exported_symbols,
+                               web_libs = ['library_sys.js', 'library_script.js'],
+                               proto_gen_py = True,
+                               content_root='../test',
+                               source = bld.path.ant_glob('test_gamesys.cpp') + bld.path.ant_glob(dirs, excl=excl_pattern),
+                               target = 'test_gamesys')
 
-    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'x86_64-linux')  and not waflib.Options.options.with_vulkan:
+    if not 'web' in bld.env['PLATFORM']:
+        test_gamesys_http = bld.program(features = 'cxx cprogram test',
+                                        includes = '../../../src ../../../proto',
+                                        use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys',
+                                        exported_symbols = exported_symbols,
+                                        proto_gen_py = True,
+                                        content_root='../test',
+                                        source = bld.path.ant_glob('test_gamesys_http.cpp') + bld.path.ant_glob('http/*'),
+                                        target = 'test_gamesys_http')
+
+    if not 'web' in bld.env['PLATFORM']:
+        if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
+            bld.program(features = 'cxx test',
+                        includes = '..',
+                        use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB TEST_SCRIPT gamesys',
+                        proto_gen_py = True,
+                        source = 'test_script_http.cpp http/test_http.lua.raw http/test_http_timeout.lua.raw'.split(),
+                        target = 'test_script_http')
+
+    if bld.env.PLATFORM in ('x86_64-win32', 'x86_64-macos', 'arm64-macos', 'x86_64-linux')  and not waflib.Options.options.with_vulkan:
         bld.recurse('fontview')

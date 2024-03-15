@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_texture.h"
+#include "gamesys_private.h"
 
 #include <dmsdk/gamesys/resources/res_texture.h>
 
@@ -33,7 +34,21 @@ namespace dmGameSystem
         uint32_t                  m_DecompressedDataSize[MAX_MIPMAP_COUNT];
     };
 
-    static dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format)
+#define CASE_TT(_X, _T) case dmGraphics::TextureImage::_X: return dmGraphics::TEXTURE_ ## _T
+    dmGraphics::TextureType TextureImageToTextureType(dmGraphics::TextureImage::Type type)
+    {
+        switch(type)
+        {
+            CASE_TT(TYPE_2D,       TYPE_2D);
+            CASE_TT(TYPE_2D_ARRAY, TYPE_2D_ARRAY);
+            CASE_TT(TYPE_CUBEMAP,  TYPE_CUBE_MAP);
+            default: assert(0);
+        }
+        return (dmGraphics::TextureType) -1;
+    }
+#undef CASE_TT
+
+    dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format)
     {
 #define CASE_TF(_X) case dmGraphics::TextureImage::TEXTURE_FORMAT_ ## _X:    return dmGraphics::TEXTURE_FORMAT_ ## _X
         switch (format)
@@ -64,11 +79,10 @@ namespace dmGameSystem
             CASE_TF(RG16F);
             CASE_TF(R32F);
             CASE_TF(RG32F);
-            default:
-                assert(0);
-                return (dmGraphics::TextureFormat)-1;
+            default: assert(0);
 #undef CASE_TF
         }
+        return (dmGraphics::TextureFormat)-1;
     }
 
     bool SynchronizeTexture(dmGraphics::HTexture texture, bool wait)
@@ -141,20 +155,8 @@ namespace dmGameSystem
             if (!texture)
             {
                 dmGraphics::TextureCreationParams creation_params;
-                switch(image_desc->m_DDFImage->m_Type)
-                {
-                    case dmGraphics::TextureImage::TYPE_2D:
-                        creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_2D;
-                        break;
-                    case dmGraphics::TextureImage::TYPE_2D_ARRAY:
-                        creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
-                        break;
-                    case dmGraphics::TextureImage::TYPE_CUBEMAP:
-                        creation_params.m_Type  = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
-                        break;
-                    default: assert(0);
-                }
 
+                creation_params.m_Type           = TextureImageToTextureType(image_desc->m_DDFImage->m_Type);
                 creation_params.m_Width          = image->m_Width;
                 creation_params.m_Height         = image->m_Height;
                 creation_params.m_Depth          = image_desc->m_DDFImage->m_Count;
@@ -348,14 +350,31 @@ namespace dmGameSystem
         ResTextureUploadParams upload_params = {};
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
         dmGraphics::HTexture texture;
-        dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, (ImageDesc*) params.m_PreloadData, upload_params, 0, &texture);
-        if (r == dmResource::RESULT_OK)
+
+        ImageDesc* image_desc = (ImageDesc*) params.m_PreloadData;
+
+        if (image_desc->m_DDFImage->m_Alternatives.m_Count > 0)
         {
-            TextureResource* texture_res = new TextureResource();
-            texture_res->m_Texture = texture;
+            dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, image_desc, upload_params, 0, &texture);
+            if (r == dmResource::RESULT_OK)
+            {
+                TextureResource* texture_res = new TextureResource();
+                texture_res->m_Texture = texture;
+                params.m_Resource->m_Resource = (void*) texture_res;
+            }
+            return r;
+        }
+        else
+        {
+            // This allows us to create a texture resource that can contain an empty texture handle,
+            // which is needed in some cases where we don't want to have to create a small texture that then
+            // has to be removed, e.g render target resources.
+            TextureResource* texture_res  = new TextureResource();
+            texture_res->m_Texture        = 0;
             params.m_Resource->m_Resource = (void*) texture_res;
         }
-        return r;
+
+        return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams& params)

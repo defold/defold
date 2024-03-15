@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,14 +30,20 @@ namespace dmResourceMounts
     typedef struct ResourceMountsContext* HContext;
 
     HContext    Create(dmResourceProvider::HArchive base_archive);
+
+    // Calls Unmount on all archives
     void        Destroy(HContext context);
 
     dmMutex::HMutex GetMutex(HContext ctx);
 
+    // Does not call Unmount on the archives
     dmResource::Result AddMount(HContext ctx, const char* name, dmResourceProvider::HArchive archive, int priority, bool persist);
     dmResource::Result RemoveMount(HContext ctx, dmResourceProvider::HArchive archive);
-    dmResource::Result RemoveMountByName(HContext ctx, const char* name);
 
+    // Also calls Unmount on the archive
+    dmResource::Result RemoveAndUnmountByName(HContext ctx, const char* name);
+
+    // Loads and mounts archives
     dmResource::Result LoadMounts(HContext ctx, const char* app_support_path);
     dmResource::Result SaveMounts(HContext ctx, const char* app_support_path);
 
@@ -57,6 +63,11 @@ namespace dmResourceMounts
     uint32_t GetNumMounts(HContext ctx);
     dmResource::Result GetMountByName(HContext ctx, const char* name, SGetMountResult* mount_info);
     dmResource::Result GetMountByIndex(HContext ctx, uint32_t index, SGetMountResult* mount_info);
+
+    // See notes in dmsdk/resource/resource.h
+    // Ownership of memory is with the caller
+    dmResource::Result AddFile(HContext context, dmhash_t path_hash, uint32_t size, const void* resource);
+    dmResource::Result RemoveFile(HContext context, dmhash_t path_hash);
 
     struct SGetDependenciesParams
     {

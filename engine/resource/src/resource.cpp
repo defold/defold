@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,13 +18,6 @@
 #include <time.h>
 #include <assert.h>
 
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#else
-#include <alloca.h>
-#endif
-
 #ifdef __linux__
 #include <limits.h>
 #elif defined (__MACH__)
@@ -32,6 +25,7 @@
 #endif
 
 #include <dlib/crypt.h>
+#include <dlib/dalloca.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
@@ -125,7 +119,20 @@ struct SResourceFactory
     dmResourceMounts::HContext                   m_Mounts;
     dmResourceProvider::HArchive                 m_BuiltinMount;
     dmResourceProvider::HArchive                 m_BaseArchiveMount;
+
+    // Serial version that increases per resource insertion
+    uint16_t                                     m_Version;
 };
+
+static inline uint16_t IncreaseVersion(HFactory factory)
+{
+    uint16_t next_version = factory->m_Version++;
+    if (next_version == RESOURCE_VERSION_INVALID)
+    {
+        return ++factory->m_Version;
+    }
+    return next_version;
+}
 
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
 {
@@ -236,10 +243,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {"archive", "archive", true},
         {"dmanif", "archive", true},
         {"file", "file", true},
-#if defined(__NX__)
-        {"data", "file", false},
-        {"host", "file", false},
-#endif
     };
 
     int num_mounted = 0;
@@ -309,14 +312,21 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     if (factory->m_BaseArchiveMount)
     {
-        dmResource::HManifest manifest;
-        if (dmResourceProvider::RESULT_OK == dmResourceProvider::GetManifest(factory->m_BaseArchiveMount, &manifest))
+        if (params->m_Flags & RESOURCE_FACTORY_FLAGS_LIVE_UPDATE)
         {
-            char app_support_path[DMPATH_MAX_PATH];
-            if (RESULT_OK == dmResource::GetApplicationSupportPath(manifest, app_support_path, sizeof(app_support_path)))
+            dmResource::HManifest manifest;
+            if (dmResourceProvider::RESULT_OK == dmResourceProvider::GetManifest(factory->m_BaseArchiveMount, &manifest))
             {
-                dmResourceMounts::LoadMounts(factory->m_Mounts, app_support_path);
+                char app_support_path[DMPATH_MAX_PATH];
+                if (RESULT_OK == dmResource::GetApplicationSupportPath(manifest, app_support_path, sizeof(app_support_path)))
+                {
+                    dmResourceMounts::LoadMounts(factory->m_Mounts, app_support_path);
+                }
             }
+        }
+        else
+        {
+            dmLogInfo("Resource mounts support disabled.");
         }
     }
 
@@ -512,7 +522,7 @@ dmResourceProvider::HArchive GetBaseArchive(HFactory factory)
 }
 
 // Assumes m_LoadMutex is already held
-static Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
+static Result LoadResourceFromBufferLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
     DM_PROFILE(__FUNCTION__);
 
@@ -544,11 +554,11 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
 }
 
 // Takes the lock.
-Result DoLoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
+Result LoadResourceFromBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
     // Called from async queue so we wrap around a lock
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
-    return DoLoadResourceLocked(factory, path, original_name, resource_size, buffer);
+    return LoadResourceFromBufferLocked(factory, path, original_name, resource_size, buffer);
 }
 
 // Assumes m_LoadMutex is already held
@@ -558,7 +568,7 @@ Result LoadResource(HFactory factory, const char* path, const char* original_nam
         factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
     }
     factory->m_Buffer.SetSize(0);
-    Result r = DoLoadResourceLocked(factory, path, original_name, resource_size, &factory->m_Buffer);
+    Result r = LoadResourceFromBufferLocked(factory, path, original_name, resource_size, &factory->m_Buffer);
     if (r == RESULT_OK)
     {
         *buffer = factory->m_Buffer.Begin();
@@ -859,6 +869,8 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
         factory->m_ResourceHashToFilename->Put(canonical_path_hash, strdup(canonical_path));
     }
 
+    descriptor->m_Version = IncreaseVersion(factory);
+
     return RESULT_OK;
 }
 
@@ -936,6 +948,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
+        rd->m_Version = IncreaseVersion(factory);
         params.m_Resource->m_ResourceSizeOnDisc = buffer_size;
         if (factory->m_ResourceReloadedCallbacks)
         {
@@ -1213,6 +1226,16 @@ void IncRef(HFactory factory, void* resource)
     ++rd->m_ReferenceCount;
 }
 
+uint16_t GetVersion(HFactory factory, void* resource)
+{
+    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
+    assert(resource_hash);
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+    return rd->m_Version;
+}
+
 // For unit testing
 uint32_t GetRefCount(HFactory factory, void* resource)
 {
@@ -1314,6 +1337,18 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
     }
     *hash = 0;
     return RESULT_RESOURCE_NOT_FOUND;
+}
+
+Result AddFile(HFactory factory, const char* path, uint32_t size, const void* resource)
+{
+    dmResourceMounts::HContext mounts = GetMountsContext(factory);
+    return dmResourceMounts::AddFile(mounts, dmHashString64(path), size, resource);
+}
+
+Result RemoveFile(HFactory factory, const char* path)
+{
+    dmResourceMounts::HContext mounts = GetMountsContext(factory);
+    return dmResourceMounts::RemoveFile(mounts, dmHashString64(path));
 }
 
 dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)

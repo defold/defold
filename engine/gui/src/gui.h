@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -103,7 +103,7 @@ namespace dmGui
     /**
      * Callback to fetch textureset animation info from a textureset source
      */
-    typedef FetchTextureSetAnimResult (*FetchTextureSetAnimCallback)(void* texture_set_ptr, dmhash_t anim, TextureSetAnimDesc* out_data);
+    typedef FetchTextureSetAnimResult (*FetchTextureSetAnimCallback)(HTextureSource texture_source, dmhash_t anim, TextureSetAnimDesc* out_data);
 
     /**
      * Callback to set node from node descriptor
@@ -234,6 +234,7 @@ namespace dmGui
     struct NewContextParams
     {
         dmScript::HContext      m_ScriptContext;
+        dmHID::HContext         m_HidContext;
         GetURLCallback          m_GetURLCallback;
         GetUserDataCallback     m_GetUserDataCallback;
         ResolvePathCallback     m_ResolvePathCallback;
@@ -421,15 +422,16 @@ namespace dmGui
      * @param buffer
      * @param context
      */
-    typedef void* (*NewTexture)(HScene scene, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context);
+    typedef HTextureSource (*NewTexture)(HScene scene, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context);
 
     /**
      * Delete texture callback
      * @param scene
      * @param texture
+     * @param type
      * @param context
      */
-    typedef void (*DeleteTexture)(HScene scene, void* texture, void* context);
+    typedef void (*DeleteTexture)(HScene scene, HTextureSource texture, NodeTextureType type, void* context);
 
     /**
      * Set texture (update) callback
@@ -441,7 +443,7 @@ namespace dmGui
      * @param buffer
      * @param context
      */
-    typedef void (*SetTextureData)(HScene scene, void* texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context);
+    typedef void (*SetTextureData)(HScene scene, HTextureSource texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context);
 
     typedef void (*AnimationComplete)(HScene scene,
                                       HNode node,
@@ -464,8 +466,6 @@ namespace dmGui
     void SetDefaultResolution(HContext context, uint32_t width, uint32_t height);
 
     void SetDisplayProfiles(HContext context, void* display_profiles);
-
-    void SetDefaultFont(HContext context, void* font);
 
     void SetSceneAdjustReference(HScene scene, AdjustReference adjust_reference);
 
@@ -500,7 +500,7 @@ namespace dmGui
      * @param original_height Original Height of the texture
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, dmhash_t texture_name_hash, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
+    Result AddTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height);
 
     /**
      * Removes a texture with the specified name from the scene.
@@ -523,7 +523,7 @@ namespace dmGui
      * @param scene Scene to get texture from
      * @param texture_name_hash Hashed name of the texture. 0 if unsuccessful
      */
-    void* GetTexture(HScene scene, dmhash_t texture_name_hash);
+    HTextureSource GetTexture(HScene scene, dmhash_t texture_name_hash);
 
     /**
      * Create a new dynamic texture
@@ -882,7 +882,7 @@ namespace dmGui
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);
     float GetNodeTextTracking(HScene scene, HNode node);
 
-    void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
+    HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
 
     Result SetNodeParticlefx(HScene scene, HNode node, dmhash_t particlefx_id);
@@ -1139,6 +1139,18 @@ namespace dmGui
      * @return current scene, or 0
      */
     HScene GetSceneFromLua(lua_State* L);
+
+    // Used only in engine_service.cpp for resource profiling
+    typedef bool (*FDynamicTextturesIterator)(dmhash_t gui_res_id, dmhash_t name_hash, uint32_t size, void* user_ctx);
+    /**
+     * Iterates over all dynamic textures in GUI component, and invokes the callback function with the dyn. texture information
+     * @param gui_res_id The GUI component resource id
+     * @param scene      The scene we get dynamic textures information from
+     * @param callback   The callback function which is invoked for each dynamic texture.
+                         It should return true if the iteration should continue, and false otherwise.
+     * @param user_ctx   The user defined context which is passed along with each callback
+     */
+    void IterateDynamicTextures(dmhash_t gui_res_id, HScene scene, FDynamicTextturesIterator callback, void* user_ctx);
 }
 
 #endif

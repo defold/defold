@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -103,6 +103,10 @@ public class LuaScannerTest {
         assertValidRequire("require 'foo.bar' --[[ some comment]]--", "foo.bar");
         assertValidRequire("require (\"foo.bar\") --[[ some comment]]--", "foo.bar");
         assertValidRequire("require ('foo.bar') --[[ some comment]]--", "foo.bar");
+
+        int linesInFile = file.split("\r\n|\r|\n").length;
+        int linesAfterScanner = scanner.getParsedLua().split("\r\n|\r|\n").length;
+        assertEquals(linesInFile, linesAfterScanner);
     }
 
     private Property findProperty(List<Property> properties, String name) {
@@ -169,6 +173,10 @@ public class LuaScannerTest {
         assertEquals(Status.INVALID_ARGS, properties.get(5).status);
         assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
         assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 20);
+
+        int linesInSource = source.split("\r\n|\r|\n").length;
+        int linesAfterScanner = scanner.getParsedLua().split("\r\n|\r|\n").length;
+        assertEquals(linesInSource, linesAfterScanner);
         
         // parse the already stripped source
         // there should be no properties left
@@ -261,4 +269,242 @@ public class LuaScannerTest {
         assertProperty(properties, "prop4", "material", 3);
     }
 
+    @Test
+    public void testCommentRemoving() throws Exception {
+        // few comments
+        String luaCode = 
+            "local var = 1\n" +
+            "-- comment 1\n" +
+            "-- comment 2\n" +
+            "-- comment 3\n" +
+            "local var2 = 2\n";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String parsed = scanner.getParsedLua();
+        String expected = 
+            "local var = 1\n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // Function with comment
+        luaCode =
+            "local function run(self)\n" +
+            "self.temp = 1" +
+            "-- Some comment\n" +
+            "end\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local function run(self)\n" +
+            "self.temp = 1" +
+            "\n" +
+            "end\n";
+        assertEquals(expected, parsed);
+
+        // With comment
+        luaCode =
+            "local var = 2 -- Some comment\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 2 \n";
+        assertEquals(expected, parsed);
+
+        // With multiline comment
+        luaCode =
+            "local var = 2 --[[Some multiline comment\n"+
+            "line two]]--\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 2 \n"+
+            "\n";
+        assertEquals(expected, parsed);
+
+        // With multiline comment
+        luaCode =
+            "--[[Some comment\n"+
+            "line two]]--\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "\n"+
+            "\n";
+        assertEquals(expected, parsed);
+
+        // With multiline comment
+        luaCode =
+            "--[[Some comment\n"+
+            "line two]]local var = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "\n"+
+            "local var = 2\n";
+        assertEquals(expected, parsed);
+    }
+
+    @Test
+    public void testRemoveEmptyLifecycleFunctions() throws Exception {
+        // Basic
+        String luaCode = 
+            "local var = 1\n" +
+            "function update(self, dt)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String parsed = scanner.getParsedLua();
+        String expected = 
+            "local var = 1\n" +
+            "  \n" +
+            "\n" +
+            "\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // With comment
+        luaCode =
+            "local var = 1\n" +
+            "function on_reload(self)\n" +
+            "-- Some comment\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            " \n" +
+            "\n" +
+            "\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // With multiline comment
+        luaCode =
+            "function on_message(self)\n" +
+            "--[[Some comment\n" +
+            "next line]]--\n" +
+            "end\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            " \n" +
+            "\n" +
+            "\n" +
+            "\n";
+        assertEquals(expected, parsed);
+
+        // With _G
+        luaCode =
+            "function _G.final(self)\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            " \n" +
+            "\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // local function
+        luaCode =
+            "local var = 1\n" +
+            "local init = function(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            "local init = function(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // local function 2
+        luaCode =
+            "local var = 1\n" +
+            "local function init(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            "local function init(self)\n" +
+            "\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+
+        // not empty
+        luaCode =
+            "local var = 1\n" +
+            "local function fixed_update(self)\n" +
+            "self.var = 1\n" +
+            "end\n" +
+            "local var2 = 2\n";
+
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        parsed = scanner.getParsedLua();
+        expected =
+            "local var = 1\n" +
+            "local function fixed_update(self)\n" +
+            "self.var = 1\n" +
+            "end\n" +
+            "local var2 = 2\n";
+        assertEquals(expected, parsed);
+    }
+
+    @Test
+    public void testSemicolon() throws Exception {
+        // Basic
+        String luaCode = "do return nil end;else end;";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String expected = "do return nil end;else end;";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "local tbl = {a = 1,b=2;c=3}";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = "local tbl = {a = 1,b=2;c=3}";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property('semi1', 1);go.property('semi2', 2)";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = "  ";
+        assertEquals(expected, scanner.getParsedLua());
+    }
 }

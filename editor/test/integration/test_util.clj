@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,6 +30,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.material :as material]
+            [editor.particlefx :as particlefx]
             [editor.pipeline :as pipeline]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -41,7 +42,9 @@
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
             [editor.settings :as settings]
+            [editor.settings-core :as settings-core]
             [editor.shared-editor-settings :as shared-editor-settings]
+            [editor.tile-map :as tile-map]
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
@@ -49,7 +52,9 @@
             [internal.util :as util]
             [service.log :as log]
             [support.test-support :as test-support]
+            [util.fn :as fn]
             [util.http-server :as http-server]
+            [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream File FileInputStream FilenameFilter]
@@ -65,6 +70,8 @@
 (set! *warn-on-reflection* true)
 
 (def project-path "test/resources/test_project")
+
+(def ^:private ^:const system-cache-size 1000)
 
 (defn make-dir! ^File [^File dir]
   (fs/create-directory! dir))
@@ -180,7 +187,7 @@
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
         dependencies (project/read-dependencies game-project-resource)]
     (->> (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace dependencies))
+         (workspace/install-validated-libraries! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
 (defn set-libraries! [workspace library-uris]
@@ -194,7 +201,7 @@
                                         {:library-uris library-uris}))))
               library-uris)]
     (->> (workspace/fetch-and-validate-libraries workspace library-uris progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace library-uris))
+         (workspace/install-validated-libraries! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
 (defn setup-project!
@@ -337,14 +344,17 @@
      [workspace project app-view])))
 
 (defn- load-system-and-project-raw [path]
-  (test-support/with-clean-system {:cache-size 1000
+  (test-support/with-clean-system {:cache-size system-cache-size
                                    :cache-retain? project/cache-retain?}
     (let [workspace (setup-workspace! world path)]
       (fetch-libraries! workspace)
       (let [project (setup-project! workspace)]
         [@g/*the-system* workspace project]))))
 
-(def load-system-and-project (memoize load-system-and-project-raw))
+(def load-system-and-project (fn/memoize load-system-and-project-raw))
+
+(defn evict-cached-system-and-project! [path]
+  (fn/evict-memoized! load-system-and-project path))
 
 (defn- split-keyword-options [forms]
   (let [keyword-options (into {}
@@ -368,11 +378,26 @@
                                                (load-system-and-project ~project-path))
                                              (load-system-and-project ~project-path))
            system-clone# (is/clone-system system#)
-           ~'cache  (:cache system-clone#)
-           ~'world  (g/node-id->graph-id ~'workspace)]
+           ~'cache (:cache system-clone#)
+           ~'world (g/node-id->graph-id ~'workspace)]
        (binding [g/*the-system* (atom system-clone#)]
          (let [~'app-view (setup-app-view! ~'project)]
            ~@forms)))))
+
+(defmacro with-scratch-project
+  [project-path & forms]
+  (let [[options forms] (split-keyword-options forms)]
+    `(let [options# ~options]
+       (test-support/with-clean-system {:cache-size ~system-cache-size
+                                        :cache-retain? project/cache-retain?}
+         (let [~'workspace (setup-scratch-workspace! ~'world ~project-path)]
+           (fetch-libraries! ~'workspace)
+           (let [~'project (if (:logging-suppressed options#)
+                             (log/without-logging
+                               (setup-project! ~'workspace))
+                             (setup-project! ~'workspace))
+                 ~'app-view (setup-app-view! ~'project)]
+             ~@forms))))))
 
 (defmacro with-ui-run-later-rebound
   [& forms]
@@ -504,12 +529,19 @@
   (get-in (g/node-value node-id :_properties) [:properties label :error]))
 
 (defn prop! [node-id label val]
-  (let [[node-id label] (resolve-prop node-id label)]
-    (g/set-property! node-id label val)))
+  (let [prop (get-in (g/node-value node-id :_properties) [:properties label])]
+    (if-let [set-fn (-> prop :edit-type :set-fn)]
+      (g/transact
+        (g/with-auto-evaluation-context evaluation-context
+          (set-fn evaluation-context node-id (:value prop) val)))
+      (let [[node-id label] (resolve-prop node-id label)]
+        (g/set-property! node-id label val)))))
 
 (defn prop-clear! [node-id label]
-  (let [[node-id label] (resolve-prop node-id label)]
-    (g/clear-property! node-id label)))
+  (if-let [clear-fn (get-in (g/node-value node-id :_properties) [:properties label :edit-type :clear-fn])]
+    (g/transact (clear-fn node-id label))
+    (let [[node-id label] (resolve-prop node-id label)]
+      (g/clear-property! node-id label))))
 
 (defn prop-read-only? [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :read-only?]))
@@ -577,10 +609,10 @@
 
 (defmacro with-prop [binding & forms]
   (let [[node-id# property# value#] binding]
-    `(let [old-value# (g/node-value ~node-id# ~property#)]
-       (g/set-property! ~node-id# ~property# ~value#)
+    `(let [old-value# (prop ~node-id# ~property#)]
+       (prop! ~node-id# ~property# ~value#)
        ~@forms
-       (g/set-property! ~node-id# ~property# old-value#))))
+       (prop! ~node-id# ~property# old-value#))))
 
 (defn make-call-logger
   "Returns a function that keeps track of its invocations. Every
@@ -1033,27 +1065,54 @@
                (when (g/node-instance? basis subnode-type node-id)
                  node-id))
              (tree-seq :children :children
-                       (test-support/valid-node-value resource-node-id :node-outline evaluation-context)))
+                       (g/valid-node-value resource-node-id :node-outline evaluation-context)))
        (throw (ex-info "No subnode matches the specified node type."
                        {:subnode-type (:k subnode-type)
                         :node-type (g/node-type-kw basis resource-node-id)
                         :proj-path (resource/resource->proj-path (resource-node/as-resource-original basis resource-node-id))})))))
+
+(defn- get-setting-impl [form-data setting-path evaluation-context]
+  (let [user-data (:user-data (:form-ops form-data))
+        resource-setting-nodes (:resource-setting-nodes user-data)]
+    (if-let [resource-setting-node-id (resource-setting-nodes setting-path)]
+      (g/node-value resource-setting-node-id :value evaluation-context)
+      (let [value (get (:values form-data) setting-path ::not-found)]
+        (if (identical? ::not-found value)
+          (settings-core/get-default-setting (:meta-settings form-data) setting-path)
+          value)))))
+
+(defn- with-setting
+  [settings-resource-node-id setting-path evaluation-context form-data->result]
+  (let [form-data (g/valid-node-value settings-resource-node-id :form-data evaluation-context)
+        meta-settings (:meta-settings form-data)]
+    (if (or (some #(= setting-path (:path %)) meta-settings))
+      (form-data->result form-data)
+      (throw (ex-info "Invalid setting path."
+                      {:setting-path setting-path
+                       :candidates (into (sorted-set)
+                                         (map :path)
+                                         meta-settings)})))))
+
+(defn get-setting
+  ([settings-resource-node-id setting-path]
+   (g/with-auto-evaluation-context evaluation-context
+     (get-setting settings-resource-node-id setting-path evaluation-context)))
+  ([settings-resource-node-id setting-path evaluation-context]
+   (with-setting
+     settings-resource-node-id setting-path evaluation-context
+     (fn get-setting-value [form-data]
+       (get-setting-impl form-data setting-path evaluation-context)))))
 
 (defn set-setting
   ([settings-resource-node-id setting-path value]
    (g/with-auto-evaluation-context evaluation-context
      (set-setting settings-resource-node-id setting-path value evaluation-context)))
   ([settings-resource-node-id setting-path value evaluation-context]
-   (let [form-data (test-support/valid-node-value settings-resource-node-id :form-data evaluation-context)
-         meta-settings (:meta-settings form-data)
-         user-data (:user-data (:form-ops form-data))]
-     (if (or (some #(= setting-path (:path %)) meta-settings))
-       (settings/set-tx-data user-data setting-path value)
-       (throw (ex-info "Invalid setting path."
-                       {:setting-path setting-path
-                        :candidates (into (sorted-set)
-                                          (map :path)
-                                          meta-settings)}))))))
+   (with-setting
+     settings-resource-node-id setting-path evaluation-context
+     (fn make-set-tx-data [form-data]
+       (let [user-data (:user-data (:form-ops form-data))]
+         (settings/set-tx-data user-data setting-path value))))))
 
 (defn set-setting!
   ([settings-resource-node-id setting-path value]
@@ -1063,9 +1122,158 @@
    (g/transact
      (set-setting settings-resource-node-id setting-path value evaluation-context))))
 
+(defn update-setting [settings-resource-node-id setting-path transform-fn & args]
+  (g/with-auto-evaluation-context evaluation-context
+    (with-setting
+      settings-resource-node-id setting-path evaluation-context
+      (fn make-update-tx-data [form-data]
+        (let [old-value (get-setting-impl form-data setting-path evaluation-context)
+              new-value (apply transform-fn old-value args)
+              user-data (:user-data (:form-ops form-data))]
+          (settings/set-tx-data user-data setting-path new-value))))))
+
 (defn save-project! [project]
   (let [save-data (project/dirty-save-data project)]
     (project/write-save-data-to-disk! save-data nil)
     (let [workspace (project/workspace project)
           post-save-actions (disk/make-post-save-actions save-data)]
       (disk/process-post-save-actions! workspace post-save-actions))))
+
+(defn type-preserving-add [a b]
+  (condp instance? a
+    Double (double (+ a b))
+    Float (float (+ a b))
+    Long (long (+ a b))
+    Integer (int (+ a b))
+    Short (short (+ a b))
+    Byte (byte (+ a b))))
+
+(defmulti edit-resource-node
+  (fn [resource-node-id]
+    (let [resource (resource-node/resource resource-node-id)
+          resource-type (resource/resource-type resource)]
+      (if resource-type
+        (case (:type (:test-info resource-type))
+          :code :code
+          (let [ext (:ext resource-type)]
+            (case ext
+              ("tilegrid" "tilemap") "tilemap"
+              ("tileset" "tilesource") "tilesource"
+              ext)))
+        (if (text-util/binary? resource)
+          :binary
+          :code)))))
+
+(defmethod edit-resource-node :code [resource-node-id]
+  (update-code-editor-lines resource-node-id conj ""))
+
+(defmethod edit-resource-node "animationset" [resource-node-id]
+  (g/update-property resource-node-id :animations pop))
+
+(defmethod edit-resource-node "atlas" [resource-node-id]
+  (g/update-property resource-node-id :margin type-preserving-add 1))
+
+(defmethod edit-resource-node "camera" [resource-node-id]
+  (g/update-property resource-node-id :fov type-preserving-add 1))
+
+(defmethod edit-resource-node "collection" [resource-node-id]
+  (let [instance-node-id (first-subnode-of-type resource-node-id collection/InstanceNode)]
+    (g/update-property instance-node-id :id str \_)))
+
+(defmethod edit-resource-node "collectionfactory" [resource-node-id]
+  (g/set-property resource-node-id :prototype nil))
+
+(defmethod edit-resource-node "collectionproxy" [resource-node-id]
+  (g/set-property resource-node-id :collection nil))
+
+(defmethod edit-resource-node "collisionobject" [resource-node-id]
+  (g/update-property resource-node-id :linear-damping type-preserving-add 0.1))
+
+(defmethod edit-resource-node "convexshape" [resource-node-id]
+  (g/update-property resource-node-id :pb update-in [:data 0] type-preserving-add 1))
+
+(defmethod edit-resource-node "cubemap" [resource-node-id]
+  (g/set-property resource-node-id :top nil))
+
+(defmethod edit-resource-node "display_profiles" [resource-node-id]
+  (let [profile-node-id (g/node-feeding-into resource-node-id :profile-msgs)]
+    (g/update-property profile-node-id :name str \_)))
+
+(defmethod edit-resource-node "factory" [resource-node-id]
+  (g/set-property resource-node-id :prototype nil))
+
+(defmethod edit-resource-node "font" [resource-node-id]
+  (g/set-property resource-node-id :font nil))
+
+(defmethod edit-resource-node "gamepads" [resource-node-id]
+  (g/update-property resource-node-id :pb update-in [:driver 0 :dead-zone] type-preserving-add 0.1))
+
+(defmethod edit-resource-node "go" [resource-node-id]
+  (let [component-node-id (first-subnode-of-type resource-node-id game-object/ComponentNode)]
+    (g/update-property component-node-id :id str \_)))
+
+(defmethod edit-resource-node "gui" [resource-node-id]
+  (g/update-property resource-node-id :max-nodes type-preserving-add 1))
+
+(defmethod edit-resource-node "input_binding" [resource-node-id]
+  (g/update-property resource-node-id :pb update-in [:mouse-trigger 0 :action] str \_))
+
+(defmethod edit-resource-node "label" [resource-node-id]
+  (g/update-property resource-node-id :tracking type-preserving-add 0.1))
+
+(defmethod edit-resource-node "light" [resource-node-id]
+  (g/update-property resource-node-id :pb update :range type-preserving-add 1))
+
+(defmethod edit-resource-node "material" [resource-node-id]
+  (g/update-property resource-node-id :tags conj "new_tag"))
+
+(defmethod edit-resource-node "mesh" [resource-node-id]
+  (g/update-property resource-node-id :position-stream str \_))
+
+(defmethod edit-resource-node "model" [resource-node-id]
+  (g/update-property resource-node-id :default-animation str \_))
+
+(defmethod edit-resource-node "particlefx" [resource-node-id]
+  (let [emitter-node-id (first-subnode-of-type resource-node-id particlefx/EmitterNode)]
+    (g/update-property emitter-node-id :id str \_)))
+
+(defmethod edit-resource-node "project" [resource-node-id]
+  (update-setting resource-node-id ["project" "title"] str \_))
+
+(defmethod edit-resource-node "render" [resource-node-id]
+  (g/set-property resource-node-id :script nil))
+
+(defmethod edit-resource-node "render_target" [resource-node-id]
+  (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
+
+(defmethod edit-resource-node "settings" [resource-node-id]
+  (update-setting resource-node-id ["liveupdate" "zip-filepath"] str \_))
+
+(defmethod edit-resource-node "shared_editor_settings" [resource-node-id]
+  (update-setting resource-node-id ["performance" "cache_capacity"] type-preserving-add 1))
+
+(defmethod edit-resource-node "sound" [resource-node-id]
+  (g/update-property resource-node-id :speed type-preserving-add 0.1))
+
+(defmethod edit-resource-node "spinemodel" [resource-node-id]
+  (g/update-property resource-node-id :offset type-preserving-add 0.1))
+
+(defmethod edit-resource-node "spinescene" [resource-node-id]
+  (g/set-property resource-node-id :spine-json nil))
+
+(defmethod edit-resource-node "sprite" [resource-node-id]
+  (g/update-property resource-node-id :offset type-preserving-add 0.1))
+
+(defmethod edit-resource-node "texture_profiles" [resource-node-id]
+  (g/update-property resource-node-id :pb update-in [:profiles 0 :platforms 0 :max-texture-size] type-preserving-add 8))
+
+(defmethod edit-resource-node "tilemap" [resource-node-id]
+  (let [layer-node-id (first-subnode-of-type resource-node-id tile-map/LayerNode)]
+    (g/update-property layer-node-id :z type-preserving-add 0.1)))
+
+(defmethod edit-resource-node "tilesource" [resource-node-id]
+  (g/update-property resource-node-id :tile-spacing type-preserving-add 1))
+
+(defn edit-resource-node! [resource-node-id]
+  (g/transact
+    (edit-resource-node resource-node-id)))

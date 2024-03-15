@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,6 +14,8 @@
 
 #ifndef RENDERINTERNAL_H
 #define RENDERINTERNAL_H
+
+#include <string.h> // For memset
 
 #include <dmsdk/dlib/vmath.h>
 
@@ -45,9 +47,9 @@ namespace dmRender
         dmGraphics::TextureFilter m_MagFilter;
         dmGraphics::TextureWrap   m_UWrap;
         dmGraphics::TextureWrap   m_VWrap;
+        dmGraphics::HUniformLocation m_Location;
         float                     m_MaxAnisotropy;
-        int32_t                   m_Location       : 24;
-        int32_t                   m_UnitValueCount : 8;
+        uint8_t                   m_UnitValueCount;
 
         Sampler()
             : m_NameHash(0)
@@ -56,8 +58,8 @@ namespace dmRender
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
             , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
+            , m_Location(dmGraphics::INVALID_UNIFORM_LOCATION)
             , m_MaxAnisotropy(1.0f)
-            , m_Location(-1)
             , m_UnitValueCount(0)
         {
         }
@@ -65,6 +67,7 @@ namespace dmRender
 
     struct MaterialAttribute
     {
+        dmhash_t m_ElementIds[4];
         int32_t  m_Location;
         uint16_t m_ValueIndex;
         uint16_t m_ValueCount;
@@ -73,14 +76,9 @@ namespace dmRender
     struct Material
     {
         Material()
-        : m_RenderContext(0)
-        , m_Program(0)
-        , m_VertexProgram(0)
-        , m_FragmentProgram(0)
-        , m_UserData1(0) // used for hot reloading. stores shader name
-        , m_UserData2(0) // used for hot reloading. stores shader name
-        , m_VertexSpace(dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
         {
+            memset(this, 0, sizeof(*this));
+            m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
         }
 
         dmRender::HRenderContext                m_RenderContext;
@@ -88,16 +86,26 @@ namespace dmRender
         dmGraphics::HVertexProgram              m_VertexProgram;
         dmGraphics::HFragmentProgram            m_FragmentProgram;
         dmGraphics::HVertexDeclaration          m_VertexDeclaration;
-        dmHashTable64<int32_t>                  m_NameHashToLocation;
+        dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
         dmArray<dmGraphics::VertexAttribute>    m_VertexAttributes;
         dmArray<MaterialAttribute>              m_MaterialAttributes;
         dmArray<uint8_t>                        m_MaterialAttributeValues;
-        dmArray<MaterialConstant>               m_Constants;
+        dmArray<RenderConstant>                 m_Constants;
         dmArray<Sampler>                        m_Samplers;
-        uint32_t                                m_TagListKey;      // the key to use with GetMaterialTagList()
-        uint64_t                                m_UserData1;
-        uint64_t                                m_UserData2;
+        uint32_t                                m_TagListKey; // the key to use with GetMaterialTagList()
+        uint64_t                                m_UserData1;  // used for hot reloading. stores shader name
+        uint64_t                                m_UserData2;  // --||–-
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
+    };
+
+    struct ComputeProgram
+    {
+        dmRender::HRenderContext                    m_RenderContext;
+        dmGraphics::HComputeProgram                 m_Shader;
+        dmGraphics::HProgram                        m_Program;
+        dmArray<RenderConstant>                     m_Constants;
+        dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
+        uint64_t                                    m_UserData;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered
@@ -227,9 +235,14 @@ namespace dmRender
         dmhash_t m_Tags[MAX_MATERIAL_TAG_COUNT];
     };
 
+    struct TextureBinding
+    {
+        dmhash_t             m_Samplerhash;
+        dmGraphics::HTexture m_Texture;
+    };
+
     struct RenderContext
     {
-        dmGraphics::HTexture        m_Textures[RenderObject::MAX_TEXTURE_COUNT];
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
         dmScript::HContext          m_ScriptContext;
@@ -243,6 +256,7 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortBuffer;
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
+        dmArray<TextureBinding>     m_TextureBindTable;
         dmhash_t                    m_FrustumHash;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
@@ -259,8 +273,16 @@ namespace dmRender
 
         dmMessage::HSocket          m_Socket;
 
-        uint32_t                    m_OutOfResources : 1;
-        uint32_t                    m_StencilBufferCleared : 1;
+        uint32_t                    m_OutOfResources         : 1;
+        uint32_t                    m_StencilBufferCleared   : 1;
+        uint32_t                    m_MultiBufferingRequired : 1;
+    };
+
+    struct BufferedRenderBuffer
+    {
+        dmArray<HRenderBuffer> m_Buffers;
+        RenderBufferType       m_Type;
+        uint16_t               m_BufferIndex;
     };
 
     void RenderTypeTextBegin(HRenderContext rendercontext, void* user_context);
@@ -271,6 +293,11 @@ namespace dmRender
 
     Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix);
 
+    void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out);
+    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers);
+
+    void FillElementIds(char* buffer, uint32_t buffer_size, dmhash_t element_ids[4]);
+
     // Return true if the predicate tags all exist in the material tag list
     bool                            MatchMaterialTags(uint32_t material_tag_count, const dmhash_t* material_tags, uint32_t tag_count, const dmhash_t* tags);
     // Returns a hashkey that the material can use to get the list
@@ -278,8 +305,10 @@ namespace dmRender
     // Gets the list associated with a hash of all the tags (see RegisterMaterialTagList)
     void                            GetMaterialTagList(HRenderContext context, uint32_t list_hash, MaterialTagList* list);
 
-    bool GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
-    uint32_t ApplyTextureAndSampler(dmRender::HRenderContext render_context, dmGraphics::HTexture texture, HSampler sampler, uint8_t unit);
+    void    SetTextureBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HTexture texture);
+    void    SetTextureBindingByUnit(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture);
+    bool    GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
+    int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

@@ -1,4 +1,4 @@
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,11 +32,16 @@ def _to_str(x):
     return x
 
 def _exec_command(arg_list, **kwargs):
+    silent = False
+    if 'silent' in kwargs:
+        silent = True
+        del kwargs['silent']
+
     arg_str = arg_list
     if not isinstance(arg_str, str):
         arg_list = [_to_str(x) for x in arg_list]
         arg_str = ' '.join(arg_list)
-    log('[exec] %s' % arg_str)
+    if not silent: log('[exec] %s' % arg_str)
 
     if sys.stdout.isatty():
         # If not on CI, we want the colored output, and we get the output as it runs, in order to preserve the colors
@@ -45,7 +50,7 @@ def _exec_command(arg_list, **kwargs):
         process = subprocess.Popen(arg_list, **kwargs)
         output = process.communicate()[0]
         if process.returncode != 0:
-            log(_to_str(output))
+            if not silent: log(_to_str(output))
     else:
         # On the CI machines, we make sure we produce a steady stream of output
         # However, this also makes us lose the color information
@@ -58,7 +63,7 @@ def _exec_command(arg_list, **kwargs):
             line = process.stdout.readline().decode(errors='replace')
             if line != '':
                 output += line
-                log(line.rstrip())
+                if not silent: log(line.rstrip())
             else:
                 break
 

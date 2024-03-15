@@ -1,4 +1,4 @@
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,12 +25,22 @@ if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
     sys.exit(1)
 
+def import_lib(module_name, path):
+    import importlib
+    # Normally a finder would get you the loader and spec.
+    loader = importlib.machinery.SourceFileLoader(module_name, path)
+    spec = importlib.machinery.ModuleSpec(module_name, loader, origin=path)
+    # Basically what import does when there is no loader.create_module().
+    module = importlib.util.module_from_spec(spec)
+    # Now is the time to put the module in sys.modules if you want.
+    # How import initializes the module.
+    loader.exec_module(module)
+
 # import the vendor specific build setup
 path = os.path.join(os.path.dirname(__file__), 'waf_dynamo_vendor.py')
 if os.path.exists(path):
-    import imp
     sys.dont_write_bytecode = True
-    imp.load_source('waf_dynamo_vendor', path)
+    import_lib('waf_dynamo_vendor', path)
     print("Imported %s from %s" % ('waf_dynamo_vendor', path))
     import waf_dynamo_vendor
     sys.dont_write_bytecode = False
@@ -63,6 +73,8 @@ def platform_supports_feature(platform, feature, data):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan':
         return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'x86_64-linux']
+    if feature == 'compute':
+        return platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'win32', 'x86_64-win32']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -406,9 +418,9 @@ def default_flags(self):
             extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']),'usr/lib/clang/%s/lib/darwin' % self.sdkinfo['xcode-clang']['version']),
                                 '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), 'usr/lib/arc/libarclite_iphoneos.a')]
         else:
+            #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
             extra_linkflags += ['-fobjc-link-runtime']
 
-        #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
         if 'x86_64' == build_util.get_target_architecture():
@@ -431,6 +443,11 @@ def default_flags(self):
         target_arch = build_util.get_target_architecture()
 
         bp_arch, bp_os = self.env['BUILD_PLATFORM'].split('-')
+        # NDK doesn't support arm64 yet
+        if bp_arch == 'arm64':
+            bp_arch = 'x86_64';
+        if bp_os == 'macos':
+            bp_os = 'darwin'
         sysroot='%s/toolchains/llvm/prebuilt/%s-%s/sysroot' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
@@ -590,7 +607,7 @@ def asan_cxxflags(self):
             self.env.append_value('CXXFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             # not a linker option
-    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
+    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5','nx64'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
@@ -1277,6 +1294,36 @@ def create_test_server_config(ctx, port=None, ip=None, config_name=None):
         return configfilepath
     return None
 
+def _should_run_test_taskgen(ctx, taskgen):
+    if not 'test' in taskgen.features:
+        return False
+
+    if not taskgen.name.startswith('test_'):
+        return False
+
+    if getattr(taskgen, 'skip_test', False):
+        return False
+
+    supported_features = ['cprogram', 'cxxprogram', 'jar']
+    found_feature = False
+    for feature in supported_features:
+        if feature in taskgen.features:
+            found_feature = True
+            break
+    if not found_feature:
+        return False
+
+    if ctx.targets:
+        if not taskgen.name in ctx.targets:
+            return False
+
+    if not platform_supports_feature(ctx.env.PLATFORM, taskgen.name, True):
+        print("Skipping %s test for platform %s" % (ctx.env.PLATFORM, taskgen.name))
+        return False
+
+    return True
+
+
 def run_tests(ctx, valgrind = False, configfile = None):
     if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
@@ -1296,59 +1343,73 @@ def run_tests(ctx, valgrind = False, configfile = None):
         return
 
     for t in ctx.get_all_task_gen():
-        if 'test' in str(t.features) and t.name.startswith('test_') and ('cprogram' in t.features or 'cxxprogram' in t.features):
-            if getattr(t, 'skip_test', False):
-                continue
+        if not _should_run_test_taskgen(ctx, t):
+            continue
 
-            if ctx.targets:
-                if not t.name in ctx.targets:
-                    continue
+        if not t.tasks:
+            print("No runnable task found in generator %s" % t.name)
+            continue
 
-            if not platform_supports_feature(ctx.env.PLATFORM, t.name, True):
-                print("Skipping %s test for platform %s" % (ctx.env.PLATFORM, t.name))
-                continue
-
-            env = dict(os.environ)
-            merged_table = t.env.get_merged_dict()
-            keys=list(merged_table.keys())
-            for key in keys:
-                v = merged_table[key]
-                if isinstance(v, str):
-                    env[key] = v
-
-            output = t.path
-            launch_pattern = '%s %s'
-            if 'TEST_LAUNCH_PATTERN' in t.env:
-                launch_pattern = t.env.TEST_LAUNCH_PATTERN
-
-            if not t.tasks:
-                print("No runnable task found in generator %s" % t.name)
-                continue
-
-            task = None
-            for task in t.tasks:
-                if task in ['link_task']:
+        task = None
+        task_type = None
+        for _task in t.tasks:
+            for attr in ['link_task', 'jar_task']:
+                if _task == getattr(t, attr, None):
+                    task = _task
+                    task_type = attr
                     break
 
-            if task is None:
-                print("Skipping", t.name)
-                continue
+        # Create the environment for the task
+        env = dict(os.environ)
+        merged_table = t.env.get_merged_dict()
+        keys=list(merged_table.keys())
+        for key in keys:
+            v = merged_table[key]
+            if isinstance(v, str):
+                env[key] = v
 
-            program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
+        launch_pattern = '%s %s'
+        if task_type == 'jar_task':
+            # java -cp <classpath> <main-class>
+            mainclass = getattr(t, 'mainclass', '')
+            classpath = Utils.to_list(getattr(t, 'classpath', []))
+            java_library_paths = Utils.to_list(getattr(t, 'java_library_paths', []))
+            jar_path = task.outputs[0].abspath()
+            jar_dir = os.path.dirname(jar_path)
+            java_library_paths.append(jar_dir)
+            classpath.append(jar_path)
+            debug_flags = ''
+            #debug_flags = '-Xcheck:jni'
+            #debug_flags = '-Xcheck:jni -Xlog:library=info -verbose:class'
+            launch_pattern = f'java {debug_flags} -Djava.library.path={os.pathsep.join(java_library_paths)} -Djni.library.path={os.pathsep.join(java_library_paths)} -cp {os.pathsep.join(classpath)} {mainclass} -verbose:class'
+            print("launch_pattern:", launch_pattern)
 
+        if 'TEST_LAUNCH_PATTERN' in t.env:
+            launch_pattern = t.env.TEST_LAUNCH_PATTERN
+
+        if task is None:
+            print("Skipping", t.name)
+            continue
+
+        program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
+
+        if task_type == 'jar_task':
+            cmd = launch_pattern
+        else:
             cmd = launch_pattern % (program, configfile if configfile else '')
+
             if 'web' in ctx.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
                 cmd = '%s %s' % (ctx.env['NODEJS'], cmd)
-            # disable shortly during beta release, due to issue with jctest + test_gui
-            valgrind = False
-            if valgrind:
-                dynamo_home = os.getenv('DYNAMO_HOME')
-                cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
-            proc = subprocess.Popen(cmd, shell = True, env = env)
-            ret = proc.wait()
-            if ret != 0:
-                print("test failed %s" %(t.target) )
-                sys.exit(ret)
+        # disable shortly during beta release, due to issue with jctest + test_gui
+        valgrind = False
+        if valgrind:
+            dynamo_home = os.getenv('DYNAMO_HOME')
+            cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
+        proc = subprocess.Popen(cmd, shell = True, env = env)
+        ret = proc.wait()
+        if ret != 0:
+            print("test failed %s" %(t.target) )
+            sys.exit(ret)
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @after('apply_obj_vars')
@@ -1553,11 +1614,21 @@ def detect(conf):
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         bp_arch, bp_os = host_platform.split('-')
+        if bp_os == 'macos':
+            bp_os = 'darwin'
+        elif bp_os == 'win32':
+            bp_os = 'windows'
         target_arch = build_util.get_target_architecture()
         api_version = getAndroidNDKAPIVersion(target_arch)
         clang_name  = getAndroidCompilerName(target_arch, api_version)
+        # NDK doesn't support arm64 yet
+        if bp_arch == 'arm64':
+            bp_arch = 'x86_64';
         bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
         tool_name = "llvm"
+
+        if not os.path.exists(bintools):
+            conf.fatal("Path does not exist: %s" % bintools)
 
         conf.env['CC']       = '%s/%s' % (bintools, clang_name)
         conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
@@ -1755,11 +1826,13 @@ def detect(conf):
     conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
+    conf.env['STLIB_PLATFORM']      = ['platform']
+    conf.env['STLIB_PLATFORM_NULL'] = ['platform_null']
+
     conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-macos','arm64-macos'):
-        vulkan_validation = os.environ.get('DM_VULKAN_VALIDATION',None)
-        conf.env['STLIB_VULKAN'] = vulkan_validation and 'vulkan' or 'MoltenVK'
+        conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
     elif platform in ('arm64-ios','x86_64-ios'):
@@ -1792,6 +1865,26 @@ def detect(conf):
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_SCRIPT'] = 'script'
 
+    if conf.env.IS_TARGET_DESKTOP:
+
+        conf.env['STLIB_JNI'] = 'jni'
+        conf.env['STLIB_JNI_NOASAN'] = 'jni_noasan'
+
+        if 'JAVA_HOME' in os.environ:
+            host = 'win32'
+            if 'linux' in sys.platform:
+                host = 'linux'
+            elif 'darwin' in sys.platform:
+                host = 'darwin'
+
+            conf.env['INCLUDES_JDK'] = [os.path.join(os.environ['JAVA_HOME'], 'include'), os.path.join(os.environ['JAVA_HOME'], 'include', host)]
+            conf.env['LIBPATH_JDK'] = os.path.join(os.environ['JAVA_HOME'], 'lib')
+            conf.env['DEFINES_JDK'] = ['DM_HAS_JDK']
+
+            conf.env['LIB_JNI'] = ['jni']
+            conf.env['LIB_JNI_NOASAN'] = ['jni_noasan']
+
+
 def configure(conf):
     detect(conf)
 
@@ -1823,3 +1916,4 @@ def options(opt):
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
+    opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')

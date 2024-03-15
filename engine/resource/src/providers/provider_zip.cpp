@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,8 +27,9 @@
 #include <dlib/log.h>
 #include <dlib/lz4.h>
 #include <dlib/math.h>
-#include <dlib/zip.h>
 #include <dlib/memory.h>
+#include <dlib/sys.h>
+#include <dlib/zip.h>
 
 namespace dmResourceProviderZip
 {
@@ -198,10 +199,18 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
     dmSnPrintf(path, sizeof(path), "%s", uri->m_Path);
     dmPath::Normalize(path, path, sizeof(path));
 
-    dmZip::Result zr = dmZip::Open(path, &archive->m_Zip);
+    char mount_path[1024];
+    if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(mount_path, sizeof(mount_path), path))
+    {
+        dmLogError("Could not resolve a mount path '%s'", path);
+        DeleteZipArchiveInternal(archive);
+        return dmResourceProvider::RESULT_NOT_FOUND;
+    }
+
+    dmZip::Result zr = dmZip::Open(mount_path, &archive->m_Zip);
     if (dmZip::RESULT_OK != zr)
     {
-        dmLogError("Could not open zip file '%s'", path);
+        dmLogError("Could not open zip file '%s'", mount_path);
         DeleteZipArchiveInternal(archive);
         return dmResourceProvider::RESULT_NOT_FOUND;
     }
@@ -239,7 +248,7 @@ static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveIntern
     return dmResourceProvider::RESULT_NOT_FOUND;
 }
 
-static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::ResourceEntry* entry, const uint8_t* raw_resource, uint32_t raw_resource_size, uint8_t* out_buffer)
+static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::ResourceEntry* entry, uint8_t* raw_resource, uint32_t raw_resource_size, uint8_t* out_buffer)
 {
     dmResourceArchive::LiveUpdateResource resource(raw_resource, raw_resource_size);
 
@@ -248,6 +257,16 @@ static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::
     bool compressed = flags & dmLiveUpdateDDF::COMPRESSED;
     uint32_t compressed_size = compressed ? entry->m_CompressedSize : entry->m_Size;
     uint32_t resource_size = entry->m_Size;
+
+    if (encrypted)
+    {
+        dmResource::Result r = dmResource::DecryptBuffer((void*)resource.m_Data, resource.m_Count);
+        if (dmResource::RESULT_OK != r)
+        {
+            dmLogError("Failed to decrypt resource: '%s", path);
+            return dmResourceProvider::RESULT_IO_ERROR;
+        }
+    }
 
     if (compressed)
     {
@@ -262,16 +281,6 @@ static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::
     else
     {
         memcpy(out_buffer, resource.m_Data, resource.m_Count);
-    }
-
-    if (encrypted)
-    {
-        dmResource::Result r = dmResource::DecryptBuffer(out_buffer, resource_size);
-        if (dmResource::RESULT_OK != r)
-        {
-            dmLogError("Failed to decrypt resource: '%s", path);
-            return dmResourceProvider::RESULT_IO_ERROR;
-        }
     }
 
     return dmResourceProvider::RESULT_OK;
@@ -302,7 +311,7 @@ static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal 
         delete[] raw_data;
     } else
     {
-        // Uncompressed, regular files
+        // Uncompressed, regular files (i.e. no Liveupdate header)
         dmZip::GetEntryData(archive->m_Zip, (void*)buffer, buffer_len);
     }
 

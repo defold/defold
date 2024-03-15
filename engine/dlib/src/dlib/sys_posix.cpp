@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1007,11 +1007,8 @@ namespace dmSys
             callback(ctx, dirpath, true);
 
         Result res = RESULT_OK;
-        while(entry = readdir(dir))
+        while((entry = readdir(dir)))
         {
-            DIR* sub_dir = NULL;
-            FILE* file = NULL;
-
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                 continue;
 

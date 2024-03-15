@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,16 +27,17 @@
             [editor.ui :as ui]
             [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
             [editor.workspace :as workspace]
+            [util.coll :refer [pair]]
             [util.id-vec :as iv]
             [util.profiler :as profiler])
-  (:import [javafx.geometry Insets Point2D]
+  (:import [editor.properties Curve CurveSpread]
+           [javafx.geometry Insets Point2D]
            [javafx.scene Node Parent]
-           [javafx.scene.control Control Button CheckBox ColorPicker Label Slider TextField TextInputControl ToggleButton Tooltip TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
+           [javafx.scene.control Button CheckBox ColorPicker Control Label Slider TextArea TextField TextInputControl ToggleButton Tooltip]
            [javafx.scene.input MouseEvent]
-           [javafx.scene.layout Pane AnchorPane GridPane HBox VBox Priority ColumnConstraints Region]
+           [javafx.scene.layout AnchorPane ColumnConstraints GridPane HBox Pane Priority Region VBox]
            [javafx.scene.paint Color]
-           [javafx.util Duration]
-           [editor.properties CurveSpread Curve]))
+           [javafx.util Duration]))
 
 (set! *warn-on-reflection* true)
 
@@ -634,13 +635,17 @@
       (when-let [update-ui-fn (get update-fns key)]
         (update-ui-fn property)))))
 
-(def ^:private ephemeral-edit-type-fields [:from-type :to-type :set-fn])
+(def ^:private ephemeral-edit-type-fields [:from-type :to-type :set-fn :clear-fn])
 
 (defn- edit-type->template [edit-type]
   (apply dissoc edit-type ephemeral-edit-type-fields))
 
 (defn- properties->template [properties]
-  (mapv (fn [[k v]] [k (edit-type->template (:edit-type v))]) (:properties properties)))
+  (into {}
+        (map (fn [[prop-kw {:keys [edit-type]}]]
+               (let [template (edit-type->template edit-type)]
+                 (pair prop-kw template))))
+        (:properties properties)))
 
 (defn- update-pane! [parent context properties]
   ; NOTE: We cache the ui based on the ::template and ::properties user-data

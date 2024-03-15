@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,22 +17,10 @@
 
 #include <stdint.h>
 
+#include <dmsdk/dlib/image.h>
+
 namespace dmImage
 {
-    enum Result
-    {
-        RESULT_OK                   = 0,
-        RESULT_UNSUPPORTED_FORMAT   = -1,
-        RESULT_IMAGE_ERROR          = -2,
-    };
-
-    enum Type
-    {
-        TYPE_RGB        = 0,
-        TYPE_RGBA       = 1,
-        TYPE_LUMINANCE  = 2,
-    };
-
     struct Image
     {
         Image() : m_Width(0), m_Height(0), m_Type(TYPE_RGB), m_Buffer(0) {}
@@ -55,16 +43,17 @@ namespace dmImage
      * @param buffer image buffer
      * @param buffer_size image buffer size
      * @param premult premultiply alpha or not
+     * @param flip_vertically flip the image vertically
      * @param image output
      * @return RESULT_OK on success
      */
-    Result Load(const void* buffer, uint32_t buffer_size, bool premult, Image* image);
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, HImage image);
 
     /**
      * Free loaded image
      * @param image image to free
      */
-    void Free(Image* image);
+    void Free(HImage image);
 
     /**
      * Get bytes per pixel
@@ -72,7 +61,6 @@ namespace dmImage
      * @return bytes per pixel. zero if the type is unknown
      */
     uint32_t BytesPerPixel(Type type);
-
 }
 
 #endif // #ifndef DM_IMAGE_H

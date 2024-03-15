@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-#
+# 
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-#
+# 
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -38,11 +38,11 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="14.2" # we also use this to match version on Github Actions
-VERSION_MACOSX="13.1"
-VERSION_IPHONEOS="16.2"
-VERSION_XCODE_CLANG="14.0.0"
-VERSION_IPHONESIMULATOR="16.2"
+VERSION_XCODE="15.1" # we also use this to match version on Github Actions
+VERSION_XCODE_CLANG="15.0.0"
+VERSION_MACOSX="14.2"
+VERSION_IPHONEOS="17.2"
+VERSION_IPHONESIMULATOR="17.2"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
@@ -65,10 +65,10 @@ ANDROID_NDK_VERSION='25b'
 # Win32
 
 # The version we have prepackaged
-VERSION_WINDOWS_SDK_10="10.0.18362.0"
-VERSION_WINDOWS_MSVC_2019="14.25.28610"
-PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-2019-{0}".format(VERSION_WINDOWS_MSVC_2019)
-PACKAGES_WIN32_SDK_10="WindowsKits-{0}".format(VERSION_WINDOWS_SDK_10)
+VERSION_WINDOWS_SDK_10="10.0.20348.0"
+VERSION_WINDOWS_MSVC_2022="14.37.32822"
+PACKAGES_WIN32_TOOLCHAIN=f"Microsoft-Visual-Studio-2022-{VERSION_WINDOWS_MSVC_2022}"
+PACKAGES_WIN32_SDK_10=f"WindowsKits-{VERSION_WINDOWS_SDK_10}"
 
 ## **********************************************************************************************
 ## used by build.py

@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,11 @@
 
 (defonce no-classes-array (make-array Class 0))
 
+(defn- get-declared-methods-raw [^Class class]
+  (.getDeclaredMethods class))
+
+(def get-declared-methods (memoize get-declared-methods-raw))
+
 (defn- get-declared-constructor-raw [^Class class args-classes]
   {:pre [(counted? args-classes)]}
   (.getDeclaredConstructor class (if (zero? (count args-classes))
@@ -32,8 +37,8 @@
 (defn- get-declared-method-raw [^Class class ^String method-name args-classes]
   {:pre [(counted? args-classes)]}
   (.getDeclaredMethod class method-name (if (zero? (count args-classes))
-                                     no-classes-array
-                                     (into-array Class args-classes))))
+                                          no-classes-array
+                                          (into-array Class args-classes))))
 
 (def get-declared-method (memoize get-declared-method-raw))
 

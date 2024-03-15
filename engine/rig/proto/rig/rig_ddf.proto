@@ -76,7 +76,6 @@ message RigAnimation
 message AnimationSet
 {
     repeated RigAnimation animations = 1;
-    repeated uint64 bone_list = 2;
 }
 
 message AnimationInstanceDesc
@@ -129,6 +128,8 @@ message Model // E.g. the Node in the Scene
     required dmMath.Transform   local       = 1 [(field_align)=true];
     required uint64             id          = 2;    // E.g. "torso", "head". Or simply "character"
     repeated Mesh               meshes      = 3;
+    // If set, then this model should be transformed as a child of the bone
+    optional uint64             bone_id     = 4 [default = 0]; // hash of bone id
 }
 
 message MeshSet

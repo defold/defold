@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -682,6 +682,10 @@
   (cond
     (.equalsIgnoreCase "nearest" s) gl/nearest
     (.equalsIgnoreCase "linear" s) gl/linear
+    (.equalsIgnoreCase "nearest_mipmap_nearest" s) gl/nearest-mipmap-nearest
+    (.equalsIgnoreCase "nearest_mipmap_linear" s) gl/nearest-mipmap-linear
+    (.equalsIgnoreCase "linear_mipmap_nearest" s) gl/linear-mipmap-nearest
+    (.equalsIgnoreCase "linear_mipmap_linear" s) gl/linear-mipmap-linear
     :else (g/error-fatal (format "Invalid value for filter param: '%s'" s))))
 
 (g/defnk produce-default-tex-params
@@ -949,8 +953,8 @@
     ;; Fetch+install libs if we have network, otherwise fallback to disk state
     (if (workspace/dependencies-reachable? dependencies)
       (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress 4))
-           (workspace/install-validated-libraries! workspace-id dependencies))
-      (workspace/set-project-dependencies! workspace-id dependencies))
+           (workspace/install-validated-libraries! workspace-id))
+      (workspace/set-project-dependencies! workspace-id (library/current-library-state (workspace/project-path workspace-id) dependencies)))
 
     (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,15 +22,10 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.net.URL;
 import java.net.ConnectException;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.text.ParseException;
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,14 +38,11 @@ import java.util.zip.ZipInputStream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.filefilter.DirectoryFileFilter;
-import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.apache.http.NoHttpResponseException;
 
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
 import com.defold.extender.client.ExtenderResource;
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.MultipleCompileException.Info;
@@ -60,8 +52,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.FileUtil;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
@@ -77,7 +68,7 @@ public class BundleHelper {
     private Project project;
     private Platform platform;
     private BobProjectProperties projectProperties;
-    private IBundler bundler;
+    private IBundler platformBundler;
     private String title;
     private File buildDir;
     private File appDir;
@@ -99,10 +90,17 @@ public class BundleHelper {
         }
     }
 
+    public IBundler getOrCreateBundler() throws CompileExceptionError {
+        if (this.platformBundler == null) {
+            this.platformBundler = this.project.createBundler(this.platform);
+        }
+        return this.platformBundler;
+    }
+
     public BundleHelper(Project project, Platform platform, File bundleDir, String variant) throws CompileExceptionError {
         this.projectProperties = project.getProjectProperties();
         this.propertiesMap = this.projectProperties.createTypedMap(new BobProjectProperties.PropertyType[]{BobProjectProperties.PropertyType.BOOL});
-        this.bundler = project.createBundler(platform);
+        this.platformBundler = null;
 
         this.project = project;
         this.platform = platform;
@@ -213,6 +211,8 @@ public class BundleHelper {
 
         properties.put("exe-name", exeName);
 
+        IBundler bundler = getOrCreateBundler();
+
         // The new code path we wish to use
         mainManifest = bundler.getManifestResource(project, platform);
         if (mainManifest == null) {
@@ -249,12 +249,14 @@ public class BundleHelper {
         return resolvedManifests;
     }
 
-    private File getAppManifestFile(Platform platform, File appDir) {
+    private File getAppManifestFile(Platform platform, File appDir) throws CompileExceptionError {
+        IBundler bundler = getOrCreateBundler();
         String name = bundler.getMainManifestTargetPath(platform);
         return new File(appDir, name);
     }
 
-    private String getMainManifestName(Platform platform) {
+    private String getMainManifestName(Platform platform) throws CompileExceptionError {
+        IBundler bundler = getOrCreateBundler();
         return bundler.getMainManifestName(platform);
     }
 
@@ -727,7 +729,7 @@ public class BundleHelper {
             String path = resource.getPath(); // The relative path
             if (uniquePaths.contains(path)) {
                 IResource iresource = ExtenderUtil.getResource(path, resources);
-                throw new CompileExceptionError(iresource, -1, "Duplicate file in upload zip: " + resource.getAbsPath());
+                throw new CompileExceptionError(iresource, -1, "Duplicate file in upload zip: " + resource.getPath());
             }
             uniquePaths.add(path);
         }
@@ -738,7 +740,7 @@ public class BundleHelper {
 
         try {
             zipFile = File.createTempFile("build_" + sdkVersion, ".zip");
-            zipFile.deleteOnExit();
+            FileUtil.deleteOnExit(zipFile);
         } catch (IOException e) {
             throw new CompileExceptionError("Failed to create temp zip file", e.getCause());
         }
@@ -793,7 +795,7 @@ public class BundleHelper {
                         // If it's the app manifest, let's translate it back into its original name
                         if (info.resource != null && info.resource.endsWith(ExtenderClient.appManifestFilename)) {
                             for (ExtenderResource extResource : allSource) {
-                                if (extResource.getAbsPath().endsWith(info.resource)) {
+                                if (((ExtenderUtil.FSAppManifestResource)extResource).getAbsPath().endsWith(info.resource)) {
                                     issueResource = ((ExtenderUtil.FSAppManifestResource)extResource).getResource();
                                     info.message = info.message.replace(extResource.getPath(), issueResource.getPath());
                                     break;
@@ -905,7 +907,7 @@ public class BundleHelper {
         ExtenderUtil.storeResources(new File(pluginsDir), sources);
     }
 
-    public static boolean isArchiveExcluded(Project project) {
+    public static boolean isArchiveIncluded(Project project) {
         return project.option("exclude-archive", "false").equals("false");
     }
 

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,7 +30,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
@@ -227,7 +226,13 @@ public class ComponentsCounter {
     public static void sumInputs(Storage targetStorage, List<IResource> inputs, Integer count) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
             if (isCompCounterStorage(res.getPath())) {
-                targetStorage.add(Storage.load(res), count);
+                Storage inputStorage = Storage.load(res);
+                if (inputStorage.isDynamic()) {
+                    targetStorage.makeDynamic();
+                }
+                else {
+                    targetStorage.add(inputStorage, count);
+                }
             }
         }
     }
@@ -236,7 +241,13 @@ public class ComponentsCounter {
         Map<IResource, Integer> compCounterInputsCount) throws IOException, CompileExceptionError  {
         for (IResource res :  inputs) {
             if (isCompCounterStorage(res.getPath())) {
-                targetStorage.add(Storage.load(res), compCounterInputsCount.get(res));
+                Storage inputStorage = Storage.load(res);
+                if (inputStorage.isDynamic()) {
+                    targetStorage.makeDynamic();
+                }
+                else {
+                    targetStorage.add(inputStorage, compCounterInputsCount.get(res));
+                }
             }
         }
     }
@@ -319,11 +330,11 @@ public class ComponentsCounter {
         }
     }
 
-    public static void excludeCounterPaths(HashSet<String> paths) {
-        Iterator<String> iterator = paths.iterator();
+    public static void excludeCounterPaths(Set<IResource> resources) {
+        Iterator<IResource> iterator = resources.iterator();
         while (iterator.hasNext()) {
-            String path = iterator.next();
-            if (isCompCounterStorage(path)) {
+            IResource resource = iterator.next();
+            if (isCompCounterStorage(resource.getAbsPath())) {
                 iterator.remove();
             }
         }

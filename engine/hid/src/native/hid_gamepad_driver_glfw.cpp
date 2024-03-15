@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,7 +23,7 @@
 #include <dlib/math.h>
 #include <dlib/static_assert.h>
 
-#include <dmsdk/graphics/glfw/glfw.h>
+#include <glfw/glfw.h>
 
 #include "hid_private.h"
 
@@ -33,22 +33,22 @@ namespace dmHID
 {
     static int GLFW_JOYSTICKS[MAX_GAMEPAD_COUNT] =
     {
-            GLFW_JOYSTICK_1,
-            GLFW_JOYSTICK_2,
-            GLFW_JOYSTICK_3,
-            GLFW_JOYSTICK_4,
-            GLFW_JOYSTICK_5,
-            GLFW_JOYSTICK_6,
-            GLFW_JOYSTICK_7,
-            GLFW_JOYSTICK_8,
-            GLFW_JOYSTICK_9,
-            GLFW_JOYSTICK_10,
-            GLFW_JOYSTICK_11,
-            GLFW_JOYSTICK_12,
-            GLFW_JOYSTICK_13,
-            GLFW_JOYSTICK_14,
-            GLFW_JOYSTICK_15,
-            GLFW_JOYSTICK_16
+        GLFW_JOYSTICK_1,
+        GLFW_JOYSTICK_2,
+        GLFW_JOYSTICK_3,
+        GLFW_JOYSTICK_4,
+        GLFW_JOYSTICK_5,
+        GLFW_JOYSTICK_6,
+        GLFW_JOYSTICK_7,
+        GLFW_JOYSTICK_8,
+        GLFW_JOYSTICK_9,
+        GLFW_JOYSTICK_10,
+        GLFW_JOYSTICK_11,
+        GLFW_JOYSTICK_12,
+        GLFW_JOYSTICK_13,
+        GLFW_JOYSTICK_14,
+        GLFW_JOYSTICK_15,
+        GLFW_JOYSTICK_16
     };
 
     struct GLFWGamepadDevice
@@ -204,7 +204,6 @@ namespace dmHID
     {
         if (glfwSetGamepadCallback(GLFWGamepadCallback) == 0)
         {
-            dmLogFatal("could not set glfw gamepad callback.");
             return false;
         }
 

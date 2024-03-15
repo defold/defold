@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1036,6 +1036,7 @@ namespace dmGameObject
 
     // Actually add instance to update
     static bool DoAddToUpdate(Collection* collection, HInstance instance) {
+        bool add_to_update_result = true;
         if (instance)
         {
             instance->m_ToBeAdded = 0;
@@ -1067,14 +1068,14 @@ namespace dmGameObject
                         CreateResult result = component_type->m_AddToUpdateFunction(params);
                         if (result != CREATE_RESULT_OK)
                         {
-                            return false;
+                            add_to_update_result = false;
                         }
                     }
                 }
             }
         }
 
-        return true;
+        return add_to_update_result;
     }
 
     // Actually add all scheduled instances to the update
@@ -1670,6 +1671,7 @@ namespace dmGameObject
     {
         uint32_t next_component_instance_data = 0;
         Prototype* prototype = instance->m_Prototype;
+        bool init_result = true;
         for (uint32_t i = 0; i < prototype->m_ComponentCount; ++i)
         {
             Prototype::Component* component = &prototype->m_Components[i];
@@ -1693,11 +1695,11 @@ namespace dmGameObject
                 CreateResult result = component_type->m_InitFunction(params);
                 if (result != CREATE_RESULT_OK)
                 {
-                    return false;
+                    init_result = false;
                 }
             }
         }
-        return true;
+        return init_result;
     }
 
     static bool InitInstance(Collection* collection, HInstance instance)
@@ -2204,30 +2206,6 @@ namespace dmGameObject
             else if (descriptor == dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor)
             {
                 dmGameObject::ReleaseInputFocus(collection, instance);
-                return;
-            }
-            else if (descriptor == dmGameObjectDDF::RequestTransform::m_DDFDescriptor)
-            {
-                dmGameObjectDDF::TransformResponse response;
-                response.m_Position = dmGameObject::GetPosition(instance);
-                response.m_Rotation = dmGameObject::GetRotation(instance);
-                response.m_Scale = dmGameObject::GetUniformScale(instance);
-                response.m_Scale3 = dmGameObject::GetScale(instance);
-                response.m_WorldPosition = dmGameObject::GetWorldPosition(instance);
-                response.m_WorldRotation = dmGameObject::GetWorldRotation(instance);
-                response.m_WorldScale = dmGameObject::GetWorldUniformScale(instance);
-                response.m_WorldScale3 = dmGameObject::GetWorldScale(instance);
-                dmhash_t message_id = dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_NameHash;
-                uintptr_t gotr_descriptor = (uintptr_t)dmGameObjectDDF::TransformResponse::m_DDFDescriptor;
-                uint32_t data_size = sizeof(dmGameObjectDDF::TransformResponse);
-                if (dmMessage::IsSocketValid(message->m_Sender.m_Socket))
-                {
-                    dmMessage::Result message_result = dmMessage::Post(&message->m_Receiver, &message->m_Sender, message_id, message->m_UserData1, gotr_descriptor, &response, data_size, 0);
-                    if (message_result != dmMessage::RESULT_OK)
-                    {
-                        dmLogError("Could not send message '%s' to sender: %d.", dmGameObjectDDF::TransformResponse::m_DDFDescriptor->m_Name, message_result);
-                    }
-                }
                 return;
             }
             else if (descriptor == dmGameObjectDDF::SetParent::m_DDFDescriptor)

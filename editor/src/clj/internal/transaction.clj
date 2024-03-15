@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -550,7 +550,8 @@
 
 (defmacro ^:private validate-property-value [node-type node-id property-label property-value]
   (when in/*check-schemas*
-    `(validate-property-value-impl ~node-type ~node-id ~property-label ~property-value)))
+    `(when ~`in/*check-schemas* ; Inner check to support disabling the schema check post compile-time.
+       (validate-property-value-impl ~node-type ~node-id ~property-label ~property-value))))
 
 (defn- invoke-setter
   [ctx node-id node property old-value new-value override-node? dynamic?]
@@ -677,6 +678,18 @@
               :override-nodes-affected-seen (conj override-nodes-affected-seen target-id)
               :override-nodes-affected-ordered (conj override-nodes-affected-ordered target-id))))))))
 
+(defmacro ^:private assert-schema-type-compatible
+  [source-id source-label output-nodetype output-valtype target-id target-label input-nodetype input-valtype]
+  (when in/*check-schemas*
+    `(when ~`in/*check-schemas* ; Inner check to support disabling the schema check post compile-time.
+       (let [output-valtype# ~output-valtype
+             input-valtype# ~input-valtype]
+         (assert (in/type-compatible? output-valtype# input-valtype#)
+                 (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
+                         ~source-id (in/type-name ~output-nodetype) ~source-label
+                         ~target-id (in/type-name ~input-nodetype) ~target-label
+                         (:k output-valtype#) (:k input-valtype#)))))))
+
 (defn- assert-type-compatible
   [source-id source-node source-label target-id target-node target-label]
   (let [output-nodetype (gt/node-type source-node)
@@ -693,11 +706,7 @@
                     source-id (in/type-name output-nodetype) source-label
                     target-id (in/type-name input-nodetype) target-label
                     (in/type-name input-nodetype) target-label))
-    (assert (in/type-compatible? output-valtype input-valtype)
-            (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
-                    source-id (in/type-name output-nodetype) source-label
-                    target-id (in/type-name input-nodetype) target-label
-                    (:k output-valtype) (:k input-valtype)))))
+    (assert-schema-type-compatible source-id source-label output-nodetype output-valtype target-id target-label input-nodetype input-valtype)))
 
 (defn- ctx-connect [ctx source-id source-label target-id target-label]
   (if-let [source (gt/node-by-id-at (:basis ctx) source-id)] ; nil if source node was deleted in this transaction

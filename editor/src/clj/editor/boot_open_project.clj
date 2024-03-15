@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,7 +14,6 @@
 
 (ns editor.boot-open-project
   (:require [cljfx.fx.v-box :as fx.v-box]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
@@ -179,7 +178,7 @@
           outline-view         (outline-view/make-outline-view *view-graph* project outline app-view)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
           open-resource        (partial #'app-view/open-resource app-view prefs workspace project)
-          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource)
+          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
@@ -384,20 +383,6 @@
     (ui/run-later (slog/smoke-log "stage-loaded"))
     root))
 
-(defn- show-missing-dependencies-alert! [dependencies]
-  (dialogs/make-info-dialog
-    {:title "Missing Dependencies"
-     :size :large
-     :icon :icon/triangle-error
-     :header "There are missing dependencies"
-     :content (string/join "\n" (concat ["The following dependencies are missing:"
-                                         ""]
-                                        (map dialogs/indent-with-bullet
-                                             (sort-by str dependencies))
-                                        [""
-                                         "The project might not work without them."
-                                         "To download, connect to the internet and choose Fetch Libraries from the Project menu."]))}))
-
 (defn open-project!
   [^File game-project-file prefs render-progress! updater newly-created?]
   (let [project-path (.getPath (.getParentFile (.getAbsoluteFile game-project-file)))
@@ -409,8 +394,6 @@
         project (project/open-project! *project-graph* extensions workspace game-project-res render-progress!)]
     (ui/run-now
       (icons/initialize! workspace)
-      (load-stage! workspace project prefs updater newly-created?)
-      (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
-        (show-missing-dependencies-alert! missing-dependencies)))
+      (load-stage! workspace project prefs updater newly-created?))
     (g/reset-undo! *project-graph*)
     (log/info :message "project loaded")))

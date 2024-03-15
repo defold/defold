@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,12 +13,17 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys.h"
+#include "../gamesys_private.h"
 
 #include "../../../../graphics/src/graphics_private.h"
+#include "../../../../graphics/src/null/graphics_null_private.h"
+#include "../../../../render/src/render/font_renderer_private.h"
+#include "../../../../render/src/render/render_private.h"
 #include "../../../../resource/src/resource_private.h"
 
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_textureset.h"
+#include "gamesys/resources/res_render_target.h"
 
 #include <stdio.h>
 
@@ -31,11 +36,16 @@
 
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
+#include <gameobject/lua_ddf.h>
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
+#include "../scripts/script_sys_gamesys.h"
 
 #include <dmsdk/gamesys/render_constants.h>
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 using namespace dmVMath;
 
@@ -101,22 +111,6 @@ bool UnlinkResource(const char* name)
     char path[128];
     dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", name);
     return dmSys::Unlink(path) == 0;
-}
-
-static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
-{
-    dmGameObject::HPrototype prototype = 0x0;
-    if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
-        dmResource::Release(factory, prototype);
-        return result;
-    }
-    return 0x0;
-}
-
-static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id)
-{
-    return Spawn(factory, collection, prototype_name, id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
 }
 
 static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
@@ -189,6 +183,55 @@ TEST_F(ResourceTest, TestReloadTextureSet)
     dmResource::Release(m_Factory, (void**) resource);
 }
 
+TEST_F(ResourceTest, TestRenderPrototypeResources)
+{
+    dmGameSystem::RenderScriptPrototype* render_prototype = NULL;
+    const char* render_path = "/render/resources.renderc";
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, render_path, (void**) &render_prototype));
+    ASSERT_NE((void*)0, render_prototype);
+    ASSERT_EQ(3, render_prototype->m_RenderResources.Size());
+
+    dmResource::ResourceType res_type_render_target;
+    dmResource::ResourceType res_type_material;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "materialc", &res_type_material));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "render_targetc", &res_type_render_target));
+
+    dmResource::SResourceDescriptor* rd_mat = dmResource::FindByHash(m_Factory, dmHashString64("/material/valid.materialc"));
+    ASSERT_NE((void*)0, rd_mat);
+
+    dmResource::SResourceDescriptor* rd_rt = dmResource::FindByHash(m_Factory, dmHashString64("/render_target/valid.render_targetc"));
+    ASSERT_NE((void*)0, rd_rt);
+
+    dmResource::ResourceType types[] = { res_type_material, res_type_render_target, res_type_material };
+    void* resources[] = { rd_mat->m_Resource, rd_rt->m_Resource, rd_mat->m_Resource };
+
+    for (int i = 0; i < render_prototype->m_RenderResources.Size(); ++i)
+    {
+        ASSERT_NE((void*)0, render_prototype->m_RenderResources[i]);
+        dmResource::ResourceType res_type;
+        dmResource::GetType(m_Factory, render_prototype->m_RenderResources[i], &res_type);
+        ASSERT_EQ(types[i], res_type);
+        ASSERT_EQ(resources[i], render_prototype->m_RenderResources[i]);
+    }
+
+    dmGameSystem::RenderTargetResource* rt = (dmGameSystem::RenderTargetResource*) rd_rt->m_Resource;
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, rt->m_RenderTarget));
+    ASSERT_EQ(dmGraphics::ASSET_TYPE_RENDER_TARGET, dmGraphics::GetAssetType(rt->m_RenderTarget));
+
+    dmGraphics::HTexture attachment_0 = dmGraphics::GetRenderTargetTexture(rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    dmGraphics::HTexture attachment_1 = dmGraphics::GetRenderTargetTexture(rt->m_RenderTarget, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
+
+    ASSERT_EQ(128, dmGraphics::GetTextureWidth(attachment_0));
+    ASSERT_EQ(128, dmGraphics::GetTextureHeight(attachment_0));
+    ASSERT_EQ(128, dmGraphics::GetTextureWidth(attachment_1));
+    ASSERT_EQ(128, dmGraphics::GetTextureHeight(attachment_1));
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(attachment_0));
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(attachment_1));
+
+    dmResource::Release(m_Factory, (void**) render_prototype);
+}
+
 TEST_F(ResourceTest, TestCreateTextureFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -196,6 +239,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -279,6 +323,11 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 9: create 0x0 texture
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
     // cleanup
     DeleteInstance(m_Collection, go);
 
@@ -299,12 +348,33 @@ TEST_F(ResourceTest, TestResourceScriptBuffer)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_buffer.goc", dmHashString64("/script_buffer"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(ResourceTest, TestResourceScriptRenderTarget)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_render_target.goc", dmHashString64("/script_render_target"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -318,6 +388,7 @@ TEST_F(ResourceTest, TestResourceScriptAtlas)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -337,6 +408,7 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -671,6 +743,7 @@ TEST_F(BufferMetadataTest, MetadataLuaApi)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -693,6 +766,7 @@ TEST_F(SoundTest, UpdateSoundResource)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -739,6 +813,7 @@ TEST_F(SoundTest, LuaCallback)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -755,6 +830,47 @@ TEST_F(SoundTest, LuaCallback)
     // Allow for one more update for messages to go through
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    // release GO
+    DeleteInstance(m_Collection, go);
+
+    // release lua api deps
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(SoundTest, DelayedSoundStoppedBeforePlay)
+{
+    // import 'resource' lua api among others
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* go_path = "/sound/delayed_sound_stopped_before_play.goc";
+
+    // Create gameobject
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
@@ -904,6 +1020,7 @@ TEST_F(SpriteTest, FlipbookAnim)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -913,17 +1030,7 @@ TEST_F(SpriteTest, FlipbookAnim)
 
     lua_State* L = scriptlibcontext.m_LuaState;
 
-    bool tests_done = false;
-    while (!tests_done)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
+    WaitForTestsDone(10000, true, 0);
 
     lua_getglobal(L, "num_finished");
     int num_finished = lua_tointeger(L, -1);
@@ -946,11 +1053,14 @@ TEST_F(SpriteTest, FrameCount)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
+
+    WaitForTestsDone(100, false, 0);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -963,6 +1073,7 @@ TEST_F(ParticleFxTest, PlayAnim)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -970,25 +1081,13 @@ TEST_F(ParticleFxTest, PlayAnim)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
-    lua_State* L = scriptlibcontext.m_LuaState;
-
     bool tests_done = false;
-    int max_iter = 100;
-    while (!tests_done && --max_iter > 0)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    WaitForTestsDone(100, true, &tests_done);
 
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-    if (max_iter <= 0)
+    if (!tests_done)
     {
         dmLogError("The playback didn't finish");
     }
-
     ASSERT_TRUE(tests_done);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -1055,8 +1154,6 @@ TEST_F(CursorTest, GuiFlipbookCursor)
 // Tests the animation done message/callback
 TEST_F(GuiTest, GuiFlipbookAnim)
 {
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_anim.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -1071,22 +1168,12 @@ TEST_F(GuiTest, GuiFlipbookAnim)
     m_UpdateContext.m_DT = 1.0f;
 
     bool tests_done = false;
-    int max_iter = 100;
-    while (!tests_done && --max_iter > 0)
-    {
-        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    WaitForTestsDone(100, true, &tests_done);
 
-        // continue test?
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-    }
-    if (max_iter <= 0)
+    if (!tests_done)
     {
         dmLogError("The playback didn't finish");
     }
-    ASSERT_LT(0, max_iter);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1135,11 +1222,41 @@ TEST_P(CursorTest, Cursor)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(FontTest, GlyphBankTest)
+{
+    const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
+    const char path_font_2[] = "/font/glyph_bank_test_2.fontc";
+    dmRender::HFontMap font_map_1;
+    dmRender::HFontMap font_map_2;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_1, (void**) &font_map_1));
+    ASSERT_NE((void*)0, font_map_1);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_2, (void**) &font_map_2));
+    ASSERT_NE((void*)0, font_map_1);
+
+    const void* glyph_data_1 = dmRender::GetGlyphData(font_map_1);
+    const void* glyph_data_2 = dmRender::GetGlyphData(font_map_2);
+
+    ASSERT_NE((void*)0, glyph_data_1);
+    ASSERT_NE((void*)0, glyph_data_2);
+    ASSERT_NE(glyph_data_1, glyph_data_2);
+
+    dmResource::Release(m_Factory, font_map_1);
+    dmResource::Release(m_Factory, font_map_2);
+}
+
 TEST_F(WindowTest, MouseLock)
 {
+    dmPlatform::WindowParams window_params = {};
+    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_NULL;
+
     dmHID::NewContextParams hid_params = {};
     dmHID::HContext hid_context = dmHID::NewContext(hid_params);
     dmHID::Init(hid_context);
+
+    dmPlatform::HWindow window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(window, window_params);
+    dmHID::SetWindow(hid_context, window);
 
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory         = m_Factory;
@@ -1147,6 +1264,7 @@ TEST_F(WindowTest, MouseLock)
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_HidContext      = hid_context;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1168,6 +1286,7 @@ TEST_F(WindowTest, MouseLock)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 
     dmHID::DeleteContext(hid_context);
+    dmPlatform::DeleteWindow(window);
 }
 
 TEST_F(WindowTest, Events)
@@ -1177,6 +1296,7 @@ TEST_F(WindowTest, Events)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1263,6 +1383,7 @@ TEST_P(FactoryTest, Test)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
     const FactoryTestParams& param = GetParam();
@@ -1450,6 +1571,7 @@ TEST_P(CollectionFactoryTest, Test)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
     const CollectionFactoryTestParams& param = GetParam();
@@ -1781,12 +1903,22 @@ void AssertVertexEqual(const dmGameSystem::BoxVertex& lhs, const dmGameSystem::B
     EXPECT_NEAR(lhs.m_Position[1], rhs.m_Position[1], test_epsilon);
     EXPECT_NEAR(lhs.m_UV[0], rhs.m_UV[0], test_epsilon);
     EXPECT_NEAR(lhs.m_UV[1], rhs.m_UV[1], test_epsilon);
+    EXPECT_NEAR(lhs.m_PageIndex, rhs.m_PageIndex, test_epsilon);
 }
 
 TEST_P(BoxRenderTest, BoxRender)
 {
     const BoxRenderParams& p = GetParam();
     const char* go_path = p.m_GOPath;
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -1823,6 +1955,8 @@ TEST_P(BoxRenderTest, BoxRender)
     dmGraphics::Flip(m_GraphicsContext);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 /* Gamepad connected */
@@ -1834,6 +1968,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1900,6 +2035,7 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // a 'base' gameobject works as the base for other dynamic objects to stand on
@@ -1950,6 +2086,7 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // a 'base' gameobject works as the base for other dynamic objects to stand on
@@ -1987,6 +2124,7 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
 /*
@@ -2047,6 +2185,7 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
 /*
@@ -2118,6 +2257,7 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // two dynamic 'body' objects will get spawned and placed apart
@@ -2162,6 +2302,8 @@ TEST_F(ComponentTest, JointTest)
     ** - [script] collision_object/joint_test.script
     ** joint_test_b
     ** - [collisionobject] collision_object/joint_test_sphere.collisionobject
+    ** joint_test_c
+    ** - [collisionobject] collision_object/joint_test_static_floor.collisionobject
     */
 
     dmHashEnableReverseHash(true);
@@ -2172,13 +2314,19 @@ TEST_F(ComponentTest, JointTest)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
     const char* path_joint_test_b = "/collision_object/joint_test_b.goc";
+    const char* path_joint_test_c = "/collision_object/joint_test_c.goc";
 
     dmhash_t hash_go_joint_test_a = dmHashString64("/joint_test_a");
     dmhash_t hash_go_joint_test_b = dmHashString64("/joint_test_b");
+    dmhash_t hash_go_joint_test_c = dmHashString64("/joint_test_c");
+
+    dmGameObject::HInstance go_c = Spawn(m_Factory, m_Collection, path_joint_test_c, hash_go_joint_test_c, 0, 0, Point3(0, -100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_c);
 
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_b);
@@ -2201,6 +2349,426 @@ TEST_F(ComponentTest, JointTest)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
+}
+
+/* Physics listener */
+TEST_F(ComponentTest, PhysicsListenerTest)
+{
+    /* Setup:
+    ** callback_object
+    ** - [collisionobject] collision_object/callback_object.collisionobject
+    ** - [script] collision_object/callback_object.script
+    ** callback_trigger
+    ** - [collisionobject] collision_object/callback_trigger.collisionobject
+    */
+
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_test_object = "/collision_object/callback_object.goc";
+    const char* path_test_trigger = "/collision_object/callback_trigger.goc";
+
+    dmhash_t hash_go_object = dmHashString64("/test_object");
+    dmhash_t hash_go_trigger = dmHashString64("/test_trigger");
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_b);
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_test_trigger, hash_go_trigger, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_a);
+
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+}
+
+/* Update mass for physics collision object */
+TEST_F(ComponentTest, PhysicsUpdateMassTest)
+{
+    /* Setup:
+    ** mass_object
+    ** - [collisionobject] collision_object/mass_object.collisionobject
+    ** - [script] collision_object/mass_object.script
+    */
+
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const char* path_test_object = "/collision_object/mass_object.goc";
+
+    dmhash_t hash_go_object = dmHashString64("/test_object");
+
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_b);
+
+    bool tests_done = false;
+    while (!tests_done)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+namespace dmGameSystem
+{
+    extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
+    extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
+    extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
+    extern void GetTileGridWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
+};
+
+TEST_F(ComponentTest, DispatchBuffersTest)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmRender::RenderContext* render_context_ptr  = (dmRender::RenderContext*) m_RenderContext;
+    render_context_ptr->m_MultiBufferingRequired = 1;
+
+    void* sprite_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    ASSERT_NE((void*) 0, sprite_world);
+
+    void* model_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc")));
+    ASSERT_NE((void*) 0, model_world);
+
+    void* particlefx_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("particlefxc")));
+    ASSERT_NE((void*) 0, particlefx_world);
+
+    void* tilegrid_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("tilemapc")));
+    ASSERT_NE((void*) 0, tilegrid_world);
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Test setup
+    // ----------
+    // The idea of this test is to make sure that we produce the correct vertex buffers
+    // when using a "multi-buffered" render approach, which should be the case for
+    // non-opengl graphics adapters.
+    //
+    // To test this, the test .go file contains a bunch of components that support this feature.
+    // We instantiate it and then dispatch a number of draw calls, which should trigger the
+    // multi-buffering of the vertex and index buffers (where applicable).
+    // 
+    // Furthermore, each component type is represented twice, with a different material per
+    // instance. The two materials have different vertex formats, which we also account for
+    // when producing our "expected" data for this test.
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_test/dispatch_buffers_test.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Play particlefx
+    dmMessage::URL receiver;
+    receiver.m_Socket   = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path     = dmGameObject::GetIdentifier(go);
+    receiver.m_Fragment = 0;
+    dmMessage::Post(
+            0, &receiver,
+            dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor->m_NameHash,
+            (uintptr_t) go,
+            (uintptr_t) dmGameSystemDDF::PlayParticleFX::m_DDFDescriptor,
+            0, 0, 0);
+
+    // Update and sleep to force generation of a particle
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    dmTime::Sleep(16*1000);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+
+    // Do a couple of dispatches, this should allocate multiple buffers since we have forced multi-buffering
+    const uint8_t num_draws = 4;
+    for (int i = 0; i < num_draws; ++i)
+    {
+        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    }
+
+    // Vertex format for /misc/dispatch_buffers_test/vs_format_a.vp:
+    // attribute vec4 position;
+    // attribute float page_index;
+    struct vs_format_a
+    {
+        float position[3];
+        float page_index;
+    };
+
+    // Vertex format for /misc/dispatch_buffers_test/vs_format_b.vp:
+    // attribute vec4 position;
+    // attribute vec3 my_custom_attribute;
+    struct vs_format_b
+    {
+        float position[3];
+        float my_custom_attribute[4];
+    };
+
+    const uint32_t vertex_stride_a = sizeof(vs_format_a);
+    const uint32_t vertex_stride_b = sizeof(vs_format_b);
+
+    const float EPSILON = 0.0001;
+
+    #define SET_VTX_A(vtx, x,y,z, pi) \
+        vtx.position[0] = x; \
+        vtx.position[1] = y; \
+        vtx.position[2] = z; \
+        vtx.page_index = pi;
+    #define SET_VTX_B(vtx, x,y,z, c0,c1,c2,c3) \
+        vtx.position[0] = x; \
+        vtx.position[1] = y; \
+        vtx.position[2] = z; \
+        vtx.my_custom_attribute[0] = c0; \
+        vtx.my_custom_attribute[1] = c1; \
+        vtx.my_custom_attribute[2] = c2; \
+        vtx.my_custom_attribute[3] = c3;
+
+    #define ASSERT_VTX_A_EQ(vtx_1, vtx_2) \
+        ASSERT_NEAR(vtx_1.position[0], vtx_2.position[0], EPSILON); \
+        ASSERT_NEAR(vtx_1.position[1], vtx_2.position[1], EPSILON); \
+        ASSERT_NEAR(vtx_1.position[2], vtx_2.position[2], EPSILON); \
+        ASSERT_NEAR(vtx_1.page_index, vtx_2.page_index, EPSILON);
+
+    #define ASSERT_VTX_B_EQ(vtx_1, vtx_2) \
+        ASSERT_NEAR(vtx_1.position[0], vtx_2.position[0], EPSILON); \
+        ASSERT_NEAR(vtx_1.position[1], vtx_2.position[1], EPSILON); \
+        ASSERT_NEAR(vtx_1.position[2], vtx_2.position[2], EPSILON); \
+        ASSERT_NEAR(vtx_1.my_custom_attribute[0], vtx_2.my_custom_attribute[0], EPSILON); \
+        ASSERT_NEAR(vtx_1.my_custom_attribute[1], vtx_2.my_custom_attribute[1], EPSILON); \
+        ASSERT_NEAR(vtx_1.my_custom_attribute[2], vtx_2.my_custom_attribute[2], EPSILON); \
+        ASSERT_NEAR(vtx_1.my_custom_attribute[3], vtx_2.my_custom_attribute[3], EPSILON);
+
+    ///////////////////////////////////////
+    // Sprite
+    ///////////////////////////////////////
+    {
+        dmRender::BufferedRenderBuffer* vx_buffer;
+        dmRender::BufferedRenderBuffer* ix_buffer;
+        dmGameSystem::GetSpriteWorldRenderBuffers(sprite_world,  &vx_buffer, &ix_buffer);
+
+        ASSERT_EQ(num_draws, vx_buffer->m_Buffers.Size());
+        ASSERT_EQ(num_draws, ix_buffer->m_Buffers.Size());
+
+        ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER, vx_buffer->m_Type);
+        ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_INDEX_BUFFER, ix_buffer->m_Type);
+
+        const uint32_t vertex_count   = 4;
+        const uint32_t vertex_padding = vertex_stride_b - (vertex_stride_a * vertex_count) % vertex_stride_b;
+        const uint32_t buffer_size    = (vertex_stride_a + vertex_stride_b) * vertex_count + vertex_padding;
+        uint8_t buffer[buffer_size];
+
+        vs_format_a* sprite_a = (vs_format_a*) &buffer[0];
+        vs_format_b* sprite_b = (vs_format_b*) &buffer[vertex_stride_a * vertex_count + vertex_padding];
+
+        const float sprite_a_w = 32.0f;
+        const float sprite_a_h = 32.0f;
+        const float sprite_b_w = 16.0f;
+        const float sprite_b_h = 16.0f;
+
+        // Notice: z value is 1.0f here to make the sorting stable
+        SET_VTX_A(sprite_a[0], -sprite_a_w / 2.0f, -sprite_a_h / 2.0f, 1.0f, 0.0f);
+        SET_VTX_A(sprite_a[1], -sprite_a_w / 2.0f,  sprite_a_h / 2.0f, 1.0f, 0.0f);
+        SET_VTX_A(sprite_a[2],  sprite_a_w / 2.0f,  sprite_a_h / 2.0f, 1.0f, 0.0f);
+        SET_VTX_A(sprite_a[3],  sprite_a_w / 2.0f, -sprite_a_h / 2.0f, 1.0f, 0.0f);
+
+        SET_VTX_B(sprite_b[0], -sprite_b_w / 2.0f, -sprite_b_h / 2.0f, 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(sprite_b[1], -sprite_b_w / 2.0f,  sprite_b_h / 2.0f, 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(sprite_b[2],  sprite_b_w / 2.0f,  sprite_b_h / 2.0f, 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(sprite_b[3],  sprite_b_w / 2.0f, -sprite_b_h / 2.0f, 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+
+        for (int i = 0; i < num_draws; ++i)
+        {
+            // TODO: Maybe validate index buffer here as well
+            dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer->m_Buffers[i];
+            ASSERT_EQ(buffer_size, gfx_vx_buffer->m_Size);
+
+            vs_format_a* written_sprite_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
+            vs_format_b* written_sprite_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
+
+            for (int i = 0; i < vertex_count; ++i)
+            {
+                ASSERT_VTX_A_EQ(sprite_a[i], written_sprite_a[i]);
+                ASSERT_VTX_B_EQ(sprite_b[i], written_sprite_b[i]);
+            }
+        }
+    }
+
+    ///////////////////////////////////////
+    // Model
+    ///////////////////////////////////////
+    {
+        uint32_t vx_buffers_count;
+        dmRender::BufferedRenderBuffer** vx_buffers;
+        dmGameSystem::GetModelWorldRenderBuffers(model_world, &vx_buffers, &vx_buffers_count);
+        ASSERT_TRUE(vx_buffers_count > 0);
+
+        dmRender::BufferedRenderBuffer* vx_buffer = vx_buffers[0];
+        ASSERT_EQ(num_draws, vx_buffer->m_Buffers.Size());
+        ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER, vx_buffer->m_Type);
+
+        const uint32_t vertex_count        = 6;
+        const uint32_t buffer_write_offset = vertex_stride_a * vertex_count;
+        ASSERT_TRUE(buffer_write_offset % vertex_stride_b != 0);
+
+        const uint32_t vertex_padding = vertex_stride_b - (vertex_stride_a * vertex_count) % vertex_stride_b;
+        const uint32_t buffer_size    = vertex_stride_a * vertex_count + vertex_padding + vertex_stride_b * vertex_count;
+
+        uint8_t buffer[buffer_size];
+        vs_format_a* model_a = (vs_format_a*) &buffer[0];
+        vs_format_b* model_b = (vs_format_b*) &buffer[vertex_stride_a * vertex_count + vertex_padding];
+
+        // NOTE: The z component here is different between these two components since we want to sort them in a specific order.
+        float p0[] = {  1.0,  1.0 };
+        float p1[] = { -1.0,  1.0 };
+        float p2[] = { -1.0, -1.0 };
+        float p3[] = {  1.0, -1.0 };
+
+        SET_VTX_A(model_a[0], p0[0], p0[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[1], p1[0], p1[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[2], p2[0], p2[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[3], p0[0], p0[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[4], p2[0], p2[1], 1.0f, 0.0f);
+        SET_VTX_A(model_a[5], p3[0], p3[1], 1.0f, 0.0f);
+
+        SET_VTX_B(model_b[0], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[1], p1[0], p1[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[2], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[3], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[4], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(model_b[5], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+
+        for (int i = 0; i < num_draws; ++i)
+        {
+            // TODO: Maybe validate index buffer here as well
+            dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer->m_Buffers[i];
+            ASSERT_EQ(buffer_size, gfx_vx_buffer->m_Size);
+
+            vs_format_a* written_model_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
+            vs_format_b* written_model_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
+
+            for (int i = 0; i < vertex_count; ++i)
+            {
+                ASSERT_VTX_A_EQ(model_a[i], written_model_a[i]);
+                ASSERT_VTX_B_EQ(model_b[i], written_model_b[i]);
+            }
+        }
+    }
+
+    ///////////////////////////////////////
+    // Particle
+    ///////////////////////////////////////
+    {
+        dmRender::BufferedRenderBuffer* vx_buffer;
+        dmGameSystem::GetParticleFXWorldRenderBuffers(particlefx_world, &vx_buffer);
+        ASSERT_EQ(num_draws, vx_buffer->m_Buffers.Size());
+        ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER, vx_buffer->m_Type);
+
+        const uint32_t vertex_count   = 6;
+        const uint32_t vertex_padding = vertex_stride_b - (vertex_stride_a * vertex_count) % vertex_stride_b;
+        const uint32_t buffer_size    = (vertex_stride_a + vertex_stride_b) * vertex_count + vertex_padding;
+        uint8_t buffer[buffer_size];
+
+        vs_format_a* pfx_a = (vs_format_a*) &buffer[0];
+        vs_format_b* pfx_b = (vs_format_b*) &buffer[vertex_stride_a * vertex_count + vertex_padding];
+
+        const float pfx_s = 20.0f / 2.0f;
+
+        float p0[] = { -pfx_s, -pfx_s};
+        float p1[] = { -pfx_s,  pfx_s};
+        float p2[] = {  pfx_s, -pfx_s};
+        float p3[] = {  pfx_s,  pfx_s};
+
+        SET_VTX_A(pfx_a[0], p0[0], p0[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[1], p1[0], p1[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[2], p3[0], p3[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[3], p3[0], p3[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[4], p2[0], p2[1], 1.0f, 0.0f);
+        SET_VTX_A(pfx_a[5], p0[0], p0[1], 1.0f, 0.0f);
+
+        SET_VTX_B(pfx_b[0], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[1], p1[0], p1[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[2], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[3], p3[0], p3[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[4], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+        SET_VTX_B(pfx_b[5], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
+
+        for (int i = 0; i < num_draws; ++i)
+        {
+            dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer->m_Buffers[i];
+            ASSERT_EQ(buffer_size, gfx_vx_buffer->m_Size);
+
+            vs_format_a* written_pfx_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
+            vs_format_b* written_pfx_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
+
+            for (int i = 0; i < vertex_count; ++i)
+            {
+                ASSERT_VTX_A_EQ(pfx_a[i], written_pfx_a[i]);
+                ASSERT_VTX_B_EQ(pfx_b[i], written_pfx_b[i]);
+            }
+        }
+    }
+
+    ///////////////////////////////////////
+    // Tilegrid
+    ///////////////////////////////////////
+    {
+        dmRender::BufferedRenderBuffer* vx_buffer;
+        dmGameSystem::GetTileGridWorldRenderBuffers(tilegrid_world, &vx_buffer);
+        ASSERT_EQ(num_draws, vx_buffer->m_Buffers.Size());
+        ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER, vx_buffer->m_Type);
+
+        // Note: Tilegrids does not support custom vertex formats, so for the sake of this test
+        //       we only care about the buffer dispatching part.
+    }
+
+    #undef SET_VTX_A
+    #undef SET_VTX_B
+    #undef ASSERT_VTX_A_EQ
+    #undef ASSERT_VTX_B_EQ
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 /* Camera */
@@ -2740,22 +3308,22 @@ BoxRenderParams box_render_params[] =
     {
         "/gui/render_box_test1.goc",
         {
-            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, -16.000000, 0.0, 0.0), 0.031250, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, -14.000000, 0.0, 0.0), 0.031250, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, -14.000000, 0.0, 0.0), 0.000000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(14.000000, -16.000000, 0.0, 0.0), 0.468750, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(14.000000, -14.000000, 0.0, 0.0), 0.468750, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, -14.000000, 0.0, 0.0), 0.500000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, 14.000000, 0.0, 0.0), 0.031250, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, 14.000000, 0.0, 0.0), 0.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(14.000000, 14.000000, 0.0, 0.0), 0.468750, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, 14.000000, 0.0, 0.0), 0.500000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, 16.000000, 0.0, 0.0), 0.031250, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(14.000000, 16.000000, 0.0, 0.0), 0.468750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, -16.000000, 0.0, 0.0), 0.031250, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, -14.000000, 0.0, 0.0), 0.031250, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -14.000000, 0.0, 0.0), 0.000000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, -16.000000, 0.0, 0.0), 0.468750, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, -14.000000, 0.0, 0.0), 0.468750, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -14.000000, 0.0, 0.0), 0.500000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, 14.000000, 0.0, 0.0), 0.031250, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 14.000000, 0.0, 0.0), 0.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, 14.000000, 0.0, 0.0), 0.468750, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 14.000000, 0.0, 0.0), 0.500000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, 16.000000, 0.0, 0.0), 0.031250, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, 16.000000, 0.0, 0.0), 0.468750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         54,
         {0, 1, 2, 0, 2, 3, 1, 4, 5, 1, 5, 2, 4, 6, 7, 4, 7, 5, 3, 2, 8, 3, 8, 9, 2, 5, 10, 2, 10, 8, 5, 7, 11, 5, 11, 10, 9, 8, 12, 9, 12, 13, 8, 10, 14, 8, 14, 12, 10, 11, 15, 10, 15, 14}
@@ -2764,10 +3332,10 @@ BoxRenderParams box_render_params[] =
     {
         "/gui/render_box_test2.goc",
         {
-            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
+            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         18,
         {0, 1, 2, 0, 2, 2, 0, 2, 3, 0, 3, 3, 0, 3, 3, 0, 3, 3}
@@ -2776,10 +3344,10 @@ BoxRenderParams box_render_params[] =
     {
         "/gui/render_box_test3.goc",
         {
-            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0))
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
         {0, 1, 2, 0, 2, 3}
@@ -2788,10 +3356,10 @@ BoxRenderParams box_render_params[] =
     {
         "/gui/render_box_test4.goc",
         {
-            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0))
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
         {0, 1, 2, 0, 2, 3}
@@ -2800,10 +3368,10 @@ BoxRenderParams box_render_params[] =
     {
         "/gui/render_box_test5.goc",
         {
-            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0))
+            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
         {0, 1, 2, 0, 2, 3}
@@ -2812,22 +3380,22 @@ BoxRenderParams box_render_params[] =
     {
         "/gui/render_box_test6.goc",
         {
-            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, -16.000000, 0.0, 0.0), 0.468750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, -14.000000, 0.0, 0.0), 0.468750, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, -14.000000, 0.0, 0.0), 0.500000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(14.000000, -16.000000, 0.0, 0.0), 0.031250, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(14.000000, -14.000000, 0.0, 0.0), 0.031250, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, -14.000000, 0.0, 0.0), 0.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, 14.000000, 0.0, 0.0), 0.468750, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, 14.000000, 0.0, 0.0), 0.500000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(14.000000, 14.000000, 0.0, 0.0), 0.031250, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, 14.000000, 0.0, 0.0), 0.000000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-14.000000, 16.000000, 0.0, 0.0), 0.468750, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(14.000000, 16.000000, 0.0, 0.0), 0.031250, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0))
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -16.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, -16.000000, 0.0, 0.0), 0.468750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, -14.000000, 0.0, 0.0), 0.468750, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, -14.000000, 0.0, 0.0), 0.500000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, -16.000000, 0.0, 0.0), 0.031250, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, -14.000000, 0.0, 0.0), 0.031250, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -16.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, -14.000000, 0.0, 0.0), 0.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, 14.000000, 0.0, 0.0), 0.468750, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 14.000000, 0.0, 0.0), 0.500000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, 14.000000, 0.0, 0.0), 0.031250, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 14.000000, 0.0, 0.0), 0.000000, 0.531250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-14.000000, 16.000000, 0.0, 0.0), 0.468750, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-16.000000, 16.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(14.000000, 16.000000, 0.0, 0.0), 0.031250, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(16.000000, 16.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         54,
         {0, 1, 2, 0, 2, 3, 1, 4, 5, 1, 5, 2, 4, 6, 7, 4, 7, 5, 3, 2, 8, 3, 8, 9, 2, 5, 10, 2, 10, 8, 5, 7, 11, 5, 11, 10, 9, 8, 12, 9, 12, 13, 8, 10, 14, 8, 14, 12, 10, 11, 15, 10, 15, 14}
@@ -2836,10 +3404,10 @@ BoxRenderParams box_render_params[] =
     {
         "/gui/render_box_test7.goc",
         {
-            dmGameSystem::BoxVertex(Vector4(-1.000000, -1.000000, 0.0, 0.0), 0.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(1.000000, -1.000000, 0.0, 0.0), 1.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-1.000000, 1.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(1.000000, 1.000000, 0.0, 0.0), 1.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
+            dmGameSystem::BoxVertex(Vector4(-1.000000, -1.000000, 0.0, 0.0), 0.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(1.000000, -1.000000, 0.0, 0.0), 1.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-1.000000, 1.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(1.000000, 1.000000, 0.0, 0.0), 1.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
         {0, 1, 3, 0, 3, 2}
@@ -2848,10 +3416,10 @@ BoxRenderParams box_render_params[] =
     {
         "/gui/render_box_test8.goc",
         {
-            dmGameSystem::BoxVertex(Vector4(68.000000, 68.000000, 0.0, 0.0), 0.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(132.000000, 68.000000, 0.0, 0.0), 1.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(68.000000, 132.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(132.000000, 132.000000, 0.0, 0.0), 1.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
+            dmGameSystem::BoxVertex(Vector4(68.000000, 68.000000, 0.0, 0.0), 0.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(132.000000, 68.000000, 0.0, 0.0), 1.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(68.000000, 132.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(132.000000, 132.000000, 0.0, 0.0), 1.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
         {0, 1, 3, 0, 3, 2}
@@ -2860,22 +3428,22 @@ BoxRenderParams box_render_params[] =
     {
         "/gui/render_box_test9.goc",
         {
-            dmGameSystem::BoxVertex(Vector4(68.000000, 68.000000, 0.0, 0.0), 0.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(70.000000, 68.000000, 0.0, 0.0), 0.031250, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(70.000000, 70.000000, 0.0, 0.0), 0.031250, 0.031250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(68.000000, 70.000000, 0.0, 0.0), 0.000000, 0.031250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(130.000000, 68.000000, 0.0, 0.0), 0.968750, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(130.000000, 70.000000, 0.0, 0.0), 0.968750, 0.031250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(132.000000, 68.000000, 0.0, 0.0), 1.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(132.000000, 70.000000, 0.0, 0.0), 1.000000, 0.031250, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(70.000000, 130.000000, 0.0, 0.0), 0.031250, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(68.000000, 130.000000, 0.0, 0.0), 0.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(130.000000, 130.000000, 0.0, 0.0), 0.968750, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(132.000000, 130.000000, 0.0, 0.0), 1.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(70.000000, 132.000000, 0.0, 0.0), 0.031250, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(68.000000, 132.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(130.000000, 132.000000, 0.0, 0.0), 0.968750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(132.000000, 132.000000, 0.0, 0.0), 1.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
+            dmGameSystem::BoxVertex(Vector4(68.000000, 68.000000, 0.0, 0.0), 0.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(70.000000, 68.000000, 0.0, 0.0), 0.031250, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(70.000000, 70.000000, 0.0, 0.0), 0.031250, 0.031250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(68.000000, 70.000000, 0.0, 0.0), 0.000000, 0.031250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(130.000000, 68.000000, 0.0, 0.0), 0.968750, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(130.000000, 70.000000, 0.0, 0.0), 0.968750, 0.031250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(132.000000, 68.000000, 0.0, 0.0), 1.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(132.000000, 70.000000, 0.0, 0.0), 1.000000, 0.031250, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(70.000000, 130.000000, 0.0, 0.0), 0.031250, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(68.000000, 130.000000, 0.0, 0.0), 0.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(130.000000, 130.000000, 0.0, 0.0), 0.968750, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(132.000000, 130.000000, 0.0, 0.0), 1.000000, 0.968750, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(70.000000, 132.000000, 0.0, 0.0), 0.031250, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(68.000000, 132.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(130.000000, 132.000000, 0.0, 0.0), 0.968750, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(132.000000, 132.000000, 0.0, 0.0), 1.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         54,
         {0, 1, 2, 0, 2, 3, 1, 4, 5, 1, 5, 2, 4, 6, 7, 4, 7, 5, 3, 2, 8, 3, 8, 9, 2, 5, 10, 2, 10, 8, 5, 7, 11, 5, 11, 10, 9, 8, 12, 9, 12, 13, 8, 10, 14, 8, 14, 12, 10, 11, 15, 10, 15, 14}
@@ -2884,13 +3452,25 @@ BoxRenderParams box_render_params[] =
     {
         "/gui/render_box_test10.goc",
         {
-            dmGameSystem::BoxVertex(Vector4(-1.000000, -1.000000, 0.0, 0.0), 0.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(1.000000, -1.000000, 0.0, 0.0), 1.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(-1.000000, 1.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0)),
-            dmGameSystem::BoxVertex(Vector4(1.000000, 1.000000, 0.0, 0.0), 1.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0))
+            dmGameSystem::BoxVertex(Vector4(-1.000000, -1.000000, 0.0, 0.0), 0.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(1.000000, -1.000000, 0.0, 0.0), 1.000000, 0.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(-1.000000, 1.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0),
+            dmGameSystem::BoxVertex(Vector4(1.000000, 1.000000, 0.0, 0.0), 1.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0), 0)
         },
         6,
         {0, 1, 3, 0, 3, 2}
+    },
+    // 9-slice params: off | Use geometries: 4 | Flip uv: na | Texture: paged atlas (64x64 texture)
+    {
+        "/gui/render_box_test11.goc",
+        {
+            dmGameSystem::BoxVertex(Vector4(-32.000000, -32.000000, 0.0, 0.0), 0.000000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0), 1),
+            dmGameSystem::BoxVertex(Vector4(-32.000000, 32.000000, 0.0, 0.0), 0.000000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0),  1),
+            dmGameSystem::BoxVertex(Vector4(32.000000, 32.000000, 0.0, 0.0), 0.500000, 1.000000, Vector4(1.0, 1.0, 1.0, 1.0),   1),
+            dmGameSystem::BoxVertex(Vector4(32.000000, -32.000000, 0.0, 0.0), 0.500000, 0.500000, Vector4(1.0, 1.0, 1.0, 1.0),  1)
+        },
+        6,
+        {0, 1, 2, 0, 2, 3}
     }
 };
 INSTANTIATE_TEST_CASE_P(BoxRender, BoxRenderTest, jc_test_values_in(box_render_params));
@@ -2952,6 +3532,83 @@ const CursorTestParams cursor_properties[] = {
 INSTANTIATE_TEST_CASE_P(Cursor, CursorTest, jc_test_values_in(cursor_properties));
 #undef F1T3
 #undef F2T3
+
+bool RunFile(lua_State* L, const char* filename)
+{
+    char path[1024];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", filename);
+
+    dmLuaDDF::LuaModule* ddf = 0;
+    dmDDF::Result res = dmDDF::LoadMessageFromFile(path, dmLuaDDF::LuaModule::m_DDFDescriptor, (void**) &ddf);
+    if (res != dmDDF::RESULT_OK)
+        return false;
+
+    char* buffer = (char*) malloc(ddf->m_Source.m_Script.m_Count + 1);
+    memcpy((void*) buffer, ddf->m_Source.m_Script.m_Data, ddf->m_Source.m_Script.m_Count);
+    buffer[ddf->m_Source.m_Script.m_Count] = '\0';
+
+    int ret = luaL_dostring(L, buffer);
+    free(buffer);
+
+    if (ret != 0)
+    {
+        dmLogError("%s", lua_tolstring(L, -1, 0));
+        return false;
+    }
+    return true;
+}
+
+TEST_F(ScriptImageTest, TestImage)
+{
+    int top = lua_gettop(L);
+
+    ASSERT_TRUE(RunFile(L, "image/test_image.luac"));
+
+    lua_getglobal(L, "functions");
+    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
+    lua_getfield(L, -1, "test_images");
+    ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
+
+    char hostfs[64] = {};
+    if (strlen(DM_HOSTFS) != 0)
+        dmSnPrintf(hostfs, sizeof(hostfs), "%s/", DM_HOSTFS);
+    lua_pushstring(L, hostfs);
+    int result = dmScript::PCall(L, 1, LUA_MULTRET);
+    if (result == LUA_ERRRUN)
+    {
+        ASSERT_TRUE(false);
+    }
+    else
+    {
+        ASSERT_EQ(0, result);
+    }
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptImageTest, TestImageBuffer)
+{
+    int top = lua_gettop(L);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/image/test_image_buffer.goc", dmHashString64("/test_image"));
+    ASSERT_NE((void*)0, go);
+
+    if (DM_HOSTFS)
+    {
+        char run_str[128];
+        dmSnPrintf(run_str, sizeof(run_str), "set_host_fs(%s)", DM_HOSTFS);
+        ASSERT_TRUE(RunString(L, run_str));
+    }
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
 
 TEST_F(ScriptBufferTest, PushCheckBuffer)
 {
@@ -3784,6 +4441,605 @@ TEST_F(MaterialTest, CustomVertexAttributes)
     dmResource::Release(m_Factory, material_res);
 }
 
+struct DynamicVertexAttributesContext
+{
+    dmArray<dmGraphics::VertexAttribute> m_Attributes;
+    bool m_Result;
+};
+
+bool Test_GetMaterialAttributeCallback(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute)
+{
+    DynamicVertexAttributesContext* ctx = (DynamicVertexAttributesContext*) user_data;
+
+    bool found = false;
+
+    for (int i = 0; i < ctx->m_Attributes.Size(); ++i)
+    {
+        if (ctx->m_Attributes[i].m_NameHash == name_hash)
+        {
+            *attribute = &ctx->m_Attributes[i];
+            found = true;
+            break;
+        }
+    }
+
+    ctx->m_Result = found;
+    return found;
+}
+
+template<typename T>
+static uint32_t CountOccurences(dmArray<T>& lst, T entry)
+{
+    uint32_t count = 0;
+    for (int i = 0; i < lst.Size(); ++i)
+    {
+        if (lst[i] == entry)
+        {
+            count++;
+        }
+    }
+    return count;
+}
+
+template<typename T>
+static void ValidateVertexAttributeTypeConversion(dmGameSystem::DynamicAttributeInfo& info, uint16_t info_index, dmGraphics::VertexAttribute::DataType data_type, T* expected_values, uint32_t num_values)
+{
+    uint8_t value_buffer[sizeof(float) * 4];
+    T* values = (T*) value_buffer;
+
+    dmGraphics::VertexAttribute attr = {};
+    attr.m_ElementCount = num_values;
+    attr.m_DataType = data_type;
+
+    dmGameSystem::ConvertMaterialAttributeValuesToDataType(info, info_index, &attr, value_buffer);
+
+    for (int i = 0; i < num_values; ++i)
+    {
+        ASSERT_EQ(expected_values[i], values[i]);
+    }
+}
+
+TEST_F(MaterialTest, DynamicVertexAttributes)
+{
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/attributes_valid.materialc", (void**)&material_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    const uint32_t INITIAL_SIZE = 4;
+    const float EPSILON = 0.0001;
+
+    DynamicVertexAttributesContext ctx;
+    ctx.m_Attributes.SetCapacity(INITIAL_SIZE);
+
+    dmGameSystem::DynamicAttributePool dynamic_attribute_pool;
+    InitializeMaterialAttributeInfos(dynamic_attribute_pool, INITIAL_SIZE);
+
+    // Attribute not found
+    {
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        dmGameObject::PropertyDesc desc = {};
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("attribute_does_not_exist"), desc, Test_GetMaterialAttributeCallback, &ctx));
+    }
+
+    // Attribute(s) found
+    {
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        dmGameObject::PropertyDesc desc = {};
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("position"), desc, Test_GetMaterialAttributeCallback, &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("normal"), desc, Test_GetMaterialAttributeCallback, &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("texcoord0"), desc, Test_GetMaterialAttributeCallback, &ctx));
+
+        // No slots has been taken
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
+    }
+
+    // Callback
+    {
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        dmGameObject::PropertyDesc desc = {};
+
+        float data_buffer[4] = { 13.0f, 14.0f, 15.0f, 16.0f };
+
+        // Create override data
+        dmGraphics::VertexAttribute attr;
+        attr.m_NameHash                      = dmHashString64("position");
+        attr.m_Values.m_BinaryValues.m_Count = sizeof(data_buffer);
+        attr.m_Values.m_BinaryValues.m_Data  = (uint8_t*) data_buffer;
+
+        ctx.m_Attributes.Push(attr);
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("position"), desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_TRUE(ctx.m_Result);
+
+        // note: the material position attribute is only two elements, so we put in a vector3 instead since there are no v2 property values
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
+
+        ASSERT_NEAR(data_buffer[0], desc.m_Variant.m_V4[0], EPSILON);
+        ASSERT_NEAR(data_buffer[1], desc.m_Variant.m_V4[1], EPSILON);
+        ASSERT_NEAR(0.0f,           desc.m_Variant.m_V4[2], EPSILON);
+
+        ctx.m_Attributes.SetSize(0);
+    }
+
+    // Set a dynamic attribute
+    {
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        dmhash_t attr_name_hash = dmHashString64("position");
+
+        dmGameObject::PropertyVar var = {};
+        dmGameObject::PropertyDesc desc = {};
+
+        var.m_V4[0] = 99.0f;
+        var.m_V4[1] = 98.0f;
+        var.m_V4[2] = 97.0f;
+        var.m_V4[3] = 96.0f;
+
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &index, material, attr_name_hash, var));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
+
+        ASSERT_EQ(1,           dynamic_attribute_pool.Get(0).m_NumInfos);
+        ASSERT_NE((void*) 0x0, dynamic_attribute_pool.Get(0).m_Infos);
+
+        // Again, "position" only has two elements, which in turn ends up as a vector three, so we know we will only care about these three values
+        ASSERT_NEAR(var.m_V4[0], desc.m_Variant.m_V4[0], EPSILON);
+        ASSERT_NEAR(var.m_V4[1], desc.m_Variant.m_V4[1], EPSILON);
+        ASSERT_NEAR(0.0f,        desc.m_Variant.m_V4[2], EPSILON);
+
+        // Clear the dynamic proeprty
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, ClearMaterialAttribute(dynamic_attribute_pool, index, attr_name_hash));
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
+    }
+
+    // Set multiple dynamic attributes (more than original capacity)
+    {
+        dmArray<uint32_t> allocated_indices;
+        allocated_indices.SetCapacity( dmGameSystem::DYNAMIC_ATTRIBUTE_INCREASE_COUNT * 2 + INITIAL_SIZE + 1); // Should equate to three resizes
+
+        dmhash_t attr_name_hash = dmHashString64("position");
+        dmGameObject::PropertyVar var = {};
+        dmGameObject::PropertyDesc desc = {};
+
+        for (int i = 0; i < allocated_indices.Capacity(); ++i)
+        {
+            var.m_V4[0] = (float) i;
+
+            uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &new_index, material, attr_name_hash, var));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, new_index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+
+            ASSERT_NEAR(var.m_V4[0], desc.m_Variant.m_V4[0], EPSILON);
+
+            allocated_indices.Push(new_index);
+        }
+
+        ASSERT_EQ(INITIAL_SIZE + dmGameSystem::DYNAMIC_ATTRIBUTE_INCREASE_COUNT * 3, dynamic_attribute_pool.Capacity());
+        ASSERT_EQ(allocated_indices.Size(), dynamic_attribute_pool.Size());
+
+        for (int i = 0; i < allocated_indices.Capacity(); ++i)
+        {
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, allocated_indices[i], material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+            ASSERT_NEAR((float) i, desc.m_Variant.m_V4[0], EPSILON);
+
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, ClearMaterialAttribute(dynamic_attribute_pool, allocated_indices[i], attr_name_hash));
+        }
+
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
+    }
+
+    {
+        dmGameSystem::DynamicAttributePool tmp_pool;
+        tmp_pool.SetCapacity(dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX - 1);
+
+        for (int i = 0; i < tmp_pool.Capacity(); ++i)
+        {
+            tmp_pool.Alloc();
+        }
+
+        dmhash_t attr_name_hash = dmHashString64("position");
+        dmGameObject::PropertyVar var = {};
+        dmGameObject::PropertyDesc desc = {};
+
+        uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE, SetMaterialAttribute(tmp_pool, &new_index, material, attr_name_hash, var));
+    }
+
+    // Data conversion for attribute values
+    {   
+        dmGameSystem::DynamicAttributeInfo::Info info_members[3];
+
+        info_members[0].m_NameHash  = dmHashString64("dynamic_attribute_pos");
+        info_members[0].m_Values[0] = 128.0f;
+        info_members[0].m_Values[1] = 256.0f;
+        info_members[0].m_Values[2] = 32768.0f;
+        info_members[0].m_Values[3] = 65536.0f;
+
+        info_members[1].m_NameHash  = dmHashString64("dynamic_attribute_neg");
+        info_members[1].m_Values[0] = -128.0f;
+        info_members[1].m_Values[1] = -256.0f;
+        info_members[1].m_Values[2] = -32768.0f;
+        info_members[1].m_Values[3] = -65536.0f;
+
+        dmGameSystem::DynamicAttributeInfo info;
+        info.m_Infos    = info_members;
+        info.m_NumInfos = DM_ARRAY_SIZE(info_members);
+
+        // TYPE_BYTE
+        {
+            int8_t expected_values_pos[] = { 127, 127, 127, 127 };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_BYTE, expected_values_pos, 4);
+
+            int8_t expected_values_neg[] = { -128, -128, -128, -128 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_BYTE, expected_values_neg, 4);
+        }
+
+        // TYPE_UNSIGNED_BYTE
+        {
+            uint8_t expected_values_pos[] = { 128, 255, 255, 255 };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, expected_values_pos, 4);
+
+            uint8_t expected_values_neg[] = { 0, 0, 0, 0 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, expected_values_neg, 4);
+        }
+
+        // TYPE_SHORT
+        {
+            int16_t expected_values_pos[] = { 128, 256, 32767, 32767 };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_SHORT, expected_values_pos, 4);
+
+            int16_t expected_values_neg[] = { -128, -256, -32768, -32768 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_SHORT, expected_values_neg, 4);
+        }
+
+        // TYPE_UNSIGNED_SHORT
+        {
+            uint16_t expected_values_pos[] = { 128, 256, 32768, 65535};
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT, expected_values_pos, 4);
+
+            uint16_t expected_values_neg[] = { 0, 0, 0, 0 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT, expected_values_neg, 4);
+        }
+
+        // TYPE_INT
+        {
+            int32_t expected_values_pos[] = { 128, 256, 32768, 65536 };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_INT, expected_values_pos, 4);
+
+            int32_t expected_values_neg[] = { -128, -256, -32768, -65536 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_INT, expected_values_neg, 4);
+        }
+
+        // TYPE_UNSIGNED_INT
+        {
+            uint32_t expected_values_pos[] = { 128, 256, 32768, 65536 };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT, expected_values_pos, 4);
+
+            uint32_t expected_values_neg[] = { 0, 0, 0, 0 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT, expected_values_neg, 4);
+        }
+
+        // TYPE_FLOAT
+        {
+            float expected_values_pos[] = { 128.0f, 256.0f, 32768.0f, 65536.0f };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_FLOAT, expected_values_pos, 4);
+
+            float expected_values_neg[] = { -128.0f, -256.0f, -32768.0f, -65536.0f };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_FLOAT, expected_values_neg, 4);
+        }
+    }
+
+    // Data conversion for dynamic attributes
+    {
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        dmhash_t attr_name_hash = dmHashString64("normal");
+
+        dmGameObject::PropertyVar var = {};
+        dmGameObject::PropertyDesc desc = {};
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
+
+        // Values are from the material
+        ASSERT_NEAR(64.0f, desc.m_Variant.m_V4[0], EPSILON);
+        ASSERT_NEAR(32.0f, desc.m_Variant.m_V4[1], EPSILON);
+        ASSERT_NEAR(16.0f, desc.m_Variant.m_V4[2], EPSILON);
+
+        // Dynamic attribute not set, so can't clear it!
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, ClearMaterialAttribute(dynamic_attribute_pool, index, attr_name_hash));
+    }
+
+    dmGameSystem::DestroyMaterialAttributeInfos(dynamic_attribute_pool);
+
+    dmResource::Release(m_Factory, material_res);
+}
+
+TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_animate.goc", dmHashString64("/attributes_go_animate"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    for (int i = 0; i < 10; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_set_get_sparse.goc", dmHashString64("/attributes_dynamic_go_set_get_sparse"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(MaterialTest, GoGetSetConstants)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/material.goc", dmHashString64("/material"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(ComponentTest, GetSetCollisionShape)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_shape.goc", dmHashString64("/get_set_shape_go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_base);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ComponentTest, GetSetErrorCollisionShape)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_error_shape.goc", dmHashString64("/get_set_error_shape_go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_base);
+
+    ASSERT_FALSE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SysTest, LoadBufferSync)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_sync.goc", dmHashString64("/load_buffer_sync"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+static bool RunTestLoadBufferASync(lua_State* L, int test_n,
+    dmGameSystem::ScriptLibContext& scriptlibcontext,
+    dmGameObject::HCollection collection,
+    const dmGameObject::UpdateContext* update_context,
+    bool ignore_script_update_fail)
+{
+    char buffer[256];
+    dmSnPrintf(buffer, sizeof(buffer), "test_n = %d", test_n);
+
+    if (!RunString(L, buffer))
+        return false;
+
+    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    bool tests_done = false;
+    while (dmTime::GetTime() < stop_time && !tests_done)
+    {
+        dmJobThread::Update(scriptlibcontext.m_JobThread);
+        dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
+        if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
+            return false;
+        if (!dmGameObject::Update(collection, update_context))
+            return false;
+
+        // check if tests are done
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+
+        dmTime::Sleep(30*1000);
+    }
+
+    return tests_done;
+}
+
+TEST_F(SysTest, LoadBufferASync)
+{
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
+    job_thread_create_param.m_ThreadCount    = 1;
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobThread       = dmJobThread::Create(job_thread_create_param);
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async.goc", dmHashString64("/load_buffer_async"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Test 1
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 1, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+
+    // Test 2
+    uint32_t large_buffer_size = 16 * 1024 * 1024;
+    uint8_t* large_buffer = new uint8_t[large_buffer_size];
+    memset(large_buffer, 0, large_buffer_size);
+
+    large_buffer[0]                   = 127;
+    large_buffer[large_buffer_size-1] = 255;
+
+    dmResource::AddFile(m_Factory, "/sys/non_disk_content/large_file.raw", large_buffer_size, large_buffer);
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 2, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+    dmResource::RemoveFile(m_Factory, "/sys/non_disk_content/large_file.raw");
+    free(large_buffer);
+
+    // Test 3
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 3, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
+    // Test 4
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 4, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
+    // Test 5
+    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 5, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+
+    dmJobThread::Destroy(scriptlibcontext.m_JobThread);
+}
+
+#ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+
+TEST_F(ShaderTest, Compute)
+{
+    dmGraphics::ShaderDesc* ddf;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.cpc", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
+    ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, ddf->m_ShaderClass);
+    ASSERT_NE(0, ddf->m_Shaders.m_Count);
+
+    dmGraphics::ShaderDesc::Shader* compute_shader = 0;
+
+    for (int i = 0; i < ddf->m_Shaders.m_Count; ++i)
+    {
+        if (ddf->m_Shaders[i].m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
+            ddf->m_Shaders[i].m_Language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430)
+        {
+            compute_shader = &ddf->m_Shaders[i];
+        }
+    }
+    ASSERT_NE((void*)0, compute_shader);
+
+    // Note: We cannot get this informtion from our shader pipeline for other languages than SPIR-V at the momemnt.
+    //       When we can create actual dmGraphics::HProgram from compute we can verify this via the GFX context.
+    if (compute_shader->m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+    {
+        dmGraphics::ShaderDesc::ResourceTypeInfo color_type_info = compute_shader->m_Types[compute_shader->m_UniformBuffers[0].m_Type.m_Type.m_TypeIndex];
+
+        // Slot 1
+        ASSERT_EQ(1,                                        compute_shader->m_UniformBuffers.m_Count);
+        ASSERT_EQ(dmHashString64("color"),                  color_type_info.m_Members[0].m_NameHash);
+        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, color_type_info.m_Members[0].m_Type.m_Type.m_ShaderType);
+        // Slot 2,
+        ASSERT_EQ(1,                                           compute_shader->m_Textures.m_Count);
+        ASSERT_EQ(dmHashString64("texture_out"),               compute_shader->m_Textures[0].m_NameHash);
+        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_IMAGE2D, compute_shader->m_Textures[0].m_Type.m_Type.m_ShaderType);
+    }
+}
+
+TEST_F(ShaderTest, ComputeResource)
+{
+    dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
+
+    dmRender::HComputeProgram compute_program_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/shader/valid.compute_programc", (void**) &compute_program_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((dmRender::HComputeProgram) 0, compute_program_res);
+
+    dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program_res);
+    ASSERT_NE((dmGraphics::HComputeProgram) 0, graphics_compute_shader);
+
+    dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program_res);
+    ASSERT_EQ(2, dmGraphics::GetUniformCount(graphics_compute_program));
+
+    char buffer[128] = {};
+    dmGraphics::Type type;
+    int32_t size;
+    dmGraphics::GetUniformName(graphics_compute_program, 0, buffer, 128, &type, &size);
+
+    ASSERT_STREQ("color", buffer);
+    ASSERT_EQ(0, dmGraphics::GetUniformLocation(graphics_compute_program, "color"));
+
+    dmGraphics::GetUniformName(graphics_compute_program, 1, buffer, 128, &type, &size);
+
+    ASSERT_STREQ("texture_out", buffer);
+    ASSERT_EQ(1, dmGraphics::GetUniformLocation(graphics_compute_program, "texture_out"));
+
+    dmResource::Release(m_Factory, (void*) compute_program_res);
+}
+#endif
 
 int main(int argc, char **argv)
 {

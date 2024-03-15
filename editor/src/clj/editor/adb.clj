@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -64,7 +64,9 @@ If it's already installed, configure its path in the Preferences' Tools pane." {
           (keep (fn [line]
                   (when-let [[_ id kvs] (re-matches #"^([^\s]+)\s+device\s(.+)" line)]
                     (let [{:strs [device model]} (into {}
-                                                       (map #(string/split % #":" 2))
+                                                       (keep #(let [kv (string/split % #":" 2)]
+                                                                (when (= 2 (count kv))
+                                                                  kv)))
                                                        (string/split kvs #" "))]
                       {:id id
                        :label (cond
@@ -95,9 +97,9 @@ If it's already installed, configure its path in the Preferences' Tools pane." {
 
 (defn launch!
   "Perform an application launch and block until the launch is done
-
+  
   Returns nil on success, throws exception on failure
-
+  
   Args:
     adb-path    path to adb command, can be obtained with [[get-adb-path]]
     device      device to install on, can be obtained with [[list-devices!]]
@@ -106,14 +108,11 @@ If it's already installed, configure its path in the Preferences' Tools pane." {
                 closed after use"
   [adb-path device package out]
   {:pre [(string? (:id device))]}
-  ;; Using monkey is a convenient way to launch an Android app using only its
-  ;; package name. See also: https://stackoverflow.com/a/25398877
   (let [process (process/start! {:err :stdout}
                                 adb-path
                                 "-s" (:id device)
-                                "shell" "monkey"
-                                "-p" package
-                                "-c" "android.intent.category.LAUNCHER" "1")]
+                                "shell" "am" "start"
+                                "-n" (str package "/com.dynamo.android.DefoldActivity"))]
     (process/pipe! (process/out process) out)
     (when-not (zero? (process/await-exit-code process))
       (throw (ex-info "Failed to launch the app" {:adb adb-path :device device :app package})))))

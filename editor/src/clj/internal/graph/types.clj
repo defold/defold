@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,10 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph.types
-  (:import [clojure.lang IHashEq Keyword]
+  (:import [clojure.lang IHashEq Keyword Murmur3 Util]
+           [com.defold.util WeakInterner]
            [java.io Writer]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defrecord Arc [source-id source-label target-id target-label])
 
@@ -27,33 +29,34 @@
 (defn target-label [^Arc arc] (.target-label arc))
 (defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
 
-(deftype Endpoint [^Long node-id ^Keyword label]
+(definline node-id-hash [node-id]
+  `(Murmur3/hashLong ~node-id))
+
+(deftype Endpoint [^long node-id ^Keyword label]
   Comparable
   (compareTo [_ that]
     (let [^Endpoint that that
-          node-id-comparison (.compareTo node-id (.-node-id that))]
+          node-id-comparison (Long/compare node-id (.-node-id that))]
       (if (zero? node-id-comparison)
         (.compareTo label (.-label that))
         node-id-comparison)))
   IHashEq
   (hasheq [_]
-    (unchecked-add-int
-      (unchecked-multiply-int 31 (.hashCode node-id))
+    (Util/hashCombine
+      (node-id-hash node-id)
       (.hasheq label)))
   Object
   (toString [_]
     (str "#g/endpoint [" node-id " " label "]"))
   (hashCode [_]
-    (unchecked-add-int
-      (unchecked-multiply-int 31 (.hashCode node-id))
+    (Util/hashCombine
+      (node-id-hash node-id)
       (.hasheq label)))
   (equals [this that]
     (or (identical? this that)
         (and (instance? Endpoint that)
-             (let [^Endpoint that that]
-               (and
-                 (.equals (.-node-id that) node-id)
-                 (.equals (.-label that) label)))))))
+             (= node-id (.-node-id ^Endpoint that))
+             (identical? label (.-label ^Endpoint that))))))
 
 (defmethod print-method Endpoint [^Endpoint ep ^Writer writer]
   (.write writer "#g/endpoint [")
@@ -62,11 +65,13 @@
   (.write writer (str (.-label ep)))
   (.write writer "]"))
 
-(defn- read-endpoint [[node-id-expr label-expr]]
-  `(->Endpoint ~node-id-expr ~label-expr))
+(defonce ^WeakInterner endpoint-interner (WeakInterner. 65536))
 
 (definline endpoint [node-id label]
-  `(->Endpoint ~node-id ~label))
+  `(.intern endpoint-interner (->Endpoint ~node-id ~label)))
+
+(defn- read-endpoint [[node-id-expr label-expr]]
+  `(endpoint ~node-id-expr ~label-expr))
 
 (definline endpoint-node-id [endpoint]
   `(.-node-id ~(with-meta endpoint {:tag `Endpoint})))

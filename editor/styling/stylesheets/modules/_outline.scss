@@ -2,18 +2,18 @@
 
 @mixin colorize-icon($color, $active-color) {
   &:filled {
-    .image-view {
+    & > .image-view {
       -fx-effect: innershadow(gaussian, $color, 20, 1.0, 0, 0);
     }
 
     &:hover {
-      .image-view {
+      & > .image-view {
         -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);
       }
     }
 
     &:selected {
-      .image-view {
+      & > .image-view {
         -fx-effect: innershadow(gaussian, $active-color, 20, 1.0, 0, 0);;
       }
     }
@@ -82,7 +82,7 @@
           -fx-opacity: 40%;
         }
       }
-      .image-view {
+      & > .image-view {
         -fx-opacity: 40%;
       }
       .text {

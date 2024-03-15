@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,18 +23,18 @@
 
 (defn dynamo-home [] (get (System/getenv) "DYNAMO_HOME"))
 
+;; this is universal packing for all the platforms, but we clenup it in bundle.py -> remove_platform_files_from_archive()
+
 ;; these can be sourced either from a local build of engine, or downloaded from an archived build on s3
 (def engine-artifacts
   {"x86_64-macos" {"bin" ["dmengine"]
                     "lib" ["libparticle_shared.dylib"]}
-   "x86-win32"     {"bin" ["dmengine.exe" "dmengine.pdb"]
-                    "lib" []}
+   "arm64-macos" {"bin" ["dmengine"]
+                  "lib" ["libparticle_shared.dylib"]}
    "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine.pdb"]
                     "lib" ["particle_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine"]
-                    "lib" ["libparticle_shared.so"]}
-   "arm64-ios"  {"bin" ["dmengine"]
-                    "lib" []}})
+                    "lib" ["libparticle_shared.so"]}})
 
 (defn- platform->engine-src-dirname [platform]
   (assert (contains? engine-artifacts platform))
@@ -57,11 +57,16 @@
    "${DYNAMO-HOME}/ext/bin/x86_64-macos/luajit-32"           "x86_64-macos/bin/luajit-32"
    "${DYNAMO-HOME}/ext/bin/x86_64-macos/luajit-64"           "x86_64-macos/bin/luajit-64"
 
+   "${DYNAMO-HOME}/ext/bin/arm64-macos/luajit-32"            "arm64-macos/bin/luajit-32"
+   "${DYNAMO-HOME}/ext/bin/arm64-macos/luajit-64"            "arm64-macos/bin/luajit-64"
+
    "$DYNAMO_HOME/ext/bin/x86_64-macos/glslc"                  "x86_64-macos/glslc"
+   "$DYNAMO_HOME/ext/bin/arm64-macos/glslc"                   "arm64-macos/glslc"
    "$DYNAMO_HOME/ext/bin/x86_64-linux/glslc"                  "x86_64-linux/glslc"
    "$DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe"              "x86_64-win32/glslc.exe"
 
    "$DYNAMO_HOME/ext/bin/x86_64-macos/spirv-cross"            "x86_64-macos/spirv-cross"
+   "$DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross"             "arm64-macos/spirv-cross"
    "$DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross"            "x86_64-linux/spirv-cross"
    "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"        "x86_64-win32/spirv-cross.exe"
 
@@ -90,11 +95,11 @@
 ;; Manually re-pack JOGL natives, so we can avoid JOGLs automatic
 ;; library loading, see DEFEDIT-494.
 
-(def java-platform->platform
-  {"linux-amd64"      "x86_64-linux"
-   "macosx-universal" "x86_64-macos"
-   "windows-amd64"    "x86_64-win32"
-   "windows-x64"      "x86_64-win32"})
+(def jogl-classifier->platforms
+  {"linux-amd64"      ["x86_64-linux"]
+   "macosx-universal" ["arm64-macos" "x86_64-macos"]
+   "windows-amd64"    ["x86_64-win32"]
+   "windows-x64"      ["x86_64-win32"]})
 
 (defn jar-file
   [[artifact version & {:keys [classifier]} :as dependency]]
@@ -119,11 +124,12 @@
     (with-open [zip-file (ZipFile. (jar-file dependency))]
       (doseq [entry (enumeration-seq (.entries zip-file))]
         (when (.startsWith (.getName entry) natives-path)
-          (let [libname (.getName (io/file (.getName entry)))
-                dest (io/file pack-path (java-platform->platform java-platform) "lib" libname)]
-            (println (format "extracting '%s'/'%s' to '%s'" (.getName zip-file) (.getName entry) dest))
-            (io/make-parents dest)
-            (io/copy (.getInputStream zip-file entry) dest)))))))
+          (let [libname (.getName (io/file (.getName entry)))]
+            (doseq [target-platform (jogl-classifier->platforms java-platform)]
+              (let [dest (io/file pack-path target-platform "lib" libname)]
+                (println (format "extracting '%s'/'%s' to '%s'" (.getName zip-file) (.getName entry) dest))
+                (io/make-parents dest)
+                (io/copy (.getInputStream zip-file entry) dest)))))))))
 
 (defn pack-jogl-natives
   [pack-path dependencies]

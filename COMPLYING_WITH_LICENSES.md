@@ -38,6 +38,7 @@ The following software has licenses which require inclusion of their respective 
     * [XHR2](/licenses/NOTICE-xhr2) - Used in HTML5 builds.
     * [xxtea-c](/licenses/NOTICE-xxtea) - Used internally in the engine to obfuscate/encode Lua source code. Included in all builds of Defold.
     * [cgltf](/licenses/NOTICE-cgltf) - Used when loading models in glTF format. Included in all builds.
+    * [lipo](https://github.com/konoui/lipo) - Used when building bundles for macOS and iOS. Included in all Editor/bob.jar builds.
   * Simplified BSD license (2-clause license)
     * [LZ4](/licenses/NOTICE-lz4) - Used internally by the engine to read game archives. Included in all builds.
   * BSD 2.0 license (3-clause license)
@@ -62,5 +63,6 @@ The following third party software has licenses which does not require inclusion
     * Box2D - Erin Catto
     * Bullet Physics - Erwin Coumans
     * GLFW - Marcus Geelnard, Camilla Löwy
+    * bindgen (Sokol) - Andre Weissflog
 
 NOTE: The Zlib license encourages attribution but does not require inclusion of the license.

@@ -1,12 +1,12 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;;
+;; 
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;;
+;; 
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -34,7 +34,7 @@
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
-           [com.dynamo.render.proto Font$FontMap]
+           [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
            [com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet]
@@ -132,7 +132,7 @@
                                    :scale [0.0 0.0 0.0 0.0], ; Default from legacy field added by editor.protobuf/field-desc-default. Not in actual Label$LabelDesc.
                                    :blend-mode :blend-mode-alpha,
                                    :leading 1.0,
-                                   :font "/builtins/fonts/system_font.fontc",
+                                   :font "/builtins/fonts/default.fontc",
                                    :size [128.0 32.0 0.0 0.0],
                                    :tracking 0.0,
                                    :material "/builtins/fonts/label.materialc",
@@ -179,7 +179,6 @@
                              (is (= (murmur/hash64 "Cube.006") (-> mesh-set :models first :id)))
 
                              (is (= 3 (count (:bones skeleton))))
-                             (is (= (set (:bone-list mesh-set)) (set (:bone-list animation-set))))
                              (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))
                              (is (contains? targets (:material (first (:materials pb)))))
                              (is (contains? targets (:texture (first (:textures (first (:materials pb)))))))))}]
@@ -198,7 +197,7 @@
                                   mesh-set (target (:mesh-set rig-scene) targets)]
                               (is (= "" (:texture-set rig-scene)))
                               (is (contains? targets (:material (first (:materials pb)))))
-                              (is (= "" (:texture (first (:textures (first (:materials pb)))))))
+                              (is (empty? (:textures (first (:materials pb)))))
 
                               (let [mesh (-> mesh-set :models first :meshes first)
                                     size (.size (:indices mesh))
@@ -481,15 +480,21 @@
   (testing "Building TTF font"
     (with-build-results "/fonts/score.font"
       (let [content (get content-by-source "/fonts/score.font")
-            desc (protobuf/bytes->map Font$FontMap content)]
-        (is (= 1024 (:cache-width desc)))
-        (is (= 256 (:cache-height desc))))))
+            desc (protobuf/bytes->map Font$FontMap content)
+            glyph-bank-build-path (workspace/build-path workspace (:glyph-bank desc))
+            glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
+            glyph-bank (protobuf/bytes->map Font$GlyphBank glyph-bank-bytes)]
+        (is (= 1024 (:cache-width glyph-bank)))
+        (is (= 256 (:cache-height glyph-bank))))))
   (testing "Building BMFont"
     (with-build-results "/fonts/gradient.font"
       (let [content (get content-by-source "/fonts/gradient.font")
-            desc (protobuf/bytes->map Font$FontMap content)]
-        (is (= 1024 (:cache-width desc)))
-        (is (= 512 (:cache-height desc)))))))
+            desc (protobuf/bytes->map Font$FontMap content)
+            glyph-bank-build-path (workspace/build-path workspace (:glyph-bank desc))
+            glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
+            glyph-bank (protobuf/bytes->map Font$GlyphBank glyph-bank-bytes)]
+        (is (= 1024 (:cache-width glyph-bank)))
+        (is (= 512 (:cache-height glyph-bank)))))))
 
 (deftest build-script
   (testing "Building a valid script succeeds"
@@ -613,7 +618,7 @@
         (is (= "/gui/gui.a.texturesetc" (get textures "main")))
         (is (= "/graphics/atlas.a.texturesetc" (get textures "sub_main"))))
       (let [fonts (zipmap (map :name (:fonts desc)) (map :font (:fonts desc)))]
-        (is (= "/builtins/fonts/system_font.fontc" (get fonts "system_font")))
+        (is (= "/builtins/fonts/default.fontc" (get fonts "default_font")))
         (is (= "/fonts/big_score.fontc" (get fonts "sub_font")))))))
 
 (deftest build-game-project
@@ -697,7 +702,7 @@
                                ;; Custom property
                                (check-project-setting built-properties ["custom" "love"] "defold")
 
-                               ;; project.dependencies entry should be removed
+                               ;; Non-responding project.dependencies entry should be removed
                                (check-project-setting built-properties ["project" "dependencies"] nil)
 
                                ;; Compiled resource

@@ -13,7 +13,7 @@ def build(bld):
         graphics_adapter = 'GraphicsAdapterVulkan'
 
     b = bld.program(features         = 'c cprogram cxx',
-                    use              = 'SOCKET HID INPUT DDF DLIB PROFILE_NULL DMGLFW X ' + graphics_lib,
+                    use              = 'SOCKET HID INPUT DDF DLIB PROFILE_NULL PLATFORM DMGLFW X ' + graphics_lib,
                     exported_symbols = [graphics_adapter],
                     source           = 'main.cpp',
                     target           = 'gdc')

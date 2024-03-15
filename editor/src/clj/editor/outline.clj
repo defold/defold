@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -126,11 +126,12 @@
   (let [src-node (.source-id arc)
         tgt-node (.target-id arc)
         tgt-label (.target-label arc)]
-    (and (or (= :child-outlines tgt-label)
-             (= :source-outline tgt-label))
-         (g/node-instance? basis OutlineNode tgt-node)
-         (not (and (g/node-instance? basis resource/ResourceNode src-node)
-                   (some? (resource/path (g/node-value src-node :resource (g/make-evaluation-context {:basis basis :cache c/null-cache})))))))))
+    (or (= :copied-nodes tgt-label)
+        (and (or (= :child-outlines tgt-label)
+                 (= :source-outline tgt-label))
+             (g/node-instance? basis OutlineNode tgt-node)
+             (not (and (g/node-instance? basis resource/ResourceNode src-node)
+                       (some? (resource/path (g/node-value src-node :resource (g/make-evaluation-context {:basis basis :cache c/null-cache}))))))))))
 
 (defn copy
   ([project src-item-iterators]

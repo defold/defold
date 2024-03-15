@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,7 +26,9 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.material :as material]
+            [editor.pipeline :as pipeline]
             [editor.pipeline.font-gen :as font-gen]
+            [editor.pipeline.fontc :as fontc]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -37,7 +39,7 @@
             [schema.core :as schema]
             [service.log :as log])
   (:import [com.dynamo.bob.font BMFont]
-           [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat]
+           [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -543,32 +545,47 @@
 (g/defnk produce-font-map [_node-id font type font-resource-map pb-msg]
   (make-font-map _node-id font type pb-msg (make-font-resource-resolver font font-resource-map)))
 
-(defn- build-font [resource _dep-resources user-data]
-  (let [{:keys [font type font-resource-map pb-msg]} user-data
-        font-resource-resolver (make-font-resource-resolver font font-resource-map)
-        font-map (make-font-map nil font type pb-msg font-resource-resolver)]
+(defn- build-glyph-bank [resource _dep-resources user-data]
+  (let [{:keys [font-map]} user-data]
     (g/precluding-errors
       [font-map]
       (let [compressed-font-map (font-gen/compress font-map)]
         {:resource resource
-         :content (protobuf/map->bytes Font$FontMap compressed-font-map)}))))
+         :content (protobuf/map->bytes Font$GlyphBank compressed-font-map)}))))
 
-(g/defnk produce-build-targets [_node-id resource font type font-resource-map font-resource-hashes pb-msg material dep-build-targets]
+(defn- make-glyph-bank-build-target [node-id glyph-bank-build-resource user-data]
+  (bt/with-content-hash
+    {:node-id node-id
+     :resource glyph-bank-build-resource
+     :build-fn build-glyph-bank
+     :user-data user-data}))
+
+(g/defnk produce-build-targets [_node-id resource font-map pb-msg material dep-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")]
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
-      [(bt/with-content-hash
-         {:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-font
-          :user-data {:font font
-                      :type type
-                      :pb-msg pb-msg
-                      :font-resource-map font-resource-map
-                      :font-resource-hashes font-resource-hashes}
-          :deps (flatten dep-build-targets)})]))
+      (let [workspace (resource/workspace resource)
+            glyph-bank-pb-fields (keys (protobuf/field-info Font$GlyphBank))
+            glyph-bank-user-data {:font-map (select-keys font-map glyph-bank-pb-fields)}
+            glyph-bank-resource-type (workspace/get-resource-type workspace "glyph_bank")
+            glyph-bank-resource (resource/make-memory-resource workspace glyph-bank-resource-type glyph-bank-user-data)
+            glyph-bank-build-resource (workspace/make-build-resource glyph-bank-resource)
+            glyph-bank-build-target (make-glyph-bank-build-target _node-id glyph-bank-build-resource glyph-bank-user-data)
+            dep-build-targets+glyph-bank (conj dep-build-targets glyph-bank-build-target)
+            protobuf-build-target (pipeline/make-protobuf-build-target resource dep-build-targets+glyph-bank
+                                                                       Font$FontMap
+                                                                       {:material (str (:material pb-msg) "c")
+                                                                        :glyph-bank (resource/proj-path glyph-bank-build-resource)
+                                                                        :shadow-x (:shadow-x pb-msg)
+                                                                        :shadow-y (:shadow-y pb-msg)
+                                                                        :alpha (:alpha pb-msg)
+                                                                        :outline-alpha (:outline-alpha pb-msg)
+                                                                        :shadow-alpha (:shadow-alpha pb-msg)
+                                                                        :layer-mask (fontc/font-desc->layer-mask pb-msg)}
+                                                                       nil)]
+        [(assoc protobuf-build-target :node-id _node-id)])))
 
 (g/defnode FontSourceNode
   (inherits resource-node/ResourceNode)
@@ -784,6 +801,8 @@
       :load-fn load-font
       :icon font-icon
       :view-types [:scene :text])
+    (workspace/register-resource-type workspace
+      :ext "glyph_bank")
     (workspace/register-resource-type workspace
       :ext font-file-extensions
       :label "Font"

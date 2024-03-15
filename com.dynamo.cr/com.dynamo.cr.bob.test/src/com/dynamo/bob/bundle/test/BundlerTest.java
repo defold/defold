@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,11 +23,8 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -67,6 +64,7 @@ import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.NullPublisher;
@@ -100,8 +98,10 @@ public class BundlerTest {
     public static Collection<Platform[]> data() {
         List<Platform[]> data = new ArrayList<>();
 
-        String skipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
-        if (skipTest != null) {
+        String envSkipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
+        String skipTest =  envSkipTest != null ? envSkipTest : System.getProperty("DM_BOB_BUNDLERTEST_ONLY_HOST");
+        // By default property is `${DM_BOB_BUNDLERTEST_ONLY_HOST}`
+        if (skipTest != null && !skipTest.equals("0") && !skipTest.equals("${DM_BOB_BUNDLERTEST_ONLY_HOST}")) {
             data.add(new Platform[]{Platform.getHostPlatform()});
         }
         else {
@@ -426,6 +426,9 @@ public class BundlerTest {
 
         // These aren't put in the DARC file, so we don't count up
         createFile(outputContentRoot, "builtins/graphics/default.texture_profiles", "");
+        createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "");
+        createFile(outputContentRoot, "builtins/manifests/web/light_theme.css", "");
+        createFile(outputContentRoot, "builtins/manifests/web/dark_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", "");
         createFile(outputContentRoot, "builtins/manifests/ios/LaunchScreen.storyboardc/Info.plist", "");
@@ -444,7 +447,7 @@ public class BundlerTest {
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        file.deleteOnExit();
+        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }
@@ -583,22 +586,22 @@ public class BundlerTest {
                 expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_wasm.js");
                 expectedFiles.add("unnamed.wasm");
-                expectedFiles.add("archive/game.arcd0");
-                expectedFiles.add("archive/game.arci0");
-                expectedFiles.add("archive/game.dmanifest0");
-                expectedFiles.add("archive/game.projectc0");
-                expectedFiles.add("archive/game.public.der0");
+                expectedFiles.add("archive/game0.arcd");
+                expectedFiles.add("archive/game0.arci");
+                expectedFiles.add("archive/game0.dmanifest");
+                expectedFiles.add("archive/game0.projectc");
+                expectedFiles.add("archive/game0.public.der");
                 expectedFiles.add("archive/archive_files.json");
                 break;
             case JsWeb:
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
                 expectedFiles.add("unnamed_asmjs.js");
-                expectedFiles.add("archive/game.arcd0");
-                expectedFiles.add("archive/game.arci0");
-                expectedFiles.add("archive/game.dmanifest0");
-                expectedFiles.add("archive/game.projectc0");
-                expectedFiles.add("archive/game.public.der0");
+                expectedFiles.add("archive/game0.arcd");
+                expectedFiles.add("archive/game0.arci");
+                expectedFiles.add("archive/game0.dmanifest");
+                expectedFiles.add("archive/game0.projectc");
+                expectedFiles.add("archive/game0.public.der");
                 expectedFiles.add("archive/archive_files.json");
                 break;
             case Armv7Android:

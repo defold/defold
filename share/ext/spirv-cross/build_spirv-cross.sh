@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2023 The Defold Foundation
+# Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,9 +32,11 @@ CMAKE_FLAGS="-DSPIRV_CROSS_SHARED=OFF ${CMAKE_FLAGS}"
 case $PLATFORM in
     arm64-macos)
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 ${CMAKE_FLAGS}"
         ;;
     x86_64-macos)
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 ${CMAKE_FLAGS}"
         ;;
 esac
 

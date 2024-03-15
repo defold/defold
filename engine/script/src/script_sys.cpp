@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,7 +16,22 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include <errno.h>
+#if !defined(DM_NO_ERRNO)
+    #if defined(__linux__) || defined(__MACH__)
+    #  include <sys/errno.h>
+    #elif defined(_WIN32)
+    #  include <errno.h>
+    #elif defined(__EMSCRIPTEN__)
+    #  include <unistd.h>
+    #else
+    #  include <errno.h>
+    #endif
+#endif
+
+#ifdef _WIN32
+#include <direct.h>
+#include <malloc.h>
+#endif
 
 #include <dlib/dstrings.h>
 #include <dlib/sys.h>
@@ -113,7 +128,7 @@ union SaveLoadBuffer
      * ```
      */
 
-    int Sys_Save(lua_State* L)
+    static int Sys_Save(lua_State* L)
     {
         const char* filename = luaL_checkstring(L, 1);
 
@@ -146,9 +161,13 @@ union SaveLoadBuffer
         if (!file)
         {
             Sys_FreeTableSerializationBuffer(buffer);
-            char errmsg[128] = {};
-            dmStrError(errmsg, sizeof(errmsg), errno);
-            return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
+            #if !defined(DM_NO_ERRNO)
+                char errmsg[128] = {};
+                dmStrError(errmsg, sizeof(errmsg), errno);
+                return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
+            #else
+                return luaL_error(L, "Could not open the file %s", tmp_filename);
+            #endif
         }
 
         bool result = fwrite(buffer, 1, n_used, file) == n_used;
@@ -212,7 +231,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_Load(lua_State* L)
+    static int Sys_Load(lua_State* L)
     {
         const char* filename = luaL_checkstring(L, 1);
         FILE* file = fopen(filename, "rb");
@@ -241,6 +260,32 @@ union SaveLoadBuffer
         }
         PushTable(L, buffer, nread);
         Sys_FreeTableSerializationBuffer(buffer);
+        return 1;
+    }
+
+    /*# check if a path exists
+     * Check if a path exists
+     * Good for checking if a file exists before loading a large file
+     *
+     * @name sys.exists
+     * @param path [type:string] path to check
+     * @return result [type:bool] `true` if the path exists, `false` otherwise
+     * @examples
+     *
+     * Load data but return nil if path didn't exist
+     *
+     * ```lua
+     * if not sys.exists(path) then
+     *     return nil
+     * end
+     * return sys.load(path) -- returns {} if it failed
+     * ```
+     */
+    static int Sys_Exists(lua_State* L)
+    {
+        const char* path = luaL_checkstring(L, 1);
+        bool result = dmSys::Exists(path);
+        lua_pushboolean(L, result);
         return 1;
     }
 
@@ -295,7 +340,7 @@ union SaveLoadBuffer
      * print(my_file_path) --> /Users/my_users/Library/Application Support/my_game/my_file
      * ```
      */
-    int Sys_GetSaveFile(lua_State* L)
+    static int Sys_GetSaveFile(lua_State* L)
     {
         const char* application_id = luaL_checkstring(L, 1);
 
@@ -352,7 +397,7 @@ union SaveLoadBuffer
      * print(application_path) --> http://www.foobar.com/my_game
      * ```
      */
-    int Sys_GetApplicationPath(lua_State* L)
+    static int Sys_GetApplicationPath(lua_State* L)
     {
         char application_path[4096 + 2]; // Linux PATH_MAX is defined to 4096. Windows MAX_PATH is 260.
         dmSys::Result r = dmSys::GetApplicationPath(application_path, sizeof(application_path));
@@ -538,7 +583,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_OpenURL(lua_State* L)
+    static int Sys_OpenURL(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1)
         int top = lua_gettop(L);
@@ -570,7 +615,7 @@ union SaveLoadBuffer
      *
      * Loads a custom resource. Specify the full filename of the resource that you want
      * to load. When loaded, the file data is returned as a string.
-     * If loading fails, the function returns nil plus the error message.
+     * If loading fails, the function returns `nil` plus the error message.
      *
      * In order for the engine to include custom resources in the build process, you need
      * to specify them in the "custom_resources" key in your "game.project" settings file.
@@ -582,8 +627,8 @@ union SaveLoadBuffer
      *
      * @name sys.load_resource
      * @param filename [type:string] resource to load, full path
-     * @return data [type:string] loaded data, or `nil` if the resource could not be loaded
-     * @return error [type:string] the error message, or `nil` if no error occurred
+     * @return data [type:string|nil] loaded data, or `nil` if the resource could not be loaded
+     * @return error [type:string|nil] the error message, or `nil` if no error occurred
      * @examples
      *
      * ```lua
@@ -598,7 +643,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_LoadResource(lua_State* L)
+    static int Sys_LoadResource(lua_State* L)
     {
         int top = lua_gettop(L);
         const char* filename = luaL_checkstring(L, 1);
@@ -764,7 +809,7 @@ union SaveLoadBuffer
      * gui.set_text(gui.get_node("version"), version_str)
      * ```
      */
-    int Sys_GetEngineInfo(lua_State* L)
+    static int Sys_GetEngineInfo(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -833,7 +878,7 @@ union SaveLoadBuffer
      * ...
      * ```
      */
-    int Sys_GetApplicationInfo(lua_State* L)
+    static int Sys_GetApplicationInfo(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -896,7 +941,7 @@ union SaveLoadBuffer
      * end
      * ```
      */
-    int Sys_GetIfaddrs(lua_State* L)
+    static int Sys_GetIfaddrs(lua_State* L)
     {
         int top = lua_gettop(L);
         const uint32_t max_count = 16;
@@ -1018,7 +1063,7 @@ union SaveLoadBuffer
      *end
      * ```
      */
-    int Sys_SetErrorHandler(lua_State* L)
+    static int Sys_SetErrorHandler(lua_State* L)
     {
         int top = lua_gettop(L);
         luaL_checktype(L, 1, LUA_TFUNCTION);
@@ -1379,6 +1424,7 @@ union SaveLoadBuffer
     {
         {"save", Sys_Save},
         {"load", Sys_Load},
+        {"exists", Sys_Exists},
         {"get_host_path", Sys_GetHostPath},
         {"get_save_file", Sys_GetSaveFile},
         {"get_config", Sys_GetConfigString}, // deprecated

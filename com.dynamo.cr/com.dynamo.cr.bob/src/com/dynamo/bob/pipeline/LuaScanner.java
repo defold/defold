@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,9 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -33,7 +30,6 @@ import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
-import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.bob.pipeline.antlr.lua.LuaParser;
@@ -41,13 +37,12 @@ import com.dynamo.bob.pipeline.antlr.lua.LuaLexer;
 import com.dynamo.bob.pipeline.antlr.lua.LuaParserBaseListener;
 
 import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.antlr.v4.runtime.TokenStreamRewriter;
 
 public class LuaScanner extends LuaParserBaseListener {
 
@@ -79,13 +74,25 @@ public class LuaScanner extends LuaParserBaseListener {
         }
     ));
 
+    private static final Set<String> LIFECYCLE_FUNCTIONS = new HashSet<String>(Arrays.asList(
+        new String[] {
+            "init",
+            "final",
+            "update",
+            "fixed_update",
+            "on_message",
+            "on_input",
+            "on_reload"
+        }
+    ));
+
     private static final Map<Integer, String> QUOTES = new HashMap<Integer, String>() {{
         put(LuaParser.NORMALSTRING, "\"");
         put(LuaParser.CHARSTRING, "'");
     }};
 
-    private StringBuffer parsedBuffer = null;
     private CommonTokenStream tokenStream = null;
+    private TokenStreamRewriter rewriter;
 
     private List<String> modules = new ArrayList<String>();
     private List<Property> properties = new ArrayList<Property>();
@@ -168,20 +175,38 @@ public class LuaScanner extends LuaParserBaseListener {
         modules.clear();
         properties.clear();
 
-        parsedBuffer = new StringBuffer(str);
-
         // set up the lexer and parser
         // walk the generated parse tree from the
         // first Lua chunk
 
         LuaLexer lexer = new LuaLexer(CharStreams.fromString(str));
         tokenStream = new CommonTokenStream(lexer);
+        rewriter = new TokenStreamRewriter(tokenStream);
+        
+        // Remove comments in rewriter
+        tokenStream.fill();
+        for (Token token : tokenStream.getTokens()) {
+             if (token.getChannel() == LuaLexer.COMMENTS) {
+                int type = token.getType();
+                if (type == LuaLexer.LINE_COMMENT) {
+                    // Single line comment
+                    rewriter.replace(token, System.lineSeparator());
+                }
+                else if (type == LuaLexer.COMMENT) {
+                    // Multiline comment
+                    rewriter.replace(token, System.lineSeparator().repeat(token.getText().split("\r\n|\r|\n").length - 1));
+                }
+             }
+        }
+
+        // parse code
         LuaParser parser = new LuaParser(tokenStream);
         ParseTreeWalker walker = new ParseTreeWalker();
         walker.walk(this, parser.chunk());
+        String resultText = rewriter.getText();
         TimeProfiler.stop();
         // return the parsed string
-        return parsedBuffer.toString();
+        return resultText;
     }
 
     /**
@@ -189,7 +214,7 @@ public class LuaScanner extends LuaParserBaseListener {
      * @return The parsed Lua code
      */
     public String getParsedLua() {
-        return parsedBuffer.toString();
+        return rewriter.getText();
     }
 
     /**
@@ -226,10 +251,29 @@ public class LuaScanner extends LuaParserBaseListener {
 
     // replace the token with an empty string
     private void removeToken(Token token) {
-        int from = token.getStartIndex();
-        int to = from + token.getText().length() - 1;
-        for(int i = from; i <= to; i++) {
-            parsedBuffer.replace(i, i + 1, " ");
+        rewriter.delete(token);
+    }
+
+    private void removeTokens(List<Token> tokens) {
+        for (Token token : tokens) {
+            removeToken(token);
+        }
+    }
+
+    private void removeTokens(List<Token> tokens, boolean shouldRemoveSemicolonAfter) {
+        int lastTokenIndex = tokens.get(tokens.size() - 1).getTokenIndex();
+        removeTokens(tokens);
+        if (shouldRemoveSemicolonAfter) {
+            int nextTokenIndex = lastTokenIndex + 1;
+            Token token = rewriter.getTokenStream().get(nextTokenIndex);
+             /**
+             * We use this to remove semicolon statements in the end of line;
+             * The semicolon may cause problems if it is at the end of a go.property call
+             * as it will be removed after it has been parsed.
+             */
+            if (token != null && token.getType() == LuaLexer.SEMICOLON) {
+                removeToken(token);
+            }
         }
     }
 
@@ -287,23 +331,7 @@ public class LuaScanner extends LuaParserBaseListener {
     }
 
     /**
-     * Callback from ANTLR when a Lua chunk is encountered. We start from the
-     * main chunk when we call parse() above. This means that the ChunkContext
-     * will span the entire file and encompass all ANTLR tokens.
-     * We use this callback to remove all comments.
-     */
-    @Override
-    public void enterChunk(LuaParser.ChunkContext ctx) {
-        List<Token> tokens = getTokens(ctx);
-        for(Token token : tokens) {
-            if (token.getChannel() == LuaLexer.COMMENT) {
-                removeToken(token);
-            }
-        }
-    }
-
-    /**
-     * Callback from ANTLR when a function is entered. We use this to grab all
+     * Callback from ANTLR when a function call is entered. We use this to grab all
      * require() calls and all go.property() calls.
      */
     @Override
@@ -341,10 +369,34 @@ public class LuaScanner extends LuaParserBaseListener {
             properties.add(property);
 
             // strip property from code
-            for (Token token : tokens) {
-                removeToken(token);
-            }
+            removeTokens(tokens, true);
+        }
+    }
 
+    /**
+     * Callback from ANTLR when a function is entered. We use this to grab and remove
+     * all empty lifecycle functions. 
+     */
+    @Override
+    public void enterFunctionstat(LuaParser.FunctionstatContext ctx) {
+        TerminalNode funcName = ctx.funcname().NAME(1);
+        TerminalNode objName = null;
+        if (funcName == null) {
+            funcName = ctx.funcname().NAME(0);
+        }
+        else {
+            objName = ctx.funcname().NAME(0);
+        }
+        if (objName == null || objName.getText().equals("_G")) {
+            for(String name: LIFECYCLE_FUNCTIONS) {
+                if (funcName.getText().equals(name)) {
+                    LuaParser.BlockContext blockCtx = ctx.funcbody().block();
+                    if (blockCtx.stat().isEmpty() && blockCtx.retstat() == null) {
+                        List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
+                        removeTokens(tokens);
+                    }
+                }
+            }
         }
     }
 
@@ -431,22 +483,4 @@ public class LuaScanner extends LuaParserBaseListener {
         }
         return result;
     }
-
-    /**
-     * Callback from ANTLR when a statement is entered. We use this to remove
-     * any stand-alone semicolon statements. The semicolon may cause problems
-     * if it is at the end of a go.property call as it will be removed after it
-     * has been parsed.
-     * Note that semicolons used as field or return separators are not affected.
-     */
-    @Override public void enterStat(LuaParser.StatContext ctx) {
-        List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
-        if (tokens.size() == 1) {
-            Token token = tokens.get(0);
-            if (token.getText().equals(";")) {
-                removeToken(token);
-            }
-        }
-    }
-
 }

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,9 +21,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -42,7 +39,6 @@ import org.apache.commons.lang3.ArrayUtils;
 
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Matrix4f;
-import javax.vecmath.Point3d;
 import javax.vecmath.Point3f;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
@@ -84,17 +80,11 @@ import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.bob.util.RigUtil.Weight;
 import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.proto.DdfMath.Point3;
-import com.dynamo.proto.DdfMath.Quat;
-import com.dynamo.proto.DdfMath.Vector3;
-import com.dynamo.proto.DdfMath.Matrix4;
 import com.dynamo.proto.DdfMath.Transform;
 
 import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
 import com.dynamo.rig.proto.Rig.AnimationSetDesc;
-import com.dynamo.rig.proto.Rig.Model;
-import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 
 public class ColladaUtil {
@@ -332,6 +322,7 @@ public class ColladaUtil {
     }
 
     public static void createAnimationTracks(Rig.RigAnimation.Builder animBuilder,
+                                             String boneName,
                                              Bone bone,
                                              RigUtil.AnimationTrack posTrack,
                                              RigUtil.AnimationTrack rotTrack,
@@ -340,7 +331,7 @@ public class ColladaUtil {
         double spf = 1.0 / sampleRate;
 
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
-        animTrackBuilder.setBoneId(MurmurHash.hash64(bone.getSourceId()));
+        animTrackBuilder.setBoneId(MurmurHash.hash64(boneName));
 
         samplePosTrack(animBuilder, animTrackBuilder, posTrack, duration, startTime, sampleRate, spf, true);
         sampleRotTrack(animBuilder, animTrackBuilder, rotTrack, duration, startTime, sampleRate, spf, true);
@@ -422,6 +413,12 @@ public class ColladaUtil {
             if (refIndex == null)
                 continue;
 
+            String boneName = bone.getSourceId();
+            if (bi == 0 || refIndex == 0)
+            {
+                boneName = "root";
+            }
+
             Matrix4d localToParent = getBoneLocalToParent(bone);
             AssetSpace assetSpace = getAssetSpace(collada.asset);
             if (bi != 0) {
@@ -449,7 +446,7 @@ public class ColladaUtil {
 
                     ExtractKeys(bone, localToParent, assetSpace, animation, posTrack, rotTrack, sclTrack);
 
-                    createAnimationTracks(animBuilder, bone, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
+                    createAnimationTracks(animBuilder, boneName, bone, posTrack, rotTrack, sclTrack, refIndex, (float)duration, sceneStartTime, sceneFrameRate);
 
                     break; // we only support one animation per file/bone
                 }
@@ -529,8 +526,6 @@ public class ColladaUtil {
             Long boneRef = MurmurHash.hash64(boneId);
             boneRefMap.put(boneRef, boneIndex);
             ++boneIndex;
-
-            animationSetBuilder.addBoneList(boneRef);
         }
 
         // Animation clips
@@ -555,7 +550,7 @@ public class ColladaUtil {
                 }
 
                 String boneTarget = animation.getTargetBone();
-                if (!boneToAnimations.containsKey(animation.getTargetBone())) {
+                if (!boneToAnimations.containsKey(boneTarget)) {
                     boneToAnimations.put(boneTarget, new ArrayList<XMLAnimation>());
                 }
                 boneToAnimations.get(boneTarget).add(animation);
@@ -984,10 +979,10 @@ public class ColladaUtil {
         meshSetBuilder.addModels(modelBuilder);
         meshSetBuilder.setMaxBoneCount(max_bone_count);
 
-        List<String> boneRefArray = createBoneReferenceList(collada);
-        if (boneRefArray != null && !boneRefArray.isEmpty()) {
-            for (int i = 0; i < boneRefArray.size(); i++) {
-                meshSetBuilder.addBoneList(MurmurHash.hash64(boneRefArray.get(i)));
+        ArrayList<ModelImporter.Bone> bones = loadSkeleton(collada);
+        if (bones != null) {
+            for (ModelImporter.Bone bone : bones) {
+                meshSetBuilder.addBoneList(MurmurHash.hash64(bone.name));
             }
         }
     }
@@ -1286,14 +1281,20 @@ public class ColladaUtil {
     private static void toDDF(ArrayList<com.dynamo.rig.proto.Rig.Bone> ddfBones, Bone bone, int parentIndex, Matrix4d parentWorldTransform) {
         com.dynamo.rig.proto.Rig.Bone.Builder b = com.dynamo.rig.proto.Rig.Bone.newBuilder();
 
-        b.setName(bone.getName());
+        // We'd like to do it outside, but since the Bone instances are read-only, we cannot do it.
+        if (parentIndex == BONE_NO_PARENT) {
+            b.setName("root");
+            b.setId(MurmurHash.hash64("root"));
+        } else {
+            b.setName(bone.getName());
+            b.setId(MurmurHash.hash64(bone.getSourceId()));
+        }
+
         b.setParent(parentIndex);
-        b.setId(MurmurHash.hash64(bone.getSourceId()));
 
         Matrix4d localMatrix = getBoneLocalToParent(bone);
         if (!validateMatrix4d(localMatrix)) {
             logger.severe(String.format("Found invalid local matrix in bone '%s', replacing with identity matrix", bone.getName()));
-            System.out.printf("'%s' local matrix:\n", bone.getName());
             printMatrix4d(localMatrix);
             localMatrix.setIdentity();
         }
@@ -1303,7 +1304,6 @@ public class ColladaUtil {
 
         if (!validateMatrix4d(worldMatrix)) {
             logger.severe(String.format("Found invalid world matrix in bone '%s', replacing with identity matrix", bone.getName()));
-            System.out.printf("'%s' world matrix:\n", bone.getName());
             printMatrix4d(worldMatrix);
             worldMatrix.setIdentity();
         }
@@ -1458,6 +1458,27 @@ public class ColladaUtil {
         return loadDAE(is);
     }
 
+    private static void flattenBoneTree(Bone colladaBone, ModelImporter.Bone parent, ArrayList<ModelImporter.Bone> out) {
+        String originalName = colladaBone.getSourceId();
+        String newName = originalName;
+        if (parent == null)
+            newName = "root";
+
+        ModelImporter.Bone bone = new ModelImporter.Bone();
+        bone.name           = newName;
+        bone.parent         = parent;
+        bone.node           = null;
+        bone.index          = out.size();
+        bone.invBindPose    = null;
+
+        out.add(bone);
+
+        for (int i = 0 ; i < colladaBone.numChildren(); ++i) {
+            Bone child = colladaBone.getChild(i);
+            flattenBoneTree(child, bone, out);
+        }
+    }
+
     public static ArrayList<ModelImporter.Bone> loadSkeleton(XMLCOLLADA scene) throws IOException, XMLStreamException, LoaderException  {
         ArrayList<String> boneIds = new ArrayList<>();
         ArrayList<Bone> colladaBones = loadSkeleton(scene, boneIds);
@@ -1466,17 +1487,7 @@ public class ColladaUtil {
             return null;
 
         ArrayList<ModelImporter.Bone> bones = new ArrayList<>();
-        for (Bone colladaBone : colladaBones)
-        {
-            ModelImporter.Bone bone = new ModelImporter.Bone();
-            bone.name           = colladaBone.getSourceId();
-            bone.parent         = null; // Do we need it in the editor?
-            bone.node           = null;
-            bone.index          = bones.size();
-            bone.invBindPose    = null;
-
-            bones.add(bone);
-        }
+        flattenBoneTree(colladaBones.get(0), null, bones);
         return bones;
     }
 

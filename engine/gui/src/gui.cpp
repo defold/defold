@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -74,6 +74,8 @@ namespace dmGui
     const uint64_t INDEX_SHIFT = 0;
     const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
+    // Counter used when assigning an id to a cloned node
+    static uint32_t g_ClonedNodeCount = 0;
 
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
@@ -97,13 +99,6 @@ namespace dmGui
     { dmHashString64(#name ".z"), prop, 2 }, \
     { dmHashString64(#name ".w"), prop, 3 },
 
-    struct PropDesc
-    {
-        dmhash_t m_Hash;
-        Property m_Property;
-        uint8_t  m_Component;
-    };
-
     PropDesc g_Properties[] = {
             PROP(position, PROPERTY_POSITION )
             PROP(rotation, PROPERTY_ROTATION )
@@ -113,6 +108,7 @@ namespace dmGui
             PROP(outline, PROPERTY_OUTLINE )
             PROP(shadow, PROPERTY_SHADOW )
             PROP(slice9, PROPERTY_SLICE9 )
+            PROP(euler, PROPERTY_EULER )
             { dmHashString64("inner_radius"), PROPERTY_PIE_PARAMS, 0 },
             { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
             { dmHashString64("leading"), PROPERTY_TEXT_PARAMS, 0 },
@@ -129,9 +125,10 @@ namespace dmGui
             { dmHashString64("outline"), PROPERTY_OUTLINE, 0xff },
             { dmHashString64("shadow"), PROPERTY_SHADOW, 0xff },
             { dmHashString64("slice"), PROPERTY_SLICE9, 0xff },
+            { dmHashString64("euler"), PROPERTY_EULER, 0xff },
     };
 
-    static PropDesc* GetPropertyDesc(dmhash_t property_hash)
+    PropDesc* GetPropertyDesc(dmhash_t property_hash)
     {
         int n_props = sizeof(g_Properties) / sizeof(g_Properties[0]);
         for (int i = 0; i < n_props; ++i) {
@@ -186,6 +183,7 @@ namespace dmGui
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
+        context->m_HidContext = params->m_HidContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
         context->m_ScratchBoneNodes.SetCapacity(32);
 
@@ -276,11 +274,6 @@ namespace dmGui
     void SetDisplayProfiles(HContext context, void* display_profiles)
     {
         context->m_DisplayProfiles = display_profiles;
-    }
-
-    void SetDefaultFont(HContext context, void* font)
-    {
-        context->m_DefaultFont = font;
     }
 
     void SetSceneAdjustReference(HScene scene, AdjustReference adjust_reference)
@@ -445,19 +438,19 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    Result AddTexture(HScene scene, dmhash_t texture_name_hash, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    Result AddTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
         if (scene->m_Textures.Full())
             return RESULT_OUT_OF_RESOURCES;
 
-        scene->m_Textures.Put(texture_name_hash, TextureInfo(texture, texture_type, original_width, original_height));
+        scene->m_Textures.Put(texture_name_hash, TextureInfo(texture_source, texture_type, original_width, original_height));
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
             if (nodes[i].m_Node.m_TextureHash == texture_name_hash)
             {
-                nodes[i].m_Node.m_Texture     = texture;
+                nodes[i].m_Node.m_Texture     = texture_source;
                 nodes[i].m_Node.m_TextureType = texture_type;
             }
         }
@@ -502,7 +495,7 @@ namespace dmGui
         }
     }
 
-    void* GetTexture(HScene scene, dmhash_t texture_name_hash)
+    HTextureSource GetTexture(HScene scene, dmhash_t texture_name_hash)
     {
         TextureInfo* textureInfo = scene->m_Textures.Get(texture_name_hash);
         if (!textureInfo)
@@ -537,6 +530,31 @@ namespace dmGui
         return true;
     }
 
+    static Result MakeDynamicTextureData(DynamicTexture* dynamic_texture, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    {
+        assert(dynamic_texture->m_Buffer == 0x0);
+        dynamic_texture->m_Buffer = malloc(buffer_size);
+
+        if (flip)
+        {
+            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)dynamic_texture->m_Buffer))
+            {
+                free(dynamic_texture->m_Buffer);
+                dynamic_texture->m_Buffer = 0;
+                return RESULT_DATA_ERROR;
+            }
+        }
+        else
+        {
+            memcpy(dynamic_texture->m_Buffer, buffer, buffer_size);
+        }
+
+        dynamic_texture->m_Width  = width;
+        dynamic_texture->m_Height = height;
+        dynamic_texture->m_Type   = type;
+        return RESULT_OK;
+    }
+
     Result NewDynamicTexture(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
         uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
@@ -545,11 +563,15 @@ namespace dmGui
             return RESULT_INVAL_ERROR;
         }
 
-        if (DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash)) {
-            if (t->m_Deleted) {
+        if (DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash))
+        {
+            if (t->m_Deleted)
+            {
                 t->m_Deleted = 0;
-                return RESULT_OK;
-            } else {
+                return MakeDynamicTextureData(t, width, height, type, flip, buffer, buffer_size);
+            }
+            else
+            {
                 return RESULT_TEXTURE_ALREADY_EXISTS;
             }
         }
@@ -559,19 +581,12 @@ namespace dmGui
         }
 
         DynamicTexture t(0);
-        t.m_Buffer = malloc(buffer_size);
-        if (flip) {
-            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)t.m_Buffer)) {
-                free(t.m_Buffer);
-                t.m_Buffer = 0;
-                return RESULT_DATA_ERROR;
-            }
-        } else {
-            memcpy(t.m_Buffer, buffer, buffer_size);
+
+        Result res = MakeDynamicTextureData(&t, width, height, type, flip, buffer, buffer_size);
+        if (res != RESULT_OK)
+        {
+            return res;
         }
-        t.m_Width = width;
-        t.m_Height = height;
-        t.m_Type = type;
 
         scene->m_DynamicTextures.Put(texture_hash, t);
 
@@ -614,22 +629,7 @@ namespace dmGui
         }
 
         DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - (buffer_size / 1024.0 / 1024.0));
-
-        t->m_Buffer = malloc(buffer_size);
-        if (flip) {
-            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)t->m_Buffer)) {
-                free(t->m_Buffer);
-                t->m_Buffer = 0;
-                return RESULT_DATA_ERROR;
-            }
-        } else {
-            memcpy(t->m_Buffer, buffer, buffer_size);
-        }
-        t->m_Width = width;
-        t->m_Height = height;
-        t->m_Type = type;
-
-        return RESULT_OK;
+        return MakeDynamicTextureData(t, width, height, type, flip, buffer, buffer_size);
     }
 
     Result GetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer)
@@ -1068,7 +1068,7 @@ namespace dmGui
             if (texture->m_Handle) {
                 float buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024.0 / 1024.0;
                 DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
-                params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
+                params->m_Params->m_DeleteTexture(scene, texture->m_Handle, NODE_TEXTURE_TYPE_DYNAMIC, context);
             }
             if (scene->m_DeletedDynamicTextures.Full()) {
                 scene->m_DeletedDynamicTextures.OffsetCapacity(16);
@@ -1126,7 +1126,7 @@ namespace dmGui
             if (texture.m_Handle) {
                 float buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type) / 1024.0 / 1024.0;
                 DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
-                delete_texture(scene, texture.m_Handle, scene->m_Context);
+                delete_texture(scene, texture.m_Handle, NODE_TEXTURE_TYPE_DYNAMIC, scene->m_Context);
             }
         }
         scene->m_DynamicTextures.Clear();
@@ -1147,6 +1147,20 @@ namespace dmGui
                     node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
                     // Do not break here. Texture may be used multiple times.
                 }
+            }
+        }
+    }
+
+    void IterateDynamicTextures(dmhash_t gui_res_id, HScene scene, FDynamicTextturesIterator callback, void* user_ctx)
+    {
+        dmHashTable64<DynamicTexture>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
+        while(dynamic_textures_iter.Next())
+        {
+            const DynamicTexture texture = dynamic_textures_iter.GetValue();
+            uint32_t size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type);
+            bool result = callback(gui_res_id, dynamic_textures_iter.GetKey(), size, user_ctx);
+            if (!result) {
+                break;
             }
         }
     }
@@ -1341,10 +1355,11 @@ namespace dmGui
             render_entries.Push(e);
 
         uint16_t index = start_index;
-
+        uint32_t active_nodes = 0;
         while (index != INVALID_INDEX) {
             InternalNode* n = &scene->m_Nodes[index];
             if (n->m_Node.m_Enabled) {
+                ++active_nodes;
                 HNode node = GetNodeHandle(n);
                 uint16_t layer = GetLayerIndex(scene, n);
                 if (n->m_ClipperIndex != INVALID_INDEX) {
@@ -1417,6 +1432,7 @@ namespace dmGui
         }
         #undef PUSH_RENDER_ENTRY
 
+        DM_PROPERTY_ADD_U32(rmtp_GuiActiveNodes, active_nodes);
         return order;
     }
 
@@ -2168,7 +2184,6 @@ namespace dmGui
         UpdateAnimations(scene, dt);
 
         uint32_t total_nodes = 0;
-        uint32_t active_nodes = 0;
         node_count = scene->m_Nodes.Size();
         nodes      = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < node_count; ++i)
@@ -2185,9 +2200,6 @@ namespace dmGui
             else if (node->m_Index != INVALID_INDEX)
             {
                 ++total_nodes;
-                if (node->m_Node.m_Enabled)
-                    ++active_nodes;
-
                 if (node->m_Node.m_CustomType != 0)
                 {
                     scene->m_UpdateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(node),
@@ -2242,7 +2254,6 @@ namespace dmGui
         }
 
         DM_PROPERTY_ADD_U32(rmtp_GuiNodes, total_nodes);
-        DM_PROPERTY_ADD_U32(rmtp_GuiActiveNodes, active_nodes);
         DM_PROPERTY_ADD_U32(rmtp_GuiStaticTextures, scene->m_Textures.Size());
         DM_PROPERTY_ADD_U32(rmtp_GuiDynamicTextures, scene->m_DynamicTextures.Size());
         DM_PROPERTY_ADD_U32(rmtp_GuiTextures, scene->m_Textures.Size() + scene->m_DynamicTextures.Size());
@@ -2388,6 +2399,7 @@ namespace dmGui
         node->m_Node.m_Properties[PROPERTY_SLICE9] = Vector4(0,0,0,0);
         node->m_Node.m_Properties[PROPERTY_PIE_PARAMS] = Vector4(0,360,0,0);
         node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 0, 0);
+        node->m_Node.m_Properties[PROPERTY_EULER] = Vector4(0);
         node->m_Node.m_LocalTransform = Matrix4::identity();
         node->m_Node.m_LocalAdjustScale = Vector4(1.0, 1.0, 1.0, 1.0);
         node->m_Node.m_PerimeterVertices = 32;
@@ -2770,9 +2782,11 @@ namespace dmGui
             reference_scale = CalculateReferenceScale(scene, n);
             AdjustPosScale(scene, n, reference_scale, position, node.m_LocalAdjustScale);
         }
-        const Vector3& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION].getXYZ();
-        Quat r = dmVMath::EulerToQuat(rotation);
-        r = normalize(r);
+
+        // const Vector3& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION].getXYZ();
+        // Quat r = dmVMath::EulerToQuat(rotation);
+        // r = normalize(r);
+        Quat r(node.m_Properties[dmGui::PROPERTY_ROTATION]);
 
         node.m_LocalTransform.setUpper3x3(Matrix3::rotation(r) * Matrix3::scale( mulPerElem(node.m_LocalAdjustScale, prop_scale).getXYZ() ));
         node.m_LocalTransform.setTranslation(position.getXYZ());
@@ -2893,6 +2907,19 @@ namespace dmGui
     {
         assert(property < PROPERTY_COUNT);
         InternalNode* n = GetNode(scene, node);
+
+        if (property == PROPERTY_EULER)
+        {
+            dmVMath::Quat qr = dmVMath::EulerToQuat(value.getXYZ());
+            n->m_Node.m_Properties[PROPERTY_ROTATION] = dmVMath::Vector4(qr);
+        }
+        else if (property == PROPERTY_ROTATION)
+        {
+            Quat q = dmVMath::Quat(value);
+            Vector4 v = Vector4(dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW()));
+            n->m_Node.m_Properties[PROPERTY_EULER] = v;
+        }
+
         n->m_Node.m_Properties[property] = value;
         n->m_Node.m_DirtyLocal = 1;
     }
@@ -2969,7 +2996,7 @@ namespace dmGui
         return n->m_Node.m_MaterialNameHash;
     }
 
-    void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
+    HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         InternalNode* n = GetNode(scene, node);
         *textureTypeOut = n->m_Node.m_TextureType;
@@ -3055,7 +3082,7 @@ namespace dmGui
         return SetNodeTexture(scene, node, dmHashString64(texture_id));
     }
 
-    Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, void* texture)
+    Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, HTextureSource texture)
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_TextureHash = (uintptr_t)texture;
@@ -4220,10 +4247,15 @@ namespace dmGui
         InternalNode* out_n = &scene->m_Nodes[index];
         memset(out_n, 0, sizeof(InternalNode));
 
+        // generate a name for the cloned node
+        char name[18];
+        dmSnPrintf(name, 18, "__node%d", g_ClonedNodeCount++);
+
         InternalNode* n = GetNode(scene, node);
         out_n->m_Node = n->m_Node;
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
+        out_n->m_NameHash = dmHashString64(name);
         out_n->m_Version = version;
         out_n->m_Index = index;
         out_n->m_SceneTraversalCacheVersion = INVALID_INDEX;

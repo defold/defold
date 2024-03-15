@@ -1,4 +1,4 @@
-;; Copyright 2020-2023 The Defold Foundation
+;; Copyright 2020-2024 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -111,6 +111,7 @@
 
 (defn platform-supported? [updater]
   (contains? #{Platform/X86_64Linux
+               Platform/Arm64MacOS
                Platform/X86_64MacOS
                Platform/X86_64Win32}
              (:platform updater)))

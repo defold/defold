@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -33,12 +33,7 @@ namespace dmResourceProviderFile
 
     static bool MatchesUri(const dmURI::Parts* uri)
     {
-        return strcmp(uri->m_Scheme, "file") == 0
-#if defined(__NX__)
-            || strcmp(uri->m_Scheme, "data") == 0
-            || strcmp(uri->m_Scheme, "host") == 0
-#endif
-        ;
+        return strcmp(uri->m_Scheme, "file") == 0;
     }
 
     static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)

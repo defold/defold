@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -37,6 +37,8 @@
 #include "resources/res_buffer.h"
 #include "resources/res_mesh.h"
 #include "resources/res_material.h"
+#include "resources/res_compute_program.h"
+#include "resources/res_compute_shader.h"
 #include "resources/res_gui.h"
 #include "resources/res_sound_data.h"
 #include "resources/res_sound.h"
@@ -47,6 +49,7 @@
 #include "resources/res_collection_factory.h"
 #include "resources/res_light.h"
 #include "resources/res_render_script.h"
+#include "resources/res_render_target.h"
 #include "resources/res_render_prototype.h"
 #include "resources/res_sprite.h"
 #include "resources/res_textureset.h"
@@ -56,6 +59,7 @@
 #include "resources/res_rig_scene.h"
 #include "resources/res_display_profiles.h"
 #include "resources/res_label.h"
+#include "resources/res_glyph_bank.h"
 
 #include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
@@ -103,8 +107,11 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate);
         REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);
         REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);
+        REGISTER_RESOURCE_TYPE("compute_programc", render_context, ResComputeProgramPreload, ResComputeProgramCreate, 0, ResComputeProgramDestroy, ResComputeProgramRecreate);
+        REGISTER_RESOURCE_TYPE("cpc", graphics_context, ResComputeShaderPreload, ResComputeShaderCreate, 0, ResComputeShaderDestroy, ResComputeShaderRecreate);
         // guic: res_gui.cpp
         // gui_scriptc: res_gui_script.cpp
+        REGISTER_RESOURCE_TYPE("glyph_bankc", 0, ResGlyphBankPreload, ResGlyphBankCreate, 0, ResGlyphBankDestroy, ResGlyphBankRecreate);
         REGISTER_RESOURCE_TYPE("wavc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
         REGISTER_RESOURCE_TYPE("oggc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
         REGISTER_RESOURCE_TYPE("soundc", 0, ResSoundPreload, ResSoundCreate, 0, ResSoundDestroy, ResSoundRecreate);
@@ -116,6 +123,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("labelc", 0, ResLabelPreload, ResLabelCreate, 0, ResLabelDestroy, ResLabelRecreate);
         REGISTER_RESOURCE_TYPE("lightc", 0, 0, ResLightCreate, 0, ResLightDestroy, ResLightRecreate);
         REGISTER_RESOURCE_TYPE("render_scriptc", render_context, 0, ResRenderScriptCreate, 0, ResRenderScriptDestroy, ResRenderScriptRecreate);
+        REGISTER_RESOURCE_TYPE("render_targetc", render_context, ResRenderTargetPreload, ResRenderTargetCreate, 0, ResRenderTargetDestroy, ResRenderTargetRecreate);
         REGISTER_RESOURCE_TYPE("renderc", render_context, 0, ResRenderPrototypeCreate, 0, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
         REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, 0, ResSpriteDestroy, ResSpriteRecreate);
         REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, 0, ResTextureSetDestroy, ResTextureSetRecreate);

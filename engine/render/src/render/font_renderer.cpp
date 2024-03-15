@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -117,9 +117,6 @@ namespace dmRender
 
         ~FontMap()
         {
-            if (m_GlyphData) {
-                free(m_GlyphData);
-            }
             if (m_Cache) {
                 free(m_Cache);
             }
@@ -311,8 +308,7 @@ namespace dmRender
         }
 
         // release previous glyph data bank
-        if (font_map->m_GlyphData) {
-            free(font_map->m_GlyphData);
+        if (font_map->m_Cache) {
             free(font_map->m_Cache);
             free(font_map->m_CellTempData);
         }
@@ -1138,7 +1134,7 @@ namespace dmRender
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
             TextEntry* te = ((TextEntry*) entry->m_UserData);
 
-            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, te->m_FrustumCullingCenter, te->m_FrustumCullingRadiusSq, true);
+            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, te->m_FrustumCullingCenter, te->m_FrustumCullingRadiusSq);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
@@ -1257,6 +1253,7 @@ namespace dmRender
         return size;
     }
 
+    // Test functions begin
     bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter)
     {
         return font_map->m_MinFilter == filter;
@@ -1266,4 +1263,10 @@ namespace dmRender
     {
         return font_map->m_MagFilter == filter;
     }
+
+    const void* GetGlyphData(HFontMap font_map)
+    {
+        return font_map->m_GlyphData;
+    }
+    // Test functions end
 }

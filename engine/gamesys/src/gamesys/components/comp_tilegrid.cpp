@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -122,14 +122,14 @@ namespace dmGameSystem
         dmArray<TileGridComponent*>     m_Components;
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-
-        dmGraphics::HVertexBuffer       m_VertexBuffer;
+        dmRender::HBufferedRenderBuffer m_VertexBuffer;
         TileGridVertex*                 m_VertexBufferData;
         TileGridVertex*                 m_VertexBufferDataEnd;
         TileGridVertex*                 m_VertexBufferWritePtr;
 
         uint32_t                        m_MaxTilemapCount;
         uint32_t                        m_MaxTileCount;
+        uint32_t                        m_DispatchCount;
     };
 
     static void TileGridWorldAllocate(TileGridWorld* world)
@@ -146,7 +146,7 @@ namespace dmGameSystem
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(world->m_RenderContext), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(world->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
         uint32_t vcount = 6 * world->m_MaxTileCount;
         world->m_VertexBufferData = (TileGridVertex*) malloc(sizeof(TileGridVertex) * vcount);
         world->m_VertexBufferDataEnd = world->m_VertexBufferData + vcount;
@@ -175,7 +175,7 @@ namespace dmGameSystem
         if (world->m_VertexDeclaration)
         {
             dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
-            dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
+            dmRender::DeleteBufferedRenderBuffer(world->m_RenderContext, world->m_VertexBuffer);
             free(world->m_VertexBufferData);
         }
         delete world;
@@ -305,7 +305,6 @@ namespace dmGameSystem
 
         region->m_Occupied = 0;
 
-        uint32_t visible_tiles = 0;
         for (uint32_t j = 0; j < n_layers; ++j)
         {
             TileGridLayer* layer = &component->m_Layers[j];
@@ -320,7 +319,6 @@ namespace dmGameSystem
                     uint16_t tile = component->m_Cells[cell];
                     if (tile != 0xffff)
                     {
-                        ++visible_tiles;
                         region->m_Occupied = 1;
                         return region->m_Occupied;
                     }
@@ -513,6 +511,12 @@ namespace dmGameSystem
             }
         }
         DM_PROPERTY_ADD_U32(rmtp_Tilemap, world->m_Components.Size());
+
+        TilemapContext* context = (TilemapContext*)params.m_Context;
+        dmRender::TrimBuffer(context->m_RenderContext, world->m_VertexBuffer);
+        dmRender::RewindBuffer(context->m_RenderContext, world->m_VertexBuffer);
+        world->m_DispatchCount = 0;
+
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -646,9 +650,14 @@ namespace dmGameSystem
         TileGridVertex* vb_begin = world->m_VertexBufferWritePtr;
         world->m_VertexBufferWritePtr = CreateVertexData(world, vb_begin, texture_set, buf, begin, end);
 
+        if (dmRender::GetBufferIndex(render_context, world->m_VertexBuffer) < world->m_DispatchCount)
+        {
+            dmRender::AddRenderBuffer(render_context, world->m_VertexBuffer);
+        }
+
         ro.Init();
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
-        ro.m_VertexBuffer = world->m_VertexBuffer;
+        ro.m_VertexBuffer      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_VertexBuffer);
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - world->m_VertexBufferData;
         ro.m_VertexCount = (world->m_VertexBufferWritePtr - vb_begin);
@@ -704,20 +713,20 @@ namespace dmGameSystem
             world->m_VertexBufferWritePtr = world->m_VertexBufferData;
             world->m_RenderObjects.SetSize(0);
             break;
-
         case dmRender::RENDER_LIST_OPERATION_END:
             {
                 uint32_t vertex_count = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(TileGridVertex) * vertex_count,
-                                                world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                uint32_t vertex_data_size = sizeof(TileGridVertex) * vertex_count;
 
-                DM_PROPERTY_ADD_U32(rmtp_TilemapTileCount, vertex_count/6);
-                DM_PROPERTY_ADD_U32(rmtp_TilemapVertexCount, vertex_count);
-                DM_PROPERTY_ADD_U32(rmtp_TilemapVertexSize, vertex_count * sizeof(TileGridVertex));
-            }
-            break;
-
+                if (vertex_data_size > 0)
+                {
+                    dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                    DM_PROPERTY_ADD_U32(rmtp_TilemapTileCount, vertex_count/6);
+                    DM_PROPERTY_ADD_U32(rmtp_TilemapVertexCount, vertex_count);
+                    DM_PROPERTY_ADD_U32(rmtp_TilemapVertexSize, vertex_count * sizeof(TileGridVertex));
+                    world->m_DispatchCount++;
+                }
+            } break;
         case dmRender::RENDER_LIST_OPERATION_BATCH:
             assert(params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH);
             RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
@@ -848,68 +857,7 @@ namespace dmGameSystem
     {
         TileGridComponent* component = (TileGridComponent*) *params.m_UserData;
 
-        // NOTE: this message is deprecated and undocumented
-        if (params.m_Message->m_Id == dmGameSystemDDF::SetTile::m_DDFDescriptor->m_NameHash)
-        {
-            dmGameSystemDDF::SetTile* st = (dmGameSystemDDF::SetTile*) params.m_Message->m_Data;
-            uint32_t layer_index = GetLayerIndex(component, st->m_LayerId);
-            if (layer_index == ~0u)
-            {
-                dmLogError("Could not find layer %s when handling message %s.", dmHashReverseSafe64(st->m_LayerId), dmGameSystemDDF::SetTile::m_DDFDescriptor->m_Name);
-                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-            }
-            dmGameObject::HInstance instance = component->m_Instance;
-            dmTransform::Transform inv_world(dmTransform::Inv(dmGameObject::GetWorldTransform(instance)));
-            Point3 cell = st->m_Position;
-            if (dmGameObject::ScaleAlongZ(instance))
-            {
-                cell = dmTransform::Apply(inv_world, cell);
-            }
-            else
-            {
-                cell = dmTransform::ApplyNoScaleZ(inv_world, cell);
-            }
-
-            TileGridResource* resource = component->m_Resource;
-            dmGameSystemDDF::TextureSet* texture_set_ddf = GetTextureSet(component)->m_TextureSet;
-            cell = mulPerElem(cell, Point3(1.0f / texture_set_ddf->m_TileWidth, 1.0f / texture_set_ddf->m_TileHeight, 0.0f));
-            int32_t cell_x = (int32_t)floor(cell.getX()) + st->m_Dx - resource->m_MinCellX;
-            int32_t cell_y = (int32_t)floor(cell.getY()) + st->m_Dy - resource->m_MinCellY;
-            if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)
-            {
-                dmLogError("Could not set the tile since the supplied tile was out of range.");
-                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-            }
-
-            /*
-             * NOTE AND BEWARE: Empty tile is encoded as 0xffffffff
-             * That's why tile-index is subtracted by 1
-             * See B2GRIDSHAPE_EMPTY_CELL in b2GridShape.h
-             */
-            uint32_t tile = st->m_Tile - 1;
-
-            SetTileGridTile(component, layer_index, cell_x, cell_y, tile, 0);
-
-            // Broadcast to any collision object components
-            // TODO Filter broadcast to only collision objects
-            dmPhysicsDDF::SetGridShapeHull set_hull_ddf;
-            set_hull_ddf.m_Shape = layer_index;
-            set_hull_ddf.m_Column = cell_x;
-            set_hull_ddf.m_Row = cell_y;
-            set_hull_ddf.m_Hull = tile;
-            dmhash_t message_id = dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash;
-            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor;
-            uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);
-            dmMessage::URL receiver = params.m_Message->m_Receiver;
-            receiver.m_Fragment = 0;
-            dmMessage::Result result = dmMessage::Post(&params.m_Message->m_Receiver, &receiver, message_id, 0, descriptor, &set_hull_ddf, data_size, 0);
-            if (result != dmMessage::RESULT_OK)
-            {
-                LogMessageError(params.m_Message, "Could not send %s to components, result: %d.", dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name, result);
-                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-            }
-        }
-        else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash)
+        if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::SetConstantTileMap* ddf = (dmGameSystemDDF::SetConstantTileMap*)params.m_Message->m_Data;
             if (!component->m_RenderConstants)
@@ -1021,4 +969,10 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompTileGridIterPropertiesGetNext;
     }
 
+    // For tests
+    void GetTileGridWorldRenderBuffers(void* tilegrid_world, dmRender::HBufferedRenderBuffer* vx_buffer)
+    {
+        TileGridWorld* world = (TileGridWorld*) tilegrid_world;
+        *vx_buffer = world->m_VertexBuffer;
+    }
 }

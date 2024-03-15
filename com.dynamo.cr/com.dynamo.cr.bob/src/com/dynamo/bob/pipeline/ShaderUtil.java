@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,11 +14,11 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Scanner;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.io.IOException;
@@ -39,13 +39,21 @@ import com.dynamo.bob.pipeline.antlr.glsl.GLSLLexer;
 
 public class ShaderUtil {
     public static class Common {
-        public static final int     MAX_ARRAY_SAMPLERS             = 8;
-        public static final String  glSampler2DArrayRegex          = "(.+)sampler2DArray\\s+(\\w+);";
-        public static final Pattern regexUniformKeywordPattern     = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
-        public static String        includeDirectiveReplaceBaseStr = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
-        public static String        includeDirectiveBaseStr        = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
-        public static final Pattern includeDirectivePattern        = Pattern.compile(includeDirectiveBaseStr);
-        public static final Pattern arrayArraySamplerPattern       = Pattern.compile("^\\s*uniform(?<qualifier>.*)sampler2DArray\\s+(?<uniform>\\w+);$");
+        public static final int     MAX_ARRAY_SAMPLERS                   = 8;
+        public static final String  glSampler2DArrayRegex                = "(.+)sampler2DArray\\s+(\\w+);";
+        public static final Pattern regexUniformKeywordPattern           = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
+        public static final Pattern regexUniformBlockBeginKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+)*(?<type>\\S+)(?<any>.*)");
+        public static String        includeDirectiveReplaceBaseStr       = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
+        public static String        includeDirectiveBaseStr              = "^\\s*\\#include\\s+(?:<(?<pathbrackets>[^\"<>|\b]+)>|\"(?<pathquotes>[^\"<>|\b]+)\")\\s*(?://.*)?$";
+        public static final Pattern includeDirectivePattern              = Pattern.compile(includeDirectiveBaseStr);
+        public static final Pattern arrayArraySamplerPattern             = Pattern.compile("^\\s*uniform(?<qualifier>.*)sampler2DArray\\s+(?<uniform>\\w+);$");
+        public static final Pattern regexVersionStringPattern            = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
+
+        public static class GLSLShaderInfo
+        {
+            public int    version;
+            public String profile;
+        };
 
         public static class GLSLCompileResult
         {
@@ -53,12 +61,26 @@ public class ShaderUtil {
             public String[] arraySamplers = new String[0];
         }
 
+        public static GLSLShaderInfo getShaderInfo(String source)
+        {
+            GLSLShaderInfo info = null;
+            Matcher versionMatcher = regexVersionStringPattern.matcher(source.substring(0, Math.min(source.length(), 128)));
+            if (versionMatcher.find()) {
+                info                 = new GLSLShaderInfo();
+                String shaderVersion = versionMatcher.group("version");
+                String shaderProfile = versionMatcher.group("profile");
+                info.version         = Integer.parseInt(shaderVersion);
+                info.profile         = shaderProfile == null ? "" : shaderProfile;
+            }
+            return info;
+        }
+
         public static String stripComments(String source)
-        {  
+        {
             CharStream stream = CharStreams.fromString(source);
             GLSLLexer lexer = new GLSLLexer(stream);
             CommonTokenStream tokens = new CommonTokenStream(lexer, GLSLLexer.COMMENTS);
-            // Get all tokens from lexer until EOF 
+            // Get all tokens from lexer until EOF
             tokens.fill();
             TokenStreamRewriter rewriter = new TokenStreamRewriter(tokens);
             // Iterate over the tokens and remove comments
@@ -82,7 +104,12 @@ public class ShaderUtil {
             return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE    ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D       ||
                    data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D       ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D       ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D      ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER         ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D        ||
+                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D;
         }
 
         private static class ShaderDataTypeConversionEntry {
@@ -95,19 +122,28 @@ public class ShaderUtil {
         }
 
         private static final ArrayList<ShaderDataTypeConversionEntry> shaderDataTypeConversionLut = new ArrayList<>(Arrays.asList(
-                new ShaderDataTypeConversionEntry("int", ShaderDesc.ShaderDataType.SHADER_TYPE_INT),
-                new ShaderDataTypeConversionEntry("uint", ShaderDesc.ShaderDataType.SHADER_TYPE_UINT),
-                new ShaderDataTypeConversionEntry("float", ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT),
-                new ShaderDataTypeConversionEntry("vec2", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2),
-                new ShaderDataTypeConversionEntry("vec3", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3),
-                new ShaderDataTypeConversionEntry("vec4", ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4),
-                new ShaderDataTypeConversionEntry("mat2", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2),
-                new ShaderDataTypeConversionEntry("mat3", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3),
-                new ShaderDataTypeConversionEntry("mat4", ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4),
-                new ShaderDataTypeConversionEntry("sampler2D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
-                new ShaderDataTypeConversionEntry("sampler3D", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
-                new ShaderDataTypeConversionEntry("samplerCube", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
-                new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY)
+                new ShaderDataTypeConversionEntry("int",            ShaderDesc.ShaderDataType.SHADER_TYPE_INT),
+                new ShaderDataTypeConversionEntry("uint",           ShaderDesc.ShaderDataType.SHADER_TYPE_UINT),
+                new ShaderDataTypeConversionEntry("float",          ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT),
+                new ShaderDataTypeConversionEntry("vec2",           ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2),
+                new ShaderDataTypeConversionEntry("vec3",           ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3),
+                new ShaderDataTypeConversionEntry("vec4",           ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4),
+                new ShaderDataTypeConversionEntry("mat2",           ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2),
+                new ShaderDataTypeConversionEntry("mat3",           ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3),
+                new ShaderDataTypeConversionEntry("mat4",           ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4),
+                new ShaderDataTypeConversionEntry("sampler2D",      ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D),
+                new ShaderDataTypeConversionEntry("sampler3D",      ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D),
+                new ShaderDataTypeConversionEntry("samplerCube",    ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE),
+                new ShaderDataTypeConversionEntry("sampler2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY),
+                new ShaderDataTypeConversionEntry("ubo",            ShaderDesc.ShaderDataType.SHADER_TYPE_UNIFORM_BUFFER),
+                new ShaderDataTypeConversionEntry("uvec2",          ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC2),
+                new ShaderDataTypeConversionEntry("uvec3",          ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC3),
+                new ShaderDataTypeConversionEntry("uvec4",          ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC4),
+                new ShaderDataTypeConversionEntry("texture2D",      ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D),
+                new ShaderDataTypeConversionEntry("utexture2D",     ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D),
+                new ShaderDataTypeConversionEntry("uimage2D",       ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D),
+                new ShaderDataTypeConversionEntry("image2D",        ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D),
+                new ShaderDataTypeConversionEntry("sampler",        ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER)
             ));
 
         public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {
@@ -205,94 +241,147 @@ public class ShaderUtil {
     public static class SPIRVReflector {
         private static JsonNode root;
 
-        public SPIRVReflector(String json) throws IOException
-        {
+        public SPIRVReflector(String json) throws IOException {
             this.root = (new ObjectMapper()).readTree(json);
         }
 
-        public static class Resource
-        {
+        public static class ResourceMember {
             public String name;
             public String type;
             public int    elementCount;
+            public int    offset;
+        }
+
+        public static class Resource {
+            public String name;
+            public String type;
             public int    binding;
             public int    set;
+            public int    blockSize;
         }
 
-        public static class UniformBlock extends Resource
-        {
-            public ArrayList<Resource> uniforms;
+        public static class ResourceType {
+            public String                    key;
+            public String                    name;
+            public ArrayList<ResourceMember> members = new ArrayList<ResourceMember>();
         }
 
-        public static ArrayList<UniformBlock> getUniformBlocks()
-        {
-            ArrayList<UniformBlock> uniformBlocks = new ArrayList<UniformBlock>();
-
-            JsonNode uboNode   = root.get("ubos");
+        public static ArrayList<ResourceType> getTypes() {
+            ArrayList<ResourceType> resourceTypes = new ArrayList<ResourceType>();
             JsonNode typesNode = root.get("types");
-
-            if (uboNode == null || typesNode == null) {
-                return uniformBlocks;
+            if (typesNode == null) {
+                return resourceTypes;
             }
 
-            Iterator<JsonNode> uniformBlockNodeIt = uboNode.getElements();
-            while (uniformBlockNodeIt.hasNext()) {
-                JsonNode uniformBlockNode = uniformBlockNodeIt.next();
+            for (Iterator<Map.Entry<String, JsonNode>> jsonFields = typesNode.getFields(); jsonFields.hasNext();) {
+                Map.Entry<String, JsonNode> jsonField = jsonFields.next();
+                String key = jsonField.getKey();
+                JsonNode value = jsonField.getValue();
 
-                UniformBlock ubo = new UniformBlock();
-                ubo.name         = uniformBlockNode.get("name").asText();
-                ubo.set          = uniformBlockNode.get("set").asInt();
-                ubo.binding      = uniformBlockNode.get("binding").asInt();
-                ubo.uniforms     = new ArrayList<Resource>();
+                ResourceType type = new ResourceType();
+                type.key = key;
+                type.name = value.get("name").asText();
 
-                JsonNode typeNode    = typesNode.get(uniformBlockNode.get("type").asText());
-                JsonNode membersNode = typeNode.get("members");
+                JsonNode membersNode = value.get("members");
+                Iterator<JsonNode> membersNodeIt = membersNode.getElements();
 
-                for (Iterator<JsonNode> membersNodeIt = membersNode.getElements(); membersNodeIt.hasNext();) {
-                    JsonNode uniformNode = membersNodeIt.next();
-                    Resource res         = new Resource();
-                    res.name             = uniformNode.get("name").asText();
-                    res.type             = uniformNode.get("type").asText();
-                    res.elementCount     = 1;
-                    res.binding          = 0;
-                    res.set              = 0;
+                while(membersNodeIt.hasNext()) {
+                    JsonNode memberNode = membersNodeIt.next();
+                    ResourceMember res  = new ResourceMember();
+                    res.name            = memberNode.get("name").asText();
+                    res.type            = memberNode.get("type").asText();
 
-                    JsonNode arrayNode = uniformNode.get("array");
+                    JsonNode offsetNode = memberNode.get("offset");
+                    if (offsetNode != null) {
+                        res.offset = offsetNode.asInt();
+                    }
+
+                    JsonNode arrayNode = memberNode.get("array");
                     if (arrayNode != null && arrayNode.isArray())
                     {
                         ArrayNode array = (ArrayNode) arrayNode;
                         res.elementCount = arrayNode.get(0).asInt();
                     }
 
-                    ubo.uniforms.add(res);
+                    type.members.add(res);
                 }
 
-                uniformBlocks.add(ubo);
+                resourceTypes.add(type);
             }
 
-            return uniformBlocks;
+            return resourceTypes;
+        }
+
+        public static ArrayList<Resource> getUBOs() {
+            ArrayList<Resource> ubos = new ArrayList<Resource>();
+            JsonNode ubosNode = root.get("ubos");
+
+            if (ubosNode == null) {
+                return ubos;
+            }
+
+            Iterator<JsonNode> uniformBlockNodeIt = ubosNode.getElements();
+            while (uniformBlockNodeIt.hasNext()) {
+                JsonNode uboNode = uniformBlockNodeIt.next();
+
+                Resource ubo  = new Resource();
+                ubo.name      = uboNode.get("name").asText();
+                ubo.set       = uboNode.get("set").asInt();
+                ubo.binding   = uboNode.get("binding").asInt();
+                ubo.type      = uboNode.get("type").asText();
+                ubo.blockSize = uboNode.get("block_size").asInt();
+                ubos.add(ubo);
+            }
+
+            return ubos;
+        }
+
+        public static ArrayList<Resource> getSsbos() {
+            ArrayList<Resource> ssbos = new ArrayList<Resource>();
+
+            JsonNode ssboNode  = root.get("ssbos");
+
+            if (ssboNode == null) {
+                return ssbos;
+            }
+
+            Iterator<JsonNode> ssboBlockIt = ssboNode.getElements();
+            while (ssboBlockIt.hasNext()) {
+                JsonNode ssboBlockNode = ssboBlockIt.next();
+
+                Resource ssbo  = new Resource();
+                ssbo.name      = ssboBlockNode.get("name").asText();
+                ssbo.set       = ssboBlockNode.get("set").asInt();
+                ssbo.binding   = ssboBlockNode.get("binding").asInt();
+                ssbo.type      = ssboBlockNode.get("type").asText();
+                ssbo.blockSize = ssboBlockNode.get("block_size").asInt();
+                ssbos.add(ssbo);
+            }
+
+            return ssbos;
+        }
+
+        private static void addTexturesFromNode(JsonNode node, ArrayList<Resource> textures) {
+            if (node != null) {
+                for (Iterator<JsonNode> iter = node.getElements(); iter.hasNext();) {
+                    JsonNode textureNode = iter.next();
+                    Resource res     = new Resource();
+                    res.name         = textureNode.get("name").asText();
+                    res.type         = textureNode.get("type").asText();
+                    res.binding      = textureNode.get("binding").asInt();
+                    res.set          = textureNode.get("set").asInt();
+                    res.blockSize    = 0;
+                    textures.add(res);
+                }
+            }
         }
 
         public static ArrayList<Resource> getTextures() {
             ArrayList<Resource> textures = new ArrayList<Resource>();
-
-            JsonNode texturesNode = root.get("textures");
-
-            if (texturesNode == null) {
-                return textures;
-            }
-
-            for (Iterator<JsonNode> iter = texturesNode.getElements(); iter.hasNext();) {
-                JsonNode textureNode = iter.next();
-                Resource res     = new Resource();
-                res.name         = textureNode.get("name").asText();
-                res.type         = textureNode.get("type").asText();
-                res.binding      = textureNode.get("binding").asInt();
-                res.set          = textureNode.get("set").asInt();
-                res.elementCount = 1;
-                textures.add(res);
-            }
-
+            addTexturesFromNode(root.get("textures"),          textures);
+            addTexturesFromNode(root.get("separate_images"),   textures);
+            addTexturesFromNode(root.get("images"),            textures);
+            addTexturesFromNode(root.get("separate_samplers"), textures);
             return textures;
         }
 
@@ -377,11 +466,12 @@ public class ShaderUtil {
         }
 
         public static enum ShaderType {
-            VERTEX_SHADER, FRAGMENT_SHADER
+            VERTEX_SHADER,
+            FRAGMENT_SHADER,
+            COMPUTE_SHADER,
         };
 
         private static final String[] opaqueUniformTypesPrefix    = { "sampler", "image", "atomic_uint" };
-        private static final Pattern regexVersionStringPattern    = Pattern.compile("^\\h*#\\h*version\\h+(?<version>\\d+)(\\h+(?<profile>\\S+))?\\h*\\n");
         private static final Pattern regexPrecisionKeywordPattern = Pattern.compile("(?<keyword>precision)\\s+(?<precision>lowp|mediump|highp)\\s+(?<type>float|int)\\s*;");
         private static final Pattern regexFragDataArrayPattern    = Pattern.compile("gl_FragData\\[(?<index>\\d+)\\]");
 
@@ -391,6 +481,8 @@ public class ShaderUtil {
         private static final String dmEngineGeneratedRep = "_DMENGINE_GENERATED_";
 
         private static final String glUBRep                     = dmEngineGeneratedRep + "UB_";
+        private static final String glUBRepVs                   = glUBRep + "VS_";
+        private static final String glUBRepFs                   = glUBRep + "FS_";
         private static final String glFragColorKeyword          = "gl_FragColor";
         private static final String glFragDataKeyword           = "gl_FragData";
         private static final String glFragColorRep              = dmEngineGeneratedRep + glFragColorKeyword;
@@ -408,30 +500,30 @@ public class ShaderUtil {
             // Preprocess the source so we can potentially reduce the workload a bit
             input = Common.stripComments(input);
 
-            int layoutSet = shaderType == ShaderType.VERTEX_SHADER ? 0 : 1;
+            // Shader sets are explicitly separated between fragment and vertex shaders as 1 and 0,
+            // for compute shaders we always use 0. This makes sure that we stay true to that.
+            int layoutSet = shaderType == ShaderType.FRAGMENT_SHADER ? 1 : 0;
 
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;
 
-            // Try get version and profile. Override targetProfile if version is set in shader
-            Matcher versionMatcher = regexVersionStringPattern.matcher(input.substring(0, Math.min(input.length(), 128)));
-            if (versionMatcher.find()) {
-                result.shaderVersion = versionMatcher.group("version");
-                result.shaderProfile = versionMatcher.group("profile");
-                result.shaderProfile = result.shaderProfile == null ? "" : result.shaderProfile;
-                // override targetProfile if version is set in shader
-                targetProfile = result.shaderProfile;
-            } else {
+            Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(input);
+
+            // If no version (and/or profile) was set in shader, append the target to the shader source.
+            if (shaderInfo == null) {
                 String versionPrefix = String.format("#version %d", targetVersion);
-                if (!targetProfile.isEmpty())
+                if (!targetProfile.isEmpty()) {
                     versionPrefix += String.format(" %s", targetProfile);
+                }
                 versionPrefix += "\n";
                 input = versionPrefix + input;
+            } else {
+                targetVersion = shaderInfo.version;
+                targetProfile = shaderInfo.profile;
             }
 
-            if (!result.shaderVersion.isEmpty()) {
-                targetVersion = Integer.parseInt(result.shaderVersion);
-            }
+            result.shaderVersion = Integer.toString(targetVersion);
+            result.shaderProfile = targetProfile;
 
             // Patch qualifiers (reserved keywords so word boundary replacement is safe)
             String[][] keywordReps = (shaderType == ShaderType.VERTEX_SHADER) ? vsKeywordReps : fsKeywordReps;
@@ -481,22 +573,24 @@ public class ShaderUtil {
             // Preallocate array of resulting slices. This makes patching in specific positions less complex
             ArrayList<String> output = new ArrayList<String>(input.length());
 
+            String ubBase = shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? glUBRepVs : glUBRepFs;
+
             // Multi-instance patching
             int ubIndex = 0;
             for(String line : inputLines) {
 
-                if(line.contains("uniform") && !line.contains("{") && useLatestFeatures)
+                if(line.contains("uniform") && useLatestFeatures)
                 {
-                    // Transform non-opaque uniforms into uniform blocks (UB's). Do not process existing UB's
                     Matcher uniformMatcher = Common.regexUniformKeywordPattern.matcher(line);
-                    if(uniformMatcher.find()) {
+
+                    if (uniformMatcher.find()) {
                         String keyword = uniformMatcher.group("keyword");
                         if(keyword != null) {
-                            String layout = uniformMatcher.group("layout");
-                            String precision = uniformMatcher.group("precision");
-                            String type = uniformMatcher.group("type");
+                            String layout     = uniformMatcher.group("layout");
+                            String precision  = uniformMatcher.group("precision");
+                            String type       = uniformMatcher.group("type");
                             String identifier = uniformMatcher.group("identifier");
-                            String any = uniformMatcher.group("any");
+                            String any        = uniformMatcher.group("any");
 
                             boolean isOpaque = false;
                             for( String opaqueTypePrefix : opaqueUniformTypesPrefix) {
@@ -510,11 +604,29 @@ public class ShaderUtil {
                                 layout = "layout(set=" + layoutSet + ")";
                             }
 
-                            if (isOpaque){
+                            if (isOpaque) {
                                 line = layout + " " + line;
                             } else {
-                                line = "\n" + layout + " " + keyword + " " + glUBRep + ubIndex++ + " { " +
+                                line = "\n" + layout + " " + keyword + " " + ubBase + ubIndex++ + " { " +
                                 (precision == null ? "" : (precision + " ")) + type + " " + identifier + " " + (any == null ? "" : (any + " ")) + "; };";
+                            }
+                        }
+                    } else {
+                        Matcher uniforBlockBeginMatcher = Common.regexUniformBlockBeginKeywordPattern.matcher(line);
+                        if (uniforBlockBeginMatcher.find()) {
+                            String keyword = uniforBlockBeginMatcher.group("keyword");
+                            if(keyword != null) {
+                                String layout = uniforBlockBeginMatcher.group("layout");
+                                String type   = uniforBlockBeginMatcher.group("type");
+                                String any    = uniforBlockBeginMatcher.group("any");
+
+                                boolean blockScopeBegin = line.contains("{");
+
+                                if (layout == null) {
+                                    layout = "layout(set=" + layoutSet + ")";
+                                }
+
+                                line = layout + " " + keyword + " " + type + (blockScopeBegin ? "{" : "");
                             }
                         }
                     }

@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -112,6 +112,11 @@ namespace dmGraphics
             *out_type = TYPE_SAMPLER_CUBE;
             return true;
         }
+        else if (STRNCMP("sampler2DArray", string, count))
+        {
+            *out_type = TYPE_SAMPLER_2D_ARRAY;
+            return true;
+        }
         return false;
     }
 
@@ -164,16 +169,37 @@ namespace dmGraphics
             return true;
         }
 
-        const char* keyword = GetKeyword(language, binding_type);
-        const char* word_end = buffer;
-        const char* word_start = buffer;
-        uint32_t size = 0;
-        while (*word_end != '\0')
-        {
-            NextWord(&word_start, &word_end, &size);
+        const char* keyword    = GetKeyword(language, binding_type);
+        const char* line_end   = buffer;
+        const char* line_start = buffer;
+        const char* word_start = 0;
+        const char* word_end   = 0;
+        const char* buffer_end = buffer + strlen(buffer);
 
-            if (size > 0)
+        uint32_t size = 0;
+        while (line_end < buffer_end)
+        {
+            line_end   = SkipLine(line_start) + 1;
+            word_start = line_start;
+            word_end   = line_start;
+
+        #if 0
+            char line_buf[256];
+            size_t line_len = line_end - line_start;
+            memcpy(line_buf, line_start, line_len);
+            line_buf[line_len] = '\0';
+            printf("LINE: %s", line_buf);
+        #endif
+
+            while(word_start < line_end)
             {
+                NextWord(&word_start, &word_end, &size);
+
+                if (size == 0 || word_start >= line_end)
+                {
+                    break;
+                }
+
                 if (STRNCMP(keyword, word_start, size))
                 {
                     Type type;
@@ -202,18 +228,16 @@ namespace dmGraphics
                         }
 
                         cb(binding_type, word_start, size-1, type, uniform_size, userdata);
+                        break;
                     }
                     else
                     {
                         return false;
                     }
                 }
-                else
-                {
-                    word_start = SkipWS(SkipLine(word_end));
-                    word_end = word_start;
-                }
             }
+
+            line_start = line_end;
         }
         return true;
     }

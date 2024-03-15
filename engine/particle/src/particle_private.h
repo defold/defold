@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -189,7 +189,8 @@ namespace dmParticle
     struct Context
     {
         Context(uint32_t max_instance_count, uint32_t max_particle_count)
-        : m_MaxParticleCount(max_particle_count)
+        : m_AttributeDataPtrIndex(0)
+        , m_MaxParticleCount(max_particle_count)
         , m_NextVersionNumber(1)
         , m_InstanceSeeding(0)
         {
@@ -212,6 +213,10 @@ namespace dmParticle
         dmArray<Instance*>  m_Instances;
         /// Index pool used to index the instance buffer.
         dmIndexPool16       m_InstanceIndexPool;
+        /// An intermediate array of pointers to use for the custom attribute backing data (Editor only!)
+        dmArray<void*>      m_AttributeDataPtrs;
+        /// An increasing serial number to keep track of when aqcuiring a pointer for the attribute backing data (Editor only!)
+        uint32_t            m_AttributeDataPtrIndex;
         /// Maximum number of particles allowed
         uint32_t            m_MaxParticleCount;
         /// Version number used to create new handles.
@@ -267,7 +272,7 @@ namespace dmParticle
         /// Blend mode
         dmParticleDDF::BlendMode    m_BlendMode;
         /// The max life time possible of a particle (used for quantizing particle life time when sorting)
-        float                   m_MaxParticleLifeTime;
+        float                       m_MaxParticleLifeTime;
     };
 
     /**

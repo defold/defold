@@ -1,12 +1,12 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,6 +24,12 @@
 #include <stdint.h>
 
 #include <dmsdk/hid/hid.h>
+
+namespace dmPlatform
+{
+    struct Window;
+    typedef Window* HWindow;
+};
 
 namespace dmHID
 {
@@ -110,6 +116,14 @@ namespace dmHID
      * @params callback_ctx [type: void*] userdata that will be passed to the callback
      */
     void SetGamepadConnectivityCallback(HContext context, FHIDGamepadFunc callback, void* callback_ctx);
+
+    /**
+     * Set the window handle.
+     *
+     * @param context context for which the window handle should be set
+     * @param window [type: dmPlatform::HWindow] the window handle
+     */
+    void SetWindow(HContext context, dmPlatform::HWindow window);
 
     /**
      * Initializes a hid context.
@@ -335,23 +349,9 @@ namespace dmHID
     void ClearTouches(HTouchDevice device);
 
     /**
-     * Get the name of a keyboard key.
-     * @param key Keyboard key
-     * @return The name of the key
-     */
-    const char* GetKeyName(Key key);
-
-    /**
-     * Get the name of a mouse button.
-     * @param button Mouse button
-     * @return The name of the button
-     */
-    const char* GetMouseButtonName(MouseButton button);
-
-    /**
      * Enables the accelerometer (if available)
      */
-    void EnableAccelerometer();
+    void EnableAccelerometer(HContext context);
 }
 
 #endif // DM_HID_H
