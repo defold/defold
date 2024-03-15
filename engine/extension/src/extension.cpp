@@ -65,7 +65,6 @@ namespace dmExtension
     Result AppInitialize(AppParams* params)
     {
         dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
-        uint32_t i = 0;
         Result ret = RESULT_OK;
         while (ed) {
             if (ed->AppInitialize) {
@@ -79,7 +78,6 @@ namespace dmExtension
                     ed->m_AppInitialized = true;
                 }
             }
-            ++i;
             ed = (dmExtension::Desc*) ed->m_Next;
         }
 
@@ -178,4 +176,3 @@ namespace dmExtension
     }
 
 }
-

@@ -33,7 +33,7 @@ main: |
     }
     #endif
 
-    extern "C" void dmExportedSymbols() {
+    extern "C" void dmExportedSymbols() { // Called by engine_main.cpp:EngineMain
         {{#symbols}}
         {{{.}}}();
         {{/symbols}}
