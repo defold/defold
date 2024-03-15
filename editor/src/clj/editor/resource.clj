@@ -109,7 +109,7 @@
 
 ;; The same logic implemented in Project.java.
 ;; If you change something here, please change it there as well
-;; Search for excludedFilesAndFoldersEntries.
+;; Search for excluedFilesAndFoldersEntries.
 ;; root -> pred if project path (string starting with /) is ignored
 (defn defignore-pred [^File root]
   (let [defignore-file (io/file root ".defignore")
