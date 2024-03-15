@@ -54,6 +54,17 @@ namespace dmExtension
 
         desc->PreRender = 0x0;
         desc->PostRender = 0x0;
+
+        const Desc* first = g_FirstExtension;
+        while(first) {
+            if (strcmp(name, first->m_Name) == 0)
+            {
+                dmLogError("Extension %s is already registered!", name);
+                return;
+            }
+            first = first->m_Next;
+        }
+
         g_FirstExtension = desc;
     }
 
