@@ -138,6 +138,17 @@
         c (Math/cos ha)]
     (Quat4d. 0.0 0.0 s c)))
 
+(defn euler-y->quat ^Quat4d [angle]
+  (let [ha (* (deg->rad angle) 0.5)
+        s (Math/sin ha)
+        c (Math/cos ha)]
+    (Quat4d. 0 s 0 c)))
+
+(defn euler-x->quat ^Quat4d [angle]
+  (let [ha (* (deg->rad angle) 0.5)
+        s (Math/sin ha)
+        c (Math/cos ha)]
+    (Quat4d. s 0 0 c)))
 (defn quat-components->euler [^double x ^double y ^double z ^double w]
   (if (= 0.0 x y)
     (let [ha (Math/atan2 z w)]
