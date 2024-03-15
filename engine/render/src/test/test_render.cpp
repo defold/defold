@@ -681,8 +681,6 @@ TEST_F(dmRenderTest, TestEnableDisableContextTextures)
     dmGraphics::HVertexDeclaration vx_decl = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
     dmGraphics::HVertexBuffer vx_buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
-
     ASSERT_EQ(0, m_Context->m_TextureBindTable.Size());
 
     SetTextureBindingByUnit(m_Context, 0, 13);
@@ -1841,8 +1839,11 @@ TEST(Render, BatchIterator)
     ASSERT_FALSE(iterator1.Next());
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

@@ -2489,7 +2489,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     // To test this, the test .go file contains a bunch of components that support this feature.
     // We instantiate it and then dispatch a number of draw calls, which should trigger the
     // multi-buffering of the vertex and index buffers (where applicable).
-    // 
+    //
     // Furthermore, each component type is represented twice, with a different material per
     // instance. The two materials have different vertex formats, which we also account for
     // when producing our "expected" data for this test.
@@ -4652,7 +4652,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
     }
 
     // Data conversion for attribute values
-    {   
+    {
         dmGameSystem::DynamicAttributeInfo::Info info_members[3];
 
         info_members[0].m_NameHash  = dmHashString64("dynamic_attribute_pos");
@@ -5041,8 +5041,11 @@ TEST_F(ShaderTest, ComputeResource)
 }
 #endif
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
 
     dmLog::LogParams params;
