@@ -118,7 +118,7 @@ public class MacOSBundler implements IBundler {
         resourcesDir.mkdirs();
         macosDir.mkdirs();
 
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant, this);
 
         BundleHelper.throwIfCanceled(canceled);
 

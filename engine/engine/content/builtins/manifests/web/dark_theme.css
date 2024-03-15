@@ -13,6 +13,7 @@
 		background-color: #1a72eb;
 		text-align: center;
 		line-height: 20px;
+		transition: width 1s ease;
 	}
 {{#html5.show_fullscreen_button}}	
 	.button {
