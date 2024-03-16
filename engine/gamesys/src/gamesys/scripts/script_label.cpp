@@ -280,6 +280,16 @@ static int SetText(lua_State* L)
 
     dmGameObject::HInstance instance = CheckGoInstance(L);
 
+    dmMessage::URL receiver;
+    dmMessage::URL sender;
+    dmScript::GetURL(L, &sender);
+    dmScript::ResolveURL(L, 1, &receiver, &sender);
+    // issue-8555: check that the url is targeting a specific component and not only a path
+    if (receiver.m_Fragment == 0)
+    {
+        return DM_LUA_ERROR("Expected url to specify a component, not only a path!");
+    }
+
     size_t text_len = 0;
     const char* text = luaL_checklstring(L, 2, &text_len);
     if (!text)
@@ -297,11 +307,6 @@ static int SetText(lua_State* L)
     dmGameSystemDDF::SetText* message = (dmGameSystemDDF::SetText*)data;
     message->m_Text = (const char*)sizeof(dmGameSystemDDF::SetText);
     memcpy((void*)(data + sizeof(dmGameSystemDDF::SetText)), text, text_len + 1);
-
-    dmMessage::URL receiver;
-    dmMessage::URL sender;
-    dmScript::GetURL(L, &sender);
-    dmScript::ResolveURL(L, 1, &receiver, &sender);
 
     if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, data, data_size, 0) )
     {
