@@ -899,6 +899,57 @@ static void ResourceAliasIteratorCallback(HFactory factory, const dmhash_t* id, 
         rd->m_PrevResource   = 0;
         Result create_result = resource_type->m_RecreateFunction(params);
     }
+    else
+    {
+        char canonical_path_out[DMPATH_MAX_PATH] = {};
+        const char* canonical_path = *resource_path;
+        uint32_t name_len = strlen(canonical_path);
+        uint32_t sub_dir_start = 1;
+        for (int i = 0; i < name_len; ++i)
+        {
+            if (canonical_path[i] == '/')
+            {
+                i++; // step over this slash
+                dmhash_t sub_path_hash        = dmHashBuffer64(canonical_path, i);
+                ResourceAliasMapping* sub_mapping = factory->m_ResourcePathAliases->Get(sub_path_hash);
+
+                if (sub_mapping)
+                {
+                    // Build the actual output mapping by replacing the aliased location with the actual location
+                    // and then appending the rest of the path
+                    assert(sub_mapping->m_DirectoryAlias);
+                    memcpy(canonical_path_out, sub_mapping->m_Location, strlen(sub_mapping->m_Location));
+                    char* write_ptr = canonical_path_out + strlen(sub_mapping->m_Location);
+                    while(canonical_path[i])
+                    {
+                        *write_ptr++ = canonical_path[i];
+                        i++;
+                    }
+
+                    SResourceDescriptor* rd = GetResourceDescriptor(factory, dmHashString64(*resource_path));
+                    SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+
+                    void* buffer;
+                    uint32_t buffer_size;
+                    Result result = LoadResource(factory, canonical_path_out, canonical_path_out, &buffer, &buffer_size);
+
+                    assert(buffer == factory->m_Buffer.Begin());
+                    ResourceRecreateParams params;
+                    params.m_Factory     = factory;
+                    params.m_Context     = resource_type->m_Context;
+                    params.m_Message     = 0;
+                    params.m_Buffer      = buffer;
+                    params.m_BufferSize  = buffer_size;
+                    params.m_Resource    = rd;
+                    params.m_Filename    = canonical_path_out;
+                    rd->m_PrevResource   = 0;
+                    Result create_result = resource_type->m_RecreateFunction(params);
+
+                    break;
+                }
+            }
+        }
+    }
 }
 
 Result SetResourceAlias(HFactory factory, const char* alias, const char* location)
@@ -999,7 +1050,7 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
 static Result DoReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(0, name, canonical_path);
+    GetCanonicalPath(factory->m_ResourcePathAliases, name, canonical_path);
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
