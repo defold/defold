@@ -196,6 +196,26 @@ namespace dmGameSystem
         sprite_world->m_ReallocBuffers = 0;
     }
 
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
+    {
+        SpriteWorld* sprite_world = (SpriteWorld*) params.m_UserData;
+        dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
+        uint32_t n = components.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            SpriteComponent& component = components[i];
+
+            if (component.m_Resource)
+            {
+                if (component.m_Resource->m_Material == params.m_Resource->m_Resource && params.m_ResourceToSwap)
+                {
+                    component.m_Resource->m_Material = (MaterialResource*) params.m_ResourceToSwap->m_Resource;
+                    component.m_ReHash = 1;
+                }
+            }
+        }
+    }
+
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
@@ -212,6 +232,8 @@ namespace dmGameSystem
         sprite_world->m_IndexBufferData  = 0;
 
         InitializeMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool, 8);
+
+        dmResource::RegisterResourceReloadedCallback(sprite_context->m_Factory, ResourceReloadedCallback, sprite_world);
 
         *params.m_World = sprite_world;
         return dmGameObject::CREATE_RESULT_OK;

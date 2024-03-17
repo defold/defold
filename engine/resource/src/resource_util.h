@@ -93,7 +93,7 @@ namespace dmResource
      * @param buf the result of the operation
      * @return the length of the buffer
      */
-    uint32_t GetCanonicalPath(const char* relative_dir, char* buf);
+    uint32_t GetCanonicalPath(HResourceAliasMapping resource_path_aliases, const char* relative_dir, char* buf);
 
     /**
      * Gets the actual resource path e.g. "base_dir/my/icon.texturec".

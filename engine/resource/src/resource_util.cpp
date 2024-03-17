@@ -162,9 +162,69 @@ uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir
     return (uint32_t)(dest - buf);
 }
 
-uint32_t GetCanonicalPath(const char* relative_dir, char* buf)
+static void ResolveFromPathAlias(HResourceAliasMapping resource_path_aliases, const char* canonical_path, char* canonical_path_out)
 {
-    return GetCanonicalPathFromBase("", relative_dir, buf);
+    dmhash_t canonical_path_hash  = dmHashString64(canonical_path);
+    ResourceAliasMapping* mapping = resource_path_aliases->Get(canonical_path_hash);
+
+    // If we found a mapping to the file directly, we don't need to check for directories
+    if (mapping)
+    {
+        assert(!mapping->m_DirectoryAlias);
+        memcpy(canonical_path_out, mapping->m_Location, strlen(mapping->m_Location));
+        return;
+    }
+
+    // Otherwise, we try to find the base location if there is a sub-directory mapping
+    uint32_t name_len = strlen(canonical_path);
+    uint32_t sub_dir_start = 1;
+    for (int i = 0; i < name_len; ++i)
+    {
+        if (canonical_path[i] == '/')
+        {
+            i++; // step over this slash
+            dmhash_t sub_path_hash        = dmHashBuffer64(canonical_path, i);
+            ResourceAliasMapping* mapping = resource_path_aliases->Get(sub_path_hash);
+
+            if (mapping)
+            {
+                // Build the actual output mapping by replacing the aliased location with the actual location
+                // and then appending the rest of the path
+                assert(mapping->m_DirectoryAlias);
+                memcpy(canonical_path_out, mapping->m_Location, strlen(mapping->m_Location));
+                char* write_ptr = canonical_path_out + strlen(mapping->m_Location);
+                while(canonical_path[i])
+                {
+                    *write_ptr++ = canonical_path[i];
+                    i++;
+                }
+                return;
+            }
+        }
+    }
+
+    // ... and if that fails, we just return the path out again
+    memcpy(canonical_path_out, canonical_path, strlen(canonical_path));
+}
+
+uint32_t GetCanonicalPath(HResourceAliasMapping resource_path_aliases, const char* relative_dir, char* buf)
+{
+    uint32_t path_len = GetCanonicalPathFromBase("", relative_dir, buf);
+
+    if (resource_path_aliases)
+    {
+        char resolved_canonical_path[RESOURCE_PATH_MAX];
+        memset(resolved_canonical_path, 0, sizeof(resolved_canonical_path));
+
+        const char* canonical_path = buf;
+        ResolveFromPathAlias(resource_path_aliases, canonical_path, resolved_canonical_path);
+
+        path_len = strlen(resolved_canonical_path);
+        memcpy(buf, resolved_canonical_path, path_len);
+        buf[path_len] = 0;
+    }
+
+    return path_len;
 }
 
 

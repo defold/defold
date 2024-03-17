@@ -120,6 +120,7 @@ namespace dmGameSystem
             memset(this, 0, sizeof(*this));
         }
         dmRender::HRenderContext    m_RenderContext;
+        dmResource::HFactory        m_Factory;
         uint32_t                    m_MaxSpriteCount;
         uint32_t                    m_Subpixels : 1;
     };

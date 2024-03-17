@@ -274,7 +274,7 @@ static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t 
 static dmhash_t GetCanonicalPathHash(const char* path)
 {
     char canonical_path[dmResource::RESOURCE_PATH_MAX];
-    uint32_t path_len  = dmResource::GetCanonicalPath(path, canonical_path);
+    uint32_t path_len  = dmResource::GetCanonicalPath(dmResource::GetResourcePathAliases(g_ResourceModule.m_Factory), path, canonical_path);
     return dmHashBuffer64(canonical_path, path_len);
 }
 

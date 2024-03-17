@@ -288,6 +288,7 @@ namespace dmResource
         void* m_UserData;
         /// Descriptor of the reloaded resource
         HResourceDescriptor m_Resource;
+        HResourceDescriptor m_ResourceToSwap;
         /// Name of the resource, same as provided to Get() when the resource was obtained
         const char* m_Name;
         /// Hashed name of the resource
