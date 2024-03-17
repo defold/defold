@@ -873,34 +873,31 @@ HResourceAliasMapping GetResourcePathAliases(HFactory factory)
     return factory->m_ResourcePathAliases;
 }
 
-static void ResourceAliasIteratorCallback(HFactory factory, const dmhash_t* id, ResourceAliasMapping* mapping)
+static void ResourceAliasIteratorCallback(HFactory factory, const dmhash_t* id, SResourceDescriptor* resource)
 {
-    if (mapping->m_DirectoryAlias)
-    {
+    const char** resource_path = factory->m_ResourceHashToFilename->Get(*id);
+    ResourceAliasMapping* mapping = factory->m_ResourcePathAliases->Get(*id);
 
-    }
-    else
+    if (mapping)
     {
-        SResourceDescriptor* rd_alias    = GetResourceDescriptor(factory, dmHashString64(mapping->m_Alias));
-        SResourceDescriptor* rd_location = GetResourceDescriptor(factory, dmHashString64(mapping->m_Location));
+        SResourceDescriptor* rd = GetResourceDescriptor(factory, dmHashString64(*resource_path));
+        SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
 
-        if (rd_alias)
-        {
-            if (factory->m_ResourceReloadedCallbacks)
-            {
-                uint32_t count = factory->m_ResourceReloadedCallbacks->Size();
-                for (uint32_t i = 0; i < count; ++i)
-                {
-                    ResourceReloadedCallbackPair& pair = (*factory->m_ResourceReloadedCallbacks)[i];
-                    ResourceReloadedParams reload_params;
-                    reload_params.m_UserData       = pair.m_UserData;
-                    reload_params.m_Resource       = rd_alias;
-                    reload_params.m_ResourceToSwap = rd_location;
-                    reload_params.m_Name           = mapping->m_Location;
-                    pair.m_Callback(reload_params);
-                }
-            }
-        }
+        void* buffer;
+        uint32_t buffer_size;
+        Result result = LoadResource(factory, mapping->m_Location, mapping->m_Location, &buffer, &buffer_size);
+
+        assert(buffer == factory->m_Buffer.Begin());
+        ResourceRecreateParams params;
+        params.m_Factory     = factory;
+        params.m_Context     = resource_type->m_Context;
+        params.m_Message     = 0;
+        params.m_Buffer      = buffer;
+        params.m_BufferSize  = buffer_size;
+        params.m_Resource    = rd;
+        params.m_Filename    = mapping->m_Location;
+        rd->m_PrevResource   = 0;
+        Result create_result = resource_type->m_RecreateFunction(params);
     }
 }
 
@@ -931,7 +928,7 @@ Result SetResourceAlias(HFactory factory, const char* alias, const char* locatio
         mapping.m_DirectoryAlias = alias_as_dir;
         factory->m_ResourcePathAliases->Put(alias_key, mapping);
 
-        factory->m_ResourcePathAliases->Iterate<>(&ResourceAliasIteratorCallback, factory);
+        factory->m_Resources->Iterate<>(&ResourceAliasIteratorCallback, factory);
     }
     return RESULT_OK;
 }
@@ -1002,7 +999,7 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
 static Result DoReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(factory->m_ResourcePathAliases, name, canonical_path);
+    GetCanonicalPath(0, name, canonical_path);
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
