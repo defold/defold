@@ -394,6 +394,19 @@ static int Load(lua_State* L)
     return 1;
 }
 
+static int Alias(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    const char* alias = lua_tostring(L, 1);
+    const char* location = lua_tostring(L, 2);
+
+    if (dmResource::SetResourceAlias(g_ResourceModule.m_Factory, alias, location) != dmResource::RESULT_OK)
+    {
+        return DM_LUA_ERROR("Alias mismatch, can't alias %s to location %s, the alias and the location must both be either a directory or a file.", alias, location);
+    }
+    return 0;
+}
 
 static int DoCheckError(lua_State* L, const char* attr_name, const char* expected_type)
 {
@@ -2855,6 +2868,7 @@ static const luaL_reg Module_methods[] =
 {
     {"set", Set},
     {"load", Load},
+    {"alias", Alias},
     {"create_atlas", CreateAtlas},
     {"create_buffer", CreateBuffer},
     {"create_texture", CreateTexture},

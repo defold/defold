@@ -84,11 +84,20 @@ struct ResourceReloadedCallbackPair
     void*                       m_UserData;
 };
 
+struct ResourceAliasMapping
+{
+    char* m_Alias;
+    char* m_Location;
+    bool  m_DirectoryAlias;
+};
+
 struct SResourceFactory
 {
     // TODO: Arg... budget. Two hash-maps. Really necessary?
     dmHashTable64<SResourceDescriptor>*          m_Resources;
     dmHashTable<uintptr_t, uint64_t>*            m_ResourceToHash;
+    dmHashTable<dmhash_t, ResourceAliasMapping>* m_ResourcePathAliases;
+
     // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
     // Used for reloading of resources
     dmHashTable64<const char*>*                  m_ResourceHashToFilename;
@@ -675,13 +684,21 @@ static Result DoCreateResource(HFactory factory, SResourceType* resource_type, c
     }
 }
 
+static SResourceDescriptor* GetResourceDescriptor(HFactory factory, dmhash_t canonical_path_hash)
+{
+    //dmhash_t* aliased_path_hash = factory->m_ResourcePathAliases->Get(canonical_path_hash);
+    //if (aliased_path_hash)
+    //    canonical_path_hash = *aliased_path_hash;
+    return factory->m_Resources->Get(canonical_path_hash);
+}
+
 // Assumes m_LoadMutex is already held
 static Result PrepareResourceCreation(HFactory factory, const char* canonical_path, dmhash_t canonical_path_hash, void** resource_out, SResourceType** resource_type_out)
 {
     *resource_out = 0;
 
     // Try to get from already loaded resources
-    SResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
+    SResourceDescriptor* rd = GetResourceDescriptor(factory, canonical_path_hash);
     if (rd)
     {
         assert(factory->m_ResourceToHash->Get((uintptr_t) rd->m_Resource));
@@ -719,6 +736,58 @@ static Result PrepareResourceCreation(HFactory factory, const char* canonical_pa
     return RESULT_OK;
 }
 
+static void ResolveFromPathAlias(HFactory factory, const char* canonical_path, char* canonical_path_out)
+{
+    // No need to resolve
+    if (!factory->m_ResourcePathAliases)
+    {
+        memcpy(canonical_path_out, canonical_path, strlen(canonical_path));
+        return;
+    }
+
+    dmhash_t canonical_path_hash  = dmHashString64(canonical_path);
+    ResourceAliasMapping* mapping = factory->m_ResourcePathAliases->Get(canonical_path_hash);
+
+    // If we found a mapping to the file directly, we don't need to check for directories
+    if (mapping)
+    {
+        assert(!mapping->m_DirectoryAlias);
+        memcpy(canonical_path_out, mapping->m_Location, strlen(mapping->m_Location));
+        return;
+    }
+
+    // Otherwise, we try to find the base location if there is a sub-directory mapping
+    uint32_t name_len = strlen(canonical_path);
+    uint32_t sub_dir_start = 1;
+    for (int i = 0; i < name_len; ++i)
+    {
+        if (canonical_path[i] == '/')
+        {
+            i++; // step over this slash
+            dmhash_t sub_path_hash        = dmHashBuffer64(canonical_path, i);
+            ResourceAliasMapping* mapping = factory->m_ResourcePathAliases->Get(sub_path_hash);
+
+            if (mapping)
+            {
+                // Build the actual output mapping by replacing the aliased location with the actual location
+                // and then appending the rest of the path
+                assert(mapping->m_DirectoryAlias);
+                memcpy(canonical_path_out, mapping->m_Location, strlen(mapping->m_Location));
+                char* write_ptr = canonical_path_out + strlen(mapping->m_Location);
+                while(canonical_path[i])
+                {
+                    *write_ptr++ = canonical_path[i];
+                    i++;
+                }
+                return;
+            }
+        }
+    }
+
+    // ... and if that fails, we just return the path out again
+    memcpy(canonical_path_out, canonical_path, strlen(canonical_path));
+}
+
 // Assumes m_LoadMutex is already held
 static Result CreateAndLoadResource(HFactory factory, const char* name, void** resource)
 {
@@ -729,10 +798,14 @@ static Result CreateAndLoadResource(HFactory factory, const char* name, void** r
 
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path);
-    dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
+
+    char canonical_path_resolved[RESOURCE_PATH_MAX] = {};
+    ResolveFromPathAlias(factory, canonical_path, canonical_path_resolved);
+
+    dmhash_t canonical_path_hash_resolved = dmHashString64(canonical_path_resolved);
 
     SResourceType* resource_type;
-    Result res = PrepareResourceCreation(factory, canonical_path, canonical_path_hash, resource, &resource_type);
+    Result res = PrepareResourceCreation(factory, canonical_path_resolved, canonical_path_hash_resolved, resource, &resource_type);
     if (res != RESULT_OK)
     {
         return res;
@@ -745,14 +818,14 @@ static Result CreateAndLoadResource(HFactory factory, const char* name, void** r
 
     void* buffer         = 0;
     uint32_t buffer_size = 0;
-    Result result = LoadResource(factory, canonical_path, name, &buffer, &buffer_size);
+    Result result = LoadResource(factory, canonical_path_resolved, name, &buffer, &buffer_size);
     if (result != RESULT_OK)
     {
         return result;
     }
     assert(buffer == factory->m_Buffer.Begin());
 
-    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, buffer, buffer_size, resource);
+    return DoCreateResource(factory, resource_type, name, canonical_path_resolved, canonical_path_hash_resolved, buffer, buffer_size, resource);
 }
 
 Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource)
@@ -844,9 +917,41 @@ Result Get(HFactory factory, dmhash_t name, void** resource)
     return RESULT_OK;
 }
 
+static inline bool IsDirectory(const char* path)
+{
+    return path[strlen(path)-1] == '/';
+}
+
+Result SetResourceAlias(HFactory factory, const char* alias, const char* location)
+{
+    bool alias_as_dir = IsDirectory(alias);
+    bool location_as_dir = IsDirectory(location);
+
+    if (alias_as_dir != location_as_dir)
+        return RESULT_NOT_SUPPORTED;
+
+    if (!factory->m_ResourcePathAliases)
+    {
+        factory->m_ResourcePathAliases = new dmHashTable<dmhash_t, ResourceAliasMapping>();
+        factory->m_ResourcePathAliases->SetCapacity(32, 8);
+    }
+    else if (factory->m_ResourcePathAliases->Full())
+    {
+        factory->m_ResourcePathAliases->SetCapacity(32, factory->m_ResourcePathAliases->Capacity() * 2);
+    }
+
+    dmhash_t alias_key = dmHashString64(alias);
+    ResourceAliasMapping mapping;
+    mapping.m_Alias          = strdup(alias);
+    mapping.m_Location       = strdup(location);
+    mapping.m_DirectoryAlias = alias_as_dir;
+    factory->m_ResourcePathAliases->Put(alias_key, mapping);
+    return RESULT_OK;
+}
+
 SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash)
 {
-    return factory->m_Resources->Get(canonical_path_hash);
+    return GetResourceDescriptor(factory, canonical_path_hash);
 }
 
 Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, SResourceDescriptor* descriptor)
@@ -914,7 +1019,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
+    SResourceDescriptor* rd = GetResourceDescriptor(factory, canonical_path_hash);
 
     if (out_descriptor)
         *out_descriptor = rd;
@@ -1021,7 +1126,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
 
     assert(data);
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
+    SResourceDescriptor* rd = GetResourceDescriptor(factory, hashed_name);
     if (!rd) {
         return RESULT_RESOURCE_NOT_FOUND;
     }
@@ -1076,7 +1181,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
 
     assert(message);
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
+    SResourceDescriptor* rd = GetResourceDescriptor(factory, hashed_name);
     if (!rd) {
         return RESULT_RESOURCE_NOT_FOUND;
     }
@@ -1130,7 +1235,7 @@ Result GetType(HFactory factory, void* resource, ResourceType* type)
         return RESULT_NOT_LOADED;
     }
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    SResourceDescriptor* rd = GetResourceDescriptor(factory, *resource_hash);
     assert(rd);
     assert(rd->m_ReferenceCount > 0);
     *type = (ResourceType) rd->m_ResourceType;
@@ -1178,7 +1283,7 @@ Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* de
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
-    SResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(canonical_path_hash);
+    SResourceDescriptor* tmp_descriptor = GetResourceDescriptor(factory, canonical_path_hash);
     if (tmp_descriptor)
     {
         *descriptor = *tmp_descriptor;
@@ -1192,7 +1297,7 @@ Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* de
 
 Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor)
 {
-    SResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(hashed_name);
+    SResourceDescriptor* tmp_descriptor = GetResourceDescriptor(factory, hashed_name);
     if (!tmp_descriptor) {
         return RESULT_NOT_LOADED;
     }
@@ -1220,7 +1325,7 @@ void IncRef(HFactory factory, void* resource)
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     assert(resource_hash);
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    SResourceDescriptor* rd = GetResourceDescriptor(factory, *resource_hash);
     assert(rd);
     assert(rd->m_ReferenceCount > 0);
     ++rd->m_ReferenceCount;
@@ -1231,7 +1336,7 @@ uint16_t GetVersion(HFactory factory, void* resource)
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     assert(resource_hash);
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    SResourceDescriptor* rd = GetResourceDescriptor(factory, *resource_hash);
     assert(rd);
     return rd->m_Version;
 }
@@ -1242,14 +1347,14 @@ uint32_t GetRefCount(HFactory factory, void* resource)
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     if(!resource_hash)
         return 0;
-    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    SResourceDescriptor* rd = GetResourceDescriptor(factory, *resource_hash);
     assert(rd);
     return rd->m_ReferenceCount;
 }
 
 uint32_t GetRefCount(HFactory factory, dmhash_t identifier)
 {
-    SResourceDescriptor* rd = factory->m_Resources->Get(identifier);
+    SResourceDescriptor* rd = GetResourceDescriptor(factory, identifier);
     if(!rd)
         return 0;
     return rd->m_ReferenceCount;
@@ -1262,7 +1367,7 @@ void Release(HFactory factory, void* resource)
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     assert(resource_hash);
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    SResourceDescriptor* rd = GetResourceDescriptor(factory, *resource_hash);
     assert(rd);
     assert(rd->m_ReferenceCount > 0);
     rd->m_ReferenceCount--;

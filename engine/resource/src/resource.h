@@ -179,6 +179,8 @@ namespace dmResource
      */
     Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource);
 
+    Result SetResourceAlias(HFactory factory, const char* file_alias, const char* file_location);
+
     /**
      * Get a resource extension from a path, i.e resource.ext will return .ext. Note the included dot in the output.
      * @param path The path to the resource
