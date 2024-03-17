@@ -863,11 +863,6 @@ Result Get(HFactory factory, dmhash_t name, void** resource)
     return RESULT_OK;
 }
 
-static inline bool IsDirectory(const char* path)
-{
-    return path[strlen(path)-1] == '/';
-}
-
 HResourceAliasMapping GetResourcePathAliases(HFactory factory)
 {
     return factory->m_ResourcePathAliases;
@@ -954,8 +949,10 @@ static void ResourceAliasIteratorCallback(HFactory factory, const dmhash_t* id, 
 
 Result SetResourceAlias(HFactory factory, const char* alias, const char* location)
 {
-    bool alias_as_dir = IsDirectory(alias);
-    bool location_as_dir = IsDirectory(location);
+#define IS_DIRECTORY(path) (path[strlen(path)-1] == '/')
+    bool alias_as_dir    = IS_DIRECTORY(alias);
+    bool location_as_dir = IS_DIRECTORY(location);
+#undef IS_DIRECTORY
 
     if (alias_as_dir != location_as_dir)
         return RESULT_NOT_SUPPORTED;
