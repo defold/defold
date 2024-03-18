@@ -599,6 +599,7 @@ var Module = {
     _archiveLoaded: false,
     _preLoadDone: false,
     _waitingForArchive: false,
+    _isEngineLoaded: false,
 
     // Persistent storage
     persistentStorage: true,
@@ -690,6 +691,7 @@ var Module = {
     * Module.runApp - Starts the application given a canvas element id
     **/
     runApp: function(appCanvasId, _) {
+        Module._isEngineLoaded = true;
         Module.setupCanvas(appCanvasId);
 
         Module.arguments = CUSTOM_PARAMETERS["engine_arguments"];
@@ -710,8 +712,14 @@ var Module = {
                     e.preventDefault();
                 };
             }
+            if (Module._archiveLoaded) {
+                // "Starting...."
+                Progress.updateProgress(100);
+                Module._callMain();
+            }
         } else {
-            Progress.updateProgress(100, "Unable to start game, WebGL not supported");
+            // "Unable to start game, WebGL not supported"
+            Progress.updateProgress(100);
             Module.setStatus = function(text) {
                 if (text) Module.printErr('[missing WebGL] ' + text);
             };
@@ -729,8 +737,6 @@ var Module = {
     onArchiveLoaded: function() {
         GameArchiveLoader.cleanUp();
         Module._archiveLoaded = true;
-        Progress.updateProgress(100, "Starting...");
-
         if (Module._waitingForArchive) {
             Module._preloadAndCallMain();
         }
@@ -857,15 +863,22 @@ var Module = {
             Module._waitingForArchive = true;
         } else {
             Module.preloadAll();
-            Progress.removeProgress();
-            if (Module.callMain === undefined) {
-                Module.noInitialRun = false;
-            } else {
-                Module.callMain(Module.arguments);
+            if (Module._isEngineLoaded) {
+                // "Starting...."
+                Progress.updateProgress(100);
+                Module._callMain();
             }
         }
     },
 
+    _callMain: function() {
+        Progress.removeProgress();
+        if (Module.callMain === undefined) {
+            Module.noInitialRun = false;
+        } else {
+            Module.callMain(Module.arguments);
+        }
+    },
     // Wrap IDBFS syncfs call with logic to avoid multiple syncs
     // running at the same time.
     _startSyncFS: function() {
