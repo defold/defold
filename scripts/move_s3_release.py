@@ -15,7 +15,7 @@
 
 # add build_tools folder to the import search path
 import sys, os
-from os.path import join, dirname, basename, relpath, expanduser, normpath, abspath
+from os.path import join, dirname, normpath, abspath
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
 import optparse
@@ -24,8 +24,14 @@ import s3
 CDN_UPLOAD_URL="s3://d.defold.com/archive"
 
 if __name__ == '__main__':
-    boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
+    urllib_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/urllib3-2.2.0-py3-none-any.whl'))
+    botocore_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/botocore-1.34.43-py3-none-any.whl'))
+    boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto3-1.34.43-py3-none-any.whl'))
+    data_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto3_data'))
+    sys.path.insert(0, urllib_path)
+    sys.path.insert(0, botocore_path)
     sys.path.insert(0, boto_path)
+    os.environ['AWS_DATA_PATH'] = data_path
     usage = '''usage: %prog [options] command
 
 Commands:

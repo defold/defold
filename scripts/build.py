@@ -1329,14 +1329,11 @@ class Configuration(object):
 
         for platform in platforms:
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
-            entry = bucket.get_key(prefix)
-
-            if entry is None:
-                raise Exception("Could not find sdk: %s" % prefix)
+            entry = bucket.Object(prefix)
 
             platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
             print ("Downloading", entry.key)
-            entry.get_contents_to_filename(platform_sdk_zip.name)
+            entry.download_file(platform_sdk_zip.name)
             print ("Downloaded", entry.key, "to", platform_sdk_zip.name)
 
             self._extract_zip(platform_sdk_zip.name, tempdir)
@@ -1347,12 +1344,11 @@ class Configuration(object):
 
         # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
         # and set the flags explicitly
-        for root, dirs, files in os.walk(tempdir):
+        for root, _, files in os.walk(tempdir):
             for f in files:
                 p = os.path.join(root, f)
                 if '/bin/' in p:
                     os.chmod(p, 0o755)
-                    st = os.stat(p)
 
         treepath = os.path.join(tempdir, 'defoldsdk')
         sdkpath = self._ziptree(treepath, directory=tempdir)
@@ -1618,26 +1614,26 @@ class Configuration(object):
         html = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
             html = file.read()
+            file.close()
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
         self._log('Uploading %s/index.html' % self.channel)
 
-        key = bucket.new_key('%s/index.html' % self.channel)
-        key.content_type = 'text/html'
-        key.set_contents_from_string(html)
+        index_obj = bucket.Object('%s/index.html' % self.channel)
+        index_obj.put(Body=html, ContentType='text/html')
 
         self._log('Uploading %s/info.json' % self.channel)
-        key = bucket.new_key('%s/info.json' % self.channel)
-        key.content_type = 'application/json'
-        key.set_contents_from_string(json.dumps({'version': self.version,
-                                                 'sha1' : release_sha1}))
+        new_obj = bucket.Object('%s/info.json' % self.channel)
+        new_obj_content = json.dumps({'version': self.version,
+                                                 'sha1' : release_sha1})
+        new_obj.put(Body=new_obj_content, ContentType='application/json')
 
         # Editor update-v4.json
-        key_v4 = bucket.new_key('editor2/channels/%s/update-v4.json' % self.channel)
-        key_v4.content_type = 'application/json'
-        self._log("Updating channel '%s' for update-v4.json: %s" % (self.channel, key_v4))
-        key_v4.set_contents_from_string(json.dumps({'sha1': release_sha1}))
+        v4_obj = bucket.Object('editor2/channels/%s/update-v4.json' % self.channel)
+        self._log("Updating channel '%s' for update-v4.json: %s" % (self.channel, v4_obj.key))
+        v4_content = json.dumps({'sha1': release_sha1})
+        v4_obj.put(Body=v4_content, ContentType='application/json')
 
         # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
         # Used by www.defold.com/download
@@ -1647,8 +1643,11 @@ class Configuration(object):
             key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
             redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
-            key = bucket.new_key(key_name)
-            key.set_redirect(redirect)
+            obj = bucket.Object(key_name)
+            obj.copy_from(
+                CopySource={'Bucket': hostname, 'Key': key_name},
+                WebsiteRedirectLocation=redirect
+            )
 
     def _get_tag_pattern_from_tag_name(self, channel, tag_name):
         # NOTE: Each of the main branches has a channel (stable, beta and alpha)
@@ -1820,9 +1819,9 @@ class Configuration(object):
         if not self.thread_pool:
             self.thread_pool = ThreadPool(8)
 
-        def download(key, path):
-            self._log('s3://%s/%s -> %s' % (bucket_name, key.name, path))
-            key.get_contents_to_filename(path)
+        def download(obj, path):
+            self._log('s3://%s/%s -> %s' % (bucket_name, obj.key, path))
+            obj.download_file(path)
 
         futures = []
         sha1 = self._git_sha1()
@@ -1833,13 +1832,13 @@ class Configuration(object):
         # * launcher files, used to launch editor2
         pattern = re.compile(r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$')
         prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
-        for key in bucket.list(prefix = prefix):
-            rel = os.path.relpath(key.name, prefix)
+        for obj_summary in bucket.objects.filter(prefix = prefix):
+            rel = os.path.relpath(obj_summary.key, prefix)
 
             if not pattern.search(rel):
                 p = os.path.join(local_dir, sha1, rel)
                 self._mkdirs(os.path.dirname(p))
-                f = Future(self.thread_pool, download, key, p)
+                f = Future(self.thread_pool, download, bucket.Object(obj_summary.key), p)
                 futures.append(f)
 
         for f in futures:
@@ -2032,8 +2031,11 @@ class Configuration(object):
         bucket = s3.get_bucket(urlparse(url).netloc)
         redirect_key = self.get_archive_redirect_key(url)
         redirect_url = url.replace("s3://", "http://")
-        key = bucket.new_key(redirect_key)
-        key.set_redirect(redirect_url)
+        obj = bucket.Object(redirect_key)
+        obj.copy_from(
+            CopySource={'Bucket': bucket.name, 'Key': obj.key},
+            WebsiteRedirectLocation=redirect_url
+        )
         self._log("Redirecting %s -> %s : %s" % (url, redirect_key, redirect_url))
 
     def download_from_s3(self, path, url):
@@ -2043,12 +2045,9 @@ class Configuration(object):
 
         if u.scheme == 's3':
             self._mkdirs(os.path.dirname(path))
-            from boto.s3.key import Key
 
             bucket = s3.get_bucket(u.netloc)
-            k = Key(bucket)
-            k.key = u.path
-            k.get_contents_to_filename(path)
+            bucket.download_file(u.path, path)
             self._log('Downloaded %s -> %s' % (url, path))
         else:
             raise Exception('Unsupported url %s' % (url))
@@ -2071,17 +2070,16 @@ class Configuration(object):
                 p += basename(path)
 
             def upload_singlefile():
-                key = bucket.new_key(p)
-                key.set_contents_from_filename(path)
+                bucket.upload_file(path, p)
                 self._log('Uploaded %s -> %s' % (path, url))
 
             def upload_multipart():
-                headers = {}
                 contenttype, _ = mimetypes.guess_type(path)
+                mp = None
                 if contenttype is not None:
-                    headers['Content-Type'] = contenttype
-
-                mp = bucket.initiate_multipart_upload(p, headers=headers)
+                    mp = bucket.Object(p).initiate_multipart_upload(ContentType=contenttype)
+                else:
+                    mp = bucket.Object(p).initiate_multipart_upload()
 
                 source_size = os.stat(path).st_size
                 chunksize = 64 * 1024 * 1024 # 64 MiB
@@ -2090,7 +2088,8 @@ class Configuration(object):
                 def upload_part(filepath, part, offset, size):
                     with open(filepath, 'rb') as fhandle:
                         fhandle.seek(offset)
-                        mp.upload_part_from_file(fp=fhandle, part_num=part, size=size)
+                        part = mp.Part(part)
+                        part.upload(Body=fhandle,ContentLength=size)
 
                 _threads = []
                 for i in range(chunkcount):
@@ -2109,11 +2108,12 @@ class Configuration(object):
                     _threads[i].join()
                     self._log('Uploaded #%d %s -> %s' % (i + 1, path, url))
 
-                if len(mp.get_all_parts()) == chunkcount:
-                    mp.complete_upload()
+                
+                if len(list(mp.parts.all())) == chunkcount:
+                    mp.complete()
                     self._log('Uploaded %s -> %s' % (path, url))
                 else:
-                    mp.cancel_upload()
+                    mp.abort()
                     self._log('Failed to upload %s -> %s' % (path, url))
 
             f = None
@@ -2195,8 +2195,15 @@ class Configuration(object):
         return env
 
 if __name__ == '__main__':
-    boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.whl'))
+    urllib_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/urllib3-2.2.0-py3-none-any.whl'))
+    botocore_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/botocore-1.34.43-py3-none-any.whl'))
+    boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto3-1.34.43-py3-none-any.whl'))
+    data_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto3_data'))
+    sys.path.insert(0, urllib_path)
+    sys.path.insert(0, botocore_path)
     sys.path.insert(0, boto_path)
+    os.environ['AWS_DATA_PATH'] = data_path
+
     usage = '''usage: %prog [options] command(s)
 
 Commands:
