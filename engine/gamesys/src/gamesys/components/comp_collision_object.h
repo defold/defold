@@ -102,6 +102,11 @@ namespace dmGameSystem
     bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out);
     bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
     bool SetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
+
+
+    // For script_box2d.cpp
+    class b2World* CompCollisionObjectGetBox2DWorld(void* _world);
+    class b2Body* CompCollisionObjectGetBox2DBody(void* _component);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

@@ -457,8 +457,11 @@ TEST_F(EngineTest, FixedUpdateFrequency3D)
 }
 */
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
 
     dmProfile::Initialize(0);

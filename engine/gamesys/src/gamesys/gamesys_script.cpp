@@ -25,6 +25,7 @@
 #include "scripts/script_particlefx.h"
 #include "scripts/script_tilemap.h"
 #include "scripts/script_physics.h"
+#include "scripts/script_box2d.h"
 #include "scripts/script_sound.h"
 #include "scripts/script_sprite.h"
 #include "scripts/script_factory.h"
@@ -138,6 +139,7 @@ namespace dmGameSystem
         ScriptParticleFXRegister(context);
         ScriptTileMapRegister(context);
         ScriptPhysicsRegister(context);
+        ScriptBox2DInitialize(context);
         ScriptFactoryRegister(context);
         ScriptCollectionFactoryRegister(context);
         ScriptSpriteRegister(context);
@@ -159,6 +161,7 @@ namespace dmGameSystem
         ScriptCollectionProxyFinalize(context);
         ScriptLabelFinalize(context);
         ScriptPhysicsFinalize(context);
+        ScriptBox2DFinalize(context);
         ScriptResourceFinalize(context);
         ScriptWindowFinalize(context);
         ScriptSysGameSysFinalize(context);
