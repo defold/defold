@@ -2115,6 +2115,8 @@ bail:
 
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
+        PipelineState pipeline_state_draw = context->m_PipelineState;
+
         // If the culling, or viewport has changed, make sure to flip the
         // culling flag if we are rendering to the backbuffer.
         // This is needed because we are rendering with a negative viewport
@@ -2123,13 +2125,13 @@ bail:
         {
             if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
             {
-                if (context->m_PipelineState.m_CullFaceType == FACE_TYPE_BACK)
+                if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
                 {
-                    context->m_PipelineState.m_CullFaceType = FACE_TYPE_FRONT;
+                    pipeline_state_draw.m_CullFaceType = FACE_TYPE_FRONT;
                 }
-                else if (context->m_PipelineState.m_CullFaceType == FACE_TYPE_FRONT)
+                else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
                 {
-                    context->m_PipelineState.m_CullFaceType = FACE_TYPE_BACK;
+                    pipeline_state_draw.m_CullFaceType = FACE_TYPE_BACK;
                 }
             }
             context->m_CullFaceChanged = 0;
@@ -2166,7 +2168,7 @@ bail:
         }
 
         Pipeline* pipeline = GetOrCreatePipeline(vk_device, vk_sample_count,
-            context->m_PipelineState, context->m_PipelineCache,
+            pipeline_state_draw, context->m_PipelineCache,
             program_ptr, current_rt, context->m_CurrentVertexDeclaration, num_vx_buffers);
 
         if (pipeline != context->m_CurrentPipeline)
