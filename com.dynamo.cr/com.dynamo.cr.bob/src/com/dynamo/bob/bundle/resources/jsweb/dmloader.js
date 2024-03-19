@@ -182,12 +182,6 @@ var EngineLoader = {
         if (typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough) {
             async function fetchWithProgress(path) {
                 const response = await fetch(path);
-                // May be incorrect if compressed
-                var contentLength = response.headers.get("Content-Length");
-                if (!contentLength){
-                    contentLength = EngineLoader.wasm_size;
-                }
-
                 const ts = new TransformStream({
                     transform (chunk, controller) {
                         ProgressUpdater.updateCurrent(chunk.byteLength);
