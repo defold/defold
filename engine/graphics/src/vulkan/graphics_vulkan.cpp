@@ -1094,6 +1094,11 @@ namespace dmGraphics
 
         delete[] device_list;
 
+        if (created_width != context->m_Width || created_height != context->m_Height)
+        {
+            dmPlatform::SetWindowSize(context->m_Window, created_width, created_height);
+        }
+
         context->m_PipelineCache.SetCapacity(32,64);
         context->m_TextureSamplers.SetCapacity(4);
 
