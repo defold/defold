@@ -113,14 +113,6 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Body_IsActive(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        lua_pushboolean(L, body->IsActive());
-        return 1;
-    }
-
     static int Body_GetMass(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -134,6 +126,14 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         b2Body* body = CheckBody(L, 1);
         lua_pushnumber(L, body->GetInertia());
+        return 1;
+    }
+
+    static int Body_GetAngle(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetAngle());
         return 1;
     }
 
@@ -168,6 +168,108 @@ namespace dmGameSystem
         b2Body* body = CheckBody(L, 1);
         float velocity = luaL_checknumber(L, 2);
         body->SetAngularVelocity(velocity);
+        return 0;
+    }
+
+    static int Body_GetLinearDamping(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetLinearDamping());
+        return 1;
+    }
+
+    static int Body_SetLinearDamping(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        float damping = luaL_checknumber(L, 2);
+        body->SetLinearDamping(damping);
+        return 0;
+    }
+    
+    static int Body_IsBullet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushboolean(L, body->IsBullet());
+        return 1;
+    }
+
+    static int Body_SetBullet(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        bool enable = lua_toboolean(L, 2);
+        body->SetBullet(enable);
+        return 0;
+    }
+
+    static int Body_IsAwake(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushboolean(L, body->IsAwake());
+        return 1;
+    }
+
+    static int Body_SetAwake(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        bool enable = lua_toboolean(L, 2);
+        body->SetAwake(enable);
+        return 0;
+    }
+
+    static int Body_IsFixedRotation(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushboolean(L, body->IsFixedRotation());
+        return 1;
+    }
+
+    static int Body_SetFixedRotation(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        bool enable = lua_toboolean(L, 2);
+        body->SetFixedRotation(enable);
+        return 0;
+    }
+
+    static int Body_IsSleepingAllowed(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushboolean(L, body->IsSleepingAllowed());
+        return 1;
+    }
+
+    static int Body_SetSleepingAllowed(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        bool enable = lua_toboolean(L, 2);
+        body->SetSleepingAllowed(enable);
+        return 0;
+    }
+
+    static int Body_IsActive(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushboolean(L, body->IsActive());
+        return 1;
+    }
+
+    static int Body_SetActive(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        bool enable = lua_toboolean(L, 2);
+        body->SetActive(enable);
         return 0;
     }
 
@@ -206,9 +308,9 @@ namespace dmGameSystem
         // GetUserData - could return the game object id ?
         // SetUserData - we shouldn't be able to set this.
 
-        {"is_active", Body_IsActive},
         {"get_mass", Body_GetMass},
         {"get_inertia", Body_GetInertia},
+        {"get_angle", Body_GetAngle},
 
         {"get_linear_velocity", Body_GetLinearVelocity},
         {"set_linear_velocity", Body_SetLinearVelocity},
@@ -216,8 +318,24 @@ namespace dmGameSystem
         {"get_angular_velocity", Body_GetAngularVelocity},
         {"set_angular_velocity", Body_SetAngularVelocity},
 
-        // GetAngularVelocity
-        // SetAngularVelocity
+        {"get_linear_damping", Body_GetLinearDamping},
+        {"set_linear_damping", Body_SetLinearDamping},
+
+        {"is_bullet", Body_IsBullet},
+        {"set_bullet", Body_SetBullet},
+
+        {"is_awake", Body_IsAwake},
+        {"set_awake", Body_SetAwake},
+
+        {"is_fixed_rotation", Body_IsFixedRotation},
+        {"set_fixed_rotation", Body_SetFixedRotation},
+
+        {"is_sleeping_allowed", Body_IsSleepingAllowed},
+        {"set_sleeping_allowed", Body_SetSleepingAllowed},
+
+        {"is_active", Body_IsActive},
+        {"set_active", Body_SetActive},
+
 
         // GetWorldPoint
         // GetWorldVector
@@ -227,26 +345,8 @@ namespace dmGameSystem
         // GetLinearVelocityFromWorldPoint
         // GetLinearVelocityFromLocalPoint
 
-        // GetLinearDamping
-        // SetLinearDamping
-
-        // GetAngularDamping
-        // SetAngularDamping
-
         // GetGravityScale
         // SetGravityScale
-        
-        // IsBullet
-        // SetBullet
-
-        // IsAwake
-        // SetAwake
-
-        // IsFixedRotation
-        // SetFixedRotation(bool)
-
-        // IsSleepingAllowed
-        // SetSleepingAllowed(bool)
 
         //{"apply_force", Body_ApplyForce},
         //{"apply_force_to_center", Body_ApplyForceToCenter},
