@@ -15,10 +15,28 @@
 #ifndef DM_GAMESYS_SCRIPT_BOX2D_H
 #define DM_GAMESYS_SCRIPT_BOX2D_H
 
+#include <dmsdk/dlib/vmath.h>
+#include <Box2D/Common/b2Math.h>
+
 namespace dmGameSystem
 {
-    void ScriptBox2DInitialize(const ScriptLibContext& context);
-    void ScriptBox2DFinalize(const ScriptLibContext& context);
+    void ScriptBox2DInitialize(const struct ScriptLibContext& context);
+    void ScriptBox2DFinalize(const struct ScriptLibContext& context);
+
+    // internal
+
+    float GetPhysicsScale();
+    float GetInvPhysicsScale();
+
+    b2Vec2           CheckVec2(struct lua_State* L, int index, float scale);
+    dmVMath::Vector3 FromB2(const b2Vec2& p, float inv_scale);
+
+    void    PushWorld(struct lua_State* L, class b2World* world);
+
+    void            PushBody(struct lua_State* L, class b2Body* body);
+    class b2Body*   CheckBody(lua_State* L, int index);
+
+    void    ScriptBox2DInitializeBody(struct lua_State* L);
 }
 
 #endif // DM_GAMESYS_SCRIPT_BOX2D_H
