@@ -130,6 +130,9 @@
           (.glActiveTexture ^GL2 gl GL/GL_TEXTURE0)  ; Set TEXTURE0 as the active texture unit in case anything outside of the bind / unbind cycle forgets to call (.glActiveTexture ...)
           (.disable tex gl))))))                     ; Disable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
 
+(defn texture-lifecycle? [value]
+  (instance? TextureLifecycle value))
+
 (defn set-params [^TextureLifecycle tlc params]
   (update tlc :params merge params))
 

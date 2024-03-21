@@ -238,7 +238,6 @@
 
   (input included-proj-paths+full-lines ProjPath+Lines :array)
 
-  (output build-targets g/Any :cached produce-build-targets)
   (output proj-path->full-lines g/Any (g/fnk [included-proj-paths+full-lines]
                                                 (into {} included-proj-paths+full-lines)))
   (output proj-path+full-lines ProjPath+Lines :cached produce-proj-path+full-lines)
