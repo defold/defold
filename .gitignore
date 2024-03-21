@@ -64,3 +64,4 @@ editor/.lsp/sqlite.db
 /com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.tokens
 
 /com.dynamo.cr/com.dynamo.cr.bob/libexec/**/lipo*
+ci/gcloud_keyfile.json
