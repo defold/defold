@@ -15,6 +15,7 @@
 #include <stdio.h>
 
 #include <Box2D/Dynamics/b2Body.h>
+#include <Box2D/Dynamics/Joints/b2Joint.h>
 
 #include <dlib/log.h>
 #include <gameobject/script.h>
@@ -86,6 +87,41 @@ namespace dmGameSystem
         return (b2Body*)dmScript::ToUserType(L, index, TYPE_HASHES[BOX2D_TYPE_BODY]);
     }
 
+    static int Body_GetPosition(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        dmScript::PushVector3(L, FromB2(body->GetPosition(), g_InvPhysicsScale));
+        return 1;
+    }
+
+    static int Body_ApplyForce(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 force = CheckVec2(L, 2, g_PhysicsScale);
+        b2Vec2 position = CheckVec2(L, 3, g_PhysicsScale);
+        body->ApplyForce(force, position);
+        return 0;
+    }
+
+    static int Body_ApplyForceToCenter(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 force = CheckVec2(L, 2, g_PhysicsScale);
+        body->ApplyForceToCenter(force);
+        return 0;
+    }
+
+    static int Body_ApplyTorque(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->ApplyTorque(luaL_checknumber(L, 2));
+        return 0;
+    }
+
     static int Body_ApplyLinearImpulse(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -96,20 +132,11 @@ namespace dmGameSystem
         return 0;
     }
 
-    static int Body_GetPosition(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        dmScript::PushVector3(L, FromB2(body->GetPosition(), g_InvPhysicsScale));
-        return 1;
-    }
-
     static int Body_ApplyAngularImpulse(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2Body* body = CheckBody(L, 1);
-        float impulse = luaL_checknumber(L, 2);
-        body->ApplyAngularImpulse(impulse);
+        body->ApplyAngularImpulse(luaL_checknumber(L, 2));
         return 0;
     }
 
@@ -134,6 +161,14 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         b2Body* body = CheckBody(L, 1);
         lua_pushnumber(L, body->GetAngle());
+        return 1;
+    }
+
+    static int Body_GetForce(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        dmScript::PushVector3(L, FromB2(body->GetForce(), g_InvPhysicsScale));
         return 1;
     }
 
@@ -166,8 +201,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2Body* body = CheckBody(L, 1);
-        float velocity = luaL_checknumber(L, 2);
-        body->SetAngularVelocity(velocity);
+        body->SetAngularVelocity(luaL_checknumber(L, 2));
         return 0;
     }
 
@@ -183,8 +217,39 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         b2Body* body = CheckBody(L, 1);
-        float damping = luaL_checknumber(L, 2);
-        body->SetLinearDamping(damping);
+        body->SetLinearDamping(luaL_checknumber(L, 2));
+        return 0;
+    }
+
+    static int Body_GetGravityScale(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetGravityScale());
+        return 1;
+    }
+
+    static int Body_SetGravityScale(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->SetGravityScale(luaL_checknumber(L, 2));
+        return 0;
+    }
+
+    static int Body_GetType(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetType());
+        return 1;
+    }
+
+    static int Body_SetType(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->SetType((b2BodyType)luaL_checknumber(L, 2));
         return 0;
     }
     
@@ -273,6 +338,76 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Body_GetWorldPoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, g_PhysicsScale);
+        dmScript::PushVector3(L, FromB2(body->GetWorldPoint(p), g_InvPhysicsScale));
+        return 1;
+    }
+
+    static int Body_GetWorldVector(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, g_PhysicsScale);
+        dmScript::PushVector3(L, FromB2(body->GetWorldVector(p), g_InvPhysicsScale));
+        return 1;
+    }
+
+    static int Body_GetLocalPoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, g_PhysicsScale);
+        dmScript::PushVector3(L, FromB2(body->GetLocalPoint(p), g_InvPhysicsScale));
+        return 1;
+    }
+
+    static int Body_GetLocalVector(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, g_PhysicsScale);
+        dmScript::PushVector3(L, FromB2(body->GetLocalVector(p), g_InvPhysicsScale));
+        return 1;
+    }
+
+    static int Body_GetLinearVelocityFromWorldPoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, g_PhysicsScale);
+        dmScript::PushVector3(L, FromB2(body->GetLinearVelocityFromWorldPoint(p), g_InvPhysicsScale));
+        return 1;
+    }
+
+    static int Body_GetLinearVelocityFromLocalPoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 p = CheckVec2(L, 1, g_PhysicsScale);
+        dmScript::PushVector3(L, FromB2(body->GetLinearVelocityFromLocalPoint(p), g_InvPhysicsScale));
+        return 1;
+    }
+
+    static int Body_GetWorld(lua_State *L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushlightuserdata(L, body->GetWorld()); // TODO: use meta table for this as well
+        return 1;
+    }
+
+    static int Body_Dump(lua_State *L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->Dump();
+        return 0;
+    }
+
     static int Body_tostring(lua_State *L)
     {
         b2Body* body = CheckBody(L, 1);
@@ -305,12 +440,20 @@ namespace dmGameSystem
 
         {"get_position", Body_GetPosition},
 
-        // GetUserData - could return the game object id ?
-        // SetUserData - we shouldn't be able to set this.
+        //{"get_user_data", Body_GetUserData}, - could return the game object id ?
+        //{"set_user_data", Body_SetUserData}, - could attach the body to a game object?
 
         {"get_mass", Body_GetMass},
         {"get_inertia", Body_GetInertia},
         {"get_angle", Body_GetAngle},
+
+        // {"get_mass_data", Body_GetMassData},
+        // {"set_mass_data", Body_SetMassData},
+        // {"reset_mass_data", Body_ResetMassData},
+        // {"synchronize_fixtures", SynchronizeFixtures},
+        // SynchronizeSingle(b2Shape* shape, int32 index)
+
+        {"get_force", Body_GetForce},
 
         {"get_linear_velocity", Body_GetLinearVelocity},
         {"set_linear_velocity", Body_SetLinearVelocity},
@@ -336,24 +479,35 @@ namespace dmGameSystem
         {"is_active", Body_IsActive},
         {"set_active", Body_SetActive},
 
+        {"get_gravity_scale", Body_GetGravityScale},
+        {"set_gravity_scale", Body_SetGravityScale},
 
-        // GetWorldPoint
-        // GetWorldVector
-        // GetLocalPoint
-        // GetLocalVector
+        {"get_type", Body_GetType},
+        {"set_type", Body_SetType},
 
-        // GetLinearVelocityFromWorldPoint
-        // GetLinearVelocityFromLocalPoint
+        {"get_world_point", Body_GetWorldPoint},
+        {"get_world_vector", Body_GetWorldVector},
 
-        // GetGravityScale
-        // SetGravityScale
+        {"get_local_point", Body_GetLocalPoint},
+        {"get_local_vector", Body_GetLocalVector},
 
-        //{"apply_force", Body_ApplyForce},
-        //{"apply_force_to_center", Body_ApplyForceToCenter},
-        //{"apply_torque", Body_ApplyTorque},
+        {"get_linear_velocity_from_world_point", Body_GetLinearVelocityFromWorldPoint},
+        {"get_linear_velocity_from_local_point", Body_GetLinearVelocityFromLocalPoint},
+
+        {"apply_force", Body_ApplyForce},
+        {"apply_force_to_center", Body_ApplyForceToCenter},
+        {"apply_torque", Body_ApplyTorque},
 
         {"apply_linear_impulse", Body_ApplyLinearImpulse},
         {"apply_angular_impulse", Body_ApplyAngularImpulse},
+
+
+        // {"GetNext",GetNext},
+        // {"GetFixtureList",GetFixtureList},
+        // {"GetContactList",GetContactList},
+        // {"GetJointList",GetJointList},
+        {"get_world", Body_GetWorld},
+        {"dump", Body_Dump},
 
         {0,0}
     };
@@ -465,10 +619,41 @@ namespace dmGameSystem
 
         luaL_register(L, "box2d", BOX2D_FUNCTIONS);
 
+#define SETCONSTANT(NS, NAME) \
+        lua_pushnumber(L, (lua_Number) NS :: NAME); \
+        lua_setfield(L, -2, #NAME);
 
-// #define SETCONSTANT(name) \
-//     lua_pushnumber(L, (lua_Number) dmPhysics::name); \
-//     lua_setfield(L, -2, #name);\
+        lua_newtable(L);
+        SETCONSTANT(b2BodyType, b2_staticBody);
+        SETCONSTANT(b2BodyType, b2_kinematicBody);
+        SETCONSTANT(b2BodyType, b2_dynamicBody);
+        lua_setfield(L, -2, "b2BodyType");
+
+        lua_newtable(L);
+        SETCONSTANT(b2Shape, e_circle);
+        SETCONSTANT(b2Shape, e_edge);
+        SETCONSTANT(b2Shape, e_polygon);
+        SETCONSTANT(b2Shape, e_chain);
+        lua_setfield(L, -2, "b2Shape");
+
+        lua_newtable(L);
+        SETCONSTANT(b2JointType, e_unknownJoint)
+        SETCONSTANT(b2JointType, e_revoluteJoint)
+        SETCONSTANT(b2JointType, e_prismaticJoint)
+        SETCONSTANT(b2JointType, e_distanceJoint)
+        SETCONSTANT(b2JointType, e_pulleyJoint)
+        SETCONSTANT(b2JointType, e_mouseJoint)
+        SETCONSTANT(b2JointType, e_gearJoint)
+        SETCONSTANT(b2JointType, e_wheelJoint)
+        SETCONSTANT(b2JointType, e_weldJoint)
+        SETCONSTANT(b2JointType, e_frictionJoint)
+        SETCONSTANT(b2JointType, e_ropeJoint)
+        lua_setfield(L, -2, "b2JointType");
+
+
+    //     lua_pushinteger(L, (lua_Number) b2BodyType::b2_staticBody);
+    //     lua_setfield(L, -2, "b2BodyType::b2_staticBody");
+
 
 //         SETCONSTANT(JOINT_TYPE_SPRING)
 //         SETCONSTANT(JOINT_TYPE_FIXED)
