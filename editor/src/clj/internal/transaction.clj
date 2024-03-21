@@ -537,12 +537,13 @@
         (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
 
 (defn- validate-property-value-impl [node-type node-id property-label property-value]
-  (let [value-type (some-> (in/property-type node-type property-label) deref in/schema s/maybe)]
+  (let [value-type (some-> (in/property-type node-type property-label) deref in/schema s/maybe)
+        node-type-name (in/type-name node-type)]
     (when-let [validation-error (some-> value-type (s/check property-value))]
-      (in/warn-output-schema node-id node-type property-label property-value value-type validation-error)
+      (in/warn-property-schema node-id property-label node-type-name property-value value-type validation-error)
       (throw (ex-info "SCHEMA-VALIDATION"
                       {:node-id node-id
-                       :type node-type
+                       :type node-type-name
                        :property property-label
                        :expected value-type
                        :actual property-value
