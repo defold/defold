@@ -67,6 +67,16 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int Body_SetTransform(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        b2Vec2 position = CheckVec2(L, 2, GetPhysicsScale());
+        float angle = luaL_checknumber(L, 3);
+        body->SetTransform(position, angle);
+        return 0;
+    }
+
     static int Body_ApplyForce(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -133,6 +143,22 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         b2Body* body = CheckBody(L, 1);
         lua_pushnumber(L, body->GetAngle());
+        return 1;
+    }
+
+    static int Body_GetWorldCenter(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        dmScript::PushVector3(L, FromB2(body->GetWorldCenter(), GetInvPhysicsScale()));
+        return 1;
+    }
+
+    static int Body_GetLocalCenter(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        dmScript::PushVector3(L, FromB2(body->GetLocalCenter(), GetInvPhysicsScale()));
         return 1;
     }
 
@@ -368,7 +394,19 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         b2Body* body = CheckBody(L, 1);
-        PushWorld(L, body->GetWorld()); // TODO: use meta table for this as well
+        PushWorld(L, body->GetWorld());
+        return 1;
+    }
+
+    static int Body_GetNext(lua_State *L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        b2Body* next = body->GetNext();
+        if (next)
+            PushBody(L, next);
+        else
+            lua_pushnil(L);
         return 1;
     }
 
@@ -411,6 +449,7 @@ namespace dmGameSystem
         {"__eq", Body_eq},
 
         {"get_position", Body_GetPosition},
+        {"set_transform", Body_SetTransform},
 
         //{"get_user_data", Body_GetUserData}, - could return the game object id ?
         //{"set_user_data", Body_SetUserData}, - could attach the body to a game object?
@@ -457,6 +496,9 @@ namespace dmGameSystem
         {"get_type", Body_GetType},
         {"set_type", Body_SetType},
 
+        {"get_world_center", Body_GetWorldCenter},
+        {"get_local_center", Body_GetLocalCenter},
+
         {"get_world_point", Body_GetWorldPoint},
         {"get_world_vector", Body_GetWorldVector},
 
@@ -473,8 +515,8 @@ namespace dmGameSystem
         {"apply_linear_impulse", Body_ApplyLinearImpulse},
         {"apply_angular_impulse", Body_ApplyAngularImpulse},
 
+        {"get_next", Body_GetNext},
 
-        // {"GetNext",GetNext},
         // {"GetFixtureList",GetFixtureList},
         // {"GetContactList",GetContactList},
         // {"GetJointList",GetJointList},
@@ -490,3 +532,354 @@ namespace dmGameSystem
         TYPE_HASH_BODY = dmScript::RegisterUserTypeLocal(L, BOX2D_TYPE_NAME_BODY, Body_meta);
     }
 }
+
+/*# Box2D b2Body documentation
+ *
+ * Functions for interacting with Box2D bodies.
+ *
+ * @document
+ * @name b2body
+ */
+
+/**
+ * Creates a fixture and attach it to this body. Use this function if you need
+ * to set some fixture parameters, like friction. Otherwise you can create the
+ * fixture directly from a shape.
+ * If the density is non-zero, this function automatically updates the mass of the body.
+ * Contacts are not created until the next time step.
+ * @warning This function is locked during callbacks.
+ * @name body:create_fixture
+ * @param definition [type: b2FixtureDef] the fixture definition.
+ */
+
+/**
+ * Creates a fixture from a shape and attach it to this body.
+ * This is a convenience function. Use b2FixtureDef if you need to set parameters
+ * like friction, restitution, user data, or filtering.
+ * If the density is non-zero, this function automatically updates the mass of the body.
+ * @warning This function is locked during callbacks.
+ * @name body:create_fixture
+ * @param shape  [type: b2Shape] the shape to be cloned.
+ * @param density [type: number] the shape density (set to zero for static bodies).
+ */
+
+/**
+ * Destroy a fixture. This removes the fixture from the broad-phase and
+ * destroys all contacts associated with this fixture. This will
+ * automatically adjust the mass of the body if the body is dynamic and the
+ * fixture has positive density.
+ * All fixtures attached to a body are implicitly destroyed when the body is destroyed.
+ * @warning This function is locked during callbacks.
+ * @name body:destroy_fixture
+ * @param fixture [type: b2Fixture] the world position of the body's origin.
+ */
+
+/*#
+ * Set the position of the body's origin and rotation.
+ * This breaks any contacts and wakes the other bodies.
+ * Manipulating a body's transform may cause non-physical behavior.
+ * @name body:set_transform
+ * @param position [type: vmath.vector3] the world position of the body's local origin.
+ * @param angle [type: number] the world position of the body's local origin.
+ */
+
+/** Get the body transform for the body's origin.
+ * @name body:get_transform
+ * @return transform [type: b2Transform] the world position of the body's origin.
+ */
+
+/*# Get the world body origin position.
+ * @name body:get_position
+ * @return position [type: vmath.vector3] the world position of the body's origin.
+ */
+
+/*# Get the angle in radians.
+ * @name body:get_world_center
+ * @return angle [type: number] the current world rotation angle in radians.
+ */
+
+/*# Get the world position of the center of mass.
+ * @name body:get_world_center
+ * @return center [type: vmath.vector3] Get the world position of the center of mass.
+ */
+
+/*# Get the local position of the center of mass.
+ * @name body:get_local_center
+ * @return center [type: vmath.vector3] Get the local position of the center of mass.
+ */
+
+/*# Set the linear velocity of the center of mass.
+ * @name body:set_linear_velocity
+ * @param velocity [type: vmath.vector3] the new linear velocity of the center of mass.
+ */
+
+/*# Get the linear velocity of the center of mass.
+ * @name body:get_linear_velocity
+ * @return velocity [type: vmath.vector3] the linear velocity of the center of mass.
+ */
+
+/*# Set the angular velocity.
+ * @name body:get_angular_velocity
+ * @param omega [type: number] the new angular velocity in radians/second.
+ */
+
+/*# Get the angular velocity.
+ * @name body:get_angular_velocity
+ * @return velocity [type: number] the angular velocity in radians/second.
+ */
+
+/*#
+ * Apply a force at a world point. If the force is not
+ * applied at the center of mass, it will generate a torque and
+ * affect the angular velocity. This wakes up the body.
+ * @name body:apply_force
+ * @param force [type: vmath.vector3] the world force vector, usually in Newtons (N).
+ * @param point [type: vmath.vector3] the world position of the point of application.
+ */
+
+/*# Apply a force to the center of mass. This wakes up the body.
+ * @name body:apply_force_to_center
+ * @param force [type: vmath.vector3] the world force vector, usually in Newtons (N).
+ */
+
+/*#
+ * Apply a torque. This affects the angular velocity
+ * without affecting the linear velocity of the center of mass.
+ * This wakes up the body.
+ * @name body:apply_torque
+ * @param torque [type: number] torque about the z-axis (out of the screen), usually in N-m.
+ */
+
+/*#
+ * Apply an impulse at a point. This immediately modifies the velocity.
+ * It also modifies the angular velocity if the point of application 
+ * is not at the center of mass. This wakes up the body.
+ * @name body:apply_linear_impulse
+ * @param impulse [type: vmath.vector3] the world impulse vector, usually in N-seconds or kg-m/s.
+ * @param point [type: vmath.vector3] the world position of the point of application.
+ */
+
+/*# Apply an angular impulse.
+ * @name body:apply_angular_impulse
+ * @param impulse [type: number] impulse the angular impulse in units of kg*m*m/s
+ */
+
+/*# Get the total mass of the body.
+ * @name body:get_mass
+ * @return mass [type: number] the mass, usually in kilograms (kg).
+ */
+
+/*# Get the rotational inertia of the body about the local origin.
+ * @name body:get_inertia
+ * @return inertia [type: number] the rotational inertia, usually in kg-m^2.
+ */
+
+/**
+ * Get the mass data of the body.
+ * @name body:get_mass_data
+ * @return data [type: b2MassData] a struct containing the mass, inertia and center of the body.
+ */
+
+/**
+ * Set the mass properties to override the mass properties of the fixtures.
+ * @note This function has no effect if the body isn't dynamic.
+ * @note This changes the center of mass position.
+ * @note Creating or destroying fixtures can also alter the mass.
+ * @name body:set_mass_data
+ * @param data [type: b2MassData] the mass properties.
+ */
+
+/*#
+ * This resets the mass properties to the sum of the mass properties of the fixtures.
+ * This normally does not need to be called unless you called SetMassData to override
+ * @name body:reset_mass_data
+ */
+
+/*# Get the world coordinates of a point given the local coordinates.
+ * @name body:get_world_point
+ * @param local_vector [type: vmath.vector3] localPoint a point on the body measured relative the the body's origin.
+ * @return vector [type: vmath.vector3] the same point expressed in world coordinates.
+ */
+
+/*# Get the world coordinates of a vector given the local coordinates.
+ * @name body:get_world_vector
+ * @param local_vector [type: vmath.vector3] a vector fixed in the body.
+ * @return vector [type: vmath.vector3] the same vector expressed in world coordinates.
+ */
+
+/*# Gets a local point relative to the body's origin given a world point.
+ * @name body:get_local_point
+ * @param world_point [type: vmath.vector3] a point in world coordinates.
+ * @return vector [type: vmath.vector3] the corresponding local point relative to the body's origin.
+ */
+
+/*# Gets a local vector given a world vector.
+ * @name body:get_local_vector
+ * @param world_vector [type: vmath.vector3] a vector in world coordinates.
+ * @return vector [type: vmath.vector3] the corresponding local vector.
+ */
+
+/*# Get the world linear velocity of a world point attached to this body.
+ * @name body:get_linear_velocity_from_world_point
+ * @param world_point [type: vmath.vector3] a point in world coordinates.
+ * @return velocity [type: vmath.vector3] the world velocity of a point.
+ */
+
+/*# Get the world velocity of a local point.
+ * @name body:get_linear_velocity_from_world_point
+ * @param world_point [type: vmath.vector3] a point in local coordinates.
+ * @return velocity [type: vmath.vector3] the world velocity of a point.
+ */
+
+/*# Set the linear damping of the body.
+ * @name body:set_linear_damping
+ * @param damping [type: number] the damping
+ */
+
+/*# Get the linear damping of the body.
+ * @name body:get_linear_damping
+ * @return damping [type: number] the damping
+ */
+
+/*# Set the angular damping of the body.
+ * @name body:set_angular_damping
+ * @param damping [type: number] the damping
+ */
+
+/*# Get the angular damping of the body.
+ * @name body:get_angular_damping
+ * @return damping [type: number] the damping
+ */
+
+/*# Set the gravity scale of the body.
+ * @name body:set_gravity_scale
+ * @param scale [type: number] the scale
+ */
+
+/*# Get the gravity scale of the body.
+ * @name body:get_gravity_scale
+ * @return scale [type: number] the scale
+ */
+
+/*# Set the type of this body. This may alter the mass and velocity.
+ * @name body:set_type
+ * @param type [type: b2BodyType] the body type
+ */
+
+/*# Get the type of this body.
+ * @name body:get_type
+ * @return type [type: b2BodyType] the body type
+ */
+
+
+/*# Should this body be treated like a bullet for continuous collision detection?
+ * @name body:set_bullet
+ * @param enable [type: bool] if true, the body will be in bullet mode
+ */
+
+/*# Is this body in bullet mode
+ * @name body:is_bullet
+ * @return enabled [type: bool] true if the body is in bullet mode
+ */
+
+/*# You can disable sleeping on this body. If you disable sleeping, the body will be woken.
+ * @name body:set_sleeping_allowed
+ * @param enable [type: bool] if false, the body will never sleep, and consume more CPU
+ */
+
+/*# Is this body allowed to sleep
+ * @name body:is_sleeping_allowed
+ * @return enabled [type: bool] true if the body is allowed to sleep
+ */
+
+/*# Set the sleep state of the body. A sleeping body has very low CPU cost.
+ * @name body:set_awake
+ * @param enable [type: bool] flag set to false to put body to sleep, true to wake it.
+ */
+
+/*# Get the sleeping state of this body.
+ * @name body:is_awake
+ * @return enabled [type: bool] true if the body is awake, false if it's sleeping.
+ */
+
+/*# Set the active state of the body
+ * Set the active state of the body. An inactive body is not
+ * simulated and cannot be collided with or woken up.
+ * If you pass a flag of true, all fixtures will be added to the
+ * broad-phase.
+ * If you pass a flag of false, all fixtures will be removed from
+ * the broad-phase and all contacts will be destroyed.
+ * Fixtures and joints are otherwise unaffected. You may continue
+ * to create/destroy fixtures and joints on inactive bodies.
+ * Fixtures on an inactive body are implicitly inactive and will
+ * not participate in collisions, ray-casts, or queries.
+ * Joints connected to an inactive body are implicitly inactive.
+ * An inactive body is still owned by a b2World object and remains
+ * in the body list.
+ *
+ * @name body:set_active
+ * @param enable [type: bool] true if the body should be active
+ */
+
+/*# Get the active state of the body.
+ * @name body:is_active
+ * @return enabled [type: bool] is the body active
+ */
+
+
+/*# Set this body to have fixed rotation. This causes the mass to be reset.
+ * @name body:set_fixed_rotation
+ * @param enable [type: bool] true if the rotation should be fixed
+ */
+
+/*# Does this body have fixed rotation?
+ * @name body:is_fixed_rotation
+ * @return enabled [type: bool] is the rotation fixed
+ */
+
+/** Get the list of all fixtures attached to this body.
+ * @name body:get_fixture_list
+ * @return edge [type: b2Fixture] the first fixture
+ */
+
+/** Get the list of all joints attached to this body.
+ * @name body:get_joint_list
+ * @return edge [type: b2JointEdge] the first joint
+ */
+
+/** Get the list of all contacts attached to this body.
+ * @name body:get_contact_list
+ * @return edge [type: b2ContactEdge] the first edge
+ */
+
+/*# Get the next body in the world's body list.
+ * @name body:get_next
+ * @return body [type: b2Body] the next body
+ */
+
+/*# Get the user data pointer that was provided in the body definition.
+ * @name body:get_user_data
+ * @return id [type: hash] the game object id this body is connected to
+ */
+
+/** Set the user data. Use this to store your application specific data.
+ * @name body:set_user_data
+ * @param id [type: hash] the game object id
+ */
+
+/*# Get the parent world of this body.
+ * @name body:get_world
+ * @return world [type: b2World]
+ */
+
+/*# Print the body representation to the log output
+ * @name body:dump
+ */
+
+/** Get the total force currently applied on this object
+ * @name body:get_force
+ * @note Defold Specific
+ * @return force [type: vmath.vector3]
+ */
+
+
