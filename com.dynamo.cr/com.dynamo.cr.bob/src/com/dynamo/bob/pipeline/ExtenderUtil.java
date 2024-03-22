@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -78,12 +77,6 @@ public class ExtenderUtil {
             return resource;
         }
 
-        @Override
-        public byte[] sha1() throws IOException {
-            return resource.sha1();
-        }
-
-        @Override
         public String getAbsPath() {
             return resource.getAbsPath().replace('\\', '/');
         }
@@ -116,27 +109,6 @@ public class ExtenderUtil {
         public FileExtenderResource(File file, String path) {
             this.file = file;
             this.path = path;
-        }
-
-        @Override
-        public byte[] sha1() throws IOException {
-            byte[] content = getContent();
-            if (content == null) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
-            }
-            MessageDigest sha1;
-            try {
-                sha1 = MessageDigest.getInstance("SHA1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-            sha1.update(content);
-            return sha1.digest();
-        }
-
-        @Override
-        public String getAbsPath() {
-            return path;
         }
 
         @Override
@@ -297,22 +269,6 @@ public class ExtenderUtil {
 
         public IResource getResource() {
             return resource;
-        }
-
-        @Override
-        public byte[] sha1() throws IOException {
-            byte[] content = getContent();
-            if (content == null) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
-            }
-            MessageDigest sha1;
-            try {
-                sha1 = MessageDigest.getInstance("SHA1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-            sha1.update(content);
-            return sha1.digest();
         }
 
         @Override
@@ -722,7 +678,7 @@ public class ExtenderUtil {
                 for (ExtenderResource r : files) {
                     if (!(r instanceof FSExtenderResource))
                         continue;
-                    File f = new File(r.getAbsPath());
+                    File f = new File(((FSExtenderResource)r).getAbsPath());
                     out.add( ((FSExtenderResource)r).getResource() );
                 }
             }

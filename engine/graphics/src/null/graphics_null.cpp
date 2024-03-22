@@ -156,6 +156,10 @@ namespace dmGraphics
         context->m_PipelineState                        = GetDefaultPipelineState();
         context->m_AsyncProcessingSupport               = context->m_JobThread && dmThread::PlatformHasThreadSupport();
 
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_MULTI_TARGET_RENDERING;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
+
         if (context->m_AsyncProcessingSupport)
         {
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
@@ -757,13 +761,28 @@ namespace dmGraphics
         p->m_Data[ddf->m_Source.m_Count] = '\0';
         p->m_Language = ddf->m_Language;
 
-        for (int i = 0; i < ddf->m_Resources.m_Count; ++i)
+        for (int i = 0; i < ddf->m_UniformBuffers.m_Count; ++i)
         {
-            for (int j = 0; j < ddf->m_Resources[i].m_Bindings.m_Count; ++j)
+            ShaderDesc::ResourceBinding& res = ddf->m_UniformBuffers[i];
+
+            ShaderDesc::ResourceTypeInfo& type = ddf->m_Types[res.m_Type.m_Type.m_TypeIndex];
+
+            for (int j = 0; j < type.m_Members.m_Count; ++j)
             {
-                ShaderDesc::ResourceBinding& res = ddf->m_Resources[i].m_Bindings[j];
-                PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type), res.m_ElementCount);
+                PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), 1);
             }
+        }
+
+        for (int i = 0; i < ddf->m_StorageBuffers.m_Count; ++i)
+        {
+            ShaderDesc::ResourceBinding& res = ddf->m_StorageBuffers[i];
+            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
+        }
+
+        for (int i = 0; i < ddf->m_Textures.m_Count; ++i)
+        {
+            ShaderDesc::ResourceBinding& res = ddf->m_Textures[i];
+            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
         }
 
         return p;
@@ -1302,13 +1321,29 @@ namespace dmGraphics
         NullContext* context  = (NullContext*) _context;
         Texture* tex          = new Texture();
 
-        tex->m_Type        = params.m_Type;
-        tex->m_Width       = params.m_Width;
-        tex->m_Height      = params.m_Height;
-        tex->m_Depth       = params.m_Depth;
-        tex->m_MipMapCount = 0;
-        tex->m_Data        = 0;
-        tex->m_DataState   = 0;
+        uint16_t num_texture_ids = 1;
+        TextureType texture_type = params.m_Type;
+
+        if (params.m_Type == TEXTURE_TYPE_2D_ARRAY && !IsContextFeatureSupported(_context, CONTEXT_FEATURE_TEXTURE_ARRAY))
+        {
+            num_texture_ids = params.m_Depth;
+            texture_type    = TEXTURE_TYPE_2D;
+        }
+
+        tex->m_Type          = texture_type;
+        tex->m_Width         = params.m_Width;
+        tex->m_Height        = params.m_Height;
+        tex->m_Depth         = params.m_Depth;
+        tex->m_MipMapCount   = 0;
+        tex->m_Data          = 0;
+        tex->m_DataState     = 0;
+        tex->m_NumTextureIds = num_texture_ids;
+        tex->m_LastBoundUnit = new int32_t[num_texture_ids];
+
+        for (int i = 0; i < num_texture_ids; ++i)
+        {
+            tex->m_LastBoundUnit[i] = -1;
+        }
 
         if (params.m_OriginalWidth == 0)
         {
@@ -1333,6 +1368,8 @@ namespace dmGraphics
             {
                 delete [] (char*)tex->m_Data;
             }
+
+            delete [] tex->m_LastBoundUnit;
             delete tex;
         }
         return 0;
@@ -1505,7 +1542,7 @@ namespace dmGraphics
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_OriginalHeight;
     }
 
-    static void NullEnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
+    static void NullEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
         assert(_context);
         assert(unit < MAX_TEXTURE_COUNT);
@@ -1516,6 +1553,8 @@ namespace dmGraphics
         context->m_Textures[unit] = texture;
         context->m_TextureUnit = unit;
         NullSetTextureParams(texture, tex->m_Sampler.m_MinFilter, tex->m_Sampler.m_MagFilter, tex->m_Sampler.m_UWrap, tex->m_Sampler.m_VWrap, tex->m_Sampler.m_Anisotropy);
+
+        tex->m_LastBoundUnit[id_index] = unit;
     }
 
     static void NullDisableTexture(HContext context, uint32_t unit, HTexture texture)
@@ -1761,12 +1800,13 @@ namespace dmGraphics
 
     static uint8_t NullGetNumTextureHandles(HTexture texture)
     {
-        return 1;
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_NumTextureIds;
     }
 
-    static bool NullIsContextFeatureSupported(HContext context, ContextFeature feature)
+    static bool NullIsContextFeatureSupported(HContext _context, ContextFeature feature)
     {
-        return true;
+        NullContext* context = (NullContext*) _context;
+        return (context->m_ContextFeatures & (1 << feature)) != 0;
     }
 
     static uint16_t NullGetTextureDepth(HTexture texture)

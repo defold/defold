@@ -228,13 +228,11 @@
     (or (seq (engine-extension-roots project evaluation-context))
         (pos? (count (global-resource-nodes-by-upload-path project evaluation-context))))))
 
-(defn- make-extender-resources [project project-directory platform evaluation-context]
+(defn- make-extender-resources [project platform evaluation-context]
   (reduce-kv
     (fn [^ArrayList acc upload-path resource-node]
       (doto acc
         (.add (reify ExtenderResource
-                (sha1 [_] (throw (Exception. "not implemented")))
-                (getAbsPath [_] (str (io/file project-directory upload-path)))
                 (getPath [_] upload-path)
                 (getContent [_]
                   (if-let [^String content (some-> (g/node-value resource-node :save-data evaluation-context) :content)]
@@ -256,7 +254,7 @@
           cache-directory (cache-dir project-directory)
           sdk-version (system/defold-engine-sha1)
           cache (ExtenderClientCache. cache-directory)
-          extender-resources (make-extender-resources project project-directory platform evaluation-context)
+          extender-resources (make-extender-resources project platform evaluation-context)
           cache-key (.calcKey cache extender-platform sdk-version extender-resources)]
       (if (.isCached cache extender-platform cache-key)
         {:id {:type :custom :version cache-key}

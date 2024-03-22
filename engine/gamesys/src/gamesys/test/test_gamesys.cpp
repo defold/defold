@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys.h"
+#include "../gamesys_private.h"
 
 #include "../../../../graphics/src/graphics_private.h"
 #include "../../../../graphics/src/null/graphics_null_private.h"
@@ -42,6 +43,9 @@
 #include "../scripts/script_sys_gamesys.h"
 
 #include <dmsdk/gamesys/render_constants.h>
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
 
 using namespace dmVMath;
 
@@ -107,22 +111,6 @@ bool UnlinkResource(const char* name)
     char path[128];
     dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", name);
     return dmSys::Unlink(path) == 0;
-}
-
-static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
-{
-    dmGameObject::HPrototype prototype = 0x0;
-    if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
-        dmResource::Release(factory, prototype);
-        return result;
-    }
-    return 0x0;
-}
-
-static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id)
-{
-    return Spawn(factory, collection, prototype_name, id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
 }
 
 static void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance) {
@@ -251,6 +239,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -334,6 +323,11 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 9: create 0x0 texture
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
     // cleanup
     DeleteInstance(m_Collection, go);
 
@@ -354,6 +348,7 @@ TEST_F(ResourceTest, TestResourceScriptBuffer)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -373,6 +368,7 @@ TEST_F(ResourceTest, TestResourceScriptRenderTarget)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -392,6 +388,7 @@ TEST_F(ResourceTest, TestResourceScriptAtlas)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -411,6 +408,7 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -745,6 +743,7 @@ TEST_F(BufferMetadataTest, MetadataLuaApi)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -767,6 +766,7 @@ TEST_F(SoundTest, UpdateSoundResource)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -813,6 +813,7 @@ TEST_F(SoundTest, LuaCallback)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -847,6 +848,7 @@ TEST_F(SoundTest, DelayedSoundStoppedBeforePlay)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1018,6 +1020,7 @@ TEST_F(SpriteTest, FlipbookAnim)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1050,6 +1053,7 @@ TEST_F(SpriteTest, FrameCount)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1069,6 +1073,7 @@ TEST_F(ParticleFxTest, PlayAnim)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1259,6 +1264,7 @@ TEST_F(WindowTest, MouseLock)
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_HidContext      = hid_context;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1290,6 +1296,7 @@ TEST_F(WindowTest, Events)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1376,6 +1383,7 @@ TEST_P(FactoryTest, Test)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
     const FactoryTestParams& param = GetParam();
@@ -1563,6 +1571,7 @@ TEST_P(CollectionFactoryTest, Test)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
     const CollectionFactoryTestParams& param = GetParam();
@@ -1907,6 +1916,7 @@ TEST_P(BoxRenderTest, BoxRender)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -1958,6 +1968,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -2024,6 +2035,7 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // a 'base' gameobject works as the base for other dynamic objects to stand on
@@ -2074,6 +2086,7 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // a 'base' gameobject works as the base for other dynamic objects to stand on
@@ -2111,6 +2124,7 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
 /*
@@ -2171,6 +2185,7 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
 /*
@@ -2242,6 +2257,7 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // two dynamic 'body' objects will get spawned and placed apart
@@ -2298,6 +2314,7 @@ TEST_F(ComponentTest, JointTest)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
@@ -2353,6 +2370,7 @@ TEST_F(ComponentTest, PhysicsListenerTest)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     const char* path_test_object = "/collision_object/callback_object.goc";
@@ -2400,6 +2418,7 @@ TEST_F(ComponentTest, PhysicsUpdateMassTest)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     const char* path_test_object = "/collision_object/mass_object.goc";
@@ -2442,6 +2461,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     dmRender::RenderContext* render_context_ptr  = (dmRender::RenderContext*) m_RenderContext;
@@ -4421,6 +4441,370 @@ TEST_F(MaterialTest, CustomVertexAttributes)
     dmResource::Release(m_Factory, material_res);
 }
 
+struct DynamicVertexAttributesContext
+{
+    dmArray<dmGraphics::VertexAttribute> m_Attributes;
+    bool m_Result;
+};
+
+bool Test_GetMaterialAttributeCallback(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute)
+{
+    DynamicVertexAttributesContext* ctx = (DynamicVertexAttributesContext*) user_data;
+
+    bool found = false;
+
+    for (int i = 0; i < ctx->m_Attributes.Size(); ++i)
+    {
+        if (ctx->m_Attributes[i].m_NameHash == name_hash)
+        {
+            *attribute = &ctx->m_Attributes[i];
+            found = true;
+            break;
+        }
+    }
+
+    ctx->m_Result = found;
+    return found;
+}
+
+template<typename T>
+static uint32_t CountOccurences(dmArray<T>& lst, T entry)
+{
+    uint32_t count = 0;
+    for (int i = 0; i < lst.Size(); ++i)
+    {
+        if (lst[i] == entry)
+        {
+            count++;
+        }
+    }
+    return count;
+}
+
+template<typename T>
+static void ValidateVertexAttributeTypeConversion(dmGameSystem::DynamicAttributeInfo& info, uint16_t info_index, dmGraphics::VertexAttribute::DataType data_type, T* expected_values, uint32_t num_values)
+{
+    uint8_t value_buffer[sizeof(float) * 4];
+    T* values = (T*) value_buffer;
+
+    dmGraphics::VertexAttribute attr = {};
+    attr.m_ElementCount = num_values;
+    attr.m_DataType = data_type;
+
+    dmGameSystem::ConvertMaterialAttributeValuesToDataType(info, info_index, &attr, value_buffer);
+
+    for (int i = 0; i < num_values; ++i)
+    {
+        ASSERT_EQ(expected_values[i], values[i]);
+    }
+}
+
+TEST_F(MaterialTest, DynamicVertexAttributes)
+{
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/attributes_valid.materialc", (void**)&material_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    const uint32_t INITIAL_SIZE = 4;
+    const float EPSILON = 0.0001;
+
+    DynamicVertexAttributesContext ctx;
+    ctx.m_Attributes.SetCapacity(INITIAL_SIZE);
+
+    dmGameSystem::DynamicAttributePool dynamic_attribute_pool;
+    InitializeMaterialAttributeInfos(dynamic_attribute_pool, INITIAL_SIZE);
+
+    // Attribute not found
+    {
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        dmGameObject::PropertyDesc desc = {};
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("attribute_does_not_exist"), desc, Test_GetMaterialAttributeCallback, &ctx));
+    }
+
+    // Attribute(s) found
+    {
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        dmGameObject::PropertyDesc desc = {};
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("position"), desc, Test_GetMaterialAttributeCallback, &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("normal"), desc, Test_GetMaterialAttributeCallback, &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("texcoord0"), desc, Test_GetMaterialAttributeCallback, &ctx));
+
+        // No slots has been taken
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
+    }
+
+    // Callback
+    {
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        dmGameObject::PropertyDesc desc = {};
+
+        float data_buffer[4] = { 13.0f, 14.0f, 15.0f, 16.0f };
+
+        // Create override data
+        dmGraphics::VertexAttribute attr;
+        attr.m_NameHash                      = dmHashString64("position");
+        attr.m_Values.m_BinaryValues.m_Count = sizeof(data_buffer);
+        attr.m_Values.m_BinaryValues.m_Data  = (uint8_t*) data_buffer;
+
+        ctx.m_Attributes.Push(attr);
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("position"), desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_TRUE(ctx.m_Result);
+
+        // note: the material position attribute is only two elements, so we put in a vector3 instead since there are no v2 property values
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
+
+        ASSERT_NEAR(data_buffer[0], desc.m_Variant.m_V4[0], EPSILON);
+        ASSERT_NEAR(data_buffer[1], desc.m_Variant.m_V4[1], EPSILON);
+        ASSERT_NEAR(0.0f,           desc.m_Variant.m_V4[2], EPSILON);
+
+        ctx.m_Attributes.SetSize(0);
+    }
+
+    // Set a dynamic attribute
+    {
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        dmhash_t attr_name_hash = dmHashString64("position");
+
+        dmGameObject::PropertyVar var = {};
+        dmGameObject::PropertyDesc desc = {};
+
+        var.m_V4[0] = 99.0f;
+        var.m_V4[1] = 98.0f;
+        var.m_V4[2] = 97.0f;
+        var.m_V4[3] = 96.0f;
+
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &index, material, attr_name_hash, var));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
+
+        ASSERT_EQ(1,           dynamic_attribute_pool.Get(0).m_NumInfos);
+        ASSERT_NE((void*) 0x0, dynamic_attribute_pool.Get(0).m_Infos);
+
+        // Again, "position" only has two elements, which in turn ends up as a vector three, so we know we will only care about these three values
+        ASSERT_NEAR(var.m_V4[0], desc.m_Variant.m_V4[0], EPSILON);
+        ASSERT_NEAR(var.m_V4[1], desc.m_Variant.m_V4[1], EPSILON);
+        ASSERT_NEAR(0.0f,        desc.m_Variant.m_V4[2], EPSILON);
+
+        // Clear the dynamic proeprty
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, ClearMaterialAttribute(dynamic_attribute_pool, index, attr_name_hash));
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
+    }
+
+    // Set multiple dynamic attributes (more than original capacity)
+    {
+        dmArray<uint32_t> allocated_indices;
+        allocated_indices.SetCapacity( dmGameSystem::DYNAMIC_ATTRIBUTE_INCREASE_COUNT * 2 + INITIAL_SIZE + 1); // Should equate to three resizes
+
+        dmhash_t attr_name_hash = dmHashString64("position");
+        dmGameObject::PropertyVar var = {};
+        dmGameObject::PropertyDesc desc = {};
+
+        for (int i = 0; i < allocated_indices.Capacity(); ++i)
+        {
+            var.m_V4[0] = (float) i;
+
+            uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &new_index, material, attr_name_hash, var));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, new_index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+
+            ASSERT_NEAR(var.m_V4[0], desc.m_Variant.m_V4[0], EPSILON);
+
+            allocated_indices.Push(new_index);
+        }
+
+        ASSERT_EQ(INITIAL_SIZE + dmGameSystem::DYNAMIC_ATTRIBUTE_INCREASE_COUNT * 3, dynamic_attribute_pool.Capacity());
+        ASSERT_EQ(allocated_indices.Size(), dynamic_attribute_pool.Size());
+
+        for (int i = 0; i < allocated_indices.Capacity(); ++i)
+        {
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, allocated_indices[i], material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+            ASSERT_NEAR((float) i, desc.m_Variant.m_V4[0], EPSILON);
+
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, ClearMaterialAttribute(dynamic_attribute_pool, allocated_indices[i], attr_name_hash));
+        }
+
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
+    }
+
+    {
+        dmGameSystem::DynamicAttributePool tmp_pool;
+        tmp_pool.SetCapacity(dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX - 1);
+
+        for (int i = 0; i < tmp_pool.Capacity(); ++i)
+        {
+            tmp_pool.Alloc();
+        }
+
+        dmhash_t attr_name_hash = dmHashString64("position");
+        dmGameObject::PropertyVar var = {};
+        dmGameObject::PropertyDesc desc = {};
+
+        uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE, SetMaterialAttribute(tmp_pool, &new_index, material, attr_name_hash, var));
+    }
+
+    // Data conversion for attribute values
+    {   
+        dmGameSystem::DynamicAttributeInfo::Info info_members[3];
+
+        info_members[0].m_NameHash  = dmHashString64("dynamic_attribute_pos");
+        info_members[0].m_Values[0] = 128.0f;
+        info_members[0].m_Values[1] = 256.0f;
+        info_members[0].m_Values[2] = 32768.0f;
+        info_members[0].m_Values[3] = 65536.0f;
+
+        info_members[1].m_NameHash  = dmHashString64("dynamic_attribute_neg");
+        info_members[1].m_Values[0] = -128.0f;
+        info_members[1].m_Values[1] = -256.0f;
+        info_members[1].m_Values[2] = -32768.0f;
+        info_members[1].m_Values[3] = -65536.0f;
+
+        dmGameSystem::DynamicAttributeInfo info;
+        info.m_Infos    = info_members;
+        info.m_NumInfos = DM_ARRAY_SIZE(info_members);
+
+        // TYPE_BYTE
+        {
+            int8_t expected_values_pos[] = { 127, 127, 127, 127 };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_BYTE, expected_values_pos, 4);
+
+            int8_t expected_values_neg[] = { -128, -128, -128, -128 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_BYTE, expected_values_neg, 4);
+        }
+
+        // TYPE_UNSIGNED_BYTE
+        {
+            uint8_t expected_values_pos[] = { 128, 255, 255, 255 };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, expected_values_pos, 4);
+
+            uint8_t expected_values_neg[] = { 0, 0, 0, 0 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, expected_values_neg, 4);
+        }
+
+        // TYPE_SHORT
+        {
+            int16_t expected_values_pos[] = { 128, 256, 32767, 32767 };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_SHORT, expected_values_pos, 4);
+
+            int16_t expected_values_neg[] = { -128, -256, -32768, -32768 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_SHORT, expected_values_neg, 4);
+        }
+
+        // TYPE_UNSIGNED_SHORT
+        {
+            uint16_t expected_values_pos[] = { 128, 256, 32768, 65535};
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT, expected_values_pos, 4);
+
+            uint16_t expected_values_neg[] = { 0, 0, 0, 0 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT, expected_values_neg, 4);
+        }
+
+        // TYPE_INT
+        {
+            int32_t expected_values_pos[] = { 128, 256, 32768, 65536 };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_INT, expected_values_pos, 4);
+
+            int32_t expected_values_neg[] = { -128, -256, -32768, -65536 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_INT, expected_values_neg, 4);
+        }
+
+        // TYPE_UNSIGNED_INT
+        {
+            uint32_t expected_values_pos[] = { 128, 256, 32768, 65536 };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT, expected_values_pos, 4);
+
+            uint32_t expected_values_neg[] = { 0, 0, 0, 0 };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT, expected_values_neg, 4);
+        }
+
+        // TYPE_FLOAT
+        {
+            float expected_values_pos[] = { 128.0f, 256.0f, 32768.0f, 65536.0f };
+            ValidateVertexAttributeTypeConversion(info, 0, dmGraphics::VertexAttribute::TYPE_FLOAT, expected_values_pos, 4);
+
+            float expected_values_neg[] = { -128.0f, -256.0f, -32768.0f, -65536.0f };
+            ValidateVertexAttributeTypeConversion(info, 1, dmGraphics::VertexAttribute::TYPE_FLOAT, expected_values_neg, 4);
+        }
+    }
+
+    // Data conversion for dynamic attributes
+    {
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        dmhash_t attr_name_hash = dmHashString64("normal");
+
+        dmGameObject::PropertyVar var = {};
+        dmGameObject::PropertyDesc desc = {};
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
+
+        // Values are from the material
+        ASSERT_NEAR(64.0f, desc.m_Variant.m_V4[0], EPSILON);
+        ASSERT_NEAR(32.0f, desc.m_Variant.m_V4[1], EPSILON);
+        ASSERT_NEAR(16.0f, desc.m_Variant.m_V4[2], EPSILON);
+
+        // Dynamic attribute not set, so can't clear it!
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, ClearMaterialAttribute(dynamic_attribute_pool, index, attr_name_hash));
+    }
+
+    dmGameSystem::DestroyMaterialAttributeInfos(dynamic_attribute_pool);
+
+    dmResource::Release(m_Factory, material_res);
+}
+
+TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_animate.goc", dmHashString64("/attributes_go_animate"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    for (int i = 0; i < 10; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_set_get_sparse.goc", dmHashString64("/attributes_dynamic_go_set_get_sparse"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 TEST_F(MaterialTest, GoGetSetConstants)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -4428,6 +4812,7 @@ TEST_F(MaterialTest, GoGetSetConstants)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -4450,12 +4835,32 @@ TEST_F(ComponentTest, GetSetCollisionShape)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = L;
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_shape.goc", dmHashString64("/get_set_shape_go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_base);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ComponentTest, GetSetErrorCollisionShape)
+{
+    dmHashEnableReverseHash(true);
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = L;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_error_shape.goc", dmHashString64("/get_set_error_shape_go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_base);
+
+    ASSERT_FALSE(dmGameObject::Final(m_Collection));
 }
 
 TEST_F(SysTest, LoadBufferSync)
@@ -4465,6 +4870,7 @@ TEST_F(SysTest, LoadBufferSync)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -4523,6 +4929,7 @@ TEST_F(SysTest, LoadBufferASync)
     scriptlibcontext.m_Register        = m_Register;
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
     scriptlibcontext.m_JobThread       = dmJobThread::Create(job_thread_create_param);
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
@@ -4588,15 +4995,16 @@ TEST_F(ShaderTest, Compute)
     //       When we can create actual dmGraphics::HProgram from compute we can verify this via the GFX context.
     if (compute_shader->m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
     {
-        ASSERT_EQ(2, compute_shader->m_Resources.m_Count);
+        dmGraphics::ShaderDesc::ResourceTypeInfo color_type_info = compute_shader->m_Types[compute_shader->m_UniformBuffers[0].m_Type.m_Type.m_TypeIndex];
+
         // Slot 1
-        ASSERT_EQ(1,                                        compute_shader->m_Resources[0].m_Bindings.m_Count);
-        ASSERT_EQ(dmHashString64("color"),                  compute_shader->m_Resources[0].m_Bindings[0].m_NameHash);
-        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, compute_shader->m_Resources[0].m_Bindings[0].m_Type);
+        ASSERT_EQ(1,                                        compute_shader->m_UniformBuffers.m_Count);
+        ASSERT_EQ(dmHashString64("color"),                  color_type_info.m_Members[0].m_NameHash);
+        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, color_type_info.m_Members[0].m_Type.m_Type.m_ShaderType);
         // Slot 2,
-        ASSERT_EQ(1,                                           compute_shader->m_Resources[1].m_Bindings.m_Count);
-        ASSERT_EQ(dmHashString64("texture_out"),               compute_shader->m_Resources[1].m_Bindings[0].m_NameHash);
-        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_IMAGE2D, compute_shader->m_Resources[1].m_Bindings[0].m_Type);
+        ASSERT_EQ(1,                                           compute_shader->m_Textures.m_Count);
+        ASSERT_EQ(dmHashString64("texture_out"),               compute_shader->m_Textures[0].m_NameHash);
+        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_IMAGE2D, compute_shader->m_Textures[0].m_Type.m_Type.m_ShaderType);
     }
 }
 

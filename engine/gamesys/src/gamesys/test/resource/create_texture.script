@@ -31,6 +31,13 @@ local tparams = {
     format         = resource.TEXTURE_FORMAT_RGBA,
 }
 
+local tparams_invalid = {
+    width          = 0,
+    height         = 0,
+    type           = resource.TEXTURE_TYPE_2D,
+    format         = resource.TEXTURE_FORMAT_RGBA,
+}
+
 local tparams_cube = {
     width          = 128,
     height         = 128,
@@ -49,6 +56,12 @@ local tparams_compressed = {
 function test_simple()
     local t_id = resource.create_texture("/test_simple.texturec", tparams)
     go.set("#model", "texture0", t_id)
+end
+
+function test_invalid()
+    assert_error(function()
+        resource.create_texture("/test_invalid.texturec", tparams_invalid)
+    end)
 end
 
 function test_with_buffer()
@@ -154,6 +167,7 @@ function update(self)
         test_compressed,
         test_compressed_fail,
         test_get_texture_info,
+        test_invalid,
     }
 
     if tests[self.update_counter] ~= nil then

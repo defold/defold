@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -51,15 +51,19 @@ namespace dmHttpService
         dmMessage::HSocket    m_Socket;
         dmHttpClient::HClient m_Client;
         dmURI::Parts          m_CurrentURL;
+        dmMessage::URL        m_CurrentRequesterURL;
         dmHttpDDF::HttpRequest*   m_Request;
         const char*           m_Filepath;
         int                   m_Status;
+        uintptr_t             m_ResponseUserData1;
+        uintptr_t             m_ResponseUserData2;
         dmArray<char>         m_Response;
         dmArray<char>         m_Headers;
         const HttpService*    m_Service;
         bool                  m_CacheFlusher;
         volatile bool         m_Run;
         int                   m_Canceled;
+        bool                  m_ReportProgress;
     };
 
     struct HttpService
@@ -76,6 +80,7 @@ namespace dmHttpService
         dmThread::Thread          m_Balancer;
         dmMessage::HSocket        m_Socket;
         dmHttpCache::HCache       m_HttpCache;
+        ReportProgressCallback    m_ReportProgressCallback;
         int                       m_LoadBalanceCount;
         volatile bool             m_Run;
     };
@@ -96,7 +101,7 @@ namespace dmHttpService
         h.Push('\n');
     }
 
-    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
     {
         Worker* worker = (Worker*) user_data;
         worker->m_Status = status_code;
@@ -113,6 +118,16 @@ namespace dmHttpService
             r.OffsetCapacity((int32_t) dmMath::Max(content_data_size - left, 128U * 1024U));
         }
         r.PushArray((char*) content_data, content_data_size);
+
+        if (worker->m_ReportProgress && content_data_size > 0)
+        {
+            assert(worker->m_Service->m_ReportProgressCallback);
+
+            dmHttpDDF::HttpRequestProgress progress = {};
+            progress.m_BytesReceived                = r.Size();
+            progress.m_BytesTotal                   = content_length;
+            worker->m_Service->m_ReportProgressCallback(&progress, &worker->m_CurrentRequesterURL, worker->m_ResponseUserData2);
+        }
     }
 
     uint32_t HttpSendContentLength(dmHttpClient::HResponse response, void* user_data)
@@ -126,7 +141,19 @@ namespace dmHttpService
         Worker* worker = (Worker*) user_data;
         uint8_t* request = (uint8_t*)worker->m_Request->m_Request;
         uint32_t request_len = dmMath::Min(worker->m_Request->m_RequestLength - offset, size);
-        return dmHttpClient::Write(response, (const void*) &request[offset], request_len);
+
+        dmHttpClient::Result res_write = dmHttpClient::Write(response, (const void*) &request[offset], request_len);
+
+        if (res_write == dmHttpClient::RESULT_OK && worker->m_ReportProgress && size > 0)
+        {
+            assert(worker->m_Service->m_ReportProgressCallback);
+            dmHttpDDF::HttpRequestProgress progress = {};
+            progress.m_BytesSent                    = offset + size;
+            progress.m_BytesTotal                   = worker->m_Request->m_RequestLength;
+            worker->m_Service->m_ReportProgressCallback(&progress, &worker->m_CurrentRequesterURL, worker->m_ResponseUserData2);
+        }
+
+        return res_write;
     }
 
     dmHttpClient::Result HttpWriteHeaders(dmHttpClient::HResponse response, void* user_data)
@@ -237,6 +264,14 @@ namespace dmHttpService
         worker->m_Headers.SetCapacity(DEFAULT_HEADER_BUFFER_SIZE);
         worker->m_Filepath = request->m_Path;
 
+        if (request->m_ReportProgress)
+        {
+            worker->m_ReportProgress    = request->m_ReportProgress;
+            worker->m_ResponseUserData1 = userdata1;
+            worker->m_ResponseUserData2 = userdata2;
+            memcpy(&worker->m_CurrentRequesterURL, requester, sizeof(dmMessage::URL));
+        }
+
         if (worker->m_Client) {
             worker->m_Request = request;
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, request->m_Timeout);
@@ -244,6 +279,7 @@ namespace dmHttpService
             dmHttpClient::SetOptionInt(worker->m_Client, dmHttpClient::OPTION_REQUEST_CHUNKED_TRANSFER, request->m_ChunkedTransfer);
 
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
+
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {
                 SendResponse(requester, userdata1, userdata2, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
             } else {
@@ -410,6 +446,8 @@ namespace dmHttpService
 
         dmThread::Thread t = dmThread::New(&LoadBalancer, THREAD_STACK_SIZE, service, "http_balance");
         service->m_Balancer = t;
+
+        service->m_ReportProgressCallback = params->m_ReportProgressCallback;
 
         return service;
     }

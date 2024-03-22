@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -94,8 +94,7 @@ namespace dmGameSystem
 
         uint32_t n_animations = texture_set_ddf->m_Animations.m_Count;
         tile_set->m_AnimationIds.Clear();
-        // NOTE: 37 is rather arbitrary but probably quite reasonable for most hash-table sizes
-        tile_set->m_AnimationIds.SetCapacity(37, n_animations);
+        tile_set->m_AnimationIds.SetCapacity(dmMath::Max(1U, (2*n_animations)/3), n_animations);
         for (uint32_t i = 0; i < n_animations; ++i)
         {
             dmhash_t h = dmHashString64(texture_set_ddf->m_Animations[i].m_Id);

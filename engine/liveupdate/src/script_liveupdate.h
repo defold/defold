@@ -137,7 +137,7 @@ namespace dmLiveUpdate
  *
  * ```lua
  * local function store_manifest_cb(self, status)
- *   if status == liveupdate.LIVEUPATE_OK then
+ *   if status == liveupdate.LIVEUPDATE_OK then
  *     pprint("Successfully stored manifest. This manifest will be loaded instead of the bundled manifest the next time the engine starts.")
  *   else
  *     pprint("Failed to store manifest")

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,15 +15,12 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
-import java.io.ByteArrayOutputStream;
 import java.awt.image.BufferedImage;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
 import java.util.List;
 
 import java.nio.file.Path;
@@ -32,22 +29,19 @@ import java.nio.file.Paths;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.pipeline.TextureGeneratorException;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
-import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.AtlasProto.Atlas;
 import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
-import com.dynamo.proto.DdfMath.Point3;
 
-import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc")
@@ -102,22 +96,6 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
         return taskBuilder.build();
     }
 
-    private static TextureImage generateTextureImage(List<BufferedImage> images, TextureImage.Type textureType, TextureProfile texProfile, boolean compress) throws CompileExceptionError, IOException {
-        TextureImage textureImages[] = new TextureImage[images.size()];
-
-        for (int i = 0; i < images.size(); i++)
-        {
-            TextureImage texture;
-            try {
-                texture = TextureGenerator.generate(images.get(i), texProfile, compress);
-            } catch (TextureGeneratorException e) {
-                throw new CompileExceptionError(e.getMessage(), e);
-            }
-            textureImages[i] = texture;
-        }
-        return TextureUtil.createCombinedTextureImage(textureImages, textureType);
-    }
-
     @Override
     public void build(Task<TextureImage.Type> task) throws CompileExceptionError, IOException {
         TextureSetResult result            = AtlasUtil.generateTextureSet(this.project, task.input(0));
@@ -133,13 +111,18 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
         logger.info("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         boolean compress = project.option("texture-compression", "false").equals("true");
-        TextureImage texture = generateTextureImage(result.images, textureImageType, texProfile, compress);
+        TextureImage texture = null;
+        try {
+            texture = TextureUtil.createMultiPageTexture(result.images, textureImageType, texProfile, compress);
+        } catch (TextureGeneratorException e) {
+            throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+        }
 
         task.output(0).setContent(textureSet.toByteArray());
         task.output(1).setContent(texture.toByteArray());
     }
 
-    public static void main(String[] args) throws IOException, CompileExceptionError {
+    public static void main(String[] args) throws IOException, CompileExceptionError, TextureGeneratorException {
         System.setProperty("java.awt.headless", "true");
 
         if (args.length < 4) {
@@ -179,7 +162,7 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
         TextureSet textureSet = result.builder.setPageCount(getPageCount(result.images, textureImageType))
                                         .setTexture(textureProjectStr)
                                         .build();
-        TextureImage texture = generateTextureImage(result.images, textureImageType, null, false);
+        TextureImage texture = TextureUtil.createMultiPageTexture(result.images, textureImageType, null, false);
 
         FileOutputStream textureSetOutStream = new FileOutputStream(textureSetOutPath);
         textureSet.writeTo(textureSetOutStream);

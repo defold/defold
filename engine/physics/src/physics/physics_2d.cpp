@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1044,6 +1044,7 @@ namespace dmPhysics
     {
         b2Shape* shape = (b2Shape*) _shape;
         shape->m_radius = radius * world->m_Context->m_Scale;
+        shape->m_creationScale = radius;
     }
 
     void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
@@ -1060,6 +1061,10 @@ namespace dmPhysics
             b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
             float scale = world->m_Context->m_Scale;
             polygon_shape->SetAsBox(w * scale, h * scale, polygon_shape->m_centroid, angle);
+            for (int32 i = 0; i < polygon_shape->m_vertexCount; ++i)
+            {
+                polygon_shape->m_verticesOriginal[i] = polygon_shape->m_vertices[i];
+            }
         }
     }
 

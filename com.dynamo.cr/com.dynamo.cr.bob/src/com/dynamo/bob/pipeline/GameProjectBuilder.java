@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,16 +14,11 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
-import java.io.StringReader;
-import java.io.BufferedReader;
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -36,7 +31,6 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -45,7 +39,6 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyCustomResourcesBuilder;
 import com.dynamo.bob.Platform;
@@ -60,9 +53,9 @@ import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
-import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
@@ -71,7 +64,6 @@ import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
-import com.dynamo.proto.DdfExtensions;
 
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
@@ -85,18 +77,13 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 
-import com.google.protobuf.DescriptorProtos.FieldOptions;
-import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.google.protobuf.GeneratedMessageV3;
-import com.google.protobuf.Message;
-
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
 public class GameProjectBuilder extends Builder<Void> {
 
     private static Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
-        handle.deleteOnExit();
+        FileUtil.deleteOnExit(handle);
         RandomAccessFile file = new RandomAccessFile(handle, "rw");
         file.setLength(0);
         return file;
