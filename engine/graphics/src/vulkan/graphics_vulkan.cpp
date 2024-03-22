@@ -1347,7 +1347,10 @@ bail:
         vk_present_info.pResults           = 0;
 
         res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &vk_present_info);
-        CHECK_VK_ERROR(res);
+        if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
+        {
+            CHECK_VK_ERROR(res);
+        }
 
         // Advance frame index
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;

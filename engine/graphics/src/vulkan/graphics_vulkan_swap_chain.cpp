@@ -317,6 +317,8 @@ namespace dmGraphics
         vkGetPhysicalDeviceSurfaceFormatsKHR(vk_device, surface, &format_count, 0);
         vkGetPhysicalDeviceSurfacePresentModesKHR(vk_device, surface, &present_modes_count, 0);
 
+        capabilities.m_SurfaceCapabilities.currentTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+
         if (format_count > 0)
         {
             capabilities.m_SurfaceFormats.SetCapacity(format_count);
