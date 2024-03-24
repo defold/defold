@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -41,12 +41,12 @@ import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
-import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
 public class ArchiveTest {
 
@@ -63,7 +63,7 @@ public class ArchiveTest {
     private String createDummyFile(String dir, String filepath, byte[] data) throws IOException {
         File tmp = new File(Paths.get(FilenameUtils.concat(dir, filepath)).toString());
         tmp.getParentFile().mkdirs();
-        tmp.deleteOnExit();
+        FileUtil.deleteOnExit(tmp);
 
         FileOutputStream fos = new FileOutputStream(tmp);
         fos.write(data);

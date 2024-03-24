@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -48,9 +48,12 @@ namespace dmGameSystem
         uintptr_t               m_LuaCallback;
         float                   m_Delay;
         uint32_t                m_PlayId;
-        uint32_t                m_StopRequested  : 1;
-        uint32_t                m_PauseRequested : 1;
-        uint32_t                m_Paused         : 1;
+
+        uint8_t                 m_StopRequested         : 1;
+        uint8_t                 m_PauseRequested        : 1;
+        uint8_t                 m_Paused                : 1;
+        uint8_t                 m_ShouldDispatchEvents  : 1;
+        uint8_t                                         : 4;
     };
 
     struct SoundComponent
@@ -184,7 +187,7 @@ namespace dmGameSystem
             dmLogError("Error deleting sound: (%d)", r);
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
-        else if (entry.m_Listener.m_Fragment != 0x0)
+        else if (entry.m_Listener.m_Fragment != 0x0 && entry.m_ShouldDispatchEvents)
         {
             DispatchSoundEvent(entry, entry.m_StopRequested ? SOUND_EVENT_STOPPED : SOUND_EVENT_DONE);
         }
@@ -269,6 +272,8 @@ namespace dmGameSystem
      *
      * [icon:attention] A sound will continue to play even if the game object the sound component belonged to is deleted. You can send a `stop_sound` to stop the sound.
      *
+     * [icon:attention] `play_id` should be specified in case you want to receive `sound_done` or `sound_stopped` in `on_message()`.
+     *
      * @message
      * @name play_sound
      * @param [delay] [type:number] delay in seconds before the sound starts playing, default is 0.
@@ -280,6 +285,19 @@ namespace dmGameSystem
      *
      * ```lua
      * msg.post("#sound", "play_sound", {delay = 1, gain = 0.5})
+     * ```
+     *
+     * ```lua
+     * -- use `play_id` and `msg.post()` if you want to recieve `sound_done` or `sound_stopped` in on_message() 
+     * function init()
+     *  msg.post("#sound", "play_sound", {play_id = 1, delay = 1, gain = 0.5})
+     * end
+     *
+     * function on_message(self, message_id, message)
+     *  if message_id == hash("sound_done") then
+     *      print("Sound play id: "..message.play_id)
+     *  end
+     * end
      * ```
      */
 
@@ -318,8 +336,8 @@ namespace dmGameSystem
      */
 
     /*# reports when a sound has finished playing
-     * This message is sent back to the sender of a `play_sound` message, if the sound
-     * could be played to completion.
+     * This message is sent back to the sender of a `play_sound` message 
+     * if the sound could be played to completion and a `play_id` was provided with the `play_sound` message.
      *
      * @message
      * @name sound_done
@@ -328,7 +346,7 @@ namespace dmGameSystem
 
     /*# reports when a sound has been manually stopped
      * This message is sent back to the sender of a `play_sound` message, if the sound
-     * has been manually stopped.
+     * has been manually stopped and a `play_id` was provided with the `play_sound` message.
      *
      * @message
      * @name sound_stopped
@@ -411,6 +429,7 @@ namespace dmGameSystem
                 entry.m_Receiver = params.m_Message->m_Receiver;
                 entry.m_Delay = play_sound->m_Delay;
                 entry.m_PlayId = play_sound->m_PlayId;
+                entry.m_ShouldDispatchEvents = entry.m_PlayId != dmSound::INVALID_PLAY_ID;
                 dmMessage::ResetURL(&entry.m_Listener);
                 entry.m_LuaCallback = 0;
                 dmSound::Result result = dmSound::NewSoundInstance(sound_data, &entry.m_SoundInstance);
@@ -430,7 +449,17 @@ namespace dmGameSystem
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping, (sound->m_Looping && !sound->m_Loopcount) ? -1 : sound->m_Loopcount ); // loopcounter semantics differ a bit from loopcount. If -1, it means loopforever, otherwise it contains the # of loops remaining.
 
                     entry.m_Listener = params.m_Message->m_Sender;
-                    entry.m_LuaCallback = params.m_Message->m_UserData2;
+                    uintptr_t callback = params.m_Message->m_UserData2;
+                    if (callback == UINTPTR_MAX)
+                    {
+                        // UINTPTR_MAX used as default for `sound.play()` in `script_sound.cpp`
+                        // to make distinguish between function call and `play_sound` message
+                        // if it's a function call without callback (UINTPTR_MAX) then event
+                        // shouldn't be dispatched
+                        callback = callback == UINTPTR_MAX ? 0x0 : callback;
+                        entry.m_ShouldDispatchEvents = 0;
+                    }
+                    entry.m_LuaCallback = callback;
                 }
                 else
                 {

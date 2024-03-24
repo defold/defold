@@ -21,6 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/thread.h>
+#include <dlib/hash.h>
 
 #include <platform/platform_window.h>
 
@@ -154,6 +155,10 @@ namespace dmGraphics
         context->m_Program                              = 0x0;
         context->m_PipelineState                        = GetDefaultPipelineState();
         context->m_AsyncProcessingSupport               = context->m_JobThread && dmThread::PlatformHasThreadSupport();
+
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_MULTI_TARGET_RENDERING;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
 
         if (context->m_AsyncProcessingSupport)
         {
@@ -461,28 +466,25 @@ namespace dmGraphics
 
     static HVertexDeclaration NullNewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
     {
-        VertexDeclaration* vd = new VertexDeclaration();
-        if (stream_declaration == 0)
+        VertexDeclaration* vd = new VertexDeclaration;
+        memset(vd, 0, sizeof(VertexDeclaration));
+        if (stream_declaration)
         {
-            memset(vd, 0, sizeof(*vd));
-            return vd;
+            for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
+            {
+                VertexStream& stream = stream_declaration->m_Streams[i];
+                vd->m_Streams[i].m_NameHash  = stream.m_NameHash;
+                vd->m_Streams[i].m_Location  = -1;
+                vd->m_Streams[i].m_Size      = stream.m_Size;
+                vd->m_Streams[i].m_Type      = stream.m_Type;
+                vd->m_Streams[i].m_Normalize = stream.m_Normalize;
+                vd->m_Streams[i].m_Offset    = vd->m_Stride;
+
+                vd->m_Stride += stream.m_Size * GetTypeSize(stream.m_Type);
+            }
+            vd->m_StreamCount = stream_declaration->m_StreamCount;
         }
-        memcpy(&vd->m_StreamDeclaration, stream_declaration, sizeof(VertexStreamDeclaration));
         return vd;
-    }
-
-    bool NullSetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset)
-    {
-        if (stream_index > vertex_declaration->m_StreamDeclaration.m_StreamCount) {
-            return false;
-        }
-
-        return true;
-    }
-
-    static void NullDeleteVertexDeclaration(HVertexDeclaration vertex_declaration)
-    {
-        delete vertex_declaration;
     }
 
     static void EnableVertexStream(HContext context, uint16_t stream, uint16_t size, Type type, uint16_t stride, const void* vertex_buffer)
@@ -534,17 +536,18 @@ namespace dmGraphics
 
         uint16_t stride = 0;
 
-        for (uint32_t i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
+        for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
-            stride += vertex_declaration->m_StreamDeclaration.m_Streams[i].m_Size * TYPE_SIZE[vertex_declaration->m_StreamDeclaration.m_Streams[i].m_Type - dmGraphics::TYPE_BYTE];
+            stride += vertex_declaration->m_Streams[i].m_Size * TYPE_SIZE[vertex_declaration->m_Streams[i].m_Type - dmGraphics::TYPE_BYTE];
         }
 
         uint32_t offset = 0;
-        for (uint16_t i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
+        for (uint16_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
         {
-            VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
+            VertexDeclaration::Stream& stream = vertex_declaration->m_Streams[i];
             if (stream.m_Size > 0)
             {
+                stream.m_Location = i;
                 EnableVertexStream(context, i, stream.m_Size, stream.m_Type, stride, &vb->m_Buffer[offset]);
                 offset += stream.m_Size * TYPE_SIZE[stream.m_Type - dmGraphics::TYPE_BYTE];
             }
@@ -560,22 +563,9 @@ namespace dmGraphics
     {
         assert(context);
         assert(vertex_declaration);
-        for (uint32_t i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
-            if (vertex_declaration->m_StreamDeclaration.m_Streams[i].m_Size > 0)
+        for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; ++i)
+            if (vertex_declaration->m_Streams[i].m_Size > 0)
                 DisableVertexStream(context, i);
-    }
-
-    static void NullHashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration)
-    {
-        for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
-        {
-            VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
-            dmHashUpdateBuffer32(state, &stream.m_NameHash,  sizeof(dmhash_t));
-            dmHashUpdateBuffer32(state, &stream.m_Stream,    sizeof(stream.m_Stream));
-            dmHashUpdateBuffer32(state, &stream.m_Size,      sizeof(stream.m_Size));
-            dmHashUpdateBuffer32(state, &stream.m_Type,      sizeof(stream.m_Type));
-            dmHashUpdateBuffer32(state, &stream.m_Normalize, sizeof(stream.m_Normalize));
-        }
     }
 
     static uint32_t GetIndex(Type type, HIndexBuffer ib, uint32_t index)
@@ -776,13 +766,28 @@ namespace dmGraphics
         p->m_Data[ddf->m_Source.m_Count] = '\0';
         p->m_Language = ddf->m_Language;
 
-        for (int i = 0; i < ddf->m_Resources.m_Count; ++i)
+        for (int i = 0; i < ddf->m_UniformBuffers.m_Count; ++i)
         {
-            for (int j = 0; j < ddf->m_Resources[i].m_Bindings.m_Count; ++j)
+            ShaderDesc::ResourceBinding& res = ddf->m_UniformBuffers[i];
+
+            ShaderDesc::ResourceTypeInfo& type = ddf->m_Types[res.m_Type.m_Type.m_TypeIndex];
+
+            for (int j = 0; j < type.m_Members.m_Count; ++j)
             {
-                ShaderDesc::ResourceBinding& res = ddf->m_Resources[i].m_Bindings[j];
-                PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type), res.m_ElementCount);
+                PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), 1);
             }
+        }
+
+        for (int i = 0; i < ddf->m_StorageBuffers.m_Count; ++i)
+        {
+            ShaderDesc::ResourceBinding& res = ddf->m_StorageBuffers[i];
+            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
+        }
+
+        for (int i = 0; i < ddf->m_Textures.m_Count; ++i)
+        {
+            ShaderDesc::ResourceBinding& res = ddf->m_Textures[i];
+            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
         }
 
         return p;
@@ -958,6 +963,7 @@ namespace dmGraphics
             case TYPE_SAMPLER_2D:       return 1;
             case TYPE_SAMPLER_CUBE:     return 1;
             case TYPE_SAMPLER_2D_ARRAY: return 1;
+            case TYPE_IMAGE_2D:         return 1;
             case TYPE_FLOAT_VEC2:       return 2;
             case TYPE_FLOAT_VEC3:       return 3;
             case TYPE_FLOAT_MAT2:       return 4;
@@ -981,36 +987,6 @@ namespace dmGraphics
     static uint32_t NullGetUniformCount(HProgram prog)
     {
         return ((Program*)prog)->m_Uniforms.Size();
-    }
-
-    static uint32_t NullGetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
-    {
-        // TODO: We don't take alignment into account here. It is assumed to be tightly packed
-        //       as opposed to other graphic adapters which requires a 4 byte minumum alignment per stream.
-        //       Might need some investigation on impact, or adjustment in the future..
-        uint32_t stride = 0;
-        for (int i = 0; i < vertex_declaration->m_StreamDeclaration.m_StreamCount; ++i)
-        {
-            VertexStream& stream = vertex_declaration->m_StreamDeclaration.m_Streams[i];
-            stride += GetTypeSize(stream.m_Type) * stream.m_Size;
-        }
-        return stride;
-    }
-
-    static uint32_t NullGetVertexStreamOffset(HVertexDeclaration vertex_declaration, dmhash_t name_hash)
-    {
-        uint32_t count = vertex_declaration->m_StreamDeclaration.m_StreamCount;
-        VertexStream* streams = vertex_declaration->m_StreamDeclaration.m_Streams;
-        uint32_t offset = 0;
-        for (int i = 0; i < count; ++i)
-        {
-            if (streams[i].m_NameHash == name_hash)
-            {
-                return offset;
-            }
-            offset += GetTypeSize(streams[i].m_Type) * streams[i].m_Size;
-        }
-        return dmGraphics::INVALID_STREAM_OFFSET;
     }
 
     static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
@@ -1350,13 +1326,29 @@ namespace dmGraphics
         NullContext* context  = (NullContext*) _context;
         Texture* tex          = new Texture();
 
-        tex->m_Type        = params.m_Type;
-        tex->m_Width       = params.m_Width;
-        tex->m_Height      = params.m_Height;
-        tex->m_Depth       = params.m_Depth;
-        tex->m_MipMapCount = 0;
-        tex->m_Data        = 0;
-        tex->m_DataState   = 0;
+        uint16_t num_texture_ids = 1;
+        TextureType texture_type = params.m_Type;
+
+        if (params.m_Type == TEXTURE_TYPE_2D_ARRAY && !IsContextFeatureSupported(_context, CONTEXT_FEATURE_TEXTURE_ARRAY))
+        {
+            num_texture_ids = params.m_Depth;
+            texture_type    = TEXTURE_TYPE_2D;
+        }
+
+        tex->m_Type          = texture_type;
+        tex->m_Width         = params.m_Width;
+        tex->m_Height        = params.m_Height;
+        tex->m_Depth         = params.m_Depth;
+        tex->m_MipMapCount   = 0;
+        tex->m_Data          = 0;
+        tex->m_DataState     = 0;
+        tex->m_NumTextureIds = num_texture_ids;
+        tex->m_LastBoundUnit = new int32_t[num_texture_ids];
+
+        for (int i = 0; i < num_texture_ids; ++i)
+        {
+            tex->m_LastBoundUnit[i] = -1;
+        }
 
         if (params.m_OriginalWidth == 0)
         {
@@ -1372,27 +1364,32 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static int DoDeleteTexture(void* _context, void* _texture)
+    static int DoDeleteTexture(void* _h_texture, void* _texture)
     {
-        NullContext* context = (NullContext*)_context;
-        HTexture texture = (HTexture) _texture;
-        Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
-
+        Texture* tex = (Texture*) _texture;
         if (tex)
         {
             if (tex->m_Data != 0x0)
             {
                 delete [] (char*)tex->m_Data;
             }
+
+            delete [] tex->m_LastBoundUnit;
             delete tex;
         }
-        context->m_AssetHandleContainer.Release(texture);
         return 0;
+    }
+
+    static void DoDeleteTextureComplete(void* _h_texture, void* _texture, int result)
+    {
+        HTexture texture = (HTexture) _h_texture;
+        g_NullContext->m_AssetHandleContainer.Release(texture);
     }
 
     static void NullDeleteTextureAsync(NullContext* context, HTexture texture)
     {
-        dmJobThread::PushJob(context->m_JobThread, DoDeleteTexture, 0, (void*) context, (void*) texture);
+        Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
+        dmJobThread::PushJob(context->m_JobThread, DoDeleteTexture, DoDeleteTextureComplete, (void*) texture, (void*) tex);
     }
 
     static void PostDeleteTextures(NullContext* context, bool force_delete)
@@ -1402,7 +1399,10 @@ namespace dmGraphics
             uint32_t size = context->m_SetTextureAsyncState.m_PostDeleteTextures.Size();
             for (uint32_t i = 0; i < size; ++i)
             {
-                DoDeleteTexture(context, (void*)(size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
+                void* texture = (void*) (size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
+                void* tex     = (void*) GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
+                DoDeleteTexture(texture, tex);
+                DoDeleteTextureComplete(texture, tex, 0);
             }
             context->m_SetTextureAsyncState.m_PostDeleteTextures.SetSize(0);
             return;
@@ -1440,7 +1440,10 @@ namespace dmGraphics
         }
         else
         {
-            DoDeleteTexture((void*) g_NullContext, (void*) texture);
+            void* htexture = (void*) texture;
+            void* tex = GetAssetFromContainer<void*>(g_NullContext->m_AssetHandleContainer, texture);
+            DoDeleteTexture(htexture, tex);
+            DoDeleteTextureComplete(htexture, tex, 0);
         }
     }
 
@@ -1505,6 +1508,10 @@ namespace dmGraphics
     static uint32_t NullGetTextureResourceSize(HTexture texture)
     {
         Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
+        if (!tex)
+        {
+            return 0;
+        }
 
         uint32_t size_total = 0;
         uint32_t size = tex->m_Width * tex->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_Format)/8);
@@ -1540,7 +1547,7 @@ namespace dmGraphics
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_OriginalHeight;
     }
 
-    static void NullEnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
+    static void NullEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
         assert(_context);
         assert(unit < MAX_TEXTURE_COUNT);
@@ -1551,6 +1558,8 @@ namespace dmGraphics
         context->m_Textures[unit] = texture;
         context->m_TextureUnit = unit;
         NullSetTextureParams(texture, tex->m_Sampler.m_MinFilter, tex->m_Sampler.m_MagFilter, tex->m_Sampler.m_UWrap, tex->m_Sampler.m_VWrap, tex->m_Sampler.m_Anisotropy);
+
+        tex->m_LastBoundUnit[id_index] = unit;
     }
 
     static void NullDisableTexture(HContext context, uint32_t unit, HTexture texture)
@@ -1708,7 +1717,7 @@ namespace dmGraphics
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
-        return (int) IsAssetHandleValid(context, ap.m_Texture);
+        return 0;
     }
 
     // Called on thread where we update (which should be the main thread)
@@ -1719,12 +1728,12 @@ namespace dmGraphics
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
         Texture* tex               = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
 
-        if (result && tex)
+        if (tex)
         {
             SetTexture(ap.m_Texture, ap.m_Params);
             tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
         }
-        if (!tex)
+        else
         {
             dmLogError("Unable to set texture with handle '%u', has it been deleted?", (uint32_t) ap.m_Texture);
         }
@@ -1755,7 +1764,7 @@ namespace dmGraphics
     {
         Texture* tex   = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         uint32_t flags = TEXTURE_STATUS_OK;
-        if(tex->m_DataState)
+        if(tex && tex->m_DataState)
         {
             flags |= TEXTURE_STATUS_DATA_PENDING;
         }
@@ -1796,12 +1805,13 @@ namespace dmGraphics
 
     static uint8_t NullGetNumTextureHandles(HTexture texture)
     {
-        return 1;
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_NumTextureIds;
     }
 
-    static bool NullIsContextFeatureSupported(HContext context, ContextFeature feature)
+    static bool NullIsContextFeatureSupported(HContext _context, ContextFeature feature)
     {
-        return true;
+        NullContext* context = (NullContext*) _context;
+        return (context->m_ContextFeatures & (1 << feature)) != 0;
     }
 
     static uint16_t NullGetTextureDepth(HTexture texture)

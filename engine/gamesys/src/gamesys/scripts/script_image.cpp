@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -102,7 +102,13 @@ namespace dmGameSystem
     *
     * @name image.load
     * @param buffer [type:string] image data buffer
-    * @param [premult] [type:boolean] optional flag if alpha should be premultiplied. Defaults to `false`
+    * @param [options] [type:table] An optional table containing parameters for loading the image. Supported entries:
+    *
+    * `premultiply_alpha`
+    * : [type:boolean] True if alpha should be premultiplied into the color components. Defaults to `false`.
+    *
+    * `flip_vertically`
+    * : [type:boolean] True if the image contents should be flipped vertically. Defaults to `false`.
     *
     * @return image [type:table|nil] object or `nil` if loading fails. The object is a table with the following fields:
     *
@@ -135,14 +141,36 @@ namespace dmGameSystem
         const char* buffer = lua_tolstring(L, 1, &buffer_len);
 
         bool premult = false;
+        bool flip_vertically = false;
 
         if (top >= 2)
         {
-            premult = lua_toboolean(L, 2);
+            // Parse as options table
+            if (lua_istable(L, 2))
+            {
+                lua_pushvalue(L, 2);
+
+                lua_getfield(L, -1, "premultiply_alpha");
+                if (!lua_isnil(L, -1))
+                    premult = dmScript::CheckBoolean(L, -1);
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "flip_vertically");
+                if (!lua_isnil(L, -1))
+                    flip_vertically = dmScript::CheckBoolean(L, -1);
+                lua_pop(L, 1);
+
+                lua_pop(L, 1);
+            }
+            // backwards compatability
+            else
+            {
+                premult = dmScript::CheckBoolean(L, 2);
+            }
         }
 
         dmImage::Image image;
-        dmImage::Result r = dmImage::Load(buffer, buffer_len, premult, &image);
+        dmImage::Result r = dmImage::Load(buffer, buffer_len, premult, flip_vertically, &image);
         if (r == dmImage::RESULT_OK) {
 
             int bytes_per_pixel = dmImage::BytesPerPixel(image.m_Type);
@@ -176,7 +204,13 @@ namespace dmGameSystem
     *
     * @name image.load_buffer
     * @param buffer [type:string] image data buffer
-    * @param [premult] [type:boolean] optional flag if alpha should be premultiplied. Defaults to `false`
+    * @param [options] [type:table] An optional table containing parameters for loading the image. Supported entries:
+    *
+    * `premultiply_alpha`
+    * : [type:boolean] True if alpha should be premultiplied into the color components. Defaults to `false`.
+    *
+    * `flip_vertically`
+    * : [type:boolean] True if the image contents should be flipped vertically. Defaults to `false`.
     *
     * @return image [type:table|nil] object or `nil` if loading fails. The object is a table with the following fields:
     *
@@ -196,7 +230,7 @@ namespace dmGameSystem
     * ```lua
     * local imgurl = "http://www.site.com/image.png"
     * http.request(imgurl, "GET", function(self, id, response)
-    *         local img = image.load_buffer(response.response)
+    *         local img = image.load_buffer(response.response, { flip_vertically = true })
     *         local tparams = {
     *             width  = img.width,
     *             height = img.height,
@@ -208,6 +242,7 @@ namespace dmGameSystem
     *         go.set("/go1#model", "texture0", my_texture_id)
     *     end)
     * ```
+    *
     */
     static int Image_LoadBuffer(lua_State* L)
     {
@@ -217,17 +252,39 @@ namespace dmGameSystem
         const char* buffer = lua_tolstring(L, 1, &buffer_len);
 
         bool premult = false;
+        bool flip_vertically = false;
 
         if (top >= 2)
         {
-            premult = lua_toboolean(L, 2);
+            // Parse as options table
+            if (lua_istable(L, 2))
+            {
+                lua_pushvalue(L, 2);
+
+                lua_getfield(L, -1, "premultiply_alpha");
+                if (!lua_isnil(L, -1))
+                    premult = dmScript::CheckBoolean(L, -1);
+                lua_pop(L, 1);
+
+                lua_getfield(L, -1, "flip_vertically");
+                if (!lua_isnil(L, -1))
+                    flip_vertically = dmScript::CheckBoolean(L, -1);
+                lua_pop(L, 1);
+
+                lua_pop(L, 1);
+            }
+            // backwards compatability
+            else
+            {
+                premult = dmScript::CheckBoolean(L, 2);
+            }
         }
 
         dmImage::Image image;
-        dmImage::Result r = dmImage::Load(buffer, buffer_len, premult, &image);
+        dmImage::Result r = dmImage::Load(buffer, buffer_len, premult, flip_vertically, &image);
         if (r == dmImage::RESULT_OK) {
 
-            int bytes_per_pixel = dmImage::BytesPerPixel(image.m_Type);
+            uint8_t bytes_per_pixel = dmImage::BytesPerPixel(image.m_Type);
             if (bytes_per_pixel == 0) {
                 dmImage::Free(&image);
                 luaL_error(L, "unknown image type %d", image.m_Type);
@@ -237,16 +294,17 @@ namespace dmGameSystem
 
             PushImageParameters(L, image);
 
-            uint32_t datasize = bytes_per_pixel * image.m_Width * image.m_Height;
+            uint32_t imagesize = image.m_Width * image.m_Height;
+            uint32_t datasize = bytes_per_pixel * imagesize;
 
             lua_pushliteral(L, "buffer");
 
             dmBuffer::StreamDeclaration streams_decl[] = {
-                { dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }
+                { dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, bytes_per_pixel }
             };
 
             dmBuffer::HBuffer buffer = 0;
-            dmBuffer::Create(datasize, streams_decl, 1, &buffer);
+            dmBuffer::Create(imagesize, streams_decl, 1, &buffer);
 
             uint8_t* buffer_data     = 0;
             uint32_t buffer_datasize = 0;

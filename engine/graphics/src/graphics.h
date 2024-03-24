@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -65,6 +65,8 @@ namespace dmGraphics
     typedef uint64_t HAssetHandle;
 
     typedef uintptr_t HComputeProgram;
+
+    typedef uintptr_t HStorageBuffer;
 
     const static uint64_t MAX_ASSET_HANDLE_VALUE       = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_COLOR_ATTACHMENTS = 4;
@@ -169,6 +171,7 @@ namespace dmGraphics
         CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
         CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
+        CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -336,6 +339,31 @@ namespace dmGraphics
         uint64_t m_FaceWinding              : 1;
         // Polygon offset
         uint64_t m_PolygonOffsetFillEnabled : 1;
+    };
+
+    struct VertexAttributeInfo
+    {
+        dmhash_t                      m_NameHash;
+        VertexAttribute::SemanticType m_SemanticType;
+        VertexAttribute::DataType     m_DataType;
+        CoordinateSpace               m_CoordinateSpace;
+        const uint8_t*                m_ValuePtr;
+        uint32_t                      m_ValueByteSize;
+        uint32_t                      m_ElementCount;
+        bool                          m_Normalize;
+    };
+
+    struct VertexAttributeInfos
+    {
+        VertexAttributeInfos()
+        {
+            m_StructSize = sizeof(*this);
+        }
+
+        VertexAttributeInfo m_Infos[MAX_VERTEX_STREAM_COUNT];
+        uint32_t            m_VertexStride;
+        uint32_t            m_NumInfos;
+        uint32_t            m_StructSize;
     };
 
     /** Creates a graphics context
@@ -552,8 +580,9 @@ namespace dmGraphics
     // Attributes
     uint32_t         GetAttributeCount(HProgram prog);
     void             GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
-    void             GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
-    dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type);
+    void             GetAttributeValues(const VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
+    Type             GetGraphicsType(VertexAttribute::DataType data_type);
+    uint8_t*         WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4& color, float** uvs, uint32_t* page_indices, uint32_t num_textures);
 
     uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t         GetUniformCount(HProgram prog);
@@ -666,6 +695,19 @@ namespace dmGraphics
                buffer_type == BUFFER_TYPE_COLOR3_BIT;
     }
 
+    static inline bool HasLocalPositionAttribute(const VertexAttributeInfos& attribute_infos)
+    {
+        for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
+        {
+            if (attribute_infos.m_Infos[i].m_SemanticType == VertexAttribute::SEMANTIC_TYPE_POSITION &&
+                attribute_infos.m_Infos[i].m_CoordinateSpace == COORDINATE_SPACE_LOCAL)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Get status of texture.
      *
@@ -680,7 +722,7 @@ namespace dmGraphics
      * @param format dmGraphics::TextureImage::CompressionType
      * @return true if the format is compressed
      */
-    bool IsFormatTranscoded(dmGraphics::TextureImage::CompressionType format);
+    bool IsFormatTranscoded(TextureImage::CompressionType format);
 
     /** checks if the texture format is compressed
      * @name Transcode
@@ -702,7 +744,8 @@ namespace dmGraphics
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
 
-    uint32_t GetTypeSize(dmGraphics::Type type);
+    uint32_t    GetTypeSize(Type type);
+    const char* GetGraphicsTypeLiteral(Type type);
 
     // Both experimental + tests only:
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);

@@ -42,6 +42,9 @@ def build(bld):
     python_path = os.environ.get('PYTHONPATH', '')
     os.environ['PYTHONPATH'] = os.path.abspath('build/src/script') + os.pathsep + python_path
     bld.recurse('src')
+
+    bld.install_files('${PREFIX}/lib/python', 'test_script_server.py')
+
     TestContext.initialize_test_context(test_context, bld)
 
 def _get_local_ip(self):
@@ -67,7 +70,7 @@ def shutdown(self):
     os.environ['DM_SAVEGAME_HOME'] = 'build'
     sys.path.append('.')
 
-    import server
+    import test_script_server
 
     local_ip = _get_local_ip(self)
 
@@ -77,7 +80,7 @@ def shutdown(self):
     PORT=9001
     configfile = waf_dynamo.create_test_server_config(self, port=PORT, ip=local_ip)
 
-    serv = server.Server(port=PORT, ip=local_ip)
+    serv = test_script_server.Server(port=PORT, ip=local_ip)
     serv.start()
     try:
         waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfile)

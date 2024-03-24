@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.engine.native-extensions
-  (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.connection-properties :refer [connection-properties]]
@@ -25,23 +24,13 @@
             [editor.resource :as resource]
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.system :as system]
-            [editor.workspace :as workspace]
-            [util.http-client :as http])
-  (:import [com.dynamo.bob Platform]
-           [com.sun.jersey.api.client Client ClientResponse WebResource$Builder]
-           [com.sun.jersey.api.client.config DefaultClientConfig]
-           [com.sun.jersey.core.impl.provider.entity InputStreamProvider StringProvider]
-           [com.sun.jersey.multipart FormDataMultiPart]
-           [com.sun.jersey.multipart.file StreamDataBodyPart]
-           [com.sun.jersey.multipart.impl MultiPartWriter]
+            [editor.workspace :as workspace])
+  (:import [com.defold.extender.client ExtenderClient ExtenderClientCache ExtenderResource]
+           [com.dynamo.bob Platform]
            [java.io File]
            [java.net URI]
-           [java.security MessageDigest]
-           [java.util Base64]
-           [javax.ws.rs.core MediaType]
-           [org.apache.commons.codec.binary Hex]
-           [org.apache.commons.codec.digest DigestUtils]
-           [org.apache.commons.io IOUtils]))
+           [java.nio.charset StandardCharsets]
+           [java.util ArrayList Base64]))
 
 (set! *warn-on-reflection* true)
 
@@ -51,58 +40,13 @@
     (get-in connection-properties [:native-extensions :build-server-url])))
 
 (def ^:const defold-build-server-headers "")
-(def ^:const connect-timeout-ms (* 30 1000))
-(def ^:const read-timeout-ms (* 10 60 1000))
 
 ;;; Caching
-
-(defn- hash-resources! ^MessageDigest
-  [^MessageDigest md resource-nodes evaluation-context]
-  (run! #(DigestUtils/updateDigest md ^String (g/node-value % :sha256 evaluation-context))
-        resource-nodes)
-  md)
-
-(defn- cache-key
-  [^String extender-platform ^String sdk-version resource-nodes evaluation-context]
-  (-> (DigestUtils/getSha256Digest)
-      (DigestUtils/updateDigest extender-platform)
-      (DigestUtils/updateDigest (or sdk-version ""))
-      (hash-resources! resource-nodes evaluation-context)
-      (.digest)
-      (Hex/encodeHexString)))
-
-(defn- cache-file ^File
-  [cache-dir extender-platform]
-  (doto (io/file cache-dir extender-platform "build.zip")
-    (fs/create-parent-directories!)))
-
-(defn- cache-file-hash ^File
-  [cache-dir extender-platform]
-  (doto (io/file cache-dir extender-platform "build.hash")
-    (fs/create-parent-directories!)))
 
 (defn- cache-dir ^File
   [project-directory]
   (doto (io/file project-directory ".internal" "cache" "engine-archives")
-    (fs/create-parent-directories!)))
-
-(defn- cached-engine-archive
-  [cache-dir extender-platform key]
-  (let [cache-file (cache-file cache-dir extender-platform)
-        cache-file-hash (cache-file-hash cache-dir extender-platform)]
-    (when (and (.exists cache-file)
-               (.exists cache-file-hash)
-               (= key (slurp cache-file-hash)))
-      cache-file)))
-
-(defn- cache-engine-archive!
-  [cache-dir extender-platform key ^File engine-archive]
-  (let [cache-file (cache-file cache-dir extender-platform)
-        cache-file-hash (cache-file-hash cache-dir extender-platform)]
-    (fs/move-file! engine-archive cache-file)
-    (spit cache-file-hash key)
-    cache-file))
-
+    (fs/create-directories!)))
 
 ;;; Extension discovery/processing
 
@@ -197,104 +141,10 @@
   [extender-platform sdk-version]
   (format "/build/%s/%s" extender-platform (or sdk-version "")))
 
-(defn- resource-node-content-stream ^java.io.InputStream
-  [resource-node evaluation-context]
-  (if-let [content (some-> (g/node-value resource-node :save-data evaluation-context) :content)]
-    (IOUtils/toInputStream ^String content "UTF-8")
-    (io/input-stream (g/node-value resource-node :resource evaluation-context))))
-
 (defn supported-platform? [platform]
   (contains? extender-platforms platform))
 
 ;;; Building
-
-(defn- make-cache-request
-  [server-url payload]
-  (let [parts (http/split-url server-url)]
-    {:request-method :post
-     :scheme         (get parts :protocol)
-     :server-name    (get parts :host)
-     :server-port    (get parts :port)
-     :uri            "/query"
-     :content-type   "application/json"
-     :headers        {"Accept" "application/json"}
-     :body           payload}))
-
-(defn- query-cached-files
-  "Asks the server what files it already has.
-  This is to avoid uploading big files that rarely change"
-  [server-url resource-nodes-by-upload-path evaluation-context]
-  (let [items (mapv (fn [[upload-path resource-node]]
-                      (let [key (g/node-value resource-node :sha256 evaluation-context)]
-                        {:path upload-path :key key}))
-                    resource-nodes-by-upload-path)
-        json (json/write-str {:files items :version 1 :hashType "sha256"})
-        request (make-cache-request server-url json)
-        response (http/request request)]
-    ; Make a list of all files we intend to upload
-    ; Make request to server with json
-    ; Returns a json document with the "cached" fields filled in
-    (when (= 200 (:status response))
-      (let [body (slurp (:body response))
-            items (get (json/read-str body) "files")]
-        items))))
-
-(defn- make-cached-info-map
-  "Parse the json doc into a mapping 'path' -> 'cached'"
-  [ne-cache-info]
-  (into {}
-        (map (fn [info]
-               [(get info "path")
-                (get info "cached")]))
-        ne-cache-info))
-
-(defn- build-engine-archive
-  ^File [server-url server-headers extender-platform sdk-version resource-nodes-by-upload-path evaluation-context]
-  ;; NOTE:
-  ;; sdk-version is likely to be nil unless you're running a bundled editor.
-  ;; In this case things will only work correctly if you're running a local
-  ;; build server, as it will fall back on using the DYNAMO_HOME env variable.
-  ;; Otherwise, you will likely get an Internal Server Error response.
-  (let [cc (DefaultClientConfig.)
-        ;; TODO: Random errors without this... Don't understand why random!
-        ;; For example No MessageBodyWriter for body part of type 'java.io.BufferedInputStream' and media type 'application/octet-stream'
-        _ (.add (.getClasses cc) MultiPartWriter)
-        _ (.add (.getClasses cc) InputStreamProvider)
-        _ (.add (.getClasses cc) StringProvider)
-        client (doto (Client/create cc)
-                 (.setConnectTimeout (int connect-timeout-ms))
-                 (.setReadTimeout (int read-timeout-ms)))
-        api-root (.resource client (URI. server-url))
-        extender-username (System/getenv "DM_EXTENDER_USERNAME")
-        extender-password (System/getenv "DM_EXTENDER_PASSWORD")
-        user-info (.getUserInfo (URI. server-url))
-        build-resource (.path api-root (build-url extender-platform sdk-version))
-        builder (.getRequestBuilder build-resource)
-        ne-cache-info (query-cached-files server-url resource-nodes-by-upload-path evaluation-context)
-        ne-cache-info-map (make-cached-info-map ne-cache-info)]
-    (.accept builder #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
-    (when (not-empty user-info)
-      (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info)))))
-    (when (and (not-empty extender-username) (not-empty extender-password))
-      (.header builder "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes (str extender-username ":" extender-password))))))
-    (doseq [header (string/split-lines server-headers)]
-      (let [[key value] (string/split header #"\s*:\s*" 2)]
-        (.header builder key value)))
-    (with-open [form (FormDataMultiPart.)]
-      ; upload the file to the server, basically telling it what we are sending (and what we aren't)
-      (.bodyPart form (StreamDataBodyPart. "ne-cache-info.json" (io/input-stream (.getBytes ^String (json/write-str {:files ne-cache-info})))))
-      (doseq [[upload-path node] (sort-by first resource-nodes-by-upload-path)]
-        ; If the file is not cached on the server, then we upload it
-        (if (not (get ne-cache-info-map upload-path))
-          (.bodyPart form (StreamDataBodyPart. upload-path (resource-node-content-stream node evaluation-context)))))
-      (let [^ClientResponse cr (.post ^WebResource$Builder (.type builder MediaType/MULTIPART_FORM_DATA_TYPE) ClientResponse form)
-            status (.getStatus cr)]
-        (if (= 200 status)
-          (let [engine-archive (fs/create-temp-file! "defold-engine" ".zip")]
-            (io/copy (.getEntityInputStream cr) engine-archive)
-            engine-archive)
-          (let [log (.getEntity cr String)]
-            (throw (engine-build-errors/build-error extender-platform status log))))))))
 
 (defn get-build-server-url
   (^String [prefs project]
@@ -378,19 +228,56 @@
     (or (seq (engine-extension-roots project evaluation-context))
         (pos? (count (global-resource-nodes-by-upload-path project evaluation-context))))))
 
+(defn- make-extender-resources [project platform evaluation-context]
+  (reduce-kv
+    (fn [^ArrayList acc upload-path resource-node]
+      (doto acc
+        (.add (reify ExtenderResource
+                (getPath [_] upload-path)
+                (getContent [_]
+                  (if-let [^String content (some-> (g/node-value resource-node :save-data evaluation-context) :content)]
+                    (.getBytes content StandardCharsets/UTF_8)
+                    (with-open [is (io/input-stream (g/node-value resource-node :resource evaluation-context))]
+                      (.readAllBytes is))))
+                (getLastModified [_]
+                  (.lastModified (io/file (g/node-value resource-node :resource evaluation-context))))))))
+    (ArrayList.)
+    (merge (global-resource-nodes-by-upload-path project evaluation-context)
+           (extension-resource-nodes-by-upload-path project evaluation-context platform)
+           (get-main-manifest-file-upload-resource project evaluation-context platform))))
+
 (defn get-engine-archive [project evaluation-context platform build-server-url build-server-headers]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
     (let [extender-platform (get-in extender-platforms [platform :platform])
           project-directory (workspace/project-path (project/workspace project evaluation-context) evaluation-context)
-          cache-dir (cache-dir project-directory)
-          resource-nodes-by-upload-path (merge (global-resource-nodes-by-upload-path project evaluation-context)
-                                               (extension-resource-nodes-by-upload-path project evaluation-context platform)
-                                               (get-main-manifest-file-upload-resource project evaluation-context platform))
+          cache-directory (cache-dir project-directory)
           sdk-version (system/defold-engine-sha1)
-          key (cache-key extender-platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)) evaluation-context)]
-      (if-let [cached-archive (cached-engine-archive cache-dir extender-platform key)]
-        {:id {:type :custom :version key} :cached true :engine-archive cached-archive :extender-platform extender-platform}
-        (let [temp-archive (build-engine-archive build-server-url build-server-headers extender-platform sdk-version resource-nodes-by-upload-path evaluation-context)
-              engine-archive (cache-engine-archive! cache-dir extender-platform key temp-archive)]
-          {:id {:type :custom :version key} :engine-archive engine-archive :extender-platform extender-platform})))))
+          cache (ExtenderClientCache. cache-directory)
+          extender-resources (make-extender-resources project platform evaluation-context)
+          cache-key (.calcKey cache extender-platform sdk-version extender-resources)]
+      (if (.isCached cache extender-platform cache-key)
+        {:id {:type :custom :version cache-key}
+         :cached true
+         :engine-archive (.getCachedBuildFile cache extender-platform)
+         :extender-platform extender-platform}
+        (let [extender-client (ExtenderClient. build-server-url cache-directory)
+              user-info (.getUserInfo (URI. build-server-url))
+              headers (into [] (remove string/blank?) (string/split-lines build-server-headers))
+              destination-file (fs/create-temp-file! (str "build_" sdk-version) ".zip")
+              log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")
+              async true]
+          (try
+            (when (pos? (count user-info))
+              (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info StandardCharsets/UTF_8)))))
+            (when (pos? (count headers))
+              (.setHeaders extender-client headers))
+            (.build extender-client extender-platform sdk-version extender-resources destination-file log-file async)
+            {:id {:type :custom :version cache-key}
+             :engine-archive destination-file
+             :extender-platform extender-platform}
+            (catch Exception e
+              (throw (engine-build-errors/build-error
+                       (or (:cause (Throwable->map e))
+                           (.getSimpleName (class e)))
+                       (slurp log-file))))))))))

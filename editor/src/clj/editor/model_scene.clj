@@ -224,7 +224,7 @@
           (gl/bind gl t render-args)
           (shader/set-samplers-by-name id-shader gl name (:texture-units t)))
         (doseq [mesh meshes
-                :let [vb (request-vb! gl node-id mesh world-matrix :vertex-space-world vtx-pos-tex nil)
+                :let [vb (request-vb! gl node-id mesh world-matrix :vertex-space-local vtx-pos-tex nil)
                       vertex-binding (vtx/use-with [node-id ::mesh-selection] vb id-shader)]]
           (gl/with-gl-bindings gl render-args [vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))

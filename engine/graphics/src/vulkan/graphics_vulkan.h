@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,12 +21,6 @@ namespace dmGraphics
     static const uint32_t MAX_SUBPASS_DEPENDENCIES  = 4;
     static const uint8_t  SUBPASS_EXTERNAL 		    = -1;
     static const uint8_t  SUBPASS_ATTACHMENT_UNUSED = -1;
-
-    enum VertexStepFunction
-    {
-        VERTEX_STEP_VERTEX,
-        VERTEX_STEP_INSTANCE,
-    };
 
     enum BarrierStageFlags
     {
@@ -94,6 +88,11 @@ namespace dmGraphics
     void     VulkanClearTexture(HContext context, HTexture texture, float values[4]);
     void     VulkanMemorybarrier(HContext context, HTexture _texture, uint32_t src_stage_flags, uint32_t dst_stage_flags, uint32_t src_access_flags, uint32_t dst_access_flags);
     void     VulkanGetUniformBinding(HContext context, HProgram program, uint32_t index, uint32_t* set, uint32_t* binding, uint32_t* member_index);
+
+    HStorageBuffer VulkanNewStorageBuffer(HContext context, uint32_t buffer_size);
+    void           VulkanDeleteStorageBuffer(HStorageBuffer storage_buffer);
+    void           VulkanSetStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t binding_index, uint32_t buffer_offset, HUniformLocation base_location);
+    void           VulkanSetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data);
 }
 
 #endif

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -104,6 +104,13 @@ namespace dmPhysics
         b2Vec2 pp = p;
         pp *= scale;
         return b2Mul(t, pp);
+    }
+
+    inline b2Vec2 FromTransformScaleB2(const b2Transform& t, float inv_scale, const b2Vec2& p)
+    {
+        b2Vec2 pp = p;
+        pp *= inv_scale;
+        return b2MulT(t, pp);
     }
 }
 

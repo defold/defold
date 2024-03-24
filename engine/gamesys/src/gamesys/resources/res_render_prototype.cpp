@@ -3,20 +3,23 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include "res_render_prototype.h"
+#include "res_texture.h"
+#include "res_render_target.h"
 
 #include <render/render_ddf.h>
 
 #include "../gamesys.h"
+#include "../gamesys_private.h"
 
 #include <dmsdk/gamesys/resources/res_material.h>
 
@@ -30,6 +33,12 @@ namespace dmGameSystem
             dmRender::OnReloadRenderScriptInstance(prototype->m_Instance);
         }
     }
+
+    struct RenderResourceMeta
+    {
+        const char*                  m_Name;
+        dmRender::RenderResourceType m_Type;
+    };
 
     dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
         dmRender::HRenderContext render_context, RenderScriptPrototype* prototype, const char* filename)
@@ -53,26 +62,78 @@ namespace dmGameSystem
             else
             {
                 dmRender::SetRenderScriptInstanceRenderScript(prototype->m_Instance, prototype->m_Script);
-                dmRender::ClearRenderScriptInstanceMaterials(prototype->m_Instance);
+                dmRender::ClearRenderScriptInstanceRenderResources(prototype->m_Instance);
             }
-            prototype->m_Materials.SetCapacity(prototype_desc->m_Materials.m_Count);
-            for (uint32_t i = 0; i < prototype_desc->m_Materials.m_Count; ++i)
+
+            dmArray<RenderResourceMeta> render_resource_metas;
+            render_resource_metas.SetCapacity(prototype_desc->m_RenderResources.m_Count);
+            prototype->m_RenderResources.SetCapacity(prototype_desc->m_RenderResources.m_Count);
+
+            if (prototype_desc->m_RenderResources.m_Count > 0)
             {
-                dmGameSystem::MaterialResource* material;
-                if (dmResource::RESULT_OK == dmResource::Get(factory, prototype_desc->m_Materials[i].m_Material, (void**)&material))
-                    prototype->m_Materials.Push(material);
-                else
-                    break;
+                for (uint32_t i = 0; i < prototype_desc->m_RenderResources.m_Count; ++i)
+                {
+                    void* res;
+                    result = dmResource::Get(factory, prototype_desc->m_RenderResources[i].m_Path, &res);
+                    if (result != dmResource::RESULT_OK)
+                    {
+                        break;
+                    }
+
+                    dmRender::RenderResourceType render_resource_type = ResourcePathToRenderResourceType(prototype_desc->m_RenderResources[i].m_Path);
+
+                    if (!(render_resource_type == dmRender::RENDER_RESOURCE_TYPE_MATERIAL ||
+                          render_resource_type == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET))
+                    {
+                        dmLogError("Resource extension '%s' not supported.", dmResource::GetExtFromPath(prototype_desc->m_RenderResources[i].m_Path));
+                        result = dmResource::RESULT_NOT_SUPPORTED;
+                        break;
+                    }
+
+                    prototype->m_RenderResources.Push(res);
+
+                    RenderResourceMeta meta;
+                    meta.m_Name = prototype_desc->m_RenderResources[i].m_Name;
+                    meta.m_Type = render_resource_type;
+
+                    render_resource_metas.Push(meta);
+                }
             }
-            if (!prototype->m_Materials.Full())
+
+            if (result == dmResource::RESULT_OK)
             {
-                result = dmResource::RESULT_OUT_OF_RESOURCES;
+                for (uint32_t i = 0; i < prototype->m_RenderResources.Size(); ++i)
+                {
+                    void* render_resource = prototype->m_RenderResources[i];
+                    uint64_t render_resource_val = 0;
+
+                    switch(render_resource_metas[i].m_Type)
+                    {
+                        case dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET:
+                        {
+                            dmGameSystem::RenderTargetResource* render_target_res = (dmGameSystem::RenderTargetResource*) render_resource;
+                            render_resource_val = (uint64_t) render_target_res->m_RenderTarget;
+                        } break;
+                        case dmRender::RENDER_RESOURCE_TYPE_MATERIAL:
+                        {
+                            dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) render_resource;
+                            render_resource_val = (uint64_t) material_res->m_Material;
+                        } break;
+                    }
+
+                    dmRender::AddRenderScriptInstanceRenderResource(
+                        prototype->m_Instance,
+                        render_resource_metas[i].m_Name,
+                        render_resource_val,
+                        render_resource_metas[i].m_Type);
+                }
             }
             else
             {
-                for (uint32_t i = 0; i < prototype->m_Materials.Size(); ++i)
+                for (uint32_t i = 0; i < prototype->m_RenderResources.Size(); ++i)
                 {
-                    dmRender::AddRenderScriptInstanceMaterial(prototype->m_Instance, prototype_desc->m_Materials[i].m_Name, prototype->m_Materials[i]->m_Material);
+                    if (prototype->m_RenderResources[i])
+                        dmResource::Release(factory, prototype->m_RenderResources[i]);
                 }
             }
         }
@@ -84,8 +145,8 @@ namespace dmGameSystem
     {
         if (prototype->m_Script)
             dmResource::Release(factory, prototype->m_Script);
-        for (uint32_t i = 0; i < prototype->m_Materials.Size(); ++i)
-            dmResource::Release(factory, prototype->m_Materials[i]);
+        for (uint32_t i = 0; i < prototype->m_RenderResources.Size(); ++i)
+            dmResource::Release(factory, prototype->m_RenderResources[i]);
     }
 
     dmResource::Result ResRenderPrototypeCreate(const dmResource::ResourceCreateParams& params)
@@ -132,7 +193,7 @@ namespace dmGameSystem
         {
             ReleaseResources(params.m_Factory, prototype);
             prototype->m_Script = tmp_prototype.m_Script;
-            prototype->m_Materials.Swap(tmp_prototype.m_Materials);
+            prototype->m_RenderResources.Swap(tmp_prototype.m_RenderResources);
         }
         else
         {

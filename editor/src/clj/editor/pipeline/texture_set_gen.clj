@@ -38,14 +38,14 @@
 
 (defn- Rect->map
   [^TextureSetLayout$Rect rect]
-  {:path (.id rect)
-   :index (.index rect)
-   :x (.x rect)
-   :y (.y rect)
-   :page (.page rect)
-   :width (.width rect)
-   :height (.height rect)
-   :rotated (.rotated rect)})
+  {:path (.getId rect)
+   :index (.getIndex rect)
+   :x (.getX rect)
+   :y (.getY rect)
+   :page (.getPage rect)
+   :width (.getWidth rect)
+   :height (.getHeight rect)
+   :rotated (.getRotated rect)})
 
 (defn- Metrics->map
   [^TileSetUtil$Metrics metrics]
@@ -271,7 +271,7 @@
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))
         sprite-trim-mode (sprite-trim-mode->enum (:sprite-trim-mode tile-source-attributes))
         sprite-geometries (map (fn [^TextureSetLayout$Rect image-rect]
-                                 (let [sub-image (.getSubimage buffered-image (.x image-rect) (.y image-rect) (.width image-rect) (.height image-rect))]
+                                 (let [sub-image (.getSubimage buffered-image (.getX image-rect) (.getY image-rect) (.getWidth image-rect) (.getHeight image-rect))]
                                    (TextureSetGenerator/buildConvexHull sub-image sprite-trim-mode)))
                                image-rects)
         use-geometries (if (not= :sprite-trim-mode-off (:sprite-trim-mode tile-source-attributes)) 1 0)

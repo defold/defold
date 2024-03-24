@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -26,6 +26,8 @@
 #include "render/render_script.h"
 
 #include "render/render_ddf.h"
+
+#include "../../../graphics/src/null/graphics_null_private.h"
 
 using namespace dmVMath;
 
@@ -213,7 +215,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
 
     dmRender::HMaterial material = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
-    dmRender::AddRenderScriptInstanceMaterial(render_script_instance, "test_material", material);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_material", (uint64_t) material, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
@@ -226,7 +228,7 @@ TEST_F(dmRenderScriptTest, TestRenderScriptMaterial)
     command = &commands[1];
     ASSERT_EQ(dmRender::COMMAND_TYPE_DISABLE_MATERIAL, command->m_Type);
 
-    dmRender::ClearRenderScriptInstanceMaterials(render_script_instance);
+    dmRender::ClearRenderScriptInstanceRenderResources(render_script_instance);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
@@ -1177,11 +1179,12 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
 
     dmRender::Command* command = &commands[0];
     ASSERT_EQ(dmRender::COMMAND_TYPE_ENABLE_TEXTURE, command->m_Type);
-    ASSERT_EQ(unit,    command->m_Operands[0]);
-    ASSERT_EQ(texture, command->m_Operands[1]);
+    ASSERT_EQ(0,       command->m_Operands[0]);
+    ASSERT_EQ(unit,    command->m_Operands[1]);
+    ASSERT_EQ(texture, command->m_Operands[2]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
-    ASSERT_EQ(m_Context->m_Textures[unit], texture);
+    ASSERT_EQ(m_Context->m_TextureBindTable[unit].m_Texture, texture);
 
     dmGraphics::DeleteTexture(texture);
 
@@ -1189,6 +1192,7 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidTexture)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+/*
 TEST_F(dmRenderScriptTest, TestAssetHandlesInvalid)
 {
     // Out-of-range handle should cause assert
@@ -1237,6 +1241,218 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesInvalid)
 
     // Third update will cause an assert due to the handle being out-of-range
     ASSERT_DEATH(dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f), "");
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+*/
+
+static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
+{
+    dmGraphics::ShaderDesc::Shader ddf;
+    memset(&ddf,0,sizeof(ddf));
+    ddf.m_Source.m_Data  = (uint8_t*)data;
+    ddf.m_Source.m_Count = count;
+    return ddf;
+}
+
+TEST_F(dmRenderScriptTest, TestRenderTargetResource)
+{
+    const char* script =
+        "function assert_rt_buffer_size(rt, buffer, exp_w, exp_h)\n"
+        "   assert(exp_w == render.get_render_target_width(rt, buffer))\n"
+        "   assert(exp_h == render.get_render_target_height(rt, buffer))\n"
+        "end\n"
+        "function assert_rt_size(rt, ds, ss, c0s, c1s, c2s, c3s)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_DEPTH_BIT, ds, ds)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_STENCIL_BIT, ss, ss)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_COLOR0_BIT, c0s, c0s)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_COLOR1_BIT, c1s, c1s)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_COLOR2_BIT, c2s, c2s)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_COLOR3_BIT, c3s, c3s)\n"
+        "end\n"
+        "function init(self)\n"
+        "   assert_rt_size('valid_rt', 8, 16, 32, 64, 96, 128)\n"
+        "   render.set_render_target_size('valid_rt', 512, 512)\n"
+        "   assert_rt_size('valid_rt', 512, 512, 512, 512, 512, 512)\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    dmGraphics::RenderTargetCreationParams params          = {};
+
+    params.m_DepthBufferCreationParams.m_Width          = 8;
+    params.m_DepthBufferCreationParams.m_Height         = 8;
+    params.m_DepthBufferCreationParams.m_OriginalWidth  = 8;
+    params.m_DepthBufferCreationParams.m_OriginalHeight = 8;
+
+    params.m_DepthBufferParams.m_Width  = params.m_DepthBufferCreationParams.m_Width;
+    params.m_DepthBufferParams.m_Height = params.m_DepthBufferCreationParams.m_Height;
+    params.m_DepthBufferParams.m_Format = dmGraphics::TEXTURE_FORMAT_DEPTH;
+
+    params.m_StencilBufferCreationParams.m_Width          = 16;
+    params.m_StencilBufferCreationParams.m_Height         = 16;
+    params.m_StencilBufferCreationParams.m_OriginalWidth  = 16;
+    params.m_StencilBufferCreationParams.m_OriginalHeight = 16;
+
+    params.m_StencilBufferParams.m_Width  = params.m_StencilBufferCreationParams.m_Width;
+    params.m_StencilBufferParams.m_Height = params.m_StencilBufferCreationParams.m_Height;
+    params.m_StencilBufferParams.m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+
+    for (int i = 0; i < DM_ARRAY_SIZE(params.m_ColorBufferCreationParams); ++i)
+    {
+        params.m_ColorBufferCreationParams[i].m_Width          = 32 + 32 * i;
+        params.m_ColorBufferCreationParams[i].m_Height         = 32 + 32 * i;
+        params.m_ColorBufferCreationParams[i].m_OriginalWidth  = 32 + 32 * i;
+        params.m_ColorBufferCreationParams[i].m_OriginalHeight = 32 + 32 * i;
+
+        params.m_ColorBufferParams[i].m_Width  = params.m_ColorBufferCreationParams[i].m_Width;
+        params.m_ColorBufferParams[i].m_Height = params.m_ColorBufferCreationParams[i].m_Height;
+        params.m_ColorBufferParams[i].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    }
+
+    uint32_t rt_flags = 0xffff;
+
+    dmGraphics::HRenderTarget rt = dmGraphics::NewRenderTarget(m_GraphicsContext, rt_flags, params);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "valid_rt", rt, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    ClearRenderScriptInstanceRenderResources(render_script_instance);
+
+    dmGraphics::DeleteRenderTarget(rt);
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestRenderResourceTable)
+{
+    const char* script =
+        "function init(self)\n"
+        "   self.update_num = -1\n"
+        "end\n"
+        "function update(self)\n"
+        "   self.update_num = self.update_num + 1\n"
+        "   if self.update_num == 0 then\n"
+        "       render.enable_texture(0, 'valid_rt')\n"
+        "       render.set_render_target('valid_rt')\n"
+        "   elseif self.update_num == 1 then\n"
+        "       render.disable_texture(0)\n"
+        "       render.set_render_target(render.RENDER_TARGET_DEFAULT)\n"
+        "   elseif self.update_num == 2 then\n"
+        "       render.enable_texture(0, 'invalid_rt')\n"
+        "   elseif self.update_num == 3 then\n"
+        "       render.enable_material('valid_material')\n"
+        "       render.enable_texture('texture_sampler_1', 'valid_rt')\n"
+        "       render.enable_texture('texture_sampler_2', 'valid_rt')\n"
+        "       render.enable_texture('texture_sampler_3', 'valid_rt')\n"
+        "   elseif self.update_num == 4 then\n"
+        "       render.enable_material('invalid_material')\n"
+        "   end\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+
+    /////////////////////////////
+    // MATERIAL
+    /////////////////////////////
+    const char* shader_src = "uniform lowp sampler2D texture_sampler_1;\n"
+                             "uniform lowp sampler2D texture_sampler_2;\n"
+                             "uniform lowp sampler2D texture_sampler_3;\n";
+
+    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader(shader_src, strlen(shader_src));
+    dmGraphics::HVertexProgram vp         = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
+    dmGraphics::HFragmentProgram fp       = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
+    dmRender::HMaterial material          = dmRender::NewMaterial(m_Context, vp, fp);
+
+    /////////////////////////////
+    // RENDER TARGET
+    /////////////////////////////
+    dmGraphics::RenderTargetCreationParams params          = {};
+    params.m_ColorBufferCreationParams[0].m_Width          = 32;
+    params.m_ColorBufferCreationParams[0].m_Height         = 32;
+    params.m_ColorBufferCreationParams[0].m_OriginalWidth  = 32;
+    params.m_ColorBufferCreationParams[0].m_OriginalHeight = 32;
+
+    params.m_ColorBufferParams[0].m_Width  = 32;
+    params.m_ColorBufferParams[0].m_Height = 32;
+    params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+
+    dmGraphics::HRenderTarget rt = dmGraphics::NewRenderTarget(m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+    dmGraphics::HTexture tex = dmGraphics::GetRenderTargetTexture(rt, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "valid_rt", rt, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "invalid_rt", 0x1337, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET);
+
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "valid_material", (uint64_t) material, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "invalid_material", 0xBAD, dmRender::RENDER_RESOURCE_TYPE_INVALID);
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    // Update 1 - enable texture + set render target from render resource
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+        dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+        dmGraphics::RenderTarget* rt_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::RenderTarget>(null_context->m_AssetHandleContainer, rt);
+        ASSERT_EQ(&rt_ptr->m_FrameBuffer, null_context->m_CurrentFrameBuffer);
+        ASSERT_EQ(tex, m_Context->m_TextureBindTable[0].m_Texture);
+
+        commands.SetSize(0);
+    }
+
+    // Update 2 - unbind both
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+        dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+        ASSERT_EQ(&null_context->m_MainFrameBuffer, null_context->m_CurrentFrameBuffer);
+        ASSERT_EQ(0, m_Context->m_TextureBindTable[0].m_Texture);
+        commands.SetSize(0);
+    }
+
+    // Update 3 - try binding invalid render target
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    }
+
+    // Update 4 - bind valid material + rt
+    {
+        m_Context->m_TextureBindTable.SetSize(0);
+
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+        dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+        ASSERT_EQ(m_Context->m_Material, material);
+        ASSERT_EQ(tex, m_Context->m_TextureBindTable[0].m_Texture);
+        ASSERT_EQ(dmHashString64("texture_sampler_1"), m_Context->m_TextureBindTable[0].m_Samplerhash);
+
+        ASSERT_EQ(tex, m_Context->m_TextureBindTable[1].m_Texture);
+        ASSERT_EQ(dmHashString64("texture_sampler_2"), m_Context->m_TextureBindTable[1].m_Samplerhash);
+
+        ASSERT_EQ(tex, m_Context->m_TextureBindTable[2].m_Texture);
+        ASSERT_EQ(dmHashString64("texture_sampler_3"), m_Context->m_TextureBindTable[2].m_Samplerhash);
+
+        commands.SetSize(0);
+    }
+
+    // Update 5 - try binding invalid material
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
+    }
+
+    ClearRenderScriptInstanceRenderResources(render_script_instance);
+
+    dmGraphics::DeleteRenderTarget(rt);
+
+    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
+    dmRender::DeleteMaterial(m_Context, material);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);

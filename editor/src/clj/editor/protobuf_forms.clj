@@ -212,7 +212,24 @@
     :texture-format-r16f
     :texture-format-rg16f
     :texture-format-r32f
-    :texture-format-rg32f})
+    :texture-format-rg32f
+    :texture-format-r-bc4
+    :texture-format-rg-bc5
+    :texture-format-rgb-bc1
+    :texture-format-rgb-etc1
+    :texture-format-rgba-pvrtc-2bppv1
+    :texture-format-rgba-pvrtc-4bppv1
+    :texture-format-rgb-pvrtc-2bppv1
+    :texture-format-rgb-pvrtc-4bppv1
+    :texture-format-rgba-bc3
+    :texture-format-rgba-bc7
+    :texture-format-rgba-etc2
+    :texture-format-rgba-astc-4x4})
+
+(def texture-profiles-unsupported-compressions
+  #{:compression-type-webp
+    :compression-type-webp-lossy
+    :compression-type-basis-etc1s})
 
 (defmethod protobuf-form-data Graphics$TextureProfiles [_node-id pb _def]
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
@@ -220,6 +237,7 @@
         format-values-filtered (filterv (fn [fmt] (not (contains? texture-profiles-unsupported-formats (first fmt)))) format-values)
         compression-values (protobuf/enum-values Graphics$TextureFormatAlternative$CompressionLevel)
         compression-types (protobuf/enum-values Graphics$TextureImage$CompressionType)
+        compression-types-filtered (filterv (fn [fmt] (not (contains? texture-profiles-unsupported-compressions (first fmt)))) compression-types)
         profile-options (mapv #(do [% %]) (map :name (:profiles pb)))]
     {:navigation false
      :sections
@@ -270,8 +288,8 @@
                                                      {:path [:compression-type]
                                                       :label "Type"
                                                       :type :choicebox
-                                                      :options (make-options compression-types) ; Unsorted.
-                                                      :default (ffirst compression-types)}]}
+                                                      :options (make-options compression-types-filtered) ; Unsorted.
+                                                      :default (ffirst compression-types-filtered)}]}
                                           {:path [:mipmaps]
                                            :type :boolean
                                            :label "Mipmaps"}

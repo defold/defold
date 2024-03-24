@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -142,6 +142,209 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             outputs = build("/test_shader.fp", "#version 310 es\n" + fpEs3);
             shader = (ShaderDesc)outputs.get(0);
             assertEquals(1, shader.getShadersCount());
+        }
+    }
+
+    private static void debugPrintResourceList(String label, List<ShaderDesc.ResourceBinding> lst) {
+        System.out.println(label);
+
+        for (ShaderDesc.ResourceBinding r : lst) {
+            System.out.println("Resource");
+            System.out.println("  name: " + r.getName());
+            System.out.println("  hash: " + r.getNameHash());
+            System.out.println("  set: " + r.getSet());
+            System.out.println("  binding: " + r.getBinding());
+
+            ShaderDesc.ResourceType resourceType = r.getType();
+            if (resourceType.hasShaderType()) {
+                System.out.println("   type: " + resourceType.getShaderType());
+            } else {
+                System.out.println("   type: " + resourceType.getTypeIndex());
+            }
+        }
+    }
+
+    private static void debugPrintShader(String label, ShaderDesc.Shader shader) {
+        // Remove for debugging:
+        if (false) {
+            return;
+        }
+
+        System.out.println("debugPrintShader: " + label);
+        debugPrintResourceList("UBOs", shader.getUniformBuffersList());
+        debugPrintResourceList("SSBOs", shader.getStorageBuffersList());
+        debugPrintResourceList("Textures", shader.getTexturesList());
+
+        for (ShaderDesc.ResourceTypeInfo t : shader.getTypesList()) {
+            System.out.println("Type");
+            System.out.println(" name: " + t.getName());
+            System.out.println(" hash: " + t.getNameHash());
+
+            for (ShaderDesc.ResourceMember m : t.getMembersList()) {
+                System.out.println(" Members:");
+                System.out.println("   name: " + m.getName());
+                System.out.println("   hash: " + m.getNameHash());
+                System.out.println("   count: " + m.getElementCount());
+
+                ShaderDesc.ResourceType resourceType = m.getType();
+                if (resourceType.hasShaderType()) {
+                    System.out.println("   type: " + resourceType.getShaderType());
+                } else {
+                    System.out.println("   type: " + resourceType.getTypeIndex());
+                }
+            }
+        }
+    }
+
+    private static ShaderDesc.ResourceTypeInfo getShaderTypeInfo(ShaderDesc.Shader shader, String typeName) {
+        for (ShaderDesc.ResourceTypeInfo t : shader.getTypesList()) {
+            if (t.getName().equals(typeName)) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    private static void validateResourceBindingWithKnownType(ShaderDesc.ResourceBinding binding, String expectedName, ShaderDesc.ShaderDataType expectedDataType) {
+        assertEquals(expectedName, binding.getName());
+        ShaderDesc.ShaderDataType bindingType = binding.getType().getShaderType();
+        assertEquals(expectedDataType, bindingType);
+    }
+
+    @Test
+    public void testShaderReflection() throws Exception {
+        GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
+
+        {
+            String fs_src =
+                "struct Light \n" +
+                "{ \n" +
+                "    int type; \n" +
+                "    vec3 position; \n" +
+                "    vec4 color; \n" +
+                "}; \n" +
+                "uniform Light u_lights[4];\n" +
+                "void main() \n" +
+                "{ \n" +
+                "    gl_FragColor = u_lights[0].color + u_lights[3].color; \n" +
+                "} \n";
+
+            List<Message> outputs = build("/reflection_0.fp", fs_src);
+            ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+
+            assert(shaderDesc.getShadersCount() > 0);
+            ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
+            assertNotNull(shader);
+            assert(shader.getUniformBuffersCount() == 1);
+
+            debugPrintShader("Reflection Test 0", shader);
+
+            // Note: When we don't specify a version and the uniforms are not packed in constant buffers,
+            //       we wrap them around generated uniform buffers, which requires us to dig out the type infomartion like this:
+            ShaderDesc.ResourceBinding binding_test = shader.getUniformBuffers(0);
+            ShaderDesc.ResourceTypeInfo binding_type = shader.getTypes(binding_test.getType().getTypeIndex());
+            ShaderDesc.ResourceMember binding_type_member = binding_type.getMembers(0);
+            assertEquals("u_lights", binding_type_member.getName());
+
+            ShaderDesc.ResourceTypeInfo lights_binding_type = shader.getTypes(binding_type_member.getType().getTypeIndex());
+            assertEquals("Light", lights_binding_type.getName());
+            assertEquals(3, lights_binding_type.getMembersCount());
+
+            ShaderDesc.ResourceMember light_member_type  = lights_binding_type.getMembers(0);
+            ShaderDesc.ResourceMember light_member_pos   = lights_binding_type.getMembers(1);
+            ShaderDesc.ResourceMember light_member_color = lights_binding_type.getMembers(2);
+
+            assertEquals("type", light_member_type.getName());
+            assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_INT, light_member_type.getType().getShaderType());
+            assertEquals("position", light_member_pos.getName());
+            assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3, light_member_pos.getType().getShaderType());
+            assertEquals("color", light_member_color.getName());
+            assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4, light_member_color.getType().getShaderType());
+        }
+
+        {
+            String fs_src =
+                "#version 430 \n" +
+                "struct Data \n" +
+                "{ \n" +
+                "    vec4 member1; \n" +
+                "}; \n" +
+                "buffer Test \n" +
+                "{ \n" +
+                "    Data my_data_one; \n" +
+                "    Data my_data_two[]; \n" +
+                "}; \n" +
+                "out vec4 color_out; \n" +
+                "void main() \n" +
+                "{ \n" +
+                "    color_out = my_data_one.member1 + my_data_two[0].member1; \n" +
+                "} \n";
+
+            List<Message> outputs = build("/reflection_1.fp", fs_src);
+            ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+
+            assert(shaderDesc.getShadersCount() > 0);
+            ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
+            assertNotNull(shader);
+
+            debugPrintShader("Reflection Test 1", shader);
+
+            assert(shader.getStorageBuffersCount() == 1);
+            ShaderDesc.ResourceBinding binding_test = shader.getStorageBuffers(0);
+            assertEquals("Test", binding_test.getName());
+
+            ShaderDesc.ResourceTypeInfo binding_type = shader.getTypes(binding_test.getType().getTypeIndex());
+            assertEquals("Test", binding_type.getName());
+        }
+
+        {
+            String fs_src =
+                "#version 430\n" +
+                "uniform sampler2D sampler_2d;\n" +
+                "uniform sampler2DArray sampler_2d_array;\n" +
+                "uniform samplerCube sampler_cube;\n" +
+                // TODO:
+                //"uniform samplerBuffer sampler_buffer;\n" +
+                "uniform texture2D texture_2d;\n" +
+                "uniform utexture2D utexture_2d;\n" +
+                "uniform layout(rgba8ui) uimage2D uimage_2d;\n" +
+                "uniform layout(rgba32f) image2D image_2d;\n" +
+                "uniform sampler sampler_name;\n" +
+                "out vec4 color_out;\n" +
+                "void main()\n" +
+                "{\n" +
+                "   color_out  = vec4(0.0);\n" +
+                "   color_out += texture(sampler_2d, vec2(0.0));\n" +
+                "   color_out += texture(sampler_2d_array, vec3(0.0));\n" +
+                "   color_out += texture(sampler_cube, vec3(0.0));\n" +
+                // TODO:
+                //"   color_out += texelFetch(sampler_buffer, 0);\n" +
+                "   color_out += texture(sampler2D(texture_2d, sampler_name), vec2(0.0));\n" +
+                "   color_out += texture(usampler2D(utexture_2d, sampler_name), vec2(0));\n" +
+                "   color_out += imageLoad(uimage_2d, ivec2(0));\n" +
+                "   color_out += imageLoad(image_2d, ivec2(0));\n" +
+                "}\n";
+
+            List<Message> outputs = build("/reflection_2.fp", fs_src);
+            ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+
+            assert(shaderDesc.getShadersCount() > 0);
+            ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
+            assertNotNull(shader);
+
+            debugPrintShader("Reflection Test 2", shader);
+
+            assert(shader.getTexturesCount() == 9);
+            validateResourceBindingWithKnownType(shader.getTextures(0), "sampler_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D);
+            validateResourceBindingWithKnownType(shader.getTextures(1), "sampler_2d_array", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
+            validateResourceBindingWithKnownType(shader.getTextures(2), "sampler_cube",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE);
+            //TODO:
+            //validateResourceBindingWithKnownType(shader.getTextures(2), "sampler_buffer",   ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_);
+            validateResourceBindingWithKnownType(shader.getTextures(3), "texture_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
+            validateResourceBindingWithKnownType(shader.getTextures(4), "utexture_2d",      ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D);
+            validateResourceBindingWithKnownType(shader.getTextures(5), "uimage_2d",        ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D);
+            validateResourceBindingWithKnownType(shader.getTextures(6), "image_2d",         ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D);
+            validateResourceBindingWithKnownType(shader.getTextures(7), "sampler_name",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
         }
     }
 
@@ -394,14 +597,19 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
         assertNotNull(shader);
 
-        ShaderDesc.ResourceBlock ubo = shader.getResources(0);
+        debugPrintShader("uniform_buffer_test", shader);
+
+        ShaderDesc.ResourceBinding ubo = shader.getUniformBuffers(0);
         assertTrue(ubo.getName().equals("uniform_buffer"));
 
-        ShaderDesc.ResourceBinding binding_one = ubo.getBindings(0);
-        assertTrue(binding_one.getName().equals("color_one"));
+        ShaderDesc.ResourceTypeInfo ubo_type = shader.getTypes(ubo.getType().getTypeIndex());
+        assertEquals("uniform_buffer", ubo_type.getName());
 
-        ShaderDesc.ResourceBinding binding_two = ubo.getBindings(1);
-        assertTrue(binding_two.getName().equals("color_two"));
+        assertEquals("color_one", ubo_type.getMembers(0).getName());
+        assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4, ubo_type.getMembers(0).getType().getShaderType());
+
+        assertEquals("color_two", ubo_type.getMembers(1).getName());
+        assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4, ubo_type.getMembers(1).getType().getShaderType());
     }
 
     @Test

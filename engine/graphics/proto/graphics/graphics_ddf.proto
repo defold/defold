@@ -75,6 +75,15 @@ message VertexAttribute
     }
 }
 
+enum DepthStencilFormat
+{
+    DEPTH_STENCIL_FORMAT_D32F     = 1;
+    DEPTH_STENCIL_FORMAT_D32F_S8U = 2;
+    DEPTH_STENCIL_FORMAT_D16U_S8U = 3;
+    DEPTH_STENCIL_FORMAT_D24U_S8U = 4;
+    DEPTH_STENCIL_FORMAT_S8U      = 5;
+}
+
 message TextureImage
 {
     enum Type
@@ -271,38 +280,61 @@ message ShaderDesc
         SHADER_TYPE_UIMAGE2D          = 21;
         SHADER_TYPE_IMAGE2D           = 22;
         SHADER_TYPE_SAMPLER           = 23;
+
+        SHADER_TYPE_STORAGE_BUFFER    = 24;
+    }
+
+    message ResourceType
+    {
+        oneof Type
+        {
+            ShaderDataType shader_type = 1;
+            int32          type_index  = 2;
+        }
+
+        // The engine doesn't know which of the oneofs has been set
+        // (we should at some point support that for oneofs)
+        optional bool use_type_index = 3;
+    }
+
+    message ResourceMember
+    {
+        required string         name          = 1;
+        required uint64         name_hash     = 2;
+        required ResourceType   type          = 3;
+        optional uint32         element_count = 4;
+        optional uint32         offset        = 5;
+    }
+
+    message ResourceTypeInfo
+    {
+        required string         name          = 1;
+        required uint64         name_hash     = 2;
+        repeated ResourceMember members       = 3;
     }
 
     message ResourceBinding
     {
         required string         name          = 1;
         required uint64         name_hash     = 2;
-        required ShaderDataType type          = 3;
-        optional uint32         element_count = 4 [default=1];
-        optional uint32         set           = 5 [default=0];
-        optional uint32         binding       = 6 [default=0];
-    }
-
-    message ResourceBlock
-    {
-        required string          name          = 1;
-        required uint64          name_hash     = 2;
-        repeated ResourceBinding bindings      = 3;
-        required ShaderDataType  type          = 4;
-        optional uint32          element_count = 5 [default=1];
-        optional uint32          set           = 6 [default=0];
-        optional uint32          binding       = 7 [default=0];
+        required ResourceType   type          = 3;
+        optional uint32         set           = 4;
+        optional uint32         binding       = 5;
+        optional uint32         block_size    = 6;
     }
 
     message Shader
     {
-        required Language        language              = 1;
-        optional bytes           source                = 2;
-        optional string          name                  = 3;
-        repeated ResourceBlock   resources             = 4;
-        repeated ResourceBinding inputs                = 5;
-        repeated ResourceBinding outputs               = 6;
-        optional bool            variant_texture_array = 7 [default = false];
+        required Language           language              = 1;
+        optional bytes              source                = 2;
+        optional string             name                  = 3;
+        repeated ResourceBinding    uniform_buffers       = 4;
+        repeated ResourceBinding    storage_buffers       = 5;
+        repeated ResourceBinding    textures              = 6;
+        repeated ResourceBinding    inputs                = 7;
+        repeated ResourceBinding    outputs               = 8;
+        repeated ResourceTypeInfo   types                 = 9;
+        optional bool               variant_texture_array = 10 [default = false];
     }
 
     repeated Shader shaders           = 1;

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -857,68 +857,7 @@ namespace dmGameSystem
     {
         TileGridComponent* component = (TileGridComponent*) *params.m_UserData;
 
-        // NOTE: this message is deprecated and undocumented
-        if (params.m_Message->m_Id == dmGameSystemDDF::SetTile::m_DDFDescriptor->m_NameHash)
-        {
-            dmGameSystemDDF::SetTile* st = (dmGameSystemDDF::SetTile*) params.m_Message->m_Data;
-            uint32_t layer_index = GetLayerIndex(component, st->m_LayerId);
-            if (layer_index == ~0u)
-            {
-                dmLogError("Could not find layer %s when handling message %s.", dmHashReverseSafe64(st->m_LayerId), dmGameSystemDDF::SetTile::m_DDFDescriptor->m_Name);
-                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-            }
-            dmGameObject::HInstance instance = component->m_Instance;
-            dmTransform::Transform inv_world(dmTransform::Inv(dmGameObject::GetWorldTransform(instance)));
-            Point3 cell = st->m_Position;
-            if (dmGameObject::ScaleAlongZ(instance))
-            {
-                cell = dmTransform::Apply(inv_world, cell);
-            }
-            else
-            {
-                cell = dmTransform::ApplyNoScaleZ(inv_world, cell);
-            }
-
-            TileGridResource* resource = component->m_Resource;
-            dmGameSystemDDF::TextureSet* texture_set_ddf = GetTextureSet(component)->m_TextureSet;
-            cell = mulPerElem(cell, Point3(1.0f / texture_set_ddf->m_TileWidth, 1.0f / texture_set_ddf->m_TileHeight, 0.0f));
-            int32_t cell_x = (int32_t)floor(cell.getX()) + st->m_Dx - resource->m_MinCellX;
-            int32_t cell_y = (int32_t)floor(cell.getY()) + st->m_Dy - resource->m_MinCellY;
-            if (cell_x < 0 || cell_x >= (int32_t)resource->m_ColumnCount || cell_y < 0 || cell_y >= (int32_t)resource->m_RowCount)
-            {
-                dmLogError("Could not set the tile since the supplied tile was out of range.");
-                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-            }
-
-            /*
-             * NOTE AND BEWARE: Empty tile is encoded as 0xffffffff
-             * That's why tile-index is subtracted by 1
-             * See B2GRIDSHAPE_EMPTY_CELL in b2GridShape.h
-             */
-            uint32_t tile = st->m_Tile - 1;
-
-            SetTileGridTile(component, layer_index, cell_x, cell_y, tile, 0);
-
-            // Broadcast to any collision object components
-            // TODO Filter broadcast to only collision objects
-            dmPhysicsDDF::SetGridShapeHull set_hull_ddf;
-            set_hull_ddf.m_Shape = layer_index;
-            set_hull_ddf.m_Column = cell_x;
-            set_hull_ddf.m_Row = cell_y;
-            set_hull_ddf.m_Hull = tile;
-            dmhash_t message_id = dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_NameHash;
-            uintptr_t descriptor = (uintptr_t)dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor;
-            uint32_t data_size = sizeof(dmPhysicsDDF::SetGridShapeHull);
-            dmMessage::URL receiver = params.m_Message->m_Receiver;
-            receiver.m_Fragment = 0;
-            dmMessage::Result result = dmMessage::Post(&params.m_Message->m_Receiver, &receiver, message_id, 0, descriptor, &set_hull_ddf, data_size, 0);
-            if (result != dmMessage::RESULT_OK)
-            {
-                LogMessageError(params.m_Message, "Could not send %s to components, result: %d.", dmPhysicsDDF::SetGridShapeHull::m_DDFDescriptor->m_Name, result);
-                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-            }
-        }
-        else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash)
+        if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::SetConstantTileMap* ddf = (dmGameSystemDDF::SetConstantTileMap*)params.m_Message->m_Data;
             if (!component->m_RenderConstants)
@@ -1030,4 +969,10 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompTileGridIterPropertiesGetNext;
     }
 
+    // For tests
+    void GetTileGridWorldRenderBuffers(void* tilegrid_world, dmRender::HBufferedRenderBuffer* vx_buffer)
+    {
+        TileGridWorld* world = (TileGridWorld*) tilegrid_world;
+        *vx_buffer = world->m_VertexBuffer;
+    }
 }

@@ -1,0 +1,7 @@
+attribute vec3 position;
+attribute vec4 my_custom_attribute;
+
+void main()
+{
+    gl_Position = vec4(position.xyz, 1.0);
+}

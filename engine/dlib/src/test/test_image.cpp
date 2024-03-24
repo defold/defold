@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -40,7 +40,7 @@
 TEST(dmImage, Empty)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(0, 0, false, &image);
+    dmImage::Result r =  dmImage::Load(0, 0, false, false, &image);
     ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
 }
 
@@ -50,7 +50,7 @@ TEST(dmImage, Corrupt)
     void* b = malloc(size);
     memset(b, 0, size);
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(b, size, false, &image);
+    dmImage::Result r =  dmImage::Load(b, size, false, false, &image);
     free(b);
     ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
 }
@@ -59,7 +59,7 @@ TEST(dmImage, PngColor)
 {
     for (int iter = 0; iter < 2; iter++) {
         dmImage::Image image;
-        dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PNG, COLOR_CHECK_2X2_PNG_SIZE, iter == 0, &image);
+        dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PNG, COLOR_CHECK_2X2_PNG_SIZE, iter == 0, false, &image);
         ASSERT_EQ(dmImage::RESULT_OK, r);
         ASSERT_EQ(2U, image.m_Width);
         ASSERT_EQ(2U, image.m_Height);
@@ -91,7 +91,7 @@ TEST(dmImage, PngColor)
 TEST(dmImage, Premult)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PREMULT_PNG, COLOR_CHECK_2X2_PREMULT_PNG_SIZE, true, &image);
+    dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PREMULT_PNG, COLOR_CHECK_2X2_PREMULT_PNG_SIZE, true, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
@@ -125,7 +125,7 @@ TEST(dmImage, Premult)
 TEST(dmImage, Indexed)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_INDEXED_PNG, COLOR_CHECK_2X2_INDEXED_PNG_SIZE, true, &image);
+    dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_INDEXED_PNG, COLOR_CHECK_2X2_INDEXED_PNG_SIZE, true, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
@@ -160,7 +160,7 @@ TEST(dmImage, Png16Color)
     // ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
     for (int iter = 0; iter < 2; iter++) {
         dmImage::Image image;
-        dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PNG, COLOR_CHECK_2X2_PNG_SIZE, iter == 0, &image);
+        dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PNG, COLOR_CHECK_2X2_PNG_SIZE, iter == 0, false, &image);
         ASSERT_EQ(dmImage::RESULT_OK, r);
         ASSERT_EQ(2U, image.m_Width);
         ASSERT_EQ(2U, image.m_Height);
@@ -192,7 +192,7 @@ TEST(dmImage, Png16Color)
 TEST(dmImage, PngGray)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(GRAY_CHECK_2X2_PNG, GRAY_CHECK_2X2_PNG_SIZE, false, &image);
+    dmImage::Result r =  dmImage::Load(GRAY_CHECK_2X2_PNG, GRAY_CHECK_2X2_PNG_SIZE, false, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
@@ -211,7 +211,7 @@ TEST(dmImage, PngGray)
 TEST(dmImage, PngGrayAlpha)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(GRAY_ALPHA_CHECK_2X2_PNG, GRAY_ALPHA_CHECK_2X2_PNG_SIZE, false, &image);
+    dmImage::Result r =  dmImage::Load(GRAY_ALPHA_CHECK_2X2_PNG, GRAY_ALPHA_CHECK_2X2_PNG_SIZE, false, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(2U, image.m_Width);
     ASSERT_EQ(2U, image.m_Height);
@@ -251,7 +251,7 @@ TEST(dmImage, PngGrayAlpha)
 TEST(dmImage, Jpeg)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(DEFOLD_64_JPG, DEFOLD_64_JPG_SIZE, false, &image);
+    dmImage::Result r =  dmImage::Load(DEFOLD_64_JPG, DEFOLD_64_JPG_SIZE, false, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(64U, image.m_Width);
     ASSERT_EQ(64U, image.m_Height);
@@ -263,7 +263,7 @@ TEST(dmImage, Jpeg)
 TEST(dmImage, ProgressiveJpeg)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(DEFOLD_64_PROGRESSIVE_JPG, DEFOLD_64_PROGRESSIVE_JPG_SIZE, false, &image);
+    dmImage::Result r =  dmImage::Load(DEFOLD_64_PROGRESSIVE_JPG, DEFOLD_64_PROGRESSIVE_JPG_SIZE, false, false, &image);
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(64U, image.m_Width);
     ASSERT_EQ(64U, image.m_Height);
@@ -275,7 +275,7 @@ TEST(dmImage, ProgressiveJpeg)
 TEST(dmImage, case2319)
 {
     dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(CASE2319_JPG, CASE2319_JPG_SIZE, false, &image);
+    dmImage::Result r =  dmImage::Load(CASE2319_JPG, CASE2319_JPG_SIZE, false, false, &image);
 
     ASSERT_EQ(dmImage::RESULT_OK, r);
     ASSERT_EQ(165U, image.m_Width);

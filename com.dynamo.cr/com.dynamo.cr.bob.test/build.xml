@@ -5,6 +5,7 @@
     <property name="test.dir" value="../com.dynamo.cr.bob.test/"/>
     <property name="test.classes.dir" value="${test.dir}/build"/>
     <property name="test.tmp.dir" value="${test.dir}/tmp"/>
+    <property name="DM_BOB_BUNDLERTEST_ONLY_HOST" value="${DM_BOB_BUNDLERTEST_ONLY_HOST}" />
 
     <target name="test-clean">
         <delete dir="${classes.dir}"/>
@@ -83,6 +84,7 @@
     <target name="test" depends="compile-test">
 
         <junit printsummary="yes" haltonfailure="yes">
+            <sysproperty key="DM_BOB_BUNDLERTEST_ONLY_HOST" value="${DM_BOB_BUNDLERTEST_ONLY_HOST}"/>
             <formatter type="plain" usefile="false" /> <!-- to screen -->
 
             <classpath>
@@ -91,7 +93,6 @@
             <classpath location="${bob.dir}/dist/bob.jar"/>
             <classpath location="${test.tmp.dir}/bob-tests.jar" />
 
-            
             <batchtest>
                 <fileset dir="../com.dynamo.cr.bob.test/src">
                     <include name="**/*Test*.java" />
@@ -104,8 +105,7 @@
 
             <!-- How to test individual tests -->
             <!-- <test name="com.dynamo.bob.bundle.test.BundleHelperTest" haltonfailure="yes" /> -->
-
-            <!-- <test name="com.dynamo.bob.test.ProjectTest" haltonfailure="yes" /> -->
+            <!-- <test name="com.dynamo.bob.pipeline.ShaderProgramBuilderTest" haltonfailure="yes" /> -->
         </junit>
     </target>
 

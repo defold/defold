@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,54 +20,33 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.FileInputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.IntBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Vector;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 
-import javax.vecmath.Matrix4d;
-import javax.vecmath.Matrix4f;
-import javax.vecmath.Point3d;
-import javax.vecmath.Point3f;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
-import javax.vecmath.Vector3f;
-import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.util.MathUtil;
 
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
-import com.dynamo.bob.util.RigUtil.Weight;
-import com.dynamo.proto.DdfMath.Point3;
-import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
-import com.dynamo.proto.DdfMath.Matrix4;
 import com.dynamo.proto.DdfMath.Transform;
 
-import com.dynamo.bob.pipeline.ModelImporter.Aabb;
 import com.dynamo.bob.pipeline.ModelImporter.Bone;
 import com.dynamo.bob.pipeline.ModelImporter.Material;
 import com.dynamo.bob.pipeline.ModelImporter.Mesh;
@@ -79,8 +58,6 @@ import com.dynamo.bob.pipeline.ModelImporter.Scene;
 
 
 import com.dynamo.rig.proto.Rig;
-import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
-import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.google.protobuf.ByteString;
 
 public class ModelUtil {

@@ -3,16 +3,17 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
 #include "res_mesh.h"
+#include "res_render_target.h"
 
 #include <dlib/log.h>
 #include <dlib/path.h>
@@ -21,6 +22,7 @@
 #include <dlib/buffer.h>
 
 #include "gamesys.h"
+#include "gamesys_private.h"
 
 namespace dmGameSystem
 {
@@ -190,6 +192,9 @@ namespace dmGameSystem
         TextureResource* textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         memset(textures, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(TextureResource*));
 
+        RenderTargetResource* render_targets[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        memset(render_targets, 0, dmRender::RenderObject::MAX_TEXTURE_COUNT * sizeof(RenderTargetResource*));
+
         for (uint32_t i = 0; i < resource->m_MeshDDF->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             const char* texture_path = resource->m_MeshDDF->m_Textures[i];
@@ -197,7 +202,18 @@ namespace dmGameSystem
             {
                 TextureResource* texture_res;
                 dmResource::Result r = dmResource::Get(factory, texture_path, (void**) &texture_res);
-                textures[i] = texture_res;
+
+                dmRender::RenderResourceType render_res_type = ResourcePathToRenderResourceType(texture_path);
+
+                if (render_res_type == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET)
+                {
+                    render_targets[i] = (RenderTargetResource*) texture_res;
+                    textures[i]       = render_targets[i]->m_TextureResource;
+                }
+                else
+                {
+                    textures[i] = texture_res;
+                }
 
                 if (r != dmResource::RESULT_OK)
                 {
@@ -221,10 +237,23 @@ namespace dmGameSystem
             dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Material);
             dmResource::Release(factory, (void*) resource->m_MeshDDF->m_Vertices);
             for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-                if (textures[i]) dmResource::Release(factory, (void*) textures[i]);
+            {
+                if (textures[i])
+                {
+                    if (render_targets[i])
+                    {
+                        dmResource::Release(factory, (void*) render_targets[i]);
+                    }
+                    else
+                    {
+                        dmResource::Release(factory, (void*) textures[i]);
+                    }
+                }
+            }
             return result;
         }
         memcpy(resource->m_Textures, textures, sizeof(TextureResource*) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
+        memcpy(resource->m_RenderTargets, render_targets, sizeof(RenderTargetResource*) * dmRender::RenderObject::MAX_TEXTURE_COUNT);
 
         // Buffer resources can be created with zero elements, in such case
         // the buffer will be null and we cannot create vertices.
@@ -278,7 +307,16 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             if (resource->m_Textures[i])
-                dmResource::Release(factory, (void*)resource->m_Textures[i]);
+            {
+                if (resource->m_RenderTargets[i])
+                {
+                    dmResource::Release(factory, (void*)resource->m_RenderTargets[i]);
+                }
+                else
+                {
+                    dmResource::Release(factory, (void*)resource->m_Textures[i]);
+                }
+            }
         }
     }
 

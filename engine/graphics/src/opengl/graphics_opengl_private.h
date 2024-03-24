@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -76,6 +76,8 @@ namespace dmGraphics
         dmJobThread::HContext   m_JobThread;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
+        void*                   m_AuxContext;
+        volatile bool           m_AuxContextJobPending;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 
@@ -86,7 +88,6 @@ namespace dmGraphics
         TextureFilter           m_DefaultTextureMinFilter;
         TextureFilter           m_DefaultTextureMagFilter;
         uint32_t                m_MaxElementVertices;
-        uint32_t                m_MaxElementIndices;
         // Counter to keep track of various modifications. Used for cache flush etc
         // Version zero is never used
         uint32_t                m_ModificationVersion;
@@ -100,6 +101,7 @@ namespace dmGraphics
         uint32_t                m_TextureArraySupport              : 1;
         uint32_t                m_MultiTargetRenderingSupport      : 1;
         uint32_t                m_ComputeSupport                   : 1;
+        uint32_t                m_StorageBufferSupport             : 1;
         uint32_t                m_FrameBufferInvalidateAttachments : 1;
         uint32_t                m_PackedDepthStencilSupport        : 1;
         uint32_t                m_VerifyGraphicsCalls              : 1;
@@ -107,27 +109,6 @@ namespace dmGraphics
         uint32_t                m_PrintDeviceInfo                  : 1;
         uint32_t                m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3
         uint32_t                m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
-    };
-
-    // JG: dmsdk/graphics.h defines this as a struct ptr so don't want to rename it yet..
-    struct VertexDeclaration
-    {
-        struct Stream
-        {
-            dmhash_t m_NameHash;
-            uint16_t m_LogicalIndex;
-            int16_t  m_PhysicalIndex;
-            uint16_t m_Size;
-            uint16_t m_Offset;
-            Type     m_Type;
-            bool     m_Normalize;
-        };
-
-        Stream      m_Streams[MAX_VERTEX_STREAM_COUNT];
-        uint16_t    m_StreamCount;
-        uint16_t    m_Stride;
-        HProgram    m_BoundForProgram;
-        uint32_t    m_ModificationVersion;
     };
 
     struct OpenGLShader

@@ -35,6 +35,15 @@ message HttpRequest
 
     // Use chunked transfer encoding
     optional bool   chunked_transfer   = 10 [default=true];
+
+    optional bool report_progress = 11;
+}
+
+message HttpRequestProgress
+{
+    required uint32 bytes_sent     = 1;
+    required uint32 bytes_received = 2;
+    required uint32 bytes_total    = 3;
 }
 
 message HttpResponse

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -716,6 +716,7 @@ namespace dmGameSystem
     static int Buffer_gc(lua_State *L)
     {
         dmScript::LuaHBuffer* buffer = dmScript::CheckBufferNoError(L, 1);
+
         if( buffer )
         {
             if (buffer->m_Owner == dmScript::OWNER_LUA)
@@ -733,7 +734,6 @@ namespace dmGameSystem
                     dmResource::Release(g_Factory, buffer->m_BufferRes);
                 }
             }
-
         }
         return 0;
     }
@@ -1210,12 +1210,15 @@ namespace dmScript
     LuaHBuffer::LuaHBuffer(dmBuffer::HBuffer buffer, LuaBufferOwnership ownership)
     : m_Buffer(buffer)
     , m_Owner(ownership)
+    , m_BufferResPathHash(0)
+    , m_BufferResVersion(dmResource::RESOURCE_VERSION_INVALID)
     {
     }
 
     LuaHBuffer::LuaHBuffer(dmResource::HFactory factory, void* buffer_resource)
     : m_BufferRes(buffer_resource)
     , m_Owner(OWNER_RES)
+    , m_BufferResPathHash(0)
     , m_BufferResVersion(dmResource::RESOURCE_VERSION_INVALID)
     {
         if (factory)
@@ -1251,8 +1254,9 @@ namespace dmScript
 
         if (v.m_Owner == dmScript::OWNER_RES)
         {
-            luabuf->m_BufferRes        = v.m_BufferRes;
-            luabuf->m_BufferResVersion = v.m_BufferResVersion;
+            luabuf->m_BufferRes         = v.m_BufferRes;
+            luabuf->m_BufferResVersion  = v.m_BufferResVersion;
+            luabuf->m_BufferResPathHash = v.m_BufferResPathHash;
         }
         else
         {

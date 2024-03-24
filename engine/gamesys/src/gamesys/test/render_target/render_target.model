@@ -1,0 +1,6 @@
+name: "valid"
+mesh: "/meshset/valid.dae"
+textures: "/render_target/valid.render_targetc"
+animations: "meshset/valid.dae"
+material: "/material/valid.material"
+default_animation: "valid"
