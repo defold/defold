@@ -26,11 +26,16 @@
  */
 
 
+#if defined(__cplusplus)
 #include <stdint.h>
 #include <dmsdk/dlib/align.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/hashtable.h>
+#endif
 
+typedef void* dmResourceHFactory;
+
+#if defined(__cplusplus)
 namespace dmResource
 {
     /**
@@ -546,5 +551,6 @@ namespace dmResource
      */
     Result RemoveFile(HFactory factory, const char* path);
 }
+#endif // __cplusplus
 
 #endif // DMSDK_RESOURCE_H

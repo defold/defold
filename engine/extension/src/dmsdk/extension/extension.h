@@ -12,25 +12,110 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_EXTENSION
-#define DMSDK_EXTENSION
+#ifndef DMSDK_EXTENSION_H
+#define DMSDK_EXTENSION_H
 
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/align.h>
 #include <dmsdk/resource/resource.h>
 
-extern "C"
-{
+#if defined(__cplusplus)
+extern "C" {
+#endif
 #include <dmsdk/lua/lua.h>
 #include <dmsdk/lua/lauxlib.h>
+#if defined(__cplusplus)
 }
+#endif
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
-namespace dmWebServer
+// C API
+typedef enum dmExtensionResult
 {
-    typedef struct Server* HServer;
-}
+    DM_EXTENSION_RESULT_OK = 0,
+    DM_EXTENSION_RESULT_INIT_ERROR = -1,
+} dmExtensionResult;
 
+typedef enum dmExtensionEventID
+{
+    DM_EXTENSION_EVENT_ID_ACTIVATEAPP,
+    DM_EXTENSION_EVENT_ID_DEACTIVATEAPP,
+    DM_EXTENSION_EVENT_ID_ICONIFYAPP,
+    DM_EXTENSION_EVENT_ID_DEICONIFYAPP,
+} dmExtensionEventID;
+
+typedef enum dmExtensionCallbackType
+{
+    DM_EXTENSION_CALLBACK_PRE_RENDER,
+    DM_EXTENSION_CALLBACK_POST_RENDER,
+} dmExtensionCallbackType;
+
+
+typedef struct dmExtensionAppParams
+{
+    dmConfigFileHConfig   m_ConfigFile; // here for backwards compatibility
+} dmExtensionAppParams;
+
+void dmExtensionAppParams_Init(dmExtensionAppParams* params);
+
+typedef struct dmExtensionParams
+{
+    dmConfigFileHConfig     m_ConfigFile;
+    dmResourceHFactory      m_ResourceFactory;
+    lua_State*              m_L;
+} dmExtensionParams;
+
+void dmExtensionParams_Init(struct dmExtensionParams* params);
+
+typedef struct dmExtensionEvent
+{
+    enum dmExtensionEventID m_Event;
+} dmExtensionEvent;
+
+//struct dmExtensionDesc;
+typedef dmExtensionResult (*FExtensionAppInit)(dmExtensionAppParams*);
+typedef dmExtensionResult (*FExtensionAppFinalize)(dmExtensionAppParams*);
+typedef dmExtensionResult (*FExtensionInitialize)(dmExtensionParams*);
+typedef dmExtensionResult (*FExtensionFinalize)(dmExtensionParams*);
+typedef dmExtensionResult (*FExtensionUpdate)(dmExtensionParams*);
+typedef void              (*FExtensionOnEvent)(dmExtensionParams*, const dmExtensionEvent*);
+
+typedef dmExtensionResult (*dmExtensionFCallback)(dmExtensionParams* params);
+
+struct dmExtensionDesc
+{
+    const struct dmExtensionDesc*   m_Next;
+    const char*                     m_Name;
+    dmExtensionResult       (*AppInitialize)(dmExtensionAppParams* params);
+    dmExtensionResult       (*AppFinalize)(dmExtensionAppParams* params);
+    dmExtensionResult       (*Initialize)(dmExtensionParams* params);
+    dmExtensionResult       (*Finalize)(dmExtensionParams* params);
+    dmExtensionResult       (*Update)(dmExtensionParams* params);
+    void                    (*OnEvent)(dmExtensionParams* params, const dmExtensionEvent* event);
+    dmExtensionFCallback    PreRender;
+    dmExtensionFCallback    PostRender;
+    uint8_t                 m_AppInitialized;
+};
+
+void dmExtensionRegister(struct dmExtensionDesc* desc,
+    uint32_t desc_size,
+    const char *name,
+    FExtensionAppInit       app_init,
+    FExtensionAppFinalize   app_finalize,
+    FExtensionInitialize    initialize,
+    FExtensionFinalize      finalize,
+    FExtensionUpdate        update,
+    FExtensionOnEvent       on_event);
+
+int dmExtensionRegisterCallback(dmExtensionCallbackType callback_type, dmExtensionFCallback func);
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+#if defined(__cplusplus)
 namespace dmExtension
 {
     /*# SDK Extension API documentation
@@ -53,10 +138,11 @@ namespace dmExtension
      * @member dmExtension::RESULT_INIT_ERROR
      *
      */
+    //typedef dmExtensionResult Result;
     enum Result
     {
-        RESULT_OK = 0,
-        RESULT_INIT_ERROR = -1,
+        RESULT_OK           = DM_EXTENSION_RESULT_OK,
+        RESULT_INIT_ERROR   = DM_EXTENSION_RESULT_INIT_ERROR,
     };
 
     /*# application level callback data
@@ -69,14 +155,14 @@ namespace dmExtension
      * @struct
      * @name dmExtension::AppParams
      * @member m_ConfigFile [type:dmConfigFile::HConfig]
-     * @member m_WebServer [type:dmWebServer::HServer] Only valid in debug builds, where the engine service is running. 0 otherwise.
      *
      */
-    struct AppParams
-    {
-        AppParams();
-        dmConfigFile::HConfig   m_ConfigFile; // here for backwards compatibility
-    };
+    typedef dmExtensionAppParams AppParams;
+    // struct AppParams
+    // {
+    //     AppParams();
+    //     dmConfigFile::HConfig   m_ConfigFile; // here for backwards compatibility
+    // };
 
     /*# extension level callback data
      *
@@ -90,13 +176,8 @@ namespace dmExtension
      * @member m_L [type: lua_State*] the lua state
      *
      */
-    struct Params
-    {
-        Params();
-        dmConfigFile::HConfig   m_ConfigFile;
-        dmResource::HFactory    m_ResourceFactory;
-        lua_State*              m_L;
-    };
+    typedef dmExtensionParams Params;
+
 
     /*# event id enumeration
      *
@@ -112,12 +193,11 @@ namespace dmExtension
      * @member dmExtension::EVENT_ID_DEICONIFYAPP
      *
      */
-    enum EventID
-    {
-        EVENT_ID_ACTIVATEAPP,
-        EVENT_ID_DEACTIVATEAPP,
-        EVENT_ID_ICONIFYAPP,
-        EVENT_ID_DEICONIFYAPP,
+    enum EventID {
+        EVENT_ID_ACTIVATEAPP    = DM_EXTENSION_EVENT_ID_ACTIVATEAPP,
+        EVENT_ID_DEACTIVATEAPP  = DM_EXTENSION_EVENT_ID_DEACTIVATEAPP,
+        EVENT_ID_ICONIFYAPP     = DM_EXTENSION_EVENT_ID_ICONIFYAPP,
+        EVENT_ID_DEICONIFYAPP   = DM_EXTENSION_EVENT_ID_DEICONIFYAPP
     };
 
     /*# extra callback enumeration
@@ -132,8 +212,8 @@ namespace dmExtension
      */
     enum CallbackType
     {
-        CALLBACK_PRE_RENDER,
-        CALLBACK_POST_RENDER,
+        CALLBACK_PRE_RENDER     = DM_EXTENSION_CALLBACK_PRE_RENDER,
+        CALLBACK_POST_RENDER    = DM_EXTENSION_CALLBACK_POST_RENDER,
     };
 
     /*# event callback data
@@ -205,11 +285,23 @@ namespace dmExtension
         // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
         // The bug only happens when the symbol is in a static library though
         #define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void __attribute__((constructor)) symbol () { \
-            dmExtension::Register((struct dmExtension::Desc*) &desc, desc_size, name, app_init, app_final, init, final, update, on_event); \
+            dmExtensionRegister((dmExtensionDesc*) &desc, desc_size, name, \
+                            (FExtensionAppInit)app_init, \
+                            (FExtensionAppFinalize)app_final, \
+                            (FExtensionInitialize)init, \
+                            (FExtensionFinalize)final, \
+                            (FExtensionUpdate)update, \
+                            (FExtensionOnEvent)on_event); \
         }
     #else
         #define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void symbol () { \
-            dmExtension::Register((struct dmExtension::Desc*) &desc, desc_size, name, app_init, app_final, init, final, update, on_event); \
+            dmExtensionRegister((dmExtensionDesc*) &desc, desc_size, name,  \
+                            (FExtensionAppInit)app_init, \
+                            (FExtensionAppFinalize)app_final, \
+                            (FExtensionInitialize)init, \
+                            (FExtensionFinalize)final, \
+                            (FExtensionUpdate)update, \
+                            (FExtensionOnEvent)on_event); \
             }\
             int symbol ## Wrapper(void) { symbol(); return 0; } \
             __pragma(section(".CRT$XCU",read)) \
@@ -344,6 +436,11 @@ namespace dmExtension
     void UnregisteriOSUIApplicationDelegate(void* delegate);
 }
 
+#endif // __cplusplus
+
+
+
+
 /*# Set if the platform is iPhoneOS [icon:ios]
  *
  * Set if the platform is iPhoneOS [icon:ios]
@@ -399,4 +496,4 @@ namespace dmExtension
  */
 
 
-#endif // #ifndef DMSDK_EXTENSION
+#endif // #ifndef DMSDK_EXTENSION_H

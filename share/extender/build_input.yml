@@ -76,6 +76,7 @@ platforms:
 
   common:
     env:
+      ZIG_PATH:      '{{env.ZIG_PATH_0_11}}'
       PYTHONPATH:    '{{dynamo_home}}/lib/python:{{dynamo_home}}/ext/lib/python'
     context:
       protoIncludes:    ['{{dynamo_home}}/share/proto', '{{dynamo_home}}/ext/include']
@@ -106,10 +107,14 @@ platforms:
     linkCmdCXX:         'clang++ -o {{tgt}} {{#cxxLinkFlags}}{{{.}}} {{/cxxLinkFlags}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
     linkCmdCXXSh:       'clang++ -shared -o {{tgt}} {{#cxxLinkShFlags}}{{{.}}} {{/cxxLinkShFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#src}}{{{.}}} {{/src}} {{#libStartGroup}}{{{.}}} {{/libStartGroup}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#libEndGroup}}{{{.}}} {{/libEndGroup}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}}'
 
-    # Java
+    # Java (for pipeline plugins)
     javaSourceRe:   '(?i).+(\.java)$'
     javacCmd:       'javac -d {{classesDir}} {{#javaFlags}}{{{.}}} {{/javaFlags}} -classpath {{classPath}} @{{sourcesListFile}}'
     jarCmd:         'jar cf {{outputJar}} -C {{classesDir}} .'
+
+    # Zig
+    zigSourceRe:    '(?i).*(\.zig)'
+    zigCompileCmd:  '{{env.ZIG_PATH}}/zig build-obj -target {{zig-target}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{#defines}}-D{{{.}}} {{/defines}} {{src}} -femit-bin={{tgt}} -O ReleaseFast'
 
   osx:
     env:
@@ -168,6 +173,7 @@ platforms:
         flags:          ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         linkFlags:      ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "arm64", "-target", "arm64-apple-darwin19", "-m64"]
+        zig-target:     'aarch64-macos'
         swiftFlags:     ["-target", "arm-apple-darwin19"]
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
     symbolsPattern: '.*dSYM'
@@ -178,6 +184,7 @@ platforms:
         flags:          ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         linkFlags:      ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
         cxxLinkShFlags: ["-arch", "x86_64", "-target", "x86_64-apple-darwin19", "-m64"]
+        zig-target:     'x86_64-macos'
         swiftFlags:     ["-target", "x86_64-apple-darwin19"]
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
     symbolsPattern: '.*dSYM'

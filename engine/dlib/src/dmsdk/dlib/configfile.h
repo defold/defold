@@ -17,6 +17,9 @@
 
 #include <stdint.h>
 
+typedef struct dmConfigFileConfig* dmConfigFileHConfig;
+
+#if defined(__cplusplus)
 namespace dmConfigFile
 {
     /*# SDK ConfigFile API documentation
@@ -39,7 +42,7 @@ namespace dmConfigFile
      * @typedef
      * @name dmConfigFile::HConfig
      */
-    typedef struct Config* HConfig;
+    typedef dmConfigFileHConfig HConfig;
 
     /*# get config value as string
      *
@@ -181,5 +184,7 @@ namespace dmConfigFile
         DM_REGISTER_CONFIGFILE_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__)), name, create, destroy, get_string, get_int, get_float);
 
 }
+
+#endif // __cplusplus
 
 #endif // DMSDK_CONFIGFILE_H

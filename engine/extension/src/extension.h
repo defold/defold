@@ -17,26 +17,26 @@
 
 #include <dmsdk/extension/extension.h>
 
-
 namespace dmExtension
 {
+    struct Desc
+    {
+        const Desc*             m_Next;
+        const char*             m_Name;
+        Result                  (*AppInitialize)(AppParams* params);
+        Result                  (*AppFinalize)(AppParams* params);
+        Result                  (*Initialize)(Params* params);
+        Result                  (*Finalize)(Params* params);
+        Result                  (*Update)(Params* params);
+        void                    (*OnEvent)(Params* params, const Event* event);
+        extension_callback_t    PreRender;
+        extension_callback_t    PostRender;
+        bool                    m_AppInitialized;
+    };
+
     /**
      * Extension initialization desc
      */
-    struct Desc
-    {
-        const char* m_Name;
-        Result (*AppInitialize)(AppParams* params);
-        extension_callback_t PreRender;
-        extension_callback_t PostRender;
-        Result (*AppFinalize)(AppParams* params);
-        Result (*Initialize)(Params* params);
-        Result (*Finalize)(Params* params);
-        Result (*Update)(Params* params);
-        void   (*OnEvent)(Params* params, const Event* event);
-        const Desc* m_Next;
-        bool        m_AppInitialized;
-    };
 
     /**
      * Get first extension

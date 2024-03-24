@@ -918,7 +918,7 @@ namespace dmLiveUpdate
         }
         g_LiveUpdate.m_IsEnabled = true;
 
-        dmResource::HFactory factory = params->m_ResourceFactory;
+        dmResource::HFactory factory = (dmResource::HFactory)params->m_ResourceFactory;
 
         g_LiveUpdate.m_ResourceFactory = factory;
         g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);

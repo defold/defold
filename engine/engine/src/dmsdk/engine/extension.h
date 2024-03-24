@@ -12,10 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_ENGINE_EXTENSION
-#define DMSDK_ENGINE_EXTENSION
+#ifndef DMSDK_ENGINE_EXTENSION_H
+#define DMSDK_ENGINE_EXTENSION_H
 
 #include <dmsdk/dlib/configfile.h>
+
+#if defined(__cplusplus)
+
 #include <dmsdk/dlib/webserver.h>
 #include <dmsdk/extension/extension.h>
 #include <dmsdk/gameobject/gameobject.h>
@@ -106,4 +109,6 @@ namespace dmEngine
     dmHID::HContext GetHIDContext(dmExtension::AppParams* app_params);
 }
 
-#endif // #ifndef DMSDK_ENGINE_EXTENSION
+#endif // __cplusplus
+
+#endif // #ifndef DMSDK_ENGINE_EXTENSION_H

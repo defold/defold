@@ -21,6 +21,22 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+;; This is a simplified implementation of TextMate-style syntax highlighting
+;; that allows us to adopt rules from existing .tmLanguage files. At some point
+;; we might want to implement full support for TextMate grammars, since it has
+;; been widely adopted by modern text editors. To fully support them would take
+;; a bit of work. Here are a few useful resources that might help guide this
+;; effort in the future:
+;;
+;; Writing a TextMate Grammar: Some Lessons Learned
+;;   https://www.apeth.com/nonblog/stories/textmatebundle.html
+;;
+;; The Language Grammars section from the TextMate manual
+;;   https://macromates.com/manual/en/language_grammars
+;;
+;; The Indentation Rules section from the TextMate manual appendix
+;;   https://macromates.com/manual/en/appendix#indentation_rules
+
 (defrecord AnalysisContext [parent-pattern end-re])
 (defrecord Match [type contexts ^MatchResult match-result pattern])
 

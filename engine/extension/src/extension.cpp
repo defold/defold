@@ -16,21 +16,78 @@
 #include <dlib/static_assert.h>
 #include "extension.h"
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+void dmExtensionAppParams_Init(dmExtensionAppParams* params)
+{
+    memset(params, 0, sizeof(*params));
+}
+
+void dmExtensionParams_Init(dmExtensionParams* params)
+{
+    memset(params, 0, sizeof(*params));
+}
+
+void dmExtensionRegister(struct dmExtensionDesc* desc,
+    uint32_t desc_size,
+    const char *name,
+    FExtensionAppInit       app_init,
+    FExtensionAppFinalize   app_finalize,
+    FExtensionInitialize    initialize,
+    FExtensionFinalize      finalize,
+    FExtensionUpdate        update,
+    FExtensionOnEvent       on_event)
+{
+    DM_STATIC_ASSERT(dmExtension::m_ExtensionDescBufferSize >= sizeof(dmExtensionDesc), Invalid_Struct_Size);
+
+    DM_STATIC_ASSERT(sizeof(dmExtensionDesc) == sizeof(dmExtension::Desc), Invalid_Struct_Size);
+    DM_STATIC_ASSERT(offsetof(dmExtensionDesc, m_Next) == offsetof(dmExtension::Desc, m_Next), Misaligned_Structs);
+    DM_STATIC_ASSERT(offsetof(dmExtensionDesc, m_Name) == offsetof(dmExtension::Desc, m_Name), Misaligned_Structs);
+    DM_STATIC_ASSERT(offsetof(dmExtensionDesc, AppInitialize) == offsetof(dmExtension::Desc, AppInitialize), Misaligned_Structs);
+    DM_STATIC_ASSERT(offsetof(dmExtensionDesc, AppFinalize) == offsetof(dmExtension::Desc, AppFinalize), Misaligned_Structs);
+    DM_STATIC_ASSERT(offsetof(dmExtensionDesc, Initialize) == offsetof(dmExtension::Desc, Initialize), Misaligned_Structs);
+    DM_STATIC_ASSERT(offsetof(dmExtensionDesc, Finalize) == offsetof(dmExtension::Desc, Finalize), Misaligned_Structs);
+    DM_STATIC_ASSERT(offsetof(dmExtensionDesc, Update) == offsetof(dmExtension::Desc, Update), Misaligned_Structs);
+    DM_STATIC_ASSERT(offsetof(dmExtensionDesc, OnEvent) == offsetof(dmExtension::Desc, OnEvent), Misaligned_Structs);
+    DM_STATIC_ASSERT(offsetof(dmExtensionDesc, PreRender) == offsetof(dmExtension::Desc, PreRender), Misaligned_Structs);
+    DM_STATIC_ASSERT(offsetof(dmExtensionDesc, PostRender) == offsetof(dmExtension::Desc, PostRender), Misaligned_Structs);
+    DM_STATIC_ASSERT(offsetof(dmExtensionDesc, m_AppInitialized) == offsetof(dmExtension::Desc, m_AppInitialized), Misaligned_Structs);
+
+    DM_STATIC_ASSERT(offsetof(dmExtensionEvent, m_Event) == offsetof(dmExtension::Event, m_Event), Misaligned_Structs);
+
+    DM_STATIC_ASSERT((int)dmExtension::EVENT_ID_ACTIVATEAPP == (int)DM_EXTENSION_EVENT_ID_ACTIVATEAPP, Enum_Mismatch);
+    DM_STATIC_ASSERT((int)dmExtension::EVENT_ID_DEACTIVATEAPP == (int)DM_EXTENSION_EVENT_ID_DEACTIVATEAPP, Enum_Mismatch);
+    DM_STATIC_ASSERT((int)dmExtension::EVENT_ID_ICONIFYAPP == (int)DM_EXTENSION_EVENT_ID_ICONIFYAPP, Enum_Mismatch);
+    DM_STATIC_ASSERT((int)dmExtension::EVENT_ID_DEICONIFYAPP == (int)DM_EXTENSION_EVENT_ID_DEICONIFYAPP, Enum_Mismatch);
+
+    dmExtension::Register(
+            (dmExtension::Desc*)desc,
+            desc_size,
+            name,
+            (dmExtension::Result (*)(dmExtension::AppParams*))app_init,
+            (dmExtension::Result (*)(dmExtension::AppParams*))app_finalize,
+            (dmExtension::Result (*)(dmExtension::Params*))initialize,
+            (dmExtension::Result (*)(dmExtension::Params*))finalize,
+            (dmExtension::Result (*)(dmExtension::Params*))update,
+            (void (*)(dmExtension::Params*, const dmExtension::Event*))on_event);
+}
+
+int dmExtensionRegisterCallback(dmExtensionCallbackType callback_type, dmExtensionFCallback func)
+{
+    return (int)dmExtension::RegisterCallback((dmExtension::CallbackType)callback_type, (dmExtension::extension_callback_t)func);
+}
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
 namespace dmExtension
 {
-    Desc* g_FirstExtension = 0;
-    Desc* g_CurrentExtension = 0;
-    extern const size_t m_ExtensionDescBufferSize;
+    dmExtension::Desc* g_FirstExtension = 0;
+    dmExtension::Desc* g_CurrentExtension = 0;
 
-    AppParams::AppParams()
-    {
-        memset(this, 0, sizeof(*this));
-    }
-
-    Params::Params()
-    {
-        memset(this, 0, sizeof(*this));
-    }
 
     void Register(struct Desc* desc,
         uint32_t desc_size,
@@ -70,7 +127,7 @@ namespace dmExtension
         while (ed) {
             if (ed->AppInitialize) {
                 g_CurrentExtension = ed;
-                dmExtension::Result r = ed->AppInitialize(params);
+                dmExtension::Result r = (dmExtension::Result)ed->AppInitialize(params);
                 if (r != dmExtension::RESULT_OK) {
                     dmLogError("Failed to initialize (app-level) extension: %s", ed->m_Name);
                     ret = r;
@@ -91,7 +148,7 @@ namespace dmExtension
             uint32_t n = i;
             while (ed && i < n) {
                 if (ed->AppFinalize) {
-                    dmExtension::Result r = ed->AppFinalize(params);
+                    dmExtension::Result r = (dmExtension::Result)ed->AppFinalize(params);
                     if (r != dmExtension::RESULT_OK) {
                         dmLogError("Failed to initialize (app-level) extension: %s", ed->m_Name);
                     }
@@ -154,7 +211,7 @@ namespace dmExtension
         while (ed) {
             if (ed->AppFinalize && ed->m_AppInitialized) {
                 ed->m_AppInitialized = false;
-                dmExtension::Result r = ed->AppFinalize(params);
+                dmExtension::Result r = (dmExtension::Result)ed->AppFinalize(params);
                 if (r != dmExtension::RESULT_OK) {
                     dmLogError("Failed to finalize (app-level) extension: %s", ed->m_Name);
                 }
@@ -178,4 +235,3 @@ namespace dmExtension
     }
 
 }
-
