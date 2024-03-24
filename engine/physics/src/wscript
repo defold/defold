@@ -1,4 +1,4 @@
-import os
+import os, sys
 from waf_dynamo import dmsdk_add_files
 
 def options(opt):
@@ -30,5 +30,5 @@ def build(bld):
     bld.recurse('box2d')
     bld.recurse('physics')
 
-    dmsdk_add_header_files(bld, '${PREFIX}/ext/include', 'Box2D')
+    dmsdk_add_header_files(bld, '${PREFIX}/ext/include/Box2D', 'box2D/Box2D')
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
