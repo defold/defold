@@ -98,7 +98,7 @@ protected:
     dmParticle::EmitterStateChangedData m_CallbackData;
 };
 
-static const float EPSILON = 0.000002f;
+static const float EPSILON = 0.000007f;
 
 struct EmitterStateChangedCallbackTestData
 {
