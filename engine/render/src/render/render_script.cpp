@@ -2998,12 +2998,18 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+#define CHECK_COMPUTE_SUPPORT(render_script_instance) \
+    if (!dmGraphics::IsContextFeatureSupported(i->m_RenderContext->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER)) \
+        return DM_LUA_ERROR("Compute shaders are not supported on this device or platform.");
+
     static int RenderScript_SetComputeProgram(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         void* compute_program = 0x0;
+
+        CHECK_COMPUTE_SUPPORT(i);
 
         if (!lua_isnil(L, 1))
         {
@@ -3034,6 +3040,8 @@ namespace dmRender
         DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
+        CHECK_COMPUTE_SUPPORT(i);
+
         int p_x = luaL_checkinteger(L, 1);
         int p_y = luaL_checkinteger(L, 2);
         int p_z = luaL_checkinteger(L, 3);
@@ -3058,6 +3066,7 @@ namespace dmRender
         }
         return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
+#undef CHECK_COMPUTE_SUPPORT
 
     static const luaL_reg Render_methods[] =
     {
