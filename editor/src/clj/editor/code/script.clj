@@ -472,7 +472,7 @@
   ;; We then strip go.property() declarations and recompile if needed.
   (let [lines (:lines user-data)
         proj-path (:proj-path user-data)
-        bytecode-or-error (script->bytecode lines proj-path :32-bit)]
+        bytecode-or-error (script->bytecode lines proj-path :64-bit)]
     (g/precluding-errors
       [bytecode-or-error]
       (let [go-props (properties/build-go-props dep-resources (:go-props user-data))
