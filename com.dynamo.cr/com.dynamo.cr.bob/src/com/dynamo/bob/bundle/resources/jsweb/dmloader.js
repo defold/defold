@@ -516,14 +516,14 @@ var ProgressView = {
 
     addProgress : function (canvas) {
         /* Insert default progress bar below canvas */
-        canvas.insertAdjacentHTML('afterend', '<div id="' + ProgressView.progress_id + '" class="canvas-app-progress"><div id="' + ProgressView.bar_id + '" class="canvas-app-progress-bar" style="width: 0%;"></div></div>');
+        canvas.insertAdjacentHTML('afterend', '<div id="' + ProgressView.progress_id + '" class="canvas-app-progress"><div id="' + ProgressView.bar_id + + '" class="canvas-app-progress-bar" style="transform: scaleX(0.0);"></div></div>');
         ProgressView.bar = document.getElementById(ProgressView.bar_id);
         ProgressView.progress = document.getElementById(ProgressView.progress_id);
     },
 
     updateProgress: function(percentage) {
         if (ProgressView.bar) {
-            ProgressView.bar.style.width = Math.min(percentage, 100) + "%";
+            ProgressView.bar.style.transform = "scaleX(" + Math.min(percentage, 100) / 100 + ")";
         }
     },
 
