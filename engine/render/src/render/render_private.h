@@ -104,6 +104,7 @@ namespace dmRender
         dmGraphics::HComputeProgram                 m_Shader;
         dmGraphics::HProgram                        m_Program;
         dmArray<RenderConstant>                     m_Constants;
+        dmArray<Sampler>                            m_Samplers;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
         uint64_t                                    m_UserData;
     };
@@ -270,6 +271,7 @@ namespace dmRender
         dmGraphics::HContext        m_GraphicsContext;
 
         HMaterial                   m_Material;
+        HComputeProgram             m_ComputeProgram;
 
         dmMessage::HSocket          m_Socket;
 
@@ -309,6 +311,10 @@ namespace dmRender
     void    SetTextureBindingByUnit(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture);
     bool    GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
     int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
+
+    void    DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer);
+    void    ApplyComputeProgramConstants(HRenderContext render_context, HComputeProgram compute_program);
+    int32_t GetComputeProgramSamplerIndex(HComputeProgram program, dmhash_t name_hash);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

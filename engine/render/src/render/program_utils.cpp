@@ -39,7 +39,7 @@ namespace dmRender
             {
                 constants_count++;
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
+            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY || type == dmGraphics::TYPE_IMAGE_2D)
             {
                 samplers_count++;
             }

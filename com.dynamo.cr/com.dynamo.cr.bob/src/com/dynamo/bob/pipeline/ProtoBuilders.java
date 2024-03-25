@@ -71,7 +71,7 @@ import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 public class ProtoBuilders {
 
     private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".tga", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
-    private static String[][] renderResourceExts = {{".render_target", ".render_targetc"}, {".material", ".materialc"}};
+    private static String[][] renderResourceExts = {{".render_target", ".render_targetc"}, {".material", ".materialc"}, {".compute_program", ".compute_programc"}};
 
     public static String getTextureSetExt(String str) throws Exception {
         Map<String, String> types = TextureUtil.getAtlasFileTypes();

@@ -64,9 +64,10 @@ namespace dmRender
 
     enum RenderResourceType
     {
-        RENDER_RESOURCE_TYPE_INVALID       = 0,
-        RENDER_RESOURCE_TYPE_MATERIAL      = 1,
-        RENDER_RESOURCE_TYPE_RENDER_TARGET = 2,
+        RENDER_RESOURCE_TYPE_INVALID         = 0,
+        RENDER_RESOURCE_TYPE_MATERIAL        = 1,
+        RENDER_RESOURCE_TYPE_RENDER_TARGET   = 2,
+        RENDER_RESOURCE_TYPE_COMPUTE_PROGRAM = 3,
     };
 
     enum RenderBufferType
@@ -287,6 +288,7 @@ namespace dmRender
     void                            SetMaterialUserData2(HMaterial material, uint64_t user_data);
 
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
+    void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBuffer buffer);
 
     void                            ClearMaterialTags(HMaterial material);
     void                            SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);

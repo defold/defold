@@ -2860,7 +2860,7 @@ namespace dmRender
      * local h = render.get_window_height()
      * ```
      */
-    int RenderScript_GetWindowHeight(lua_State* L)
+    static int RenderScript_GetWindowHeight(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
@@ -2889,7 +2889,7 @@ namespace dmRender
      * local p = render.predicate({hash("opaque"), hash("smoke")})
      * ```
      */
-    int RenderScript_Predicate(lua_State* L)
+    static int RenderScript_Predicate(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -2937,7 +2937,7 @@ namespace dmRender
      * render.disable_material()
      * ```
      */
-    int RenderScript_EnableMaterial(lua_State* L)
+    static int RenderScript_EnableMaterial(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -2989,13 +2989,74 @@ namespace dmRender
      * render.disable_material()
      * ```
      */
-    int RenderScript_DisableMaterial(lua_State* L)
+    static int RenderScript_DisableMaterial(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_MATERIAL)))
             return 0;
         else
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    static int RenderScript_SetComputeProgram(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        void* compute_program = 0x0;
+
+        if (!lua_isnil(L, 1))
+        {
+            dmhash_t program_id             = dmScript::CheckHashOrString(L, 1);
+            RenderResource* render_resource = i->m_RenderResources.Get(program_id);
+
+            if (render_resource == 0x0)
+            {
+                return DM_LUA_ERROR("Could not find compute program '%s'", dmHashReverseSafe64(program_id));
+            }
+            else if (render_resource->m_Type != RENDER_RESOURCE_TYPE_COMPUTE_PROGRAM)
+            {
+                return DM_LUA_ERROR("Render resource is not a compute program.");
+            }
+
+            compute_program = (void*) render_resource->m_Resource;
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_COMPUTE_PROGRAM, (uint64_t) compute_program)))
+        {
+            return 0;
+        }
+        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    static int RenderScript_Dispatch(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+
+        int p_x = luaL_checkinteger(L, 1);
+        int p_y = luaL_checkinteger(L, 2);
+        int p_z = luaL_checkinteger(L, 3);
+
+        HNamedConstantBuffer constant_buffer = 0;
+
+        if (lua_istable(L, 4))
+        {
+            luaL_checktype(L, 4, LUA_TTABLE);
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "constants");
+            constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE_PROGRAM, p_x, p_y, p_z, (uint64_t) constant_buffer)))
+        {
+            return 0;
+        }
+        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     static const luaL_reg Render_methods[] =
@@ -3036,6 +3097,8 @@ namespace dmRender
         {"constant_buffer",                 RenderScript_ConstantBuffer},
         {"enable_material",                 RenderScript_EnableMaterial},
         {"disable_material",                RenderScript_DisableMaterial},
+        {"set_compute_program",             RenderScript_SetComputeProgram},
+        {"dispatch",                        RenderScript_Dispatch},
         {0, 0}
     };
 

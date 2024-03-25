@@ -760,7 +760,7 @@ namespace dmRender
         }
     }
 
-    static void GetRenderContextTextures(HRenderContext render_context, HMaterial material, dmGraphics::HTexture* textures)
+    static void GetRenderContextTextures(HRenderContext render_context, HMaterial material, HComputeProgram program, dmGraphics::HTexture* textures)
     {
         uint32_t num_bindings = render_context->m_TextureBindTable.Size();
         for (uint32_t i = 0; i < num_bindings; ++i)
@@ -770,7 +770,13 @@ namespace dmRender
 
             if (render_context->m_TextureBindTable[i].m_Samplerhash)
             {
-                int32_t hash_sampler_index = GetMaterialSamplerIndex(material, render_context->m_TextureBindTable[i].m_Samplerhash);
+                int32_t hash_sampler_index = -1;
+
+                if (material)
+                    hash_sampler_index = GetMaterialSamplerIndex(material, render_context->m_TextureBindTable[i].m_Samplerhash);
+                else if (program)
+                    hash_sampler_index = GetComputeProgramSamplerIndex(program, render_context->m_TextureBindTable[i].m_Samplerhash);
+
                 if (hash_sampler_index >= 0)
                 {
                     sampler_index = hash_sampler_index;
@@ -915,6 +921,67 @@ namespace dmRender
         return Draw(context, predicate, constant_buffer);
     }
 
+    void DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
+    {
+        if (render_context->m_ComputeProgram == 0)
+        {
+            return;
+        }
+
+        dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT];
+        memset(render_context_textures, 0, sizeof(render_context_textures));
+
+        dmGraphics::EnableProgram(context, render_context->m_ComputeProgram->m_Program);
+        GetRenderContextTextures(render_context, 0, render_context->m_ComputeProgram, render_context_textures);
+
+        uint8_t next_texture_unit = 0;
+        for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (render_context_textures[i])
+            {
+                dmGraphics::HTexture texture = render_context_textures[i];
+
+                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
+                {
+                    // TODO paged-atlas: We can remove the HSampler concept now I think, unless we want to do validation in a debug runtime?
+                    //HSampler sampler = GetMaterialSampler(material, next_texture_unit);
+                    dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
+                    //ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, texture);
+                    next_texture_unit++;
+                }
+            }
+        }
+
+        ApplyComputeProgramConstants(render_context, render_context->m_ComputeProgram);
+
+        if (constant_buffer)
+        {
+            ApplyNamedConstantBuffer(render_context, render_context->m_ComputeProgram, constant_buffer);
+        }
+
+        dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+
+        next_texture_unit = 0;
+        for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (render_context_textures[i])
+            {
+                dmGraphics::HTexture texture = render_context_textures[i];
+                uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
+                {
+                    dmGraphics::DisableTexture(context, next_texture_unit, texture);
+                    next_texture_unit++;
+                }
+            }
+        }
+
+        dmGraphics::DisableProgram(context);
+        TrimTextureBindingTable(render_context);
+    }
+
     // NOTE: Currently only used externally in 1 test (fontview.cpp)
     // TODO: Replace that occurrance with DrawRenderList
     Result Draw(HRenderContext render_context, HPredicate predicate, HNamedConstantBuffer constant_buffer)
@@ -931,7 +998,7 @@ namespace dmRender
         if(context_material)
         {
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
-            GetRenderContextTextures(render_context, context_material, render_context_textures);
+            GetRenderContextTextures(render_context, context_material, 0, render_context_textures);
         }
 
         dmGraphics::PipelineState ps_orig = dmGraphics::GetPipelineState(context);
@@ -957,7 +1024,7 @@ namespace dmRender
                 {
                     material = ro->m_Material;
                     dmGraphics::EnableProgram(context, GetMaterialProgram(material));
-                    GetRenderContextTextures(render_context, material, render_context_textures);
+                    GetRenderContextTextures(render_context, material, 0, render_context_textures);
                 }
             }
 

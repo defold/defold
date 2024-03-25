@@ -205,6 +205,18 @@ namespace dmRender
                     render_context->m_Material = 0;
                     break;
                 }
+                case COMMAND_TYPE_SET_COMPUTE_PROGRAM:
+                {
+                    render_context->m_ComputeProgram = (HComputeProgram) c->m_Operands[0];
+                    break;
+                }
+                case COMMAND_TYPE_DISPATCH_COMPUTE_PROGRAM:
+                {
+                    dmRender::DispatchCompute(render_context,
+                        c->m_Operands[0], c->m_Operands[1], c->m_Operands[2], // group x,y,z
+                        (dmRender::HNamedConstantBuffer) c->m_Operands[3]);
+                    break;
+                }
                 default:
                 {
                     dmLogError("No such render command (%d).", c->m_Type);

@@ -687,6 +687,7 @@ namespace dmGraphics
         default_texture_params.m_Format = TEXTURE_FORMAT_RGBA32UI;
         context->m_DefaultTexture2D32UI = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultTexture2D32UI, default_texture_params);
+    #endif
 
         default_texture_params.m_Format                 = TEXTURE_FORMAT_RGBA;
         default_texture_creation_params.m_Depth         = 1;
@@ -694,7 +695,6 @@ namespace dmGraphics
         default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_HINT_STORAGE;
         context->m_DefaultStorageImage2D                = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultStorageImage2D, default_texture_params);
-    #endif
 
         default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_HINT_SAMPLE;
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_2D_ARRAY;
@@ -2128,7 +2128,7 @@ bail:
         Program* program_ptr = context->m_CurrentProgram;
         assert(program_ptr->m_ComputeModule);
 
-        // Ensure there is room in the descriptor allocator to support this draw call
+        // Ensure there is room in the descriptor allocator to support this dispatch call
         const uint32_t num_uniform_buffers = program_ptr->m_UniformBufferCount;
         const bool resize_scratch_buffer   = program_ptr->m_UniformDataSizeAligned > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
 
@@ -2140,7 +2140,7 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
-        // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this draw call
+        // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this dispatch call
         if (context->m_DynamicOffsetBufferSize < num_uniform_buffers)
         {
             const size_t offset_buffer_size = sizeof(uint32_t) * num_uniform_buffers;

@@ -35,8 +35,8 @@ namespace dmRender
         uint32_t total_constants_count = dmGraphics::GetUniformCount(program->m_Program);
 
         uint32_t constants_count = 0;
-        uint32_t sampler_count   = 0;
-        GetProgramUniformCount(program->m_Program, total_constants_count, &constants_count, &sampler_count);
+        uint32_t samplers_count  = 0;
+        GetProgramUniformCount(program->m_Program, total_constants_count, &constants_count, &samplers_count);
 
         if (constants_count > 0)
         {
@@ -44,10 +44,82 @@ namespace dmRender
             program->m_Constants.SetCapacity(constants_count);
         }
 
-        dmArray<Sampler> samplers;
-        SetMaterialConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, samplers);
+        if (samplers_count > 0)
+        {
+            program->m_Samplers.SetCapacity(samplers_count);
+            for (uint32_t i = 0; i < samplers_count; ++i)
+            {
+                program->m_Samplers.Push(Sampler());
+            }
+        }
+
+        SetMaterialConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, program->m_Samplers);
 
         return (HComputeProgram) program;
+    }
+
+    void ApplyComputeProgramConstants(dmRender::HRenderContext render_context, HComputeProgram compute_program)
+    {
+        dmGraphics::HContext graphics_context           = dmRender::GetGraphicsContext(render_context);
+        const dmArray<RenderConstant>& render_constants = compute_program->m_Constants;
+
+        for (int i = 0; i < render_constants.Size(); ++i)
+        {
+            const RenderConstant& render_constant = render_constants[i];
+            const HConstant constant              = render_constant.m_Constant;
+            int32_t location                      = GetConstantLocation(constant);
+
+            uint32_t num_values;
+            dmVMath::Vector4* values = GetConstantValues(constant, &num_values);
+            dmGraphics::SetConstantV4(graphics_context, values, num_values, location);
+
+            // dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
+        }
+    }
+
+    static inline int32_t FindConstantIndex(HComputeProgram program, dmhash_t name_hash)
+    {
+        dmArray<RenderConstant>& constants = program->m_Constants;
+        for (int32_t i = 0; i < (int32_t) constants.Size(); ++i)
+        {
+            if (GetConstantName(constants[i].m_Constant) == name_hash)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    void SetComputeProgramConstant(HComputeProgram program, dmhash_t name_hash, Vector4* values, uint32_t count)
+    {
+        int32_t index = FindConstantIndex(program, name_hash);
+        if (index < 0)
+        {
+            return;
+        }
+
+        RenderConstant& mc = program->m_Constants[index];
+
+        uint32_t num_default_values;
+        dmVMath::Vector4* constant_values = dmRender::GetConstantValues(mc.m_Constant, &num_default_values);
+
+        count = dmMath::Min(count, num_default_values);
+
+        // we musn't set less values than are already registered with the program
+        // so we write to the previous buffer
+        memcpy(constant_values, values, count * sizeof(dmVMath::Vector4));
+    }
+
+    int32_t GetComputeProgramSamplerIndex(HComputeProgram program, dmhash_t name_hash)
+    {
+        for (int i = 0; i < program->m_Samplers.Size(); ++i)
+        {
+            if (program->m_Samplers[i].m_NameHash == name_hash)
+            {
+                return i;
+            }
+        }
+        return -1;
     }
 
     dmGraphics::HComputeProgram GetComputeProgramShader(HComputeProgram program)
