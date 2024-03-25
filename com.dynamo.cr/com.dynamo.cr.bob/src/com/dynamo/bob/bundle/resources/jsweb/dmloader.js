@@ -244,7 +244,7 @@ var EngineLoader = {
     // start loading archive_files.json
     // after receiving it - start loading engine and data concurrently
     load: function(appCanvasId, exeName) {
-        Progress.addProgress(Module.setupCanvas(appCanvasId));
+        ProgressView.addProgress(Module.setupCanvas(appCanvasId));
         CUSTOM_PARAMETERS['exe_name'] = exeName;
 
         FileLoader.options.retryCount = CUSTOM_PARAMETERS["retry_count"];
@@ -510,26 +510,26 @@ var GameArchiveLoader = {
 /* Default splash and progress visualisation                             */
 /* ********************************************************************* */
 
-var Progress = {
+var ProgressView = {
     progress_id: "defold-progress",
     bar_id: "defold-progress-bar",
 
     addProgress : function (canvas) {
         /* Insert default progress bar below canvas */
-        canvas.insertAdjacentHTML('afterend', '<div id="' + Progress.progress_id + '" class="canvas-app-progress"><div id="' + Progress.bar_id + '" class="canvas-app-progress-bar" style="width: 0%;"></div></div>');
-        Progress.bar = document.getElementById(Progress.bar_id);
-        Progress.progress = document.getElementById(Progress.progress_id);
+        canvas.insertAdjacentHTML('afterend', '<div id="' + ProgressView.progress_id + '" class="canvas-app-progress"><div id="' + ProgressView.bar_id + '" class="canvas-app-progress-bar" style="width: 0%;"></div></div>');
+        ProgressView.bar = document.getElementById(ProgressView.bar_id);
+        ProgressView.progress = document.getElementById(ProgressView.progress_id);
     },
 
     updateProgress: function(percentage) {
-        if (Progress.bar) {
-            Progress.bar.style.width = Math.min(percentage, 100) + "%";
+        if (ProgressView.bar) {
+            ProgressView.bar.style.width = Math.min(percentage, 100) + "%";
         }
     },
 
     removeProgress: function () {
-        if (Progress.progress.parentElement !== null) {
-            Progress.progress.parentElement.removeChild(Progress.progress);
+        if (ProgressView.progress.parentElement !== null) {
+            ProgressView.progress.parentElement.removeChild(ProgressView.progress);
 
             // Remove any background/splash image that was set in runApp().
             // Workaround for Safari bug DEF-3061.
@@ -562,14 +562,14 @@ var ProgressUpdater = {
     setCurrent: function (current) {
         this.current = current;
         var percentage = this.calculateProgress();
-        Progress.updateProgress(percentage);
+        ProgressView.updateProgress(percentage);
         this.notifyListeners(percentage);
     },
 
     updateCurrent: function (diff) {
         this.current += diff;
         var percentage = this.calculateProgress();
-        Progress.updateProgress(percentage);
+        ProgressView.updateProgress(percentage);
         this.notifyListeners(percentage);
     },
 
@@ -577,8 +577,42 @@ var ProgressUpdater = {
         this.current = 0;
     },
 
+    complete: function () {
+        this.setCurrent(this.total);
+    },
+
     calculateProgress: function () {
         return this.current / this.total * 100;
+    }
+};
+
+/* DEPRECATED!
+* Use ProgressUpdater and ProgressView instead.
+* Left for backward compatability.
+*/
+var Progress = {
+    addListener: function(callback) {
+        ProgressUpdater.addListener(callback);
+    },
+
+    notifyListeners: function(percentage) {
+        // no-op
+    },
+
+    addProgress : function (canvas) {
+        ProgressView.addProgress(canvas);
+    },
+
+    updateProgress: function(percentage) {
+        // no-op
+    },
+
+    calculateProgress: function (from, to, current, total) {
+        // no-op
+    },
+
+    removeProgress: function () {
+        ProgressView.removeProgress();
     }
 };
 
@@ -708,12 +742,12 @@ var Module = {
             }
             if (Module._archiveLoaded) {
                 // "Starting...."
-                Progress.updateProgress(100);
+                ProgressUpdater.complete();
                 Module._callMain();
             }
         } else {
             // "Unable to start game, WebGL not supported"
-            Progress.updateProgress(100);
+            ProgressUpdater.complete();
             Module.setStatus = function(text) {
                 if (text) Module.printErr('[missing WebGL] ' + text);
             };
@@ -846,7 +880,7 @@ var Module = {
 
     postRun: [function() {
         if(Module._archiveLoaded) {
-            Progress.removeProgress();
+            ProgressView.removeProgress();
         }
     }],
 
@@ -859,14 +893,14 @@ var Module = {
             Module.preloadAll();
             if (Module._isEngineLoaded) {
                 // "Starting...."
-                Progress.updateProgress(100);
+                ProgressUpdater.complete();
                 Module._callMain();
             }
         }
     },
 
     _callMain: function() {
-        Progress.removeProgress();
+        ProgressView.removeProgress();
         if (Module.callMain === undefined) {
             Module.noInitialRun = false;
         } else {
