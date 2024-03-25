@@ -373,8 +373,8 @@
                     (= (count resources) (count (into #{} (map resource/ext) resources))))
          false)))
 
-(defn rename [resources new-name]
-  {:pre [(string? new-name) (rename? resources)]}
+(defn rename [resources new-base-name]
+  {:pre [(string? new-base-name) (rename? resources)]}
   (let [workspace (resource/workspace (first resources))
         project-directory-file (workspace/project-path workspace)
         dir (= :folder (resource/source-type (first resources)))
@@ -384,7 +384,7 @@
                                parent (.getParent resource-file)
                                ext (resource/ext resource)]
                            (pair resource-file
-                                 (io/file parent (cond-> new-name
+                                 (io/file parent (cond-> new-base-name
                                                          (and (not dir) (seq ext))
                                                          (str "." ext))))))
                        resources)]
