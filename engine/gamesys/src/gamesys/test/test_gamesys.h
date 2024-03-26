@@ -488,6 +488,7 @@ void GamesysTest<T>::SetUp()
     render_params.m_MaxRenderTargets = 10;
     render_params.m_ScriptContext = m_ScriptContext;
     render_params.m_MaxCharacters = 256;
+    render_params.m_MaxBatches = 128;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
 
     dmInput::NewContextParams input_params;

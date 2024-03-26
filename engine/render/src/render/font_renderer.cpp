@@ -398,7 +398,7 @@ namespace dmRender
         return font_map->m_Material;
     }
 
-    void InitializeTextContext(HRenderContext render_context, uint32_t max_characters)
+    void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches)
     {
         DM_STATIC_ASSERT(sizeof(GlyphVertex) % 16 == 0, Invalid_Struct_Size);
         DM_STATIC_ASSERT( MAX_FONT_RENDER_CONSTANTS == MAX_TEXT_RENDER_CONSTANTS, Constant_Arrays_Must_Have_Same_Size );
@@ -434,8 +434,6 @@ namespace dmRender
 
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        // Arbitrary number
-        const uint32_t max_batches = 128;
         text_context.m_ConstantBuffers.SetCapacity(max_batches); // 1:1 index mapping with render object
         text_context.m_RenderObjects.SetCapacity(max_batches);
         text_context.m_RenderObjectIndex = 0;
@@ -1053,7 +1051,7 @@ namespace dmRender
         GlyphVertex* vertices = (GlyphVertex*)text_context.m_ClientBuffer;
 
         if (text_context.m_RenderObjectIndex >= text_context.m_RenderObjects.Size()) {
-            dmLogWarning("Fontrenderer: Render object count reached limit (%d)", text_context.m_RenderObjectIndex);
+            dmLogWarning("Fontrenderer: Render object count reached limit (%d). Increase the capacity with graphics.max_font_batches", text_context.m_RenderObjectIndex);
             return;
         }
 

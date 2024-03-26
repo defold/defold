@@ -124,7 +124,7 @@ namespace dmRender
             InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexShaderDesc, params.m_VertexShaderDescSize, params.m_FragmentShaderDesc, params.m_FragmentShaderDescSize);
         }
 
-        InitializeTextContext(context, params.m_MaxCharacters);
+        InitializeTextContext(context, params.m_MaxCharacters, params.m_MaxBatches);
 
         context->m_OutOfResources = 0;
 

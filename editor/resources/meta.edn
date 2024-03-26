@@ -278,6 +278,11 @@
    :path ["graphics" "max_characters"]}
   {:type :integer,
    :help
+   "maximum number of text that can be displayed each frame",
+   :default 128,
+   :path ["graphics" "max_font_batches"]}
+  {:type :integer,
+   :help
    "maximum number of debug vertices, used for physics shape rendering among other things, 10000 by default",
    :default 10000,
    :path ["graphics" "max_debug_vertices"]}
