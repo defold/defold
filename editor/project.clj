@@ -167,6 +167,10 @@
 
   :javac-options ["-Xlint:unchecked" "-Xlint:deprecation"]
 
+  ;; Skip native extensions tests:
+  ;; lein test :no-native-extensions
+  :test-selectors {:no-native-extensions (complement :native-extensions)}
+
   :profiles          {:test    {:injections [(com.defold.libs.ResourceUnpacker/unpackResources)]
                                 :resource-paths ["test/resources"]
                                 :jvm-opts ["-Ddefold.tests=true"]}
