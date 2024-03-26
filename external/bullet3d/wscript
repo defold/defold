@@ -64,7 +64,7 @@ def build(bld):
     linear_math.install_path = None
 
     # for android
-    if bld.env.PLATFORM in ('armv7-android', 'arm64-android', 'x86_64-ps4', 'x86_64-ps5'):
+    if bld.env.PLATFORM in ('armv7-android', 'arm64-android', 'x86_64-ps4', 'x86_64-ps5', 'js-web', 'wasm-web'):
         linear_math.env.append_unique('CXXFLAGS', "-Wno-c++11-narrowing")
 
     if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
@@ -102,3 +102,6 @@ def create_package(self):
     target = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
     shutil.copy2(source, target)
     print("Installed to", target)
+
+def package(self):
+    pass

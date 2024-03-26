@@ -19,7 +19,7 @@
 #include <malloc.h>
 #endif
 #if defined(__EMSCRIPTEN__)
-#include <libc/malloc.h>
+#include <malloc.h>
 #endif
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
