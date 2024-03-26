@@ -182,14 +182,18 @@ var EngineLoader = {
         if (typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough) {
             async function fetchWithProgress(path) {
                 const response = await fetch(path);
-                const ts = new TransformStream({
-                    transform (chunk, controller) {
-                        ProgressUpdater.updateCurrent(chunk.byteLength);
-                        controller.enqueue(chunk);
-                    }
-                });
+                if (response.ok) {
+                    const ts = new TransformStream({
+                        transform (chunk, controller) {
+                            ProgressUpdater.updateCurrent(chunk.byteLength);
+                            controller.enqueue(chunk);
+                        }
+                    });
 
-                return new Response(response.body.pipeThrough(ts), response);
+                    return new Response(response.body.pipeThrough(ts), response);
+                } else {
+                    return new Response(null, response);
+                }
             }
             fetchFn = fetchWithProgress;
         }
