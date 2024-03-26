@@ -174,7 +174,7 @@ namespace dmRender
      */
     HMaterial GetFontMapMaterial(HFontMap font_map);
 
-    void InitializeTextContext(HRenderContext render_context, uint32_t max_characters);
+    void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches);
     void FinalizeTextContext(HRenderContext render_context);
 
     const int MAX_FONT_RENDER_CONSTANTS = 16;

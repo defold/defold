@@ -101,6 +101,7 @@ protected:
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 64;
         params.m_MaxCharacters = 32;
+        params.m_MaxBatches = 128;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
 
         dmGraphics::ShaderDesc::Shader shader_ddf;

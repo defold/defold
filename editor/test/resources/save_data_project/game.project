@@ -183,6 +183,7 @@ default_texture_min_filter = nearest
 default_texture_mag_filter = nearest
 max_draw_calls = 512
 max_characters = 4096
+max_font_batches = 128
 max_debug_vertices = 8192
 texture_profiles = /checked.texture_profiles
 verify_graphics_calls = 0
