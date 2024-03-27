@@ -223,10 +223,32 @@ namespace dmGameSystem
 
 struct SetTextureAsyncRequest
 {
+    dmhash_t                   m_PathHash;
+    lua_State*                 m_LuaState;
     dmScript::LuaCallbackInfo* m_CallbackInfo;
     TextureResource*           m_TextureResource;
+    dmBuffer::HBuffer          m_Buffer;
+    int32_t                    m_BufferRef;
     dmGraphics::HTexture       m_Texture;
     HOpaqueHandle              m_Handle;
+    bool                       m_UseUploadBuffer;
+};
+
+struct CreateTextureResourceParams
+{
+    const char*                               m_Path;
+    dmhash_t                                  m_PathHash;
+    dmGameObject::HCollection                 m_Collection;
+    dmGraphics::TextureType                   m_Type;
+    dmGraphics::TextureFormat                 m_Format;
+    dmGraphics::TextureImage::Type            m_TextureType;
+    dmGraphics::TextureImage::TextureFormat   m_TextureFormat;
+    dmGraphics::TextureImage::CompressionType m_CompressionType;
+    dmBuffer::HBuffer                         m_Buffer;
+    uint32_t                                  m_Width;
+    uint32_t                                  m_Height;
+    uint32_t                                  m_MaxMipMaps;
+    uint32_t                                  m_TextureBpp;
 };
 
 struct ResourceModule
@@ -563,23 +585,6 @@ static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(dmGraphics:
     return (dmGraphics::TextureImage::Type) -1;
 }
 
-struct CreateTextureResourceParams
-{
-    const char*                               m_Path;
-    dmhash_t                                  m_PathHash;
-    dmGameObject::HCollection                 m_Collection;
-    dmGraphics::TextureType                   m_Type;
-    dmGraphics::TextureFormat                 m_Format;
-    dmGraphics::TextureImage::Type            m_TextureType;
-    dmGraphics::TextureImage::TextureFormat   m_TextureFormat;
-    dmGraphics::TextureImage::CompressionType m_CompressionType;
-    dmBuffer::HBuffer                         m_Buffer;
-    uint32_t                                  m_Width;
-    uint32_t                                  m_Height;
-    uint32_t                                  m_MaxMipMaps;
-    uint32_t                                  m_TextureBpp;
-};
-
 static inline uint32_t GetLayerCount(dmGraphics::TextureType type)
 {
     return type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
@@ -703,12 +708,11 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
     dmBuffer::HBuffer buffer = 0;
-
     if (lua_gettop(L) > 2)
     {
         // TODO: Support creating texture from string
-        dmScript::LuaHBuffer* l_buffer = dmScript::CheckBuffer(L, 3);
-        buffer                         = dmGameSystem::UnpackLuaBuffer(l_buffer);
+        dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, 3);
+        buffer                           = dmGameSystem::UnpackLuaBuffer(lua_buffer);
     }
 
     uint8_t max_mipmaps_actual = dmGraphics::GetMipmapCount(dmMath::Max(width, height));
@@ -770,38 +774,36 @@ static void HandleRequestCompleted(SetTextureAsyncRequest* request)
         DM_LUA_STACK_CHECK(L, 0);
 
         // callback has the format:
-        // function(self, request_id, result)
-        //  result contains:
-        //      - status: request status
-        //      - buffer: if successfull, this contains the payload
+        // function(self, request_id, resource_path)
         if (dmScript::SetupCallback(request->m_CallbackInfo))
         {
             lua_pushnumber(L, request->m_Handle);
-            lua_newtable(L);
-
-            // lua_pushnumber(L, request->m_Status);
-            // lua_setfield(L, -2, "status");
-            // if (request->m_Status == REQUEST_STATUS_FINISHED)
-            // {
-            //     dmScript::LuaHBuffer luabuf(request->m_Payload, dmScript::OWNER_LUA);
-            //     dmScript::PushBuffer(L, luabuf);
-            //     lua_setfield(L, -2, "buffer");
-            // }
-
+            dmScript::PushHash(L, request->m_PathHash);
             dmScript::PCall(L, 3, 0);
             dmScript::TeardownCallback(request->m_CallbackInfo);
         }
         else
         {
-            dmLogError("Failed to setup sys.load_buffer_async callback (has the calling script been destroyed?)");
+            dmLogError("Failed to setup resource.create_texture_async callback (has the calling script been destroyed?)");
         }
+
+        dmScript::DestroyCallback(request->m_CallbackInfo);
+    }
+
+    // If we used a temporary upload buffer, we need to delete it.
+    if (request->m_UseUploadBuffer)
+    {
+        dmBuffer::Destroy(request->m_Buffer);
+    }
+    else
+    {
+        dmScript::Unref(request->m_LuaState, LUA_REGISTRYINDEX, request->m_BufferRef);
     }
 
     // Swap out the texture
     dmGraphics::DeleteTexture(request->m_TextureResource->m_Texture);
     request->m_TextureResource->m_Texture = request->m_Texture;
 
-    dmScript::DestroyCallback(request->m_CallbackInfo);
     g_ResourceModule.m_LoadRequests.Release(request->m_Handle);
     delete request;
 }
@@ -975,34 +977,191 @@ static int CreateTexture(lua_State* L)
  * meaning "/path/my_texture" is not a valid path but "/path/my_texture.texturec" is.
  * If the texture is created without a buffer, the pixel data will be blank.
  *
+ * The difference between the async version and [ref:resource.create_texture] is that the texture data will be uploaded
+ * in a graphics worker thread. The function will return a resource immediately that contains a 1x1 blank texture which can be used
+ * immediately after the function call. When the new texture has been uploaded, the initial blank texture will be deleted and replaced with the
+ * new texture. Be careful when using the initial texture handle handle as it will not be valid after the upload has finished.
+ *
  * @name resource.create_texture_async
  *
  * @param path [type:string] The path to the resource.
  * @param table [type:table] A table containing info about how to create the texture. Supported entries:
+ * `type`
+ * : [type:number] The texture type. Supported values:
+ *
+ * - `resource.TEXTURE_TYPE_2D`
+ * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ *
+ * `width`
+ * : [type:number] The width of the texture (in pixels). Must be larger than 0.
+ *
+ * `height`
+ * : [type:number] The width of the texture (in pixels). Must be larger than 0.
+ *
+ * `format`
+ * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
+ *
+ * - `resource.TEXTURE_FORMAT_LUMINANCE`
+ * - `resource.TEXTURE_FORMAT_RGB`
+ * - `resource.TEXTURE_FORMAT_RGBA`
+ *
+ * These constants might not be available on the device:
+ *
+ * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
+ * - `resource.TEXTURE_FORMAT_RGB_ETC1`
+ * - `resource.TEXTURE_FORMAT_RGBA_ETC2`
+ * - `resource.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `resource.TEXTURE_FORMAT_RGB_BC1`
+ * - `resource.TEXTURE_FORMAT_RGBA_BC3`
+ * - `resource.TEXTURE_FORMAT_R_BC4`
+ * - `resource.TEXTURE_FORMAT_RG_BC5`
+ * - `resource.TEXTURE_FORMAT_RGBA_BC7`
+ * - `resource.TEXTURE_FORMAT_RGB16F`
+ * - `resource.TEXTURE_FORMAT_RGB32F`
+ * - `resource.TEXTURE_FORMAT_RGBA16F`
+ * - `resource.TEXTURE_FORMAT_RGBA32F`
+ * - `resource.TEXTURE_FORMAT_R16F`
+ * - `resource.TEXTURE_FORMAT_RG16F`
+ * - `resource.TEXTURE_FORMAT_R32F`
+ * - `resource.TEXTURE_FORMAT_RG32F`
+ *
+ * You can test if the device supports these values by checking if a specific enum is nil or not:
+ *
+ * ```lua
+ * if resource.TEXTURE_FORMAT_RGBA16F ~= nil then
+ *     -- it is safe to use this format
+ * end
+ * ```
+ *
+ * `max_mipmaps`
+ * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
+ *
+ * `compression_type`
+ * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
+ * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ *
+ * - `COMPRESSION_TYPE_DEFAULT`
+ * - `COMPRESSION_TYPE_BASIS_UASTC`
+ *
+ * @param buffer [type:buffer] optional buffer of precreated pixel data
+ *
+ * @return path, request_id [type:hash, type:handle] The path to the resource and the request id for the async request.
+ *
+ * @examples
+ * Create a texture resource asyncronously with a buffer and a callback
+ *
+ * ```lua
+ * function callback(self, request_id, resource)
+ *     -- The resource has been updated with a new texture,
+ *     -- so we can update other systems with the new handle,
+ *     -- or update components to use the resource if we want
+ *     local tinfo = resource.get_texture_info(resource)
+ *     msg.post("@render:", "set_backing_texture", tinfo.handle)
+ * end
+ * function init(self)
+ *     -- Create a texture resource async
+ *     local tparams = {
+ *         width          = 128,
+ *         height         = 128,
+ *         type           = resource.TEXTURE_TYPE_2D,
+ *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *     }
+ *
+ *     -- Create a new buffer with 4 components
+ *     local tbuffer = buffer.create(tparams.width * tparams.height, { {name=hash("rgba"), type=buffer.VALUE_TYPE_UINT8, count=4} } )
+ *     local tstream = buffer.get_stream(tbuffer, hash("rgba"))
+ *
+ *     -- Fill the buffer stream with some float values
+ *     for y=1,tparams.width do
+ *         for x=1,tparams.height do
+ *             local index = (y-1) * 128 * 4 + (x-1) * 4 + 1
+ *             tstream[index + 0] = 255
+ *             tstream[index + 1] = 0
+ *             tstream[index + 2] = 255
+ *             tstream[index + 3] = 255
+ *         end
+ *     end
+ *     -- create the texture
+ *     local tpath, request_id = resource.create_texture_async("/my_texture.texturec", tparams, tbuffer, callback)
+ *     -- at this point you can use the resource as-is, but note that the texture will be a blank 1x1 texture
+ *     -- that will be removed once the new texture has been updated
+ *     go.set("#model", "texture0", tpath)
+ * end
+ * ```
+ *
+ * @examples
+ * Create a texture resource asyncronously without a callback
+ *
+ * ```lua
+ * function init(self)
+ *     -- Create a texture resource async
+ *     local tparams = {
+ *         width          = 128,
+ *         height         = 128,
+ *         type           = resource.TEXTURE_TYPE_2D,
+ *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *     }
+ *
+ *     -- Create a new buffer with 4 components
+ *     local tbuffer = buffer.create(tparams.width * tparams.height, { {name=hash("rgba"), type=buffer.VALUE_TYPE_UINT8, count=4} } )
+ *     local tstream = buffer.get_stream(tbuffer, hash("rgba"))
+ *
+ *     -- Fill the buffer stream with some float values
+ *     for y=1,tparams.width do
+ *         for x=1,tparams.height do
+ *             local index = (y-1) * 128 * 4 + (x-1) * 4 + 1
+ *             tstream[index + 0] = 255
+ *             tstream[index + 1] = 0
+ *             tstream[index + 2] = 255
+ *             tstream[index + 3] = 255
+ *         end
+ *     end
+ *     -- create the texture
+ *     local tpath, request_id = resource.create_texture_async("/my_texture.texturec", tparams, tbuffer)
+ *     -- at this point you can use the resource as-is, but note that the texture will be a blank 1x1 texture
+ *     -- that will be removed once the new texture has been updated
+ *     go.set("#model", "texture0", tpath)
+ * end
+ * ```
  */
 static int CreateTextureAsync(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 2);
 
+    // Unpack all lua arguments
     CreateTextureResourceParams create_params = {};
     CheckCreateTextureResourceParams(L, &create_params);
 
-    dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 4);
-
-    if (callback_info == 0x0)
+    // Create an empty upload buffer
+    dmBuffer::HBuffer dst_buffer = create_params.m_Buffer;
+    bool use_upload_buffer = create_params.m_Buffer == 0;
+    if (use_upload_buffer)
     {
-        return luaL_error(L, "resource.create_texture_async failed to create callback");
+        const dmBuffer::StreamDeclaration streams_decl = {dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1};
+        dmBuffer::Result r = dmBuffer::Create(create_params.m_Width * create_params.m_Height * create_params.m_TextureBpp, &streams_decl, 1, &dst_buffer);
+        if (r != dmBuffer::RESULT_OK)
+        {
+            return DM_LUA_ERROR("Unable to create an empty upload buffer: %s (%d)", dmBuffer::GetResultString(r), r);
+        }
     }
 
+    // The callback is optional, we don't have to do anything with the result if we don't need to.
+    // I.e the upload can be fire-and-forget. There is no way an upload can fail in the graphics system,
+    // we should catch any incorrectness here if that's the case.
+    dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 4);
+
     // Create an initial blank texture that can be used while we upload the texture data externally
-    CreateTextureResourceParams blank_texture_params = create_params;
-    blank_texture_params.m_Width      = 1;
-    blank_texture_params.m_Height     = 1;
-    blank_texture_params.m_MaxMipMaps = 1;
-    blank_texture_params.m_Buffer     = 0;
+    CreateTextureResourceParams create_texture_resource_params = create_params;
+    create_texture_resource_params.m_Width      = 1;
+    create_texture_resource_params.m_Height     = 1;
+    create_texture_resource_params.m_MaxMipMaps = 1;
+    create_texture_resource_params.m_Buffer     = 0;
 
     dmGraphics::TextureImage texture_image = {};
-    MakeTextureImage(blank_texture_params, &texture_image);
+    MakeTextureImage(create_texture_resource_params, &texture_image);
 
     dmArray<uint8_t> ddf_buffer;
     dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
@@ -1010,7 +1169,6 @@ static int CreateTextureAsync(lua_State* L)
 
     void* resource = 0x0;
     dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, create_params.m_Path, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
-
     DestroyTextureImage(texture_image, create_params.m_Buffer == 0);
 
     if (res != dmResource::RESULT_OK)
@@ -1032,19 +1190,29 @@ static int CreateTextureAsync(lua_State* L)
 
     SetTextureAsyncRequest* request = new SetTextureAsyncRequest();
     HOpaqueHandle request_handle = g_ResourceModule.m_LoadRequests.Put(request);
+    request->m_LuaState          = L;
     request->m_TextureResource   = (TextureResource*) resource;
-    request->m_Texture           = texture_dst;
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
+    request->m_Buffer            = dst_buffer;
+    request->m_Texture           = texture_dst;
+    request->m_UseUploadBuffer   = use_upload_buffer;
 
     dmGraphics::TextureParams texture_params;
-
     texture_params.m_Width  = create_params.m_Width;
     texture_params.m_Height = create_params.m_Height;
     texture_params.m_Format = create_params.m_Format;
 
-    dmBuffer::GetBytes(create_params.m_Buffer, (void**)&texture_params.m_Data, &texture_params.m_DataSize);
+    dmBuffer::GetBytes(request->m_Buffer, (void**)&texture_params.m_Data, &texture_params.m_DataSize);
     dmGraphics::SetTextureAsync(texture_dst, texture_params);
+
+    // If we are not using a specifically created upload buffer, we push the Lua object and increase its ref count,
+    // this is so that we can make sure that the buffer to live during the upload.
+    if (!use_upload_buffer)
+    {
+        lua_pushvalue(L, 3);
+        request->m_BufferRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    }
 
     dmScript::PushHash(L, create_params.m_PathHash);
     lua_pushnumber(L, request_handle);
@@ -2039,7 +2207,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * @name resource.create_atlas
  *
  * @param path [type:string] The path to the resource.
- * @param table [type:table] A table containing info about how to create the texture. Supported entries:
+ * @param table [type:table] A table containing info about how to create the atlas. Supported entries:
  *
  * * `texture`
  * : [type:string|hash] the path to the texture resource, e.g "/main/my_texture.texturec"
