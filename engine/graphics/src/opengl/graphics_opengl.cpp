@@ -538,6 +538,8 @@ static void LogFrameBufferError(GLenum status)
     {
         if (!context->m_AsyncProcessingSupport)
             return;
+        if (!context->m_JobThread)
+            return;
 
         // TODO: If we have multiple workers, we need to either tag one of them as a graphics-only worker,
         //       or create multiple aux contexts and do an acquire for each of them.

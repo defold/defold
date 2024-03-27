@@ -15,7 +15,7 @@
 (ns editor.buffers
   (:require [util.num :as num])
   (:import [com.google.protobuf ByteString]
-           [java.nio ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]))
+           [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]))
 
 (set! *warn-on-reflection* true)
 
@@ -93,6 +93,16 @@
     (:int :uint) :int
     (:short :ushort) :short
     (:byte :ubyte) :byte))
+
+(defn as-typed-buffer
+  ^Buffer [^ByteBuffer buffer data-type]
+  (case data-type
+    (:double) (.asDoubleBuffer buffer)
+    (:float) (.asFloatBuffer buffer)
+    (:long) (.asLongBuffer buffer)
+    (:int :uint) (.asIntBuffer buffer)
+    (:short :ushort) (.asShortBuffer buffer)
+    (:byte :ubyte) buffer))
 
 (defn type-size
   ^long [type]
