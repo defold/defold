@@ -270,7 +270,9 @@ public class BundleHelper {
         }
         else {
             IResource defaultPrivacyManifest = project.getResource(platform.getExtenderPaths()[0], "privacymanifest");
-            ExtenderUtil.writeResourceToFile(defaultPrivacyManifest, targetPrivacyManifest);
+            if (defaultPrivacyManifest.exists()) {
+                ExtenderUtil.writeResourceToFile(defaultPrivacyManifest, targetPrivacyManifest);
+            }
         }
     }
 
