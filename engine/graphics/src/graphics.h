@@ -357,6 +357,7 @@ namespace dmGraphics
     {
         VertexAttributeInfos()
         {
+            memset(this, 0, sizeof(*this));
             m_StructSize = sizeof(*this);
         }
 

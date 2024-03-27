@@ -139,7 +139,6 @@ namespace dmGraphics
         {
             next_id = DM_RENDERTARGET_BACKBUFFER_ID + 1;
         }
-
         return next_id++;
     }
 
