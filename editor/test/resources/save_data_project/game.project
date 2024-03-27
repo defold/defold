@@ -103,6 +103,7 @@ bundle_identifier = com.defold.save-data-project
 bundle_name = Save Data Project
 bundle_version = 1.0
 infoplist = /builtins/manifests/ios/Info.plist
+privacymanifest = /builtins/manifests/ios/PrivacyInfo.xcprivacy
 default_language = en
 localizations = en
 entitlements = /referenced/entitlements.plist
@@ -114,6 +115,7 @@ bundle_identifier = com.defold.save-data-project
 bundle_name = Save Data Project
 bundle_version = 1.0
 infoplist = /builtins/manifests/osx/Info.plist
+privacymanifest = /builtins/manifests/osx/PrivacyInfo.xcprivacy
 app_icon = /referenced/icon-macos.icns
 
 [windows]
