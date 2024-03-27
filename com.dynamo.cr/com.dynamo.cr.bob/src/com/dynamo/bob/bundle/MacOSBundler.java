@@ -180,5 +180,8 @@ public class MacOSBundler implements IBundler {
         }
 
         BundleHelper.throwIfCanceled(canceled);
+
+        // Copy PrivacyManifest.xcprivacy
+        BundleHelper.copyPrivacyManifest(project, platform, appDir);
     }
 }
