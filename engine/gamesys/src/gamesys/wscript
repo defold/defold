@@ -30,7 +30,7 @@ def build(bld):
     else:
         resource.source += ['scripts/window/script_window_null.cpp']
 
-    if bld.env.PLATFORM in ('web'):
+    if 'web' in bld.env.PLATFORM:
         resource.source = remove_from_node_list(resource.source, 'script_http.cpp')
     else:
         resource.source = remove_from_node_list(resource.source, 'script_http_js.cpp')
