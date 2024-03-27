@@ -504,6 +504,9 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
   ([request-id verts frags uniforms array-sampler-name->uniform-names]
    (->ShaderLifecycle request-id verts frags uniforms array-sampler-name->uniform-names)))
 
+(defn shader-lifecycle? [value]
+  (instance? ShaderLifecycle value))
+
 (defn is-using-array-samplers? [shader-lifecycle]
   (pos? (count (:array-sampler-name->uniform-names shader-lifecycle))))
 
