@@ -514,6 +514,10 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
+        // Copy PrivacyManifest.xcprivacy
+        BundleHelper.copyPrivacyManifest(project, platform, appDir);
+        BundleHelper.throwIfCanceled(canceled);
+
         // Package zip file
         File tmpZipDir = createTempDirectory();
         tmpZipDir.deleteOnExit();

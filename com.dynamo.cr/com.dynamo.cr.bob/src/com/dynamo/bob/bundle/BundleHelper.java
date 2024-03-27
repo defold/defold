@@ -249,6 +249,33 @@ public class BundleHelper {
         return resolvedManifests;
     }
 
+    /**
+     * Copy a PrivacyInfo.xcprivacy to a target folder. The file will either be
+     * copied from the extender build results or if that doesn't exist it will
+     * copy from the privacy manifest set in game.project
+     * @param project
+     * @param platform
+     * @param appDir Directory to copy to
+     */
+    public static void copyPrivacyManifest(Project project, Platform platform, File appDir) throws IOException {
+        final String privacyManifestFilename = "PrivacyInfo.xcprivacy";
+        File targetPrivacyManifest = new File(appDir, privacyManifestFilename);
+
+        File extenderBuildDir = new File(project.getRootDirectory(), "build");
+        File extenderBuildPlatformDir = new File(extenderBuildDir, platform.getExtenderPair());
+
+        File extenderPrivacyManifest = new File(extenderBuildPlatformDir, privacyManifestFilename);
+        if (extenderPrivacyManifest.exists()) {
+            FileUtils.copyFile(extenderPrivacyManifest, targetPrivacyManifest);
+        }
+        else {
+            IResource defaultPrivacyManifest = project.getResource(platform.getExtenderPaths()[0], "privacymanifest", false);
+            if (defaultPrivacyManifest.exists()) {
+                ExtenderUtil.writeResourceToFile(defaultPrivacyManifest, targetPrivacyManifest);
+            }
+        }
+    }
+
     private File getAppManifestFile(Platform platform, File appDir) {
         String name = bundler.getMainManifestTargetPath(platform);
         return new File(appDir, name);

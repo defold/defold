@@ -519,6 +519,13 @@
    :default "/builtins/manifests/ios/Info.plist",
    :path ["ios" "infoplist"]}
   {:type :resource,
+   :filter "xcprivacy",
+   :preserve-extension true,
+   :help "Privacy Manifest file",
+   :label "PrivacyInfo.xcprivacy"
+   :default "/builtins/manifests/ios/PrivacyInfo.xcprivacy",
+   :path ["ios" "privacymanifest"]}
+  {:type :resource,
    :filter ["entitlements", "xcent", "plist"],
    :preserve-extension true,
    :help "custom entitlements to use when signing an iOS bundle. Can replace any wildcard entitlements in the supplied provisioning profile",
@@ -726,6 +733,13 @@
    :label "Info.plist",
    :default "/builtins/manifests/osx/Info.plist",
    :path ["osx" "infoplist"]}
+  {:type :resource,
+   :filter "xcprivacy",
+   :preserve-extension true,
+   :help "Privacy Manifest file",
+   :label "PrivacyInfo.xcprivacy"
+   :default "/builtins/manifests/osx/PrivacyInfo.xcprivacy",
+   :path ["osx" "privacymanifest"]}
   {:type :string,
    :help "default language and region (CFBundleDevelopmentRegion)",
    :default "en",
