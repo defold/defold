@@ -125,8 +125,11 @@ TEST_F(FileProviderArchive, ReadFile)
     ASSERT_ARRAY_EQ_LEN(SOMEDATA, long_buffer, sizeof(SOMEDATA));
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     dmHashEnableReverseHash(true);
     dmLog::LogParams logparams;
     dmLog::LogInitialize(&logparams);

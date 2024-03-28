@@ -302,8 +302,11 @@ TEST_F(dmRenderMaterialTest, MatchMaterialTags)
     ASSERT_FALSE(dmRender::MatchMaterialTags(DM_ARRAY_SIZE(material_tags), material_tags, DM_ARRAY_SIZE(tags_e), tags_e));
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     dmHashEnableReverseHash(true);
     jc_test_init(&argc, argv);

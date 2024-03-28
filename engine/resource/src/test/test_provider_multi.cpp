@@ -30,7 +30,6 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-
 static uint8_t* GetRawFile(const char* path, uint32_t* size, bool override)
 {
     const char* override_path = override ? "/overrides" : "";
@@ -271,8 +270,11 @@ TEST_F(ArchiveProvidersMulti, ReadCustomFile)
     ASSERT_EQ(0u, resource_size);
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     dmHashEnableReverseHash(true);
     dmLog::LogParams logparams;
     dmLog::LogInitialize(&logparams);

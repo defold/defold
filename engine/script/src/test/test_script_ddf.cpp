@@ -18,7 +18,6 @@
 #include "test_script.h"
 #include "test/test_ddf.h"
 
-
 class ScriptDDFTest : public dmScriptTest::ScriptTest
 {
 };
@@ -485,8 +484,11 @@ TEST_F(ScriptDDFTest, Uint64ToDDF)
     delete[] test.m_Buffer;
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

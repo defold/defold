@@ -1067,8 +1067,11 @@ TEST_F(ScriptTestLua, LuaBooleanFunctions)
 
 #undef USE_PANIC_FN
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

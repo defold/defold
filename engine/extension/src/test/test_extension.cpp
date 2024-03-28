@@ -29,6 +29,14 @@ extern "C"
 extern int g_TestAppInitCount;
 extern int g_TestAppEventCount;
 
+extern "C" void TestExt();
+
+struct Initializer {
+    Initializer() {
+        TestExt();
+    }
+} g_SymbolInitializer;
+
 TEST(dmExtension, Basic)
 {
     dmExtension::AppParams appparams;

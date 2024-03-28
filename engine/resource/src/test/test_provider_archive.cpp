@@ -298,9 +298,11 @@ InMemoryParams params_in_memory_archives[] = {
 
 INSTANTIATE_TEST_CASE_P(ArchiveProviderInMemory, ArchiveProviderArchiveInMemory, jc_test_values_in(params_in_memory_archives));
 
+extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     dmHashEnableReverseHash(true);
     dmLog::LogParams logparams;
     dmLog::LogInitialize(&logparams);

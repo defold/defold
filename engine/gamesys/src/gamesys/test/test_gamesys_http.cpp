@@ -83,8 +83,11 @@ TEST_F(ComponentTest, HTTPRequest)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
 
     dmLog::LogParams params;

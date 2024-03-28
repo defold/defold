@@ -137,8 +137,11 @@ TEST_F(HttpProviderArchive, ReadFile)
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     dmHashEnableReverseHash(true);
 
     dmSocket::Initialize();

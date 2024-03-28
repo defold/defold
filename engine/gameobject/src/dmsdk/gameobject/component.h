@@ -702,21 +702,9 @@ namespace dmGameObject
     #define DM_COMPONENT_PASTE_SYMREG(x, y) x ## y
     #define DM_COMPONENT_PASTE_SYMREG2(x, y) DM_COMPONENT_PASTE_SYMREG(x,y)
 
-    #ifdef __GNUC__
-        // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"
-        // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
-        // The bug only happens when the symbol is in a static library though
-        #define DM_REGISTER_COMPONENT_TYPE(symbol, desc, name, type_create_fn, type_destroy_fn) extern "C" void __attribute__((constructor)) symbol () { \
-            dmGameObject::RegisterComponentTypeDescriptor((struct dmGameObject::ComponentTypeDescriptor*) &desc, name, type_create_fn, type_destroy_fn); \
-        }
-    #else
-        #define DM_REGISTER_COMPONENT_TYPE(symbol, desc, name, type_create_fn, type_destroy_fn) extern "C" void symbol () { \
-            dmGameObject::RegisterComponentTypeDescriptor((struct dmGameObject::ComponentTypeDescriptor*) &desc, name, type_create_fn, type_destroy_fn); \
-            }\
-            int symbol ## Wrapper(void) { symbol(); return 0; } \
-            __pragma(section(".CRT$XCU",read)) \
-            __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
-    #endif
+    #define DM_REGISTER_COMPONENT_TYPE(symbol, desc, name, type_create_fn, type_destroy_fn) extern "C" void symbol () { \
+        dmGameObject::RegisterComponentTypeDescriptor((struct dmGameObject::ComponentTypeDescriptor*) &desc, name, type_create_fn, type_destroy_fn); \
+    }
 
     /*# register a new component type
      * @param symbol [type: cpp_symbol_name] The unique C++ symbol name
