@@ -287,6 +287,45 @@ namespace dmGraphics
         uint8_t               : 4;
     };
 
+    struct PipelineState
+    {
+        uint64_t m_WriteColorMask           : 4;
+        uint64_t m_WriteDepth               : 1;
+        uint64_t m_PrimtiveType             : 3;
+        // Depth Test
+        uint64_t m_DepthTestEnabled         : 1;
+        uint64_t m_DepthTestFunc            : 3;
+        // Stencil Test
+        uint64_t m_StencilEnabled           : 1;
+
+        // Front
+        uint64_t m_StencilFrontOpFail       : 3;
+        uint64_t m_StencilFrontOpPass       : 3;
+        uint64_t m_StencilFrontOpDepthFail  : 3;
+        uint64_t m_StencilFrontTestFunc     : 3;
+
+        // Back
+        uint64_t m_StencilBackOpFail        : 3;
+        uint64_t m_StencilBackOpPass        : 3;
+        uint64_t m_StencilBackOpDepthFail   : 3;
+        uint64_t m_StencilBackTestFunc      : 3;
+
+        uint64_t m_StencilWriteMask         : 8;
+        uint64_t m_StencilCompareMask       : 8;
+        uint64_t m_StencilReference         : 8;
+        // Blending
+        uint64_t m_BlendEnabled             : 1;
+        uint64_t m_BlendSrcFactor           : 4;
+        uint64_t m_BlendDstFactor           : 4;
+        // Culling
+        uint64_t m_CullFaceEnabled          : 1;
+        uint64_t m_CullFaceType             : 2;
+        // Face winding
+        uint64_t m_FaceWinding              : 1;
+        // Polygon offset
+        uint64_t m_PolygonOffsetFillEnabled : 1;
+    };
+
     struct VertexAttributeInfo
     {
         dmhash_t                      m_NameHash;
