@@ -1093,6 +1093,11 @@ namespace dmGraphics
 
         delete[] device_list;
 
+        if (created_width != context->m_Width || created_height != context->m_Height)
+        {
+            dmPlatform::SetWindowSize(context->m_Window, created_width, created_height);
+        }
+
         context->m_PipelineCache.SetCapacity(32,64);
         context->m_TextureSamplers.SetCapacity(4);
 
@@ -1340,8 +1345,15 @@ bail:
         vk_present_info.pImageIndices      = &frame_ix;
         vk_present_info.pResults           = 0;
 
+        // This is a fix / workaround for android where the swap chain capabilities can have a presentation transform.
+        // For now we skip the transform completely by setting the currentTransform = identity,
+        // but that causes the presentation function to return a suboptimal result, which we don't care about right now.
+        // A more "proper" way of doing this would be to actually use the preTransform values, but I don't know how it works.
         res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &vk_present_info);
-        CHECK_VK_ERROR(res);
+        if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
+        {
+            CHECK_VK_ERROR(res);
+        }
 
         // Advance frame index
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;
@@ -2114,6 +2126,8 @@ bail:
 
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
 
+        PipelineState pipeline_state_draw = context->m_PipelineState;
+
         // If the culling, or viewport has changed, make sure to flip the
         // culling flag if we are rendering to the backbuffer.
         // This is needed because we are rendering with a negative viewport
@@ -2122,13 +2136,13 @@ bail:
         {
             if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
             {
-                if (context->m_PipelineState.m_CullFaceType == FACE_TYPE_BACK)
+                if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
                 {
-                    context->m_PipelineState.m_CullFaceType = FACE_TYPE_FRONT;
+                    pipeline_state_draw.m_CullFaceType = FACE_TYPE_FRONT;
                 }
-                else if (context->m_PipelineState.m_CullFaceType == FACE_TYPE_FRONT)
+                else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
                 {
-                    context->m_PipelineState.m_CullFaceType = FACE_TYPE_BACK;
+                    pipeline_state_draw.m_CullFaceType = FACE_TYPE_BACK;
                 }
             }
             context->m_CullFaceChanged = 0;
@@ -2165,7 +2179,7 @@ bail:
         }
 
         Pipeline* pipeline = GetOrCreatePipeline(vk_device, vk_sample_count,
-            context->m_PipelineState, context->m_PipelineCache,
+            pipeline_state_draw, context->m_PipelineCache,
             program_ptr, current_rt, context->m_CurrentVertexDeclaration, num_vx_buffers);
 
         if (pipeline != context->m_CurrentPipeline)
