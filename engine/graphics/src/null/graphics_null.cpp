@@ -155,6 +155,7 @@ namespace dmGraphics
         context->m_Program                              = 0x0;
         context->m_PipelineState                        = GetDefaultPipelineState();
         context->m_AsyncProcessingSupport               = context->m_JobThread && dmThread::PlatformHasThreadSupport();
+        context->m_AssetContainerMutex                  = dmMutex::New();
 
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_MULTI_TARGET_RENDERING;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
@@ -162,7 +163,6 @@ namespace dmGraphics
 
         if (context->m_AsyncProcessingSupport)
         {
-            context->m_AssetContainerMutex = dmMutex::New();
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
         }
 
@@ -1427,11 +1427,6 @@ namespace dmGraphics
 
     static void NullDeleteTexture(HTexture texture)
     {
-
-        void* tex = (void*) GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
-
-        dmLogInfo("Deleting texture %llu (%p)", texture, tex);
-
         if (g_NullContext->m_AsyncProcessingSupport && g_NullContext->m_UseAsyncTextureLoad)
         {
             // If they're not uploaded yet, we cannot delete them
