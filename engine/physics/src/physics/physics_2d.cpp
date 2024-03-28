@@ -22,8 +22,8 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 
-#include "Box2D/Box2D.h"
-#include "Box2D/Dynamics/Contacts/b2ContactSolver.h"
+#include <Box2D/Box2D.h>
+#include <Box2D/Dynamics/Contacts/b2ContactSolver.h>
 
 #include "physics_2d.h"
 
@@ -272,6 +272,16 @@ namespace dmPhysics
             if (context->m_Worlds[i] == world)
                 context->m_Worlds.EraseSwap(i);
         delete world;
+    }
+
+    void* GetWorldContext2D(HWorld2D world)
+    {
+        return (void*)&world->m_World;
+    }
+
+    void* GetCollisionObjectContext2D(HCollisionObject2D collision_object)
+    {
+        return (void*) collision_object;
     }
 
     static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context);

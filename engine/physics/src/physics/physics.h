@@ -347,6 +347,9 @@ namespace dmPhysics
      */
     void DeleteWorld2D(HContext2D context, HWorld2D world);
 
+    void* GetWorldContext2D(HWorld2D world);
+    void* GetCollisionObjectContext2D(HCollisionObject2D collision_object);
+
     /**
      * Arguments passed to the StepWorld* functions.
      */

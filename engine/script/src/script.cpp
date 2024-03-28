@@ -698,6 +698,23 @@ namespace dmScript
         return type_hash;
     }
 
+
+    uint32_t RegisterUserTypeLocal(lua_State* L, const char* name, const luaL_reg meta[])
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        luaL_newmetatable(L, name);
+        uint32_t type_hash = SetUserType(L, -1, name);
+
+        luaL_register (L, 0, meta);
+        lua_pushvalue(L, -1);
+        lua_setfield(L, -1, "__index");
+        lua_pop(L, 1);
+
+        return type_hash;
+    }
+
+
     uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]) {
         DM_LUA_STACK_CHECK(L, 0);
 

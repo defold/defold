@@ -560,6 +560,7 @@ namespace dmScript
 
     /**
      * Register a user type along with methods and meta methods.
+     * It registers the type in the global context
      * @param L lua state
      * @param name user type name
      * @param methods array of methods
@@ -567,6 +568,16 @@ namespace dmScript
      * @return type_key the hash key registered for this user type
      */
     uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]);
+
+    /**
+     * Register an object oriented style user type along with methods.
+     * It doesn't register the type in the global context
+     * @param L lua state
+     * @param name user type name
+     * @param meta array of meta methods and object functions
+     * @return type_key the hash key registered for this user type
+     */
+    uint32_t RegisterUserTypeLocal(lua_State* L, const char* name, const luaL_reg meta[]);
 
     /**
      * Gets the type key of a user datas meta table.
