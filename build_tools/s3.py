@@ -23,6 +23,10 @@ from configparser import ConfigParser
 
 s3buckets = {}
 
+def init_boto_data_path():
+    data_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto3_data'))
+    os.environ['AWS_DATA_PATH'] = data_path
+
 def get_archive_prefix(archive_path, sha1):
     u = urlparse(archive_path)
     assert (u.scheme == 's3')
