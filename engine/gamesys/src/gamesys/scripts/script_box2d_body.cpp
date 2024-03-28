@@ -447,7 +447,11 @@ namespace dmGameSystem
     {
         {"__tostring", Body_tostring},
         {"__eq", Body_eq},
+        {0,0}
+    };
 
+    static const luaL_reg Body_functions[] =
+    {
         {"get_position", Body_GetPosition},
         {"set_transform", Body_SetTransform},
 
@@ -529,7 +533,24 @@ namespace dmGameSystem
 
     void ScriptBox2DInitializeBody(struct lua_State* L)
     {
-        TYPE_HASH_BODY = dmScript::RegisterUserTypeLocal(L, BOX2D_TYPE_NAME_BODY, Body_meta);
+        TYPE_HASH_BODY = dmScript::RegisterUserType(L, BOX2D_TYPE_NAME_BODY, Body_methods, Body_meta);
+
+        lua_newtable(L);
+        luaL_register(L, 0, Body_functions);
+
+#define SET_CONSTANT(NS, NAME) \
+        lua_pushnumber(L, (lua_Number) NS :: NAME); \
+        lua_setfield(L, -2, #NAME);
+
+        lua_newtable(L);
+        SET_CONSTANT(b2BodyType, b2_staticBody);
+        SET_CONSTANT(b2BodyType, b2_kinematicBody);
+        SET_CONSTANT(b2BodyType, b2_dynamicBody);
+        lua_setfield(L, -2, "b2BodyType");
+
+#undef SET_CONSTANT
+
+        lua_setfield(L, -2, "body");
     }
 }
 
@@ -538,7 +559,23 @@ namespace dmGameSystem
  * Functions for interacting with Box2D bodies.
  *
  * @document
- * @name b2body
+ * @name b2d.body
+ */
+
+/*# Static (immovable) body
+ *
+ * @name b2d.body.b2_staticBody
+ * @variable
+ */
+/*# Kinematic body
+ *
+ * @name b2d.body.b2_kinematicBody
+ * @variable
+ */
+/*# Dynamic body
+ *
+ * @name b2d.body.b2_dynamicBody
+ * @variable
  */
 
 /**
