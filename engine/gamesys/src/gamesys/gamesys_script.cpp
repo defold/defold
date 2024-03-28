@@ -25,7 +25,6 @@
 #include "scripts/script_particlefx.h"
 #include "scripts/script_tilemap.h"
 #include "scripts/script_physics.h"
-#include "scripts/script_box2d.h"
 #include "scripts/script_sound.h"
 #include "scripts/script_sprite.h"
 #include "scripts/script_factory.h"
@@ -39,6 +38,7 @@
 #include "scripts/script_sys_gamesys.h"
 #include "scripts/script_camera.h"
 #include "scripts/script_http.h"
+#include "scripts/box2d/script_box2d.h"
 
 #include "components/comp_gui.h"
 

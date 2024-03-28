@@ -21,7 +21,7 @@
 #include <gameobject/script.h>
 
 #include "gamesys.h"
-#include "../gamesys_private.h"
+#include "gamesys_private.h"
 
 #include "components/comp_collision_object.h"
 

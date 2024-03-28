@@ -21,7 +21,7 @@
 #include <gameobject/script.h>
 
 #include "gamesys.h"
-#include "../gamesys_private.h"
+#include "gamesys_private.h"
 #include "components/comp_collision_object.h"
 
 #include "script_box2d.h"
@@ -504,7 +504,7 @@ namespace dmGameSystem
         {"get_position", Body_GetPosition},
         {"set_transform", Body_SetTransform},
 
-        //{"get_user_data", Body_GetUserData}, - could return the game object id ?
+        //{"get_user_data", Body_GetUserData}, - could return the game object id ? ur url?
         //{"set_user_data", Body_SetUserData}, - could attach the body to a game object?
 
         {"get_mass", Body_GetMass},
