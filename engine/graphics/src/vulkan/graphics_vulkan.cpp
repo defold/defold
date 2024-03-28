@@ -1346,6 +1346,10 @@ bail:
         vk_present_info.pImageIndices      = &frame_ix;
         vk_present_info.pResults           = 0;
 
+        // This is a fix / workaround for android where the swap chain capabilities can have a presentation transform.
+        // For now we skip the transform completely by setting the currentTransform = identity,
+        // but that causes the presentation function to return a suboptimal result, which we don't care about right now.
+        // A more "proper" way of doing this would be to actually use the preTransform values, but I don't know how it works.
         res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &vk_present_info);
         if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
         {
