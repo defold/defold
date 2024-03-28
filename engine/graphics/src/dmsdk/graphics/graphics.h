@@ -86,6 +86,13 @@ namespace dmGraphics
     typedef uintptr_t HIndexBuffer;
 
     /*#
+     * Storage buffer handle
+     * @typedef
+     * @name HStorageBuffer
+     */
+    typedef uintptr_t HStorageBuffer;
+
+    /*#
      * Uniform location handle
      * @typedef
      * @name HUniformLocation
@@ -112,6 +119,13 @@ namespace dmGraphics
      * @name INVALID_STREAM_OFFSET
      */
     const uint32_t INVALID_STREAM_OFFSET = 0xFFFFFFFF;
+
+    /*#
+     * Max buffer color attachments
+     * @constant
+     * @name MAX_BUFFER_COLOR_ATTACHMENTS
+     */
+    const uint8_t  MAX_BUFFER_COLOR_ATTACHMENTS = 4;
 
     /*#
      * @enum
@@ -141,6 +155,22 @@ namespace dmGraphics
         ATTACHMENT_DEPTH     = 1,
         ATTACHMENT_STENCIL   = 2,
         MAX_ATTACHMENT_COUNT = 3
+    };
+
+    /*#
+     * @enum
+     * @name AttachmentOp
+     * @member ATTACHMENT_OP_DONT_CARE
+     * @member ATTACHMENT_OP_LOAD
+     * @member ATTACHMENT_OP_STORE
+     * @member ATTACHMENT_OP_CLEAR
+     */
+    enum AttachmentOp
+    {
+        ATTACHMENT_OP_DONT_CARE,
+        ATTACHMENT_OP_LOAD,
+        ATTACHMENT_OP_STORE,
+        ATTACHMENT_OP_CLEAR,
     };
 
     /*#
