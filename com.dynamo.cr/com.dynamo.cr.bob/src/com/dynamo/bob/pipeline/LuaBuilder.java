@@ -72,7 +72,14 @@ public abstract class LuaBuilder extends Builder<Void> {
     private static List<ILuaPreprocessor> luaPreprocessors = null;
     private static List<ILuaObfuscator> luaObfuscators = null;
 
+    private static Set<String> luaSearchPaths = new HashSet<>();
+
     private Map<String, LuaScanner> luaScanners = new HashMap();
+
+    public static void addLuaSearchPath(String path) {
+        luaSearchPaths.add(path);
+    }
+
 
     /**
      * Get a LuaScanner instance for a resource
@@ -407,7 +414,18 @@ public abstract class LuaBuilder extends Builder<Void> {
         // add detected modules to builder
         for (String module : modules) {
             String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
-            BuilderUtil.checkResource(this.project, task.input(0), "module", module_file);
+            boolean found = false;
+            for (String path : luaSearchPaths) {
+                File f = new File(path, module_file);
+                if (f.exists()) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                BuilderUtil.checkResource(this.project, task.input(0), "module", module_file);
+            }
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }
