@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-
+import waflib.Options
 from waf_dynamo import platform_supports_feature
 
 def build(bld):
@@ -11,8 +11,14 @@ def build(bld):
                 target = 'test_platform')
 
     if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
+
+        use_libs = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE OPENGL platform'.split()
+
+        if waflib.Options.options.with_vulkan:
+            use_libs.append('VULKAN')
+
         bld.program(features = 'cxx cprogram test skip_test',
                     includes = ['../../src'],
                     source = 'test_platform_app.cpp',
-                    use = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE OPENGL platform'.split(),
+                    use = use_libs,
                     target = 'test_platform_app')

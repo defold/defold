@@ -20,9 +20,6 @@
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 
-// TODO: Migrate last bits of glfw from this file
-#include <glfw/glfw.h>
-
 #include <platform/platform_window.h>
 
 #include "hid.h"
@@ -179,9 +176,9 @@ namespace dmHID
     {
         if (context != 0x0)
         {
-            if (glfwInit() == GL_FALSE)
+            if (!context->m_Window)
             {
-                dmLogFatal("glfw could not be initialized.");
+                dmLogFatal("No window has been created.");
                 return false;
             }
 
@@ -228,7 +225,7 @@ namespace dmHID
                 Keyboard* keyboard = &context->m_Keyboards[k];
                 keyboard->m_Connected = 1; // TODO: Actually detect if the keyboard is present
 
-                for (uint32_t i = 0; i < MAX_KEY_COUNT; ++i)
+                for (uint32_t i = 32; i < MAX_KEY_COUNT; ++i)
                 {
                     uint32_t mask = 1;
                     mask <<= i % 32;
@@ -237,7 +234,7 @@ namespace dmHID
                     int key_value = GetKeyValue(key);
                     int state     = dmPlatform::GetKey(context->m_Window, key_value);
 
-                    if (state == GLFW_PRESS)
+                    if (state)
                         keyboard->m_Packet.m_Keys[i / 32] |= mask;
                     else
                         keyboard->m_Packet.m_Keys[i / 32] &= ~mask;
@@ -264,7 +261,7 @@ namespace dmHID
                     int button_value = GetMouseButtonValue((MouseButton) i);
                     int state        = dmPlatform::GetMouseButton(context->m_Window, button_value);
 
-                    if (state == GLFW_PRESS)
+                    if (state)
                         packet.m_Buttons[i / 32] |= mask;
                     else
                         packet.m_Buttons[i / 32] &= ~mask;
@@ -303,22 +300,23 @@ namespace dmHID
             {
                 TouchDevice* device = &context->m_TouchDevices[t];
 
-                GLFWTouch glfw_touch[dmHID::MAX_TOUCH_COUNT];
-                int n_touch;
-                if (glfwGetTouch(glfw_touch, dmHID::MAX_TOUCH_COUNT, &n_touch))
+                dmPlatform::TouchData touch_data[dmHID::MAX_TOUCH_COUNT];
+
+                uint32_t n_touch = dmPlatform::GetTouchData(context->m_Window, touch_data, dmHID::MAX_TOUCH_COUNT);
+                if (n_touch > 0)
                 {
                     device->m_Connected = 1;
                     TouchDevicePacket* packet = &device->m_Packet;
                     packet->m_TouchCount = n_touch;
                     for (int i = 0; i < n_touch; ++i)
                     {
-                        packet->m_Touches[i].m_TapCount = glfw_touch[i].TapCount;
-                        packet->m_Touches[i].m_Id = glfw_touch[i].Id;
-                        packet->m_Touches[i].m_Phase = (dmHID::Phase) glfw_touch[i].Phase;
-                        packet->m_Touches[i].m_X = glfw_touch[i].X;
-                        packet->m_Touches[i].m_Y = glfw_touch[i].Y;
-                        packet->m_Touches[i].m_DX = glfw_touch[i].DX;
-                        packet->m_Touches[i].m_DY = glfw_touch[i].DY;
+                        packet->m_Touches[i].m_TapCount = touch_data[i].m_TapCount;
+                        packet->m_Touches[i].m_Id       = touch_data[i].m_Id;
+                        packet->m_Touches[i].m_Phase    = (dmHID::Phase) touch_data[i].m_Phase;
+                        packet->m_Touches[i].m_X        = touch_data[i].m_X;
+                        packet->m_Touches[i].m_Y        = touch_data[i].m_Y;
+                        packet->m_Touches[i].m_DX       = touch_data[i].m_DX;
+                        packet->m_Touches[i].m_DY       = touch_data[i].m_DY;
                     }
                 }
             }
@@ -327,7 +325,7 @@ namespace dmHID
         {
             AccelerationPacket packet;
             context->m_AccelerometerConnected = 0;
-            if (glfwGetAcceleration(&packet.m_X, &packet.m_Y, &packet.m_Z))
+            if (dmPlatform::GetAcceleration(context->m_Window, &packet.m_X, &packet.m_Y, &packet.m_Z))
             {
                 context->m_AccelerometerConnected = 1;
                 context->m_AccelerationPacket = packet;
@@ -354,6 +352,6 @@ namespace dmHID
 
     void ResetKeyboard(HContext context)
     {
-        glfwResetKeyboard();
+        dmPlatform::SetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_KEYBOARD_RESET, true);
     }
 }

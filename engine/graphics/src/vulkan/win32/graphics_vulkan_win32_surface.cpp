@@ -25,7 +25,7 @@
 
 namespace dmGraphics
 {
-    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI)
+    VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, bool enableHighDPI)
     {
         PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)
             vkGetInstanceProcAddr(vkInstance, "vkCreateWin32SurfaceKHR");

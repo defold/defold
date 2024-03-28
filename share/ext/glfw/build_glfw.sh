@@ -17,7 +17,7 @@
 # Compilation guide:
 # https://www.glfw.org/docs/latest/compile.html
 
-readonly VERSION=3.3.8
+readonly VERSION=3.3.9
 readonly BASE_URL=https://github.com/glfw/glfw/releases/download/${VERSION}/
 readonly FILE_URL=glfw-${VERSION}.zip
 readonly PRODUCT=glfw
@@ -38,6 +38,9 @@ CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_EXAMPLES=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_TESTS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DGLFW_VULKAN_STATIC=OFF ${CMAKE_FLAGS}"
+
+CMAKE_FLAGS_VULKAN="-DGLFW_VULKAN_STATIC=ON"
 
 # TODO: Investigate if we want this or our own loader.
 # CMAKE_FLAGS="-DGLFW_VULKAN_STATIC=OFF ${CMAKE_FLAGS}"
@@ -59,6 +62,8 @@ pushd $SOURCE_DIR
 
 cmi_unpack
 
+cmi_patch
+
 ## BUILD
 echo "CMAKE_FLAGS: '${CMAKE_FLAGS}"
 cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
@@ -74,6 +79,13 @@ mkdir -p $TARGET_LIB
 
 cp -v ${SRC_LIB} ${TARGET_LIB}
 
+## BUILD with vulkan support
+echo "CMAKE_FLAGS: '${CMAKE_FLAGS} ${CMAKE_FLAGS_VULKAN}"
+cmake ${CMAKE_FLAGS} ${CMAKE_FLAGS_VULKAN} ${SOURCE_DIR}
+cmake --build . --config Release
+
+cp -v ${SRC_LIB} ${TARGET_LIB}/libglfw3-vulkan.a
+
 PACKAGE=glfw-${VERSION}-${PLATFORM}.tar.gz
 
 tar cfvz $PACKAGE lib include
@@ -82,4 +94,6 @@ popd
 
 ## FINALIZE
 mv $SOURCE_DIR/$PACKAGE .
+
+rm -rf $SOURCE_DIR
 

@@ -3,19 +3,19 @@
 platforms:
     arm64-osx:
         context:
-            excludeLibs: []
+            excludeLibs: ["glfw3"]
             excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan","MoltenVK"]
+            libs: ["graphics_vulkan","MoltenVK", "glfw3-vulkan"]
             frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 
     x86_64-osx:
         context:
-            excludeLibs: []
+            excludeLibs: ["glfw3"]
             excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan","MoltenVK"]
+            libs: ["graphics_vulkan","MoltenVK","glfw3-vulkan"]
             frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 

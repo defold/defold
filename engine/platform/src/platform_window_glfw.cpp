@@ -19,6 +19,11 @@
 
 #include <glfw/glfw.h>
 
+#include <dlib/platform.h>
+#include <dlib/log.h>
+#include <dlib/array.h>
+#include <dlib/math.h>
+
 #include "platform_window.h"
 #include "platform_window_constants.h"
 
@@ -40,6 +45,9 @@ namespace dmPlatform
         void*                         m_SetMarkedTextCallbackUserData;
         WindowDeviceChangedCallback   m_DeviceChangedCallback;
         void*                         m_DeviceChangedCallbackUserData;
+        WindowGamepadEventCallback    m_GamepadEventCallback;
+        void*                         m_GamepadEventCallbackUserData;
+        dmArray<GLFWTouch>            m_TouchData;
         int32_t                       m_Width;
         int32_t                       m_Height;
         uint32_t                      m_Samples               : 8;
@@ -113,6 +121,14 @@ namespace dmPlatform
         if (g_Window->m_DeviceChangedCallback)
         {
             g_Window->m_DeviceChangedCallback(g_Window->m_DeviceChangedCallbackUserData, status);
+        }
+    }
+
+    static void OnGamepad(int gamepad_id, int connected)
+    {
+        if (g_Window->m_GamepadEventCallback)
+        {
+            g_Window->m_GamepadEventCallback(g_Window->m_GamepadEventCallbackUserData, gamepad_id, connected ? GAMEPAD_EVENT_CONNECTED : GAMEPAD_EVENT_DISCONNECTED);
         }
     }
 
@@ -258,10 +274,11 @@ namespace dmPlatform
             glfwSetWindowCloseCallback(OnWindowClose);
             glfwSetWindowFocusCallback(OnWindowFocus);
             glfwSetWindowIconifyCallback(OnWindowIconify);
+            glfwSetGamepadCallback(OnGamepad);
             glfwSwapInterval(1);
             glfwGetWindowSize(&window->m_Width, &window->m_Height);
 
-        #if !defined(DM_PLATFORM_WEB)
+        #if !defined(__EMSCRIPTEN__)
             glfwSetWindowTitle(params.m_Title);
         #endif
 
@@ -365,6 +382,7 @@ namespace dmPlatform
     #ifndef __EMSCRIPTEN__
         #define GLFW_AUX_CONTEXT_SUPPORTED
     #endif
+
     static inline int32_t QueryAuxContextImpl()
     {
     #if defined(GLFW_AUX_CONTEXT_SUPPORTED)
@@ -419,12 +437,48 @@ namespace dmPlatform
         return glfwGetDisplayScaleFactor();
     }
 
+    uintptr_t GetProcAddress(HWindow window, const char* proc_name)
+    {
+        return (uintptr_t) glfwGetProcAddress(proc_name);
+    }
+
     void SetSwapInterval(HWindow window, uint32_t swap_interval)
     {
         if (window->m_SwapIntervalSupported)
         {
             glfwSwapInterval(swap_interval);
         }
+    }
+
+    bool GetAcceleration(HWindow window, float* x, float* y, float* z)
+    {
+        return glfwGetAcceleration(x,y,z);
+    }
+
+    uint32_t GetTouchData(HWindow window, TouchData* touch_data, uint32_t touch_data_count)
+    {
+        int32_t touch_count = 0;
+
+        if (window->m_TouchData.Capacity() < touch_data_count)
+        {
+            window->m_TouchData.SetCapacity(touch_data_count);
+            window->m_TouchData.SetSize(touch_data_count);
+        }
+
+        glfwGetTouch(window->m_TouchData.Begin(), touch_data_count, &touch_count);
+
+        for (int i = 0; i < touch_count; ++i)
+        {
+            touch_data[i].m_TapCount = window->m_TouchData[i].TapCount;
+            touch_data[i].m_Phase    = window->m_TouchData[i].Phase;
+            touch_data[i].m_X        = window->m_TouchData[i].X;
+            touch_data[i].m_Y        = window->m_TouchData[i].Y;
+            touch_data[i].m_DX       = window->m_TouchData[i].DX;
+            touch_data[i].m_DY       = window->m_TouchData[i].DY;
+            touch_data[i].m_Id       = window->m_TouchData[i].Id;
+        }
+
+        return (uint32_t) touch_count;
     }
 
     int32_t GetKey(HWindow window, int32_t code)
@@ -478,20 +532,56 @@ namespace dmPlatform
             case DEVICE_STATE_KEYBOARD_PASSWORD:
                 glfwShowKeyboard(op1, GLFW_KEYBOARD_PASSWORD, op2);
                 break;
-            default:
-                dmLogWarning("Unable to get device state (%d), unknown state.", (int) state);
+            case DEVICE_STATE_KEYBOARD_RESET:
+                glfwResetKeyboard();
                 break;
+            default:break;
         }
     }
 
     bool GetDeviceState(HWindow window, DeviceState state)
     {
-        if (state == DEVICE_STATE_CURSOR_LOCK)
+        return GetDeviceState(window, state, 0);
+    }
+
+    bool GetDeviceState(HWindow window, DeviceState state, int32_t op1)
+    {
+        switch(state)
         {
-            return glfwGetMouseLocked();
+            case DEVICE_STATE_CURSOR_LOCK:      return glfwGetMouseLocked();
+            case DEVICE_STATE_JOYSTICK_PRESENT: return glfwGetJoystickParam(op1, GLFW_PRESENT);
+            default:break;
         }
         dmLogWarning("Unable to get device state (%d), unknown state.", (int) state);
         return false;
+    }
+
+    const char* GetJoystickDeviceName(HWindow window, uint32_t joystick_index)
+    {
+        char* device_name;
+        glfwGetJoystickDeviceId(joystick_index, &device_name);
+        return (const char*) device_name;
+    }
+
+    uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)
+    {
+        uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_AXES), (int) values_capacity);
+        glfwGetJoystickPos(joystick_index, values, count);
+        return count;
+    }
+
+    uint32_t GetJoystickHats(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity)
+    {
+        uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_HATS), (int) values_capacity);
+        glfwGetJoystickHats(joystick_index, values, count);
+        return count;
+    }
+
+    uint32_t GetJoystickButtons(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity)
+    {
+        uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_BUTTONS), (int) values_capacity);
+        glfwGetJoystickButtons(joystick_index, values, count);
+        return count;
     }
 
     int32_t TriggerCloseCallback(HWindow window)
@@ -511,6 +601,11 @@ namespace dmPlatform
         glfwPollEvents();
     }
 
+    void SwapBuffers(HWindow window)
+    {
+        glfwSwapBuffers();
+    }
+
     void SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data)
     {
         window->m_AddKeyboarCharCallBack         = cb;
@@ -527,6 +622,46 @@ namespace dmPlatform
     {
         window->m_DeviceChangedCallback         = cb;
         window->m_DeviceChangedCallbackUserData = user_data;
+    }
+
+    void SetGamepadEventCallback(HWindow window, WindowGamepadEventCallback cb, void* user_data)
+    {
+        window->m_GamepadEventCallback         = cb;
+        window->m_GamepadEventCallbackUserData = user_data;
+    }
+
+    const char** VulkanGetRequiredInstanceExtensions(uint32_t* count)
+    {
+        *count = 0;
+        return 0;
+    }
+
+    int32_t OpenGLGetDefaultFramebufferId()
+    {
+        return glfwGetDefaultFramebuffer();
+    }
+
+    int32_t AndroidVerifySurface(HWindow window)
+    {
+    #if defined(ANDROID)
+        return glfwAndroidVerifySurface();
+    #else
+        return 0;
+    #endif
+    }
+
+    void AndroidBeginFrame(HWindow window)
+    {
+    #if defined(ANDROID)
+        glfwAndroidBeginFrame();
+    #endif
+    }
+
+    void iOSSetViewTypeOpenGL(HWindow window)
+    {
+    #if defined(DM_PLATFORM_IOS)
+        glfwSetViewType(GLFW_OPENGL_API);
+    #endif
     }
 
     const int PLATFORM_JOYSTICK_LAST       = GLFW_JOYSTICK_LAST;
@@ -598,4 +733,21 @@ namespace dmPlatform
     const int PLATFORM_MOUSE_BUTTON_6      = GLFW_MOUSE_BUTTON_6;
     const int PLATFORM_MOUSE_BUTTON_7      = GLFW_MOUSE_BUTTON_7;
     const int PLATFORM_MOUSE_BUTTON_8      = GLFW_MOUSE_BUTTON_8;
+
+    const int PLATFORM_JOYSTICK_1          = GLFW_JOYSTICK_1;
+    const int PLATFORM_JOYSTICK_2          = GLFW_JOYSTICK_2;
+    const int PLATFORM_JOYSTICK_3          = GLFW_JOYSTICK_3;
+    const int PLATFORM_JOYSTICK_4          = GLFW_JOYSTICK_4;
+    const int PLATFORM_JOYSTICK_5          = GLFW_JOYSTICK_5;
+    const int PLATFORM_JOYSTICK_6          = GLFW_JOYSTICK_6;
+    const int PLATFORM_JOYSTICK_7          = GLFW_JOYSTICK_7;
+    const int PLATFORM_JOYSTICK_8          = GLFW_JOYSTICK_8;
+    const int PLATFORM_JOYSTICK_9          = GLFW_JOYSTICK_9;
+    const int PLATFORM_JOYSTICK_10         = GLFW_JOYSTICK_10;
+    const int PLATFORM_JOYSTICK_11         = GLFW_JOYSTICK_11;
+    const int PLATFORM_JOYSTICK_12         = GLFW_JOYSTICK_12;
+    const int PLATFORM_JOYSTICK_13         = GLFW_JOYSTICK_13;
+    const int PLATFORM_JOYSTICK_14         = GLFW_JOYSTICK_14;
+    const int PLATFORM_JOYSTICK_15         = GLFW_JOYSTICK_15;
+    const int PLATFORM_JOYSTICK_16         = GLFW_JOYSTICK_16;
 }

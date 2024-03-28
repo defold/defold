@@ -86,6 +86,23 @@ namespace dmPlatform
     extern const int PLATFORM_MOUSE_BUTTON_6;
     extern const int PLATFORM_MOUSE_BUTTON_7;
     extern const int PLATFORM_MOUSE_BUTTON_8;
+
+    extern const int PLATFORM_JOYSTICK_1;
+    extern const int PLATFORM_JOYSTICK_2;
+    extern const int PLATFORM_JOYSTICK_3;
+    extern const int PLATFORM_JOYSTICK_4;
+    extern const int PLATFORM_JOYSTICK_5;
+    extern const int PLATFORM_JOYSTICK_6;
+    extern const int PLATFORM_JOYSTICK_7;
+    extern const int PLATFORM_JOYSTICK_8;
+    extern const int PLATFORM_JOYSTICK_9;
+    extern const int PLATFORM_JOYSTICK_10;
+    extern const int PLATFORM_JOYSTICK_11;
+    extern const int PLATFORM_JOYSTICK_12;
+    extern const int PLATFORM_JOYSTICK_13;
+    extern const int PLATFORM_JOYSTICK_14;
+    extern const int PLATFORM_JOYSTICK_15;
+    extern const int PLATFORM_JOYSTICK_16;
 }
 
 #endif // DM_PLATFORM_WINDOW_CONSTANTS_H

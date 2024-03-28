@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,20 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dlib/math.h>
-#include <dlib/array.h>
+#ifndef DM_PLATFORM_WINDOW_VULKAN_H
+#define DM_PLATFORM_WINDOW_VULKAN_H
 
-#include <objc/objc.h>
+#include "platform_window.h"
 
-#include "../graphics_vulkan_defines.h"
-#include "../graphics_vulkan_private.h"
-
-#include <platform/platform_window_vulkan.h>
-
-namespace dmGraphics
+namespace dmPlatform
 {
-    VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
-    {
-        return dmPlatform::VulkanCreateWindowSurface(vkInstance, window, vkSurfaceOut);
-    }
+    VkResult     VulkanCreateWindowSurface(VkInstance instance, HWindow window, VkSurfaceKHR* surface_out);
+    const char** VulkanGetRequiredInstanceExtensions(uint32_t* count);
 }
+
+#endif // DM_PLATFORM_WINDOW_VULKAN_H
