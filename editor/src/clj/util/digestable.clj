@@ -20,6 +20,7 @@
             [editor.workspace]
             [util.digest :as digest])
   (:import [clojure.lang Named]
+           [com.defold.util IDigestable]
            [java.io OutputStreamWriter Writer]))
 
 (set! *warn-on-reflection* true)
@@ -93,10 +94,14 @@
             sequence)
     (digest-raw! end writer)))
 
-(defn- digest-tagged! [tag-sym value writer opts]
+(defn- digest-header! [^String type-name writer]
   (digest-raw! "#dg/" writer)
-  (digest-raw! (name tag-sym) writer)
-  (digest-raw! " " writer)
+  (digest-raw! type-name writer)
+  (digest-raw! " " writer))
+
+(defn- digest-tagged! [tag-sym value writer opts]
+  {:pre [(symbol? tag-sym)]}
+  (digest-header! (name tag-sym) writer)
   (digest! value writer opts))
 
 (def ^"[C" hex-chars (.toCharArray "0123456789abcdef"))
@@ -210,7 +215,17 @@
 
   Class
   (digest! [value writer opts]
-    (digest-tagged! 'Class (symbol (.getName value)) writer opts)))
+    (digest-tagged! 'Class (symbol (.getName value)) writer opts))
+
+  IDigestable
+  (digest! [value writer _opts]
+    (digest-header! (.getName (class value)) writer)
+    (.digest value writer))
+
+  Object
+  (digest! [value _writer _opts]
+    (throw (ex-info (str "Encountered undigestable value: " value)
+                    {:value value}))))
 
 (defn sha1-hash
   (^String [object]

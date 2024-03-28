@@ -37,13 +37,13 @@
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll]
-            [util.coll :refer [pair]]
             [util.digest :as digest])
   (:import [com.dynamo.gamesys.proto ModelProto$Material ModelProto$Model ModelProto$ModelDesc ModelProto$Texture]
-           [editor.gl.shader ShaderLifecycle]
-           [editor.types AABB]))
+           [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private model-resource-type-label "Model")
 
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
@@ -169,51 +169,11 @@
       explicit-textures
       samplers)))
 
-(g/defnk produce-scene [_node-id scene mesh-material-ids material-scene-infos]
-  (if (not scene)
+(g/defnk produce-scene [_node-id scene material-name->material-scene-info]
+  (if scene
+    (model-scene/augment-scene scene _node-id model-resource-type-label material-name->material-scene-info)
     {:aabb geom/empty-bounding-box
-     :renderable {:passes [pass/selection]}}
-    (let [{:keys [renderable aabb]} scene
-          material-index->meshes (->> renderable :user-data :meshes (group-by :material-index))
-          name->material-scene-info (into {}
-                                          (map (juxt :name identity))
-                                          material-scene-infos)
-          material-index->material-scene-info (into {}
-                                                    (keep-indexed
-                                                      (fn [i name]
-                                                        (when-let [info (name->material-scene-info name)]
-                                                          (pair i info))))
-                                                    mesh-material-ids)]
-      {:aabb geom/empty-bounding-box
-       :renderable {:passes [pass/selection]}
-       :children
-       (into (:children scene [])
-             (keep (fn [[material-index meshes]]
-                     (when-let [{:keys [shader vertex-space gpu-textures material-attribute-infos vertex-attribute-bytes]}
-                                ;; If we have no material associated with the index,
-                                ;; we mirror the engine behavior by picking the first one:
-                                ;; https://github.com/defold/defold/blob/a265a1714dc892eea285d54eae61d0846b48899d/engine/gamesys/src/gamesys/resources/res_model.cpp#L234-L238
-                                (or (material-index->material-scene-info material-index)
-                                    (first material-scene-infos))]
-                       {:node-id _node-id
-                        :aabb aabb
-                        :renderable (-> renderable
-                                        (dissoc :children)
-                                        (assoc-in [:user-data :shader] shader)
-                                        (assoc-in [:user-data :vertex-space] vertex-space)
-                                        (assoc-in [:user-data :textures] gpu-textures)
-                                        (assoc-in [:user-data :meshes] meshes)
-                                        (assoc-in [:user-data :material-attribute-infos] material-attribute-infos)
-                                        (assoc-in [:user-data :vertex-attribute-bytes] vertex-attribute-bytes)
-                                        (update :batch-key
-                                                (fn [old-key]
-                                                  ;; We can only batch-render models that use
-                                                  ;; :vertex-space-world. In :vertex-space-local
-                                                  ;; we must supply individual transforms for
-                                                  ;; each model instance in the shader uniforms.
-                                                  (when (= :vertex-space-world vertex-space)
-                                                    [old-key shader gpu-textures]))))})))
-             material-index->meshes)})))
+     :renderable {:passes [pass/selection]}}))
 
 (g/defnk produce-bones [skeleton-bones animations-bones]
   (or animations-bones skeleton-bones))
@@ -455,7 +415,6 @@
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :mesh-resource]
-                                            [:aabb :aabb]
                                             [:mesh-set-build-target :mesh-set-build-target]
                                             [:material-ids :mesh-material-ids]
                                             [:scene :scene])))
@@ -480,6 +439,17 @@
               material-binding-infos)))
   (input scene g/Any)
   (input material-scene-infos g/Any :array)
+
+  (output material-name->material-scene-info g/Any :cached
+          (g/fnk [material-scene-infos]
+            (let [material-scene-infos-by-material-name (coll/pair-map-by :name material-scene-infos)]
+              (fn material-name->material-scene-info [^String material-name]
+                ;; If we have no material associated with the index, we mirror the
+                ;; engine behavior by picking the first one:
+                ;; https://github.com/defold/defold/blob/a265a1714dc892eea285d54eae61d0846b48899d/engine/gamesys/src/gamesys/resources/res_model.cpp#L234-L238
+                (or (material-scene-infos-by-material-name material-name)
+                    (first material-scene-infos))))))
+
   (property skeleton resource/Resource ; Nil is valid default.
             (value (gu/passthrough skeleton-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -526,12 +496,9 @@
 
   (input animation-infos g/Any :array)
   (input animation-ids g/Any)
-  (input aabb AABB)
 
   (output bones g/Any produce-bones)
-
   (output animation-resources g/Any (g/fnk [animations-resource] [animations-resource]))
-
   (output animation-info g/Any :cached animation-set/produce-animation-info)
   (output animation-set-info g/Any :cached animation-set/produce-animation-set-info)
   (output animation-set g/Any :cached animation-set/produce-animation-set)
@@ -543,10 +510,7 @@
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
-
   (output scene g/Any :cached produce-scene)
-
-  (output aabb AABB (gu/passthrough aabb))
   (output _properties g/Properties :cached produce-model-properties))
 
 (defn- migrated? [model-node-id model-desc evaluation-context]
@@ -606,7 +570,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "model"
-    :label "Model"
+    :label model-resource-type-label
     :node-type ModelNode
     :ddf-type ModelProto$ModelDesc
     :read-defaults false

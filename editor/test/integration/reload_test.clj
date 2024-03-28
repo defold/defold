@@ -39,6 +39,8 @@
            [javax.imageio ImageIO]
            [org.apache.commons.io FilenameUtils]))
 
+(set! *warn-on-reflection* true)
+
 (def ^:private reload-project-path "test/resources/reload_project")
 
 ;; reload_project tree
@@ -247,9 +249,8 @@
                           invalidated-node ((g/node-value project :nodes-by-resource-path) img-path)]
                       (is (nil? node))
                       (is (= initial-node invalidated-node))
-                      (is (= nil (g/node-value invalidated-node :_output-jammers)))
-                      ;; as above, undo count should be unchanged - just invalidate the outputs of the resource node
-                      (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
+                      ;; the node corresponding to the deleted resource should be marked defective.
+                      (is (seq (keys (g/node-value invalidated-node :_output-jammers))))
                       ;; TODO - fix node pollution
                       (log/without-logging
                         (is (g/error? (g/node-value atlas-node-id :anim-data)))))))))))))))
@@ -535,7 +536,7 @@
              ["/graphics/pow.png" "/graphics/ball.png"]))
 
       (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
-        (asset-browser/rename graphics-dir-resource "images"))
+        (asset-browser/rename [graphics-dir-resource] "images"))
 
       (let [images>pow (project/get-resource-node project "/images/pow.png")
             images>pow-resource (resource images>pow)]
@@ -547,7 +548,7 @@
         ;; actual test
         (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
         (let [images-dir-resource (workspace/find-resource workspace "/images")]
-          (asset-browser/rename images-dir-resource "graphics"))
+          (asset-browser/rename [images-dir-resource] "graphics"))
 
         ;; The move of /images back to /graphics enabled the load of imagelib1, creating the following move cases:
         ;; /images/ball.png -> /graphics/ball.png: removed, added
@@ -589,7 +590,7 @@
 
         (workspace/set-project-dependencies! workspace [{:uri scriptlib-uri}])
         (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
-          (asset-browser/rename scripts-dir-resource "project_scripts"))
+          (asset-browser/rename [scripts-dir-resource] "project_scripts"))
 
         ;; the move of /scripts enabled the load of scriptlib, creating the move case:
         ;; /scripts/main.script -> /project_scripts/main.script: changed, added
@@ -625,7 +626,7 @@
         (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
           (let [images-dir-resource (workspace/find-resource workspace "/images")]
-            (asset-browser/rename images-dir-resource "graphics")))
+            (asset-browser/rename [images-dir-resource] "graphics")))
 
         ;; The move of /images overwriting /graphics enabled the load of imagelib1, creating the following move cases:
         ;; /images/ball.png -> /graphics/ball.png: removed, changed
@@ -664,7 +665,7 @@
         (workspace/set-project-dependencies! workspace [{:uri scriptlib-uri}]) ; /scripts/main.script
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
           (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
-            (asset-browser/rename scripts-dir-resource "main")))
+            (asset-browser/rename [scripts-dir-resource] "main")))
 
         ;; the move of /scripts overwriting /main enabled the load of scriptlib, creating move case:
         ;; /scripts/main.script -> /main/main.script: changed, changed
@@ -692,7 +693,7 @@
     (let [[workspace project] (setup-scratch world)
           graphics>ball (project/get-resource-node project "/graphics/ball.png")
           nodes-by-path (g/node-value project :nodes-by-resource-path)]
-      (asset-browser/rename (resource graphics>ball) "Ball.png")
+      (asset-browser/rename [(resource graphics>ball)] "Ball")
       (testing "Resource node :resource updated"
         (is (= (resource/proj-path (g/node-value graphics>ball :resource)) "/graphics/Ball.png")))
       (testing "Resource node map updated"
@@ -706,7 +707,7 @@
       (touch-file workspace "/graphics/.dotfile")
       (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
         ;; This used to throw: java.lang.AssertionError: Assert failed: move of unknown resource "/graphics/.dotfile"
-        (asset-browser/rename graphics-dir-resource "whatever")))))
+        (asset-browser/rename [graphics-dir-resource] "whatever")))))
 
 (deftest move-external-removed-added-replacing-deleted
   ;; We used to end up with two resource nodes referring to the same resource (/graphics/ball.png)

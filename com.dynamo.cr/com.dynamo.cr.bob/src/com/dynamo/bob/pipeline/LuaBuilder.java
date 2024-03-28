@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,13 +24,9 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Set;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.net.URLClassLoader;
-import java.net.URL;
-import java.lang.Math;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
@@ -54,7 +50,6 @@ import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
-import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
@@ -550,7 +545,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                     case PROPERTY_TYPE_HASH:
                         String value = (String)property.value;
                         if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
-                            value = PropertiesUtil.transformResourcePropertyValue(value);
+                            value = PropertiesUtil.transformResourcePropertyValue(resource, value);
                             propertyResources.add(value);
                         }
                         entryBuilder.setIndex(builder.getHashValuesCount());

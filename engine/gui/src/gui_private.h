@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -146,8 +146,8 @@ namespace dmGui
 
         const char* m_Text;
 
-        uint64_t    m_TextureHash;
-        void*       m_Texture;
+        uint64_t        m_TextureHash;
+        HTextureSource  m_Texture;
         NodeTextureType m_TextureType;
 
         TextureSetAnimDesc m_TextureSetAnimDesc;
@@ -226,27 +226,27 @@ namespace dmGui
 
     struct TextureInfo
     {
-        TextureInfo(void* texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height)
+        TextureInfo(HTextureSource texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height)
         : m_TextureSource(texture_source)
         , m_TextureSourceType(texture_source_type)
         , m_OriginalWidth(original_width)
         , m_OriginalHeight(original_height) {}
 
-        void*    m_TextureSource;
+        HTextureSource  m_TextureSource;
         NodeTextureType m_TextureSourceType;
-        uint32_t m_OriginalWidth : 16;
-        uint32_t m_OriginalHeight : 16;
+        uint32_t        m_OriginalWidth : 16;
+        uint32_t        m_OriginalHeight : 16;
     };
 
     struct DynamicTexture
     {
-        DynamicTexture(void* handle)
+        DynamicTexture(HTextureSource handle)
         {
             memset(this, 0, sizeof(*this));
             m_Handle = handle;
             m_Type = (dmImage::Type) -1;
         }
-        void*           m_Handle;
+        HTextureSource  m_Handle;
         uint32_t        m_Created : 1;
         uint32_t        m_Deleted : 1;
         uint32_t        m_Width;
@@ -530,6 +530,15 @@ namespace dmGui
     dmVMath::Vector4 CalculateReferenceScale(HScene scene, InternalNode* node);
 
     HNode GetNodeHandle(InternalNode* node);
+
+    struct PropDesc
+    {
+        dmhash_t m_Hash;
+        Property m_Property;
+        uint8_t  m_Component;
+    };
+
+    PropDesc* GetPropertyDesc(dmhash_t property_hash);
 }
 
 #endif

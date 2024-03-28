@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -16,13 +16,15 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
+
+import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -35,12 +37,10 @@ import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.StringUtil;
-import com.dynamo.bob.pipeline.ShaderUtil.Common;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
-import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
-import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
@@ -49,7 +49,6 @@ import com.dynamo.gamesys.proto.GameSystem.LightDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionShape.Shape;
-import com.dynamo.gamesys.proto.Physics.CollisionShape.ShapeOrBuilder;
 import com.dynamo.gamesys.proto.Physics.CollisionShape.Type;
 import com.dynamo.gamesys.proto.Physics.CollisionShape;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
@@ -57,7 +56,6 @@ import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Tile.TileGrid;
-import com.dynamo.gamesys.proto.AtlasProto.Atlas;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
@@ -73,16 +71,16 @@ import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 public class ProtoBuilders {
 
     private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".tga", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
-    private static String[][] textureSetSrcExts = {{".atlas", ".a.texturesetc"}, {".tileset", ".t.texturesetc"}, {".tilesource", ".t.texturesetc"}};
     private static String[][] renderResourceExts = {{".render_target", ".render_targetc"}, {".material", ".materialc"}};
 
-    public static String getTextureSetExt(String str) {
-        for (String[] extReplacement : textureSetSrcExts) {
-            if (str.endsWith(extReplacement[0])) {
-                return extReplacement[1];
-            }
+    public static String getTextureSetExt(String str) throws Exception {
+        Map<String, String> types = TextureUtil.getAtlasFileTypes();
+        String suffix = "." + FilenameUtils.getExtension(str);
+        String replacement = types.getOrDefault(suffix, null);
+        if (replacement != null) {
+            return replacement;
         }
-        return null;
+        throw new Exception(String.format("Cannot find a texture suffix replacement for texture: %s\n", str));
     }
 
     private static String replaceAllExts(String str, String[][] extList) {
@@ -97,12 +95,10 @@ public class ProtoBuilders {
         return replaceAllExts(str, textureSrcExts);
     }
 
-    public static String replaceTextureSetName(String str) {
-        String out = str;
-        for (String[] extReplacement : textureSetSrcExts) {
-            out = BuilderUtil.replaceExt(out, extReplacement[0], extReplacement[1]);
-        }
-        return out;
+    public static String replaceTextureSetName(String str) throws Exception {
+        String replacement = getTextureSetExt(str);
+        String suffix = "." + FilenameUtils.getExtension(str);
+        return BuilderUtil.replaceExt(str, suffix, replacement);
     }
 
     private static MaterialDesc.Builder getMaterialBuilderFromResource(IResource res) throws IOException {
@@ -375,7 +371,14 @@ public class ProtoBuilders {
 
             List<String> images = getImageResources(spriteBuilder);
             for (String atlas : images) {
-                IResource atlasOutput = project.getResource(atlas).changeExt(getTextureSetExt(atlas));
+                String extension = null;
+                try {
+                    extension = getTextureSetExt(atlas);
+                } catch (Exception e) {
+                    throw new CompileExceptionError(input, -1, e.getMessage(), e);
+                }
+
+                IResource atlasOutput = project.getResource(atlas).changeExt(extension);
                 task.addInput(atlasOutput);
             }
 
@@ -408,9 +411,11 @@ public class ProtoBuilders {
 
                 BuilderUtil.checkResource(this.project, resource, "tile source", textureBuilder.getTexture());
 
-                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "tileset", "t.texturesetc"));
-                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "tilesource", "t.texturesetc"));
-                textureBuilder.setTexture(BuilderUtil.replaceExt(textureBuilder.getTexture(), "atlas", "a.texturesetc"));
+                try {
+                    textureBuilder.setTexture(replaceTextureSetName(textureBuilder.getTexture()));
+                } catch (Exception e) {
+                    throw new CompileExceptionError(resource, -1, e.getMessage(), e);
+                }
 
                 textures.add(textureBuilder.build());
             }
@@ -498,7 +503,14 @@ public class ProtoBuilders {
             for (int i = 0; i < particleFxBuilder.getEmittersCount(); ++i) {
                 Emitter emitter            = particleFxBuilder.getEmitters(i);
                 String tileSource          = emitter.getTileSource();
-                IResource tileSourceOutput = project.getResource(tileSource).changeExt(getTextureSetExt(tileSource));
+                String extension = null;
+                try {
+                    extension = getTextureSetExt(tileSource);
+                } catch (Exception e) {
+                    throw new CompileExceptionError(input, -1, e.getMessage(), e);
+                }
+
+                IResource tileSourceOutput = project.getResource(tileSource).changeExt(extension);
                 IResource materialOutput   = project.getResource(emitter.getMaterial()).changeExt(".materialc");
 
                 task.addInput(tileSourceOutput);

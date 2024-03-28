@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,17 +20,18 @@
 
 #include <emscripten.h>
 
+#include <dmsdk/gameobject/script.h>
 #include <ddf/ddf.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 
-#include "script.h"
-#include "http_ddf.h"
+#include <script/script.h>
+#include <script/http_ddf.h>
 
 #include "script_http.h"
-#include "http_service.h"
+#include <script/http_service.h>
 
 extern "C"
 {
@@ -40,12 +41,13 @@ extern "C"
 
 #include "script_http_util.h"
 
-namespace dmScript
+namespace dmGameSystem
 {
     uint64_t g_Timeout = 0;
 
     typedef void (*OnLoad)(void* context, int status, void* content, int content_size, const char* headers);
     typedef void (*OnError)(void* context, int status);
+    typedef void (*OnProgress)(void* context, uint32_t loaded, uint32_t total);
 
     struct RequestContext
     {
@@ -63,14 +65,20 @@ namespace dmScript
         void* m_SendData;
         size_t m_SendDataLength;
         uint64_t m_RequestTimeout;
+        bool     m_ReportProgress;
     };
 
-    extern "C" void dmScriptHttpRequestAsync(const char* method, const char* url, const char* headers, void* arg, OnLoad onload, OnError onerror, const void* send_data, int send_data_length, int timeout);
+    extern "C" void dmScriptHttpRequestAsync(const char* method, const char* url, const char* headers, void* arg, 
+        OnLoad onload, OnError onerror, OnProgress onprogress,
+        const void* send_data, int send_data_length, int timeout);
 
-    void HttpRequestAsync(const RequestParams& request_params, OnLoad ol, OnError oe)
+    void HttpRequestAsync(const RequestParams& request_params, OnLoad ol, OnError oe, OnProgress op)
     {
         dmScriptHttpRequestAsync(request_params.m_Method, request_params.m_Url, request_params.m_Headers,
-            request_params.m_Args, ol, oe, request_params.m_SendData, request_params.m_SendDataLength, request_params.m_RequestTimeout);
+            request_params.m_Args,
+            ol, oe, request_params.m_ReportProgress ? op : NULL,
+            request_params.m_SendData,
+            request_params.m_SendDataLength, request_params.m_RequestTimeout);
     }
 
     static void MessageDestroyCallback(dmMessage::Message* message)
@@ -116,6 +124,18 @@ namespace dmScript
     {
         RequestContext* ctx = (RequestContext*) context;
         SendResponse(ctx, status, 0, 0, 0, 0);
+    }
+
+    void OnHttpProgress(void* context, uint32_t loaded, uint32_t total)
+    {
+        dmHttpDDF::HttpRequestProgress progress = {};
+        progress.m_BytesReceived                = loaded;
+        progress.m_BytesTotal                   = total;
+        RequestContext* ctx = (RequestContext*) context;
+        if (dmGameObject::RESULT_OK != dmGameObject::PostDDF(&progress, 0, &ctx->m_Requester, ctx->m_Callback, false))
+        {
+            dmLogWarning("Failed to return http-progress. Requester deleted?");
+        }
     }
 
     int Http_Request(lua_State* L)
@@ -177,9 +197,13 @@ namespace dmScript
                 lua_pushnil(L);
                 while (lua_next(L, -2)) {
                     const char* attr = lua_tostring(L, -2);
-                    if( strcmp(attr, "timeout") == 0 )
+                    if(strcmp(attr, "timeout") == 0)
                     {
                         request_params.m_RequestTimeout = luaL_checknumber(L, -1) * 1000000.0f;
+                    }
+                    else if (strcmp(attr, "report_progress") == 0)
+                    {
+                        request_params.m_ReportProgress = lua_toboolean(L, -1);
                     }
                     lua_pop(L, 1);
                 }
@@ -193,7 +217,7 @@ namespace dmScript
 
             request_params.m_Args = ctx;
 
-            HttpRequestAsync(request_params, OnHttpLoad, OnHttpError);
+            HttpRequestAsync(request_params, OnHttpLoad, OnHttpError, OnHttpProgress);
             assert(top == lua_gettop(L));
             return 0;
         } else {
@@ -209,10 +233,10 @@ namespace dmScript
         {0, 0}
     };
 
-    static void HttpInitialize(HContext context)
+    void ScriptHttpRegister(const ScriptLibContext& context)
     {
-        lua_State* L = GetLuaState(context);
-        dmConfigFile::HConfig config_file = GetConfigFile(context);
+        lua_State* L = dmScript::GetLuaState(context.m_ScriptContext);
+        dmConfigFile::HConfig config_file = dmScript::GetConfigFile(context.m_ScriptContext);
 
         int top = lua_gettop(L);
 
@@ -228,19 +252,5 @@ namespace dmScript
         assert(top == lua_gettop(L));
     }
 
-    void InitializeHttp(HContext context)
-    {
-        static ScriptExtension sl;
-        sl.Initialize = HttpInitialize;
-        sl.Update = 0x0;
-        sl.Finalize = 0x0;
-        sl.NewScriptWorld = 0x0;
-        sl.DeleteScriptWorld = 0x0;
-        sl.UpdateScriptWorld = 0x0;
-        sl.FixedUpdateScriptWorld = 0x0;
-        sl.InitializeScriptInstance = 0x0;
-        sl.FinalizeScriptInstance = 0x0;
-        RegisterScriptExtension(context, &sl);
-    }
-
+    void ScriptHttpFinalize(const ScriptLibContext& context) { }
 }

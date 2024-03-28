@@ -20,8 +20,9 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.types :as types]
-            [editor.util :as util]
+            [editor.util :as eutil]
             [editor.validation :as validation]
+            [internal.util :as iutil]
             [potemkin.namespaces :as namespaces]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
@@ -148,19 +149,40 @@
     (when (not-every? (fn [^double val]
                         (<= min val max))
                       double-values)
-      (util/format* "'%s' attribute components must be between %.0f and %.0f"
-                    (:name attribute)
-                    min
-                    max))))
+      (eutil/format* "'%s' attribute components must be between %.0f and %.0f"
+                     (:name attribute)
+                     min
+                     max))))
 
 (defn validate-doubles [double-values attribute node-id prop-kw]
   (validation/prop-error :fatal node-id prop-kw doubles-outside-attribute-range-error-message double-values attribute))
 
-(defn resize-doubles [double-values semantic-type ^long element-count]
-  (let [fill-value (case semantic-type
-                     :semantic-type-color 1.0 ; Default to opaque white for color attributes.
-                     0.0)]
-    (coll/resize double-values element-count fill-value)))
+;; For positions, we want to have a 1.0 in the W coordinate so that they can be
+;; transformed correctly by a 4D matrix. For colors, we default to opaque white.
+(def ^:private default-attribute-element-values (vector-of :double 0.0 0.0 0.0 0.0))
+(def ^:private default-position-element-values (vector-of :double 0.0 0.0 0.0 1.0))
+(def ^:private default-color-element-values (vector-of :double 1.0 1.0 1.0 1.0))
+
+(defn resize-doubles [double-values semantic-type ^long new-element-count]
+  {:pre [(vector? double-values)
+         (keyword? semantic-type)
+         (nat-int? new-element-count)]}
+  (let [old-element-count (count double-values)]
+    (cond
+      (< new-element-count old-element-count)
+      (subvec double-values 0 new-element-count)
+
+      (> new-element-count old-element-count)
+      (let [default-element-values
+            (case semantic-type
+              :semantic-type-position default-position-element-values
+              :semantic-type-color default-color-element-values
+              default-attribute-element-values)]
+        (into double-values
+              (subvec default-element-values old-element-count new-element-count)))
+
+      :else
+      double-values)))
 
 (defn- default-attribute-doubles-raw [semantic-type ^long element-count]
   {:pre [(semantic-type? semantic-type)]}
@@ -247,6 +269,28 @@
   (let [vtx-attributes (mapv attribute-info->vtx-attribute attribute-infos)]
     (vtx/make-vertex-description nil vtx-attributes)))
 
+(defn coordinate-space-info
+  "Returns a map of coordinate-space to sets of semantic-type that expect that
+  coordinate-space. Only :semantic-type-position and :semantic-type-normal
+  attributes are considered. We use this to determine if we need to include
+  a :world-transform or :normal-transform in the renderable-datas we supply to
+  the graphics/put-attributes! function. We can also use this information to
+  figure out if we should cancel out the world transform from the render
+  transforms we feed into shaders as uniforms in case the same shader is used to
+  render both world-space and local-space mesh data.
+
+  Example output:
+  {:coordinate-space-local #{:semantic-type-position}
+   :coordinate-space-world #{:semantic-type-position
+                             :semantic-type-normal}}"
+  [attribute-infos]
+  (->> attribute-infos
+       (filter (comp #{:semantic-type-position :semantic-type-normal} :semantic-type))
+       (iutil/group-into
+         {} #{}
+         #(:coordinate-space % :coordinate-space-local)
+         :semantic-type)))
+
 ;; TODO(save-value-cleanup): We shouldn't have to sanitize the attributes once every resource type has :read-defaults false.
 (defn sanitize-attribute-value-v [attribute-value]
   (protobuf/sanitize-repeated attribute-value :v))
@@ -308,11 +352,11 @@
             :element-count 1}
            {:name "normal"
             :semantic-type :semantic-type-normal
-            :coordinate-space :coordinate-space-local
+            :coordinate-space :default ; Assigned default-coordinate-space parameter.
             :data-type :type-float
             :element-count 3}])))
 
-(defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-stream-keys default-coordinate-space]
+(defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space]
   {:pre [(coordinate-space? default-coordinate-space)]}
   (let [shader-bound-attribute? (comp boolean (shader/attribute-infos shader gl) :name)
         declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
@@ -325,7 +369,7 @@
                  (cond-> attribute-info
                          (= :default (:coordinate-space attribute-info))
                          (assoc :coordinate-space default-coordinate-space))))
-          manufactured-stream-keys)]
+          manufactured-attribute-keys)]
 
     (filterv shader-bound-attribute?
              (concat manufactured-attribute-infos
@@ -514,17 +558,27 @@
                (assoc :vertex-elements (count vertex)))
            exception))
 
-(defn- attribute-data->world-position-v3 [data]
-  (let [local-positions (:position-data data)
-        world-transform (:world-transform data)]
+(defn- renderable-data->world-position-v3 [renderable-data]
+  (let [local-positions (:position-data renderable-data)
+        world-transform (:world-transform renderable-data)]
     (geom/transf-p world-transform local-positions)))
 
-(defn- attribute-data->world-position-v4 [data]
-  (let [local-positions (:position-data data)
-        world-transform (:world-transform data)]
+(defn- renderable-data->world-position-v4 [renderable-data]
+  (let [local-positions (:position-data renderable-data)
+        world-transform (:world-transform renderable-data)]
     (geom/transf-p4 world-transform local-positions)))
 
-(defn put-attributes! [^VertexBuffer vbuf attribute-data-arrays]
+(defn- renderable-data->world-normal-v3 [renderable-data]
+  (let [local-normals (:normal-data renderable-data)
+        normal-transform (:normal-transform renderable-data)]
+    (geom/transf-n normal-transform local-normals)))
+
+(defn- renderable-data->world-normal-v4 [renderable-data]
+  (let [local-normals (:normal-data renderable-data)
+        normal-transform (:normal-transform renderable-data)]
+    (geom/transf-n4 normal-transform local-normals)))
+
+(defn put-attributes! [^VertexBuffer vbuf renderable-datas]
   (let [vertex-description (.vertex-description vbuf)
         vertex-byte-stride (:size vertex-description)
         ^ByteBuffer buf (.buf vbuf)
@@ -550,12 +604,12 @@
 
         put-renderables!
         (fn put-renderables!
-          ^long [^long attribute-byte-offset semantic-type->data put-vertices!]
-          (reduce (fn [^long vertex-byte-offset attribute-data-array]
-                    (let [vertices (semantic-type->data attribute-data-array)]
+          ^long [^long attribute-byte-offset renderable-data->vertices put-vertices!]
+          (reduce (fn [^long vertex-byte-offset renderable-data]
+                    (let [vertices (renderable-data->vertices renderable-data)]
                       (put-vertices! vertex-byte-offset vertices)))
                   attribute-byte-offset
-                  attribute-data-arrays))
+                  renderable-datas))
 
         texcoord-index-vol (volatile! -1)
         page-index-vol (volatile! -1)]
@@ -585,35 +639,43 @@
 
                 (case semantic-type
                   :semantic-type-position
-                  (if (= (:coordinate-space attribute) :coordinate-space-local)
-                    (put-renderables! attribute-byte-offset :position-data put-attribute-doubles!)
+                  (case (:coordinate-space attribute)
+                    :coordinate-space-world
                     (let [renderable-data->world-position
                           (case element-count
-                            3 attribute-data->world-position-v3
-                            4 attribute-data->world-position-v4)]
-                      (put-renderables! attribute-byte-offset renderable-data->world-position put-attribute-doubles!)))
+                            3 renderable-data->world-position-v3
+                            4 renderable-data->world-position-v4)]
+                      (put-renderables! attribute-byte-offset renderable-data->world-position put-attribute-doubles!))
+                    (put-renderables! attribute-byte-offset :position-data put-attribute-doubles!))
 
                   :semantic-type-texcoord
                   (let [i (vswap! texcoord-index-vol inc)]
                     (put-renderables! attribute-byte-offset #(get-in % [:texcoord-datas i :uv-data]) put-attribute-doubles!))
 
                   :semantic-type-page-index
-                  (put-renderables! attribute-byte-offset
-                                    (fn [attribute-data]
-                                      (let [vertex-count (count (:position-data attribute-data))
-                                            i (vswap! page-index-vol inc)
-                                            page-index (get-in attribute-data [:texcoord-datas i :page-index])]
-                                        (repeat vertex-count [(double page-index)])))
-                                    put-attribute-doubles!)
+                  (let [i (vswap! page-index-vol inc)]
+                    (put-renderables! attribute-byte-offset
+                                      (fn [renderable-data]
+                                        (let [vertex-count (count (:position-data renderable-data))
+                                              page-index (get-in renderable-data [:texcoord-datas i :page-index])]
+                                          (repeat vertex-count [(double page-index)])))
+                                      put-attribute-doubles!))
 
                   :semantic-type-normal
-                  (put-renderables! attribute-byte-offset :normal-data put-attribute-doubles!)
+                  (case (:coordinate-space attribute)
+                    :coordinate-space-world
+                    (let [renderable-data->world-normal
+                          (case element-count
+                            3 renderable-data->world-normal-v3
+                            4 renderable-data->world-normal-v4)]
+                      (put-renderables! attribute-byte-offset renderable-data->world-normal put-attribute-doubles!))
+                    (put-renderables! attribute-byte-offset :normal-data put-attribute-doubles!))
 
                   ;; Default case.
                   (put-renderables! attribute-byte-offset
-                                    (fn [attribute-data]
-                                      (let [vertex-count (count (:position-data attribute-data))
-                                            attribute-bytes (get (:vertex-attribute-bytes attribute-data) name-key)]
+                                    (fn [renderable-data]
+                                      (let [vertex-count (count (:position-data renderable-data))
+                                            attribute-bytes (get (:vertex-attribute-bytes renderable-data) name-key)]
                                         (repeat vertex-count attribute-bytes)))
                                     put-attribute-bytes!))
 

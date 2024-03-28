@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,6 @@
 package com.dynamo.bob.textureset.test;
 
 import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -30,8 +29,6 @@ import org.junit.Test;
 import com.dynamo.bob.pipeline.AtlasUtil.MappedAnimDesc;
 import com.dynamo.bob.pipeline.AtlasUtil.MappedAnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator;
-import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
-import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
@@ -156,7 +153,7 @@ public class TextureSetGeneratorTest {
         TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, ids, iterator, 5, 0, 0, true, false, null, 0, 0);
         BufferedImage image = result.images.get(0);
         assertThat(image.getWidth(), is(32));
-        assertThat(image.getHeight(), is(32));
+        assertThat(image.getHeight(), is(64));
 
         for (UVTransform uv : result.uvTransforms)
         {

@@ -16,7 +16,6 @@
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
-            [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.preprocessors :as preprocessors]
             [editor.code.resource :as r]
@@ -177,21 +176,25 @@
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
 
-(def resource-kind->ext
+(def ^:private resource-kind->workspace->extensions
   "Declares which file extensions are valid for different kinds of resource
   properties. This affects the Property Editor, but is also used for validation."
-  {"atlas"       ["atlas" "tilesource"]
-   "font"        "font"
-   "material"    "material"
-   "buffer"      "buffer"
-   "texture"     (conj image/exts "cubemap" "render_target")
-   "tile_source" "tilesource"})
+  {"atlas"       #(workspace/resource-kind-extensions % :atlas)
+   "font"        (constantly "font")
+   "material"    (constantly "material")
+   "buffer"      (constantly "buffer")
+   "texture"     (constantly (conj image/exts "cubemap" "render_target"))
+   "tile_source" (constantly "tilesource")})
 
-(def ^:private valid-resource-kind? (partial contains? resource-kind->ext))
+(def ^:private valid-resource-kind? (partial contains? resource-kind->workspace->extensions))
 
-(defn- script-property-edit-type [prop-type resource-kind]
+(defn resource-kind-extensions [workspace resource-kind]
+  (when-let [workspace->extensions (resource-kind->workspace->extensions resource-kind)]
+    (workspace->extensions workspace)))
+
+(defn- script-property-edit-type [workspace prop-type resource-kind]
   (if (= resource/Resource prop-type)
-    {:type prop-type :ext (resource-kind->ext resource-kind)}
+    {:type prop-type :ext (resource-kind-extensions workspace resource-kind)}
     {:type prop-type}))
 
 (defn- resource-assignment-error [node-id prop-kw prop-name resource expected-ext]
@@ -220,9 +223,11 @@
 
 (g/defnk produce-script-property-entries [_this _node-id deleted? name resource-kind type value]
   (when-not deleted?
-    (let [prop-kw (properties/user-name->key name)
+    (let [project (project/get-project _node-id)
+          workspace (project/workspace project)
+          prop-kw (properties/user-name->key name)
           prop-type (script-property-type->property-type type)
-          edit-type (script-property-edit-type prop-type resource-kind)
+          edit-type (script-property-edit-type workspace prop-type resource-kind)
           error (validate-value-against-edit-type _node-id :value name value edit-type)
           go-prop-type (script-property-type->go-prop-type type)
           overridden? (g/node-property-overridden? _this :value)
@@ -250,7 +255,7 @@
 
 (g/deftype NameNodeIDMap {s/Str s/Int})
 
-(g/deftype ResourceKind (apply s/enum (keys resource-kind->ext)))
+(g/deftype ResourceKind (apply s/enum (keys resource-kind->workspace->extensions)))
 
 (g/deftype ScriptPropertyEntries
   {s/Keyword {:node-id s/Int
@@ -455,7 +460,7 @@
   ;; We then strip go.property() declarations and recompile if needed.
   (let [lines (:lines user-data)
         proj-path (:proj-path user-data)
-        bytecode-or-error (script->bytecode lines proj-path :32-bit)]
+        bytecode-or-error (script->bytecode lines proj-path :64-bit)]
     (g/precluding-errors
       [bytecode-or-error]
       (let [go-props (properties/build-go-props dep-resources (:go-props user-data))
@@ -494,78 +499,77 @@
       (pair proj-path line-number))))
 
 (g/defnk produce-build-targets [_node-id resource lines lua-preprocessors script-properties module-build-targets original-resource-property-build-targets]
-  (if-some [errors
-            (not-empty
-              (keep (fn [{:keys [name resource-kind type value]}]
-                      (let [prop-type (script-property-type->property-type type)
-                            edit-type (script-property-edit-type prop-type resource-kind)]
-                        (validate-value-against-edit-type _node-id :lines name value edit-type)))
-                    script-properties))]
-    (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-    (let [preprocessed-lines
-          (try
-            (preprocessors/preprocess-lua-lines lua-preprocessors lines resource :debug)
-            (catch Exception exception
-              exception))]
-      (if-some [exception-message (ex-message preprocessed-lines)]
-        (let [exception preprocessed-lines
-              build-error-message (str "Lua preprocessing failed.\n" exception-message)
-              log-error-message (format "Lua preprocessing failed for file '%s'." (resource/proj-path resource))]
-          (log/error :message log-error-message :exception exception)
-          (if-some [[proj-path line-number] (try-parse-file-line exception-message)]
-            (let [project (project/get-project _node-id)
-                  exception-resource (workspace/resolve-resource resource proj-path)
-                  exception-node-id (project/get-resource-node project exception-resource)
-                  error-node-id (or exception-node-id _node-id)
-                  error-resource (if (nil? exception-node-id) resource exception-resource)
-                  error-user-data (r/make-code-error-user-data proj-path line-number)]
-              (g/->error error-node-id :modified-lines :fatal error-resource build-error-message error-user-data))
-            (g/->error _node-id :modified-lines :fatal resource build-error-message)))
-        (let [workspace (resource/workspace resource)
+  (let [workspace (resource/workspace resource)]
+    (if-some [errors
+              (not-empty
+                (keep (fn [{:keys [name resource-kind type value]}]
+                        (let [prop-type (script-property-type->property-type type)
+                              edit-type (script-property-edit-type workspace prop-type resource-kind)]
+                          (validate-value-against-edit-type _node-id :lines name value edit-type)))
+                      script-properties))]
+      (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
+      (let [preprocessed-lines
+            (try
+              (preprocessors/preprocess-lua-lines lua-preprocessors lines resource :debug)
+              (catch Exception exception
+                exception))]
+        (if-some [exception-message (ex-message preprocessed-lines)]
+          (let [exception preprocessed-lines
+                build-error-message (str "Lua preprocessing failed.\n" exception-message)
+                log-error-message (format "Lua preprocessing failed for file '%s'." (resource/proj-path resource))]
+            (log/error :message log-error-message :exception exception)
+            (if-some [[proj-path line-number] (try-parse-file-line exception-message)]
+              (let [project (project/get-project _node-id)
+                    exception-resource (workspace/resolve-resource resource proj-path)
+                    exception-node-id (project/get-resource-node project exception-resource)
+                    error-node-id (or exception-node-id _node-id)
+                    error-resource (if (nil? exception-node-id) resource exception-resource)
+                    error-user-data (r/make-code-error-user-data proj-path line-number)]
+                (g/->error error-node-id :modified-lines :fatal error-resource build-error-message error-user-data))
+              (g/->error _node-id :modified-lines :fatal resource build-error-message)))
+          (let [preprocessed-lua-info
+                (with-open [reader (data/lines-reader preprocessed-lines)]
+                  (lua-parser/lua-info workspace valid-resource-kind? reader))
 
-              preprocessed-lua-info
-              (with-open [reader (data/lines-reader preprocessed-lines)]
-                (lua-parser/lua-info workspace valid-resource-kind? reader))
+                preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info)
+                preprocessed-modules (lua-info->modules preprocessed-lua-info)
+                proj-path->module-build-target (bt/make-proj-path->build-target module-build-targets)
+                module->build-target (comp proj-path->module-build-target lua/lua-module->path)
+                missing-modules (filterv (complement module->build-target) preprocessed-modules)]
+            (if (pos? (count missing-modules))
+              (g/->error _node-id :build-targets :fatal resource
+                         (str "Can't find required modules: " (eutil/join-words ", " " and " missing-modules)))
+              (let [preprocessed-module-build-targets (map module->build-target preprocessed-modules)
 
-              preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info)
-              preprocessed-modules (lua-info->modules preprocessed-lua-info)
-              proj-path->module-build-target (bt/make-proj-path->build-target module-build-targets)
-              module->build-target (comp proj-path->module-build-target lua/lua-module->path)
-              missing-modules (filterv (complement module->build-target) preprocessed-modules)]
-          (if (pos? (count missing-modules))
-            (g/->error _node-id :build-targets :fatal resource
-                       (str "Can't find required modules: " (eutil/join-words ", " " and " missing-modules)))
-            (let [preprocessed-module-build-targets (map module->build-target preprocessed-modules)
+                    preprocessed-go-props-with-source-resources
+                    (map (fn [{:keys [name type value]}]
+                           (let [go-prop-type (script-property-type->go-prop-type type)
+                                 go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
+                             {:id name
+                              :type go-prop-type
+                              :value go-prop-value
+                              :clj-value value}))
+                         preprocessed-script-properties)
 
-                  preprocessed-go-props-with-source-resources
-                  (map (fn [{:keys [name type value]}]
-                         (let [go-prop-type (script-property-type->go-prop-type type)
-                               go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
-                           {:id name
-                            :type go-prop-type
-                            :value go-prop-value
-                            :clj-value value}))
-                       preprocessed-script-properties)
+                    proj-path->resource-property-build-target
+                    (bt/make-proj-path->build-target original-resource-property-build-targets)
 
-                  proj-path->resource-property-build-target
-                  (bt/make-proj-path->build-target original-resource-property-build-targets)
-
-                  [preprocessed-go-props preprocessed-go-prop-dep-build-targets]
-                  (properties/build-target-go-props proj-path->resource-property-build-target preprocessed-go-props-with-source-resources)]
-              ;; NOTE: The :user-data must not contain any overridden data. If it does,
-              ;; the build targets won't be fused and the script will be recompiled
-              ;; for every instance of the script component. The :go-props here describe
-              ;; the original property values from the script, never overridden values.
-              [(bt/with-content-hash
-                 {:node-id _node-id
-                  :resource (workspace/make-build-resource resource)
-                  :build-fn build-script
-                  :user-data {:lines preprocessed-lines
-                              :go-props preprocessed-go-props
-                              :modules preprocessed-modules
-                              :proj-path (resource/proj-path resource)}
-                  :deps (into preprocessed-go-prop-dep-build-targets
-                              preprocessed-module-build-targets)})])))))))
+                    [preprocessed-go-props preprocessed-go-prop-dep-build-targets]
+                    (properties/build-target-go-props proj-path->resource-property-build-target preprocessed-go-props-with-source-resources)]
+                ;; NOTE: The :user-data must not contain any overridden data. If it does,
+                ;; the build targets won't be fused and the script will be recompiled
+                ;; for every instance of the script component. The :go-props here describe
+                ;; the original property values from the script, never overridden values.
+                [(bt/with-content-hash
+                   {:node-id _node-id
+                    :resource (workspace/make-build-resource resource)
+                    :build-fn build-script
+                    :user-data {:lines preprocessed-lines
+                                :go-props preprocessed-go-props
+                                :modules preprocessed-modules
+                                :proj-path (resource/proj-path resource)}
+                    :deps (into preprocessed-go-prop-dep-build-targets
+                                preprocessed-module-build-targets)})]))))))))
 
 (g/defnk produce-completions [completion-info module-completion-infos script-intelligence-completions]
   (lua/combine-completions completion-info module-completion-infos script-intelligence-completions))

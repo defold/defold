@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -88,6 +88,7 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.LibraryUtil;
@@ -145,6 +146,7 @@ public class Project {
 
     private TextureProfiles textureProfiles;
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
+    private Set<Class<? extends IPlugin>> pluginClasses = new HashSet<>();
     private ClassLoader classLoader = null;
 
     private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
@@ -366,6 +368,13 @@ public class Project {
                     {
                         if (!klass.equals(IShaderCompiler.class)) {
                             shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
+                        }
+                    }
+
+                    if (IPlugin.class.isAssignableFrom(klass))
+                    {
+                        if (!klass.equals(IPlugin.class)) {
+                            pluginClasses.add( (Class<? extends IPlugin>) klass);
                         }
                     }
 
@@ -990,14 +999,7 @@ public class Project {
 
         final String variant = appmanifestOptions.get("baseVariant");
 
-        List<String> defaultNames = platform.formatBinaryName("dmengine");
-        List<File> exes = new ArrayList<File>();
-        for (String name : defaultNames) {
-            File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
-            exes.add(exe);
-        }
-
-        BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
+        BundleHelper helper = new BundleHelper(this, platform, buildDir, variant, null);
 
         List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, appmanifestOptions);
 
@@ -1023,15 +1025,11 @@ public class Project {
 
         if (debugUploadZip) {
             File debugZip = new File(buildDir.getParent(), "upload.zip");
-            ZipOutputStream zipOut = null;
-            try {
-                zipOut = new ZipOutputStream(new FileOutputStream(debugZip));
+            try (ZipOutputStream zipOut = new ZipOutputStream(Files.newOutputStream(debugZip.toPath()))) {
                 ExtenderUtil.writeResourcesToZip(allSource, zipOut);
                 System.out.printf("Wrote debug upload zip file to: %s", debugZip);
             } catch (Exception e) {
                 throw new CompileExceptionError(String.format("Failed to write debug zip file to %s", debugZip), e);
-            } finally {
-                zipOut.close();
             }
         }
 
@@ -1048,7 +1046,7 @@ public class Project {
 
             cleanEngine(platform, buildDir);
 
-            BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
+            BundleHelper.unzip(Files.newInputStream(zip.toPath()), buildDir.toPath());
         } catch (ConnectException e) {
             throw new CompileExceptionError(String.format("Failed to connect to %s: %s", serverURL, e.getMessage()), e);
         } catch (ExtenderClientException e) {
@@ -1064,8 +1062,6 @@ public class Project {
         final String libraryName = this.option("ne-output-name", "default");
 
         final String variant = appmanifestOptions.get("baseVariant");
-
-        BundleHelper helper = new BundleHelper(this, platform, buildDir, variant);
 
         // Located in the same place as the log file in the unpacked successful build
         File logFile = new File(buildDir, "log.txt");
@@ -1565,6 +1561,13 @@ public class Project {
             mrep.done();
         }
 
+        List<IPlugin> plugins = new ArrayList<>();
+        for (Class<? extends IPlugin> klass : pluginClasses) {
+            IPlugin plugin = klass.getConstructor().newInstance();
+            plugin.init(this);
+            plugins.add(plugin);
+        }
+
         loop:
         for (String command : commands) {
             BundleHelper.throwIfCanceled(monitor);
@@ -1634,6 +1637,11 @@ public class Project {
             }
             TimeProfiler.stop();
         }
+
+        for (IPlugin plugin : plugins) {
+            plugin.exit(this);
+        }
+        plugins.clear();
 
         monitor.done();
         TimeProfiler.start("Save cache");

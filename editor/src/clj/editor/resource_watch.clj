@@ -168,18 +168,26 @@
    :status-map {}
    :errors []})
 
+(defn map-intersection
+  "Given 2 maps, return a vector of keys present in both maps"
+  [m1 m2]
+  (if (< (count m2) (count m1))
+    (recur m2 m1)
+    (persistent!
+      (reduce-kv
+        (fn [acc k _]
+          (cond-> acc (contains? m2 k) (conj! k)))
+        (transient [])
+        m1))))
+
 (defn- combine-snapshots [snapshots]
   (reduce
     (fn [result snapshot]
-      (let [collisions (into {}
-                             (filter (comp (:status-map result) key))
-                             (:status-map snapshot))]
-        (if (coll/empty? collisions)
-          (-> result
-              (update :resources into (:resources snapshot))
-              (update :status-map into (:status-map snapshot)))
-          (update result :errors conj {:type :collision
-                                       :collisions collisions}))))
+      (if-let [collisions (not-empty (map-intersection (:status-map result) (:status-map snapshot)))]
+        (update result :errors conj {:type :collision :collisions (select-keys (:status-map snapshot) collisions)})
+        (-> result
+            (update :resources into (:resources snapshot))
+            (update :status-map merge (:status-map snapshot)))))
     empty-snapshot
     snapshots))
 
@@ -204,13 +212,14 @@
   (update snapshot :status-map into file-resource-status-map-entries))
 
 (defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
-  (let [lib-states (library/current-library-state project-directory library-uris)
-        new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-states)]
-    {:snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
-                                         (make-directory-snapshot workspace project-directory)
-                                         (make-debugger-snapshot workspace)
-                                         (make-library-snapshots new-library-snapshot-cache lib-states)))
-     :snapshot-cache new-library-snapshot-cache}))
+  (resource/with-defignore-pred project-directory
+    (let [lib-states (library/current-library-state project-directory library-uris)
+          new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-states)]
+      {:snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
+                                           (make-directory-snapshot workspace project-directory)
+                                           (make-debugger-snapshot workspace)
+                                           (make-library-snapshots new-library-snapshot-cache lib-states)))
+       :snapshot-cache new-library-snapshot-cache})))
 
 (defn make-resource-map [snapshot]
   (into {}
