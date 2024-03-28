@@ -365,37 +365,10 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ///////////////////////////////////////////////////////////////////////////////////////////
     dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     null_context->m_UseAsyncTextureLoad   = 1;
+
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "async_test_done"));
-
-    /*
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
-    bool tests_done = false;
-    while (dmTime::GetTime() < stop_time && !tests_done)
-    {
-        dmJobThread::Update(scriptlibcontext.m_JobThread);
-        dmGameSystem::ScriptResourceUpdate(scriptlibcontext);
-
-        if (!dmGameObject::Update(m_Collection, &m_UpdateContext))
-            break;
-
-        // check if tests are done
-        lua_getglobal(scriptlibcontext.m_LuaState, "async_test_done");
-        tests_done = lua_toboolean(scriptlibcontext.m_LuaState, -1);
-
-        if (tests_done)
-            break;
-
-        lua_pop(scriptlibcontext.m_LuaState, 1);
-        dmTime::Sleep(30*1000);
-    }
-
-    // return tests_done;
-    ASSERT_TRUE(tests_done);
-    */
-
-    null_context->m_UseAsyncTextureLoad = 0;
 
     // cleanup
     DeleteInstance(m_Collection, go);

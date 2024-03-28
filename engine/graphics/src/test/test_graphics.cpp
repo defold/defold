@@ -742,7 +742,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
 
-    const uint32_t TEXTURE_COUNT = 64;
+    const uint32_t TEXTURE_COUNT = 512;
     dmArray<dmGraphics::HTexture> textures;
     textures.SetCapacity(TEXTURE_COUNT);
 

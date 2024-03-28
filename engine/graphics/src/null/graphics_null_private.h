@@ -20,6 +20,13 @@
 
 #include "../graphics_private.h"
 
+#define ASSET_CONTAINER_LOCK_BEGIN(ctx) \
+    if (ctx->m_AssetContainerMutex && ctx->m_UseAsyncTextureLoad) \
+        dmMutex::Lock(ctx->m_AssetContainerMutex);
+#define ASSET_CONTAINER_LOCK_END(ctx) \
+    if (ctx->m_AssetContainerMutex && ctx->m_UseAsyncTextureLoad) \
+        dmMutex::Unlock(ctx->m_AssetContainerMutex);
+
 namespace dmGraphics
 {
     const static uint32_t MAX_REGISTER_COUNT = 16;

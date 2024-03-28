@@ -778,11 +778,15 @@ static void HandleRequestCompleted(SetTextureAsyncRequest* request)
         DM_LUA_STACK_CHECK(L, 0);
 
         // callback has the format:
-        // function(self, request_id, resource_path)
+        // function(self, request_id, result)
         if (dmScript::SetupCallback(request->m_CallbackInfo))
         {
             lua_pushnumber(L, request->m_Handle);
+
+            lua_newtable(L);
             dmScript::PushHash(L, request->m_PathHash);
+            lua_setfield(L, -2, "path");
+
             dmScript::PCall(L, 3, 0);
             dmScript::TeardownCallback(request->m_CallbackInfo);
         }

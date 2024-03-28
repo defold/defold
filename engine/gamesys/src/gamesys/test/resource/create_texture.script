@@ -132,11 +132,11 @@ function test_async_simple(self)
     local tex_buffer = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
     self.requests[1] = {}
     self.requests[1].path, self.requests[1].id = resource.create_texture_async("/test_async_simple.texturec", tparams, tex_buffer,
-        function(self, request_id, path)
-            assert(request_id == self.requests[1].id)
-            assert(path       == self.requests[1].path)
+        function(self, request_id, result)
+            assert(request_id  == self.requests[1].id)
+            assert(result.path == self.requests[1].path)
 
-            local t_info = resource.get_texture_info(path)
+            local t_info = resource.get_texture_info(result.path)
             pprint(t_info)
             assert(t_info.width == tparams.width)
             assert(t_info.height == tparams.height)
@@ -150,11 +150,11 @@ function test_async_simple(self)
     -- Request with no buffer + callback
     self.requests[2] = {}
     self.requests[2].path, self.requests[2].id = resource.create_texture_async("/test_async_no_buffer.texturec", tparams, nil,
-        function(self, request_id, path)
-            assert(request_id == self.requests[2].id)
-            assert(path       == self.requests[2].path)
+        function(self, request_id, result)
+            assert(request_id  == self.requests[2].id)
+            assert(result.path == self.requests[2].path)
 
-            local t_info = resource.get_texture_info(path)
+            local t_info = resource.get_texture_info(result.path)
             pprint(t_info)
             assert(t_info.width == tparams.width)
             assert(t_info.height == tparams.height)
@@ -169,11 +169,11 @@ function test_async_simple(self)
     local tex_buffer_gc = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
     self.requests[3] = {}
     self.requests[3].path, self.requests[3].id = resource.create_texture_async("/test_async_gc_buffer.texturec", tparams, tex_buffer_gc,
-        function(self, request_id, path)
-            assert(request_id == self.requests[3].id)
-            assert(path       == self.requests[3].path)
+        function(self, request_id, result)
+            assert(request_id  == self.requests[3].id)
+            assert(result.path == self.requests[3].path)
 
-            local t_info = resource.get_texture_info(path)
+            local t_info = resource.get_texture_info(result.path)
             pprint(t_info)
             assert(t_info.width == tparams.width)
             assert(t_info.height == tparams.height)
