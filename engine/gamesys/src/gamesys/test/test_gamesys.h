@@ -118,6 +118,7 @@ protected:
     dmPlatform::HWindow m_Window;
     dmScript::HContext m_ScriptContext;
     dmGraphics::HContext m_GraphicsContext;
+    dmJobThread::HContext m_JobThread;
     dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContext m_PhysicsContext;
     dmGameSystem::ParticleFXContext m_ParticleFXContext;
@@ -478,8 +479,14 @@ void GamesysTest<T>::SetUp()
     dmGraphics::InstallAdapter();
     dmGraphics::ResetDrawCount(); // for the unit test
 
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
+    job_thread_create_param.m_ThreadCount    = 1;
+    m_JobThread = dmJobThread::Create(job_thread_create_param);
+
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_Window = m_Window;
+    graphics_context_params.m_JobThread = m_JobThread;
 
     m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
     dmRender::RenderContextParams render_params;
@@ -587,6 +594,7 @@ void GamesysTest<T>::TearDown()
     dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
+    dmJobThread::Destroy(m_JobThread);
     dmPlatform::CloseWindow(m_Window);
     dmPlatform::DeleteWindow(m_Window);
     dmScript::Finalize(m_ScriptContext);

@@ -78,6 +78,7 @@ namespace dmGraphics
         char*                   m_ExtensionsString;
         void*                   m_AuxContext;
         volatile bool           m_AuxContextJobPending;
+        volatile bool           m_DeleteContextRequested;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 

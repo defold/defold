@@ -576,6 +576,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context != 0x0)
         {
+            context->m_DeleteContextRequested = true;
             AcquireAuxContextOnThread(context, false);
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
             delete context;
@@ -2969,6 +2970,11 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context     = (OpenGLContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
+
+        if (context->m_DeleteContextRequested)
+        {
+            return 0;
+        }
 
         // TODO: If we use multiple workers, we either need more secondary contexts,
         //       or we need to guard this call with a mutex.

@@ -1085,6 +1085,7 @@ namespace dmGraphics
 
     void PushSetTextureAsyncDeleteTexture(SetTextureAsyncState& state, HTexture texture)
     {
+        DM_MUTEX_SCOPED_LOCK(state.m_Mutex);
         if (state.m_PostDeleteTextures.Full())
         {
             state.m_PostDeleteTextures.OffsetCapacity(64);
