@@ -4611,10 +4611,10 @@ bail:
     }
 
 
-    void VulkanSetPipelineState(HContext _context, PipelineState ps)
+    void VulkanSetPipelineState(HContext _context, HPipelineState ps)
     {
         VulkanContext* context     = (VulkanContext*) _context;
-        context->m_PipelineState   = ps;
+        context->m_PipelineState   = *ps;
         context->m_ViewportChanged = 1;
     }
 

@@ -114,6 +114,13 @@ namespace dmGraphics
     typedef struct VertexStreamDeclaration* HVertexStreamDeclaration;
 
     /*#
+     * PipelineState handle
+     * @typedef
+     * @name HPipelineState
+     */
+    typedef struct PipelineState* HPipelineState;
+
+    /*#
      * Invalid stream offset
      * @constant
      * @name INVALID_STREAM_OFFSET

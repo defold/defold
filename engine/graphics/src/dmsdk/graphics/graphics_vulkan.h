@@ -227,7 +227,7 @@ namespace dmGraphics
      * @param context [type: dmGraphics::HContext] the vulkan context
      * @param ps [type: dmGraphics::PipelineState] the pipeline state
      */
-    void VulkanSetPipelineState(HContext context, PipelineState ps);
+    void VulkanSetPipelineState(HContext context, HPipelineState ps);
     /*#
      * Clear a texture with RGBA values
      * @name VulkanClearTexture
