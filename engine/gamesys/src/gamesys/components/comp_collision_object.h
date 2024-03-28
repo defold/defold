@@ -107,6 +107,7 @@ namespace dmGameSystem
     // For script_box2d.cpp
     class b2World* CompCollisionObjectGetBox2DWorld(void* _world);
     class b2Body* CompCollisionObjectGetBox2DBody(void* _component);
+    dmGameObject::HInstance CompCollisionObjectGetInstance(void* _user_data);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

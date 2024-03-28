@@ -15,8 +15,14 @@
 #ifndef DM_GAMESYS_SCRIPT_BOX2D_H
 #define DM_GAMESYS_SCRIPT_BOX2D_H
 
+#include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/vmath.h>
 #include <Box2D/Common/b2Math.h>
+
+namespace dmGameObject
+{
+    typedef struct CollectionHandle* HCollection;
+}
 
 namespace dmGameSystem
 {
@@ -33,7 +39,7 @@ namespace dmGameSystem
 
     void    PushWorld(struct lua_State* L, class b2World* world);
 
-    void            PushBody(struct lua_State* L, class b2Body* body);
+    void            PushBody(struct lua_State* L, class b2Body* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
     class b2Body*   CheckBody(lua_State* L, int index);
 
     void    ScriptBox2DInitializeBody(struct lua_State* L);

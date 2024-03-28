@@ -2155,4 +2155,11 @@ namespace dmGameSystem
             return 0;
         return (class b2Body*)dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
     }
+
+    // We use this to determine if a physics object is still alive, by determinig if the game object is still alive
+    dmGameObject::HInstance CompCollisionObjectGetInstance(void* _user_data)
+    {
+        CollisionComponent* component = (CollisionComponent*)_user_data; // See SetCollisionObjectData and dmPhysics::NewCollisionObject2D
+        return component->m_Instance;
+    }
 }

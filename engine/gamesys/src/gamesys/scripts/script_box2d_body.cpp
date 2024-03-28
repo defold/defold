@@ -22,6 +22,7 @@
 
 #include "gamesys.h"
 #include "../gamesys_private.h"
+#include "components/comp_collision_object.h"
 
 #include "script_box2d.h"
 
@@ -40,18 +41,46 @@ namespace dmGameSystem
 
     #define BOX2D_TYPE_NAME_BODY "b2body"
 
-    void PushBody(lua_State* L, b2Body* body)
+    struct B2DLuaBody
     {
-        b2Body** bodyp = (b2Body**)lua_newuserdata(L, sizeof(b2Body*));
-        *bodyp = body;
+        b2Body*                   m_Body;
+        dmGameObject::HCollection m_Collection;
+        dmhash_t                  m_InstanceId;
+    };
+
+    void PushBody(lua_State* L, b2Body* body, dmGameObject::HCollection collection, dmhash_t instance_id)
+    {
+        B2DLuaBody* luabody = (B2DLuaBody*)lua_newuserdata(L, sizeof(B2DLuaBody));
+        luabody->m_Body = body;
+        luabody->m_Collection = collection;
+        luabody->m_InstanceId = instance_id;
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
     }
 
+    static B2DLuaBody* CheckBodyInternal(lua_State* L, int index)
+    {
+        return (B2DLuaBody*)dmScript::CheckUserType(L, index, TYPE_HASH_BODY, "Expected user type " BOX2D_TYPE_NAME_BODY);
+    }
+
+    static int VerifyBodyInternal(lua_State* L, B2DLuaBody* luabody)
+    {
+        if (luabody->m_InstanceId) // check if the instance is alive
+        {
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(luabody->m_Collection, luabody->m_InstanceId);
+            if (!instance)
+            {
+                return luaL_error(L, "Cannot get b2body for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(luabody->m_InstanceId));
+            }
+        }
+        return 0;
+    }
+
     b2Body* CheckBody(lua_State* L, int index)
     {
-        b2Body** pbody = (b2Body**)dmScript::CheckUserType(L, index, TYPE_HASH_BODY, "Expected user type " BOX2D_TYPE_NAME_BODY);
-        return *pbody;
+        B2DLuaBody* luabody = CheckBodyInternal(L, index);
+        VerifyBodyInternal(L, luabody);
+        return luabody->m_Body;
     }
 
     static b2Body* ToBody(lua_State* L, int index)
@@ -401,12 +430,32 @@ namespace dmGameSystem
     static int Body_GetNext(lua_State *L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        b2Body* body = CheckBody(L, 1);
-        b2Body* next = body->GetNext();
+        B2DLuaBody* luabody = CheckBodyInternal(L, 1);
+        VerifyBodyInternal(L, luabody);
+
+        b2Body* next = luabody->m_Body->GetNext();
         if (next)
-            PushBody(L, next);
+        {
+            void* next_user_data = next->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
+            
+            dmGameObject::HInstance instance = 0;
+            if (next_user_data)
+            {
+                instance = dmGameSystem::CompCollisionObjectGetInstance(next_user_data);
+            }
+
+            dmhash_t id = 0;
+            if (instance)
+            {
+                id = dmGameObject::GetIdentifier(instance);
+            }
+
+            PushBody(L, next, luabody->m_Collection, id);
+        }
         else
+        {
             lua_pushnil(L);
+        }
         return 1;
     }
 

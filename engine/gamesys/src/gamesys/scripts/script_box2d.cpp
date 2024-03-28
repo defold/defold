@@ -35,21 +35,10 @@ extern "C"
 
 namespace dmGameSystem
 {
+    //////////////////////////////////////////////////////////////////////////////
+
     static float g_PhysicsScale = 1.0f;
     static float g_InvPhysicsScale = 1.0f / g_PhysicsScale;
-
-    //////////////////////////////////////////////////////////////////////////////
-    // Types
-
-    enum Box2DUserType
-    {
-        BOX2D_TYPE_BODY,
-        BOX2D_TYPE_MAX,
-    };
-
-    static uint32_t TYPE_HASHES[BOX2D_TYPE_MAX];
-
-    #define BOX2D_TYPE_NAME_BODY "b2body"
 
     //////////////////////////////////////////////////////////////////////////////
     // b2Vec2
@@ -88,9 +77,9 @@ namespace dmGameSystem
 
     //////////////////////////////////////////////////////////////////////////////
 
-    static void GetCollisionObject(lua_State* L, int index, dmGameObject::HCollection collection, void** comp, void** comp_world)
+    static void GetCollisionObject(lua_State* L, int index, dmGameObject::HCollection collection, dmMessage::URL* url, void** comp, void** comp_world)
     {
-        dmGameObject::GetComponentUserDataFromLua(L, index, collection, COLLISION_OBJECT_EXT, (uintptr_t*)comp, 0, comp_world);
+        dmGameObject::GetComponentUserDataFromLua(L, index, collection, COLLISION_OBJECT_EXT, (uintptr_t*)comp, url, comp_world);
     }
 
     static int B2D_GetWorld(lua_State* L)
@@ -114,14 +103,14 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
 
         dmGameObject::HCollection collection = dmGameObject::GetCollection(CheckGoInstance(L));
-
+        dmMessage::URL url;
         void* component = 0;
-        GetCollisionObject(L, 1, collection, &component, 0);
+        GetCollisionObject(L, 1, collection, &url, &component, 0);
 
         b2Body* body = dmGameSystem::CompCollisionObjectGetBox2DBody(component);
 
         if (body)
-            PushBody(L, body);
+            PushBody(L, body, collection, url.m_Path);
         else
             lua_pushnil(L);
         return 1;
