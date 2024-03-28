@@ -708,7 +708,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     dmGraphics::TextureImage::CompressionType compression_type = (dmGraphics::TextureImage::CompressionType) CheckTableInteger(L, 2, "compression_type", (int) dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT);
 
     dmBuffer::HBuffer buffer = 0;
-    if (lua_gettop(L) > 2)
+    if (lua_gettop(L) > 2 && !lua_isnil(L, 3))
     {
         // TODO: Support creating texture from string
         dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, 3);
@@ -768,6 +768,10 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
 
 static void HandleRequestCompleted(SetTextureAsyncRequest* request)
 {
+    // Swap out the texture
+    dmGraphics::DeleteTexture(request->m_TextureResource->m_Texture);
+    request->m_TextureResource->m_Texture = request->m_Texture;
+
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
     {
         lua_State* L = dmScript::GetCallbackLuaContext(request->m_CallbackInfo);
@@ -799,10 +803,6 @@ static void HandleRequestCompleted(SetTextureAsyncRequest* request)
     {
         dmScript::Unref(request->m_LuaState, LUA_REGISTRYINDEX, request->m_BufferRef);
     }
-
-    // Swap out the texture
-    dmGraphics::DeleteTexture(request->m_TextureResource->m_Texture);
-    request->m_TextureResource->m_Texture = request->m_Texture;
 
     g_ResourceModule.m_LoadRequests.Release(request->m_Handle);
     delete request;
@@ -1197,6 +1197,7 @@ static int CreateTextureAsync(lua_State* L)
     request->m_Buffer            = dst_buffer;
     request->m_Texture           = texture_dst;
     request->m_UseUploadBuffer   = use_upload_buffer;
+    request->m_PathHash          = create_params.m_PathHash;
 
     dmGraphics::TextureParams texture_params;
     texture_params.m_Width  = create_params.m_Width;
