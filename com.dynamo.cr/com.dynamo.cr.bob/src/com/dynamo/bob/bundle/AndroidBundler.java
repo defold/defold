@@ -974,7 +974,7 @@ public class AndroidBundler implements IBundler {
         TimeProfiler.stop();
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant, this);
 
         File outDir = new File(bundleDir, getProjectTitle(project));
         FileUtils.deleteDirectory(outDir);
