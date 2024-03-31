@@ -586,14 +586,12 @@ namespace dmGraphics
 
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
     {
-        return vertex_declaration->m_Stride;
+        return vertex_declaration ? vertex_declaration->m_Stride : 0;
     }
 
     uint32_t GetVertexDeclarationStreamCount(HVertexDeclaration vertex_declaration)
     {
-        if (!vertex_declaration)
-            return 0;
-        return vertex_declaration->m_StreamCount;
+        return vertex_declaration ? vertex_declaration->m_StreamCount : 0;
     }
 
     #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;

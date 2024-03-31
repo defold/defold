@@ -582,6 +582,7 @@ namespace dmGameSystem
 
                 if (vx_buffer_out)
                 {
+                    /*
                     if (!scratch_attribute_vertex)
                     {
                         scratch_attribute_vertex = (uint8_t*) malloc(dmGraphics::GetVertexDeclarationStride(vx_decl_in));
@@ -590,6 +591,7 @@ namespace dmGameSystem
                     uint8_t* data_write_ptr = scratch_attribute_vertex + custom_vertex_size;
                     memcpy(data_write_ptr, attr.m_ValuePtr, attr.m_ValueByteSize);
                     custom_vertex_size += attr.m_ValueByteSize;
+                    */
                 }
 
                 has_matching_step_function = true;
@@ -600,6 +602,7 @@ namespace dmGameSystem
         {
             if (vx_buffer_out)
             {
+                /*
                 uint32_t vertex_data_size = custom_vertex_size * vertex_count;
                 void* attribute_data      = malloc(vertex_data_size);
                 uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
@@ -614,6 +617,7 @@ namespace dmGameSystem
 
                 free(attribute_data);
                 free(scratch_attribute_vertex);
+                */
             }
 
             *vx_decl_out = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
@@ -640,61 +644,54 @@ namespace dmGameSystem
                     &material_infos,
                     &attribute_infos);
 
-        if (material_vx_decl)
-        {
-            CreateCustomVertexDeclaration(graphics_context, material_vx_decl, material_infos, attribute_infos, render_item->m_Buffers->m_VertexCount, &rd->m_VertexDeclaration, &rd->m_VertexBuffer, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
-        }
-
         if (material_vx_decl_inst)
         {
             CreateCustomVertexDeclaration(graphics_context, material_vx_decl_inst, material_infos, attribute_infos, 0, &rd->m_InstanceVertexDeclaration, 0, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
         }
 
-        uint8_t* scratch_attribute_vertex = (uint8_t*) malloc(dmGraphics::GetVertexDeclarationStride(material_vx_decl));
-
-        dmGraphics::VertexAttributeInfos non_default_attribute;
-        non_default_attribute.m_VertexStride = 0;
-        non_default_attribute.m_NumInfos     = 0;
-
-        for (int i = 0; i < material_infos.m_NumInfos; ++i)
+        if (material_vx_decl)
         {
-            const dmGraphics::VertexAttributeInfo& attr_material = material_infos.m_Infos[i];
-            const dmGraphics::VertexAttributeInfo& attr_model    = attribute_infos.m_Infos[i];
+            CreateCustomVertexDeclaration(graphics_context, material_vx_decl, material_infos, attribute_infos, render_item->m_Buffers->m_VertexCount, &rd->m_VertexDeclaration, &rd->m_VertexBuffer, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+            uint8_t* scratch_attribute_vertex = (uint8_t*) malloc(dmGraphics::GetVertexDeclarationStride(rd->m_VertexDeclaration));
+            dmGraphics::VertexAttributeInfos non_default_attribute;
+            non_default_attribute.m_VertexStride = 0;
+            non_default_attribute.m_NumInfos     = 0;
 
-            if (!IsDefaultStream(attr_model.m_NameHash, attr_material.m_SemanticType))
+            for (int i = 0; i < material_infos.m_NumInfos; ++i)
             {
-                assert(attr_model.m_NameHash == attr_material.m_NameHash);
-                dmGraphics::AddVertexStream(stream_declaration,
-                    attr_model.m_NameHash,
-                    attr_material.m_ElementCount, // Need the material attribute here to get the _actual_ element count
-                    dmGraphics::GetGraphicsType(attr_model.m_DataType),
-                    attr_model.m_Normalize);
+                const dmGraphics::VertexAttributeInfo& attr_material = material_infos.m_Infos[i];
+                const dmGraphics::VertexAttributeInfo& attr_model    = attribute_infos.m_Infos[i];
 
-                uint32_t attribute_index = non_default_attribute.m_NumInfos++;
-                non_default_attribute.m_Infos[attribute_index]                 = attr_model;
-                non_default_attribute.m_Infos[attribute_index].m_ElementCount  = attr_material.m_ElementCount;
-                non_default_attribute.m_VertexStride                          += attr_model.m_ValueByteSize;
+                if (!IsDefaultStream(attr_model.m_NameHash, attr_material.m_SemanticType))
+                {
+                    uint32_t attribute_index = non_default_attribute.m_NumInfos++;
+                    non_default_attribute.m_Infos[attribute_index]                 = attr_model;
+                    non_default_attribute.m_Infos[attribute_index].m_ElementCount  = attr_material.m_ElementCount;
+                    non_default_attribute.m_VertexStride                          += attr_model.m_ValueByteSize;
+                }
             }
-        }
 
-        uint32_t vertex_count     = render_item->m_Buffers->m_VertexCount;
-        uint32_t vertex_data_size = non_default_attribute.m_VertexStride * vertex_count;
-        void* attribute_data      = malloc(vertex_data_size);
-        memset(attribute_data, 0, vertex_data_size);
-        uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
+            uint32_t vertex_count     = render_item->m_Buffers->m_VertexCount;
+            uint32_t vertex_data_size = non_default_attribute.m_VertexStride * vertex_count;
+            void* attribute_data      = malloc(vertex_data_size);
+            memset(attribute_data, 0, vertex_data_size);
+            uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
 
-        const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
-        const float* positions     = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
-        const float* normals       = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
-        const float* tangents      = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
-        const float* colors        = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
-        const float* uv0           = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
-        const float* uv1           = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
+            const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
+            const float* positions     = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
+            const float* normals       = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
+            const float* tangents      = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
+            const float* colors        = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
+            const float* uv0           = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
+            const float* uv1           = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
 
-        for (int i = 0; i < vertex_count; ++i)
-        {
-            vertex_write_ptr = dmRig::WriteSingleVertexDataByAttributes(vertex_write_ptr, i, &non_default_attribute,
-                positions, normals, tangents, uv0, uv1, colors);
+            for (int i = 0; i < vertex_count; ++i)
+            {
+                vertex_write_ptr = dmRig::WriteSingleVertexDataByAttributes(vertex_write_ptr, i, &non_default_attribute,
+                    positions, normals, tangents, uv0, uv1, colors);
+            }
+
+            rd->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         }
 
         rd->m_Initialized = true;
@@ -1248,7 +1245,7 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    dmVMath::Matrix4* world_matrix = &transform;
+                    world_matrix = &transform;
                 }
 
                 // Either generate the vertices by using the attributes or the 'old' way.
