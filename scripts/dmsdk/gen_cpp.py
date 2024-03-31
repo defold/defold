@@ -127,6 +127,15 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
         l('    typedef %s %s;' % (n, renamed))
         l('')
 
+    for decl, doc in state.function_typedefs:
+        n = decl['name']
+        if n in ignores:
+            continue
+        renamed = renames.get(n, n)
+        l('%s' % gen_cpp_doc(renames, doc))
+        l('    typedef %s %s;' % (n, renamed))
+        l('')
+
     for decl, doc in state.functions:
         n = decl['name']
         if n in ignores:
@@ -141,11 +150,11 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
     l('')
     l('} // namespace %s' % info['namespace'])
 
-    print("struct_typedefs", state.struct_typedefs)
-    print("struct_types", state.struct_types)
-    print("enum_types", state.enum_types)
-    print("functions", state.functions)
-        #_parse_ast(info, ast)
+    #print("struct_typedefs"); pprint.pp(state.struct_typedefs)
+    #print("function_typedefs"); pprint.pp(state.function_typedefs)
+    #print("struct_types"); pprint.pp(state.struct_types)
+    #print("enum_types"); pprint.pp(state.enum_types)
+    #print("functions"); pprint.pp(state.functions)
 
     l('')
     l('#endif // #define DMSDK_' + basename.upper())

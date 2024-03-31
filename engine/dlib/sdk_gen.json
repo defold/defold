@@ -1,0 +1,30 @@
+{
+	"basepath": "src",
+	
+	"includes": [
+		"src"
+	],
+
+	"files": [
+		{"file": "src/dmsdk/dlib/configfile.h", "languages": {
+			"cpp": {
+				"namespace": "dmConfigFile",
+				"ignore": [
+					"ConfigFile",
+					"ConfigFileRegisterExtension",
+					"FConfigFileCreate",
+					"FConfigFileDestroy",
+					"FConfigFileGetString",
+					"FConfigFileGetInt",
+					"FConfigFileGetFloat"
+				],
+				"rename": {
+					"HConfigFile": "HConfig",
+					"ConfigFileGetString": "GetString",
+					"ConfigFileGetInt": "GetInt",
+					"ConfigFileGetFloat": "GetFloat"
+				}
+			}
+		}}
+	]
+}

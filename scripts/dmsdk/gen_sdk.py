@@ -434,16 +434,29 @@ class State(object):
     def __init__(self):
         pass
 
+def _find_node(inp, expected):
+    if not expected:
+        return inp
+
+    e = expected[0]
+    if inp['kind'] != e:
+        return None
+
+    inner = inp.get('inner', [])
+    for i in inner:
+        n = _find_node(i, expected[1:])
+        if n:
+            return n
+
+    return inp
+
 def is_struct_typedef(inp):
-    expected = ['TypedefDecl', 'PointerType', 'ElaboratedType', 'RecordType']
-    for e in expected:
-        if inp['kind'] != e:
-            return False
-        inner = inp.get('inner', [])
-        if not inner:
-            break
-        inp = inner[0]
-    return True
+    n = _find_node(inp, ['TypedefDecl', 'PointerType', 'ElaboratedType', 'RecordType'])
+    return n is not None
+
+def is_function_typedef(inp):
+    n = _find_node(inp, ['TypedefDecl', 'PointerType', 'ParenType', 'FunctionProtoType'])
+    return n is not None
 
 ##############################################################################
 
@@ -526,6 +539,10 @@ def pre_parse(data, inp, state):
             doc = extract_documentation(data, decl, Documentation())
             state.struct_typedefs.append( (decl, doc) )
 
+        elif is_function_typedef(decl):
+            doc = extract_documentation(data, decl, Documentation())
+            state.function_typedefs.append( (decl, doc) )
+
         elif kind in ['FunctionDecl']:
             doc = extract_documentation(data, decl, Documentation())
             state.functions.append( (decl, doc) )
@@ -596,19 +613,20 @@ def generate(gen_info, includes, basepath, outdir):
 
     for file_info in gen_info['files']:
         path = file_info['file']
+        basename = os.path.splitext(os.path.basename(path))[0]
         relative_path = os.path.relpath(path, basepath)
 
         parsed_includes = parse_c_includes(path)
         
-        ir = gen_ir.gen(path, includes, "nomodule", "nonamespace", [])
-
         data = None
         with open(path, 'r') as f:
             data = f.read()
 
-        ast = ir['ast']
+        ast = gen_ir.gen(path, includes)
         ast = cleanup_ast(ast, path)
-        pprint.pp(ast)
+
+        with open('debug.json', 'w') as f:
+            pprint.pprint(ast, f)
 
         state = State()
         pre_parse(data, ast, state)
@@ -651,7 +669,7 @@ if __name__ == "__main__":
         args.output = cwd
 
     if not args.basepath:
-        args.basepath = cwd
+        args.basepath = info.get('basepath', cwd)
     args.basepath = os.path.abspath(args.basepath)
  
     includes = info["includes"]

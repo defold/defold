@@ -64,18 +64,130 @@ typedef struct ConfigFile* HConfigFile;
  */
 const char* ConfigFileGetString(HConfigFile config, const char* key, const char* default_value);
 
+/*# get config value as integer
+ *
+ * Get config value as integer, returns default if the key isn't found
+ *
+ * @name ConfigFileGetInt
+ * @param config [type:HConfigFile] Config file handle
+ * @param key [type:const char*] Key in format section.key (.key for no section)
+ * @param default_value [type:int32_t] Default value to return if key isn't found
+ * @return value [type:int32_t] found value or default value
+ *
+ * @examples
+ * ```c
+ * static ExtensionResult AppInitialize(ExtensionAppParams* params)
+ * {
+ *     int32_t displayWidth = ConfigFileGetInt(params->m_ConfigFile, "display.width", 640);
+ * }
+ * ```
+* @examples
+ *
+ * ```cpp
+ * static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
+ * {
+ *     int32_t displayWidth = dmConfigFile::GetInt(params->m_ConfigFile, "display.width", 640);
+ * }
+ *
+ */
 int32_t     ConfigFileGetInt(HConfigFile config, const char* key, int32_t default_value);
-float       ConfigFileGetFloat(HConfigFile config, const char* key, float default_value);
+
+/*# get config value as float
+ *
+ * Get config value as float, returns default if the key isn't found
+ *
+ * @name ConfigFileGetFloat
+ * @param config [type:HConfigFile] Config file handle
+ * @param key [type:const char*] Key in format section.key (.key for no section)
+ * @param default_value [type:int32_t] Default value to return if key isn't found
+ * @return value [type:int32_t] found value or default value
+ *
+ * @examples
+ * ```c
+ * static ExtensionResult AppInitialize(ExtensionAppParams* params)
+ * {
+ *     float gravity = ConfigFileGetFloat(params->m_ConfigFile, "physics.gravity_y", -9.8f);
+ * }
+ * ```
+* @examples
+ *
+ * ```cpp
+ * static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
+ * {
+ *     float gravity = dmConfigFile::GetFloat(params->m_ConfigFile, "physics.gravity_y", -9.8f);
+ * }
+ *
+ */
+float ConfigFileGetFloat(HConfigFile config, const char* key, float default_value);
 
 // Extensions
+
+/*# Called when config file extension is created
+ * @typedef
+ * @name FConfigFileCreate
+ * @param config [type:HConfigFile] Config file handle
+ */
 typedef void (*FConfigFileCreate)(HConfigFile config);
+
+/*# Called when config file extension is destroyed
+ * @typedef
+ * @name FConfigFileDestroy
+ * @param config [type:HConfigFile] Config file handle
+ */
 typedef void (*FConfigFileDestroy)(HConfigFile config);
+
+/*# Called when a string is requested from the config file extension
+ * @typedef
+ * @name FConfigFileGetString
+ * @param config [type:HConfigFile] Config file handle
+ * @param key [type:const char*] Key in format section.key (.key for no section)
+ * @param default_value [type:const char*] Default value to return if key isn't found
+ * @param out [type:const char**] Out argument where result is stored if found. Caller must free() this memory.
+ * @return result [type:bool] True if property was found
+ */
 typedef bool (*FConfigFileGetString)(HConfigFile config, const char* key, const char* default_value, const char** out);
+
+/*# Called when an integer is requested from the config file extension
+ * @typedef
+ * @name FConfigFileGetInt
+ * @param config [type:HConfigFile] Config file handle
+ * @param key [type:const char*] Key in format section.key (.key for no section)
+ * @param default_value [type:int32_t] Default value to return if key isn't found
+ * @param out [type:int32_t*] Out argument where result is stored if found.
+ * @return result [type:bool] True if property was found
+ */
 typedef bool (*FConfigFileGetInt)(HConfigFile config, const char* key, int32_t default_value, int32_t* out);
+
+/*# Called when a float is requested from the config file extension
+ * @typedef
+ * @name FConfigFileGetFloat
+ * @param config [type:HConfigFile] Config file handle
+ * @param key [type:const char*] Key in format section.key (.key for no section)
+ * @param default_value [type:float] Default value to return if key isn't found
+ * @param out [type:float*] Out argument where result is stored if found.
+ * @return result [type:bool] True if property was found
+ */
 typedef bool (*FConfigFileGetFloat)(HConfigFile config, const char* key, float default_value, float* out);
 
+/*# Used when registering new config file extensions
+ * @constant
+ * @name ConfigFileExtensionDescBufferSize
+ */
 const uint32_t ConfigFileExtensionDescBufferSize = 64;
 
+/*# Called when a float is requested from the config file extension
+ * @typedef
+ * @name FConfigFileGetFloat
+ * @param desc [type:void*] An opaque buffer of at least ConfigFileExtensionDescBufferSize bytes.
+ *                          This will hold the meta data for the plugin.
+ * @param desc_size [type:uint32_t] The size of the desc buffer. Must be >ConfigFileExtensionDescBufferSize
+ * @param name [type:const char*] Name of the extension.
+ * @param create [type:FConfigFileCreate] Extension create function. May be null.
+ * @param destroy [type:FConfigFileDestroy] Extension destroy function. May be null.
+ * @param get_string [type:FConfigFileGetString] Getter for string properties. May be null.
+ * @param get_int [type:FConfigFileGetInt] Getter for int properties. May be null.
+ * @param get_float [type:FConfigFileGetFloat] Getter for float properties. May be null.
+ */
 void ConfigFileRegisterExtension(void* desc,
     uint32_t desc_size,
     const char *name,
@@ -85,10 +197,10 @@ void ConfigFileRegisterExtension(void* desc,
     FConfigFileGetInt get_int,
     FConfigFileGetFloat get_float);
 
+// internal
 #define DM_REGISTER_CONFIGFILE_EXTENSION(symbol, desc, desc_size, name, create, destroy, get_string, get_int, get_float) extern "C" void __attribute__((constructor)) symbol () { \
     ConfigFileRegisterExtension((void*) &desc, desc_size, name, create, destroy, get_string, get_int, get_float); \
 }
-
 
 // internal
 #define DM_DMCF_PASTE_SYMREG(x, y) x ## y

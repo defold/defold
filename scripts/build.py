@@ -1081,19 +1081,19 @@ class Configuration(object):
 # ------------------------------------------------------------
 # Gen source files
 
-    def _gen_sdk_source_lib(self, args, cwd, libname, outdir):
-        self._log('Generating source %s' % libname)
-        libargs = args + ['-i', outdir, '-o', outdir]
-        print("ARGS", libargs)
-        #run.env_command(self._form_env(), args, cwd = cwd)
+    def _gen_sdk_source_lib(self, libname, args, cwd, info):
+        self._log('Generating source for %s' % libname)
+        libargs = args + ['-i', info]
+        run.env_command(self._form_env(), libargs, cwd = cwd)
 
     def gen_sdk_source(self):
         print("Generating source!")
-        cmd = [self.get_python(), './scripts/dmsdk/gen_sdk.py']
+        cmd = [self.get_python(), os.path.normpath(join(self.defold_root, './scripts/dmsdk/gen_sdk.py'))]
         for lib in ENGINE_LIBS:
-            gendir = join(self.defold_root, 'engine/%s/src/gen' % lib)
-            self._remove_tree(gendir)
-            self._gen_sdk_source_lib(cmd, join(self.defold_root, lib), lib, gendir)
+            cwd = 'engine/%s' % lib
+            info = join(self.defold_root, 'engine/%s/sdk_gen.json' % lib)
+            if os.path.exists(info):
+                self._gen_sdk_source_lib(lib, cmd, join(self.defold_root, cwd), info)
 
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, prefix):
         prefix = prefix and prefix or self.dynamo_home
