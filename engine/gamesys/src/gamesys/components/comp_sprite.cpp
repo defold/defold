@@ -852,7 +852,8 @@ namespace dmGameSystem
                 frame_index = frame_indices[anim_frame_index];
 
                 // The name hash of the current single frame animation
-                frame_anim_id = texture_set_ddf->m_ImageNameHashes[frame_index];
+                if (frame_index < texture_set_ddf->m_ImageNameHashes.m_Count)
+                    frame_anim_id = texture_set_ddf->m_ImageNameHashes[frame_index];
             }
             else
             {

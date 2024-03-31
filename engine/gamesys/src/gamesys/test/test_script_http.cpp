@@ -3,19 +3,19 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "script.h"
-#include "script_http.h" // to set the timeout
-#include "test_script.h"
+#include "../scripts/script_http.h" // to set the timeout
 
+#include <script/test_script.h>
+#include <script/script.h>
 #include <testmain/testmain.h>
 #include <dlib/configfile.h>
 #include <dlib/dstrings.h>
@@ -101,7 +101,7 @@ protected:
     virtual void SetUp()
     {
         char path[1024];
-        dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/test.config");
+        dmTestUtil::MakeHostPath(path, sizeof(path), "src/gamesys/test/http/test_http.config.raw");
 
         dmConfigFile::Result r = dmConfigFile::Load(path, 0, 0, &m_ConfigFile);
         ASSERT_EQ(dmConfigFile::RESULT_OK, r);
@@ -111,6 +111,12 @@ protected:
         m_ScriptContext = dmScript::NewContext(m_ConfigFile, 0, true);
         dmScript::Initialize(m_ScriptContext);
         L = dmScript::GetLuaState(m_ScriptContext);
+
+        dmGameSystem::ScriptLibContext scriptlibcontext;
+        scriptlibcontext.m_LuaState        = L;
+        scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+        dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("default_socket", &m_DefaultURL.m_Socket));
         m_DefaultURL.m_Path = dmHashString64("default_path");
@@ -185,11 +191,11 @@ static void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
     ASSERT_EQ(0, ret);
 }
 
-TEST_F(ScriptHttpTest, TestPost)
+TEST_F(ScriptHttpTest, TestGetPost)
 {
     int top = lua_gettop(L);
 
-    ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http.luac"));
+    ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http.lua.rawc", "build/src/gamesys/test/http"));
     SetHttpAddress(L);
 
     lua_getglobal(L, "functions");
@@ -247,11 +253,11 @@ struct SHttpRequestTimeoutGuard // Makes sure it gets reset after gtest returns
 {
     SHttpRequestTimeoutGuard(uint64_t timeout)
     {
-        dmScript::SetHttpRequestTimeout(timeout);
+        dmGameSystem::SetHttpRequestTimeout(timeout);
     }
     ~SHttpRequestTimeoutGuard()
     {
-        dmScript::SetHttpRequestTimeout(0);
+        dmGameSystem::SetHttpRequestTimeout(0);
     }
 };
 
@@ -261,7 +267,7 @@ TEST_F(ScriptHttpTest, TestTimeout)
 
     int top = lua_gettop(L);
 
-    ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http_timeout.luac"));
+    ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http_timeout.lua.rawc", "build/src/gamesys/test/http"));
     SetHttpAddress(L);
 
     lua_getglobal(L, "functions");
@@ -316,7 +322,7 @@ TEST_F(ScriptHttpTest, TestDeletedSocket)
 
     int top = lua_gettop(L);
 
-    ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http.luac"));
+    ASSERT_TRUE(dmScriptTest::RunFile(L, "test_http.lua.rawc", "build/src/gamesys/test/http"));
     SetHttpAddress(L);
 
     lua_getglobal(L, "functions");

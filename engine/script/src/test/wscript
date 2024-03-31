@@ -18,24 +18,12 @@ def build(bld):
     bld.stlib(features = 'c cxx',
               includes = '..',
               use = 'DLIB LUA script',
-              target = 'test_script_private',
-              source = 'test_script_private.cpp')
+              target = 'test_script',
+              source = 'test_script.cpp test_script_private.cpp')
 
     web_libs = ['library_sys.js', 'library_script.js']
-    libs = 'TESTMAIN SOCKET APP THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA script test_script_private'
+    libs = 'TESTMAIN SOCKET APP THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA script test_script'
     exported_symbols = ['ResourceProviderFile']
-
-    common_src = ["test_script.cpp"]
-
-    if not 'web' in bld.env['PLATFORM']:
-        if platform_supports_feature(bld.env.PLATFORM, 'test_script_http', {}):
-            bld.program(features = flist,
-                                       includes = '..',
-                                       use = libs,
-                                       web_libs = web_libs,
-                                       proto_gen_py = True,
-                                       target = 'test_script_http',
-                                       source = common_src + 'test_script_http.cpp test_http.lua test_http_timeout.lua'.split())
 
     test_script_ddf = bld.program(features = flist,
                                   includes = '..',
@@ -44,7 +32,7 @@ def build(bld):
                                   exported_symbols = exported_symbols,
                                   proto_gen_py = True,
                                   target = 'test_script_ddf',
-                                  source = common_src + 'test_script_ddf.cpp test_ddf.proto'.split())
+                                  source = 'test_script_ddf.cpp test_ddf.proto'.split())
 
     test_script_msg = bld.program(features = flist,
                                         includes = '..',
@@ -52,7 +40,7 @@ def build(bld):
                                         web_libs = web_libs,
                                         proto_gen_py = True,
                                         target = 'test_script_msg',
-                                        source = common_src + 'test_script_msg.cpp test_ddf.proto'.split())
+                                        source = 'test_script_msg.cpp test_ddf.proto'.split())
 
     test_script_hash = bld.program(features = flist,
                                         includes = '..',
@@ -61,7 +49,7 @@ def build(bld):
                                         exported_symbols = exported_symbols,
                                         proto_gen_py = True,
                                         target = 'test_script_hash',
-                                        source = common_src + 'test_script_hash.cpp test_hash.lua'.split())
+                                        source = 'test_script_hash.cpp test_hash.lua'.split())
 
     test_script_vmath = bld.program(features = flist,
                                      includes = '.. .',
@@ -70,7 +58,7 @@ def build(bld):
                                      exported_symbols = exported_symbols,
                                      proto_gen_py = True,
                                      target = 'test_script_vmath',
-                                     source = common_src + 'test_script_vmath.cpp test_number.lua test_vector.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua'.split())
+                                     source = 'test_script_vmath.cpp test_number.lua test_vector.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua'.split())
 
     script_table_features = flist + ' embed';
     test_script_table = bld.program(features = script_table_features,
@@ -81,7 +69,7 @@ def build(bld):
                                      proto_gen_py = True,
                                      embed_source = 'data/table_cos_v0.dat data/table_sin_v0.dat data/table_cos_v1.dat data/table_sin_v1.dat data/table_v818192.dat data/table_tstring_v1.dat data/table_tstring_v2.dat data/table_tstring_v3.dat',
                                      target = 'test_script_table',
-                                     source = common_src + 'test_script_table.cpp test_script_table.lua'.split())
+                                     source = 'test_script_table.cpp test_script_table.lua'.split())
 
     test_script_table_log = bld.program(features = flist,
                                      includes = '.. .',
@@ -89,7 +77,7 @@ def build(bld):
                                      web_libs = web_libs,
                                      proto_gen_py = True,
                                      target = 'test_script_table_log',
-                                     source = common_src + 'test_script_table_log.cpp'.split())
+                                     source = 'test_script_table_log.cpp'.split())
 
     test_script_timer = bld.program(features = flist,
                                      includes = '.. .',
@@ -98,7 +86,7 @@ def build(bld):
                                      exported_symbols = exported_symbols,
                                      proto_gen_py = True,
                                      target = 'test_script_timer',
-                                     source = common_src + 'test_script_timer.cpp'.split())
+                                     source = 'test_script_timer.cpp'.split())
 
     test_script_sys = bld.program(features = flist,
                                        includes = '..',
@@ -107,7 +95,7 @@ def build(bld):
                                        exported_symbols = exported_symbols,
                                        proto_gen_py = True,
                                        target = 'test_script_sys',
-                                       source = common_src + 'test_script_sys.cpp test_sys.lua'.split())
+                                       source = 'test_script_sys.cpp test_sys.lua'.split())
 
     test_script = bld.program(features = flist,
                                         includes = '..',
@@ -116,7 +104,7 @@ def build(bld):
                                         exported_symbols = exported_symbols,
                                         proto_gen_py = True,
                                         target = 'test_script_lua',
-                                        source = common_src + 'test_script_lua.cpp test_script_lua.lua test_script_coroutine.lua test_circular_ref_pprint.lua test_pprint_truncate.lua test_lua_callstack.lua'.split())
+                                        source = 'test_script_lua.cpp test_script_lua.lua test_script_coroutine.lua test_circular_ref_pprint.lua test_pprint_truncate.lua test_lua_callstack.lua'.split())
 
     test_script_module = bld.program(features = flist,
                                           includes = '..',
@@ -125,7 +113,7 @@ def build(bld):
                                           exported_symbols = exported_symbols,
                                           proto_gen_py = True,
                                           target = 'test_script_module',
-                                          source = common_src + 'test_script_module.cpp test_module.lua test_module_missing.lua'.split())
+                                          source = 'test_script_module.cpp test_module.lua test_module_missing.lua'.split())
 
     test_script_json = bld.program(features = flist,
                                        includes = '..',
@@ -134,7 +122,7 @@ def build(bld):
                                        exported_symbols = exported_symbols,
                                        proto_gen_py = True,
                                        target = 'test_script_json',
-                                       source = common_src + 'test_script_json.cpp test_json.lua'.split())
+                                       source = 'test_script_json.cpp test_json.lua'.split())
 
     test_script_zlib = bld.program(features = flist,
                                        includes = '..',
@@ -143,7 +131,7 @@ def build(bld):
                                        exported_symbols = exported_symbols,
                                        proto_gen_py = True,
                                        target = 'test_script_zlib',
-                                       source = common_src + 'test_script_zlib.cpp test_zlib.lua'.split())
+                                       source = 'test_script_zlib.cpp test_zlib.lua'.split())
 
     test_script_user_type = bld.program(features = flist,
                                        includes = '..',
@@ -152,7 +140,7 @@ def build(bld):
                                        exported_symbols = exported_symbols,
                                        proto_gen_py = True,
                                        target = 'test_script_user_type',
-                                       source = common_src + 'test_script_user_type.cpp'.split())
+                                       source = 'test_script_user_type.cpp'.split())
 
     if platform_supports_feature(bld.env.PLATFORM, 'luasocket', {}):
         bld.program(features = flist,
@@ -162,7 +150,7 @@ def build(bld):
                         exported_symbols = exported_symbols,
                         proto_gen_py = True,
                         target = 'test_script_luasocket',
-                        source = common_src + 'test_script_luasocket.cpp test_luasocket.lua'.split())
+                        source = 'test_script_luasocket.cpp test_luasocket.lua'.split())
 
     test_script_bitop = bld.program(features = flist,
                                        includes = '..',
@@ -171,6 +159,7 @@ def build(bld):
                                        exported_symbols = exported_symbols,
                                        proto_gen_py = True,
                                        target = 'test_script_bitop',
-                                       source = common_src + 'test_script_bitop.cpp test_bitop.lua'.split())
+                                       source = 'test_script_bitop.cpp test_bitop.lua'.split())
 
+    bld.install_files('${PREFIX}/include/script', 'test_script.h')
 

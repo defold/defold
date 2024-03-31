@@ -137,36 +137,39 @@ public class TextureSetLayoutTest {
 
     @Test
     public void testBasicMargin1() {
+        int size = 16;
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList(rect("0", 0, 16, 16),
-                            rect("1", 1, 16, 16),
-                            rect("2", 2, 16, 16),
-                            rect("3", 3, 16, 16));
+            = Arrays.asList(rect("0", 0, size, size),
+                            rect("1", 1, size, size),
+                            rect("2", 2, size, size),
+                            rect("3", 3, size, size));
 
-        Layout layout = packedLayout(2, rectangles).get(0);
+        int margin = 2;
+        Layout layout = packedLayout(margin, rectangles).get(0);
         assertThat(layout.getWidth(), is(64));
         assertThat(layout.getHeight(), is(64));
-        assertRect(layout, 0, "0", 0, 0, 0);
-        assertRect(layout, 1, "1", 1, 0, (16 + 2));
-        assertRect(layout, 2, "2", 2, (16 + 2), 0);
-        assertRect(layout, 3, "3", 3, 0, (16 + 2) * 2);
+        assertRect(layout, 0, "0", 0, margin, margin);
+        assertRect(layout, 1, "1", 1, margin, (margin + size + margin));
+        assertRect(layout, 2, "2", 2, (margin + size + margin), margin);
+        assertRect(layout, 3, "3", 3, margin, margin + (size + margin) * 2);
     }
 
     @Test
     public void testBasicMargin2() {
+        int size = 15;
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList(rect("0", 0, 15, 15),
-                            rect("1", 1, 15, 15),
-                            rect("2", 2, 15, 15),
-                            rect("3", 3, 15, 15));
-
-        Layout layout = packedLayout(2, rectangles).get(0);
+            = Arrays.asList(rect("0", 0, size, size),
+                            rect("1", 1, size, size),
+                            rect("2", 2, size, size),
+                            rect("3", 3, size, size));
+        int margin = 2;
+        Layout layout = packedLayout(margin, rectangles).get(0);
         assertThat(layout.getWidth(), is(64));
         assertThat(layout.getHeight(), is(64));
-        assertRect(layout, 0, "0", 0, 0, 0);
-        assertRect(layout, 1, "1", 1, 0, (15 + 2));
-        assertRect(layout, 2, "2", 2, (15 + 2), 0);
-        assertRect(layout, 3, "3", 3, 0, (15 + 2) * 2);
+        assertRect(layout, 0, "0", 0, margin, margin);
+        assertRect(layout, 1, "1", 1, margin, (margin + size + margin));
+        assertRect(layout, 2, "2", 2, (margin + size + margin), margin);
+        assertRect(layout, 3, "3", 3, margin, margin +(size + margin) * margin);
     }
 
     @Test

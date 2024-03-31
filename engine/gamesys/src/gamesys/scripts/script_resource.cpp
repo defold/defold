@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -592,6 +592,7 @@ static void MakeTextureImage(uint16_t width, uint16_t height, uint8_t max_mipmap
     else
     {
         image_data = new uint8_t[image_data_size];
+        memset(image_data, 0, image_data_size);
     }
 
     // Note: Right now we only support creating compressed 2D textures with 1 mipmap,
@@ -652,6 +653,7 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * registered will trigger an error. If the intention is to instead modify an existing texture, use the [ref:resource.set_texture]
  * function. Also note that the path to the new texture resource must have a '.texturec' extension,
  * meaning "/path/my_texture" is not a valid path but "/path/my_texture.texturec" is.
+ * If the texture is created without a buffer, the pixel data will be blank.
  *
  * @name resource.create_texture
  *
@@ -676,7 +678,7 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * - `resource.TEXTURE_FORMAT_LUMINANCE`
  * - `resource.TEXTURE_FORMAT_RGB`
  * - `resource.TEXTURE_FORMAT_RGBA`
- * 
+ *
  * These constants might not be available on the device:
  *
  * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
@@ -744,7 +746,7 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  * ```lua
  * function init(self)
  *     -- Create a new buffer with 4 components and FLOAT32 type
- *     local tbuffer = buffer.create(128 * 128, { {name=hash("rgba"), type=buffer.VALUE_TYPE_FLOAT32, count=4} } )   
+ *     local tbuffer = buffer.create(128 * 128, { {name=hash("rgba"), type=buffer.VALUE_TYPE_FLOAT32, count=4} } )
  *     local tstream = buffer.get_stream(tbuffer, hash("rgba"))
  *
  *     -- Fill the buffer stream with some float values
@@ -757,7 +759,7 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  *             tstream[index + 3] = 1.0
  *         end
  *     end
- *      
+ *
  *     -- Create a 2D Texture with a RGBA23F format
  *     local tparams = {
  *        width          = 128,
@@ -768,7 +770,7 @@ static void CheckTextureResource(lua_State* L, int i, const char* field_name, dm
  *
  *    -- Note that we pass the buffer as the last argument here!
  *    local my_texture_id = resource.create_texture("/my_custom_texture.texturec", tparams, tbuffer)
- *    
+ *
  *    -- assign the texture to a model
  *    go.set("#model", "texture0", my_texture_id)
  * end
@@ -1030,7 +1032,28 @@ static int ReleaseResource(lua_State* L)
  *
  *   local resource_path = go.get("#model", "texture0")
  *   local args = { width=self.width, height=self.height, x=self.x, y=self.y, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
- *   resource.set_texture( resource_path, args, self.buffer )
+ *   resource.set_texture(resource_path, args, self.buffer )
+ * end
+ * ```
+ *
+ * @examples
+ * Update a texture from a buffer resource
+ * ```lua
+ * go.property("my_buffer", resource.buffer("/my_default_buffer.buffer"))
+ *
+ * function init(self)
+ *     local resource_path = go.get("#model", "texture0")
+ *     -- the "my_buffer" resource is expected to hold 128 * 128 * 3 bytes!
+ *     local args = {
+ *          width  = 128,
+ *          height = 128,
+ *          type   = resource.TEXTURE_TYPE_2D,
+ *          format = resource.TEXTURE_FORMAT_RGB
+ *      }
+ *     -- Note that the extra resource.get_buffer call is a requirement here
+ *     -- since the "self.my_buffer" is just pointing to a buffer resource path
+ *     -- and not an actual buffer object or buffer resource.
+ *     resource.set_texture(resource_path, args, resource.get_buffer(self.my_buffer))
  * end
  * ```
  */
@@ -1072,11 +1095,12 @@ static int SetTexture(lua_State* L)
 
     uint8_t layer_count = type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
 
-    dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 3);
+    dmScript::LuaHBuffer* lua_buffer = dmScript::CheckBuffer(L, 3);
+    dmBuffer::HBuffer buffer_handle  = dmGameSystem::UnpackLuaBuffer(lua_buffer);
 
     uint8_t* data = 0;
     uint32_t datasize = 0;
-    dmBuffer::GetBytes(buffer->m_Buffer, (void**)&data, &datasize);
+    dmBuffer::GetBytes(buffer_handle, (void**)&data, &datasize);
 
     dmGraphics::TextureImage::Image image  = {};
     dmGraphics::TextureImage texture_image = {};
@@ -1199,7 +1223,7 @@ static int SetTexture(lua_State* L)
  * end
  * ```
  */
-    
+
 static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
 {
     uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
@@ -1378,7 +1402,7 @@ static int GetRenderTargetInfo(lua_State* L)
         {
             lua_pushinteger(L, (lua_Integer) (attachment_count+1));
             lua_newtable(L);
-            
+
             PushTextureInfo(L, t);
 
             lua_pushinteger(L, color_buffer_flags[i]);
@@ -1423,6 +1447,7 @@ static void DestroyTextureSet(dmGameSystemDDF::TextureSet& texture_set)
     delete[] texture_set.m_Geometries.m_Data;
     delete[] texture_set.m_FrameIndices.m_Data;
     delete[] texture_set.m_TexCoords.m_Data;
+    delete[] texture_set.m_ImageNameHashes.m_Data;
 }
 
 // These lookup functions are needed because the values for the two enums are different,
@@ -1604,8 +1629,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_Animations.m_Count = num_animations;
     memset(texture_set_ddf->m_Animations.m_Data, 0, sizeof(dmGameSystemDDF::TextureSetAnimation) * num_animations);
 
-    // TODO: Fix script api to require each "image" to have an ID that we can use for as regular textureset
-    texture_set_ddf->m_ImageNameHashes.m_Count = 0;
+    texture_set_ddf->m_ImageNameHashes.m_Data  = new dmhash_t[num_geometries];
+    texture_set_ddf->m_ImageNameHashes.m_Count = num_geometries;
 
     const uint32_t num_tex_coords_per_quad  = 8;
     const uint32_t num_tex_coords_byte_size = num_animation_frames * num_tex_coords_per_quad * sizeof(float);
@@ -1633,6 +1658,15 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             MakeNumberArrayFromLuaTable<float>(L, "vertices", (void**) &geometry.m_Vertices.m_Data, &geometry.m_Vertices.m_Count);
             MakeNumberArrayFromLuaTable<float>(L, "uvs", (void**) &geometry.m_Uvs.m_Data, &geometry.m_Uvs.m_Count);
             MakeNumberArrayFromLuaTable<int>(L, "indices", (void**) &geometry.m_Indices.m_Data, &geometry.m_Indices.m_Count);
+
+            dmhash_t id_hash = 0;
+            lua_getfield(L, -1, "id");
+            if (lua_isstring(L, -1))
+            {
+                id_hash = dmHashString64(lua_tostring(L, -1));
+            }
+            lua_pop(L, 1);
+            texture_set_ddf->m_ImageNameHashes[i] = id_hash;
 
             lua_pop(L, 1);
 
@@ -1869,6 +1903,9 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * * `geometries`
  * : [type:table] A list of the geometries that should map to the texture data. Supports the following fields:
  *
+ * * `id`
+ * : [type:string] The name of the geometry. Used when matching animations between multiple atlases
+ *
  * * `vertices`
  * : [type:table] a list of the vertices in texture space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
  *
@@ -1914,6 +1951,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *         },
  *         geometries = {
  *             {
+ *                 id = 'idle0',
  *                 vertices  = {
  *                     0,   0,
  *                     0,   128,
@@ -2589,7 +2627,7 @@ static int GetBuffer(lua_State* L)
  * To achieve this, set the `transfer_ownership` flag to true in the argument table. Transferring ownership from a lua buffer to a resource with this function
  * works exactly the same as [ref:resource.create_buffer]: the destination resource will take ownership of the buffer held by the lua reference, i.e the buffer will not automatically be removed
  * when the lua reference to the buffer is garbage collected.
- * 
+ *
  * Note: When setting a buffer with `transfer_ownership = true`, the currently bound buffer in the resource will be destroyed.
  *
  * @name resource.set_buffer

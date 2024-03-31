@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -66,10 +66,9 @@ namespace dmGraphics
 
     typedef uintptr_t HComputeProgram;
 
-    const static uint64_t MAX_ASSET_HANDLE_VALUE       = 0x20000000000000-1; // 2^53 - 1
-    static const uint8_t  MAX_BUFFER_COLOR_ATTACHMENTS = 4;
-    static const uint8_t  MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
-    const static uint8_t  MAX_VERTEX_STREAM_COUNT      = 8;
+    const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
+    static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
+    const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
 
     const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
@@ -169,6 +168,7 @@ namespace dmGraphics
         CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
         CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
+        CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -176,14 +176,6 @@ namespace dmGraphics
     {
         BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
         AttachmentToBufferType();
-    };
-
-    enum AttachmentOp
-    {
-        ATTACHMENT_OP_DONT_CARE,
-        ATTACHMENT_OP_LOAD,
-        ATTACHMENT_OP_STORE,
-        ATTACHMENT_OP_CLEAR,
     };
 
     enum TextureUsageHint
@@ -267,14 +259,10 @@ namespace dmGraphics
         TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthBufferParams;
         TextureParams         m_StencilBufferParams;
-
-    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
         AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
-
         // TODO: Depth/Stencil
-    #endif
 
         uint8_t               m_DepthTexture   : 1;
         uint8_t               m_StencilTexture : 1;
@@ -355,6 +343,7 @@ namespace dmGraphics
     {
         VertexAttributeInfos()
         {
+            memset(this, 0, sizeof(*this));
             m_StructSize = sizeof(*this);
         }
 
@@ -742,9 +731,10 @@ namespace dmGraphics
      */
     void ReadPixels(HContext context, void* buffer, uint32_t buffer_size);
 
-    uint32_t GetTypeSize(Type type);
+    uint32_t    GetTypeSize(Type type);
+    const char* GetGraphicsTypeLiteral(Type type);
 
-    // Both experimental + tests only:
+    // Test functions:
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
     bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
     void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);

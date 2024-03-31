@@ -70,7 +70,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             ArrayList<Rect> rects = new ArrayList<Rect>(page.outputRects.size());
             for(RectNode node : page.outputRects) {
                 Rect finalRect = new Rect(node.rect.getId(), node.rect.getIndex(), node.rect.getPage(),
-                                           node.rect.getX(), node.rect.getY(), node.rect.getWidth() - settings.paddingX, node.rect.getHeight() - settings.paddingY,
+                                           node.rect.getX() + settings.paddingX, node.rect.getY() + settings.paddingY,
+                                           node.rect.getWidth() - settings.paddingX, node.rect.getHeight() - settings.paddingY,
                                            node.rect.getRotated());
                 rects.add(finalRect);
             }
@@ -92,17 +93,17 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             minWidth = Math.min(minWidth, rect.getWidth());
             minHeight = Math.min(minHeight, rect.getHeight());
             if (settings.rotation) {
-                if ((rect.getWidth() > settings.maxPageWidth || rect.getHeight() > settings.maxPageHeight)
-                    && (rect.getWidth() > settings.maxPageHeight || rect.getHeight() > settings.maxPageWidth)) {
+                if ((rect.getWidth() > settings.maxPageWidth - settings.paddingX || rect.getHeight() > settings.maxPageHeight - settings.paddingY)
+                    && (rect.getWidth() > settings.maxPageHeight - settings.paddingY || rect.getHeight() > settings.maxPageWidth - settings.paddingX)) {
                     throw new RuntimeException("Image does not fit with max page size " + settings.maxPageWidth + "x" + settings.maxPageHeight
                         + " and padding " + settings.paddingX + "," + settings.paddingY + ": " + rect);
                 }
             } else {
-                if (rect.getWidth() > settings.maxPageWidth) {
+                if (rect.getWidth() > settings.maxPageWidth - settings.paddingX) {
                     throw new RuntimeException("Image does not fit with max page width " + settings.maxPageWidth + " and paddingX "
                         + settings.paddingX + ": " + rect);
                 }
-                if (rect.getHeight() > settings.maxPageHeight && (!settings.rotation || rect.getWidth() > settings.maxPageHeight)) {
+                if (rect.getHeight() > settings.maxPageHeight - settings.paddingY) {
                     throw new RuntimeException("Image does not fit in max page height " + settings.maxPageHeight + " and paddingY "
                         + settings.paddingY + ": " + rect);
                 }
@@ -119,14 +120,14 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             BinarySearch sizeSearch = new BinarySearch(minSize, maxSize);
             int size = sizeSearch.reset();
             while (size != -1) {
-                Page result = packAtSize(true, size, size, inputRects);
+                Page result = packAtSize(true, size - settings.paddingX, size - settings.paddingY, inputRects);
                 bestResult = getBest(bestResult, result);
                 size = sizeSearch.next(result == null);
             }
 
             // Rects don't fit on one page. Fill a whole page and return.
             if (bestResult == null) {
-                bestResult = packAtSize(false, maxSize, maxSize, inputRects);
+                bestResult = packAtSize(false, maxSize - settings.paddingX, maxSize - settings.paddingY, inputRects);
             }
 
              bestResult.width = Math.max(bestResult.width, bestResult.height);
@@ -139,7 +140,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             while (true) {
                 Page bestWidthResult = null;
                 while (width != -1) {
-                    Page result = packAtSize(true, width, height, inputRects);
+                    Page result = packAtSize(true, width - settings.paddingX, height - settings.paddingY, inputRects);
                     bestWidthResult = getBest(bestWidthResult, result);
                     width = widthSearch.next(result == null);
                 }
@@ -152,7 +153,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             }
             // Rects don't fit on one page. Fill a whole page and return.
             if (bestResult == null) {
-                bestResult = packAtSize(false, settings.maxPageWidth, settings.maxPageHeight, inputRects);
+                bestResult = packAtSize(false, settings.maxPageWidth - settings.paddingX, settings.maxPageHeight - settings.paddingY, inputRects);
             }
         }
         return bestResult;

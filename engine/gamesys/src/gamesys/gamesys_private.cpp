@@ -529,22 +529,19 @@ namespace dmGameSystem
         // Otherwise, we try to get it from the component itself via the callabck.
         // We need a callback mechanism here because we don't have a shared data layout for
         // the override attributes on component level (TODO: we should have).
-        else
+        const dmGraphics::VertexAttribute* comp_attribute;
+
+        // If this callback returns false, e.g a component resource might not have a value override for the attribute,
+        // we fallback to the material attribute data instead
+        if (callback(callback_user_data, info.m_AttributeNameHash, &comp_attribute))
         {
-            const dmGraphics::VertexAttribute* comp_attribute;
-
-            // If this callback returns false, e.g a component resource might not have a value override for the attribute,
-            // we fallback to the material attribute data instead
-            if (callback(callback_user_data, info.m_AttributeNameHash, &comp_attribute))
-            {
-                uint32_t value_byte_size;
-                dmGraphics::GetAttributeValues(*comp_attribute, &info.m_ValuePtr, &value_byte_size);
-            }
-
-            float values[4];
-            VertexAttributeToFloats(info.m_Attribute, info.m_ValuePtr, values);
-            out_desc.m_Variant = DynamicAttributeValuesToPropertyVar(values, info.m_Attribute->m_ElementCount, info.m_ElementIndex, info.m_AttributeNameHash != name_hash);
+            uint32_t value_byte_size;
+            dmGraphics::GetAttributeValues(*comp_attribute, &info.m_ValuePtr, &value_byte_size);
         }
+
+        float values[4];
+        VertexAttributeToFloats(info.m_Attribute, info.m_ValuePtr, values);
+        out_desc.m_Variant = DynamicAttributeValuesToPropertyVar(values, info.m_Attribute->m_ElementCount, info.m_ElementIndex, info.m_AttributeNameHash != name_hash);
 
         return dmGameObject::PROPERTY_RESULT_OK;
     }
