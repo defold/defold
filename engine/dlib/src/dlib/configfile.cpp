@@ -60,6 +60,11 @@ struct ConfigFilePluginDesc
 
 ConfigFilePluginDesc* g_FirstExtension = 0;
 
+static const ConfigFilePluginDesc* GetFirstExtension()
+{
+    return g_FirstExtension;
+}
+
 void ConfigFileRegisterExtension(void* _desc,
     uint32_t desc_size,
     const char* name,
@@ -82,10 +87,121 @@ void ConfigFileRegisterExtension(void* _desc,
     g_FirstExtension = desc;
 }
 
-static const ConfigFilePluginDesc* GetFirstExtension()
+
+static const char* GetBaseString(HConfigFile config, const char* key, const char* default_value)
 {
-    return g_FirstExtension;
+    uint64_t key_hash = dmHashString64(key);
+    for (uint32_t i = 0; i < config->m_Entries.Size(); ++i)
+    {
+        const ConfigFileEntry*e = &config->m_Entries[i];
+        if (e->m_Key == key_hash)
+        {
+            return &config->m_StringBuffer[e->m_ValueIndex];
+        }
+    }
+
+    return default_value;
 }
+
+static bool GetStringOverride(HConfigFile config, const char* key, const char* default_value, const char** out_value)
+{
+    const ConfigFilePluginDesc* plugin = GetFirstExtension();
+    while (plugin != 0)
+    {
+        if (plugin->m_GetString && plugin->m_GetString(config, key, default_value, out_value))
+            return true;
+        plugin = plugin->m_Next;
+    }
+    return false;
+}
+
+static int32_t GetBaseInt(HConfigFile config, const char* key, int32_t default_value)
+{
+    const char* tmp = GetBaseString(config, key, 0);
+    if (tmp == 0)
+        return default_value;
+    int l = strlen(tmp);
+    char* end = 0;
+    int32_t ret = strtol(tmp, &end, 10);
+    if (end != (tmp + l) || end == tmp)
+    {
+        dmLogWarning("Unable to convert '%s' to int", tmp);
+        return default_value;
+    }
+    return ret;
+}
+
+static bool GetIntOverride(HConfigFile config, const char* key, int32_t default_value, int32_t* out_value)
+{
+    const ConfigFilePluginDesc* plugin = GetFirstExtension();
+    while (plugin != 0)
+    {
+        if (plugin->m_GetInt && plugin->m_GetInt(config, key, default_value, out_value))
+            return true;
+        plugin = plugin->m_Next;
+    }
+    return false;
+}
+
+static float GetBaseFloat(HConfigFile config, const char* key, float default_value)
+{
+    const char* tmp = GetBaseString(config, key, 0);
+    if (tmp == 0)
+        return default_value;
+    int l = strlen(tmp);
+    char* end = 0;
+    float ret = (float) strtod(tmp, &end);
+    if (end != (tmp + l) || end == tmp)
+    {
+        dmLogWarning("Unable to convert '%s' to float", tmp);
+        return default_value;
+    }
+    return ret;
+}
+
+static bool GetFloatOverride(HConfigFile config, const char* key, float default_value, float* out_value)
+{
+    const ConfigFilePluginDesc* plugin = GetFirstExtension();
+    while (plugin != 0)
+    {
+        if (plugin->m_GetFloat && plugin->m_GetFloat(config, key, default_value, out_value))
+            return true;
+        plugin = plugin->m_Next;
+    }
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// C api
+
+const char* ConfigFileGetString(HConfigFile config, const char* key, const char* default_value)
+{
+    const char* base_value = GetBaseString(config, key, default_value);
+    const char* out_value = 0;
+    if (GetStringOverride(config, key, base_value, &out_value))
+        return out_value;
+    return base_value;
+}
+
+int32_t ConfigFileGetInt(HConfigFile config, const char* key, int32_t default_value)
+{
+    int32_t base_value = GetBaseInt(config, key, default_value);
+    int32_t out_value = 0;
+    if (GetIntOverride(config, key, base_value, &out_value))
+        return out_value;
+    return base_value;
+}
+
+float ConfigFileGetFloat(HConfigFile config, const char* key, float default_value)
+{
+    float base_value = GetBaseFloat(config, key, default_value);
+    float out_value = 0;
+    if (GetFloatOverride(config, key, base_value, &out_value))
+        return out_value;
+    return base_value;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace dmConfigFile
 {
@@ -391,7 +507,7 @@ namespace dmConfigFile
         dmArray<char> m_Buffer;
     };
 
-    void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
+    static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
     {
         (void) response;
         (void) user_data;
@@ -400,7 +516,7 @@ namespace dmConfigFile
         (void) value;
     }
 
-    void HttpContent(dmHttpClient::HResponse response , void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    static void HttpContent(dmHttpClient::HResponse response , void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
     {
         HttpContext* context = (HttpContext*) user_data;
         if (status_code != 200)
@@ -671,114 +787,18 @@ namespace dmConfigFile
         delete config;
     }
 
-    static const char* GetBaseString(HConfig config, const char* key, const char* default_value)
-    {
-        uint64_t key_hash = dmHashString64(key);
-        for (uint32_t i = 0; i < config->m_Entries.Size(); ++i)
-        {
-            const ConfigFileEntry*e = &config->m_Entries[i];
-            if (e->m_Key == key_hash)
-            {
-                return &config->m_StringBuffer[e->m_ValueIndex];
-            }
-        }
-
-        return default_value;
-    }
-
-    static bool GetStringOverride(HConfig config, const char* key, const char* default_value, const char** out_value)
-    {
-        const ConfigFilePluginDesc* plugin = GetFirstExtension();
-        while (plugin != 0)
-        {
-            if (plugin->m_GetString && plugin->m_GetString(config, key, default_value, out_value))
-                return true;
-            plugin = plugin->m_Next;
-        }
-        return false;
-    }
-
     const char* GetString(HConfig config, const char* key, const char* default_value)
     {
-        const char* base_value = GetBaseString(config, key, default_value);
-        const char* out_value = 0;
-        if (GetStringOverride(config, key, base_value, &out_value))
-            return out_value;
-        return base_value;
-    }
-
-    static int32_t GetBaseInt(HConfig config, const char* key, int32_t default_value)
-    {
-        const char* tmp = GetBaseString(config, key, 0);
-        if (tmp == 0)
-            return default_value;
-        int l = strlen(tmp);
-        char* end = 0;
-        int32_t ret = strtol(tmp, &end, 10);
-        if (end != (tmp + l) || end == tmp)
-        {
-            dmLogWarning("Unable to convert '%s' to int", tmp);
-            return default_value;
-        }
-        return ret;
-    }
-
-    static bool GetIntOverride(HConfig config, const char* key, int32_t default_value, int32_t* out_value)
-    {
-        const ConfigFilePluginDesc* plugin = GetFirstExtension();
-        while (plugin != 0)
-        {
-            if (plugin->m_GetInt && plugin->m_GetInt(config, key, default_value, out_value))
-                return true;
-            plugin = plugin->m_Next;
-        }
-        return false;
+        return ConfigFileGetString(config, key, default_value);
     }
 
     int32_t GetInt(HConfig config, const char* key, int32_t default_value)
     {
-        int32_t base_value = GetBaseInt(config, key, default_value);
-        int32_t out_value = 0;
-        if (GetIntOverride(config, key, base_value, &out_value))
-            return out_value;
-        return base_value;
-    }
-
-    static float GetBaseFloat(HConfig config, const char* key, float default_value)
-    {
-        const char* tmp = GetBaseString(config, key, 0);
-        if (tmp == 0)
-            return default_value;
-        int l = strlen(tmp);
-        char* end = 0;
-        float ret = (float) strtod(tmp, &end);
-        if (end != (tmp + l) || end == tmp)
-        {
-            dmLogWarning("Unable to convert '%s' to float", tmp);
-            return default_value;
-        }
-        return ret;
-    }
-
-    static bool GetFloatOverride(HConfig config, const char* key, float default_value, float* out_value)
-    {
-        const ConfigFilePluginDesc* plugin = GetFirstExtension();
-        while (plugin != 0)
-        {
-            if (plugin->m_GetFloat && plugin->m_GetFloat(config, key, default_value, out_value))
-                return true;
-            plugin = plugin->m_Next;
-        }
-        return false;
+        return ConfigFileGetInt(config, key, default_value);
     }
 
     float GetFloat(HConfig config, const char* key, float default_value)
     {
-        float base_value = GetBaseFloat(config, key, default_value);
-        float out_value = 0;
-        if (GetFloatOverride(config, key, base_value, &out_value))
-            return out_value;
-        return base_value;
+        return ConfigFileGetFloat(config, key, default_value);
     }
-
 }

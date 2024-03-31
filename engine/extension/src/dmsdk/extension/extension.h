@@ -24,13 +24,7 @@ extern "C" {
 #endif
 #include <dmsdk/lua/lua.h>
 #include <dmsdk/lua/lauxlib.h>
-#if defined(__cplusplus)
-}
-#endif
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
 
 // C API
 typedef enum dmExtensionResult
@@ -56,16 +50,16 @@ typedef enum dmExtensionCallbackType
 
 typedef struct dmExtensionAppParams
 {
-    dmConfigFileHConfig   m_ConfigFile; // here for backwards compatibility
+    HConfigFile m_ConfigFile; // here for backwards compatibility
 } dmExtensionAppParams;
 
 void dmExtensionAppParams_Init(dmExtensionAppParams* params);
 
 typedef struct dmExtensionParams
 {
-    dmConfigFileHConfig     m_ConfigFile;
-    dmResourceHFactory      m_ResourceFactory;
-    lua_State*              m_L;
+    HConfigFile         m_ConfigFile;
+    dmResourceHFactory  m_ResourceFactory;
+    lua_State*          m_L;
 } dmExtensionParams;
 
 void dmExtensionParams_Init(struct dmExtensionParams* params);
