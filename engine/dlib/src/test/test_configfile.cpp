@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/configfile.h>
 #include <dlib/testutil.h>
@@ -82,7 +83,7 @@ public:
         else
         {
             if (strstr(param.m_Url, "http") != 0) {
-                sprintf(path, param.m_Url, g_HttpPort);
+                dmSnPrintf(path, sizeof(path), param.m_Url, g_HttpPort);
             }
 
             r = dmConfigFile::Load(path, param.m_Argc, param.m_Argv, &config);
