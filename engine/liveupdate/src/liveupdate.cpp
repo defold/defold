@@ -29,6 +29,7 @@
 #include <dlib/time.h>
 #include <dlib/sys.h>
 #include <dlib/job_thread.h>
+#include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/extension/extension.h>
 

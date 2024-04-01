@@ -1,0 +1,41 @@
+{
+	"basepath": "src",
+	
+	"includes": [
+		"src",
+		"${DYNAMO_HOME}/sdk/include"
+	],
+
+	"files": [
+		{"file": "src/dmsdk/extension/extension.h", "languages": {
+			"cpp": {
+				"namespace": "dmExtension",
+				"ignore": [
+					"ExtensionRegister",
+					"FExtensionAppInitialize",
+					"FExtensionAppFinalize",
+					"FExtensionInitialize",
+					"FExtensionFinalize",
+					"FExtensionUpdate",
+					"FExtensionOnEvent"
+				],
+				"prefix": {
+					"ExtensionResult": "Result",
+					"dmExtension": "",
+					"EXTENSION_RESULT_": "RESULT_",
+					"EXTENSION_EVENT_": "EVENT_",
+					"EXTENSION_CALLBACK_": "CALLBACK_",
+					"ExtensionAppParams": "AppParams",
+					"ExtensionParams": "Params",
+					"ExtensionEvent": "Event",
+					"ExtensionCallbackType": "CallbackType",
+					"ExtensionEventID": "EventID",
+					"FExtensionCallback": "FCallback",
+					"ExtensionRegister": "Register",
+					"ExtensionUnregister": "Unregister"
+				}
+
+			}
+		}}
+	]
+}

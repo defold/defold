@@ -19,231 +19,231 @@ import gen_cpp
 sys.path.insert(0, os.path.normpath(os.path.join(os.environ["DYNAMO_HOME"], '../..')))
 import apply_license
 
-ignores = [
-    # 'sdtx_printf',
-    # ...
-]
+# ignores = [
+#     # 'sdtx_printf',
+#     # ...
+# ]
 
-# NOTE: syntax for function results: "func_name.RESULT"
-overrides = {
-    # 'sgl_error':                            'sgl_get_error',   # 'error' is reserved in Zig
-    # 'sgl_deg':                              'sgl_as_degrees',
-    # 'sgl_rad':                              'sgl_as_radians',
-    # 'sg_context_desc.color_format':         'int',
-    # 'sg_context_desc.depth_format':         'int',
-    # 'sg_apply_uniforms.ub_index':           'uint32_t',
-    # 'sg_draw.base_element':                 'uint32_t',
-    # 'sg_draw.num_elements':                 'uint32_t',
-    # 'sg_draw.num_instances':                'uint32_t',
-    # 'sshape_element_range_t.base_element':  'uint32_t',
-    # 'sshape_element_range_t.num_elements':  'uint32_t',
-    # 'sdtx_font.font_index':                 'uint32_t',
-    # 'SGL_NO_ERROR':                         'SGL_ERROR_NO_ERROR',
-}
+# # NOTE: syntax for function results: "func_name.RESULT"
+# overrides = {
+#     # 'sgl_error':                            'sgl_get_error',   # 'error' is reserved in Zig
+#     # 'sgl_deg':                              'sgl_as_degrees',
+#     # 'sgl_rad':                              'sgl_as_radians',
+#     # 'sg_context_desc.color_format':         'int',
+#     # 'sg_context_desc.depth_format':         'int',
+#     # 'sg_apply_uniforms.ub_index':           'uint32_t',
+#     # 'sg_draw.base_element':                 'uint32_t',
+#     # 'sg_draw.num_elements':                 'uint32_t',
+#     # 'sg_draw.num_instances':                'uint32_t',
+#     # 'sshape_element_range_t.base_element':  'uint32_t',
+#     # 'sshape_element_range_t.num_elements':  'uint32_t',
+#     # 'sdtx_font.font_index':                 'uint32_t',
+#     # 'SGL_NO_ERROR':                         'SGL_ERROR_NO_ERROR',
+# }
 
-prim_types = {
-    'int':          'i32',
-    'bool':         'bool',
-    'char':         'u8',
-    'int8_t':       'i8',
-    'uint8_t':      'u8',
-    'int16_t':      'i16',
-    'uint16_t':     'u16',
-    'int32_t':      'i32',
-    'uint32_t':     'u32',
-    'int64_t':      'i64',
-    'uint64_t':     'u64',
-    'float':        'f32',
-    'double':       'f64',
-    'uintptr_t':    'usize',
-    'intptr_t':     'isize',
-    'size_t':       'usize'
-}
+# prim_types = {
+#     'int':          'i32',
+#     'bool':         'bool',
+#     'char':         'u8',
+#     'int8_t':       'i8',
+#     'uint8_t':      'u8',
+#     'int16_t':      'i16',
+#     'uint16_t':     'u16',
+#     'int32_t':      'i32',
+#     'uint32_t':     'u32',
+#     'int64_t':      'i64',
+#     'uint64_t':     'u64',
+#     'float':        'f32',
+#     'double':       'f64',
+#     'uintptr_t':    'usize',
+#     'intptr_t':     'isize',
+#     'size_t':       'usize'
+# }
 
-prim_defaults = {
-    'int':          '0',
-    'bool':         'false',
-    'int8_t':       '0',
-    'uint8_t':      '0',
-    'int16_t':      '0',
-    'uint16_t':     '0',
-    'int32_t':      '0',
-    'uint32_t':     '0',
-    'int64_t':      '0',
-    'uint64_t':     '0',
-    'float':        '0.0',
-    'double':       '0.0',
-    'uintptr_t':    '0',
-    'intptr_t':     '0',
-    'size_t':       '0'
-}
+# prim_defaults = {
+#     'int':          '0',
+#     'bool':         'false',
+#     'int8_t':       '0',
+#     'uint8_t':      '0',
+#     'int16_t':      '0',
+#     'uint16_t':     '0',
+#     'int32_t':      '0',
+#     'uint32_t':     '0',
+#     'int64_t':      '0',
+#     'uint64_t':     '0',
+#     'float':        '0.0',
+#     'double':       '0.0',
+#     'uintptr_t':    '0',
+#     'intptr_t':     '0',
+#     'size_t':       '0'
+# }
 
-# https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/types.html
-c_type_to_jni_type_specifiers = {
-    'int':          'I',
-    'bool':         'Z',
-    'int8_t':       'B',
-    'uint8_t':      'B',
-    'int16_t':      'S',
-    'uint16_t':     'S',
-    'int32_t':      'I',
-    'uint32_t':     'I',
-    'int64_t':      'J',
-    'uint64_t':     'J',
-    'float':        'F',
-    'double':       'D',
-    'void *':       'J',
-}
+# # https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/types.html
+# c_type_to_jni_type_specifiers = {
+#     'int':          'I',
+#     'bool':         'Z',
+#     'int8_t':       'B',
+#     'uint8_t':      'B',
+#     'int16_t':      'S',
+#     'uint16_t':     'S',
+#     'int32_t':      'I',
+#     'uint32_t':     'I',
+#     'int64_t':      'J',
+#     'uint64_t':     'J',
+#     'float':        'F',
+#     'double':       'D',
+#     'void *':       'J',
+# }
 
-# https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#Set_type_Field_routines
-c_type_to_jni_capname = {
-    'bool':     'Boolean',
-    'char':     'Char',
-    'int8_t':   'Byte',
-    'uint8_t':  'Byte',
-    'int16_t':  'Short',
-    'uint16_t': 'Short',
-    'int':      'Int',
-    'int32_t':  'Int',
-    'uint32_t': 'Int',
-    'int64_t':  'Long',
-    'uint64_t': 'Long',
-    'float':    'Float',
-    'double':   'Double',
-}
+# # https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#Set_type_Field_routines
+# c_type_to_jni_capname = {
+#     'bool':     'Boolean',
+#     'char':     'Char',
+#     'int8_t':   'Byte',
+#     'uint8_t':  'Byte',
+#     'int16_t':  'Short',
+#     'uint16_t': 'Short',
+#     'int':      'Int',
+#     'int32_t':  'Int',
+#     'uint32_t': 'Int',
+#     'int64_t':  'Long',
+#     'uint64_t': 'Long',
+#     'float':    'Float',
+#     'double':   'Double',
+# }
 
-c_type_to_jni_type = {
-    'bool':     'jboolean',
-    'char':     'jchar',
-    'int8_t':   'jbyte',
-    'uint8_t':  'jbyte',
-    'int16_t':  'jshort',
-    'uint16_t': 'jshort',
-    'int':      'jint',
-    'int32_t':  'jint',
-    'uint32_t': 'jint',
-    'int64_t':  'jlong',
-    'uint64_t': 'jlong',
-    'float':    'jfloat',
-    'double':   'jdouble',
-}
+# c_type_to_jni_type = {
+#     'bool':     'jboolean',
+#     'char':     'jchar',
+#     'int8_t':   'jbyte',
+#     'uint8_t':  'jbyte',
+#     'int16_t':  'jshort',
+#     'uint16_t': 'jshort',
+#     'int':      'jint',
+#     'int32_t':  'jint',
+#     'uint32_t': 'jint',
+#     'int64_t':  'jlong',
+#     'uint64_t': 'jlong',
+#     'float':    'jfloat',
+#     'double':   'jdouble',
+# }
 
-c_type_to_java_type = {
-    'bool':     'boolean',
-    'char':     'char',
-    'int8_t':   'byte',
-    'uint8_t':  'byte',
-    'int16_t':  'short',
-    'uint16_t': 'short',
-    'int':      'int',
-    'int32_t':  'int',
-    'uint32_t': 'int',
-    'int64_t':  'long',
-    'uint64_t': 'long',
-    'float':    'float',
-    'double':   'double',
-}
+# c_type_to_java_type = {
+#     'bool':     'boolean',
+#     'char':     'char',
+#     'int8_t':   'byte',
+#     'uint8_t':  'byte',
+#     'int16_t':  'short',
+#     'uint16_t': 'short',
+#     'int':      'int',
+#     'int32_t':  'int',
+#     'uint32_t': 'int',
+#     'int64_t':  'long',
+#     'uint64_t': 'long',
+#     'float':    'float',
+#     'double':   'double',
+# }
 
-struct_types = []
-enum_types = []
-enum_items = {}
-out_lines = ''
-struct_jni_types = []
+# struct_types = []
+# enum_types = []
+# enum_items = {}
+# out_lines = ''
+# struct_jni_types = []
 
-def reset_lines():
-    global out_lines
-    global struct_jni_types
-    out_lines = ''
-    struct_jni_types = []
+# def reset_lines():
+#     global out_lines
+#     global struct_jni_types
+#     out_lines = ''
+#     struct_jni_types = []
 
-def reset_globals():
-    global struct_types
-    global enum_types
-    global enum_items
-    global struct_jni_types
-    struct_types = []
-    enum_types = []
-    enum_items = {}
-    struct_jni_types = []
-    reset_lines()
+# def reset_globals():
+#     global struct_types
+#     global enum_types
+#     global enum_items
+#     global struct_jni_types
+#     struct_types = []
+#     enum_types = []
+#     enum_items = {}
+#     struct_jni_types = []
+#     reset_lines()
 
-def l(s):
-    global out_lines
-    out_lines += s + '\n'
+# def l(s):
+#     global out_lines
+#     out_lines += s + '\n'
 
-def as_zig_prim_type(s):
-    return prim_types[s]
+# def as_zig_prim_type(s):
+#     return prim_types[s]
 
-# prefix_bla_blub(_t) => (dep.)BlaBlub
-def as_zig_struct_type(s, prefix):
-    parts = s.lower().split('_')
-    outp = '' if s.startswith(prefix) else f'{parts[0]}.'
-    for part in parts[1:]:
-        # ignore '_t' type postfix
-        if (part != 't'):
-            outp += part.capitalize()
-    return outp
+# # prefix_bla_blub(_t) => (dep.)BlaBlub
+# def as_zig_struct_type(s, prefix):
+#     parts = s.lower().split('_')
+#     outp = '' if s.startswith(prefix) else f'{parts[0]}.'
+#     for part in parts[1:]:
+#         # ignore '_t' type postfix
+#         if (part != 't'):
+#             outp += part.capitalize()
+#     return outp
 
-# prefix_bla_blub(_t) => (dep.)BlaBlub
-def as_zig_enum_type(s, prefix):
-    parts = s.lower().split('_')
-    outp = '' if s.startswith(prefix) else f'{parts[0]}.'
-    for part in parts[1:]:
-        if (part != 't'):
-            outp += part.capitalize()
-    return outp
+# # prefix_bla_blub(_t) => (dep.)BlaBlub
+# def as_zig_enum_type(s, prefix):
+#     parts = s.lower().split('_')
+#     outp = '' if s.startswith(prefix) else f'{parts[0]}.'
+#     for part in parts[1:]:
+#         if (part != 't'):
+#             outp += part.capitalize()
+#     return outp
 
-def check_override(name, default=None):
-    if name in overrides:
-        return overrides[name]
-    elif default is None:
-        return name
-    else:
-        return default
+# def check_override(name, default=None):
+#     if name in overrides:
+#         return overrides[name]
+#     elif default is None:
+#         return name
+#     else:
+#         return default
 
-def check_ignore(name):
-    return name in ignores
+# def check_ignore(name):
+#     return name in ignores
 
-# PREFIX_ENUM_BLA => Bla, _PREFIX_ENUM_BLA => Bla
-def as_enum_item_name(s):
-    outp = s.lstrip('_')
-    parts = outp.split('_')[2:]
-    if not parts:
-        return s
-    outp = '_'.join(parts)
-    if outp[0].isdigit():
-        outp = '_' + outp
-    return outp
+# # PREFIX_ENUM_BLA => Bla, _PREFIX_ENUM_BLA => Bla
+# def as_enum_item_name(s):
+#     outp = s.lstrip('_')
+#     parts = outp.split('_')[2:]
+#     if not parts:
+#         return s
+#     outp = '_'.join(parts)
+#     if outp[0].isdigit():
+#         outp = '_' + outp
+#     return outp
 
-def enum_default_item(enum_name):
-    return enum_items[enum_name][0]
+# def enum_default_item(enum_name):
+#     return enum_items[enum_name][0]
 
-def is_prim_type(s):
-    return s in prim_types
+# def is_prim_type(s):
+#     return s in prim_types
 
-def is_struct_type(s):
-    return s in struct_types
+# def is_struct_type(s):
+#     return s in struct_types
 
-def is_enum_type(s):
-    return s in enum_types
+# def is_enum_type(s):
+#     return s in enum_types
 
-def is_prim_ptr(s):
-    c_type, _ = util.extract_ptr_type2(s)
-    return c_type in prim_types
+# def is_prim_ptr(s):
+#     c_type, _ = util.extract_ptr_type2(s)
+#     return c_type in prim_types
 
-def is_const_prim_ptr(s):
-    return is_prim_ptr(s) and 'const' in s
+# def is_const_prim_ptr(s):
+#     return is_prim_ptr(s) and 'const' in s
 
-def is_struct_ptr(s):
-    c_type, _ = util.extract_ptr_type2(s)
-    return c_type in struct_types
+# def is_struct_ptr(s):
+#     c_type, _ = util.extract_ptr_type2(s)
+#     return c_type in struct_types
 
-def is_const_struct_ptr(s):
-    return is_struct_ptr(s) and 'const' in s
+# def is_const_struct_ptr(s):
+#     return is_struct_ptr(s) and 'const' in s
 
 
-def type_default_value(s):
-    return prim_defaults[s]
+# def type_default_value(s):
+#     return prim_defaults[s]
 
 # # get C-style result of a function pointer as string
 # def funcptr_result_c(field_type):
@@ -434,23 +434,44 @@ class State(object):
     def __init__(self):
         pass
 
-def _find_node(inp, expected):
+def _find_node(inp, expected, debug=False):
     if not expected:
+        if debug:
+            print("  list empty")
         return inp
 
     e = expected[0]
     if inp['kind'] != e:
+        if debug:
+            print("  diff:", inp['kind'], e)
         return None
 
+    if debug:
+        print("  match:", inp['kind'], e)
+
     inner = inp.get('inner', [])
+    if not inner:
+        return inp
+
     for i in inner:
-        n = _find_node(i, expected[1:])
+
+        n = _find_node(i, expected[1:], debug)
+        if debug:
+            print("  inner:", i['kind'], expected[1:], n)
+
         if n:
             return n
+
+    if debug:
+        print("  no child found. None")
     return None
 
 def is_struct_typedef(inp):
+    # typedef struct Foo* HFoo;
     n = _find_node(inp, ['TypedefDecl', 'PointerType', 'ElaboratedType', 'RecordType'])
+    # typedef struct Foo {} Foo;
+    if not n:
+        n = _find_node(inp, ['TypedefDecl', 'ElaboratedType', 'RecordType'])
     return n is not None
 
 def is_function_typedef(inp):
@@ -484,50 +505,21 @@ class Enum(object):
 #         self.args = args or []
 #         self.ret_type = ret_type
 
-# https://clang.llvm.org/doxygen/classclang_1_1comments_1_1ParamCommandComment.html
-def extract_documentation(data, inp, doc):
+def extract_documentation(data, decl, doc):
+    for child in decl.get('inner', []):
+        if child['kind'] in ['FullComment']:
+            r = child.get('range', {})
+            begin = r.get('begin', {})
+            end = r.get('end', {})
+            begin_offset = begin.get('offset', -1)
+            end_offset = end.get('offset', -1)
 
-    next_is_example = False
-    for inner in inp.get('inner', []):
-        kind = inner['kind'] 
+            if begin_offset > 0 and end_offset > 0:
+                doc.desc = data[begin_offset:end_offset]
 
-        if next_is_example:
-            example = extract_documentation(data, inner, Documentation())
-            doc.examples.append(example)
+            return doc
 
-        elif kind in ['FullComment', 'ParagraphComment', 'TextComment']:
-            text = inner.get('text', '')
-            while text.startswith('#'):
-                text = text[1:].strip()
-            doc.desc += text + '\n'
-            extract_documentation(data, inner, doc)
-
-        elif kind in ['VerbatimLineComment']:
-            loc = inner.get('loc', {})
-            offset = loc.get('offset', -1)
-            toklen = loc.get('tokLen', -1)
-            if offset > 0 and toklen > 0:
-                text = data[offset:offset+toklen]
-                if text == 'examples':
-                    next_is_example = True
-                    continue
-                doc.params.append(Param(text, '', '', inner.get('text', '').strip()))
-
-        elif kind in ['ParamCommandComment']:
-            param = inner.get('param')
-            direction = inner.get('direction')
-            doc_child = extract_documentation(data, inner, Documentation())
-            doc.params.append(Param('param', param, direction, doc_child.desc.strip()))
-            continue
-
-        elif inner['kind'] in ['BlockCommandComment']:
-            name = inner.get('name')
-            if name == 'return':
-                doc_child = extract_documentation(data, inner, Documentation())
-                doc.params.append(Param(name, param, direction, doc_child.desc.strip()))
-            continue
-
-    return doc
+    return None
 
 def evaluate_expr(name, decl_list):
     for inner in decl_list:
@@ -594,9 +586,9 @@ def parse(data, inp, state):
             doc = extract_documentation(data, decl, Documentation())
             item = parse_enum(decl)
             enum = Enum(item['name'])
-            state.enum_types.append((enum, doc))
             for value in item['items']:
                 enum.values.append(value)
+            state.enum_types.append((enum, doc))
 
 
 def cleanup_implicit(ast):
@@ -657,8 +649,6 @@ def parse_c_includes(path):
 
 
 def generate(gen_info, includes, basepath, outdir):
-    reset_globals()
-
     for file_info in gen_info['files']:
         path = file_info['file']
         basename = os.path.splitext(os.path.basename(path))[0]
@@ -667,7 +657,7 @@ def generate(gen_info, includes, basepath, outdir):
         parsed_includes = parse_c_includes(path)
         
         data = None
-        with open(path, 'r') as f:
+        with open(path, 'r', encoding='utf-8') as f:
             data = f.read()
 
         ast = gen_ir.gen(path, includes)

@@ -12,27 +12,16 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_EXTENSION
-#define DM_EXTENSION
+#ifndef DM_EXTENSION_H
+#define DM_EXTENSION_H
 
 #include <dmsdk/extension/extension.h>
 
+struct ExtensionDesc;
+
 namespace dmExtension
 {
-    struct Desc
-    {
-        const Desc*             m_Next;
-        const char*             m_Name;
-        Result                  (*AppInitialize)(AppParams* params);
-        Result                  (*AppFinalize)(AppParams* params);
-        Result                  (*Initialize)(Params* params);
-        Result                  (*Finalize)(Params* params);
-        Result                  (*Update)(Params* params);
-        void                    (*OnEvent)(Params* params, const Event* event);
-        extension_callback_t    PreRender;
-        extension_callback_t    PostRender;
-        bool                    m_AppInitialized;
-    };
+    typedef const ExtensionDesc* HExtension;
 
     /**
      * Extension initialization desc
@@ -40,9 +29,15 @@ namespace dmExtension
 
     /**
      * Get first extension
-     * @return
+     * @return extension [type:HExtension] The first extension, or 0.
      */
-    const Desc* GetFirstExtension();
+    HExtension GetFirstExtension();
+
+    /**
+     * Get next extension
+     * @return extension [type:HExtension] The next extension, or 0.
+     */
+    HExtension GetNextExtension(HExtension extension);
 
     /**
      * Initialize all extends at application level
@@ -50,6 +45,30 @@ namespace dmExtension
      * @return RESULT_OK on success
      */
     Result AppInitialize(AppParams* params);
+
+    /**
+     * Initialize all extends level
+     * Called after AppInitialize has been called for all extensions
+     * @param params parameters
+     * @return RESULT_OK on success
+     */
+    Result Initialize(Params* params);
+
+    /**
+     * Finalize all extensions
+     * Called before any AppFinalize has been called for any extensions
+     * @param params parameters
+     * @return RESULT_OK on success
+     */
+    Result Finalize(Params* params);
+
+    /**
+     * Update all extensions
+     * Each extension must have been initialized ok
+     * @param params parameters
+     * @return RESULT_OK on success
+     */
+    Result Update(Params* params);
 
     /**
      * Call pre render functions for extensions
@@ -78,4 +97,4 @@ namespace dmExtension
     void DispatchEvent(Params* params, const Event* event);
 }
 
-#endif // #ifndef DM_EXTENSION
+#endif // #ifndef DM_EXTENSION_H

@@ -39,7 +39,7 @@ def rename_symbols(renames, line):
     return line
 
 def gen_cpp_doc(renames, doc):
-    if not (doc.desc or doc.params or doc.examples):
+    if doc is None or not (doc.desc or doc.params or doc.examples):
         return '    // no documentation found'
     lines = []
     lines.extend(doc.desc.strip().split('\n'))
@@ -63,8 +63,8 @@ def gen_cpp_doc(renames, doc):
     if not lines:
         return '    // no documentation generated'
 
-    lines = [lines[0]] + ['     * ' + l for l in lines[1:]]
-    return '    /*# %s\n' % lines[0] + '\n'.join(lines[1:]) + '\n     */'
+    lines = [lines[0]] + ['     ' + l for l in lines[1:]]
+    return '    /*%s\n' % lines[0] + '\n'.join(lines[1:]) + '\n     */'
 
 def get_cpp_func(decl):
     ret_type = decl['type']['qualType']
