@@ -1035,57 +1035,6 @@ namespace dmGameSystem
         }
     }
 
-
-    /*
-            // We currently have no support for instancing, so we generate a separate draw call for each render item
-            world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
-            dmRender::RenderObject& ro = world->m_RenderObjects.Back();
-
-            ro.Init();
-            ro.m_Material              = material;
-            ro.m_PrimitiveType         = dmGraphics::PRIMITIVE_TRIANGLES;
-            ro.m_VertexDeclarations[0] = world->m_VertexDeclaration;
-            ro.m_VertexBuffers[0]      = buffers->m_VertexBuffer;
-
-            if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
-            {
-                MeshAttributeRenderData* attribute_rd = &component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex];
-
-                if (!attribute_rd->m_VertexDeclaration)
-                {
-                    SetupMeshAttributeRenderData(render_context,
-                        ro.m_Material,
-                        render_item,
-                        component->m_Resource->m_Materials[material_index].m_Attributes,
-                        component->m_Resource->m_Materials[material_index].m_AttributeCount,
-                        attribute_rd);
-                }
-
-                ro.m_VertexDeclarations[1] = attribute_rd->m_VertexDeclaration;
-                ro.m_VertexBuffers[1]      = attribute_rd->m_VertexBuffer;
-            }
-
-            // These should be named "element" or "index" (as opposed to vertex)
-            ro.m_VertexStart    = 0;
-            ro.m_VertexCount    = buffers->m_IndexCount;
-            ro.m_IndexBuffer    = buffers->m_IndexBuffer;              // May be 0
-            ro.m_IndexType      = buffers->m_IndexBufferElementType;
-            ro.m_WorldTransform = render_item->m_World;
-
-            DM_PROPERTY_ADD_U32(rmtp_ModelIndexCount, buffers->m_IndexCount);
-            DM_PROPERTY_ADD_U32(rmtp_ModelVertexCount, buffers->m_VertexCount);
-            DM_PROPERTY_ADD_U32(rmtp_ModelVertexSize, buffers->m_VertexCount * sizeof(dmRig::RigModelVertex));
-
-            FillTextures(&ro, component, material_index);
-
-            if (component->m_RenderConstants)
-            {
-                dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
-            }
-
-            dmRender::AddToRender(render_context, &ro);
-            */
-
     #if 0
     static void OutputVector4(const dmVMath::Vector4& v)
     {
@@ -1281,14 +1230,18 @@ namespace dmGameSystem
         ro.Init();
         ro.m_Material              = material;
         ro.m_VertexDeclarations[0] = vx_decl;
-        ro.m_VertexDeclarations[1] = inst_decl;
         ro.m_VertexBuffers[0]      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, gfx_vertex_buffer);
-        ro.m_VertexBuffers[1]      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, gfx_instance_buffer);
         ro.m_PrimitiveType         = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart           = vx_start;
         ro.m_VertexCount           = vx_count;
         ro.m_InstanceCount         = instance_count;
         ro.m_WorldTransform        = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
+
+        if (inst_decl)
+        {
+            ro.m_VertexDeclarations[1] = inst_decl;
+            ro.m_VertexBuffers[1]      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, gfx_instance_buffer);
+        }
 
         FillTextures(&ro, component, material_index);
 

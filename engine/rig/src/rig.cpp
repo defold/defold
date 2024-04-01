@@ -941,6 +941,9 @@ namespace dmRig
             const dmGraphics::VertexAttributeInfo& info = attribute_infos->m_Infos[a];
             const size_t data_size                      = info.m_ValueByteSize;
 
+            if (info.m_StepFunction == dmGraphics::VertexAttribute::VertexStepFunction::VERTEX_STEP_FUNCTION_INSTANCE)
+                continue;
+
             switch(info.m_SemanticType)
             {
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
