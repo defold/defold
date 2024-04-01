@@ -63,6 +63,8 @@ namespace dmPlatform
 
     static void OnWindowFocus(GLFWwindow* glfw_window, int focus)
     {
+        dmLogWarning("Focus changes: %d", focus);
+
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
         if (window->m_FocusCallback != 0x0)
         {
@@ -209,6 +211,8 @@ namespace dmPlatform
             return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
+        glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
+
         PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
 
         switch(params.m_GraphicsApi)
@@ -231,12 +235,17 @@ namespace dmPlatform
             glfwSetWindowIconifyCallback(window->m_Window, OnWindowIconify);
             glfwSetScrollCallback(window->m_Window, OnMouseScroll);
             glfwSetCharCallback(window->m_Window, OnAddCharacterCallback);
-            glfwSetMarkedTextCallback(window->m_Window, OnMarkedTextCallback);
+            //glfwSetMarkedTextCallback(window->m_Window, OnMarkedTextCallback);
 
             glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
             glfwSetJoystickCallback(OnJoystick);
 
             SetSwapInterval(window, 1);
+
+            // glfwRequestWindowAttention(window->m_Window);
+
+            int focused = glfwGetWindowAttrib(window->m_Window, GLFW_FOCUSED);
+            dmLogWarning("focused? %d\n", focused);
 
             // This is not supported in the same way by GLFW3, but we could
             // set glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE); to get a transparent framebuffer
