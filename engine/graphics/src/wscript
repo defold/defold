@@ -100,14 +100,6 @@ def build(bld):
         elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
             obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
 
-        # Build experimental version of the vulkan library
-        obj = bld.stlib(features = obj.features,
-                        includes = obj.includes,
-                        source   = obj.source,
-                        use      = obj.use,
-                        defines  = vulkan_defines + ['DM_EXPERIMENTAL_GRAPHICS_FEATURES'],
-                        target   = 'graphics_vulkan_experimental')
-
     if bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5'):
         bld.recurse('ps4')
 

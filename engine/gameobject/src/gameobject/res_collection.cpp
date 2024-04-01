@@ -153,7 +153,8 @@ namespace dmGameObject
                     {
                         if (!type->m_InstanceHasUserData)
                         {
-                            dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", dmHashReverseSafe64(component.m_Id), instance_desc.m_Id);
+                            DM_HASH_REVERSE_MEM(hash_ctx, 256);
+                            dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", dmHashReverseSafe64Alloc(&hash_ctx, component.m_Id), instance_desc.m_Id);
                             res = dmResource::RESULT_FORMAT_ERROR;
                             goto bail;
                         }

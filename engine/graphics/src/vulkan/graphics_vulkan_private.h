@@ -20,7 +20,8 @@
 #include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
-#include "graphics_vulkan.h"
+
+#include <dmsdk/graphics/graphics_vulkan.h>
 
 namespace dmGraphics
 {

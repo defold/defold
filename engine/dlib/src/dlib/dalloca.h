@@ -12,16 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_ALLOCA_H
-#define DMSDK_ALLOCA_H
+#ifndef DM_DALLOCA_H
+#define DM_DALLOCA_H
 
-#if defined(DM_PLATFORM_VENDOR)
-    #include "alloca_vendor.h"
-#elif defined(_WIN32)
-    #include <malloc.h>
-    #define alloca(_SIZE) _alloca(_SIZE)
-#else
-    #include <alloca.h>
-#endif
+#include <dmsdk/dlib/dalloca.h>
 
-#endif // DMSDK_ALLOCA_H
+#endif // DM_DALLOCA_H

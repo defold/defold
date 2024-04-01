@@ -25,7 +25,8 @@
 
 #include "../graphics.h"
 #include "../graphics_private.h"
-#include "../vulkan/graphics_vulkan.h"
+
+#include <dmsdk/graphics/graphics_vulkan.h>
 
 #include "test_app_graphics_assets.h"
 
@@ -173,7 +174,7 @@ struct CopyToBufferTest : ITest
 
         m_CopyBufferToTextureBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, 128 * 128 * 4, 0, dmGraphics::BUFFER_USAGE_TRANSFER);
 
-        uint8_t* pixels = (uint8_t*) dmGraphics::MapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
+        uint8_t* pixels = (uint8_t*) dmGraphics::VulkanMapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
 
         for (int i = 0; i < 128; i++)
         {
@@ -190,15 +191,12 @@ struct CopyToBufferTest : ITest
             }
         }
 
-        dmGraphics::UnmapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer);
+        dmGraphics::VulkanUnmapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer);
     }
 
     void Execute(EngineCtx* engine) override
     {
-        dmGraphics::TextureParams copy_params = {};
-        copy_params.m_Width                   = dmGraphics::GetTextureWidth(m_CopyBufferToTextureTexture);
-        copy_params.m_Height                  = dmGraphics::GetTextureHeight(m_CopyBufferToTextureTexture);
-        dmGraphics::VulkanCopyBufferToTexture(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, m_CopyBufferToTextureTexture, copy_params);
+        dmGraphics::VulkanCopyBufferToTexture(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, m_CopyBufferToTextureTexture, dmGraphics::GetTextureWidth(m_CopyBufferToTextureTexture), dmGraphics::GetTextureHeight(m_CopyBufferToTextureTexture));
     }
 };
 

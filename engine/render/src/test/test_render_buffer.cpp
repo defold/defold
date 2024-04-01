@@ -47,6 +47,7 @@ public:
         m_GraphicsContext        = dmGraphics::NewContext(graphics_context_params);
         m_Params.m_ScriptContext = dmScript::NewContext(0, 0, true);
         m_Params.m_MaxCharacters = 256;
+        m_Params.m_MaxBatches    = 128;
         m_RenderContext          = dmRender::NewRenderContext(m_GraphicsContext, m_Params);
 
         m_MultiBufferingRequired = m_RenderContext->m_MultiBufferingRequired;
