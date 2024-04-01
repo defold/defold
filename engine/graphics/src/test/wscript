@@ -20,7 +20,7 @@ def build(bld):
             extra_libs += ['OPENGL']
 
         if waflib.Options.options.with_vulkan and platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
-            extra_libs += ['VULKAN', 'GRAPHICS_VULKAN']
+            extra_libs += ['VULKAN']
             extra_symbols += ['GraphicsAdapterVulkan']
 
         print("yes??", extra_libs, extra_symbols)
@@ -29,5 +29,5 @@ def build(bld):
                     includes = ['../../src', '../../proto'],
                     exported_symbols = ['GraphicsAdapterOpenGL'] + extra_symbols,
                     source = 'test_app_graphics.cpp',
-                    use = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE PLATFORM GRAPHICS graphics_transcoder_basisu'.split() + extra_libs,
+                    use = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE PLATFORM GRAPHICS GRAPHICS_VULKAN graphics_transcoder_basisu'.split() + extra_libs,
                     target = 'test_app_graphics')
