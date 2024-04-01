@@ -447,8 +447,7 @@ def _find_node(inp, expected):
         n = _find_node(i, expected[1:])
         if n:
             return n
-
-    return inp
+    return None
 
 def is_struct_typedef(inp):
     n = _find_node(inp, ['TypedefDecl', 'PointerType', 'ElaboratedType', 'RecordType'])
@@ -473,6 +472,11 @@ class Param(object):
         self.name = name
         self.direction = direction
         self.text = text
+
+class Enum(object):
+    def __init__(self, name):
+        self.name = name
+        self.values = []
 
 # class Function(object):
 #     def __init__(self, name='', args=None, ret_type='void'):
@@ -525,11 +529,50 @@ def extract_documentation(data, inp, doc):
 
     return doc
 
-def pre_parse(data, inp, state):
+def evaluate_expr(name, decl_list):
+    for inner in decl_list:
+        kind = inner['kind']
+        if kind == 'ConstantExpr':
+            return int(inner['value'])
+        elif kind == 'UnaryOperator':
+            return - int(evaluate_expr(name, inner['inner']))
+        elif kind == 'ImplicitCastExpr':
+            return evaluate_expr(name, inner['inner'])
+        elif kind == 'ConstantExpr':
+            return int(inner['value'])
+        elif kind == 'IntegerLiteral':
+            if inner['valueCategory'] not in ('rvalue', 'prvalue'):
+                sys.exit(f"ERROR: Enum value ConstantExpr must be 'rvalue' or 'prvalue' ({name}), is '{inner['valueCategory']}'")
+            return int(inner['value'])
+
+def parse_enum(decl, main_prefix=None):
+    outp = {}
+    if 'name' in decl:
+        outp['kind'] = 'enum'
+        outp['name'] = decl['name']
+        needs_value = False
+    else:
+        outp['kind'] = 'consts'
+        needs_value = True
+    outp['items'] = []
+    for item_decl in decl['inner']:
+        if item_decl['kind'] == 'EnumConstantDecl':
+            item = {}
+            item['name'] = item_decl['name']
+            if 'inner' in item_decl:
+                value = evaluate_expr(item_decl['name'], item_decl['inner'])
+                if value is not None:
+                    item['value'] = '%d' % value
+            if needs_value and 'value' not in item:
+                sys.exit(f"ERROR: anonymous enum items require an explicit value")
+            outp['items'].append(item)
+    return outp
+
+def parse(data, inp, state):
     for decl in inp['inner']:
         kind = decl['kind']
         if kind == 'namespace':
-            pre_parse(data, decl, state)
+            parse(data, decl, state)
 
         elif kind in ['struct', 'RecordDecl']:
             doc = extract_documentation(data, decl, Documentation())
@@ -547,17 +590,22 @@ def pre_parse(data, inp, state):
             doc = extract_documentation(data, decl, Documentation())
             state.functions.append( (decl, doc) )
 
-        elif kind == 'enum':
-            enum_name = decl['name']
-            state.enum_types.append(enum_name)
-            enum_items[enum_name] = []
-            for item in decl['items']:
-                enum_items[enum_name].append(item['name'])
+        elif kind in ['enum', 'EnumDecl']:
+            doc = extract_documentation(data, decl, Documentation())
+            item = parse_enum(decl)
+            enum = Enum(item['name'])
+            state.enum_types.append((enum, doc))
+            for value in item['items']:
+                enum.values.append(value)
 
 
 def cleanup_implicit(ast):
     is_implicit = ast.get('isImplicit', False)
     if is_implicit:
+        return None
+
+    storeage_class = ast.get('storageClass', '')
+    if storeage_class == 'extern':
         return None
     return ast
 
@@ -629,7 +677,7 @@ def generate(gen_info, includes, basepath, outdir):
             pprint.pprint(ast, f)
 
         state = State()
-        pre_parse(data, ast, state)
+        parse(data, ast, state)
 
         for lang_key in file_info["languages"].keys():
             info = dict(file_info["languages"].get(lang_key))
@@ -673,6 +721,7 @@ if __name__ == "__main__":
     args.basepath = os.path.abspath(args.basepath)
  
     includes = info["includes"]
+    includes = [os.path.expandvars(i) for i in includes]
     includes = [os.path.join(cwd, i) for i in includes]
     generate(info, includes, args.basepath, args.output)
 

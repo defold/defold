@@ -116,14 +116,31 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
     l('namespace %s {' % info['namespace'])
 
     ignores = info.get('ignore', [])
-    renames = info.get('rename', {})
+    prefixes = info.get('prefix', {})
+
+    for enum_type, doc in state.enum_types:
+        n = enum_type.name
+        if n in ignores:
+            continue
+        renamed = rename_symbols(prefixes, n)
+        l('%s' % gen_cpp_doc(prefixes, doc))
+        l('    enum %s {' % renamed)
+        for enum_value in enum_type.values:
+            n = enum_value['name']
+            renamed = rename_symbols(prefixes, n)
+            if 'value' in enum_value:
+                l('        %s = %s,' % (renamed, enum_value['value']))
+            else:
+                l('        %s,' % renamed)
+        l('    };')
+        l('')
 
     for decl, doc in state.struct_typedefs:
         n = decl['name']
         if n in ignores:
             continue
-        renamed = renames.get(n, n)
-        l('%s' % gen_cpp_doc(renames, doc))
+        renamed = rename_symbols(prefixes, n)
+        l('%s' % gen_cpp_doc(prefixes, doc))
         l('    typedef %s %s;' % (n, renamed))
         l('')
 
@@ -131,8 +148,8 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
         n = decl['name']
         if n in ignores:
             continue
-        renamed = renames.get(n, n)
-        l('%s' % gen_cpp_doc(renames, doc))
+        renamed = rename_symbols(prefixes, n)
+        l('%s' % gen_cpp_doc(prefixes, doc))
         l('    typedef %s %s;' % (n, renamed))
         l('')
 
@@ -140,10 +157,10 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
         n = decl['name']
         if n in ignores:
             continue
-        renamed = renames.get(n, n)
+        renamed = rename_symbols(prefixes, n)
         cpp_func = get_cpp_func(decl)
-        cpp_func = rename_symbols(renames, cpp_func)
-        l('%s' % gen_cpp_doc(renames, doc))
+        cpp_func = rename_symbols(prefixes, cpp_func)
+        l('%s' % gen_cpp_doc(prefixes, doc))
         l('    %s;' % cpp_func)
         l('')
 
