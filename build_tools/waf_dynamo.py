@@ -1831,10 +1831,12 @@ def detect(conf):
     conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
-    conf.env['STLIB_PLATFORM']      = ['platform']
-    conf.env['STLIB_PLATFORM_NULL'] = ['platform_null']
+    conf.env['STLIB_PLATFORM']        = ['platform']
+    conf.env['STLIB_PLATFORM_VULKAN'] = ['platform_vulkan']
+    conf.env['STLIB_PLATFORM_NULL']   = ['platform_null']
 
     if platform_glfw_version(platform) == 3:
+        conf.env['STLIB_DMGLFW_VULKAN'] = 'glfw3-vulkan'
         if Options.options.with_vulkan:
             conf.env['STLIB_DMGLFW'] = 'glfw3-vulkan'
         else:

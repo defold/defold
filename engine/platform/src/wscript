@@ -9,19 +9,22 @@ def build(bld):
 
     extra_source = ['platform_window_vulkan_stub.cpp']
     glfw_source = ['platform_window_glfw.cpp']
-    glfw_defines = []
+    glfw3_vulkan = None
 
     if platform_glfw_version(bld.env.PLATFORM) == 3:
         glfw_source = ['platform_window_glfw3.cpp']
-
-        if waflib.Options.options.with_vulkan:
-            glfw_source.append('platform_window_glfw3_vulkan.cpp')
+        glfw3_vulkan = ['platform_window_glfw3_vulkan.cpp']
 
     lib = bld.stlib(features = 'cxx c ddf',
                     includes = '.',
                     target   = 'platform',
-                    defines  = glfw_defines,
                     source   = bld.path.ant_glob(glfw_source))
+
+    if glfw3_vulkan != None:
+        lib = bld.stlib(features = 'cxx c ddf',
+                    includes = '.',
+                    target   = 'platform_vulkan',
+                    source   = lib.source + glfw3_vulkan)
 
     lib = bld.stlib(features = 'cxx c ddf',
                     includes = '.',
