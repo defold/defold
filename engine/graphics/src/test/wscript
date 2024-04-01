@@ -20,8 +20,10 @@ def build(bld):
             extra_libs += ['OPENGL']
 
         if waflib.Options.options.with_vulkan and platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
-            extra_libs += ['VULKAN', 'graphics_vulkan_experimental']
+            extra_libs += ['VULKAN', 'GRAPHICS_VULKAN']
             extra_symbols += ['GraphicsAdapterVulkan']
+
+        print("yes??", extra_libs, extra_symbols)
 
         bld.program(features = 'cxx cprogram test skip_test',
                     includes = ['../../src', '../../proto'],
