@@ -235,7 +235,7 @@ namespace dmPlatform
             glfwSetWindowIconifyCallback(window->m_Window, OnWindowIconify);
             glfwSetScrollCallback(window->m_Window, OnMouseScroll);
             glfwSetCharCallback(window->m_Window, OnAddCharacterCallback);
-            //glfwSetMarkedTextCallback(window->m_Window, OnMarkedTextCallback);
+            glfwSetMarkedTextCallback(window->m_Window, OnMarkedTextCallback);
 
             glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
             glfwSetJoystickCallback(OnJoystick);
