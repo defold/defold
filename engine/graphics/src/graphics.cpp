@@ -1145,7 +1145,8 @@ namespace dmGraphics
 
     void Finalize()
     {
-        g_functions.m_Finalize();
+        if (g_functions.m_Finalize)
+            g_functions.m_Finalize();
     }
 
     ///////////////////////////////////////////////////
@@ -1605,25 +1606,6 @@ namespace dmGraphics
     {
         return g_functions.m_DeleteComputeProgram(prog);
     }
-
-#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
-    {
-        return g_functions.m_MapVertexBuffer(context, buffer, access);
-    }
-    bool UnmapVertexBuffer(HContext context, HVertexBuffer buffer)
-    {
-        return g_functions.m_UnmapVertexBuffer(context, buffer);
-    }
-    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
-    {
-        return g_functions.m_MapIndexBuffer(context, buffer, access);
-    }
-    bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
-    {
-        return g_functions.m_UnmapIndexBuffer(context, buffer);
-    }
-#endif
 
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)

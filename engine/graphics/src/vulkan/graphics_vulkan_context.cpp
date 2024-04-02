@@ -199,11 +199,6 @@ namespace dmGraphics
         vk_application_info.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
         vk_application_info.apiVersion         = VK_API_VERSION_1_0;
 
-        // Required for interlock features
-    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-        vk_application_info.apiVersion = VK_API_VERSION_1_1;
-    #endif
-
         vk_required_extensions.SetCapacity(extensionNameCount + validationLayerExtensionCount);
 
         for (uint16_t i = 0; i < extensionNameCount; ++i)

@@ -337,12 +337,12 @@
             _ (is (= {foo-resource-uri "{}"} @server-opened-docs))
 
             ;; rename foo.json to bar.json
-            _ (rename-file! foo-resource "bar.json")
+            _ (rename-file! [foo-resource] "bar")
             bar-resource (tu/resource workspace "/bar.json")
             bar-resource-uri (lsp.server/resource-uri bar-resource)
             _ (is (= {bar-resource-uri "{}"} @server-opened-docs))]
         (edit-file! (tu/resource-node project "/bar.json") old-foo-content)
-        (rename-file! bar-resource "foo.json"))))
+        (rename-file! [bar-resource] "foo"))))
   (testing "Open view -> notify open, change on disk + resource sync -> notify changed"
     (tu/with-scratch-project "test/resources/lsp_project"
       (let [lsp (lsp/get-node-lsp project)

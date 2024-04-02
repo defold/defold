@@ -101,6 +101,7 @@ protected:
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 64;
         params.m_MaxCharacters = 32;
+        params.m_MaxBatches = 128;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
 
         dmGraphics::ShaderDesc::Shader shader_ddf;
@@ -1458,8 +1459,11 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
