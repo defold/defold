@@ -134,34 +134,6 @@ namespace dmGameSystem
 
         luaL_register(L, "b2d", BOX2D_FUNCTIONS);
 
-// #define SETCONSTANT(NS, NAME) \
-//         lua_pushnumber(L, (lua_Number) NS :: NAME); \
-//         lua_setfield(L, -2, #NAME);
-
-
-//         lua_newtable(L);
-//         SETCONSTANT(b2Shape, e_circle);
-//         SETCONSTANT(b2Shape, e_edge);
-//         SETCONSTANT(b2Shape, e_polygon);
-//         SETCONSTANT(b2Shape, e_chain);
-//         lua_setfield(L, -2, "b2Shape");
-
-//         lua_newtable(L);
-//         SETCONSTANT(b2JointType, e_unknownJoint)
-//         SETCONSTANT(b2JointType, e_revoluteJoint)
-//         SETCONSTANT(b2JointType, e_prismaticJoint)
-//         SETCONSTANT(b2JointType, e_distanceJoint)
-//         SETCONSTANT(b2JointType, e_pulleyJoint)
-//         SETCONSTANT(b2JointType, e_mouseJoint)
-//         SETCONSTANT(b2JointType, e_gearJoint)
-//         SETCONSTANT(b2JointType, e_wheelJoint)
-//         SETCONSTANT(b2JointType, e_weldJoint)
-//         SETCONSTANT(b2JointType, e_frictionJoint)
-//         SETCONSTANT(b2JointType, e_ropeJoint)
-//         lua_setfield(L, -2, "b2JointType");
-
-// #undef SETCONSTANT
-
         ScriptBox2DInitializeBody(L);
 
         lua_pop(L, 1); // pop the lua module
