@@ -41,6 +41,7 @@
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
 #include "../scripts/script_sys_gamesys.h"
+#include "../scripts/script_resource.h"
 
 #include <dmsdk/gamesys/render_constants.h>
 
@@ -232,6 +233,35 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
     dmResource::Release(m_Factory, (void**) render_prototype);
 }
 
+static bool UpdateAndWaitUntilDone(
+    dmGameSystem::ScriptLibContext&    scriptlibcontext,
+    dmGameObject::HCollection          collection,
+    const dmGameObject::UpdateContext* update_context,
+    bool                               ignore_script_update_fail,
+    const char*                        tests_done_key)
+{
+    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    bool tests_done = false;
+    while (dmTime::GetTime() < stop_time && !tests_done)
+    {
+        dmJobThread::Update(scriptlibcontext.m_JobThread);
+        dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
+        if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
+            return false;
+        if (!dmGameObject::Update(collection, update_context))
+            return false;
+
+        // check if tests are done
+        lua_getglobal(scriptlibcontext.m_LuaState, tests_done_key);
+        tests_done = lua_toboolean(scriptlibcontext.m_LuaState, -1);
+        lua_pop(scriptlibcontext.m_LuaState, 1);
+
+        dmTime::Sleep(30*1000);
+    }
+
+    return tests_done;
+}
+
 TEST_F(ResourceTest, TestCreateTextureFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -240,6 +270,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobThread       = m_JobThread;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -327,6 +358,16 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     // Test 9: create 0x0 texture
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 10: create texture async
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    null_context->m_UseAsyncTextureLoad   = 1;
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "async_test_done"));
 
     // cleanup
     DeleteInstance(m_Collection, go);
@@ -4931,7 +4972,7 @@ TEST_F(SysTest, LoadBufferSync)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
-static bool RunTestLoadBufferASync(lua_State* L, int test_n,
+static bool RunTestLoadBufferASync(int test_n,
     dmGameSystem::ScriptLibContext& scriptlibcontext,
     dmGameObject::HCollection collection,
     const dmGameObject::UpdateContext* update_context,
@@ -4940,29 +4981,10 @@ static bool RunTestLoadBufferASync(lua_State* L, int test_n,
     char buffer[256];
     dmSnPrintf(buffer, sizeof(buffer), "test_n = %d", test_n);
 
-    if (!RunString(L, buffer))
+    if (!RunString(scriptlibcontext.m_LuaState, buffer))
         return false;
 
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
-    bool tests_done = false;
-    while (dmTime::GetTime() < stop_time && !tests_done)
-    {
-        dmJobThread::Update(scriptlibcontext.m_JobThread);
-        dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
-        if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
-            return false;
-        if (!dmGameObject::Update(collection, update_context))
-            return false;
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-
-        dmTime::Sleep(30*1000);
-    }
-
-    return tests_done;
+    return UpdateAndWaitUntilDone(scriptlibcontext, collection, update_context, ignore_script_update_fail, "tests_done");
 }
 
 TEST_F(SysTest, LoadBufferASync)
@@ -4987,7 +5009,7 @@ TEST_F(SysTest, LoadBufferASync)
     ASSERT_NE((void*)0, go);
 
     // Test 1
-    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 1, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+    ASSERT_TRUE(RunTestLoadBufferASync(1, scriptlibcontext, m_Collection, &m_UpdateContext, false));
 
     // Test 2
     uint32_t large_buffer_size = 16 * 1024 * 1024;
@@ -4998,18 +5020,18 @@ TEST_F(SysTest, LoadBufferASync)
     large_buffer[large_buffer_size-1] = 255;
 
     dmResource::AddFile(m_Factory, "/sys/non_disk_content/large_file.raw", large_buffer_size, large_buffer);
-    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 2, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+    ASSERT_TRUE(RunTestLoadBufferASync(2, scriptlibcontext, m_Collection, &m_UpdateContext, false));
     dmResource::RemoveFile(m_Factory, "/sys/non_disk_content/large_file.raw");
     free(large_buffer);
 
     // Test 3
-    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 3, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+    ASSERT_TRUE(RunTestLoadBufferASync(3, scriptlibcontext, m_Collection, &m_UpdateContext, true));
 
     // Test 4
-    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 4, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+    ASSERT_TRUE(RunTestLoadBufferASync(4, scriptlibcontext, m_Collection, &m_UpdateContext, true));
 
     // Test 5
-    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 5, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+    ASSERT_TRUE(RunTestLoadBufferASync(5, scriptlibcontext, m_Collection, &m_UpdateContext, true));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
