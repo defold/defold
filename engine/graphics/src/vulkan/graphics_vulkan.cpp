@@ -3862,6 +3862,10 @@ bail:
         // Async texture loading is not supported in Vulkan, defaulting to syncronous loading until then
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         VulkanSetTextureInternal(tex, params);
+        if (callback)
+        {
+            callback(texture, user_data);
+        }
     }
 
     static float GetMaxAnisotrophyClamped(float max_anisotropy_requested)

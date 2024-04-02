@@ -229,7 +229,6 @@ struct SetTextureAsyncRequest
     TextureResource*           m_TextureResource;
     dmBuffer::HBuffer          m_Buffer;
     int32_t                    m_BufferRef;
-    dmGraphics::HTexture       m_Texture;
     HOpaqueHandle              m_Handle;
     bool                       m_UseUploadBuffer;
 };
@@ -766,13 +765,13 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     return 0;
 }
 
-static void HandleRequestCompleted(void* user_data)
+static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data)
 {
     SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
 
     // Swap out the texture
     dmGraphics::DeleteTexture(request->m_TextureResource->m_Texture);
-    request->m_TextureResource->m_Texture = request->m_Texture;
+    request->m_TextureResource->m_Texture = texture;
 
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
     {
@@ -1201,7 +1200,6 @@ static int CreateTextureAsync(lua_State* L)
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
     request->m_Buffer            = upload_buffer;
-    request->m_Texture           = texture_dst;
     request->m_UseUploadBuffer   = use_upload_buffer;
     request->m_PathHash          = create_params.m_PathHash;
 

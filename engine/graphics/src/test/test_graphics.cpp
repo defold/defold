@@ -616,6 +616,13 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DeleteTexture(texture);
 }
 
+static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_data)
+{
+    assert(dmGraphics::GetOpaqueHandle(texture) != INVALID_OPAQUE_HANDLE);
+    int* value = (int*)user_data;
+    *value = 1;
+}
+
 TEST_F(dmGraphicsTest, TestTextureAsync)
 {
     bool tmp_async_load = m_NullContext->m_UseAsyncTextureLoad;
@@ -639,12 +646,14 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     dmArray<dmGraphics::HTexture> textures;
     textures.SetCapacity(TEXTURE_COUNT);
 
-    bool all_complete = false;
+    int* values = new int[TEXTURE_COUNT];
+    memset(values, 0, sizeof(int)*TEXTURE_COUNT);
 
+    bool all_complete = false;
     for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
         textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-        dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
+        dmGraphics::SetTextureAsync(textures[i], params, TestTextureAsyncCallback, (void*) (values + i));
     }
 
     uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
@@ -654,8 +663,10 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
         all_complete = true;
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
-            if (dmGraphics::GetTextureStatusFlags(textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
+            if (values[i] == 0)
+            {
                 all_complete = false;
+            }
         }
         dmTime::Sleep(20 * 1000);
     }

@@ -105,7 +105,7 @@ namespace dmGameSystem
         params.m_Data = blank;
         params.m_DataSize = 4;
         params.m_MipMap = 0;
-        dmGraphics::SetTextureAsync(texture, params, 0, 0);
+        dmGraphics::SetTextureAsync(texture, params, 0, (void*) 0);
     }
 
     static dmResource::Result AcquireResources(const char* path, dmResource::SResourceDescriptor* resource_desc, dmGraphics::HContext context, ImageDesc* image_desc,

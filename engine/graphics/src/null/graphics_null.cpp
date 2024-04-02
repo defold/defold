@@ -1759,7 +1759,7 @@ namespace dmGraphics
 
         if (ap.m_Callback)
         {
-            ap.m_Callback(ap.m_UserData);
+            ap.m_Callback(ap.m_Texture, ap.m_UserData);
         }
 
         ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);

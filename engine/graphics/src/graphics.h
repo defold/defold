@@ -624,7 +624,7 @@ namespace dmGraphics
      * Function called when a texture has been set asynchronously
      * @param user_data user data that will be passed to the SetTextureAsyncCallback
      */
-    typedef void (*SetTextureAsyncCallback)(void* user_data);
+    typedef void (*SetTextureAsyncCallback)(HTexture texture, void* user_data);
 
     /**
      * Set texture data asynchronously. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
