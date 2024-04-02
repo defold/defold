@@ -766,8 +766,10 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     return 0;
 }
 
-static void HandleRequestCompleted(SetTextureAsyncRequest* request)
+static void HandleRequestCompleted(void* user_data)
 {
+    SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
+
     // Swap out the texture
     dmGraphics::DeleteTexture(request->m_TextureResource->m_Texture);
     request->m_TextureResource->m_Texture = request->m_Texture;
@@ -1140,12 +1142,12 @@ static int CreateTextureAsync(lua_State* L)
     CheckCreateTextureResourceParams(L, &create_params);
 
     // Create an empty upload buffer
-    dmBuffer::HBuffer dst_buffer = create_params.m_Buffer;
+    dmBuffer::HBuffer upload_buffer = create_params.m_Buffer;
     bool use_upload_buffer = create_params.m_Buffer == 0;
     if (use_upload_buffer)
     {
         const dmBuffer::StreamDeclaration streams_decl = {dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1};
-        dmBuffer::Result r = dmBuffer::Create(create_params.m_Width * create_params.m_Height * create_params.m_TextureBpp, &streams_decl, 1, &dst_buffer);
+        dmBuffer::Result r = dmBuffer::Create(create_params.m_Width * create_params.m_Height * create_params.m_TextureBpp, &streams_decl, 1, &upload_buffer);
         if (r != dmBuffer::RESULT_OK)
         {
             return DM_LUA_ERROR("Unable to create an empty upload buffer: %s (%d)", dmBuffer::GetResultString(r), r);
@@ -1198,7 +1200,7 @@ static int CreateTextureAsync(lua_State* L)
     request->m_TextureResource   = (TextureResource*) resource;
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
-    request->m_Buffer            = dst_buffer;
+    request->m_Buffer            = upload_buffer;
     request->m_Texture           = texture_dst;
     request->m_UseUploadBuffer   = use_upload_buffer;
     request->m_PathHash          = create_params.m_PathHash;
@@ -1209,7 +1211,6 @@ static int CreateTextureAsync(lua_State* L)
     texture_params.m_Format = create_params.m_Format;
 
     dmBuffer::GetBytes(request->m_Buffer, (void**)&texture_params.m_Data, &texture_params.m_DataSize);
-    dmGraphics::SetTextureAsync(texture_dst, texture_params);
 
     // If we are not using a specifically created upload buffer, we push the Lua object and increase its ref count,
     // this is so that we can make sure that the buffer to live during the upload.
@@ -1218,6 +1219,9 @@ static int CreateTextureAsync(lua_State* L)
         lua_pushvalue(L, 3);
         request->m_BufferRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
     }
+
+    // Execute the upload, the upload buffer should now be locked by this request
+    dmGraphics::SetTextureAsync(texture_dst, texture_params, HandleRequestCompleted, request);
 
     dmScript::PushHash(L, create_params.m_PathHash);
     lua_pushnumber(L, request_handle);
@@ -3483,20 +3487,6 @@ void ScriptResourceRegister(const ScriptLibContext& context)
     LuaInit(context.m_LuaState, context.m_GraphicsContext);
     g_ResourceModule.m_Factory         = context.m_Factory;
     g_ResourceModule.m_GraphicsContext = context.m_GraphicsContext;
-}
-
-void ScriptResourceUpdate(const ScriptLibContext& context)
-{
-    uint32_t request_count = g_ResourceModule.m_LoadRequests.Capacity();
-    for (int i = 0; i < request_count; ++i)
-    {
-        SetTextureAsyncRequest* request = g_ResourceModule.m_LoadRequests.GetByIndex(i);
-
-        if (request && dmGraphics::GetTextureStatusFlags(request->m_Texture) == dmGraphics::TEXTURE_STATUS_OK)
-        {
-            HandleRequestCompleted(request);
-        }
-    }
 }
 
 void ScriptResourceFinalize(const ScriptLibContext& context)

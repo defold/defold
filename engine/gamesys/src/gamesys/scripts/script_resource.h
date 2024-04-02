@@ -19,7 +19,6 @@ namespace dmGameSystem
 {
     void ScriptResourceRegister(const struct ScriptLibContext& context);
     void ScriptResourceFinalize(const struct ScriptLibContext& context);
-    void ScriptResourceUpdate(const ScriptLibContext& context);
 }
 
 #endif // DM_GAMESYS_SCRIPT_RESOURCE_H

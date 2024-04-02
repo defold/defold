@@ -3857,7 +3857,7 @@ bail:
         VulkanSetTextureInternal(tex, params);
     }
 
-    static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params)
+    static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
         // Async texture loading is not supported in Vulkan, defaulting to syncronous loading until then
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);

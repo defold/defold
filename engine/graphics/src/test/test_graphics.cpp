@@ -644,7 +644,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
         textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-        dmGraphics::SetTextureAsync(textures[i], params);
+        dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
     }
 
     uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
@@ -752,7 +752,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-            dmGraphics::SetTextureAsync(textures[i], params);
+            dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
 
             // Immediately delete, so we simulate putting them on a post-delete-queue
             dmGraphics::DeleteTexture(textures[i]);
@@ -778,7 +778,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-            dmGraphics::SetTextureAsync(textures[i], params);
+            dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
         }
 
         ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_UPLOAD));
