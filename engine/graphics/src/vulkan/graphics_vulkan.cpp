@@ -3162,6 +3162,9 @@ bail:
         RenderTarget* rt = new RenderTarget(GetNextRenderTargetId());
 
         memcpy(rt->m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        memcpy(rt->m_ColorBufferLoadOps, params.m_ColorBufferLoadOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        memcpy(rt->m_ColorBufferStoreOps, params.m_ColorBufferStoreOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
+
         rt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
@@ -3857,11 +3860,15 @@ bail:
         VulkanSetTextureInternal(tex, params);
     }
 
-    static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params)
+    static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
         // Async texture loading is not supported in Vulkan, defaulting to syncronous loading until then
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         VulkanSetTextureInternal(tex, params);
+        if (callback)
+        {
+            callback(texture, user_data);
+        }
     }
 
     static float GetMaxAnisotrophyClamped(float max_anisotropy_requested)

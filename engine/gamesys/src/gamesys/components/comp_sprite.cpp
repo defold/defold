@@ -2091,7 +2091,7 @@ namespace dmGameSystem
         {
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        return SetMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, &component->m_DynamicVertexAttributeIndex, material, set_property, params.m_Value);
+        return SetMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, &component->m_DynamicVertexAttributeIndex, material, set_property, params.m_Value, CompSpriteGetMaterialAttributeCallback, component);
     }
 
     static bool CompSpriteIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)

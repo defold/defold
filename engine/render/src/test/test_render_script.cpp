@@ -1459,8 +1459,11 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);

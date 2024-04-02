@@ -16,6 +16,7 @@
 #define __GRAPHICS_DEVICE_OPENGL__
 
 #include <dlib/math.h>
+#include <dmsdk/dlib/atomic.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
 #include <platform/platform_window.h>
@@ -77,7 +78,8 @@ namespace dmGraphics
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
         void*                   m_AuxContext;
-        volatile bool           m_AuxContextJobPending;
+        int32_atomic_t          m_AuxContextJobPending;
+        int32_atomic_t          m_DeleteContextRequested;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 

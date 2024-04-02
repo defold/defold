@@ -1079,7 +1079,7 @@ namespace dmGraphics
         }
     }
 
-    uint16_t PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params)
+    uint16_t PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params, SetTextureAsyncCallback callback, void* user_data)
     {
         DM_MUTEX_SCOPED_LOCK(state.m_Mutex);
         if (state.m_Indices.Remaining() == 0)
@@ -1092,11 +1092,14 @@ namespace dmGraphics
         SetTextureAsyncParams& ap  = state.m_Params[param_array_index];
         ap.m_Texture               = texture;
         ap.m_Params                = params;
+        ap.m_Callback              = callback;
+        ap.m_UserData              = user_data;
         return param_array_index;
     }
 
     void PushSetTextureAsyncDeleteTexture(SetTextureAsyncState& state, HTexture texture)
     {
+        DM_MUTEX_SCOPED_LOCK(state.m_Mutex);
         if (state.m_PostDeleteTextures.Full())
         {
             state.m_PostDeleteTextures.OffsetCapacity(64);
@@ -1156,7 +1159,8 @@ namespace dmGraphics
 
     void Finalize()
     {
-        g_functions.m_Finalize();
+        if (g_functions.m_Finalize)
+            g_functions.m_Finalize();
     }
 
     ///////////////////////////////////////////////////
@@ -1507,9 +1511,9 @@ namespace dmGraphics
     {
         g_functions.m_SetTexture(texture, params);
     }
-    void SetTextureAsync(HTexture texture, const TextureParams& paramsa)
+    void SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
-        g_functions.m_SetTextureAsync(texture, paramsa);
+        g_functions.m_SetTextureAsync(texture, params, callback, user_data);
     }
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {

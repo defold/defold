@@ -623,13 +623,19 @@ namespace dmGraphics
     void SetTexture(HTexture texture, const TextureParams& params);
 
     /**
+     * Function called when a texture has been set asynchronously
+     * @param user_data user data that will be passed to the SetTextureAsyncCallback
+     */
+    typedef void (*SetTextureAsyncCallback)(HTexture texture, void* user_data);
+
+    /**
      * Set texture data asynchronously. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
      * 6 mip-maps are present contiguously in memory with stride m_DataSize
      *
      * @param texture HTexture
      * @param params TextureParams
      */
-    void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
+    void SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
 
     void        SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     uint32_t    GetTextureResourceSize(HTexture texture);

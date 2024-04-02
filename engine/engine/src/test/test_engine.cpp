@@ -27,6 +27,8 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+extern "C" void dmExportedSymbols();
+
 #define CONTENT_ROOT "src/test/build/default"
 #define MAKE_PATH(_VAR, _NAME)  dmTestUtil::MakeHostPathf(_VAR, sizeof(_VAR), "%s%s", CONTENT_ROOT, _NAME)
 
@@ -459,6 +461,7 @@ TEST_F(EngineTest, FixedUpdateFrequency3D)
 
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
 
     dmProfile::Initialize(0);

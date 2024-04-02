@@ -182,8 +182,11 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAddAndTrim)
     m_RenderContext->m_MultiBufferingRequired = m_MultiBufferingRequired;
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     dmHashEnableReverseHash(true);
     jc_test_init(&argc, argv);
