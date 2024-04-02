@@ -19,13 +19,58 @@ index c92b768..1e2a805 100644
   * Global definition cleanup
   *************************************************************************/
 diff --git a/src/cocoa_init.m b/src/cocoa_init.m
-index fb094d3..152f1ce 100644
+index fb094d3..b39eb77 100644
 --- a/src/cocoa_init.m
 +++ b/src/cocoa_init.m
-@@ -462,6 +462,13 @@ - (void)applicationDidHide:(NSNotification *)notification
+@@ -462,6 +462,58 @@ - (void)applicationDidHide:(NSNotification *)notification
          _glfwRestoreVideoModeNS(_glfw.monitors[i]);
  }
  
++- (void)deactivateProcess
++{
++    ProcessSerialNumber psn = { 0, kCurrentProcess };
++    TransformProcessType( &psn, kProcessTransformToBackgroundApplication );
++    [self performSelector:@selector(activateProcess) withObject:nil afterDelay:0.1];
++}
++
++- (void)activateProcess
++{
++    ProcessSerialNumber psn = { 0, kCurrentProcess }; 
++    (void) TransformProcessType(&psn, kProcessTransformToForegroundApplication);
++    // [self performSelector:@selector(activateWindow) withObject:nil afterDelay:0.1];
++}
++
++- (void)applicationDidUpdate:(NSNotification *)notification
++{
++    if(_glfw.ns.firstUpdate)
++    {
++        // Starting from macOS Sonoma (14.0) it should be solved in two different ways depends
++        // if it's bundled app or not
++        // https://github.com/defold/defold/issues/8066
++        NSOperatingSystemVersion version = [[NSProcessInfo processInfo] operatingSystemVersion];
++        if (version.majorVersion < 14)
++        {
++            [self deactivateProcess];
++        }
++        else
++        {
++            if ( _glfw.ns.unbundled )
++            {
++                [self deactivateProcess];
++            }
++
++            _glfw.ns.firstUpdate = GLFW_FALSE;
++
++            /*
++            else
++            {
++                [self activateWindow];
++            }
++            */
++        }
++    }
++}
++
 +// macos 12+
 +// https://sector7.computest.nl/post/2022-08-process-injection-breaking-all-macos-security-layers-with-a-single-vulnerability/
 +- (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app
@@ -36,6 +81,32 @@ index fb094d3..152f1ce 100644
  @end // GLFWApplicationDelegate
  
  
+@@ -568,6 +620,25 @@ int _glfwPlatformInit(void)
+     _glfwInitJoysticksNS();
+ 
+     _glfwPollMonitorsNS();
++
++    // DEFOLD PATCH BEGIN
++
++    CFStringRef uti;
++    CFBundleRef bundle = CFBundleGetMainBundle();
++    CFURLRef bundleUrl = CFBundleCopyBundleURL(bundle);
++    if (CFURLCopyResourcePropertyForKey(bundleUrl, kCFURLTypeIdentifierKey, &uti, NULL) &&
++        uti && UTTypeConformsTo(uti, kUTTypeApplicationBundle))
++    {
++        _glfw.ns.unbundled = GLFW_FALSE;
++    }
++    else
++    {
++        _glfw.ns.unbundled = GLFW_TRUE;
++    }
++
++    // DEFOLD PATCH END
++
++
+     return GLFW_TRUE;
+ 
+     } // autoreleasepool
 diff --git a/src/cocoa_platform.h b/src/cocoa_platform.h
 index bb67703..82d7af1 100644
 --- a/src/cocoa_platform.h
