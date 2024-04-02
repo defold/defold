@@ -160,8 +160,11 @@ TEST_F(ScriptHashTest, TestHashTString) // def2821 - Making sure that the string
     ASSERT_EQ(hash_tostring, hash_tolstring);
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

@@ -1144,7 +1144,8 @@ namespace dmGraphics
 
     void Finalize()
     {
-        g_functions.m_Finalize();
+        if (g_functions.m_Finalize)
+            g_functions.m_Finalize();
     }
 
     ///////////////////////////////////////////////////
