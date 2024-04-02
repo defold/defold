@@ -70,6 +70,9 @@ namespace dmGameSystem
             params.m_ColorBufferParams[i].m_Width    = att.m_Width;
             params.m_ColorBufferParams[i].m_Height   = att.m_Height;
             params.m_ColorBufferParams[i].m_Depth    = 1;
+
+            params.m_ColorBufferLoadOps[i]  = dmGraphics::ATTACHMENT_OP_DONT_CARE;
+            params.m_ColorBufferStoreOps[i] = dmGraphics::ATTACHMENT_OP_STORE;
         }
 
         if (ddf->m_DepthStencilAttachment.m_Width > 0 && ddf->m_DepthStencilAttachment.m_Height > 0)
