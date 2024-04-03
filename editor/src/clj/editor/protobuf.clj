@@ -1048,6 +1048,12 @@ Macros currently mean no foreseeable performance gain, however."
         parser
         pb->map-with-defaults)))
 
+(defn bytes->map-without-defaults [^Class cls bytes]
+  (let [parser (parser-fn cls)]
+    (-> bytes
+        parser
+        pb->map-without-defaults)))
+
 (defn- enum-values-raw [^Class cls]
   (let [^Method values-method (j/get-declared-method cls "values" [])
         values (.invoke values-method nil (object-array 0))]
