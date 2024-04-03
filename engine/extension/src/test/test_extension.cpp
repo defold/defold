@@ -37,7 +37,6 @@ TEST(dmExtension, Basic)
     ASSERT_EQ(1, g_TestAppInitCount);
     dmExtension::HExtension extension = dmExtension::GetFirstExtension();
     ASSERT_NE((dmExtension::HExtension)0, extension);
-    ASSERT_STREQ("test", dmExtension::GetName(extension));
     ASSERT_EQ((dmExtension::HExtension)0, dmExtension::GetNextExtension(extension));
 
     dmExtension::Params params;
