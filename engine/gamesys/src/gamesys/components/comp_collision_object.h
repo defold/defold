@@ -26,6 +26,9 @@
 
 template <typename T> class dmArray;
 
+class b2World;
+class b2Body;
+
 namespace dmGameSystem
 {
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params);
@@ -105,8 +108,8 @@ namespace dmGameSystem
 
 
     // For script_box2d.cpp
-    class b2World* CompCollisionObjectGetBox2DWorld(void* _world);
-    class b2Body* CompCollisionObjectGetBox2DBody(void* _component);
+    b2World* CompCollisionObjectGetBox2DWorld(void* _world);
+    b2Body* CompCollisionObjectGetBox2DBody(void* _component);
     dmGameObject::HInstance CompCollisionObjectGetInstance(void* _user_data);
 }
 

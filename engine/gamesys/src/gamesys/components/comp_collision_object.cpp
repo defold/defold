@@ -2140,20 +2140,20 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompCollisionIterPropertiesGetNext;
     }
 
-    class b2World* CompCollisionObjectGetBox2DWorld(void* _world)
+    b2World* CompCollisionObjectGetBox2DWorld(void* _world)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (world->m_3D)
             return 0;
-        return (class b2World*)dmPhysics::GetWorldContext2D(world->m_World2D);
+        return (b2World*)dmPhysics::GetWorldContext2D(world->m_World2D);
     }
 
-    class b2Body* CompCollisionObjectGetBox2DBody(void* _component)
+    b2Body* CompCollisionObjectGetBox2DBody(void* _component)
     {
         CollisionComponent* component = (CollisionComponent*)_component;
         if (component->m_3D)
             return 0;
-        return (class b2Body*)dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
+        return (b2Body*)dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
     }
 
     // We use this to determine if a physics object is still alive, by determinig if the game object is still alive
