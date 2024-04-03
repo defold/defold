@@ -228,7 +228,7 @@ void ExtensionUnregisteriOSUIApplicationDelegate(void* delegate);
 #define DM_EXTENSION_PASTE_SYMREG2(x, y) DM_EXTENSION_PASTE_SYMREG(x, y)
 
 // interal
-#define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void __attribute__((constructor)) symbol () { \
+#define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void symbol () { \
         ExtensionRegister((void*) &desc, desc_size, name, \
                     (FExtensionAppInitialize)app_init, \
                     (FExtensionAppFinalize)app_final, \
