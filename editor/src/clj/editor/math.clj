@@ -15,7 +15,7 @@
 (ns editor.math
   (:import [java.lang Math]
            [java.math RoundingMode]
-           [javax.vecmath Matrix3d Matrix4d Point3d Vector3d Vector4d Quat4d Tuple2d Tuple3d Tuple4d]))
+           [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -450,20 +450,77 @@
        (* (+ (* -6 t2) (* 6 t)) y1)
        (* (+ (* 3 t2) (* -2 t)) t1))))
 
+(defn derive-normal-transform
+  ^Matrix4d [^Matrix4d transform]
+  (let [normal-transform (Matrix3d.)]
+    (.getRotationScale transform normal-transform)
+    (.invert normal-transform)
+    (.transpose normal-transform)
+    (doto (Matrix4d.)
+      (.setRotationScale normal-transform)
+      (.setM33 1.0))))
+
 (defn derive-render-transforms
-  [^Matrix4d world ^Matrix4d view ^Matrix4d projection ^Matrix4d texture]
-  ;; Matrix multiplication A * B = C is c.mul(a, b) in vecmath. In-place A := A * B is a.mul(b).
-  ;; The matrix naming is in the order the transforms will be applied to the vertices. For instance
-  ;; view-proj is "Proj * View", and view-proj.transform(v) is (Proj * (View * V))
-  (let [view-proj (doto (Matrix4d. projection) (.mul view))
-        world-view (doto (Matrix4d. view) (.mul world))
-        world-view-proj (doto (Matrix4d. view-proj) (.mul world))
-        normal (doto (affine-inverse world-view) (.transpose))]
-    {:world world
-     :view view
-     :projection projection
-     :texture texture
-     :normal normal
-     :view-proj view-proj
-     :world-view world-view
-     :world-view-proj world-view-proj}))
+  "Given the world, view, projection, and texture transforms, derive the normal,
+  view-proj, world-view, and world-view-proj transforms and return a map with
+  all the resulting transforms. Optionally, a value obtained from the
+  graphics/coordinate-space-info function can be supplied to selectively cancel
+  out the world transform contributions from the resulting transforms, enabling
+  one vertex shader to be used for both local-space and world-space meshes.
+
+  TODO:
+  We should probably just deprecate this behavior, since it will confuse users
+  that mix local-space and world-space attributes of the same type."
+  ([^Matrix4d world ^Matrix4d view ^Matrix4d projection ^Matrix4d texture]
+   (derive-render-transforms world view projection texture nil))
+  ([^Matrix4d world ^Matrix4d view ^Matrix4d projection ^Matrix4d texture coordinate-space-info]
+   ;; Matrix multiplication A * B = C is c.mul(a, b) in vecmath. In-place A := A * B is a.mul(b).
+   ;; The matrix naming is in the order the transforms will be applied to the vertices. For instance
+   ;; view-proj is "Proj * View", and view-proj.transform(v) is (Proj * (View * V))
+   (let [world-space-semantic-types (:coordinate-space-world coordinate-space-info)
+
+         semantic-type->coordinate-space
+         (fn semantic-type->coordinate-space [semantic-type]
+           (if (contains? world-space-semantic-types semantic-type)
+             :coordinate-space-world
+             :coordinate-space-local))
+
+         position-coordinate-space (semantic-type->coordinate-space :semantic-type-position)
+         normal-coordinate-space (semantic-type->coordinate-space :semantic-type-normal)
+         view-proj (doto (Matrix4d. projection) (.mul view))
+
+         world-view
+         (case position-coordinate-space
+           :coordinate-space-local (doto (Matrix4d. view) (.mul world))
+           :coordinate-space-world view)
+
+         world-view-proj
+         (case position-coordinate-space
+           :coordinate-space-local (doto (Matrix4d. view-proj) (.mul world))
+           :coordinate-space-world view-proj)
+
+         normal
+         (derive-normal-transform
+           (case normal-coordinate-space
+             :coordinate-space-local
+             ;; We want to derive the normal transform from the world-view
+             ;; transform. However, if position-coordinate-space used
+             ;; :coordinate-space-world, world-view will simply be the view
+             ;; transform at this point. In this situation, we need to calculate
+             ;; the world-view transform ourselves before deriving the normal
+             ;; transform from it.
+             (if (identical? view world-view)
+               (doto (Matrix4d. view) (.mul world))
+               world-view)
+
+             :coordinate-space-world
+             view))]
+
+     {:world world
+      :view view
+      :projection projection
+      :texture texture
+      :normal normal
+      :view-proj view-proj
+      :world-view world-view
+      :world-view-proj world-view-proj})))

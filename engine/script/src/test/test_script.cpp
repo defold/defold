@@ -21,10 +21,10 @@
 namespace dmScriptTest
 {
 
-bool RunFile(lua_State* L, const char* filename)
+bool RunFile(lua_State* L, const char* filename, const char* base_dir)
 {
     char path[1024];
-    dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/test/%s", filename);
+    dmTestUtil::MakeHostPathf(path, sizeof(path), "%s/%s", base_dir, filename);
 
     if (luaL_dofile(L, path) != 0)
     {
@@ -121,7 +121,11 @@ void ScriptTest::AppendToLog(const char* log)
 
 bool ScriptTest::RunFile(lua_State* L, const char* filename)
 {
-    return dmScriptTest::RunFile(L, filename);
+    return dmScriptTest::RunFile(L, filename, "build/src/test/");
+}
+bool ScriptTest::RunFile(lua_State* L, const char* filename, const char* base_dir)
+{
+    return dmScriptTest::RunFile(L, filename, base_dir);
 }
 bool ScriptTest::RunString(lua_State* L, const char* script)
 {

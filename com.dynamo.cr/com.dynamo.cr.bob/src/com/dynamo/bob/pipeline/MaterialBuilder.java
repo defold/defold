@@ -103,12 +103,19 @@ public class MaterialBuilder extends Builder<Void>  {
         }
         ShaderDesc.Shader spirvFragment = getSpirvShader(fragmentBuildContext.desc);
 
-
         for (ShaderDesc.ResourceBinding input : spirvFragment.getInputsList()) {
             boolean input_found = false;
             for (ShaderDesc.ResourceBinding output : spirvVertex.getOutputsList()) {
                 if (output.getNameHash() == input.getNameHash()) {
                     input_found = true;
+
+                    if (input.getBinding() != output.getBinding()) {
+                        throw new CompileExceptionError(
+                            String.format("Location mismatch for fragment shader input '%s': The vertex shader specifies the input at location %d, and location %d in the fragment shader.",
+                            input.getName(),
+                            output.getBinding(),
+                            input.getBinding()));
+                    }
                     break;
                 }
             }

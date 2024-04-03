@@ -155,6 +155,7 @@ namespace dmGameSystem
         dmHID::HContext         m_HidContext;
         dmGraphics::HContext    m_GraphicsContext;
         dmJobThread::HContext   m_JobThread;
+        dmScript::HContext      m_ScriptContext;
     };
 
 

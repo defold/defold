@@ -47,6 +47,7 @@ public:
         m_GraphicsContext        = dmGraphics::NewContext(graphics_context_params);
         m_Params.m_ScriptContext = dmScript::NewContext(0, 0, true);
         m_Params.m_MaxCharacters = 256;
+        m_Params.m_MaxBatches    = 128;
         m_RenderContext          = dmRender::NewRenderContext(m_GraphicsContext, m_Params);
 
         m_MultiBufferingRequired = m_RenderContext->m_MultiBufferingRequired;
@@ -181,8 +182,11 @@ TEST_F(dmRenderBufferTest, TestBufferedRenderBufferAddAndTrim)
     m_RenderContext->m_MultiBufferingRequired = m_MultiBufferingRequired;
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     dmHashEnableReverseHash(true);
     jc_test_init(&argc, argv);

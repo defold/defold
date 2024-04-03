@@ -68,7 +68,7 @@ namespace dmHttpClient
      * @param content_data Content data
      * @param content_data_size Content data size
      */
-    typedef void (*HttpContent)(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size);
+    typedef void (*HttpContent)(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_size);
 
     /**
      * HTTP content-length callback. Invoked for POST-request prior to HttpWrite-callback to determine content-length

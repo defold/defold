@@ -126,8 +126,10 @@ namespace dmGraphics
 
     struct SetTextureAsyncParams
     {
-        HTexture      m_Texture;
-        TextureParams m_Params;
+        HTexture                m_Texture;
+        TextureParams           m_Params;
+        SetTextureAsyncCallback m_Callback;
+        void*                   m_UserData;
     };
 
     struct SetTextureAsyncState
@@ -162,7 +164,7 @@ namespace dmGraphics
     void                  InitializeSetTextureAsyncState(SetTextureAsyncState& state);
     void                  ResetSetTextureAsyncState(SetTextureAsyncState& state);
     SetTextureAsyncParams GetSetTextureAsyncParams(SetTextureAsyncState& state, uint16_t index);
-    uint16_t              PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params);
+    uint16_t              PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params, SetTextureAsyncCallback callback, void* user_data);
     void                  ReturnSetTextureAsyncIndex(SetTextureAsyncState& state, uint16_t index);
     void                  PushSetTextureAsyncDeleteTexture(SetTextureAsyncState& state, HTexture texture);
 

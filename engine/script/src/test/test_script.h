@@ -32,7 +32,7 @@ extern "C"
 
 namespace dmScriptTest
 {
-    bool RunFile(lua_State* L, const char* filename);
+    bool RunFile(lua_State* L, const char* filename, const char* base_dir);
     bool RunString(lua_State* L, const char* script);
 
     class ScriptTest : public jc_test_base_class
@@ -47,6 +47,7 @@ namespace dmScriptTest
         void AppendToLog(const char* log);
 
         bool RunFile(lua_State* L, const char* filename);
+        bool RunFile(lua_State* L, const char* filename, const char* base_dir);
         bool RunString(lua_State* L, const char* script);
 
         dmScript::HContext m_Context;

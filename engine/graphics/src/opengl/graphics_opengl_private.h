@@ -17,6 +17,7 @@
 
 #include <dlib/atomic.h>
 #include <dlib/math.h>
+#include <dmsdk/dlib/atomic.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
 #include <platform/platform_window.h>
@@ -79,6 +80,7 @@ namespace dmGraphics
         char*                   m_ExtensionsString;
         void*                   m_AuxContext;
         int32_atomic_t          m_AuxContextJobPending;
+        int32_atomic_t          m_DeleteContextRequested;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 

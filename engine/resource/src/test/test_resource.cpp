@@ -1565,9 +1565,11 @@ TEST(ResourceUtil, BytesToHexString)
     ASSERT_STREQ("000102030405060708090a0b0c0d0e0f", buffer_long);
 }
 
+extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 

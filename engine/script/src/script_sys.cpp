@@ -83,7 +83,7 @@ union SaveLoadBuffer
         if (required_size > MAX_BUFFER_SIZE)
         {
             char* buffer = 0;
-            dmMemory::Result r = dmMemory::AlignedMalloc((void**)&buffer, 16, required_size);
+            dmMemory::AlignedMalloc((void**)&buffer, 16, required_size);
             return buffer;
         }
         else
@@ -1415,7 +1415,7 @@ union SaveLoadBuffer
             g_DebuggerLightweightHook = 0;
         }
         g_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        
+
         lua_sethook(L1, Sys_DebuggerLightweightHook, LUA_MASKCALL, 0);
         return 0;
     }
