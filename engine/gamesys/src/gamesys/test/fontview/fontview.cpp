@@ -152,6 +152,7 @@ namespace dmFontView
             render_params.m_MaxRenderTypes = 10;
             render_params.m_MaxInstances = 100;
             render_params.m_MaxCharacters = 1024;
+            render_params.m_MaxBatches = 128;
             context->m_RenderContext = dmRender::NewRenderContext(context->m_GraphicsContext, render_params);
             dmRender::SetViewMatrix(context->m_RenderContext, Matrix4::identity());
             dmRender::SetProjectionMatrix(context->m_RenderContext, Matrix4::identity());

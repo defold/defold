@@ -3,7 +3,6 @@ context:
     symbols: ["DefaultSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "ProfilerExt", "GraphicsAdapterOpenGL","LiveUpdateExt",
                 "ResourceTypeGameObject", "ResourceTypeCollection", "ResourceTypeScript", "ResourceTypeLua", "ResourceTypeAnim", "ResourceTypeAnimationSet", "ResourceTypeGui", "ResourceTypeGuiScript",
                 "ResourceProviderFile", "ResourceProviderArchive", "ResourceProviderArchiveMutable", "ResourceProviderZip", "ResourceProviderHttp",
-                "LiveUpdateExt",
                 "ComponentTypeScript", "ComponentTypeAnim", "ComponentTypeGui", "ComponentTypeMesh"]
     allowedLibs: ["engine","engine_release","profile","profile_null","remotery","remotery_null","profilerext","profilerext_null","crashext","crashext_null","record","record_null","gameobject","ddf","resource","gamesys","graphics","graphics_null","graphics_transcoder_null","graphics_transcoder_basisu","basis_transcoder","physics_2d","physics_3d","physics_null", "platform", "platform_null", "BulletDynamics","BulletCollision","LinearMath","Box2D","render","script","luajit-5.1","extension","hid","hid_null","input","particle","rig","dlib","dmglfw","gui","crashext","sound","sound_null","tremolo","vpx","liveupdate",
                   "libengine.lib","libengine_release.lib","libprofile.lib","libprofile_null.lib","libremotery.lib","libremotery_null.lib","libprofilerext.lib","libprofilerext_null.lib","libcrashext","libcrashext_null","librecord.lib","librecord_null.lib","libgameobject.lib","libddf.lib","libresource.lib","libgamesys.lib","libgraphics.lib","libgraphics_null.lib","libgraphics_transcoder_null.lib","libgraphics_transcoder_basisu.lib","libbasis_transcoder.lib","libphysics_2d.lib","libphysics_3d.lib","libphysics_null.lib","libBulletDynamics.lib","libBulletCollision.lib","libplatform.lib","libplatform_null.lib","libLinearMath.lib","libBox2D.lib","librender.lib",
@@ -33,7 +32,7 @@ main: |
     }
     #endif
 
-    extern "C" void dmExportedSymbols() {
+    extern "C" void dmExportedSymbols() { // Called by engine_main.cpp:EngineMain
         {{#symbols}}
         {{{.}}}();
         {{/symbols}}
@@ -130,19 +129,19 @@ platforms:
     context:
         frameworks:     ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
         engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
-        libPaths:       ["{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
+        libPaths:       ["{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
         defines:        ["DM_PLATFORM_MACOS", "DM_PLATFORM_OSX", "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED"]
         systemIncludes: ["{{env.SYSROOT}}/usr/include/c++/v1"]
-        flags:          ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-nostdinc++", "-fno-exceptions", "-fvisibility=hidden", "-Werror=format"]
+        flags:          ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-nostdinc++", "-fno-exceptions", "-fvisibility=hidden", "-Werror=format"]
         linkFlags:      ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
         cxxLinkShFlags: ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
-        swiftFlags:     ["-swift-version", "{{swiftVersion}}", "-sdk", "{{env.SYSROOT}}"]
         libs:           ['clang_rt.osx']
         dynamicLibs:    []
         symbols:        ["AudioDecoderTremolo"]
         libStartGroup_replace:  []
         libEndGroup_replace:    []
         osMinVersion:   "{{env.MACOS_VERSION_MIN}}"
+        swiftFlags:     ["-swift-version", "{{swiftVersion}}", "-sdk", "{{env.SYSROOT}}"]
         swiftVersion:   "5"
 
     exePrefix: ''
@@ -157,7 +156,7 @@ platforms:
     zipContentPattern: 'dmengine'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-f\\w[\\w-=]+","-x","c"]
-    compileCmd: 'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
+    compileCmd: 'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} -isysroot {{env.SYSROOT}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
     linkCmd: 'clang++ -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
@@ -193,6 +192,16 @@ platforms:
     # Intentionally left empty to allow users to have old versions in their manifests
 
   ios:
+    env:
+        PATH:                   "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_15_VERSION}}.xctoolchain/usr/bin:{{env.PATH}}"
+        PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
+        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
+        XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
+        IOS_VERSION:            "{{env.IOS_17_VERSION}}"
+        IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
+
     context:
       swiftFlags:     ["-swift-version", "{{swiftVersion}}", "-sdk", "{{env.SYSROOT}}"]
       swiftVersion:   "5"
@@ -203,15 +212,7 @@ platforms:
 
   arm64-ios:
     env:
-        PATH:                   "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_15_VERSION}}.xctoolchain/usr/bin:{{env.PATH}}"
-        PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
-        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
-        SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
-        IOS_VERSION:            "{{env.IOS_17_VERSION}}"
-        IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
-        SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_17_VERSION}}.sdk"
+        SYSROOT:    "{{env.PLATFORMSDK_DIR}}/iPhoneOS{{env.IOS_17_VERSION}}.sdk"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation"]
         weakFrameworks: ["Foundation"]
@@ -249,13 +250,6 @@ platforms:
 
   x86_64-ios:
     env:
-        PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
-        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        XCODE_VERSION:          "{{env.XCODE_15_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_15_CLANG_VERSION}}"
-        SWIFT_VERSION:          "{{env.SWIFT_5_5_VERSION}}"
-        IOS_VERSION:            "{{env.IOS_17_VERSION}}"
-        IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
         SYSROOT:                "{{env.PLATFORMSDK_DIR}}/iPhoneSimulator{{env.IOS_17_VERSION}}.sdk"
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation"]

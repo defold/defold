@@ -41,6 +41,7 @@
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
 #include "../scripts/script_sys_gamesys.h"
+#include "../scripts/script_resource.h"
 
 #include <dmsdk/gamesys/render_constants.h>
 
@@ -232,6 +233,35 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
     dmResource::Release(m_Factory, (void**) render_prototype);
 }
 
+static bool UpdateAndWaitUntilDone(
+    dmGameSystem::ScriptLibContext&    scriptlibcontext,
+    dmGameObject::HCollection          collection,
+    const dmGameObject::UpdateContext* update_context,
+    bool                               ignore_script_update_fail,
+    const char*                        tests_done_key)
+{
+    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    bool tests_done = false;
+    while (dmTime::GetTime() < stop_time && !tests_done)
+    {
+        dmJobThread::Update(scriptlibcontext.m_JobThread);
+        dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
+        if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
+            return false;
+        if (!dmGameObject::Update(collection, update_context))
+            return false;
+
+        // check if tests are done
+        lua_getglobal(scriptlibcontext.m_LuaState, tests_done_key);
+        tests_done = lua_toboolean(scriptlibcontext.m_LuaState, -1);
+        lua_pop(scriptlibcontext.m_LuaState, 1);
+
+        dmTime::Sleep(30*1000);
+    }
+
+    return tests_done;
+}
+
 TEST_F(ResourceTest, TestCreateTextureFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -240,6 +270,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
     scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
     scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobThread       = m_JobThread;
 
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
@@ -327,6 +358,16 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     // Test 9: create 0x0 texture
     ///////////////////////////////////////////////////////////////////////////////////////////
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Test 10: create texture async
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    null_context->m_UseAsyncTextureLoad   = 1;
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "async_test_done"));
 
     // cleanup
     DeleteInstance(m_Collection, go);
@@ -2489,7 +2530,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     // To test this, the test .go file contains a bunch of components that support this feature.
     // We instantiate it and then dispatch a number of draw calls, which should trigger the
     // multi-buffering of the vertex and index buffers (where applicable).
-    // 
+    //
     // Furthermore, each component type is represented twice, with a different material per
     // instance. The two materials have different vertex formats, which we also account for
     // when producing our "expected" data for this test.
@@ -4566,7 +4607,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         ctx.m_Attributes.SetSize(0);
     }
 
-    // Set a dynamic attribute
+    // Set a dynamic attribute by vector
     {
         uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         dmhash_t attr_name_hash = dmHashString64("position");
@@ -4574,6 +4615,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         dmGameObject::PropertyVar var = {};
         dmGameObject::PropertyDesc desc = {};
 
+        var.m_Type  = dmGameObject::PROPERTY_TYPE_VECTOR4;
         var.m_V4[0] = 99.0f;
         var.m_V4[1] = 98.0f;
         var.m_V4[2] = 97.0f;
@@ -4581,7 +4623,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
         ASSERT_EQ(0, dynamic_attribute_pool.Size());
 
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &index, material, attr_name_hash, var));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &index, material, attr_name_hash, var, Test_GetMaterialAttributeCallback, (void*) &ctx));
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
 
@@ -4598,6 +4640,51 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         ASSERT_EQ(0, dynamic_attribute_pool.Size());
     }
 
+    // Set a dynamic attribute by value(s)
+    {
+        uint32_t index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
+        dmhash_t attr_name_hash_x    = dmHashString64("position.x");
+        dmhash_t attr_name_hash_y    = dmHashString64("position.y");
+        dmhash_t attr_name_hash_full = dmHashString64("position");
+
+        dmGameObject::PropertyVar var_x = {};
+        dmGameObject::PropertyVar var_y = {};
+        dmGameObject::PropertyDesc desc = {};
+
+        var_x.m_Type   = dmGameObject::PROPERTY_TYPE_NUMBER;
+        var_x.m_Number = 1337.0f;
+
+        var_y.m_Type   = dmGameObject::PROPERTY_TYPE_NUMBER;
+        var_y.m_Number = 666.0f;
+
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &index, material, attr_name_hash_y, var_y, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, attr_name_hash_full, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
+
+        ASSERT_EQ(1,           dynamic_attribute_pool.Get(0).m_NumInfos);
+        ASSERT_NE((void*) 0x0, dynamic_attribute_pool.Get(0).m_Infos);
+
+        // Should be 1.0f, 666.0f, 0.0f
+        ASSERT_NEAR(1.0f,           desc.m_Variant.m_V4[0], EPSILON);
+        ASSERT_NEAR(var_y.m_Number, desc.m_Variant.m_V4[1], EPSILON);
+        ASSERT_NEAR(0.0f,           desc.m_Variant.m_V4[2], EPSILON);
+
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &index, material, attr_name_hash_x, var_x, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, attr_name_hash_full, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);
+
+        // Should be 1337.0f, 666.0f, 0.0f
+        ASSERT_NEAR(var_x.m_Number, desc.m_Variant.m_V4[0], EPSILON);
+        ASSERT_NEAR(var_y.m_Number, desc.m_Variant.m_V4[1], EPSILON);
+        ASSERT_NEAR(0.0f,           desc.m_Variant.m_V4[2], EPSILON);
+
+        // Clear the dynamic proeprty
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, ClearMaterialAttribute(dynamic_attribute_pool, index, attr_name_hash_full));
+        ASSERT_EQ(0, dynamic_attribute_pool.Size());
+    }
+
     // Set multiple dynamic attributes (more than original capacity)
     {
         dmArray<uint32_t> allocated_indices;
@@ -4609,13 +4696,14 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
         for (int i = 0; i < allocated_indices.Capacity(); ++i)
         {
-            var.m_V4[0] = (float) i;
+            var.m_Number = (float) i;
 
             uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
-            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &new_index, material, attr_name_hash, var));
+            ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, SetMaterialAttribute(dynamic_attribute_pool, &new_index, material, attr_name_hash, var, Test_GetMaterialAttributeCallback, (void*) &ctx));
             ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, new_index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
 
-            ASSERT_NEAR(var.m_V4[0], desc.m_Variant.m_V4[0], EPSILON);
+            ASSERT_NEAR(var.m_Number, desc.m_Variant.m_V4[0], EPSILON);
+            ASSERT_NEAR(2.0f,         desc.m_Variant.m_V4[1], EPSILON);
 
             allocated_indices.Push(new_index);
         }
@@ -4648,11 +4736,11 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         dmGameObject::PropertyDesc desc = {};
 
         uint32_t new_index = dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX;
-        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE, SetMaterialAttribute(tmp_pool, &new_index, material, attr_name_hash, var));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE, SetMaterialAttribute(tmp_pool, &new_index, material, attr_name_hash, var, Test_GetMaterialAttributeCallback, (void*) &ctx));
     }
 
     // Data conversion for attribute values
-    {   
+    {
         dmGameSystem::DynamicAttributeInfo::Info info_members[3];
 
         info_members[0].m_NameHash  = dmHashString64("dynamic_attribute_pos");
@@ -4884,7 +4972,7 @@ TEST_F(SysTest, LoadBufferSync)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
-static bool RunTestLoadBufferASync(lua_State* L, int test_n,
+static bool RunTestLoadBufferASync(int test_n,
     dmGameSystem::ScriptLibContext& scriptlibcontext,
     dmGameObject::HCollection collection,
     const dmGameObject::UpdateContext* update_context,
@@ -4893,29 +4981,10 @@ static bool RunTestLoadBufferASync(lua_State* L, int test_n,
     char buffer[256];
     dmSnPrintf(buffer, sizeof(buffer), "test_n = %d", test_n);
 
-    if (!RunString(L, buffer))
+    if (!RunString(scriptlibcontext.m_LuaState, buffer))
         return false;
 
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
-    bool tests_done = false;
-    while (dmTime::GetTime() < stop_time && !tests_done)
-    {
-        dmJobThread::Update(scriptlibcontext.m_JobThread);
-        dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
-        if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
-            return false;
-        if (!dmGameObject::Update(collection, update_context))
-            return false;
-
-        // check if tests are done
-        lua_getglobal(L, "tests_done");
-        tests_done = lua_toboolean(L, -1);
-        lua_pop(L, 1);
-
-        dmTime::Sleep(30*1000);
-    }
-
-    return tests_done;
+    return UpdateAndWaitUntilDone(scriptlibcontext, collection, update_context, ignore_script_update_fail, "tests_done");
 }
 
 TEST_F(SysTest, LoadBufferASync)
@@ -4940,7 +5009,7 @@ TEST_F(SysTest, LoadBufferASync)
     ASSERT_NE((void*)0, go);
 
     // Test 1
-    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 1, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+    ASSERT_TRUE(RunTestLoadBufferASync(1, scriptlibcontext, m_Collection, &m_UpdateContext, false));
 
     // Test 2
     uint32_t large_buffer_size = 16 * 1024 * 1024;
@@ -4951,18 +5020,18 @@ TEST_F(SysTest, LoadBufferASync)
     large_buffer[large_buffer_size-1] = 255;
 
     dmResource::AddFile(m_Factory, "/sys/non_disk_content/large_file.raw", large_buffer_size, large_buffer);
-    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 2, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+    ASSERT_TRUE(RunTestLoadBufferASync(2, scriptlibcontext, m_Collection, &m_UpdateContext, false));
     dmResource::RemoveFile(m_Factory, "/sys/non_disk_content/large_file.raw");
     free(large_buffer);
 
     // Test 3
-    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 3, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+    ASSERT_TRUE(RunTestLoadBufferASync(3, scriptlibcontext, m_Collection, &m_UpdateContext, true));
 
     // Test 4
-    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 4, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+    ASSERT_TRUE(RunTestLoadBufferASync(4, scriptlibcontext, m_Collection, &m_UpdateContext, true));
 
     // Test 5
-    ASSERT_TRUE(RunTestLoadBufferASync(scriptlibcontext.m_LuaState, 5, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+    ASSERT_TRUE(RunTestLoadBufferASync(5, scriptlibcontext, m_Collection, &m_UpdateContext, true));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
@@ -5041,8 +5110,11 @@ TEST_F(ShaderTest, ComputeResource)
 }
 #endif
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
 
     dmLog::LogParams params;

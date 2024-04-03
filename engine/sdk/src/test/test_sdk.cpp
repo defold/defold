@@ -34,15 +34,14 @@ TEST(testSdk, Basic)
     ASSERT_EQ(0, g_TestAppInitCount);
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&appparams));
     ASSERT_EQ(1, g_TestAppInitCount);
-    ASSERT_STREQ("test", dmExtension::GetFirstExtension()->m_Name);
-    ASSERT_EQ(0, dmExtension::GetFirstExtension()->m_Next);
+    ASSERT_EQ(0, dmExtension::GetNextExtension(dmExtension::GetFirstExtension()));
 
     dmExtension::Params params;
     dmExtension::Event event;
-    event.m_Event = dmExtension::EVENT_ID_ACTIVATEAPP;
+    event.m_Event = (ExtensionEventID)dmExtension::EVENT_ID_ACTIVATEAPP;
     dmExtension::DispatchEvent(&params, &event);
     ASSERT_EQ(1, g_TestAppEventCount);
-    event.m_Event = dmExtension::EVENT_ID_DEACTIVATEAPP;
+    event.m_Event = (ExtensionEventID)dmExtension::EVENT_ID_DEACTIVATEAPP;
     dmExtension::DispatchEvent(&params, &event);
     ASSERT_EQ(0, g_TestAppEventCount);
 

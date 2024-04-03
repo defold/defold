@@ -446,7 +446,7 @@ public class IOSBundler implements IBundler {
             logger.warning("ios.icons_asset is not set");
         }
 
-        BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant, this);
         copyManifestFile(helper, architectures.get(0), appDir);
         helper.copyIosIcons();
 
@@ -513,6 +513,10 @@ public class IOSBundler implements IBundler {
             generateSymbols(bundleSymbolsDir, exeName, symbolDirectories);
         }
 
+        BundleHelper.throwIfCanceled(canceled);
+
+        // Copy PrivacyManifest.xcprivacy
+        BundleHelper.copyPrivacyManifest(project, platform, appDir);
         BundleHelper.throwIfCanceled(canceled);
 
         // Package zip file

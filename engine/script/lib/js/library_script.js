@@ -3,7 +3,7 @@ var LibraryScript = {
 
   },
 
-  dmScriptHttpRequestAsync: function(method, url, headers, arg, onload, onerror, send_data, send_data_length, timeout) {
+  dmScriptHttpRequestAsync: function(method, url, headers, arg, onload, onerror, onprogress, send_data, send_data_length, timeout) {
       var xhr = new XMLHttpRequest();
 
       function listener() {
@@ -25,6 +25,11 @@ var LibraryScript = {
       xhr.onload = listener;
       xhr.onerror = listener;
       xhr.ontimeout = listener;
+      xhr.onprogress = function(progress_event) {
+        if (onprogress != 0) { // NULL passed as 0 into js
+            {{{ makeDynCall('viii', 'onprogress') }}}(arg, progress_event.loaded, progress_event.total);
+        }
+      };
       xhr.open(UTF8ToString(method), UTF8ToString(url), true);
       // TODO: Doesn't work in node.js. Why? xhr2?
       xhr.responseType = 'arraybuffer';

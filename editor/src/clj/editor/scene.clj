@@ -870,6 +870,7 @@
       (.destroy drawable))
     (when-let [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable)]
       (gl/with-drawable-as-current picking-drawable
+        (scene-cache/drop-context! gl)
         (.glFinish gl))
       (.destroy picking-drawable))
     (g/transact

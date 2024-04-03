@@ -24,6 +24,8 @@
 #include "engine_version.h"
 #include "engine_private.h"
 
+extern "C" void dmExportedSymbols(); // Found in "__exported_symbols.cpp"
+
 static void AppCreate(void* _ctx)
 {
     (void)_ctx;
@@ -38,6 +40,8 @@ static void AppDestroy(void* _ctx)
 
 static int EngineMain(int argc, char *argv[])
 {
+    dmExportedSymbols(); // Instead of our previous global constructor
+
     dmEngine::RunLoopParams params;
     params.m_Argc = argc;
     params.m_Argv = argv;

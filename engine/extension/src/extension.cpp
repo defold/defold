@@ -62,6 +62,17 @@ void ExtensionRegister(void* _desc,
     desc->m_Update = update;
     desc->m_OnEvent = on_event;
     desc->m_Next = g_FirstExtension;
+
+    const ExtensionDesc* first = g_FirstExtension;
+    while(first) {
+        if (strcmp(name, first->m_Name) == 0)
+        {
+            dmLogError("Extension %s is already registered!", name);
+            return;
+        }
+        first = first->m_Next;
+    }
+
     g_FirstExtension = desc;
 }
 

@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 #include <dlib/configfile.h>
 #include <dlib/testutil.h>
 #define JC_TEST_IMPLEMENTATION
@@ -28,6 +29,16 @@
 
 const char* DEFAULT_ARGV[] = { "test_engine" };
 int g_HttpPort = -1;
+
+extern "C" void TestConfigfileExtension();
+
+struct ExtensionInitializer
+{
+    ExtensionInitializer()
+    {
+        TestConfigfileExtension();
+    }
+} g_Initializer;
 
 struct TestParam
 {
@@ -449,4 +460,3 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
-

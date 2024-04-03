@@ -35,7 +35,7 @@
 
 (use-fixtures :once fix-engine-sha1)
 
-(deftest extension-roots-test
+(deftest ^:native-extensions extension-roots-test
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
           project (test-util/setup-project! workspace)]
@@ -43,7 +43,7 @@
         (is (= #{"/extension1" "/subdir/extension2"}
                (set (map resource/proj-path (native-extensions/engine-extension-roots project evaluation-context)))))))))
 
-(deftest unpack-bin-zip-test
+(deftest ^:native-extensions unpack-bin-zip-test
   (testing "${ext}/plugins/${platform}.zip is extracted to /build/plugins/${ext}/plugins/ folder"
    (with-clean-system
      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/extension_project")
@@ -61,7 +61,7 @@
        ;; The file is extracted to its place from zip:
        (is (.exists (io/file (str root (format "/build/plugins/ext_with_bin_zip/plugins/bin/%s/lsp.editor_script" (.getPair (Platform/getHostPlatform)))))))))))
 
-(deftest extension-resource-nodes-test
+(deftest ^:native-extensions extension-resource-nodes-test
   (letfn [(platform-resources [project platform]
             (let [resource-nodes (g/with-auto-evaluation-context evaluation-context
                                    (native-extensions/extension-resource-nodes project evaluation-context platform))]
@@ -113,7 +113,7 @@
                                             (exit-event-loop!)))))
     (deref result)))
 
-(deftest async-build-on-build-server
+(deftest ^:native-extensions async-build-on-build-server
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/trivial_extension")
           project (test-util/setup-project! workspace)

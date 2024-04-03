@@ -18,7 +18,7 @@
             [editor.code.syntax :as syntax]
             [editor.code.util :as util]
             [util.coll :refer [pair]])
-  (:import [java.io IOException Reader Writer InputStream]
+  (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
            [java.util Collections]
            [java.util.regex MatchResult Pattern]
@@ -82,7 +82,7 @@
       (compare col (.col ^Cursor other))
       (compare-extra-cursor-fields this other))))
 
-(defn- cursor-print-data [^Cursor c]
+(defn cursor-print-data [^Cursor c]
   (into [(.-row c) (.-col c)]
         cat
         (dissoc c :row :col)))
@@ -123,13 +123,15 @@
       (compare to (.to ^CursorRange other))
       (compare-extra-cursor-range-fields this other))))
 
+(defn cursor-range-print-data [^CursorRange cr]
+  (into [(cursor-print-data (.-from cr))
+         (cursor-print-data (.-to cr))]
+        cat
+        (dissoc cr :from :to)))
+
 (defmethod print-method CursorRange [^CursorRange cr, ^Writer w]
   (.write w "#code/range")
-  (print-method (into [(cursor-print-data (.-from cr))
-                       (cursor-print-data (.-to cr))]
-                      cat
-                      (dissoc cr :from :to))
-                w))
+  (print-method (cursor-range-print-data cr) w))
 
 (defn- read-cursor-range-cursor [cursor-form]
   (if (vector? cursor-form)
