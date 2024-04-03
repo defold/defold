@@ -198,7 +198,7 @@ void ConfigFileRegisterExtension(void* desc,
     FConfigFileGetFloat get_float);
 
 // internal
-#define DM_REGISTER_CONFIGFILE_EXTENSION(symbol, desc, desc_size, name, create, destroy, get_string, get_int, get_float) extern "C" void __attribute__((constructor)) symbol () { \
+#define DM_REGISTER_CONFIGFILE_EXTENSION(symbol, desc, desc_size, name, create, destroy, get_string, get_int, get_float) extern "C" void symbol () { \
     ConfigFileRegisterExtension((void*) &desc, desc_size, name, create, destroy, get_string, get_int, get_float); \
 }
 
