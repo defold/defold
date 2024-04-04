@@ -274,21 +274,21 @@
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
 
-  (property id g/Str
+  (property id g/Str ; Required protobuf field.
             (value (g/fnk [maybe-image-resource rename-patterns]
                      (some-> maybe-image-resource (texture-set-gen/resource-id rename-patterns))))
             (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
 
-  (property size types/Vec2
+  (property size types/Vec2 ; Just for presentation.
             (value (g/fnk [maybe-image-size] [(:width maybe-image-size 0) (:height maybe-image-size 0)]))
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic read-only? (g/constantly true)))
 
-  (property sprite-trim-mode g/Keyword (default :sprite-trim-mode-off)
+  (property sprite-trim-mode g/Keyword (default (protobuf/default AtlasProto$AtlasImage :sprite-trim-mode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$SpriteTrimmingMode))))
 
-  (property image resource/Resource
+  (property image resource/Resource ; Required protobuf field.
             (value (gu/passthrough maybe-image-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -339,7 +339,10 @@
                                                                (resource/openable-resource? maybe-image-resource)
                                                                (assoc :link maybe-image-resource :outline-show-link? true)))))
   (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode]
-                              {:image (resource/resource->proj-path maybe-image-resource) :order order :sprite-trim-mode sprite-trim-mode}))
+                              (-> (protobuf/make-map-without-defaults AtlasProto$AtlasImage
+                                    :image (resource/resource->proj-path maybe-image-resource)
+                                    :sprite-trim-mode sprite-trim-mode)
+                                  (assoc :order order))))
   (output scene g/Any produce-image-scene)
   (output build-errors g/Any (g/fnk [_node-id id id-counts maybe-image-resource]
                                (g/package-errors _node-id
@@ -352,11 +355,11 @@
        (mapv #(dissoc % :order))))
 
 (g/defnk produce-anim-ddf [id fps flip-horizontal flip-vertical playback img-ddf]
-  (protobuf/make-map-with-defaults AtlasProto$AtlasAnimation
+  (protobuf/make-map-without-defaults AtlasProto$AtlasAnimation
     :id id
     :fps fps
-    :flip-horizontal (if flip-horizontal 1 0)
-    :flip-vertical (if flip-vertical 1 0)
+    :flip-horizontal (protobuf/boolean->int flip-horizontal)
+    :flip-vertical (protobuf/boolean->int flip-vertical)
     :playback playback
     :images (sort-by-and-strip-order img-ddf)))
 
@@ -443,14 +446,13 @@
   (inherits core/Scope)
   (inherits outline/OutlineNode)
 
-  (property id g/Str
+  (property id g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id id id-counts] (validate-animation-id _node-id id id-counts))))
-  (property fps g/Int
-            (default 30)
+  (property fps g/Int (default (protobuf/default AtlasProto$AtlasAnimation :fps))
             (dynamic error (g/fnk [_node-id fps] (validate-animation-fps _node-id fps))))
-  (property flip-horizontal g/Bool)
-  (property flip-vertical   g/Bool)
-  (property playback        types/AnimationPlayback
+  (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default AtlasProto$AtlasAnimation :flip-horizontal))))
+  (property flip-vertical   g/Bool (default (protobuf/int->boolean (protobuf/default AtlasProto$AtlasAnimation :flip-vertical))))
+  (property playback        types/AnimationPlayback (default (protobuf/default AtlasProto$AtlasAnimation :playback))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
@@ -503,17 +505,15 @@
                                                  own-build-errors))))
 
 (g/defnk produce-save-value [margin inner-padding extrude-borders max-page-size img-ddf anim-ddf rename-patterns]
-  (cond-> (protobuf/make-map-with-defaults AtlasProto$Atlas
-            :margin margin
-            :inner-padding inner-padding
-            :extrude-borders extrude-borders
-            :images (sort-by-and-strip-order img-ddf)
-            :animations anim-ddf
-            :rename-patterns rename-patterns)
-
-          (not= [0.0 0.0] max-page-size)
-          (assoc :max-page-width (get max-page-size 0)
-                 :max-page-height (get max-page-size 1))))
+  (protobuf/make-map-without-defaults AtlasProto$Atlas
+    :margin margin
+    :inner-padding inner-padding
+    :extrude-borders extrude-borders
+    :images (sort-by-and-strip-order img-ddf)
+    :animations anim-ddf
+    :rename-patterns rename-patterns
+    :max-page-width (max-page-size 0)
+    :max-page-height (max-page-size 1)))
 
 (defn- validate-margin [node-id margin]
   (validation/prop-error :fatal node-id :margin validation/prop-negative? margin "Margin"))
@@ -553,9 +553,9 @@
           workspace         (project/workspace project)
           compress?         (:compress-textures? build-settings false)
           texture-target    (image/make-array-texture-build-target workspace _node-id packed-page-images-generator texture-profile texture-page-count compress?)
-          pb-map            (assoc texture-set :texture (-> texture-target :resource :resource))
+          pb-msg            (assoc texture-set :texture (-> texture-target :resource :resource))
           dep-build-targets [texture-target]]
-      [(pipeline/make-protobuf-build-target _node-id resource TextureSetProto$TextureSet pb-map dep-build-targets)])))
+      [(pipeline/make-protobuf-build-target _node-id resource TextureSetProto$TextureSet pb-msg dep-build-targets)])))
 
 (g/defnk produce-atlas-texture-set-pb [texture-set]
   (let [pb-msg            texture-set
@@ -779,26 +779,27 @@
 (defn- atlas-outline-sort-by-fn [v]
   [(:name (g/node-type* (:node-id v)))])
 
+(def ^:private default-max-page-size
+  [(protobuf/default AtlasProto$Atlas :max-page-width)
+   (protobuf/default AtlasProto$Atlas :max-page-height)])
+
 (g/defnode AtlasNode
   (inherits resource-node/ResourceNode)
 
-  (property size types/Vec2
+  (property size types/Vec2 ; Just for presentation.
             (value (g/fnk [layout-size] layout-size))
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic read-only? (g/constantly true)))
-  (property margin g/Int
-            (default 0)
+  (property margin g/Int (default (protobuf/default AtlasProto$Atlas :margin))
             (dynamic error (g/fnk [_node-id margin] (validate-margin _node-id margin))))
-  (property inner-padding g/Int
-            (default 0)
+  (property inner-padding g/Int (default (protobuf/default AtlasProto$Atlas :inner-padding))
             (dynamic error (g/fnk [_node-id inner-padding] (validate-inner-padding _node-id inner-padding))))
-  (property extrude-borders g/Int
-            (default 0)
+  (property extrude-borders g/Int (default (protobuf/default AtlasProto$Atlas :extrude-borders))
             (dynamic error (g/fnk [_node-id extrude-borders] (validate-extrude-borders _node-id extrude-borders))))
-  (property max-page-size types/Vec2
+  (property max-page-size types/Vec2 (default default-max-page-size)
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic error (g/fnk [_node-id max-page-size] (validate-max-page-size _node-id max-page-size))))
-  (property rename-patterns g/Str
+  (property rename-patterns g/Str (default (protobuf/default AtlasProto$Atlas :rename-patterns))
             (dynamic error (g/fnk [_node-id rename-patterns] (validate-rename-patterns _node-id rename-patterns))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
@@ -890,15 +891,18 @@
 (defn- make-image-nodes
   [attach-fn parent image-msgs]
   (let [graph-id (g/node-id->graph-id parent)]
-    (for [{:keys [image sprite-trim-mode]} image-msgs]
+    (for [image-msg image-msgs]
       (g/make-nodes
         graph-id
-        [atlas-image [AtlasImage {:image image :sprite-trim-mode sprite-trim-mode}]]
+        [atlas-image AtlasImage]
+        (gu/set-properties-from-map atlas-image image-msg
+          image :image
+          sprite-trim-mode :sprite-trim-mode)
         (attach-fn parent atlas-image)))))
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))
 (def ^:private make-image-nodes-in-animation (partial make-image-nodes attach-image-to-animation))
-(def ^:private default-image-msg (protobuf/make-map-with-defaults AtlasProto$AtlasImage))
+(def ^:private default-image-msg (protobuf/make-map-without-defaults AtlasProto$AtlasImage))
 
 (defn add-images [atlas-node image-resources]
   ; used by tests
@@ -916,64 +920,65 @@
                        (update atlas-image-msg :image resolve-workspace-resource))))
           image-msgs)))
 
-(defn- make-atlas-animation [atlas-node anim]
+(defn- make-atlas-animation [atlas-node atlas-animation]
+  {:pre [(map? atlas-animation)]} ; AtlasProto$AtlasAnimation in map format.
   (let [graph-id (g/node-id->graph-id atlas-node)
         project (project/get-project atlas-node)
         workspace (project/workspace project)
-        image-msgs (resolve-image-msgs workspace (:images anim) false)]
+        image-msgs (resolve-image-msgs workspace (:images atlas-animation) false)]
     (g/make-nodes
       graph-id
-      [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim)
-                   :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
-      (attach-animation-to-atlas atlas-node atlas-anim)
-      (make-image-nodes-in-animation atlas-anim image-msgs))))
-
-(defn- update-int->boolean [keys m]
-  (reduce (fn [m key]
-            (if (contains? m key)
-              (update m key protobuf/int->boolean)
-              m))
-          m
-          keys))
+      [animation-node AtlasAnimation]
+      (gu/set-properties-from-map animation-node atlas-animation
+        id :id
+        flip-horizontal (protobuf/int->boolean :flip-horizontal)
+        flip-vertical (protobuf/int->boolean :flip-vertical)
+        fps :fps
+        playback :playback)
+      (attach-animation-to-atlas atlas-node animation-node)
+      (make-image-nodes-in-animation animation-node image-msgs))))
 
 (defn load-atlas [project self resource atlas]
-  (let [workspace (project/workspace project)
+  {:pre [(map? atlas)]} ; AtlasProto$Atlas in map format.
+  (let [workspace (resource/workspace resource)
         image-msgs (resolve-image-msgs workspace (:images atlas) true)]
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)
-      (g/set-property self :margin (:margin atlas))
-      (g/set-property self :inner-padding (:inner-padding atlas))
-      (g/set-property self :extrude-borders (:extrude-borders atlas))
-      (g/set-property self :max-page-size [(:max-page-width atlas) (:max-page-height atlas)])
-      (g/set-property self :rename-patterns (:rename-patterns atlas))
+      (gu/set-properties-from-map self atlas
+        margin :margin
+        inner-padding :inner-padding
+        extrude-borders :extrude-borders
+        rename-patterns :rename-patterns)
+      (let [{:keys [max-page-width max-page-height]} atlas]
+        (when (or max-page-width max-page-height)
+          (g/set-property self :max-page-size [(or max-page-width (default-max-page-size 0))
+                                               (or max-page-height (default-max-page-size 1))])))
       (make-image-nodes-in-atlas self image-msgs)
-      (map (comp (partial make-atlas-animation self)
-                 (partial update-int->boolean [:flip-horizontal :flip-vertical]))
+      (map (partial make-atlas-animation self)
            (:animations atlas)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
-                                    :ext "atlas"
-                                    :label "Atlas"
-                                    :build-ext "a.texturesetc"
-                                    :node-type AtlasNode
-                                    :ddf-type AtlasProto$Atlas
-                                    :load-fn load-atlas
-                                    :icon atlas-icon
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:grid false}}))
+    :ext "atlas"
+    :label "Atlas"
+    :build-ext "a.texturesetc"
+    :node-type AtlasNode
+    :ddf-type AtlasProto$Atlas
+    :read-defaults false
+    :load-fn load-atlas
+    :icon atlas-icon
+    :view-types [:scene :text]
+    :view-opts {:scene {:grid false}}))
 
 (defn- selection->atlas [selection] (handler/adapt-single selection AtlasNode))
 (defn- selection->animation [selection] (handler/adapt-single selection AtlasAnimation))
 (defn- selection->image [selection] (handler/adapt-single selection AtlasImage))
 
 (def ^:private default-animation
-  {:flip-horizontal false
-   :flip-vertical false
-   :fps 60
-   :playback :playback-loop-forward
-   :id "New Animation"})
+  (protobuf/make-map-without-defaults AtlasProto$AtlasAnimation
+    :id "New Animation"
+    :playback :playback-loop-forward))
 
 (defn- add-animation-group-handler [app-view atlas-node]
   (let [op-seq (gensym)
