@@ -89,7 +89,7 @@ message TileLayer
 {
     required string id          = 1 [default = "layer1"];
     required float z            = 2 [default = 0.0];
-    required uint32 is_visible  = 3 [default = 1];
+    optional uint32 is_visible  = 3 [default = 1];
     optional uint64 id_hash     = 4 [default = 0, (runtime_only)=true];
     repeated TileCell cell      = 6;
 }

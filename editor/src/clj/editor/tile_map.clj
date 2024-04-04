@@ -40,7 +40,7 @@
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.gamesys.proto Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
+  (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Point3d Vector3d]))
@@ -92,7 +92,7 @@
 
 (defn make-cell-map
   [cells]
-  (persistent! (reduce (fn [ret {:keys [x y tile h-flip v-flip rotate90] :or {h-flip 0 v-flip 0} :as cell}]
+  (persistent! (reduce (fn [ret {:keys [x y tile h-flip v-flip rotate90] :or {h-flip 0 v-flip 0 rotate90 0} :as _tile-cell}]
                          (paint-cell! ret x y tile (not= 0 h-flip) (not= 0 v-flip) (not= 0 rotate90)))
                        (transient (int-map/int-map))
                        cells)))
@@ -302,17 +302,18 @@
 
 (g/defnk produce-layer-pb-msg
   [id z visible cell-map]
-  (protobuf/make-map-with-defaults Tile$TileLayer
+  (protobuf/make-map-without-defaults Tile$TileLayer
     :id id
     :z z
     :is-visible (protobuf/boolean->int visible)
-    :cell (mapv (fn [{:keys [x y tile v-flip h-flip rotate90]}]
-                  {:x x
-                   :y y
-                   :tile tile
-                   :v-flip (protobuf/boolean->int v-flip)
-                   :h-flip (protobuf/boolean->int h-flip)
-                   :rotate90 (protobuf/boolean->int rotate90)})
+    :cell (mapv (fn [^Tile tile]
+                  (protobuf/make-map-without-defaults Tile$TileCell
+                    :x (.x tile)
+                    :y (.y tile)
+                    :tile (.tile tile)
+                    :v-flip (protobuf/boolean->int (.v-flip tile))
+                    :h-flip (protobuf/boolean->int (.h-flip tile))
+                    :rotate90 (protobuf/boolean->int (.rotate90 tile))))
                 (vals cell-map))))
 
 (g/defnode LayerNode
@@ -323,14 +324,14 @@
   (input shader ShaderLifecycle)
   (input blend-mode g/Any)
 
-  (property cell-map g/Any
+  (property cell-map g/Any ; Vector assigned in load-fn.
             (dynamic visible (g/constantly false)))
 
-  (property id g/Str)
-  (property z g/Num
+  (property id g/Str) ; Required protobuf field.
+  (property z g/Num ; Required protobuf field.
             (dynamic error (validation/prop-error-fnk :warning validation/prop-1-1? z)))
 
-  (property visible g/Bool)
+  (property visible g/Bool (default (protobuf/int->boolean (protobuf/default Tile$TileLayer :is-visible))))
 
   (output scene g/Any :cached produce-layer-scene)
   (output node-outline outline/OutlineData :cached produce-layer-outline)
@@ -351,32 +352,44 @@
 
 (defn make-layer-node
   [parent tile-layer]
+  {:pre [(map? tile-layer)]} ; Tile$TileLayer in map format.
   (let [graph-id (g/node-id->graph-id parent)]
     (g/make-nodes
-     graph-id
-     [layer-node [LayerNode {:id (:id tile-layer)
-                             :z (:z tile-layer)
-                             :visible (not= 0 (:is-visible tile-layer))
-                             :cell-map (make-cell-map (:cell tile-layer))}]]
-     (attach-layer-node parent layer-node))))
-
+      graph-id
+      [layer-node LayerNode]
+      (gu/set-properties-from-map layer-node tile-layer
+        id :id
+        z :z
+        visible (protobuf/int->boolean :is-visible)
+        cell-map (make-cell-map :cell))
+      (attach-layer-node parent layer-node))))
 
 (defn world-pos->tile
   [^Point3d pos tile-width tile-height]
   [(long (Math/floor (/ (.x pos) tile-width)))
    (long (Math/floor (/ (.y pos) tile-height)))])
 
+(def ^:private default-material-proj-path (protobuf/default Tile$TileGrid :material))
 
-(defn load-tile-map
+(defn- sanitize-tile-map [{:keys [material] :as tile-grid}]
+  {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
+  (cond-> tile-grid
+
+          (nil? material)
+          (assoc :material default-material-proj-path)))
+
+(defn- load-tile-map
   [project self resource tile-grid]
+  {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
   (let [tile-source (workspace/resolve-resource resource (:tile-set tile-grid))
-        material (workspace/resolve-resource resource (:material tile-grid))]
+        material (workspace/resolve-resource resource (:material tile-grid))
+        resolve-resource #(workspace/resolve-resource resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
-      (g/set-property self
-                      :tile-source tile-source
-                      :material material
-                      :blend-mode (:blend-mode tile-grid))
+      (gu/set-properties-from-map self tile-grid
+        tile-source (resolve-resource :tile-set)
+        material (resolve-resource (:material :or default-material-proj-path))
+        blend-mode :blend-mode)
       (for [tile-layer (:layers tile-grid)]
         (make-layer-node self tile-layer)))))
 
@@ -397,7 +410,7 @@
 
 (g/defnk produce-save-value
   [tile-source material blend-mode layer-msgs]
-  (protobuf/make-map-with-defaults Tile$TileGrid
+  (protobuf/make-map-without-defaults Tile$TileGrid
     :tile-set (resource/resource->proj-path tile-source)
     :material (resource/resource->proj-path material)
     :blend-mode blend-mode
@@ -458,7 +471,7 @@
   (input default-tex-params g/Any)
 
   ;; tile source
-  (property tile-source resource/Resource
+  (property tile-source resource/Resource ; Required protobuf field.
             (value (gu/passthrough tile-source-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -473,7 +486,7 @@
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "tilesource"})))
 
   ;; material
-  (property material resource/Resource
+  (property material resource/Resource ; Default assigned in load-fn.
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -485,7 +498,7 @@
                                   (prop-resource-error :fatal _node-id :material material "Material")))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "material"})))
 
-  (property blend-mode g/Any
+  (property blend-mode g/Any (default (protobuf/default Tile$TileGrid :blend-mode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$TileGrid$BlendMode))))
 
   (output max-tile-index g/Any :cached (g/fnk [layer-msgs]
@@ -1182,7 +1195,7 @@
 
 (defn- make-new-layer
   [id]
-  (protobuf/make-map-with-defaults Tile$TileLayer
+  (protobuf/make-map-without-defaults Tile$TileLayer
     :id id))
 
 (defn- add-layer-handler
@@ -1257,7 +1270,9 @@
     :build-ext "tilemapc"
     :node-type TileMapNode
     :ddf-type Tile$TileGrid
+    :read-defaults false
     :load-fn load-tile-map
+    :sanitize-fn sanitize-tile-map
     :icon tile-map-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid tile-map-grid/TileMapGrid
