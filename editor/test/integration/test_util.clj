@@ -1421,3 +1421,11 @@
 (defn edit-resource-node! [resource-node-id]
   (g/transact
     (edit-resource-node resource-node-id)))
+
+(defn protobuf-resource-exts-that-read-defaults [workspace]
+  (into (sorted-set)
+        (comp (mapcat #(vals (workspace/get-resource-type-map workspace %)))
+              (filter #(= :ddf (-> % :test-info :type)))
+              (filter #(:read-defaults % true))
+              (keep :ext))
+        [:editable :non-editable]))

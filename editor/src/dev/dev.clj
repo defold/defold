@@ -36,6 +36,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.util :as eutil]
             [editor.workspace :as workspace]
+            [integration.test-util :as test-util]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
@@ -1152,11 +1153,7 @@
          (workspace/get-resource-type-map workspace))))
 
 (defn pb-resource-exts-that-read-defaults [workspace]
-  (into (sorted-set)
-        (keep (fn [[ext info]]
-                (when (:read-defaults info true)
-                  ext)))
-        (dev/pb-resource-type-info workspace)))
+  (test-util/protobuf-resource-exts-that-read-defaults workspace))
 
 (def class-name-comparator #(compare (.getName ^Class %1) (.getName ^Class %2)))
 
