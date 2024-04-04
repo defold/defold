@@ -957,7 +957,7 @@
                                                       num-strs)
                             first-col-width-fmt (str \% first-col-width \s)
                             rest-col-width-fmt (str \% rest-col-width \s)
-                            fmt-col (fn [index num-str]
+                            fmt-col (fn [^long index num-str]
                                       (let [element (case num-str
                                                       ("-0.000" "0.000") :number
                                                       :string)
