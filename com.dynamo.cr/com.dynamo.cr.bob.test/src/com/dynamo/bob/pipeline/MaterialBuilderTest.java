@@ -31,9 +31,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testModelMigrateTextures() throws Exception {
+    public void testMigrateTextures() throws Exception {
 
-		addFile("/test.material", "");
+        addFile("/test.material", "");
         addFile("/test.vp", "");
         addFile("/test.fp", "");
 
@@ -55,19 +55,19 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         src.append("textures: \"tex_already_exist_in_samplers\"\n");
 
         src.append("samplers: {\n");
-        src.append("	name: \"tex0_sampler\"\n");
-        src.append("	wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("	wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("	filter_min: FILTER_MODE_MIN_LINEAR\n");
-        src.append("	filter_mag: FILTER_MODE_MAG_LINEAR\n");
+        src.append("    name: \"tex0_sampler\"\n");
+        src.append("    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
+        src.append("    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n");
+        src.append("    filter_min: FILTER_MODE_MIN_LINEAR\n");
+        src.append("    filter_mag: FILTER_MODE_MAG_LINEAR\n");
         src.append("}\n");
 
         src.append("samplers: {\n");
-        src.append("	name: \"tex_already_exist_in_samplers\"\n");
-        src.append("	wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("	wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("	filter_min: FILTER_MODE_MIN_LINEAR\n");
-        src.append("	filter_mag: FILTER_MODE_MAG_LINEAR\n");
+        src.append("    name: \"tex_already_exist_in_samplers\"\n");
+        src.append("    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
+        src.append("    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n");
+        src.append("    filter_min: FILTER_MODE_MIN_LINEAR\n");
+        src.append("    filter_mag: FILTER_MODE_MAG_LINEAR\n");
         src.append("}\n");
 
         MaterialDesc material = (MaterialDesc) build("/test.material", src.toString()).get(0);
@@ -75,10 +75,10 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(5, material.getSamplersCount());
 
         List<MaterialDesc.Sampler> samplers = material.getSamplersList();
-        assertEquals("tex0_sampler", 				  samplers.get(0).getName());
+        assertEquals("tex0_sampler",                  samplers.get(0).getName());
         assertEquals("tex_already_exist_in_samplers", samplers.get(1).getName());
-        assertEquals("tex0", 					      samplers.get(2).getName());
-        assertEquals("tex1", 					      samplers.get(3).getName());
-        assertEquals("tex2", 					      samplers.get(4).getName());
+        assertEquals("tex0",                          samplers.get(2).getName());
+        assertEquals("tex1",                          samplers.get(3).getName());
+        assertEquals("tex2",                          samplers.get(4).getName());
     }
 }
