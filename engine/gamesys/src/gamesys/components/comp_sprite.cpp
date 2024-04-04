@@ -2033,11 +2033,14 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION;
             }
-
             return SetProperty(set_property, params.m_Value, component->m_Size, SPRITE_PROP_SIZE);
         }
         else if (IsReferencingProperty(SPRITE_PROP_SLICE, set_property))
         {
+            if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_AUTO)
+            {
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION;
+            }
             return SetProperty(set_property, params.m_Value, component->m_Slice9, SPRITE_PROP_SLICE);
         }
         else if (params.m_PropertyId == SPRITE_PROP_CURSOR)
