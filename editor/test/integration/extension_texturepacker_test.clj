@@ -32,6 +32,10 @@
 (defn- node-outline-info [node-id]
   (outline-info (g/valid-node-value node-id :node-outline)))
 
+(deftest registered-resource-types-test
+  (test-util/with-loaded-project "test/resources/texturepacker_project"
+    (is (= #{} (test-util/protobuf-resource-exts-that-read-defaults workspace)))))
+
 (deftest tpinfo-outputs-test
   (test-util/with-loaded-project "test/resources/texturepacker_project"
     (let [node-id (test-util/resource-node project "/examples/basic/basic.tpinfo")]
