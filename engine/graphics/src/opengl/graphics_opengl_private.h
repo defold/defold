@@ -15,6 +15,7 @@
 #ifndef __GRAPHICS_DEVICE_OPENGL__
 #define __GRAPHICS_DEVICE_OPENGL__
 
+#include <dlib/atomic.h>
 #include <dlib/math.h>
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
@@ -35,6 +36,7 @@ namespace dmGraphics
         TextureType       m_Type;
         GLuint*           m_TextureIds;
         uint32_t          m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
+        int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         uint16_t          m_NumTextureIds;
         uint16_t          m_Width;
         uint16_t          m_Height;
@@ -42,7 +44,6 @@ namespace dmGraphics
         uint16_t          m_OriginalWidth;
         uint16_t          m_OriginalHeight;
         uint16_t          m_MipMapCount;
-        volatile uint16_t m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         TextureParams     m_Params;
     };
 
