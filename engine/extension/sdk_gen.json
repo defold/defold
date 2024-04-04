@@ -19,7 +19,7 @@
 					"FExtensionUpdate",
 					"FExtensionOnEvent"
 				],
-				"prefix": {
+				"rename": {
 					"ExtensionResult": "Result",
 					"dmExtension": "",
 					"EXTENSION_RESULT_": "RESULT_",

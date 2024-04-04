@@ -1078,7 +1078,7 @@ class Configuration(object):
         return platforms
 
 # ------------------------------------------------------------
-# Gen source files
+# Gen source files ->
 
     def _gen_sdk_source_lib(self, libname, args, cwd, info):
         self._log('Generating source for %s' % libname)
@@ -1093,6 +1093,9 @@ class Configuration(object):
             info = join(self.defold_root, 'engine/%s/sdk_gen.json' % lib)
             if os.path.exists(info):
                 self._gen_sdk_source_lib(lib, cmd, join(self.defold_root, cwd), info)
+
+# <- Gen source files
+# ------------------------------------------------------------
 
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, prefix):
         prefix = prefix and prefix or self.dynamo_home

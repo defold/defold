@@ -23,6 +23,7 @@ last_comment = ''
 # helper functions
 
 def _reset_globals():
+    global out_lines
     out_lines = ''
 
 def l(s):
@@ -76,7 +77,7 @@ def get_cpp_func(decl):
         #args.append(inner['type']['qualType'])
         if not inner['kind'] == 'ParmVarDecl':
             continue
-        args.append('%s %s' % (inner['type']['qualType'], inner['name']))
+        args.append('%s %s' % (inner['type']['qualType'], inner.get('name','')))
 
     return '%s %s(%s)' % (ret_type, decl['name'], ','.join(args))
 
@@ -116,7 +117,7 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
     l('namespace %s {' % info['namespace'])
 
     ignores = info.get('ignore', [])
-    prefixes = info.get('prefix', {})
+    prefixes = info.get('rename', {})
 
     for enum_type, doc in state.enum_types:
         n = enum_type.name

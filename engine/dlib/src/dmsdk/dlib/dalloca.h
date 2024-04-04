@@ -40,12 +40,12 @@
 // TODO: Formalize this a bit more and move it into a separate file
 
 // Intentionally undocumented!
-struct dmAllocator
+typedef struct dmAllocator
 {
     void* (*m_Alloc)(size_t size, void* user_data);
     void (*m_Free)(void* mem, void* user_data);
     void* m_UserData;
-};
+} dmAllocator;
 
 void* dmMemAlloc(dmAllocator* allocator, size_t size);
 void dmMemFree(dmAllocator* allocator, void* mem);
