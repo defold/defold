@@ -609,11 +609,6 @@
   (is (s/valid? ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)
       (s/explain-str ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)))
 
-(defn- clear-cached-save-data! []
-  ;; Ensure any cache entries introduced by loading the project aren't covering
-  ;; up an actual dirty-check issue.
-  (g/clear-system-cache!))
-
 (deftest silent-migrations-test
   ;; This test is intended to verify that certain silent data migrations are
   ;; performed correctly. A silent migration typically involves a :sanitize-fn
@@ -622,7 +617,7 @@
   ;; until the user changes something significant in the file. More involved
   ;; migrations might be covered by tests elsewhere.
   (test-util/with-loaded-project project-path
-    (clear-cached-save-data!)
+    (test-util/clear-cached-save-data!)
 
     (testing "collection"
       (let [uniform-scale-collection (project/get-resource-node project "/silently_migrated/uniform_scale.collection")
@@ -1383,7 +1378,7 @@
 
 (defn- check-project-save-data-disk-equivalence! [project->save-datas]
   (test-util/with-loaded-project project-path
-    (clear-cached-save-data!)
+    (test-util/clear-cached-save-data!)
     (doseq [save-data (project->save-datas project)]
       (check-save-data-disk-equivalence! save-data))))
 
@@ -1418,7 +1413,7 @@
   ;; any other tests in this module are failing as well, you should address them
   ;; first.
   (test-util/with-scratch-project project-path
-    (clear-cached-save-data!)
+    (test-util/clear-cached-save-data!)
     (let [checked-resources (checked-resources workspace)
           dirty-proj-paths (into (sorted-set)
                                  (map (comp resource/proj-path :resource))
@@ -1444,7 +1439,7 @@
                   (is (:dirty save-data)
                       "No unsaved changes detected after editing. Possibly, `test-util/edit-resource-node!` is not making a meaningful change to the file?"))))))
         (test-util/save-project! project)
-        (clear-cached-save-data!)
+        (test-util/clear-cached-save-data!)
         (doseq [resource checked-resources]
           (let [proj-path (resource/proj-path resource)]
             (testing (format "File `%s` should not have unsaved changes after saving." proj-path)

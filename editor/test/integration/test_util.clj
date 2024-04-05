@@ -1277,11 +1277,21 @@
               user-data (:user-data (:form-ops form-data))]
           (settings/set-tx-data user-data setting-path new-value))))))
 
+(defn clear-cached-save-data! []
+  ;; Ensure any cache entries introduced by loading the project aren't covering
+  ;; up an actual dirty-check issue.
+  (g/clear-system-cache!))
+
 (defn save-project! [project]
   (let [workspace (project/workspace project)
         save-data (project/dirty-save-data project)
         post-save-actions (disk/write-save-data-to-disk! save-data nil nil)]
     (disk/process-post-save-actions! workspace post-save-actions)))
+
+(defn dirty-proj-paths [project]
+  (into (sorted-set)
+        (map (comp resource/proj-path :resource))
+        (project/dirty-save-data project)))
 
 (defn type-preserving-add [a b]
   (condp instance? a
@@ -1390,6 +1400,9 @@
 (defmethod edit-resource-node "render_target" [resource-node-id]
   (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
 
+(defmethod edit-resource-node "simpledata" [resource-node-id]
+  (g/update-property resource-node-id :i64 type-preserving-add 1))
+
 (defmethod edit-resource-node "settings" [resource-node-id]
   (update-setting resource-node-id ["liveupdate" "zip-filepath"] str \_))
 
@@ -1421,6 +1434,10 @@
 (defn edit-resource-node! [resource-node-id]
   (g/transact
     (edit-resource-node resource-node-id)))
+
+(defn edit-proj-path! [project proj-path]
+  (let [resource-node (resource-node project proj-path)]
+    (edit-resource-node! resource-node)))
 
 (defn protobuf-resource-exts-that-read-defaults [workspace]
   (into (sorted-set)
