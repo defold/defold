@@ -36,6 +36,17 @@ message VertexAttribute
         TYPE_FLOAT            = 7;
     }
 
+    enum VariableType
+    {
+        VARIABLE_TYPE_NUMBER = 1;
+        VARIABLE_TYPE_VEC2   = 2;
+        VARIABLE_TYPE_VEC3   = 3;
+        VARIABLE_TYPE_VEC4   = 4;
+        VARIABLE_TYPE_MAT2   = 5;
+        VARIABLE_TYPE_MAT3   = 6;
+        VARIABLE_TYPE_MAT4   = 7;
+    }
+
     enum SemanticType
     {
         SEMANTIC_TYPE_NONE         = 1;

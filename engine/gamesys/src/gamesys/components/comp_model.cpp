@@ -1089,11 +1089,8 @@ namespace dmGameSystem
             }
             else
             {
-                uint32_t count = render_item->m_Buffers->m_VertexCount;
-                uint32_t icount = render_item->m_Buffers->m_IndexCount;
-
-                vertex_count += count;
-                index_count += icount;
+                vertex_count += render_item->m_Buffers->m_VertexCount;
+                index_count += render_item->m_Buffers->m_IndexCount;
             }
         }
 
