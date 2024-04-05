@@ -72,7 +72,7 @@ namespace dmConditionVariable
 
     /*# signal condition variable
      *
-     * Signal condition variable, effectively unblocks at least one of the waithing threads blocked
+     * Signal condition variable, effectively unblocks at least one of the waiting threads blocked
      * by the condition variable.
      *
      * @name dmConditionVariable::Signal
@@ -82,7 +82,7 @@ namespace dmConditionVariable
 
     /*# broadcast condition variable
      *
-     * Broadcast condition variable, effectively unblocks all of the waithing threads blocked
+     * Broadcast condition variable, effectively unblocks all of the waiting threads blocked
      * by the condition variable.
      *
      * @name dmConditionVariable::Broadcast
