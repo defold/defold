@@ -476,7 +476,8 @@ def default_flags(self):
 
         emflags_link = [
             'DISABLE_EXCEPTION_CATCHING=1',
-            'EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]',
+            'EXPORTED_RUNTIME_METHODS=["ccall","stackTrace","UTF8ToString","callMain","HEAPU8"]',
+            'EXPORTED_FUNCTIONS=_malloc,_free',
             'ERROR_ON_UNDEFINED_SYMBOLS=1',
             'INITIAL_MEMORY=33554432',
             'MAX_WEBGL_VERSION=2',
@@ -502,7 +503,7 @@ def default_flags(self):
             self.env.append_value(f, emflags_compile)
             self.env.append_value(f, flags)
 
-        self.env.append_value('LINKFLAGS', ['-Wno-warn-absolute-paths', '--emit-symbol-map', '--memory-init-file', '0', '-lidbfs.js'])
+        self.env.append_value('LINKFLAGS', ['-Wno-warn-absolute-paths', '--emit-symbol-map', '-lidbfs.js'])
         self.env.append_value('LINKFLAGS', emflags_link)
         self.env.append_value('LINKFLAGS', linkflags)
 
@@ -558,15 +559,11 @@ def web_exported_functions(self):
 
     for name in ('CFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
         arr = self.env[name]
-
-        for i, v in enumerate(arr):
-            if v.startswith('EXPORTED_FUNCTIONS'):
-                remove_flag_at_index(arr, i-1, 2) # "_main" is exported by default
-                break
-
-        if use_crash:
-            self.env.append_value(name, ['-s', 'EXPORTED_FUNCTIONS=_JSWriteDump,_dmExportedSymbols,_main'])
-
+        if use_crash and name is 'LINKFLAGS':
+            for i, v in enumerate(arr):
+                if v.startswith('EXPORTED_FUNCTIONS'):
+                    arr[i] = v + ",_JSWriteDump,_dmExportedSymbols"
+                    break
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @after('apply_obj_vars')
@@ -1440,11 +1437,10 @@ def js_web_link_flags(self):
 @feature('test')
 def test_flags(self):
     self.install_path = None # the tests shouldn't be installed
-    # When building tests for the web, we disable emission of emscripten js.mem init files,
-    # as the assumption when these are loaded is that the cwd will contain these items.
     if 'web' in self.env['PLATFORM']:
         for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
-            self.env.append_value(f, ['--memory-init-file', '0'])
+            if '-gsource-map' in self.env[f]:
+                self.env[f].remove('-gsource-map')
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')

@@ -105,9 +105,7 @@ namespace dmScript
             }
             _dmScript_Html5ReportOperationSuccess(isSuccess);
             jsResult += "";
-            var lengthBytes = lengthBytesUTF8(jsResult) + 1;
-            var stringOnWasmHeap = _malloc(lengthBytes);
-            stringToUTF8(jsResult, stringOnWasmHeap, lengthBytes);
+            var stringOnWasmHeap = stringToNewUTF8(jsResult);
             return stringOnWasmHeap;
         }, code);
         if (!isOperationSuccessful)
