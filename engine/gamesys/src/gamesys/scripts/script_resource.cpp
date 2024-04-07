@@ -2756,7 +2756,7 @@ void PrintBuffer(const char* label, const dmScript::LuaHBuffer& buffer)
  * @name resource.create_buffer
  *
  * @param path [type:string] The path to the resource.
- * @param table [type:table] A table containing info about how to create the buffer. Supported entries:
+ * @param [table] [type:table] A table containing info about how to create the buffer. Supported entries:
  *
  * * `buffer`
  * : [type:buffer] the buffer to bind to this resource
@@ -2983,7 +2983,7 @@ static int GetBuffer(lua_State* L)
  *
  * @param path [type:hash|string] The path to the resource
  * @param buffer [type:buffer] The resource buffer
- * @param table [type:table] A table containing info about how to set the buffer. Supported entries:
+ * @param [table] [type:table] A table containing info about how to set the buffer. Supported entries:
  *
  * * `transfer_ownership`
  * : [type:boolean] optional flag to determine wether or not the resource should take over ownership of the buffer object (default false)
