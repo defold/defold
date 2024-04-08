@@ -236,12 +236,11 @@
 
 (defn- render-outline [^GL2 gl render-args renderables rcount]
   (assert (= 1 rcount) "Batching is disabled in the editor for simplicity.")
-  (let [pass (:pass render-args)
-        renderable (first renderables)
-        node-id (:node-id renderable)
-        request-id [::outline node-id]]
-    (assert (= pass/outline pass))
-    (render/render-aabb-outline gl render-args request-id renderables rcount)))
+  (when (= pass/outline (:pass render-args))
+    (let [renderable (first renderables)
+          node-id (:node-id renderable)
+          request-id [::outline node-id]]
+      (render/render-aabb-outline gl render-args request-id renderables rcount))))
 
 (g/defnk produce-mesh-set-build-target [_node-id resource content]
   (rig/make-mesh-set-build-target (resource/workspace resource) _node-id (:mesh-set content)))
@@ -324,8 +323,7 @@
 
 (defn- make-mesh-scene [renderable-mesh model-scene-resource-node-id]
   (let [{:keys [aabb material-name renderable-data]} renderable-mesh]
-    {:node-id model-scene-resource-node-id
-     :aabb aabb
+    {:aabb aabb
      :renderable {:render-fn render-mesh
                   :tags #{:model}
                   :batch-key nil ; Batching is disabled in the editor for simplicity.
@@ -341,8 +339,7 @@
   (let [{:keys [transform aabb renderable-meshes]} renderable-model
         mesh-scenes (mapv #(make-mesh-scene % model-scene-resource-node-id)
                           renderable-meshes)]
-    {:node-id model-scene-resource-node-id
-     :transform transform
+    {:transform transform
      :aabb aabb
      :children mesh-scenes}))
 
@@ -355,8 +352,8 @@
      :renderable {:render-fn render-outline
                   :tags #{:model :outline}
                   :batch-key nil ; Batching is disabled in the editor for simplicity.
-                  :select-batch-key model-scene-resource-node-id
-                  :passes [pass/outline]}
+                  :select-batch-key :not-rendered ; The render-fn only does anything during the outline pass.
+                  :passes [pass/outline pass/opaque-selection]} ; Include in a selection pass to ensure it can be selected and manipulated.
      :children model-scenes}))
 
 (g/defnk produce-scene [_node-id renderable-mesh-set]
