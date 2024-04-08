@@ -481,7 +481,8 @@ def default_flags(self):
             'ERROR_ON_UNDEFINED_SYMBOLS=1',
             'INITIAL_MEMORY=33554432',
             'MAX_WEBGL_VERSION=2',
-            'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0']
+            'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0',
+            'STACK_SIZE=5MB']
 
         if 'wasm' == build_util.get_target_architecture():
             emflags_link += ['WASM=1', 'IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=1']
