@@ -590,6 +590,20 @@ namespace dmGameSystem
         }
     }
 
+    static inline void FillWriteVertexAttributeParams(const dmRigDDF::Mesh* mesh, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttributeInfos* attribute_infos, const dmVMath::Matrix4* world_matrix, const dmVMath::Matrix4* normal_matrix, dmRig::WriteVertexAttributeParams* params)
+    {
+        params->m_AttributeInfos  = attribute_infos;
+        params->m_StepFunction    = step_function;
+        params->m_Positions       = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
+        params->m_Normals         = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
+        params->m_Tangents        = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
+        params->m_UV0             = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
+        params->m_UV1             = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
+        params->m_Colors          = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
+        params->m_WorldTransform  = world_matrix;
+        params->m_NormalTransform = normal_matrix;
+    }
+
     static void SetupMeshAttributeRenderData(dmRender::HRenderContext render_context, dmRender::HMaterial material, const MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
     {
         assert(!rd->m_VertexBuffer);
@@ -644,19 +658,8 @@ namespace dmGameSystem
             uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
 
             dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
-
-            const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
             dmRig::WriteVertexAttributeParams params = {};
-            params.m_AttributeInfos  = &non_default_attribute;
-            params.m_StepFunction    = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
-            params.m_Positions       = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
-            params.m_Normals         = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
-            params.m_Tangents        = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
-            params.m_UV0             = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
-            params.m_UV1             = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
-            params.m_Colors          = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
-            params.m_WorldTransform  = &render_item->m_World;
-            params.m_NormalTransform = &normal_matrix;
+            FillWriteVertexAttributeParams(render_item->m_Mesh, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, &non_default_attribute, &render_item->m_World, &normal_matrix, &params);
 
             for (int i = 0; i < vertex_count; ++i)
             {
@@ -955,20 +958,10 @@ namespace dmGameSystem
                                 &material_infos,
                                 &attribute_infos);
 
-                    const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
                     dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
-
                     dmRig::WriteVertexAttributeParams params = {};
-                    params.m_AttributeInfos  = &attribute_infos;
-                    params.m_StepFunction    = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
-                    params.m_Positions       = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
-                    params.m_Normals         = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
-                    params.m_Tangents        = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
-                    params.m_UV0             = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
-                    params.m_UV1             = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
-                    params.m_Colors          = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
-                    params.m_WorldTransform  = &render_item->m_World;
-                    params.m_NormalTransform = &normal_matrix;
+                    FillWriteVertexAttributeParams(render_item->m_Mesh, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
+                        &attribute_infos, &render_item->m_World, &normal_matrix, &params);
 
                     dmRig::WriteSingleVertexDataByAttributes(write_ptr, params);
                     write_stride = instance_stride;

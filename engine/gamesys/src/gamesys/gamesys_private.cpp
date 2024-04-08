@@ -303,9 +303,11 @@ namespace dmGameSystem
             int component_attribute_index = FindAttributeIndex(component_attributes, num_component_attributes, name_hash);
             if (component_attribute_index >= 0)
             {
+                // We don't use the byte size from the overridden attribute here, since we still need to match
+                // the stride of the materials vertex declaration
+                uint32_t value_byte_size_tmp;
                 dmGraphics::GetAttributeValues(component_attributes[component_attribute_index],
-                    &component_infos->m_Infos[i].m_ValuePtr,
-                    &component_infos->m_Infos[i].m_ValueByteSize);
+                    &component_infos->m_Infos[i].m_ValuePtr, &value_byte_size_tmp);
             }
 
             // 3. If all of the above failed, we fallback to using the material attribute instead
