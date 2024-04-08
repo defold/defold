@@ -31,20 +31,23 @@ namespace dmRender
 
     static dmGraphics::VertexAttribute::SemanticType GetAttributeSemanticType(dmhash_t from_hash)
     {
-        if      (from_hash == VERTEX_STREAM_POSITION)     return dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
-        else if (from_hash == VERTEX_STREAM_TEXCOORD0)    return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
-        else if (from_hash == VERTEX_STREAM_TEXCOORD1)    return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
-        else if (from_hash == VERTEX_STREAM_COLOR)        return dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
-        else if (from_hash == VERTEX_STREAM_PAGE_INDEX)   return dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX;
-        else if (from_hash == VERTEX_STREAM_NORMAL)       return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
-        else if (from_hash == VERTEX_STREAM_TANGENT)      return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
-        else if (from_hash == VERTEX_STREAM_WORLD_MATRIX) return dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
+        if      (from_hash == VERTEX_STREAM_POSITION)      return dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
+        else if (from_hash == VERTEX_STREAM_TEXCOORD0)     return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
+        else if (from_hash == VERTEX_STREAM_TEXCOORD1)     return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
+        else if (from_hash == VERTEX_STREAM_COLOR)         return dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
+        else if (from_hash == VERTEX_STREAM_PAGE_INDEX)    return dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX;
+        else if (from_hash == VERTEX_STREAM_NORMAL)        return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
+        else if (from_hash == VERTEX_STREAM_TANGENT)       return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
+        else if (from_hash == VERTEX_STREAM_WORLD_MATRIX)  return dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
+        else if (from_hash == VERTEX_STREAM_NORMAL_MATRIX) return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX;
         return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
     }
 
+    // This is just a default setting, you can still specify a world matrix as a non-instanced attribute
     static inline dmGraphics::VertexStepFunction GetAttributeVertexStepFunction(dmGraphics::VertexAttribute::SemanticType semantic_type)
     {
-        if (semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX)
+        if (semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX ||
+            semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX)
         {
             return dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
         }
@@ -318,12 +321,7 @@ namespace dmRender
                 case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL:
                 {
                     {
-                        // normalT = transp(inv(view * world))
-                        Matrix4 normalT = render_context->m_View * ro->m_WorldTransform;
-                        // The world transform might include non-uniform scaling, which breaks the orthogonality of the combined model-view transform
-                        // It is always affine however
-                        normalT = affineInverse(normalT);
-                        normalT = transpose(normalT);
+                        Matrix4 normalT = GetNormalMatrix(render_context, ro->m_WorldTransform);
                         dmGraphics::SetConstantM4(graphics_context, (Vector4*)&normalT, 1, location);
                     }
                     break;

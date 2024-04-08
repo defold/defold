@@ -32,14 +32,15 @@ namespace dmRender
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
 
-    static const dmhash_t VERTEX_STREAM_POSITION     = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_NORMAL       = dmHashString64("normal");
-    static const dmhash_t VERTEX_STREAM_TANGENT      = dmHashString64("tangent");
-    static const dmhash_t VERTEX_STREAM_COLOR        = dmHashString64("color");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0    = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD1    = dmHashString64("texcoord1");
-    static const dmhash_t VERTEX_STREAM_PAGE_INDEX   = dmHashString64("page_index");
-    static const dmhash_t VERTEX_STREAM_WORLD_MATRIX = dmHashString64("mtx_world");
+    static const dmhash_t VERTEX_STREAM_POSITION      = dmHashString64("position");
+    static const dmhash_t VERTEX_STREAM_NORMAL        = dmHashString64("normal");
+    static const dmhash_t VERTEX_STREAM_TANGENT       = dmHashString64("tangent");
+    static const dmhash_t VERTEX_STREAM_COLOR         = dmHashString64("color");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD0     = dmHashString64("texcoord0");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD1     = dmHashString64("texcoord1");
+    static const dmhash_t VERTEX_STREAM_PAGE_INDEX    = dmHashString64("page_index");
+    static const dmhash_t VERTEX_STREAM_WORLD_MATRIX  = dmHashString64("mtx_world");
+    static const dmhash_t VERTEX_STREAM_NORMAL_MATRIX = dmHashString64("mtx_normal");
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
@@ -154,6 +155,8 @@ namespace dmRender
 
     const dmVMath::Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
     const dmVMath::Matrix4& GetViewMatrix(HRenderContext render_context);
+    dmVMath::Matrix4 GetNormalMatrix(HRenderContext render_context, const dmVMath::Matrix4& world_matrix);
+
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 

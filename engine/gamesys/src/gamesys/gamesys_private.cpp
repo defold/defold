@@ -269,7 +269,7 @@ namespace dmGameSystem
         return -1;
     }
 
-    // Prepares the list of sprite attributes that could potentially overrides an already specified material attribute
+    // Prepares the list of attributes that could potentially overrides an already specified material attribute
     void FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos)
     {
         component_infos->m_NumInfos     = material_infos->m_NumInfos;
@@ -319,7 +319,6 @@ namespace dmGameSystem
         const dmGraphics::VertexAttribute* material_attributes;
         uint32_t material_attributes_count;
         dmRender::GetMaterialProgramAttributes(material, &material_attributes, &material_attributes_count);
-
         infos->m_NumInfos     = dmMath::Min(material_attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
         infos->m_VertexStride = dmGraphics::GetVertexDeclarationStride(vx_decl);
 

@@ -290,6 +290,17 @@ namespace dmRender
         return render_context->m_View;
     }
 
+    dmVMath::Matrix4 GetNormalMatrix(HRenderContext render_context, const dmVMath::Matrix4& world_matrix)
+    {
+        // normalT = transp(inv(view * world))
+        Matrix4 normalT = render_context->m_View * world_matrix;
+        // The world transform might include non-uniform scaling, which breaks the orthogonality of the combined model-view transform
+        // It is always affine however
+        normalT = affineInverse(normalT);
+        normalT = transpose(normalT);
+        return normalT;
+    }
+
     void SetViewMatrix(HRenderContext render_context, const Matrix4& view)
     {
         render_context->m_View = view;

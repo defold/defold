@@ -63,7 +63,7 @@ message VertexAttribute
         SEMANTIC_TYPE_NORMAL        = 6;
         SEMANTIC_TYPE_TANGENT       = 7;
         SEMANTIC_TYPE_WORLD_MATRIX  = 8;
-        SEMANTIC_TYPE_NORMAL_MATRIX = 8;
+        SEMANTIC_TYPE_NORMAL_MATRIX = 9;
     }
 
     message LongValues
@@ -84,7 +84,7 @@ message VertexAttribute
     optional DataType        data_type        = 6 [default = TYPE_FLOAT];
     optional CoordinateSpace coordinate_space = 7 [default = COORDINATE_SPACE_LOCAL];
     optional VertexStepFunction step_function = 8 [default = VERTEX_STEP_FUNCTION_VERTEX];
-    optional ShaderType shader_type           = 9 [default = SHADER_TYPE_NUMBER];
+    optional ShaderType shader_type           = 12 [default = SHADER_TYPE_NUMBER];
 
     // Note: Add a channel field here for identifying a semantic "channel", i.e a second UV set
 

@@ -62,7 +62,8 @@ namespace dmGameSystem
 
     struct ModelInstanceData
     {
-        dmVMath::Matrix4 m_Transform;
+        dmVMath::Matrix4 m_WorldTransform;
+        dmVMath::Matrix4 m_NormalTransform;
     };
 
     struct MeshAttributeRenderData
@@ -335,6 +336,8 @@ namespace dmGameSystem
                 return name_hash == dmRender::VERTEX_STREAM_TEXCOORD0 || name_hash == dmRender::VERTEX_STREAM_TEXCOORD1;
             case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
                 return name_hash == dmRender::VERTEX_STREAM_WORLD_MATRIX;
+            case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
+                return name_hash == dmRender::VERTEX_STREAM_NORMAL_MATRIX;
             default:break;
         }
         return false;
@@ -557,11 +560,7 @@ namespace dmGameSystem
         dmGraphics::VertexStepFunction step_function)
     {
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context, step_function);
-
-        uint8_t* scratch_attribute_vertex = 0;
-        uint32_t custom_vertex_size       = 0;
-        bool has_matching_step_function   = false;
-
+        bool has_matching_step_function = false;
         for (int i = 0; i < material_infos.m_NumInfos; ++i)
         {
             const dmGraphics::VertexAttributeInfo& attr          = attribute_infos.m_Infos[i];
@@ -620,7 +619,6 @@ namespace dmGameSystem
             CreateCustomVertexDeclaration(graphics_context, material_vx_decl, material_infos, attribute_infos, render_item->m_Buffers->m_VertexCount, &rd->m_VertexDeclaration, &rd->m_VertexBuffer, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
 
             // Build a custom scratch vertex that contains potential custom vertex attribute data
-            uint8_t* scratch_attribute_vertex = (uint8_t*) malloc(dmGraphics::GetVertexDeclarationStride(rd->m_VertexDeclaration));
             dmGraphics::VertexAttributeInfos non_default_attribute;
             non_default_attribute.m_VertexStride = 0;
             non_default_attribute.m_NumInfos     = 0;
@@ -628,7 +626,7 @@ namespace dmGameSystem
             for (int i = 0; i < material_infos.m_NumInfos; ++i)
             {
                 const dmGraphics::VertexAttributeInfo& attr_material = material_infos.m_Infos[i];
-                const dmGraphics::VertexAttributeInfo& attr_model    = attribute_infos.m_Infos[i];
+                const dmGraphics::VertexAttributeInfo& attr_model    = attribute_infos.m_Infos[i];;
 
                 if (!IsDefaultStream(attr_model.m_NameHash, attr_material.m_SemanticType))
                 {
@@ -645,18 +643,24 @@ namespace dmGameSystem
             memset(attribute_data, 0, vertex_data_size);
             uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
 
+            dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
+
             const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
-            const float* positions     = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
-            const float* normals       = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
-            const float* tangents      = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
-            const float* colors        = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
-            const float* uv0           = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
-            const float* uv1           = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
+            dmRig::WriteVertexAttributeParams params = {};
+            params.m_AttributeInfos  = &non_default_attribute;
+            params.m_StepFunction    = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+            params.m_Positions       = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
+            params.m_Normals         = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
+            params.m_Tangents        = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
+            params.m_UV0             = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
+            params.m_UV1             = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
+            params.m_Colors          = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
+            params.m_WorldTransform  = &render_item->m_World;
+            params.m_NormalTransform = &normal_matrix;
 
             for (int i = 0; i < vertex_count; ++i)
             {
-                vertex_write_ptr = dmRig::WriteSingleVertexDataByAttributes(vertex_write_ptr, i, &non_default_attribute,
-                    positions, normals, tangents, uv0, uv1, colors);
+                vertex_write_ptr = dmRig::WriteSingleVertexDataByAttributes(vertex_write_ptr, params);
             }
 
             rd->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
@@ -936,6 +940,9 @@ namespace dmGameSystem
             {
                 ro->m_InstanceCount++;
 
+                uint8_t* write_ptr = (uint8_t*) world->m_InstanceBufferDataLocalSpace.Begin() + world->m_InstanceBufferDataLocalSpace.Size();
+                uint32_t write_stride = 0;
+
                 if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
                 {
                     dmGraphics::VertexAttributeInfos material_infos;
@@ -948,35 +955,34 @@ namespace dmGameSystem
                                 &material_infos,
                                 &attribute_infos);
 
-                    uint8_t* write_ptr = (uint8_t*) world->m_InstanceBufferDataLocalSpace.Begin() + world->m_InstanceBufferDataLocalSpace.Size();
+                    const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
+                    dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
 
-                    for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
-                    {
-                        if (attribute_infos.m_Infos[i].m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
-                            continue;
-                        switch(attribute_infos.m_Infos[i].m_SemanticType)
-                        {
-                            case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
-                                memcpy(write_ptr, &render_item->m_World, material_infos.m_Infos[i].m_ValueByteSize);
-                                break;
-                            case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE:
-                                memcpy(write_ptr, attribute_infos.m_Infos[i].m_ValuePtr, material_infos.m_Infos[i].m_ValueByteSize);
-                                break;
-                            default:break;
-                        }
-                        write_ptr += material_infos.m_Infos[i].m_ValueByteSize;
-                    }
+                    dmRig::WriteVertexAttributeParams params = {};
+                    params.m_AttributeInfos  = &attribute_infos;
+                    params.m_StepFunction    = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+                    params.m_Positions       = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
+                    params.m_Normals         = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
+                    params.m_Tangents        = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
+                    params.m_UV0             = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
+                    params.m_UV1             = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
+                    params.m_Colors          = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
+                    params.m_WorldTransform  = &render_item->m_World;
+                    params.m_NormalTransform = &normal_matrix;
 
-                    world->m_InstanceBufferDataLocalSpace.SetSize(world->m_InstanceBufferDataLocalSpace.Size() + instance_stride);
+                    dmRig::WriteSingleVertexDataByAttributes(write_ptr, params);
+                    write_stride = instance_stride;
                 }
                 else
                 {
                     assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclaration) == sizeof(ModelInstanceData));
-                    uint8_t* write_ptr               = (uint8_t*) world->m_InstanceBufferDataLocalSpace.Begin() + world->m_InstanceBufferDataLocalSpace.Size();
                     ModelInstanceData* instance_data = (ModelInstanceData*) write_ptr;
-                    instance_data->m_Transform       = render_item->m_World;
-                    world->m_InstanceBufferDataLocalSpace.SetSize(world->m_InstanceBufferDataLocalSpace.Size() + sizeof(ModelInstanceData));
+                    instance_data->m_WorldTransform  = render_item->m_World;
+                    instance_data->m_NormalTransform = dmRender::GetNormalMatrix(render_context, render_item->m_World);
+                    write_stride = sizeof(ModelInstanceData);
                 }
+
+                world->m_InstanceBufferDataLocalSpace.SetSize(world->m_InstanceBufferDataLocalSpace.Size() + write_stride);
             }
             else
             {
