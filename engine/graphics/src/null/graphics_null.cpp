@@ -340,7 +340,7 @@ namespace dmGraphics
     static void NullFlip(HContext _context)
     {
         NullContext* context = (NullContext*) _context;
-        PostDeleteTextures(context, true);
+        PostDeleteTextures(context, false);
 
         // Mimick glfw
         if (context->m_RequestWindowClose)
