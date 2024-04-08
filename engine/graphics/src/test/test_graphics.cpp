@@ -770,7 +770,12 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         }
 
         // Trigger a flush of the post deletion textures by issuing a flip
-        dmGraphics::Flip(m_Context);
+        int wait_count = 10;
+        while (wait_count-- > 0 && !m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Empty())
+        {
+            dmGraphics::Flip(m_Context);
+            dmTime::Sleep(1000); // The sync/deletion is asynchronous, so we have to wait a little bit
+        }
 
         ASSERT_EQ(0, m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Size());
 
