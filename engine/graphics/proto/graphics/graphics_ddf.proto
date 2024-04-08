@@ -23,6 +23,12 @@ enum CoordinateSpace
     COORDINATE_SPACE_LOCAL = 2;
 }
 
+enum VertexStepFunction
+{
+    VERTEX_STEP_FUNCTION_VERTEX   = 0;
+    VERTEX_STEP_FUNCTION_INSTANCE = 1;
+}
+
 message VertexAttribute
 {
     enum DataType
@@ -57,12 +63,6 @@ message VertexAttribute
         SEMANTIC_TYPE_NORMAL       = 6;
         SEMANTIC_TYPE_TANGENT      = 7;
         SEMANTIC_TYPE_WORLD_MATRIX = 8;
-    }
-
-    enum VertexStepFunction
-    {
-        VERTEX_STEP_FUNCTION_VERTEX   = 0;
-        VERTEX_STEP_FUNCTION_INSTANCE = 1;
     }
 
     message LongValues

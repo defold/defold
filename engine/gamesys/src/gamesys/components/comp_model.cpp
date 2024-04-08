@@ -570,8 +570,8 @@ namespace dmGameSystem
             if (attr.m_StepFunction != step_function)
                 continue;
 
-            if (attr.m_StepFunction == dmGraphics::VertexAttribute::VERTEX_STEP_FUNCTION_INSTANCE ||
-                (attr.m_StepFunction == dmGraphics::VertexAttribute::VERTEX_STEP_FUNCTION_VERTEX && !IsDefaultStream(attr.m_NameHash, attr_material.m_SemanticType)))
+            if (attr.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE ||
+                (attr.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_VERTEX && !IsDefaultStream(attr.m_NameHash, attr_material.m_SemanticType)))
             {
                 assert(attr.m_NameHash == attr_material.m_NameHash);
                 dmGraphics::AddVertexStream(stream_declaration,
@@ -984,7 +984,7 @@ namespace dmGameSystem
 
                     for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
                     {
-                        if (attribute_infos.m_Infos[i].m_StepFunction != dmGraphics::VertexAttribute::VERTEX_STEP_FUNCTION_INSTANCE)
+                        if (attribute_infos.m_Infos[i].m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
                             continue;
                         switch(attribute_infos.m_Infos[i].m_SemanticType)
                         {

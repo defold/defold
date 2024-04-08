@@ -328,15 +328,15 @@ namespace dmGraphics
 
     struct VertexAttributeInfo
     {
-        dmhash_t                                        m_NameHash;
-        VertexAttribute::SemanticType                   m_SemanticType;
-        VertexAttribute::DataType                       m_DataType;
-        dmGraphics::VertexAttribute::VertexStepFunction m_StepFunction;
-        CoordinateSpace                                 m_CoordinateSpace;
-        const uint8_t*                                  m_ValuePtr;
-        uint32_t                                        m_ValueByteSize;
-        uint32_t                                        m_ElementCount;
-        bool                                            m_Normalize;
+        dmhash_t                       m_NameHash;
+        VertexAttribute::SemanticType  m_SemanticType;
+        VertexAttribute::DataType      m_DataType;
+        dmGraphics::VertexStepFunction m_StepFunction;
+        CoordinateSpace                m_CoordinateSpace;
+        const uint8_t*                 m_ValuePtr;
+        uint32_t                       m_ValueByteSize;
+        uint32_t                       m_ElementCount;
+        bool                           m_Normalize;
     };
 
     struct VertexAttributeInfos

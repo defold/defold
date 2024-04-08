@@ -17,6 +17,8 @@
 
 #include <stdint.h>
 
+#include <graphics/graphics_ddf.h>
+
 /*# Graphics API documentation
  * [file:<dmsdk/graphics/graphics.h>]
  *
@@ -474,21 +476,6 @@ namespace dmGraphics
         BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR = 12,
         BLEND_FACTOR_CONSTANT_ALPHA           = 13,
         BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA = 14,
-    };
-
-    // TODO: We should remove this since we have it in the graphcis proto file
-
-    /*#
-     * Vertex step function. Dictates how the data for a vertex attribute should be read in a vertex shader.
-     * @enum
-     * @name VertexStepFunction
-     * @member VERTEX_STEP_FUNCTION_VERTEX
-     * @member VERTEX_STEP_FUNCTION_INSTANCE
-     */
-    enum VertexStepFunction
-    {
-        VERTEX_STEP_FUNCTION_VERTEX,
-        VERTEX_STEP_FUNCTION_INSTANCE,
     };
 
     /*#

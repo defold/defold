@@ -42,13 +42,13 @@ namespace dmRender
         return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
     }
 
-    static inline dmGraphics::VertexAttribute::VertexStepFunction GetAttributeVertexStepFunction(dmGraphics::VertexAttribute::SemanticType semantic_type)
+    static inline dmGraphics::VertexStepFunction GetAttributeVertexStepFunction(dmGraphics::VertexAttribute::SemanticType semantic_type)
     {
         if (semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX)
         {
-            return dmGraphics::VertexAttribute::VERTEX_STEP_FUNCTION_INSTANCE;
+            return dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
         }
-        return dmGraphics::VertexAttribute::VERTEX_STEP_FUNCTION_VERTEX;
+        return dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
     }
 
     static inline dmGraphics::VertexAttribute::DataType GetAttributeDataType(dmGraphics::Type from_type)
@@ -81,29 +81,16 @@ namespace dmRender
         return (dmGraphics::VertexAttribute::DataType) -1;
     }
 
-    static inline dmGraphics::VertexAttribute::VertexStepFunction GetVertexAttributeStepFunction(dmGraphics::VertexStepFunction step_function)
-    {
-        switch(step_function)
-        {
-            case dmGraphics::VERTEX_STEP_FUNCTION_VERTEX:   return dmGraphics::VertexAttribute::VERTEX_STEP_FUNCTION_VERTEX;
-            case dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE: return dmGraphics::VertexAttribute::VERTEX_STEP_FUNCTION_INSTANCE;
-            default: assert(0 && "Step function not supported");
-        }
-        return (dmGraphics::VertexAttribute::VertexStepFunction) -1;
-    }
-
     static dmGraphics::HVertexDeclaration CreateVertexDeclarationFromStepFunction(dmGraphics::HContext graphics_context,
         const dmArray<MaterialAttribute>& material_attributes, const dmArray<dmGraphics::VertexAttribute>& vertex_attributes,
         dmGraphics::VertexStepFunction step_function)
     {
-        dmGraphics::VertexAttribute::VertexStepFunction attribute_step_function = GetVertexAttributeStepFunction(step_function);
-
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context, step_function);
         bool has_attributes = false;
         for (int i = 0; i < material_attributes.Size(); ++i)
         {
             const dmGraphics::VertexAttribute& graphics_attribute = vertex_attributes[i];
-            if (graphics_attribute.m_StepFunction == attribute_step_function)
+            if (graphics_attribute.m_StepFunction == step_function)
             {
                 has_attributes = true;
                 dmGraphics::AddVertexStream(stream_declaration,
