@@ -580,46 +580,12 @@ namespace dmGameSystem
                     dmGraphics::GetGraphicsType(attr.m_DataType),
                     attr.m_Normalize);
 
-                if (vx_buffer_out)
-                {
-                    /*
-                    if (!scratch_attribute_vertex)
-                    {
-                        scratch_attribute_vertex = (uint8_t*) malloc(dmGraphics::GetVertexDeclarationStride(vx_decl_in));
-                    }
-
-                    uint8_t* data_write_ptr = scratch_attribute_vertex + custom_vertex_size;
-                    memcpy(data_write_ptr, attr.m_ValuePtr, attr.m_ValueByteSize);
-                    custom_vertex_size += attr.m_ValueByteSize;
-                    */
-                }
-
                 has_matching_step_function = true;
             }
         }
 
         if (has_matching_step_function)
         {
-            if (vx_buffer_out)
-            {
-                /*
-                uint32_t vertex_data_size = custom_vertex_size * vertex_count;
-                void* attribute_data      = malloc(vertex_data_size);
-                uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
-
-                for (int i = 0; i < vertex_count; ++i)
-                {
-                    memcpy(vertex_write_ptr, scratch_attribute_vertex, custom_vertex_size);
-                    vertex_write_ptr += custom_vertex_size;
-                }
-
-                *vx_buffer_out = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-
-                free(attribute_data);
-                free(scratch_attribute_vertex);
-                */
-            }
-
             *vx_decl_out = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
             dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
         }
@@ -652,6 +618,8 @@ namespace dmGameSystem
         if (material_vx_decl)
         {
             CreateCustomVertexDeclaration(graphics_context, material_vx_decl, material_infos, attribute_infos, render_item->m_Buffers->m_VertexCount, &rd->m_VertexDeclaration, &rd->m_VertexBuffer, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+
+            // Build a custom scratch vertex that contains potential custom vertex attribute data
             uint8_t* scratch_attribute_vertex = (uint8_t*) malloc(dmGraphics::GetVertexDeclarationStride(rd->m_VertexDeclaration));
             dmGraphics::VertexAttributeInfos non_default_attribute;
             non_default_attribute.m_VertexStride = 0;
