@@ -20,6 +20,7 @@
             [editor.buffers :as buffers]
             [editor.changes-view :as changes-view]
             [editor.code.data :as code.data]
+            [editor.code.util :as code.util]
             [editor.collection :as collection]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
@@ -39,11 +40,14 @@
             [internal.system :as is]
             [internal.util :as util]
             [lambdaisland.deep-diff2 :as deep-diff]
+            [lambdaisland.deep-diff2.minimize-impl :as deep-diff.minimize-impl]
             [lambdaisland.deep-diff2.puget.color :as puget.color]
             [lambdaisland.deep-diff2.puget.printer :as puget.printer]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.diff :as diff])
   (:import [com.defold.util WeakInterner]
            [editor.code.data Cursor CursorRange]
+           [editor.gl.pass RenderPass]
            [editor.gl.vertex2 VertexBuffer]
            [editor.resource FileResource MemoryResource ZipResource]
            [editor.types AABB]
@@ -903,6 +907,10 @@
              (namespaced-class-symbol CursorRange)
              (partial object-data-pprint-handler nil code.data/cursor-range-print-data)
 
+             (namespaced-class-symbol RenderPass)
+             (fn render-pass-pprint-handler [printer ^RenderPass render-pass]
+               (fmt-doc printer (symbol "pass" (.nm render-pass))))
+
              (namespaced-class-symbol VertexBuffer)
              (partial object-data-pprint-handler nil vertex-buffer-print-data)}
 
@@ -1036,3 +1044,31 @@
 (defn uninstall-repl-pprint-tap! []
   (when-some [repl-pprint-tap (first (reset-vals! repl-pprint-tap-atom nil))]
     (remove-tap repl-pprint-tap)))
+
+(defn diff-values!
+  ([expected-value actual-value]
+   (diff-values! expected-value actual-value nil))
+  ([expected-value actual-value opts]
+   (let [diff (deep-diff/diff expected-value actual-value)]
+     (if (deep-diff.minimize-impl/has-diff-item? diff)
+       (deep-diff/pretty-print
+         (cond-> diff
+                 (:minimize opts) (deep-diff/minimize))
+         (cond-> pretty-printer
+                 opts (merge opts)))
+       (println "Values are identical.")))))
+
+(defn- to-diffable-text
+  ^String [value]
+  (if (and (seqable? value)
+           (string? (first value)))
+    (code.util/join-lines value)
+    (str value)))
+
+(defn diff-text! [expected-lines-or-string actual-lines-or-string]
+  (let [expected-string (to-diffable-text expected-lines-or-string)
+        actual-string (to-diffable-text actual-lines-or-string)]
+    (println
+      (or (some->> (diff/make-diff-output-lines expected-string actual-string 3)
+                   (code.util/join-lines))
+          "Strings are identical."))))
