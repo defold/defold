@@ -983,11 +983,11 @@ namespace dmRig
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
                 {
-                    memcpy(write_ptr, params.m_WorldTransform, dmMath::Min(16 * sizeof(float), data_size));
+                    memcpy(write_ptr, params.m_WorldTransform, dmMath::Min(sizeof(dmVMath::Matrix4), data_size));
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
                 {
-                    memcpy(write_ptr, params.m_NormalTransform, dmMath::Min(16 * sizeof(float), data_size));
+                    memcpy(write_ptr, params.m_NormalTransform, dmMath::Min(sizeof(dmVMath::Matrix4), data_size));
                 } break;
                 default:
                 {
@@ -1030,6 +1030,8 @@ namespace dmRig
         params.m_UV0            = uv0;
         params.m_UV1            = uv1;
         params.m_Colors         = colors;
+
+        // TODO: World + normal matrix
 
         for (uint32_t i = 0; i < num_indices; ++i)
         {

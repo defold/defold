@@ -416,7 +416,7 @@ namespace dmGraphics
         *data_size = attribute.m_Values.m_BinaryValues.m_Count;
     }
 
-    uint8_t* WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4& color, float** uvs, uint32_t* page_indices, uint32_t num_textures)
+    uint8_t* WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Matrix4* normal_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4& color, float** uvs, uint32_t* page_indices, uint32_t num_textures)
     {
         uint32_t num_texcoords = 0;
         uint32_t num_page_indices = 0;
@@ -455,6 +455,14 @@ namespace dmGraphics
                     uint32_t unit = num_page_indices++;
                     float page_index = (float) page_indices[unit];
                     memcpy(write_ptr, &page_index, info.m_ValueByteSize);
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
+                {
+                    memcpy(write_ptr, world_transform, info.m_ValueByteSize);
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
+                {
+                    memcpy(write_ptr, normal_transform, info.m_ValueByteSize);
                 } break;
                 default:
                 {
