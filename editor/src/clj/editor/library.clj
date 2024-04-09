@@ -28,7 +28,7 @@
 (set! *warn-on-reflection* true)
 
 (def ^:const connect-timeout 2000)
-(def ^:const read-timeout 2000)
+(def ^:const read-timeout 5000)
 
 (defn parse-library-uris [uri-string]
   (settings-core/parse-setting-value {:type :list :element {:type :url}} uri-string))
