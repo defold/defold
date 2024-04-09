@@ -31,7 +31,8 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
-            [internal.graph.error-values :as error-values])
+            [internal.graph.error-values :as error-values]
+            [util.coll :as coll])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
            [editor.gl.vertex2 VertexBuffer]
@@ -119,47 +120,56 @@
 
     out-indices))
 
+(defn- flat->vectors [^long component-count interleaved-component-values]
+  (let [vectors (into []
+                      (coll/partition-all-primitives :double component-count)
+                      interleaved-component-values)]
+    ;; Return nil if the interleaved component values cannot be evenly
+    ;; partitioned into the desired component count.
+    (when (or (coll/empty? vectors)
+              (= component-count (count (peek vectors))))
+      vectors)))
+
 (defn mesh->renderable-data [mesh]
-  (let [positions (doubles->floats (:positions mesh))
-        normals (doubles->floats (:normals mesh))
-        texcoord0s (doubles->floats (:texcoord0 mesh))
+  (let [positions (flat->vectors 3 (:positions mesh))
+        normals (flat->vectors 3 (:normals mesh))
+        tangents (flat->vectors 3 (:tangents mesh))
+        colors (flat->vectors 4 (:colors mesh))
+        texcoord0s (flat->vectors (:num-texcoord0-components mesh 0) (:texcoord0 mesh))
+        texcoord1s (flat->vectors (:num-texcoord1-components mesh 0) (:texcoord1 mesh))
         indices (bytes-to-indices (:indices mesh) (:indices-format mesh))
-        ^int texcoord0-component-count (:num-texcoord0-components mesh 0)
-        positions-count (/ (alength positions) 3)
-        normals-count (/ (alength normals) 3)
-        texcoord0-count (/ (alength texcoord0s) texcoord0-component-count)
-        max-index (reduce max 0 indices)]
-    (if (and (< max-index positions-count)
-             (or (zero? normals-count)
-                 (= positions-count normals-count))
-             (or (zero? texcoord0-count)
-                 (= positions-count texcoord0-count)))
-      (let [mesh-data-out
-            (reduce (fn [out-data ^long vi]
-                      (let [p-base (* 3 vi)
-                            p-0 (double (get positions p-base))
-                            p-1 (double (get positions (+ 1 p-base)))
-                            p-2 (double (get positions (+ 2 p-base)))
-
-                            tc0-base (* 2 vi)
-                            tc0-0 (double (get texcoord0s tc0-base))
-                            tc0-1 (double (get texcoord0s (+ 1 tc0-base)))
-
-                            n-base (* 3 vi)
-                            n-0 (get normals n-base)
-                            n-1 (get normals (+ 1 n-base))
-                            n-2 (get normals (+ 2 n-base))]
-                        (assoc out-data
-                          :position-data (conj (:position-data out-data) [p-0 p-1 p-2])
-                          :normal-data (conj (:normal-data out-data) [n-0 n-1 n-2])
-                          :uv-data (conj (:uv-data out-data) [tc0-0 tc0-1]))))
-                    {:position-data []
-                     :uv-data []
-                     :normal-data []}
-                    indices)]
-        (-> mesh-data-out
-            (dissoc :uv-data)
-            (assoc :texcoord-datas [{:uv-data (:uv-data mesh-data-out)}])))
+        max-index (reduce max 0 indices)
+        positions-count (count positions)]
+    (if (and (some? positions)
+             (some? normals)
+             (some? tangents)
+             (some? colors)
+             (some? texcoord0s)
+             (some? texcoord1s)
+             (< max-index positions-count)
+             (or (coll/empty? normals)
+                 (= positions-count (count normals)))
+             (or (coll/empty? tangents)
+                 (= positions-count (count tangents)))
+             (or (coll/empty? colors)
+                 (= positions-count (count colors)))
+             (or (coll/empty? texcoord0s)
+                 (= positions-count (count texcoord0s)))
+             (or (coll/empty? texcoord1s)
+                 (= positions-count (count texcoord1s))))
+      (let [position-data (some-> positions not-empty (mapv indices))
+            normal-data (some-> normals not-empty (mapv indices))
+            tangent-data (some-> tangents not-empty (mapv indices))
+            color-data (some-> colors not-empty (mapv indices))
+            texcoord0-data (some-> texcoord0s not-empty (mapv indices))
+            texcoord1-data (some-> texcoord1s not-empty (mapv indices))
+            texcoord-datas (cond-> [(when texcoord0-data {:uv-data texcoord0-data})]
+                                   texcoord1-data (conj {:uv-data texcoord1-data}))]
+        (cond-> {:position-data position-data}
+                normal-data (assoc :normal-data normal-data)
+                tangent-data (assoc :tangent-data tangent-data)
+                color-data (assoc :color-data color-data)
+                (some some? texcoord-datas) (assoc :texcoord-datas texcoord-datas)))
       (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
 
 (defn mesh->vb! [^VertexBuffer vbuf ^Matrix4d world-transform ^Matrix4d normal-transform vertex-attribute-bytes mesh-renderable-data]
@@ -236,12 +246,11 @@
 
 (defn- render-outline [^GL2 gl render-args renderables rcount]
   (assert (= 1 rcount) "Batching is disabled in the editor for simplicity.")
-  (let [pass (:pass render-args)
-        renderable (first renderables)
-        node-id (:node-id renderable)
-        request-id [::outline node-id]]
-    (assert (= pass/outline pass))
-    (render/render-aabb-outline gl render-args request-id renderables rcount)))
+  (when (= pass/outline (:pass render-args))
+    (let [renderable (first renderables)
+          node-id (:node-id renderable)
+          request-id [::outline node-id]]
+      (render/render-aabb-outline gl render-args request-id renderables rcount))))
 
 (g/defnk produce-mesh-set-build-target [_node-id resource content]
   (rig/make-mesh-set-build-target (resource/workspace resource) _node-id (:mesh-set content)))
@@ -324,8 +333,7 @@
 
 (defn- make-mesh-scene [renderable-mesh model-scene-resource-node-id]
   (let [{:keys [aabb material-name renderable-data]} renderable-mesh]
-    {:node-id model-scene-resource-node-id
-     :aabb aabb
+    {:aabb aabb
      :renderable {:render-fn render-mesh
                   :tags #{:model}
                   :batch-key nil ; Batching is disabled in the editor for simplicity.
@@ -341,8 +349,7 @@
   (let [{:keys [transform aabb renderable-meshes]} renderable-model
         mesh-scenes (mapv #(make-mesh-scene % model-scene-resource-node-id)
                           renderable-meshes)]
-    {:node-id model-scene-resource-node-id
-     :transform transform
+    {:transform transform
      :aabb aabb
      :children mesh-scenes}))
 
@@ -355,8 +362,8 @@
      :renderable {:render-fn render-outline
                   :tags #{:model :outline}
                   :batch-key nil ; Batching is disabled in the editor for simplicity.
-                  :select-batch-key model-scene-resource-node-id
-                  :passes [pass/outline]}
+                  :select-batch-key :not-rendered ; The render-fn only does anything during the outline pass.
+                  :passes [pass/outline pass/opaque-selection]} ; Include in a selection pass to ensure it can be selected and manipulated.
      :children model-scenes}))
 
 (g/defnk produce-scene [_node-id renderable-mesh-set]

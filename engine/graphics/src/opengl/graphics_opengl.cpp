@@ -518,7 +518,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         bool acquire_flag = (uintptr_t) _acquire_flag;
-        assert(context->m_AuxContextJobPending);
+        assert(dmAtomicGet32(&context->m_AuxContextJobPending));
 
         if (acquire_flag)
         {
@@ -529,8 +529,7 @@ static void LogFrameBufferError(GLenum status)
             dmPlatform::UnacquireAuxContext(context->m_Window, context->m_AuxContext);
         }
 
-        context->m_AuxContextJobPending = false;
-
+        dmAtomicStore32(&context->m_AuxContextJobPending, 0);
         return 0;
     }
 
@@ -546,10 +545,12 @@ static void LogFrameBufferError(GLenum status)
         //       But since we only have one worker thread right now, we can leave that for when we have more.
         assert(dmJobThread::GetWorkerCount(context->m_JobThread) == 1);
 
-        context->m_AuxContextJobPending = true;
+        dmAtomicStore32(&context->m_AuxContextJobPending, 1);
+
         dmJobThread::PushJob(context->m_JobThread, WorkerAcquireContextRunner, 0, (void*) context, (void*) (uintptr_t) acquire_flag);
 
-        while(context->m_AuxContextJobPending)
+        // Block until the job is done
+        while(dmAtomicGet32(&context->m_AuxContextJobPending))
         {
             dmTime::Sleep(100);
         }
@@ -576,6 +577,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context != 0x0)
         {
+            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
             AcquireAuxContextOnThread(context, false);
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
             delete context;
@@ -710,7 +712,7 @@ static void LogFrameBufferError(GLenum status)
             params.m_Data = data;
             params.m_DataSize = sizeof(data);
             params.m_MipMap = 0;
-            SetTextureAsync(texture_handle, params);
+            SetTextureAsync(texture_handle, params, 0, 0);
 
             while(GetTextureStatusFlags(texture_handle) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
             {
@@ -2814,7 +2816,14 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteTextureAsync(HTexture texture)
     {
-        dmJobThread::PushJob(g_Context->m_JobThread, AsyncDeleteTextureProcess, 0, (void*) g_Context, (void*) texture);
+        if (g_Context->m_AsyncProcessingSupport)
+        {
+            dmJobThread::PushJob(g_Context->m_JobThread, AsyncDeleteTextureProcess, 0, (void*) g_Context, (void*) texture);
+        }
+        else
+        {
+            DoDeleteTexture(g_Context, texture);
+        }
     }
 
     static void PostDeleteTextures(OpenGLContext* context, bool force_delete)
@@ -2956,7 +2965,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         uint32_t flags     = TEXTURE_STATUS_OK;
-        if(tex && tex->m_DataState)
+        if(tex && dmAtomicGet32(&tex->m_DataState))
         {
             flags |= TEXTURE_STATUS_DATA_PENDING;
         }
@@ -2970,6 +2979,11 @@ static void LogFrameBufferError(GLenum status)
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
 
+        if (dmAtomicGet32(&context->m_DeleteContextRequested))
+        {
+            return 0;
+        }
+
         // TODO: If we use multiple workers, we either need more secondary contexts,
         //       or we need to guard this call with a mutex.
         //       The window handle (pointer) isn't protected by a mutex either,
@@ -2979,8 +2993,9 @@ static void LogFrameBufferError(GLenum status)
         glFlush();
 
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, ap.m_Texture);
-        tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
-
+        int32_t data_state = dmAtomicGet32(&tex->m_DataState);
+        data_state &= ~(1<<ap.m_Params.m_MipMap);
+        dmAtomicStore32(&tex->m_DataState, data_state);
         return 0;
     }
 
@@ -2989,16 +3004,23 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context     = (OpenGLContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
+        SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
+
+        if (ap.m_Callback)
+        {
+            ap.m_Callback(ap.m_Texture, ap.m_UserData);
+        }
+
         ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
     }
 
-    static void OpenGLSetTextureAsync(HTexture texture, const TextureParams& params)
+    static void OpenGLSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
         if (g_Context->m_AsyncProcessingSupport)
         {
             OpenGLTexture* tex         = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
             tex->m_DataState          |= 1<<params.m_MipMap;
-            uint16_t param_array_index = PushSetTextureAsyncState(g_Context->m_SetTextureAsyncState, texture, params);
+            uint16_t param_array_index = PushSetTextureAsyncState(g_Context->m_SetTextureAsyncState, texture, params, callback, user_data);
 
             dmJobThread::PushJob(g_Context->m_JobThread,
                 AsyncProcessCallback,

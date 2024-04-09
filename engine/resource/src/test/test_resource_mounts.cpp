@@ -326,8 +326,11 @@ TEST_F(ArchiveProvidersMounts, SaveAndLoad)
     ASSERT_EQ(expected_num_mounts, dmResourceMounts::GetNumMounts(m_Mounts));
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
 
     dmHashEnableReverseHash(true);

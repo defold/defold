@@ -56,6 +56,7 @@ public:
         m_GraphicsContext        = dmGraphics::NewContext(graphics_context_params);
         m_Params.m_ScriptContext = dmScript::NewContext(0, 0, true);
         m_Params.m_MaxCharacters = 256;
+        m_Params.m_MaxBatches = 128;
         m_RenderContext          = dmRender::NewRenderContext(m_GraphicsContext, m_Params);
     }
     virtual void TearDown()
@@ -302,8 +303,11 @@ TEST_F(dmRenderMaterialTest, MatchMaterialTags)
     ASSERT_FALSE(dmRender::MatchMaterialTags(DM_ARRAY_SIZE(material_tags), material_tags, DM_ARRAY_SIZE(tags_e), tags_e));
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     dmHashEnableReverseHash(true);
     jc_test_init(&argc, argv);

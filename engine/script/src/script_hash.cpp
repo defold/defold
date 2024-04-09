@@ -266,7 +266,6 @@ namespace dmScript
         dmhash_t hash = CheckHash(L, 1);
         DM_HASH_REVERSE_MEM(hash_ctx, 64);
         const char* reverse = (const char*) dmHashReverseSafe64Alloc(&hash_ctx, hash);
-        printf("MAWE: reverse: '%s'\n", reverse);
         char buffer[64];
         dmSnPrintf(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, reverse);
 

@@ -72,6 +72,7 @@ namespace dmGameSystem
         Quat                        m_Rotation;
         Vector3                     m_Scale;
         Vector3                     m_Size;     // The current size of the animation frame (in texels)
+        Vector4                     m_Slice9;
         Matrix4                     m_World;
         dmMessage::URL              m_Listener;
         int                         m_FunctionRef; // Animation callback function
@@ -149,6 +150,7 @@ namespace dmGameSystem
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SIZE, size, false);
+    DM_GAMESYS_PROP_VECTOR4(SPRITE_PROP_SLICE, slice, false);
 
     static const dmhash_t SPRITE_PROP_CURSOR        = dmHashString64("cursor");
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
@@ -579,7 +581,8 @@ namespace dmGameSystem
         component->m_Enabled = 1;
         component->m_FunctionRef = 0;
         component->m_ReHash = 1;
-        component->m_UseSlice9 = sum(component->m_Resource->m_DDF->m_Slice9) != 0 &&
+        component->m_Slice9 = component->m_Resource->m_DDF->m_Slice9;
+        component->m_UseSlice9 = sum(component->m_Slice9) != 0 &&
                 component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL;
 
         component->m_DynamicVertexAttributeIndex = INVALID_DYNAMIC_ATTRIBUTE_INDEX;
@@ -1182,7 +1185,7 @@ namespace dmGameSystem
                     int flipx = component->m_FlipHorizontal;
                     int flipy = component->m_FlipVertical;
                     CreateVertexDataSlice9(vertices, indices, sprite_world->m_Is16BitIndex, has_local_position_attribute,
-                        w, component->m_Size, component->m_Resource->m_DDF->m_Slice9, vertex_offset, vertex_stride,
+                        w, component->m_Size, component->m_Slice9, vertex_offset, vertex_stride,
                         &textures, scratch_uvs, flipx, flipy, sprite_attribute_info_ptr);
 
                     indices       += index_type_size * SPRITE_INDEX_COUNT_SLICE9;
@@ -1962,6 +1965,10 @@ namespace dmGameSystem
         {
             return GetProperty(out_value, get_property, component->m_Size, SPRITE_PROP_SIZE);
         }
+        else if (IsReferencingProperty(SPRITE_PROP_SLICE, get_property))
+        {
+            return GetProperty(out_value, get_property, component->m_Slice9, SPRITE_PROP_SLICE);
+        }
         else if (get_property == SPRITE_PROP_CURSOR)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(GetCursor(component));
@@ -2026,8 +2033,15 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION;
             }
-
             return SetProperty(set_property, params.m_Value, component->m_Size, SPRITE_PROP_SIZE);
+        }
+        else if (IsReferencingProperty(SPRITE_PROP_SLICE, set_property))
+        {
+            if (component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_AUTO)
+            {
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION;
+            }
+            return SetProperty(set_property, params.m_Value, component->m_Slice9, SPRITE_PROP_SLICE);
         }
         else if (params.m_PropertyId == SPRITE_PROP_CURSOR)
         {
@@ -2091,7 +2105,7 @@ namespace dmGameSystem
         {
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        return SetMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, &component->m_DynamicVertexAttributeIndex, material, set_property, params.m_Value);
+        return SetMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, &component->m_DynamicVertexAttributeIndex, material, set_property, params.m_Value, CompSpriteGetMaterialAttributeCallback, component);
     }
 
     static bool CompSpriteIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)

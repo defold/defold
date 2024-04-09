@@ -28,6 +28,7 @@
 (set! *warn-on-reflection* true)
 
 (def ^:const connect-timeout 2000)
+(def ^:const read-timeout 2000)
 
 (defn parse-library-uris [uri-string]
   (settings-core/parse-setting-value {:type :list :element {:type :url}} uri-string))
@@ -135,6 +136,7 @@
         (.setRequestProperty http-connection "If-None-Match" tag))
       (.setRequestProperty http-connection "Accept" "application/zip"))
     (.setConnectTimeout connection connect-timeout)
+    (.setReadTimeout connection read-timeout)
     (.connect connection)
     (let [status (parse-status http-connection)
           headers (.getHeaderFields connection)

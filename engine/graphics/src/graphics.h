@@ -66,12 +66,9 @@ namespace dmGraphics
 
     typedef uintptr_t HComputeProgram;
 
-    typedef uintptr_t HStorageBuffer;
-
-    const static uint64_t MAX_ASSET_HANDLE_VALUE       = 0x20000000000000-1; // 2^53 - 1
-    static const uint8_t  MAX_BUFFER_COLOR_ATTACHMENTS = 4;
-    static const uint8_t  MAX_BUFFER_TYPE_COUNT        = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
-    const static uint8_t  MAX_VERTEX_STREAM_COUNT      = 8;
+    const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
+    static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
+    const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
 
     const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
@@ -181,14 +178,6 @@ namespace dmGraphics
         AttachmentToBufferType();
     };
 
-    enum AttachmentOp
-    {
-        ATTACHMENT_OP_DONT_CARE,
-        ATTACHMENT_OP_LOAD,
-        ATTACHMENT_OP_STORE,
-        ATTACHMENT_OP_CLEAR,
-    };
-
     enum TextureUsageHint
     {
         TEXTURE_USAGE_HINT_NONE       = 0,
@@ -270,14 +259,10 @@ namespace dmGraphics
         TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthBufferParams;
         TextureParams         m_StencilBufferParams;
-
-    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
         AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
-
         // TODO: Depth/Stencil
-    #endif
 
         uint8_t               m_DepthTexture   : 1;
         uint8_t               m_StencilTexture : 1;
@@ -636,13 +621,19 @@ namespace dmGraphics
     void SetTexture(HTexture texture, const TextureParams& params);
 
     /**
+     * Function called when a texture has been set asynchronously
+     * @param user_data user data that will be passed to the SetTextureAsyncCallback
+     */
+    typedef void (*SetTextureAsyncCallback)(HTexture texture, void* user_data);
+
+    /**
      * Set texture data asynchronously. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
      * 6 mip-maps are present contiguously in memory with stride m_DataSize
      *
      * @param texture HTexture
      * @param params TextureParams
      */
-    void SetTextureAsync(HTexture texture, const TextureParams& paramsa);
+    void SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
 
     void        SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     uint32_t    GetTextureResourceSize(HTexture texture);
@@ -747,7 +738,7 @@ namespace dmGraphics
     uint32_t    GetTypeSize(Type type);
     const char* GetGraphicsTypeLiteral(Type type);
 
-    // Both experimental + tests only:
+    // Test functions:
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);
     bool  UnmapVertexBuffer(HContext context, HVertexBuffer buffer);
     void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access);

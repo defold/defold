@@ -355,12 +355,10 @@ namespace dmGraphics
         for (int i = 0; i < rt->m_ColorAttachmentCount; ++i)
         {
             vk_clear_values[i].color.float32[3] = 1.0f;
-    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
             vk_clear_values[i].color.float32[0] = rt->m_ColorAttachmentClearValue[i][0];
             vk_clear_values[i].color.float32[1] = rt->m_ColorAttachmentClearValue[i][1];
             vk_clear_values[i].color.float32[2] = rt->m_ColorAttachmentClearValue[i][2];
             vk_clear_values[i].color.float32[3] = rt->m_ColorAttachmentClearValue[i][3];
-    #endif
         }
 
         // Clear depth
@@ -681,7 +679,6 @@ namespace dmGraphics
         context->m_DefaultTexture2D = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultTexture2D, default_texture_params);
 
-    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
         default_texture_params.m_Format = TEXTURE_FORMAT_RGBA32UI;
         context->m_DefaultTexture2D32UI = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultTexture2D32UI, default_texture_params);
@@ -692,7 +689,6 @@ namespace dmGraphics
         default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_HINT_STORAGE;
         context->m_DefaultStorageImage2D                = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultStorageImage2D, default_texture_params);
-    #endif
 
         default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_HINT_SAMPLE;
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_2D_ARRAY;
@@ -704,10 +700,7 @@ namespace dmGraphics
         context->m_DefaultTextureCubeMap = VulkanNewTextureInternal(default_texture_creation_params);
 
         memset(context->m_TextureUnits, 0x0, sizeof(context->m_TextureUnits));
-
-    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
         context->m_CurrentSwapchainTexture  = StoreAssetInContainer(context->m_AssetHandleContainer, VulkanNewTextureInternal({}), ASSET_TYPE_TEXTURE);
-    #endif
 
         return res;
     }
@@ -1057,15 +1050,12 @@ namespace dmGraphics
         #endif
     #endif
 
-    #if defined(DM_EXPERIMENTAL_GRAPHICS_FEATURES)
         if (VulkanIsExtensionSupported((HContext) context, VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME))
         {
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME);
-
             device_pNext_chain = &context->m_FragmentShaderInterlockFeatures;
         }
-    #endif
 
         res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
             device_extensions.Begin(), (uint8_t)device_extensions.Size(),
@@ -1287,7 +1277,6 @@ bail:
         context->m_FrameBegun      = 1;
         context->m_CurrentPipeline = 0;
 
-    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
         VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
         assert(tex_sc);
 
@@ -1302,7 +1291,6 @@ bail:
         tex_sc->m_OriginalHeight     = tex_sc->m_Height;
         tex_sc->m_Type               = TEXTURE_TYPE_2D;
         tex_sc->m_GraphicsFormat     = TEXTURE_FORMAT_BGRA8U;
-    #endif
 
         BeginRenderPass(context, context->m_CurrentRenderTarget);
     }
@@ -3037,7 +3025,6 @@ bail:
         };
     }
 
-#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
     static inline VkAttachmentStoreOp VulkanStoreOp(AttachmentOp op)
     {
         switch(op)
@@ -3062,7 +3049,6 @@ bail:
         assert(0);
         return (VkAttachmentLoadOp) -1;
     }
-#endif
 
     static VkResult CreateRenderTarget(VulkanContext* context, HTexture* color_textures, BufferType* buffer_types, uint8_t num_color_textures,  HTexture depth_stencil_texture, uint32_t width, uint32_t height, RenderTarget* rtOut)
     {
@@ -3090,18 +3076,13 @@ bail:
             rp_attachment_color->m_ImageLayout        = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             rp_attachment_color->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_UNDEFINED;
             rp_attachment_color->m_Format             = color_texture_ptr->m_Format;
-            rp_attachment_color->m_LoadOp             = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            rp_attachment_color->m_StoreOp            = VK_ATTACHMENT_STORE_OP_STORE;
-
-        #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-            rp_attachment_color->m_LoadOp  = VulkanLoadOp(rtOut->m_ColorBufferLoadOps[color_buffer_index]);
-            rp_attachment_color->m_StoreOp = VulkanStoreOp(rtOut->m_ColorBufferStoreOps[color_buffer_index]);
+            rp_attachment_color->m_LoadOp             = VulkanLoadOp(rtOut->m_ColorBufferLoadOps[color_buffer_index]);
+            rp_attachment_color->m_StoreOp            = VulkanStoreOp(rtOut->m_ColorBufferStoreOps[color_buffer_index]);
 
             if (rp_attachment_color->m_LoadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
             {
                 rp_attachment_color->m_ImageLayoutInitial = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             }
-        #endif
 
             fb_attachments[fb_attachment_count++] = color_texture_ptr->m_Handle.m_ImageView;
         }
@@ -3178,6 +3159,9 @@ bail:
         RenderTarget* rt = new RenderTarget(GetNextRenderTargetId());
 
         memcpy(rt->m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        memcpy(rt->m_ColorBufferLoadOps, params.m_ColorBufferLoadOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        memcpy(rt->m_ColorBufferStoreOps, params.m_ColorBufferStoreOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
+
         rt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
@@ -3873,11 +3857,15 @@ bail:
         VulkanSetTextureInternal(tex, params);
     }
 
-    static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params)
+    static void VulkanSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
         // Async texture loading is not supported in Vulkan, defaulting to syncronous loading until then
         VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture);
         VulkanSetTextureInternal(tex, params);
+        if (callback)
+        {
+            callback(texture, user_data);
+        }
     }
 
     static float GetMaxAnisotrophyClamped(float max_anisotropy_requested)
@@ -4081,6 +4069,10 @@ bail:
         delete shader;
     }
 
+    ///////////////////////////////////
+    // dmsdk / graphics_vulkan.h impls:
+    ///////////////////////////////////
+
     HStorageBuffer VulkanNewStorageBuffer(HContext _context, uint32_t buffer_size)
     {
         VulkanContext* context       = (VulkanContext*) _context;
@@ -4093,7 +4085,7 @@ bail:
         return (HStorageBuffer) storage_buffer;
     }
 
-    void VulkanDeleteStorageBuffer(HStorageBuffer storage_buffer)
+    void VulkanDeleteStorageBuffer(HContext context, HStorageBuffer storage_buffer)
     {
         if (!storage_buffer)
             return;
@@ -4144,8 +4136,7 @@ bail:
         DeviceBufferUploadHelper(context, data, size, 0, buffer_ptr);
     }
 
-#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-    static void* VulkanMapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
+    void* VulkanMapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
     {
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         VkResult res = buffer_ptr->MapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
@@ -4153,14 +4144,14 @@ bail:
         return buffer_ptr->m_MappedDataPtr;
     }
 
-    static bool VulkanUnmapVertexBuffer(HContext context, HVertexBuffer buffer)
+    bool VulkanUnmapVertexBuffer(HContext context, HVertexBuffer buffer)
     {
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         buffer_ptr->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
         return true;
     }
 
-    static void* VulkanMapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
+    void* VulkanMapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
     {
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         VkResult res = buffer_ptr->MapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
@@ -4168,16 +4159,12 @@ bail:
         return buffer_ptr->m_MappedDataPtr;
     }
 
-    static bool VulkanUnmapIndexBuffer(HContext context, HIndexBuffer buffer)
+    bool VulkanUnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         buffer_ptr->UnmapMemory(g_VulkanContext->m_LogicalDevice.m_Device);
         return true;
     }
-
-    ///////////////////////////
-    // graphics_vulkan.h impls:
-    ///////////////////////////
 
     HContext VulkanGetContext()
     {
@@ -4232,7 +4219,7 @@ bail:
         VkCommandBuffer m_CmdBuffer;
     };
 
-    void VulkanCopyBufferToTexture(HContext _context, HVertexBuffer _buffer, HTexture _texture, const TextureParams& params)
+    void VulkanCopyBufferToTexture(HContext _context, HVertexBuffer _buffer, HTexture _texture, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*) _context;
         DeviceBuffer* buffer   = (DeviceBuffer*) _buffer;
@@ -4260,14 +4247,14 @@ bail:
             vk_copy_region.bufferOffset                    = i * slice_size;
             vk_copy_region.bufferRowLength                 = 0;
             vk_copy_region.bufferImageHeight               = 0;
-            vk_copy_region.imageOffset.x                   = params.m_X;
-            vk_copy_region.imageOffset.y                   = params.m_Y;
+            vk_copy_region.imageOffset.x                   = 0; // x;
+            vk_copy_region.imageOffset.y                   = 0; // y;
             vk_copy_region.imageOffset.z                   = 0;
-            vk_copy_region.imageExtent.width               = params.m_Width;
-            vk_copy_region.imageExtent.height              = params.m_Height;
+            vk_copy_region.imageExtent.width               = width;
+            vk_copy_region.imageExtent.height              = height;
             vk_copy_region.imageExtent.depth               = 1;
             vk_copy_region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-            vk_copy_region.imageSubresource.mipLevel       = params.m_MipMap;
+            vk_copy_region.imageSubresource.mipLevel       = 0; // mipmap;
             vk_copy_region.imageSubresource.baseArrayLayer = i;
             vk_copy_region.imageSubresource.layerCount     = 1;
         }
@@ -4285,7 +4272,7 @@ bail:
             VK_IMAGE_ASPECT_COLOR_BIT,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            params.m_MipMap,
+            0, // mipmap,
             layer_count);
         CHECK_VK_ERROR(res);
 
@@ -4630,10 +4617,11 @@ bail:
         context->m_CurrentVertexDeclaration[binding] = 0;
     }
 
-    void VulkanSetPipelineState(HContext _context, PipelineState ps)
+
+    void VulkanSetPipelineState(HContext _context, HPipelineState ps)
     {
         VulkanContext* context     = (VulkanContext*) _context;
-        context->m_PipelineState   = ps;
+        context->m_PipelineState   = *ps;
         context->m_ViewportChanged = 1;
     }
 
@@ -4773,13 +4761,10 @@ bail:
         assert(0); // Should not happen
     }
 
-#endif
-
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Vulkan);
-        DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(fn_table, Vulkan);
         return fn_table;
     }
 }

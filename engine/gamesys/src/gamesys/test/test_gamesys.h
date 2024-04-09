@@ -118,6 +118,7 @@ protected:
     dmPlatform::HWindow m_Window;
     dmScript::HContext m_ScriptContext;
     dmGraphics::HContext m_GraphicsContext;
+    dmJobThread::HContext m_JobThread;
     dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContext m_PhysicsContext;
     dmGameSystem::ParticleFXContext m_ParticleFXContext;
@@ -136,6 +137,22 @@ protected:
     dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
     dmHashTable64<void*> m_Contexts;
+};
+
+class ScriptBaseTest : public GamesysTest<const char*>
+{
+public:
+    void SetUp()
+    {
+        GamesysTest::SetUp();
+        m_Scriptlibcontext.m_Factory         = m_Factory;
+        m_Scriptlibcontext.m_Register        = m_Register;
+        m_Scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+        m_Scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+        m_Scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    }
+    virtual ~ScriptBaseTest() {}
+    dmGameSystem::ScriptLibContext m_Scriptlibcontext;
 };
 
 // sets up test context for various 2D physics/collision-object tests
@@ -225,7 +242,7 @@ public:
     virtual ~InvalidVertexSpaceTest() {}
 };
 
-class ComponentTest : public GamesysTest<const char*>
+class ComponentTest : public ScriptBaseTest
 {
 public:
     virtual ~ComponentTest() {}
@@ -270,7 +287,7 @@ public:
     virtual ~CollectionFactoryTest() {}
 };
 
-class SpriteTest : public GamesysTest<const char*>
+class SpriteTest : public ScriptBaseTest
 {
 public:
     virtual ~SpriteTest() {}
@@ -393,7 +410,7 @@ public:
     virtual ~RenderConstantsTest() {}
 };
 
-class MaterialTest : public GamesysTest<const char*>
+class MaterialTest : public ScriptBaseTest
 {
 public:
     virtual ~MaterialTest() {}
@@ -478,8 +495,14 @@ void GamesysTest<T>::SetUp()
     dmGraphics::InstallAdapter();
     dmGraphics::ResetDrawCount(); // for the unit test
 
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
+    job_thread_create_param.m_ThreadCount    = 1;
+    m_JobThread = dmJobThread::Create(job_thread_create_param);
+
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_Window = m_Window;
+    graphics_context_params.m_JobThread = m_JobThread;
 
     m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
     dmRender::RenderContextParams render_params;
@@ -488,6 +511,7 @@ void GamesysTest<T>::SetUp()
     render_params.m_MaxRenderTargets = 10;
     render_params.m_ScriptContext = m_ScriptContext;
     render_params.m_MaxCharacters = 256;
+    render_params.m_MaxBatches = 128;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
 
     dmInput::NewContextParams input_params;
@@ -587,6 +611,7 @@ void GamesysTest<T>::TearDown()
     dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
     dmGraphics::DeleteContext(m_GraphicsContext);
+    dmJobThread::Destroy(m_JobThread);
     dmPlatform::CloseWindow(m_Window);
     dmPlatform::DeleteWindow(m_Window);
     dmScript::Finalize(m_ScriptContext);

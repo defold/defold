@@ -616,6 +616,13 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DeleteTexture(texture);
 }
 
+static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_data)
+{
+    assert(dmGraphics::GetOpaqueHandle(texture) != INVALID_OPAQUE_HANDLE);
+    int* value = (int*)user_data;
+    *value = 1;
+}
+
 TEST_F(dmGraphicsTest, TestTextureAsync)
 {
     bool tmp_async_load = m_NullContext->m_UseAsyncTextureLoad;
@@ -639,12 +646,14 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     dmArray<dmGraphics::HTexture> textures;
     textures.SetCapacity(TEXTURE_COUNT);
 
-    bool all_complete = false;
+    int* values = new int[TEXTURE_COUNT];
+    memset(values, 0, sizeof(int)*TEXTURE_COUNT);
 
+    bool all_complete = false;
     for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
         textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-        dmGraphics::SetTextureAsync(textures[i], params);
+        dmGraphics::SetTextureAsync(textures[i], params, TestTextureAsyncCallback, (void*) (values + i));
     }
 
     uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
@@ -654,8 +663,10 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
         all_complete = true;
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
-            if (dmGraphics::GetTextureStatusFlags(textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
+            if (values[i] == 0)
+            {
                 all_complete = false;
+            }
         }
         dmTime::Sleep(20 * 1000);
     }
@@ -697,6 +708,32 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
 }
 
+enum SyncronizedWaitCondition
+{
+    WAIT_CONDITION_UPLOAD,
+    WAIT_CONDITION_DELETE,
+};
+
+static bool WaitUntilSyncronizedTextures(dmGraphics::HContext graphics_context, dmJobThread::HContext job_thread, dmGraphics::HTexture* textures, uint32_t texture_count, SyncronizedWaitCondition cond)
+{
+    bool all_complete = false;
+    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    while(!all_complete && dmTime::GetTime() < stop_time)
+    {
+        dmJobThread::Update(job_thread);
+        all_complete = true;
+        for (int i = 0; i < texture_count; ++i)
+        {
+            if (cond == WAIT_CONDITION_UPLOAD && dmGraphics::GetTextureStatusFlags(textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
+                all_complete = false;
+            else if (cond == WAIT_CONDITION_DELETE && dmGraphics::IsAssetHandleValid(graphics_context, textures[i]))
+                all_complete = false;
+        }
+        dmTime::Sleep(20 * 1000);
+    }
+    return all_complete;
+}
+
 TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
 {
     bool tmp_async_load = m_NullContext->m_UseAsyncTextureLoad;
@@ -716,7 +753,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
 
-    const uint32_t TEXTURE_COUNT = 64;
+    const uint32_t TEXTURE_COUNT = 512;
     dmArray<dmGraphics::HTexture> textures;
     textures.SetCapacity(TEXTURE_COUNT);
 
@@ -726,28 +763,27 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-            dmGraphics::SetTextureAsync(textures[i], params);
-        }
+            dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
 
-        // Flag all textures for deletion, since we allow async deletion, these will put on a post-delete queue
-        for (int i = 0; i < TEXTURE_COUNT; ++i)
-        {
+            // Immediately delete, so we simulate putting them on a post-delete-queue
             dmGraphics::DeleteTexture(textures[i]);
         }
-        ASSERT_EQ(TEXTURE_COUNT, m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Size());
 
         // Trigger a flush of the post deletion textures by issuing a flip
-        dmGraphics::Flip(m_Context);
+        int wait_count = 10;
+        while (wait_count-- > 0 && !m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Empty())
+        {
+            dmGraphics::Flip(m_Context);
+            dmTime::Sleep(1000); // The sync/deletion is asynchronous, so we have to wait a little bit
+        }
 
         ASSERT_EQ(0, m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Size());
 
-        for (int i = 0; i < TEXTURE_COUNT; ++i)
-        {
-            ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, textures[i]));
-        }
-
         // Flush any lingering work
         dmJobThread::Update(m_JobThread);
+
+        // Make sure all are deleted
+        ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_DELETE));
     }
 
     // Test 2: Simulate deleting textures async. This requires valid textures (i.e not pending)
@@ -755,47 +791,20 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
     {
         textures.SetSize(0);
 
-        bool all_complete = false;
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-            dmGraphics::SetTextureAsync(textures[i], params);
+            dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
         }
 
-        uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
-        while(!all_complete && dmTime::GetTime() < stop_time)
-        {
-            dmJobThread::Update(m_JobThread);
-            all_complete = true;
-            for (int i = 0; i < TEXTURE_COUNT; ++i)
-            {
-                if (dmGraphics::GetTextureStatusFlags(textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
-                    all_complete = false;
-            }
-            dmTime::Sleep(20 * 1000);
-        }
-        ASSERT_TRUE(all_complete);
+        ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_UPLOAD));
 
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             dmGraphics::DeleteTexture(textures[i]);
         }
 
-        all_complete = false;
-
-        stop_time = dmTime::GetTime() + 1*1e6; // 1 second
-        while(!all_complete && dmTime::GetTime() < stop_time)
-        {
-            dmJobThread::Update(m_JobThread);
-            all_complete = true;
-            for (int i = 0; i < TEXTURE_COUNT; ++i)
-            {
-                if (dmGraphics::IsAssetHandleValid(m_Context, textures[i]))
-                    all_complete = false;
-            }
-            dmTime::Sleep(20 * 1000);
-        }
-        ASSERT_TRUE(all_complete);
+        ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_DELETE));
 
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
@@ -1297,8 +1306,11 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
     }
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
