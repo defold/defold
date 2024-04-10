@@ -392,7 +392,7 @@ namespace dmGameSystem
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param options [type:table] a lua table containing options for the raycast.
+     * @param [options] [type:table] a lua table containing options for the raycast.
      *
      * `all`
      * : [type:boolean] Set to `true` to return all ray cast hits. If `false`, it will only return the closest hit.
@@ -1304,6 +1304,26 @@ namespace dmGameSystem
 
         return 1;
     }
+
+    /*#
+     * @name physics.SHAPE_TYPE_SPHERE
+     * @variable
+     */
+
+    /*#
+     * @name physics.SHAPE_TYPE_BOX
+     * @variable
+     */
+
+    /*#
+     * @name physics.SHAPE_TYPE_CAPSULE
+     * @variable
+     */
+
+    /*#
+     * @name physics.SHAPE_TYPE_HULL
+     * @variable
+     */
 
     /*# get collision shape info
      * Gets collision shape data from a collision object

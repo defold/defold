@@ -229,7 +229,7 @@ namespace dmGameSystem
      *
      * @name particlefx.stop
      * @param url [type:string|hash|url] the particle fx that should stop playing
-     * @param options [type:table] Options when stopping the particle fx. Supported options:
+     * @param [options] [type:table] Options when stopping the particle fx. Supported options:
      *
      * - [type:boolean] `clear`: instantly clear spawned particles
      *
