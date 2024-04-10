@@ -78,6 +78,8 @@
     :page-index :semantic-type-page-index
     :blend-indices :semantic-type-blend-indices
     :blend-weights :semantic-type-blend-weights
+    :mtx-world :semantic-type-world-matrix
+    :mtx-normal :semantic-type-normal-matrix
     :semantic-type-none))
 
 ;; VertexBuffer object
@@ -275,9 +277,26 @@
 
 (defn- vertex-attrib-pointer
   [^GL2 gl attrib loc stride offset]
-  (let [{:keys [components type normalize]} attrib]
+  (let [{:keys [components type normalize shader-type]} attrib]
     (when (not= -1 loc)
-      (gl/gl-vertex-attrib-pointer gl ^int loc ^int components ^int (gl-types type) ^boolean normalize ^int stride ^long offset))))
+      (let [attribute-vector-counts (cond (= shader-type :shader-type-mat2) 2
+                                          (= shader-type :shader-type-mat3) 3
+                                          (= shader-type :shader-type-mat4) 4
+                                          (= components 9) 3
+                                          (= components 16) 4
+                                          :else 1)
+            attribute-vector-components (if (> attribute-vector-counts 1)
+                                          attribute-vector-counts
+                                          components)]
+        (doseq [sub-index (range attribute-vector-counts)]
+          (let [^long sub-offset (+ offset (* sub-index (buffers/type-size type) attribute-vector-components))
+                ^int sub-loc (+ loc sub-index)]
+            (println "sub-index" sub-index sub-loc sub-offset)
+            (gl/gl-enable-vertex-attrib-array gl sub-loc)
+            (gl/gl-vertex-attrib-pointer gl ^int sub-loc ^int attribute-vector-components ^int (gl-types type) ^boolean normalize ^int stride ^long sub-offset)
+            #_(gl/gl-vertex-attrib-divisor gl ^int sub-loc 1)
+            ))
+        ))))
 
 (defn- vertex-attrib-pointers
   [^GL2 gl attribs attrib-locs]
@@ -308,7 +327,7 @@
   (let [[vbo attrib-locs] (request-vbo gl request-id vertex-buffer shader)]
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
     (vertex-attrib-pointers gl (:attributes (.vertex-description vertex-buffer)) attrib-locs)
-    (vertex-enable-attribs gl attrib-locs)))
+    #_(vertex-enable-attribs gl attrib-locs)))
 
 (defn- unbind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (let [[_ attrib-locs] (request-vbo gl request-id vertex-buffer shader)]

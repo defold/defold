@@ -174,6 +174,47 @@ public class GraphicsUtil {
         return ByteString.copyFrom(buffer);
     }
 
+    private static void migrateAttribute(VertexAttribute.Builder attributeBuilder) throws CompileExceptionError {
+        if (!attributeBuilder.hasShaderType() && attributeBuilder.hasElementCount()) {
+            int elementCount = attributeBuilder.getElementCount();
+            VertexAttribute.SemanticType semanticType = attributeBuilder.getSemanticType();
+
+            switch(elementCount) {
+                case 1:
+                    attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_NUMBER);
+                    break;
+                case 2:
+                    attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_VEC2);
+                    break;
+                case 3:
+                    attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_VEC3);
+                    break;
+                case 4:
+                    // Guess the type based on semantic type, since it can be either a vec4 or a mat2
+                    if (semanticType == VertexAttribute.SemanticType.SEMANTIC_TYPE_WORLD_MATRIX ||
+                        semanticType == VertexAttribute.SemanticType.SEMANTIC_TYPE_NORMAL_MATRIX) {
+                        attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_MAT2);
+                    } else {
+                        attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_VEC4);
+                    }
+                    break;
+                case 9:
+                    attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_MAT3);
+                    break;
+                case 16:
+                    attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_MAT3);
+                    break;
+                default:break;
+            }
+
+            if (!attributeBuilder.hasShaderType()) {
+                throw new CompileExceptionError("Unable to determine shader type for attribute " + attributeBuilder.getName());
+            }
+
+            attributeBuilder.clearElementCount();
+        }
+    }
+
     public static VertexAttribute getAttributeByName(List<VertexAttribute> materialAttributes, String attributeName)
     {
         for (VertexAttribute attr : materialAttributes) {
@@ -191,6 +232,7 @@ public class GraphicsUtil {
         VertexAttribute.Builder attributeBuilder = VertexAttribute.newBuilder(sourceAttr);
         attributeBuilder.setNameHash(MurmurHash.hash64(sourceAttr.getName()));
         attributeBuilder.setBinaryValues(makeBinaryValues(sourceAttr, dataType, normalize));
+        migrateAttribute(attributeBuilder);
         return attributeBuilder.build();
     }
 }

@@ -17,6 +17,7 @@
             [editor.geom :as geom]
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
+            [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.types :as types]
@@ -31,7 +32,8 @@
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL2]
            [editor.gl.vertex2 VertexBuffer]
-           [java.nio ByteBuffer]))
+           [java.nio ByteBuffer]
+           [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -148,14 +150,33 @@
 ;; For positions, we want to have a 1.0 in the W coordinate so that they can be
 ;; transformed correctly by a 4D matrix. For colors, we default to opaque white.
 (def ^:private default-attribute-element-values (vector-of :double 0.0 0.0 0.0 0.0))
-(def ^:private default-position-element-values (vector-of :double 0.0 0.0 0.0 1.0))
+(def ^:private default-attribute-element-values-mat4 (vector-of :double
+                                                                1.0 0.0 0.0 0.0
+                                                                0.0 1.0 0.0 0.0
+                                                                0.0 0.0 1.0 0.0
+                                                                0.0 0.0 0.0 1.0))
+(def ^:private default-position-element-values (vector-of :double
+                                                          1.0 0.0 0.0 0.0
+                                                          0.0 1.0 0.0 0.0
+                                                          0.0 0.0 1.0 0.0
+                                                          0.0 0.0 0.0 1.0))
 (def ^:private default-color-element-values (vector-of :double 1.0 1.0 1.0 1.0))
 
-(defn resize-doubles [double-values semantic-type ^long new-element-count]
+(defn- attribute-shader-type->component-count [attribute-shader-type]
+  (case attribute-shader-type
+    :shader-type-number 1
+    :shader-type-vec2 2
+    :shader-type-vec3 3
+    :shader-type-vec4 4
+    :shader-type-mat2 4
+    :shader-type-mat3 9
+    :shader-type-mat4 16))
+
+(defn resize-doubles [double-values semantic-type new-shader-type]
   {:pre [(vector? double-values)
-         (keyword? semantic-type)
-         (nat-int? new-element-count)]}
-  (let [old-element-count (count double-values)]
+         (keyword? new-shader-type)]}
+  (let [old-element-count (count double-values)
+        new-element-count (attribute-shader-type->component-count new-shader-type)]
     (cond
       (< new-element-count old-element-count)
       (subvec double-values 0 new-element-count)
@@ -165,6 +186,8 @@
             (case semantic-type
               :semantic-type-position default-position-element-values
               :semantic-type-color default-color-element-values
+              :semantic-type-world-matrix default-attribute-element-values-mat4
+              :semantic-type-normal-matrix default-attribute-element-values-mat4
               default-attribute-element-values)]
         (into double-values
               (subvec default-element-values old-element-count new-element-count)))
@@ -172,8 +195,8 @@
       :else
       double-values)))
 
-(defn- default-attribute-doubles-raw [semantic-type element-count]
-  (resize-doubles (vector-of :double) semantic-type element-count))
+(defn- default-attribute-doubles-raw [semantic-type shader-type]
+  (resize-doubles (vector-of :double) semantic-type shader-type))
 
 (def default-attribute-doubles (memoize default-attribute-doubles-raw))
 
@@ -199,8 +222,8 @@
     (vtx/buf-push! byte-buffer buffer-data-type normalize attribute-values)
     attribute-bytes))
 
-(defn- default-attribute-bytes-raw [semantic-type data-type element-count normalize]
-  (let [default-values (default-attribute-doubles semantic-type element-count)]
+(defn- default-attribute-bytes-raw [semantic-type data-type shader-type normalize]
+  (let [default-values (default-attribute-doubles semantic-type shader-type)]
     (make-attribute-bytes data-type normalize default-values)))
 
 (def default-attribute-bytes (memoize default-attribute-bytes-raw))
@@ -217,8 +240,8 @@
            bytes (make-attribute-bytes data-type normalize values)]
        [bytes nil])
      (catch IllegalArgumentException exception
-       (let [{:keys [element-count name semantic-type]} attribute
-             default-bytes (default-attribute-bytes semantic-type data-type element-count normalize)
+       (let [{:keys [shader-type name semantic-type]} attribute
+             default-bytes (default-attribute-bytes semantic-type data-type shader-type normalize)
              exception-message (ex-message exception)
              error-message (format "Vertex attribute '%s' - %s" name exception-message)]
          [default-bytes error-message])))))
@@ -234,13 +257,15 @@
 
 (defn- attribute-info->vtx-attribute [attribute-info]
   {:pre [(map? attribute-info)
-         (keyword? (:name-key attribute-info))]}
+         (keyword? (:name-key attribute-info))
+         (keyword? (:shader-type attribute-info))]}
   {:name (:name attribute-info)
    :name-key (:name-key attribute-info)
    :semantic-type (:semantic-type attribute-info)
    :coordinate-space (:coordinate-space attribute-info)
+   :shader-type (:shader-type attribute-info)
    :type (attribute-data-type->buffer-data-type (:data-type attribute-info))
-   :components (:element-count attribute-info)
+   :components (attribute-shader-type->component-count (:shader-type attribute-info))
    :normalize (:normalize attribute-info false)})
 
 (defn make-vertex-description [attribute-infos]
@@ -269,10 +294,28 @@
          #(:coordinate-space % :coordinate-space-local)
          :semantic-type)))
 
+(defn- element-count+semantic-type->shader-type [element-count semantic-type]
+  (let [shader-type-is-matrix (or (= semantic-type :semantic-type-world-matrix)
+                                  (= semantic-type :semantic-type-normal-matrix))]
+    (case (int element-count)
+      1 :shader-type-number
+      2 :shader-type-vec2
+      3 :shader-type-vec3
+      4 (if shader-type-is-matrix
+          :shader-type-mat2
+          :shader-type-number)
+      9 :shader-type-mat3
+      16 :shader-type-mat4)))
+(defn- attribute-info->shader-type [{:keys [element-count semantic-type shader-type] :as attribute-info}]
+  (if (= element-count 0)
+    shader-type
+    (element-count+semantic-type->shader-type element-count semantic-type)))
+
 (defn sanitize-attribute [{:keys [data-type normalize] :as attribute}]
   ;; Graphics$VertexAttribute in map format.
   (let [attribute-value-keyword (attribute-value-keyword data-type normalize)
-        attribute-values (:v (get attribute attribute-value-keyword))]
+        attribute-values (:v (get attribute attribute-value-keyword))
+        attribute-shader-type (attribute-info->shader-type attribute)]
     ;; TODO:
     ;; Currently the protobuf read function returns empty instances of every
     ;; OneOf variant. Strip out the empty ones.
@@ -280,14 +323,17 @@
     ;; We still want to remove the default empty :name-hash string, though.
     (-> attribute
         (dissoc :name-hash :double-values :long-values :binary-values)
-        (assoc attribute-value-keyword {:v attribute-values}))))
+        (assoc attribute-value-keyword {:v attribute-values})
+        ;; element-count is deprecated in favor of shader-type
+        (dissoc :element-count)
+        (assoc :shader-type attribute-shader-type))))
 
 (def attribute-key->default-attribute-info
   (into {}
-        (map (fn [{:keys [data-type element-count name normalize semantic-type] :as attribute}]
+        (map (fn [{:keys [data-type shader-type name normalize semantic-type] :as attribute}]
                (let [attribute-key (attribute-name->key name)
-                     values (default-attribute-doubles semantic-type element-count)
-                     bytes (default-attribute-bytes semantic-type data-type element-count normalize)
+                     values (default-attribute-doubles semantic-type shader-type)
+                     bytes (default-attribute-bytes semantic-type data-type shader-type normalize)
                      attribute-info (assoc attribute
                                       :name-key attribute-key
                                       :values values
@@ -297,24 +343,34 @@
           :semantic-type :semantic-type-position
           :coordinate-space :coordinate-space-world
           :data-type :type-float
-          :element-count 4}
+          :shader-type :shader-type-vec4}
          {:name "color"
           :semantic-type :semantic-type-color
           :data-type :type-float
-          :element-count 4}
+          :shader-type :shader-type-vec4}
          {:name "texcoord0"
           :semantic-type :semantic-type-texcoord
           :data-type :type-float
-          :element-count 2}
+          :shader-type :shader-type-vec2}
          {:name "page_index"
           :semantic-type :semantic-type-page-index
           :data-type :type-float
-          :element-count 1}
+          :shader-type :shader-type-number}
          {:name "normal"
           :semantic-type :semantic-type-normal
           :coordinate-space :coordinate-space-world
           :data-type :type-float
-          :element-count 3}]))
+          :shader-type :shader-type-vec3}
+         {:name "mtx_world"
+          :semantic-type :semantic-type-world-matrix
+          :coordinate-space :coordinate-space-world
+          :data-type :type-float
+          :shader-type :shader-type-mat4}
+         {:name "mtx_normal"
+          :semantic-type :semantic-type-normal-matrix
+          :coordinate-space :coordinate-space-world
+          :data-type :type-float
+          :shader-type :shader-type-mat4}]))
 
 (defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space]
   {:pre [(#{:coordinate-space-local :coordinate-space-world} default-coordinate-space)]}
@@ -336,14 +392,14 @@
   (let [declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
         material-attribute-save-values
         (into []
-              (keep (fn [{:keys [data-type element-count name name-key normalize semantic-type]}]
+              (keep (fn [{:keys [data-type name name-key normalize semantic-type shader-type]}]
                       (when-some [override-values (:values (get vertex-attribute-overrides name-key))]
                         ;; Ensure our saved values have the expected element-count.
                         ;; If the material has been edited, this might have changed,
                         ;; but specialized widgets like the one we use to edit color
                         ;; properties may also produce a different element count from
                         ;; what the material dictates.
-                        (let [resized-values (resize-doubles override-values semantic-type element-count)
+                        (let [resized-values (resize-doubles override-values semantic-type shader-type)
                               [attribute-value-keyword stored-values] (doubles->storage resized-values data-type normalize)]
                           {:name name
                            attribute-value-keyword {:v stored-values}}))))
@@ -374,23 +430,26 @@
 
 (defn- editable-attribute-info? [attribute-info]
   (case (:semantic-type attribute-info)
-    (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index :semantic-type-normal) false
+    (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index :semantic-type-normal :semantic-type-world-matrix :semantic-type-normal-matrix) false
     nil false
     true))
 
 (defn- attribute-property-type [attribute]
   (case (:semantic-type attribute)
     :semantic-type-color types/Color
-    (case (int (:element-count attribute))
-      1 g/Num
-      2 types/Vec2
-      3 types/Vec3
-      4 types/Vec4)))
+    (case (:shader-type attribute)
+      :shader-type-number g/Num
+      :shader-type-vec2 types/Vec2
+      :shader-type-vec3 types/Vec3
+      :shader-type-vec4 types/Vec4
+      :shader-type-mat2 types/Vec4
+      :shader-type-mat3 types/Vec4
+      :shader-type-mat4 types/Vec4)))
 
-(defn- attribute-expected-element-count [attribute]
+(defn- attribute-expected-shader-type [attribute]
   (case (:semantic-type attribute)
-    :semantic-type-color 4
-    (:element-count attribute)))
+    :semantic-type-color :shader-type-vec4
+    (:shader-type attribute)))
 
 (defn- attribute-update-property [current-property-value attribute new-value]
   (let [override-info ((:name-key attribute) current-property-value)
@@ -410,7 +469,7 @@
 (def attribute-key->property-key (memoize attribute-key->property-key-raw))
 
 (defn- attribute-edit-type [attribute property-type]
-  (let [attribute-element-count (:element-count attribute)
+  (let [attribute-shader-type (:shader-type attribute)
         attribute-semantic-type (:semantic-type attribute)
         attribute-update-fn (fn [_evaluation-context self _old-value new-value]
                               (let [values (if (= g/Num property-type)
@@ -424,12 +483,12 @@
              :clear-fn attribute-clear-fn}
 
             (= attribute-semantic-type :semantic-type-color)
-            (assoc :ignore-alpha? (not= 4 attribute-element-count)))))
+            (assoc :ignore-alpha? (not= :shader-type-vec4 attribute-shader-type)))))
 
-(defn- attribute-value [attribute-values property-type semantic-type expected-element-count]
+(defn- attribute-value [attribute-values property-type semantic-type shader-type]
   (if (= g/Num property-type)
     (first attribute-values) ; The widget expects a number, not a vector.
-    (resize-doubles attribute-values semantic-type expected-element-count)))
+    (resize-doubles attribute-values semantic-type shader-type)))
 
 (defn attribute-properties-by-property-key [_node-id material-attribute-infos vertex-attribute-overrides]
   (let [name-keys (into #{} (map :name-key) material-attribute-infos)]
@@ -442,11 +501,11 @@
                       override-values (:values (vertex-attribute-overrides attribute-key))
                       attribute-values (or override-values material-values)
                       property-type (attribute-property-type attribute-info)
-                      expected-element-count (attribute-expected-element-count attribute-info)
+                      expected-shader-type (attribute-expected-shader-type attribute-info)
                       edit-type (attribute-edit-type attribute-info property-type)
                       property-key (attribute-key->property-key attribute-key)
                       label (properties/keyword->name attribute-key)
-                      value (attribute-value attribute-values property-type semantic-type expected-element-count)
+                      value (attribute-value attribute-values property-type semantic-type expected-shader-type)
                       error (when (some? override-values)
                               (validate-doubles override-values attribute-info _node-id property-key))
                       prop {:node-id _node-id
@@ -463,13 +522,15 @@
       (for [[name-key vertex-override-info] vertex-attribute-overrides
             :when (not (name-keys name-key))
             :let [values (:values vertex-override-info)
-                  element-count (if (number? values) 1 (count values))
-                  assumed-attribute-info {:element-count element-count
+                  shader-type (if (number? values)
+                                  :shader-type-number
+                                  (element-count+semantic-type->shader-type (count values) nil))
+                  assumed-attribute-info {:shader-type shader-type
                                           :name-key name-key}
                   property-type (attribute-property-type assumed-attribute-info)]]
         [(attribute-key->property-key name-key)
          {:node-id _node-id
-          :value (attribute-value values property-type nil element-count)
+          :value (attribute-value values property-type nil shader-type)
           :label (properties/keyword->name name-key)
           :type property-type
           :edit-type (attribute-edit-type assumed-attribute-info property-type)
@@ -483,8 +544,8 @@
                            override-values (:values override-info)
                            [bytes error] (if (nil? override-values)
                                            [(:bytes attribute-info) (:error attribute-info)]
-                                           (let [{:keys [element-count semantic-type]} attribute-info
-                                                 resized-values (resize-doubles override-values semantic-type element-count)
+                                           (let [{:keys [shader-type semantic-type]} attribute-info
+                                                 resized-values (resize-doubles override-values semantic-type shader-type)
                                                  [bytes error-message :as bytes+error-message] (attribute->bytes+error-message attribute-info resized-values)]
                                              (if (nil? error-message)
                                                bytes+error-message
@@ -524,6 +585,16 @@
         normal-transform (:normal-transform renderable-data)]
     (geom/transf-n4 normal-transform local-directions)))
 
+(defn- renderable-data->world-matrix [renderable-data]
+  (let [vertex-count (count (:position-data renderable-data))
+        world-transform-array (math/vecmath->clj (doto ^Matrix4d (:world-transform renderable-data) (.transpose)))]
+    (into [] (repeat vertex-count world-transform-array))))
+
+(defn- renderable-data->normal-matrix [renderable-data]
+  (let [vertex-count (count (:position-data renderable-data))
+        world-transform-array (math/vecmath->clj (doto ^Matrix4d (:normal-transform renderable-data) (.transpose)))]
+    (into [] (repeat vertex-count world-transform-array))))
+
 (def ^:private renderable-data->world-normal-v3 (partial renderable-data->world-direction-v3 :normal-data))
 (def ^:private renderable-data->world-normal-v4 (partial renderable-data->world-direction-v4 :normal-data))
 (def ^:private renderable-data->world-tangent-v3 (partial renderable-data->world-direction-v3 :tangent-data))
@@ -545,9 +616,9 @@
 
         put-doubles!
         (fn put-doubles!
-          [vertex-byte-offset semantic-type buffer-data-type element-count normalize vertices]
+          [vertex-byte-offset semantic-type buffer-data-type shader-type normalize vertices]
           (reduce (fn [^long vertex-byte-offset attribute-doubles]
-                    (let [attribute-doubles (resize-doubles attribute-doubles semantic-type element-count)]
+                    (let [attribute-doubles (resize-doubles attribute-doubles semantic-type shader-type)]
                       (vtx/buf-put! buf vertex-byte-offset buffer-data-type normalize attribute-doubles))
                     (+ vertex-byte-offset vertex-byte-stride))
                   (long vertex-byte-offset)
@@ -591,12 +662,21 @@
                 (and (zero? channel)
                      (some? (:tangent-data renderable-data)))
 
+                :semantic-type-world-matrix
+                (and (zero? channel)
+                     (:world-transform renderable-data))
+
+                :semantic-type-normal-matrix
+                (and (zero? channel)
+                     (:normal-transform renderable-data))
+
                 false))))]
 
     (reduce (fn [reduce-info attribute]
               (let [semantic-type (:semantic-type attribute)
                     buffer-data-type (:type attribute)
                     element-count (long (:components attribute))
+                    shader-type (:shader-type attribute)
                     normalize (:normalize attribute)
                     name-key (:name-key attribute)
                     ^long attribute-byte-offset (:attribute-byte-offset reduce-info)
@@ -614,15 +694,15 @@
                     (fn put-attribute-doubles!
                       ^long [^long vertex-byte-offset vertices]
                       (try
-                        (put-doubles! vertex-byte-offset semantic-type buffer-data-type element-count normalize vertices)
+                        (put-doubles! vertex-byte-offset semantic-type buffer-data-type shader-type normalize vertices)
                         (catch Exception e
                           (throw (decorate-attribute-exception e attribute (first vertices))))))]
-
                 (if (mesh-data-exists? semantic-type channel)
 
                   ;; Mesh data exists for this attribute. It takes precedence
                   ;; over any attribute values specified on the material or
                   ;; overrides.
+                  ;; TODO: We should let the attribute override take precedence!
                   (case semantic-type
                     :semantic-type-position
                     (case (:coordinate-space attribute)
@@ -666,7 +746,14 @@
                               3 renderable-data->world-tangent-v3
                               4 renderable-data->world-tangent-v4)]
                         (put-renderables! attribute-byte-offset renderable-data->world-tangent put-attribute-doubles!))
-                      (put-renderables! attribute-byte-offset :tangent-data put-attribute-doubles!)))
+                      (put-renderables! attribute-byte-offset :tangent-data put-attribute-doubles!))
+
+                    :semantic-type-world-matrix
+                    (put-renderables! attribute-byte-offset renderable-data->world-matrix put-attribute-doubles!)
+
+                    :semantic-type-normal-matrix
+                    (put-renderables! attribute-byte-offset renderable-data->normal-matrix put-attribute-doubles!))
+
 
                   ;; Mesh data doesn't exist. Use the attribute data from the
                   ;; material or overrides.

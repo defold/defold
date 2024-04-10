@@ -31,7 +31,7 @@
             [util.murmur :as murmur]
             [util.num :as num])
   (:import [com.dynamo.bob.pipeline ShaderProgramBuilder]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexStepFunction Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$ShaderType]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$VertexSpace Material$MaterialDesc$WrapMode]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -125,16 +125,12 @@
                                      (range max-page-count))))
         samplers))
 
-(defn- attribute-info->error-values [{:keys [data-type element-count error name normalize]} node-id label]
+(defn- attribute-info->error-values [{:keys [data-type error name normalize]} node-id label]
   (filterv some?
            [error
-            (when (not (<= 1 element-count 4))
-              (g/->error node-id label :fatal element-count
-                         (format "'%s' attribute element count must be between 1 and 4"
-                                 name)))
             (when (and normalize
                        (= :type-float data-type))
-              (g/->error node-id label :fatal element-count
+              (g/->error node-id label :fatal nil
                          (format "'%s' attribute uses normalize with float data type"
                                  name)))]))
 
@@ -242,9 +238,11 @@
          :columns (let [semantic-type-values (protobuf/enum-values Graphics$VertexAttribute$SemanticType)
                         data-type-values (protobuf/enum-values Graphics$VertexAttribute$DataType)
                         coordinate-space-values (protobuf/enum-values Graphics$CoordinateSpace)
+                        shader-type-values (protobuf/enum-values Graphics$VertexAttribute$ShaderType)
+                        step-function-values (protobuf/enum-values Graphics$VertexStepFunction)
                         default-semantic-type :semantic-type-none
-                        default-element-count 3
-                        default-values (graphics/resize-doubles (vector-of :double) default-semantic-type default-element-count)]
+                        default-shader-type :shader-type-vec3
+                        default-values (graphics/resize-doubles (vector-of :double) default-semantic-type default-shader-type)]
                     [{:path [:name]
                       :label "Name"
                       :type :string}
@@ -258,10 +256,11 @@
                       :type :choicebox
                       :options (protobuf-forms/make-options data-type-values)
                       :default :type-float}
-                     {:path [:element-count]
-                      :label "Count"
-                      :type :integer
-                      :default default-element-count}
+                     {:path [:shader-type]
+                      :label "Shader Type"
+                      :type :choicebox
+                      :options (protobuf-forms/make-options shader-type-values)
+                      :default default-shader-type}
                      {:path [:normalize]
                       :label "Normalize"
                       :type :boolean
@@ -271,6 +270,11 @@
                       :type :choicebox
                       :options (protobuf-forms/make-options coordinate-space-values)
                       :default :coordinate-space-local}
+                     {:path [:step-function]
+                      :label "Step Function"
+                      :type :choicebox
+                      :options (protobuf-forms/make-options step-function-values)
+                      :default :vertex-step-function-vertex}
                      {:path [:values]
                       :label "Value"
                       :type :vec4
@@ -342,9 +346,9 @@
 (defn- coerce-attribute [new-attribute old-attribute]
   ;; This assumes only a single property will change at a time, which is the
   ;; case when editing an attribute using the form view.
-  (let [old-element-count (:element-count old-attribute)
+  (let [old-shader-type (:shader-type old-attribute)
         old-normalize (:normalize old-attribute)
-        new-element-count (:element-count new-attribute)
+        new-shader-type (:shader-type new-attribute)
         new-normalize (:normalize new-attribute)]
     (cond
       ;; If an attribute changes from a non-normalized value to a normalized one
@@ -375,13 +379,12 @@
                 :type-unsigned-int num/normalized->uint-double))]
         (update new-attribute :values #(into (empty %) (map coerce-fn) %)))
 
-      ;; If the element count changes, resize the default value in the material.
+      ;; If the shader type changes, resize the default value in the material.
       ;; This change will also cause attribute overrides stored elsewhere in the
-      ;; project to be saved with the updated element count.
-      (and (not= old-element-count new-element-count)
-           (<= 1 new-element-count 4))
+      ;; project to be saved with the updated shader type.
+      (not= old-shader-type new-shader-type)
       (let [semantic-type (:semantic-type new-attribute)]
-        (update new-attribute :values #(graphics/resize-doubles % semantic-type new-element-count)))
+        (update new-attribute :values #(graphics/resize-doubles % semantic-type new-shader-type)))
 
       ;; If something else changed, do not attempt value coercion.
       :else
@@ -391,7 +394,7 @@
   (case property
     :attributes
     ;; When setting the attributes, coerce the existing values to conform to the
-    ;; updated data type and element count. The attributes cannot be reordered
+    ;; updated data and shader type. The attributes cannot be reordered
     ;; using the form view, so we can assume any existing attribute will be at
     ;; the same index as the updated attribute.
     (let [old-attributes (:attributes user-data)]

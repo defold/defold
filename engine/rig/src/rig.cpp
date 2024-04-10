@@ -941,6 +941,8 @@ namespace dmRig
             const dmGraphics::VertexAttributeInfo& info = params.m_AttributeInfos->m_Infos[a];
             const size_t data_size                      = info.m_ValueByteSize;
 
+            assert(data_size != 0);
+
             if (info.m_StepFunction != params.m_StepFunction)
             {
                 continue;

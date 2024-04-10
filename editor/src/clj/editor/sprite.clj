@@ -211,9 +211,7 @@
         pass (:pass render-args)
 
         renderable-datas (mapv renderable-data renderables)
-        num-vertices (count-vertices renderable-datas)
-
-        num-outline-vertices (* 6 (count-quads renderables))]
+        num-vertices (count-vertices renderable-datas)]
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)

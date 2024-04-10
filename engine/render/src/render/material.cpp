@@ -64,24 +64,56 @@ namespace dmRender
             case dmGraphics::TYPE_FLOAT_VEC4:
             case dmGraphics::TYPE_FLOAT_MAT2:
             case dmGraphics::TYPE_FLOAT_MAT3:
-            case dmGraphics::TYPE_FLOAT_MAT4:
-                return dmGraphics::VertexAttribute::TYPE_FLOAT;
-            case dmGraphics::TYPE_BYTE:
-                return dmGraphics::VertexAttribute::TYPE_BYTE;
-            case dmGraphics::TYPE_UNSIGNED_BYTE:
-                return dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
-            case dmGraphics::TYPE_SHORT:
-                return dmGraphics::VertexAttribute::TYPE_SHORT;
-            case dmGraphics::TYPE_UNSIGNED_SHORT:
-                return dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
-            case dmGraphics::TYPE_INT:
-                return dmGraphics::VertexAttribute::TYPE_INT;
-            case dmGraphics::TYPE_UNSIGNED_INT:
-                return dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
+            case dmGraphics::TYPE_FLOAT_MAT4:     return dmGraphics::VertexAttribute::TYPE_FLOAT;
+            case dmGraphics::TYPE_BYTE:           return dmGraphics::VertexAttribute::TYPE_BYTE;
+            case dmGraphics::TYPE_UNSIGNED_BYTE:  return dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+            case dmGraphics::TYPE_SHORT:          return dmGraphics::VertexAttribute::TYPE_SHORT;
+            case dmGraphics::TYPE_UNSIGNED_SHORT: return dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
+            case dmGraphics::TYPE_INT:            return dmGraphics::VertexAttribute::TYPE_INT;
+            case dmGraphics::TYPE_UNSIGNED_INT:   return dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
             default: assert(0 && "Type not supported");
         }
 
         return (dmGraphics::VertexAttribute::DataType) -1;
+    }
+
+    static inline dmGraphics::VertexAttribute::ShaderType GetAttributeShaderType(dmGraphics::Type from_type)
+    {
+        switch(from_type)
+        {
+            case dmGraphics::TYPE_FLOAT:
+            case dmGraphics::TYPE_BYTE:
+            case dmGraphics::TYPE_UNSIGNED_BYTE:
+            case dmGraphics::TYPE_SHORT:
+            case dmGraphics::TYPE_UNSIGNED_SHORT:
+            case dmGraphics::TYPE_INT:
+            case dmGraphics::TYPE_UNSIGNED_INT: return dmGraphics::VertexAttribute::SHADER_TYPE_NUMBER;
+            case dmGraphics::TYPE_FLOAT_VEC2:   return dmGraphics::VertexAttribute::SHADER_TYPE_VEC2;
+            case dmGraphics::TYPE_FLOAT_VEC3:   return dmGraphics::VertexAttribute::SHADER_TYPE_VEC3;
+            case dmGraphics::TYPE_FLOAT_VEC4:   return dmGraphics::VertexAttribute::SHADER_TYPE_VEC4;
+            case dmGraphics::TYPE_FLOAT_MAT2:   return dmGraphics::VertexAttribute::SHADER_TYPE_MAT2;
+            case dmGraphics::TYPE_FLOAT_MAT3:   return dmGraphics::VertexAttribute::SHADER_TYPE_MAT3;
+            case dmGraphics::TYPE_FLOAT_MAT4:   return dmGraphics::VertexAttribute::SHADER_TYPE_MAT4;
+            default: assert(0 && "Type not supported");
+        }
+
+        return (dmGraphics::VertexAttribute::ShaderType) -1;
+    }
+
+    static inline uint32_t GetAttributeElementCount(dmGraphics::VertexAttribute::ShaderType from_type)
+    {
+        switch(from_type)
+        {
+            case dmGraphics::VertexAttribute::SHADER_TYPE_NUMBER: return 1;
+            case dmGraphics::VertexAttribute::SHADER_TYPE_VEC2: return 2;
+            case dmGraphics::VertexAttribute::SHADER_TYPE_VEC3: return 3;
+            case dmGraphics::VertexAttribute::SHADER_TYPE_VEC4: return 4;
+            case dmGraphics::VertexAttribute::SHADER_TYPE_MAT2: return 4;
+            case dmGraphics::VertexAttribute::SHADER_TYPE_MAT3: return 9;
+            case dmGraphics::VertexAttribute::SHADER_TYPE_MAT4: return 16;
+            default:assert(0 && "ShaderType not supported");
+        }
+        return -1;
     }
 
     static dmGraphics::HVertexDeclaration CreateVertexDeclarationFromStepFunction(dmGraphics::HContext graphics_context,
@@ -156,6 +188,7 @@ namespace dmRender
             vertex_attribute.m_Normalize       = false;
             vertex_attribute.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
             vertex_attribute.m_StepFunction    = GetAttributeVertexStepFunction(vertex_attribute.m_SemanticType);
+            vertex_attribute.m_ShaderType      = GetAttributeShaderType(type);
 
             MaterialAttribute& material_attribute = m->m_MaterialAttributes[i];
             material_attribute.m_Location         = location;
@@ -213,12 +246,13 @@ namespace dmRender
             return 0;
         }
 
-        Material* m            = new Material;
-        m->m_RenderContext     = render_context;
-        m->m_VertexProgram     = vertex_program;
-        m->m_FragmentProgram   = fragment_program;
-        m->m_Program           = program;
-        m->m_VertexDeclarationPerVertex = 0;
+        Material* m                       = new Material;
+        m->m_RenderContext                = render_context;
+        m->m_VertexProgram                = vertex_program;
+        m->m_FragmentProgram              = fragment_program;
+        m->m_Program                      = program;
+        m->m_VertexDeclarationPerVertex   = 0;
+        m->m_VertexDeclarationPerInstance = 0;
 
         CreateAttributes(graphics_context, m);
         CreateVertexDeclarations(graphics_context, m);
@@ -232,6 +266,9 @@ namespace dmRender
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::DeleteProgram(graphics_context, material->m_Program);
         dmGraphics::DeleteVertexDeclaration(material->m_VertexDeclarationPerVertex);
+
+        if (material->m_VertexDeclarationPerInstance)
+            dmGraphics::DeleteVertexDeclaration(material->m_VertexDeclarationPerInstance);
 
         for (uint32_t i = 0; i < material->m_Constants.Size(); ++i)
         {
@@ -593,7 +630,8 @@ namespace dmRender
             dmGraphics::VertexAttribute& graphics_attribute = material->m_VertexAttributes[index];
             graphics_attribute.m_DataType                   = graphics_attribute_in.m_DataType;
             graphics_attribute.m_Normalize                  = graphics_attribute_in.m_Normalize;
-            graphics_attribute.m_ElementCount               = graphics_attribute_in.m_ElementCount;
+            graphics_attribute.m_ElementCount               = GetAttributeElementCount(graphics_attribute_in.m_ShaderType);
+            graphics_attribute.m_ShaderType                 = graphics_attribute_in.m_ShaderType;
             graphics_attribute.m_SemanticType               = graphics_attribute_in.m_SemanticType;
             graphics_attribute.m_CoordinateSpace            = graphics_attribute_in.m_CoordinateSpace;
             graphics_attribute.m_StepFunction               = graphics_attribute_in.m_StepFunction;
