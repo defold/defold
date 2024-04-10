@@ -14,13 +14,23 @@
 
 (ns util.coll
   (:refer-clojure :exclude [bounded-count empty? mapcat not-empty])
-  (:import [clojure.lang IEditableCollection MapEntry]
+  (:import [clojure.lang Cons IEditableCollection MapEntry]
            [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (def empty-sorted-map (sorted-map))
+
+(defn list-or-cons?
+  "Returns true if the specified value is either a IPersistentList or a
+  clojure.lang.Cons. Useful in macros, where list expressions can be either
+  lists or Cons, often interchangeably."
+  [value]
+  ;; Note that implementing `cons?` as a separate function would be inadvisable,
+  ;; since `(cons val nil)` does not return a Cons, but a IPersistentList.
+  (or (list? value)
+      (instance? Cons value)))
 
 (defn mapcat
   "Like core.mapcat, but faster in the non-transducer case."

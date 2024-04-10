@@ -523,15 +523,16 @@
     (map (comp second key)
          (is/system-cache @g/*the-system*))))
 
-(defn- simplify-namespace-name [ns-aliases namespace-name]
+(defn- simplify-namespace-name [^String reference-ns-name reference-ns-aliases ^String namespace-name]
   (if (or (nil? namespace-name)
-          (= "clojure.core" namespace-name))
+          (= "clojure.core" namespace-name)
+          (= reference-ns-name namespace-name))
     nil ; Strip the namespace.
     (let [namespace-symbol (symbol namespace-name)
           alias-name (some (fn [[alias-symbol referenced-ns]]
                              (when (= namespace-symbol (ns-name referenced-ns))
                                (name alias-symbol)))
-                           ns-aliases)]
+                           reference-ns-aliases)]
       (or alias-name
           namespace-name))))
 
@@ -540,57 +541,59 @@
                   #"__(\d+)__auto__$"
                   "#"))
 
-(defn- simplify-symbol [ns-aliases expression]
-  (symbol (simplify-namespace-name ns-aliases (namespace expression))
+(defn- simplify-symbol [^String reference-ns-name reference-ns-aliases expression]
+  (symbol (simplify-namespace-name reference-ns-name reference-ns-aliases (namespace expression))
           (simplify-symbol-name (name expression))))
 
-(defn- simplify-keyword [ns-aliases expression]
-  (keyword (simplify-namespace-name ns-aliases (namespace expression))
+(defn- simplify-keyword [^String reference-ns-name ns-aliases expression]
+  (keyword (simplify-namespace-name reference-ns-name ns-aliases (namespace expression))
            (name expression)))
 
-(defn- simplify-namespaces [ns-aliases expression]
+(defn- simplify-namespaces [^String reference-ns-name reference-ns-aliases expression]
   (cond
     (map? expression)
     (into (empty expression)
           (map (fn [[key value]]
-                 [key (simplify-namespaces ns-aliases value)])))
+                 [key (simplify-namespaces reference-ns-name reference-ns-aliases value)])))
 
     (or (vector? expression)
         (set? expression))
     (into (empty expression)
-          (map #(simplify-namespaces ns-aliases %))
+          (map #(simplify-namespaces reference-ns-name reference-ns-aliases %))
           expression)
 
-    (seq? expression) ; Cons or list.
+    (coll/list-or-cons? expression)
     (into (empty expression)
-          (map #(simplify-namespaces ns-aliases %))
+          (map #(simplify-namespaces reference-ns-name reference-ns-aliases %))
           (reverse expression))
 
     (symbol? expression)
-    (simplify-symbol ns-aliases expression)
+    (simplify-symbol reference-ns-name reference-ns-aliases expression)
 
     (keyword? expression)
-    (simplify-keyword ns-aliases expression)
+    (simplify-keyword reference-ns-name reference-ns-aliases expression)
 
     :else
     expression))
 
-(defn- pprint-code-impl [ns-aliases expression]
-  (binding [pprint/*print-suppress-namespaces* false
-            pprint/*print-right-margin* 100
-            pprint/*print-miser-width* 60]
-    (pprint/with-pprint-dispatch
-      pprint/code-dispatch
-      (pprint/pprint
-        (simplify-namespaces ns-aliases expression)))))
+(defn- pprint-code-impl [reference-ns expression]
+  (let [reference-ns-name (str (ns-name reference-ns))
+        reference-ns-aliases (ns-aliases reference-ns)]
+    (binding [pprint/*print-suppress-namespaces* false
+              pprint/*print-right-margin* 100
+              pprint/*print-miser-width* 60]
+      (pprint/with-pprint-dispatch
+        pprint/code-dispatch
+        (pprint/pprint
+          (simplify-namespaces reference-ns-name reference-ns-aliases expression))))))
 
 (defmacro pprint-code
   "Pretty-print the supplied code expression while attempting to retain readable
   formatting. The aliases in the invoking namespace Useful when developing macros."
   ([expression]
-   `(#'pprint-code-impl (ns-aliases *ns*) ~expression))
+   `(#'pprint-code-impl *ns* ~expression))
   ([ns expression]
-   `(#'pprint-code-impl (ns-aliases ns) ~expression)))
+   `(#'pprint-code-impl ~ns ~expression)))
 
 ;; Utilities for investigating successors performance
 
