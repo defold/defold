@@ -253,7 +253,7 @@ platforms:
         systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
         linkFlags:  ['-fobjc-link-runtime', '-dead_strip', '-pagezero_size', '10000', '-image_base', '100000000', '-Wl,-U,_objc_loadClassref']
-        libs:       ['clang_rt.ios']
+        libs:       ['clang_rt.iossim']
         dynamicLibs: []
         symbols:    ["AudioDecoderTremolo"]
         osMinVersion:   "{{env.IOS_VERSION_MIN}}"
