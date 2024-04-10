@@ -299,7 +299,7 @@
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)
-      (gu/set-properties-from-map self cubemap
+      (gu/set-properties-from-pb-map self Graphics$Cubemap cubemap
         right (resolve-resource :right)
         left (resolve-resource :left)
         top (resolve-resource :top)

@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.graph-util
-  (:require [dynamo.graph :as g]))
+  (:require [dynamo.graph :as g]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 
@@ -38,8 +39,8 @@
     (let [map-key source-expression]
       {:map-key map-key})
 
-    (list? source-expression)
-    (case (count source-expression)
+    (coll/list-or-cons? source-expression)
+    (case (coll/bounded-count 4 source-expression)
       2 (let [[map-value->property-value sub-source-expression] source-expression]
           (assert (symbol? map-value->property-value))
           (assoc (parse-load-properties-source-expression sub-source-expression)
@@ -53,9 +54,10 @@
     :else
     (assert false)))
 
-(defmacro set-properties-from-map [node-id property-map & mappings]
+(defmacro set-properties-from-pb-map [node-id pb-class pb-map & mappings]
   (assert (symbol? node-id))
-  (assert (symbol? property-map))
+  (assert (symbol? pb-class))
+  (assert (symbol? pb-map))
   (assert (seq mappings))
   (assert (even? (count mappings)))
   (cons `concat
@@ -65,16 +67,16 @@
                      {:keys [default-expression map-key map-value->property-value]} (parse-load-properties-source-expression source-expression)]
                  (cond
                    (and default-expression map-value->property-value)
-                   `(g/set-property ~node-id ~property-label (~map-value->property-value (or (~map-key ~property-map) ~default-expression)))
+                   `(g/set-property ~node-id ~property-label (~map-value->property-value (or (~map-key ~pb-map) ~default-expression)))
 
                    default-expression
-                   `(g/set-property ~node-id ~property-label (or (~map-key ~property-map) ~default-expression))
+                   `(g/set-property ~node-id ~property-label (or (~map-key ~pb-map) ~default-expression))
 
                    map-value->property-value
-                   `(when-some [map-value# (~map-key ~property-map)]
+                   `(when-some [map-value# (~map-key ~pb-map)]
                       (g/set-property ~node-id ~property-label (~map-value->property-value map-value#)))
 
                    :else
-                   `(when-some [map-value# (~map-key ~property-map)]
+                   `(when-some [map-value# (~map-key ~pb-map)]
                       (g/set-property ~node-id ~property-label map-value#)))))
              (partition 2 mappings))))

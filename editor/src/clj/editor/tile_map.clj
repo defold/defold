@@ -357,7 +357,7 @@
     (g/make-nodes
       graph-id
       [layer-node LayerNode]
-      (gu/set-properties-from-map layer-node tile-layer
+      (gu/set-properties-from-pb-map layer-node Tile$TileLayer tile-layer
         id :id
         z :z
         visible (protobuf/int->boolean :is-visible)
@@ -386,7 +386,7 @@
         resolve-resource #(workspace/resolve-resource resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
-      (gu/set-properties-from-map self tile-grid
+      (gu/set-properties-from-pb-map self Tile$TileGrid tile-grid
         tile-source (resolve-resource :tile-set)
         material (resolve-resource (:material :or default-material-proj-path))
         blend-mode :blend-mode)

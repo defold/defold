@@ -180,7 +180,7 @@
   {:pre [(map? animation-set-desc)]} ; Rig$AnimationSetDesc in map format
   (let [resolve-resource #(workspace/resolve-resource resource %)
         animation-instance-descs->animation-resources #(mapv (comp resolve-resource :animation) %)]
-    (gu/set-properties-from-map self animation-set-desc
+    (gu/set-properties-from-pb-map self Rig$AnimationSetDesc animation-set-desc
       animations (animation-instance-descs->animation-resources :animations))))
 
 (defn- sanitize-animation-set [animation-set-desc]

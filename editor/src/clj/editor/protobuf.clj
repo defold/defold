@@ -437,7 +437,7 @@ Macros currently mean no foreseeable performance gain, however."
 (defn- get-field-value-paths-fn-raw [field-path-specs]
   (let [get-field-value-path-fns (mapv get-field-value-path-fn field-path-specs)]
     (fn [pb-map]
-      {:pre (map? pb-map)} ;; Protobuf Message in map format.
+      {:pre [(map? pb-map)]} ;; Protobuf Message in map format.
       (into []
             (mapcat (fn [get-fn]
                       (get-fn [] pb-map)))

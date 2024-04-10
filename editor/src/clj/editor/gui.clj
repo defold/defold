@@ -2923,6 +2923,7 @@
 (def ^:private default-material-proj-path (protobuf/default Gui$SceneDesc :material))
 
 (defn load-gui-scene [project self resource scene]
+  {:pre [(map? scene)]} ; Gui$SceneDesc in map format.
   (let [graph-id           (g/node-id->graph-id self)
         node-descs         (map node-desc->node-properties (:nodes scene)) ; TODO: These are really the properties of the GuiNode subtype. Rename to node-properties.
         tmpl-node-descs    (into {} (map (fn [n] [(:id n) {:template (:parent n) :data (extract-overrides n)}])
@@ -2948,7 +2949,8 @@
                              result)
         resolve-resource #(workspace/resolve-resource resource %)]
     (concat
-      (gu/set-properties-from-map self scene
+      ;; TODO(save-value): Shouldn't set-properties-from-pb-map be used for sub-nodes as well?
+      (gu/set-properties-from-pb-map self Gui$SceneDesc scene
         script (resolve-resource :script)
         material (resolve-resource (:material :or default-material-proj-path))
         adjust-reference :adjust-reference

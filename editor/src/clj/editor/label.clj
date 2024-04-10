@@ -336,8 +336,9 @@
                                       (texture/set-params gpu-texture tex-params))))
 
 (defn load-label [_project self resource label]
+  {:pre [(map? label)]} ; Label$LabelDesc in map format.
   (let [resolve-resource #(workspace/resolve-resource resource %)]
-    (gu/set-properties-from-map self label
+    (gu/set-properties-from-pb-map self Label$LabelDesc label
       text :text
       size (protobuf/vector4->vector3 :size)
       legacy-scale (protobuf/vector4->vector3 :scale) ; Legacy field. Migrated to ComponentDesc or EmbeddedComponentDesc in PrototypeDesc when saving.

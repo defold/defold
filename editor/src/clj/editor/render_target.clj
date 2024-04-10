@@ -160,13 +160,14 @@
                                                               (format "Incorrect Depth/Stencil attachment: The height is greater than zero, but the width is zero")))))))
 
 (defn load-render-target [_project self _resource render-target-desc]
+  {:pre [(map? render-target-desc)]} ; RenderTarget$RenderTargetDesc in map format.
   ;; Inject any missing defaults into the stripped pb-map for form-view editing.
   (let [render-target-desc (protobuf/inject-defaults RenderTarget$RenderTargetDesc render-target-desc)
         depth-stencil-attachment (:depth-stencil-attachment render-target-desc)]
     (concat
-      (gu/set-properties-from-map self render-target-desc
+      (gu/set-properties-from-pb-map self RenderTarget$RenderTargetDesc render-target-desc
         color-attachments :color-attachments)
-      (gu/set-properties-from-map self depth-stencil-attachment
+      (gu/set-properties-from-pb-map self RenderTarget$RenderTargetDesc$DepthStencilAttachment depth-stencil-attachment
         depth-stencil-attachment-width :width
         depth-stencil-attachment-height :height
         depth-stencil-attachment-format :format

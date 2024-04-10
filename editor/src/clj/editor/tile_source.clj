@@ -888,7 +888,7 @@
 (defn- make-animation-node [self _project select-fn animation]
   {:pre [(map? animation)]} ; Tile$Animation in map format.
   (g/make-nodes (g/node-id->graph-id self) [animation-node TileAnimationNode]
-    (gu/set-properties-from-map animation-node animation
+    (gu/set-properties-from-pb-map animation-node Tile$Animation animation
       id :id
       start-tile :start-tile
       end-tile :end-tile
@@ -958,7 +958,7 @@
       (g/set-property self
         :original-convex-hulls (make-convex-hulls tile-set)
         :tile->collision-group-node (make-tile->collision-group-node-map tile-set collision-group-nodes-tx-data))
-      (gu/set-properties-from-map self tile-set
+      (gu/set-properties-from-pb-map self Tile$TileSet tile-set
         image (resolve-resource :image)
         tile-width :tile-width
         tile-height :tile-height

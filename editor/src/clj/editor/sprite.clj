@@ -649,11 +649,12 @@
           (assoc :textures [{:sampler "texture_sampler"
                              :texture tile-set}])))
 
-(defn- load-sprite [project self resource sprite]
+(defn- load-sprite [project self resource sprite-desc]
+  {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
   (let [resolve-resource #(workspace/resolve-resource resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
-      (gu/set-properties-from-map self sprite
+      (gu/set-properties-from-pb-map self Sprite$SpriteDesc sprite-desc
         default-animation :default-animation
         material (resolve-resource (:material :or default-material-proj-path))
         blend-mode :blend-mode
@@ -663,7 +664,7 @@
         offset :offset
         playback-rate :playback-rate
         vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides :attributes))
-      (for [{:keys [sampler texture]} (:textures sprite)]
+      (for [{:keys [sampler texture]} (:textures sprite-desc)]
         (create-texture-binding-tx self sampler (resolve-resource texture))))))
 
 (defn register-resource-types [workspace]

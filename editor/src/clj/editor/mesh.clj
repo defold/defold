@@ -474,9 +474,10 @@
                                                         (update :display-order into (map first p)))))))
 
 (defn- load-mesh [_project self resource pb]
+  {:pre [(map? pb)]} ; MeshProto$MeshDesc in map format.
   (let [resolve-resource #(workspace/resolve-resource resource %)
         resolve-resources #(mapv resolve-resource %)]
-    (gu/set-properties-from-map self pb
+    (gu/set-properties-from-pb-map self MeshProto$MeshDesc pb
       primitive-type :primitive-type
       position-stream :position-stream
       normal-stream :normal-stream

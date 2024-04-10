@@ -319,15 +319,15 @@
                           :modifier-type-drag {:label "Drag"
                                                :template {:type :modifier-type-drag
                                                           :properties [{:key :modifier-key-magnitude
-                                                                        :points [{:y 1.0}]}]}
+                                                                        :points [{:y (float 1.0)}]}]}
                                                :geom-data-screen (constantly drag-geom-data)
                                                :geom-data-world (constantly [])}
                           :modifier-type-radial {:label "Radial"
                                                  :template {:type :modifier-type-radial
                                                             :properties [{:key :modifier-key-magnitude
-                                                                          :points [{:y 100.0}]}
+                                                                          :points [{:y (float 100.0)}]}
                                                                          {:key :modifier-key-max-distance
-                                                                          :points [{:y 1000.0}]}]}
+                                                                          :points [{:y (float 1000.0)}]}]}
                                                  :geom-data-screen (fn [magnitude _]
                                                                      (if (< magnitude 0)
                                                                        radial-neg-geom-data
@@ -1054,7 +1054,7 @@
   [self parent-id modifier node-outline-key]
   (let [graph-id (g/node-id->graph-id self)]
     (g/make-nodes graph-id [mod-node [ModifierNode :node-outline-key node-outline-key]]
-      (gu/set-properties-from-map mod-node modifier
+      (gu/set-properties-from-pb-map mod-node Particle$Modifier modifier
         position :position
         rotation :rotation
         type :type
@@ -1119,7 +1119,7 @@
          graph-id (g/node-id->graph-id self)
          resolve-resource #(workspace/resolve-workspace-resource workspace %)]
      (g/make-nodes graph-id [emitter-node EmitterNode]
-       (gu/set-properties-from-map emitter-node emitter
+       (gu/set-properties-from-pb-map emitter-node Particle$Emitter emitter
          position :position
          rotation :rotation
          id :id

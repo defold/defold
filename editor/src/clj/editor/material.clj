@@ -582,11 +582,11 @@
   (assoc default-pb-sampler :name name))
 
 (defn load-material [_project self resource material-desc]
-  ;; Material$MaterialDesc in map format.
+  {:pre [(map? material-desc)]} ; Material$MaterialDesc in map format.
   (let [resolve-resource #(workspace/resolve-resource resource %)
         attributes->editable-attributes #(mapv attribute->editable-attribute %)
         samplers->editable-samplers #(mapv sampler->editable-sampler %)]
-    (gu/set-properties-from-map self material-desc
+    (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
       vertex-program (resolve-resource :vertex-program)
       fragment-program (resolve-resource :fragment-program)
       vertex-constants (hack-downgrade-constants :vertex-constants)

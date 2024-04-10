@@ -895,7 +895,7 @@
       (g/make-nodes
         graph-id
         [atlas-image AtlasImage]
-        (gu/set-properties-from-map atlas-image image-msg
+        (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
           image :image
           sprite-trim-mode :sprite-trim-mode)
         (attach-fn parent atlas-image)))))
@@ -929,7 +929,7 @@
     (g/make-nodes
       graph-id
       [animation-node AtlasAnimation]
-      (gu/set-properties-from-map animation-node atlas-animation
+      (gu/set-properties-from-pb-map animation-node AtlasProto$AtlasAnimation atlas-animation
         id :id
         flip-horizontal (protobuf/int->boolean :flip-horizontal)
         flip-vertical (protobuf/int->boolean :flip-vertical)
@@ -945,7 +945,7 @@
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)
-      (gu/set-properties-from-map self atlas
+      (gu/set-properties-from-pb-map self AtlasProto$Atlas atlas
         margin :margin
         inner-padding :inner-padding
         extrude-borders :extrude-borders

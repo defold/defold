@@ -274,7 +274,7 @@
 
 (defn load-camera [_project self _resource camera-desc]
   {:pre [(map? camera-desc)]} ; Camera$CameraDesc in map format.
-  (gu/set-properties-from-map self camera-desc
+  (gu/set-properties-from-pb-map self Camera$CameraDesc camera-desc
     aspect-ratio :aspect-ratio
     fov :fov
     near-z :near-z

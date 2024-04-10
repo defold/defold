@@ -79,7 +79,7 @@
 (defn load-collection-proxy [_project self resource collection-proxy-desc]
   {:pre [(map? collection-proxy-desc)]} ; GameSystem$CollectionProxyDesc in map format.
   (let [resolve-resource #(workspace/resolve-resource resource %)]
-    (gu/set-properties-from-map self collection-proxy-desc
+    (gu/set-properties-from-pb-map self GameSystem$CollectionProxyDesc collection-proxy-desc
       collection (resolve-resource :collection)
       exclude :exclude)))
 

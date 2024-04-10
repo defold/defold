@@ -381,7 +381,7 @@
   (let [resolve-resource #(workspace/resolve-resource resource %)
         to-comma-separated-string #(some->> % (string/join ", "))]
     (concat
-      (gu/set-properties-from-map self collision-object-desc
+      (gu/set-properties-from-pb-map self Physics$CollisionObjectDesc collision-object-desc
         collision-shape (resolve-resource :collision-shape)
         type :type
         mass :mass
