@@ -123,7 +123,7 @@ ANDROID_BUILD_TOOLS_VERSION="33.0.1"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "2.0.11"
+EMSCRIPTEN_VERSION_STR = "3.1.55"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
@@ -616,10 +616,7 @@ class Configuration(object):
         return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
 
     def _form_ems_path(self):
-        upstream = join(self.get_ems_dir(), 'upstream', 'emscripten')
-        if os.path.exists(upstream):
-            return upstream
-        return join(self.get_ems_dir(), 'fastcomp', 'emscripten')
+        return join(self.get_ems_dir(), 'upstream', 'emscripten')
 
     def install_ems(self):
         # TODO: should eventually be moved to install_sdk
@@ -647,8 +644,6 @@ class Configuration(object):
 
     def activate_ems(self):
         version = EMSCRIPTEN_VERSION_STR
-        if 'fastcomp' in self._form_ems_path():
-            version += "-fastcomp"
         run.env_command(self._form_env(), [join(self.get_ems_dir(), 'emsdk'), 'activate', version, '--embedded'])
 
         # prewarm the cache
