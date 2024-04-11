@@ -155,11 +155,7 @@
                                                                 0.0 1.0 0.0 0.0
                                                                 0.0 0.0 1.0 0.0
                                                                 0.0 0.0 0.0 1.0))
-(def ^:private default-position-element-values (vector-of :double
-                                                          1.0 0.0 0.0 0.0
-                                                          0.0 1.0 0.0 0.0
-                                                          0.0 0.0 1.0 0.0
-                                                          0.0 0.0 0.0 1.0))
+(def ^:private default-position-element-values (vector-of :double 0.0 0.0 0.0 1.0))
 (def ^:private default-color-element-values (vector-of :double 1.0 1.0 1.0 1.0))
 
 (defn- attribute-shader-type->component-count [attribute-shader-type]
@@ -433,6 +429,9 @@
     (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index :semantic-type-normal :semantic-type-world-matrix :semantic-type-normal-matrix) false
     nil false
     true))
+
+(defn contains-semantic-type? [attributes semantic-type]
+  (some #(= semantic-type (:semantic-type %)) attributes))
 
 (defn- attribute-property-type [attribute]
   (case (:semantic-type attribute)

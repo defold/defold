@@ -178,16 +178,12 @@
                 world-transform (assoc :world-transform world-transform)
                 normal-transform (assoc :normal-transform normal-transform)
                 vertex-attribute-bytes (assoc :vertex-attribute-bytes vertex-attribute-bytes))]
-    (println "WUTO" mesh-renderable-data world-transform)
     (graphics/put-attributes! vbuf [mesh-renderable-data])
     vbuf))
 
 (defn- request-vb! [^GL2 gl request-id mesh-renderable-data ^Matrix4d attribute-world-transform ^Matrix4d attribute-normal-transform vertex-description vertex-attribute-bytes]
   (let [data {:mesh-renderable-data mesh-renderable-data :world-transform attribute-world-transform :normal-transform attribute-normal-transform :vertex-description vertex-description :vertex-attribute-bytes vertex-attribute-bytes}]
     (scene-cache/request-object! ::vb request-id gl data)))
-
-(defn- contains-semantic-type? [attributes semantic-type]
-  (some #(= semantic-type (:semantic-type %)) attributes))
 
 (defn- render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
   (let [{:keys [node-id user-data ^Matrix4d world-transform]} renderable
@@ -210,7 +206,7 @@
         render-args (merge render-args render-transforms extra-render-args)
         world-space-semantic-types (:coordinate-space-world coordinate-space-info)
         attribute-world-transform (when (or (contains? world-space-semantic-types :semantic-type-position)
-                                            (contains-semantic-type? vertex-attributes :semantic-type-world-matrix))
+                                            (graphics/contains-semantic-type? vertex-attributes :semantic-type-world-matrix))
                                     world-transform)
         attribute-normal-transform (when (contains? world-space-semantic-types :semantic-type-normal)
                                      (math/derive-normal-transform world-transform))
@@ -219,7 +215,6 @@
                      [request-prefix mesh-renderable-data vertex-attribute-bytes vertex-description]) ; No world-space attributes present. We can share the GPU objects between instances of this mesh.
         vb (request-vb! gl request-id mesh-renderable-data attribute-world-transform attribute-normal-transform vertex-description vertex-attribute-bytes)
         vertex-binding (vtx/use-with request-id vb shader)]
-    (println attribute-world-transform)
     (gl/with-gl-bindings gl render-args [vertex-binding shader]
       (doseq [[name t] textures]
         (gl/bind gl t render-args)

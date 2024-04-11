@@ -277,31 +277,21 @@
 
 (defn- vertex-attrib-pointer
   [^GL2 gl attrib loc stride offset]
-  (let [{:keys [components type normalize shader-type]} attrib]
+  (let [{:keys [components type normalize]} attrib]
     (when (not= -1 loc)
-      (let [attribute-vector-counts (cond (= shader-type :shader-type-mat2) 2
-                                          (= shader-type :shader-type-mat3) 3
-                                          (= shader-type :shader-type-mat4) 4
-                                          (= components 9) 3
-                                          (= components 16) 4
-                                          :else 1)
-            attribute-vector-components (if (> attribute-vector-counts 1)
-                                          attribute-vector-counts
-                                          components)]
-        (doseq [sub-index (range attribute-vector-counts)]
-          (let [^long sub-offset (+ offset (* sub-index (buffers/type-size type) attribute-vector-components))
-                ^int sub-loc (+ loc sub-index)]
-            (println "sub-index" sub-index sub-loc sub-offset)
-            (gl/gl-enable-vertex-attrib-array gl sub-loc)
-            (gl/gl-vertex-attrib-pointer gl ^int sub-loc ^int attribute-vector-components ^int (gl-types type) ^boolean normalize ^int stride ^long sub-offset)
-            #_(gl/gl-vertex-attrib-divisor gl ^int sub-loc 1)
-            ))
-        ))))
+      (gl/gl-vertex-attrib-pointer gl ^int loc ^int components ^int (gl-types type) ^boolean normalize ^int stride ^long offset))))
+
+(def my-atom (atom 0))
+
+(defn contains-semantic-type? [attributes semantic-type]
+  (some #(= semantic-type (:semantic-type %)) attributes))
 
 (defn- vertex-attrib-pointers
   [^GL2 gl attribs attrib-locs]
   (let [offsets (reductions + 0 (attribute-sizes attribs))
         stride  (vertex-size attribs)]
+    (when (contains-semantic-type? attribs :semantic-type-world-matrix)
+      (reset! my-atom [attribs attrib-locs]))
     (doall
       (map
         (fn [offset attrib loc]
@@ -323,11 +313,41 @@
 (defn- request-vbo [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer) :shader shader}))
 
+(defn- vertex-attribute-binding-info [vertex-attribute]
+  (let [shader-type (:shader-type vertex-attribute)
+        component-count (:components vertex-attribute)]
+    (cond (= shader-type :shader-type-mat2) [2 true]
+          (= shader-type :shader-type-mat3) [3 true]
+          (= shader-type :shader-type-mat4) [4 true]
+          (= component-count 9) [3 true]
+          (= component-count 16) [4 true]
+          :else [1 false])))
+
+(defn- expand-vertex-attributes+locs [vertex-attributes vertex-attribute-locs]
+  (let [vertex-attributes+locs (map vector vertex-attributes vertex-attribute-locs)
+        expanded-vertex-attributes (mapcat (fn [[attribute _]]
+                                             (let [[row-column-count is-matrix-type] (vertex-attribute-binding-info attribute)]
+                                               (if is-matrix-type
+                                                 (repeat row-column-count (assoc attribute :components row-column-count))
+                                                 [attribute])))
+                                           vertex-attributes+locs)
+        expandedn-vertex-locs (mapcat (fn [[attribute loc]]
+                                        (let [[row-column-count is-matrix-type] (vertex-attribute-binding-info attribute)]
+                                          (if is-matrix-type
+                                            (map-indexed (fn [^long idx ^long loc-base]
+                                                           (+ idx loc-base))
+                                                         (repeat row-column-count loc))
+                                            [loc])))
+                                      vertex-attributes+locs)]
+    [expanded-vertex-attributes, expandedn-vertex-locs]))
+
 (defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
-  (let [[vbo attrib-locs] (request-vbo gl request-id vertex-buffer shader)]
+  (let [[vbo attribute-locations] (request-vbo gl request-id vertex-buffer shader)
+        attributes (:attributes (.vertex-description vertex-buffer))
+        [expanded-attributes expanded-attribute-locs] (expand-vertex-attributes+locs attributes attribute-locations)]
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
-    (vertex-attrib-pointers gl (:attributes (.vertex-description vertex-buffer)) attrib-locs)
-    #_(vertex-enable-attribs gl attrib-locs)))
+    (vertex-attrib-pointers gl expanded-attributes expanded-attribute-locs)
+    (vertex-enable-attribs gl expanded-attribute-locs)))
 
 (defn- unbind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (let [[_ attrib-locs] (request-vbo gl request-id vertex-buffer shader)]
