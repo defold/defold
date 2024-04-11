@@ -663,11 +663,11 @@
 
                 :semantic-type-world-matrix
                 (and (zero? channel)
-                     (:world-transform renderable-data))
+                     (:world-matrix-data renderable-data))
 
                 :semantic-type-normal-matrix
                 (and (zero? channel)
-                     (:normal-transform renderable-data))
+                     (:normal-matrix-data renderable-data))
 
                 false))))]
 
@@ -748,10 +748,10 @@
                       (put-renderables! attribute-byte-offset :tangent-data put-attribute-doubles!))
 
                     :semantic-type-world-matrix
-                    (put-renderables! attribute-byte-offset renderable-data->world-matrix put-attribute-doubles!)
+                    (put-renderables! attribute-byte-offset :world-matrix-data put-attribute-doubles!)
 
                     :semantic-type-normal-matrix
-                    (put-renderables! attribute-byte-offset renderable-data->normal-matrix put-attribute-doubles!))
+                    (put-renderables! attribute-byte-offset :normal-matrix-data put-attribute-doubles!))
 
 
                   ;; Mesh data doesn't exist. Use the attribute data from the

@@ -182,12 +182,22 @@
     vbuf))
 
 (defn- request-vb! [^GL2 gl request-id mesh-renderable-data ^Matrix4d attribute-world-transform ^Matrix4d attribute-normal-transform vertex-description vertex-attribute-bytes]
-  (let [data {:mesh-renderable-data mesh-renderable-data :world-transform attribute-world-transform :normal-transform attribute-normal-transform :vertex-description vertex-description :vertex-attribute-bytes vertex-attribute-bytes}]
+  (let [data {:mesh-renderable-data mesh-renderable-data
+              :world-transform attribute-world-transform
+              :normal-transform attribute-normal-transform
+              :vertex-description vertex-description
+              :vertex-attribute-bytes vertex-attribute-bytes}]
     (scene-cache/request-object! ::vb request-id gl data)))
+
+(defn- make-matrix-attribute-data [mesh-renderable-data ^Matrix4d mtx]
+  (let [vertex-count (count (:position-data mesh-renderable-data))
+        world-transform-array (math/vecmath->clj (doto ^Matrix4d mtx (.transpose)))]
+    (into [] (repeat vertex-count world-transform-array))))
 
 (defn- render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
   (let [{:keys [node-id user-data ^Matrix4d world-transform]} renderable
         {:keys [material-attribute-infos mesh-renderable-data textures vertex-attribute-bytes]} user-data
+        normal-transform (math/derive-normal-transform world-transform)
         shader (or override-shader (:shader user-data))
         default-coordinate-space (case (:vertex-space user-data :vertex-space-local)
                                    :vertex-space-local :coordinate-space-local
@@ -205,12 +215,20 @@
                                                          coordinate-space-info)
         render-args (merge render-args render-transforms extra-render-args)
         world-space-semantic-types (:coordinate-space-world coordinate-space-info)
-        attribute-world-transform (when (or (contains? world-space-semantic-types :semantic-type-position)
-                                            (graphics/contains-semantic-type? vertex-attributes :semantic-type-world-matrix))
+        attribute-world-transform (when (contains? world-space-semantic-types :semantic-type-position)
                                     world-transform)
         attribute-normal-transform (when (contains? world-space-semantic-types :semantic-type-normal)
-                                     (math/derive-normal-transform world-transform))
-        request-id (if (or attribute-world-transform attribute-normal-transform)
+                                     normal-transform)
+
+        attribute-world-matrix-data (when (graphics/contains-semantic-type? vertex-attributes :semantic-type-world-matrix)
+                                      (make-matrix-attribute-data mesh-renderable-data world-transform))
+        attribute-world-normal-data (when (graphics/contains-semantic-type? vertex-attributes :semantic-type-normal-matrix)
+                                      (make-matrix-attribute-data mesh-renderable-data normal-transform))
+        mesh-renderable-data (assoc mesh-renderable-data
+                               :world-matrix-data attribute-world-matrix-data
+                               :normal-matrix-data attribute-world-normal-data)
+
+        request-id (if (or attribute-world-transform attribute-normal-transform attribute-world-matrix-data attribute-world-normal-data)
                      [request-prefix node-id mesh-renderable-data vertex-attribute-bytes vertex-description] ; World-space attributes present. The request needs to be unique for this node-id.
                      [request-prefix mesh-renderable-data vertex-attribute-bytes vertex-description]) ; No world-space attributes present. We can share the GPU objects between instances of this mesh.
         vb (request-vb! gl request-id mesh-renderable-data attribute-world-transform attribute-normal-transform vertex-description vertex-attribute-bytes)

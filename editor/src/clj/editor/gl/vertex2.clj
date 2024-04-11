@@ -281,17 +281,10 @@
     (when (not= -1 loc)
       (gl/gl-vertex-attrib-pointer gl ^int loc ^int components ^int (gl-types type) ^boolean normalize ^int stride ^long offset))))
 
-(def my-atom (atom 0))
-
-(defn contains-semantic-type? [attributes semantic-type]
-  (some #(= semantic-type (:semantic-type %)) attributes))
-
 (defn- vertex-attrib-pointers
   [^GL2 gl attribs attrib-locs]
   (let [offsets (reductions + 0 (attribute-sizes attribs))
         stride  (vertex-size attribs)]
-    (when (contains-semantic-type? attribs :semantic-type-world-matrix)
-      (reset! my-atom [attribs attrib-locs]))
     (doall
       (map
         (fn [offset attrib loc]
