@@ -13,3 +13,5 @@
 // specific language governing permissions and limitations under the License.
 
 #include <{custom_include}>
+
+extern "C" int testGlobal() { return 0; } // to silence build warnings
