@@ -469,33 +469,43 @@ def default_flags(self):
                 '-static-libstdc++'] + getAndroidLinkFlags(target_arch))
     elif 'web' == build_util.get_target_os():
 
-        emflags = ['DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
-                   'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]',
-                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'INITIAL_MEMORY=33554432', 'LLD_REPORT_UNDEFINED', 'MAX_WEBGL_VERSION=2',
-                   'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0']
+        emflags_compile = ['DISABLE_EXCEPTION_CATCHING=1']
+
+        emflags_compile = zip(['-s'] * len(emflags_compile), emflags_compile)
+        emflags_compile =[j for i in emflags_compile for j in i]
+
+        emflags_link = [
+            'DISABLE_EXCEPTION_CATCHING=1',
+            'EXPORTED_RUNTIME_METHODS=["ccall","stackTrace","UTF8ToString","callMain","HEAPU8"]',
+            'EXPORTED_FUNCTIONS=_main,_malloc,_free',
+            'ERROR_ON_UNDEFINED_SYMBOLS=1',
+            'INITIAL_MEMORY=33554432',
+            'MAX_WEBGL_VERSION=2',
+            'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0',
+            'STACK_SIZE=5MB']
 
         if 'wasm' == build_util.get_target_architecture():
-            emflags += ['WASM=1', 'IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=1']
+            emflags_link += ['WASM=1', 'IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=1']
         else:
-            emflags += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
+            emflags_link += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
 
-        emflags = zip(['-s'] * len(emflags), emflags)
-        emflags =[j for i in emflags for j in i]
+        emflags_link = zip(['-s'] * len(emflags_link), emflags_link)
+        emflags_link =[j for i in emflags_link for j in i]
 
         flags = []
         linkflags = []
         if int(opt_level) < 2:
-            flags = ['-g4']
-            linkflags = ['-g4']
+            flags = ['-gsource-map']
+            linkflags = ['-gsource-map']
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
                                         '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DDM_NO_SYSTEM_FUNCTION'])
-            self.env.append_value(f, emflags)
+            self.env.append_value(f, emflags_compile)
             self.env.append_value(f, flags)
 
-        self.env.append_value('LINKFLAGS', ['-Wno-warn-absolute-paths', '--emit-symbol-map', '--memory-init-file', '0', '-lidbfs.js'])
-        self.env.append_value('LINKFLAGS', emflags)
+        self.env.append_value('LINKFLAGS', ['-Wno-warn-absolute-paths', '--emit-symbol-map', '-lidbfs.js'])
+        self.env.append_value('LINKFLAGS', emflags_link)
         self.env.append_value('LINKFLAGS', linkflags)
 
     elif build_util.get_target_platform() in ['win32', 'x86_64-win32']:
@@ -550,15 +560,11 @@ def web_exported_functions(self):
 
     for name in ('CFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
         arr = self.env[name]
-
-        for i, v in enumerate(arr):
-            if v.startswith('EXPORTED_FUNCTIONS'):
-                remove_flag_at_index(arr, i-1, 2) # "_main" is exported by default
-                break
-
-        if use_crash:
-            self.env.append_value(name, ['-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_dmExportedSymbols","_main"]'])
-
+        if use_crash and name is 'LINKFLAGS':
+            for i, v in enumerate(arr):
+                if v.startswith('EXPORTED_FUNCTIONS'):
+                    arr[i] = v + ",_JSWriteDump,_dmExportedSymbols"
+                    break
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @after('apply_obj_vars')
@@ -1399,7 +1405,8 @@ def run_tests(ctx, valgrind = False, configfile = None):
             cmd = launch_pattern % (program, configfile if configfile else '')
 
             if 'web' in ctx.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
-                cmd = '%s %s' % (ctx.env['NODEJS'], cmd)
+                cmd = '%s %s' % (ctx.env['NODEJS'][0], cmd)
+
         # disable shortly during beta release, due to issue with jctest + test_gui
         valgrind = False
         if valgrind:
@@ -1431,11 +1438,10 @@ def js_web_link_flags(self):
 @feature('test')
 def test_flags(self):
     self.install_path = None # the tests shouldn't be installed
-    # When building tests for the web, we disable emission of emscripten js.mem init files,
-    # as the assumption when these are loaded is that the cwd will contain these items.
     if 'web' in self.env['PLATFORM']:
         for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
-            self.env.append_value(f, ['--memory-init-file', '0'])
+            if '-gsource-map' in self.env[f]:
+                self.env[f].remove('-gsource-map')
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')
