@@ -679,7 +679,7 @@ namespace dmRender
             dmGraphics::GetAttributeValues(graphics_attribute_in, &bytes, &byte_size);
 
             dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(graphics_attribute_in.m_DataType);
-            uint32_t attribute_byte_size   = dmGraphics::GetTypeSize(graphics_type) * graphics_attribute_in.m_ElementCount * material_attribute.m_ValueCount;
+            uint32_t attribute_byte_size   = dmGraphics::GetTypeSize(graphics_type) * GetAttributeElementCount(graphics_attribute_in.m_ShaderType) * material_attribute.m_ValueCount;
             attribute_byte_size            = dmMath::Min(attribute_byte_size, byte_size);
             memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
 

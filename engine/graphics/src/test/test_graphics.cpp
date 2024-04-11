@@ -318,16 +318,16 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
     dmGraphics::EnableVertexDeclaration(m_Context, vertex_declaration, 0);
 
     float p[] = { 0.0f, 1.0f, 2.0f, 5.0f, 6.0f, 7.0f };
-    ASSERT_EQ(sizeof(p) / 2, m_NullContext->m_VertexStreams[0].m_Size);
-    ASSERT_EQ(0, memcmp(p, m_NullContext->m_VertexStreams[0].m_Source, 3 * sizeof(float)));
+    ASSERT_EQ(sizeof(p) / 2, m_NullContext->m_VertexStreams[0][0].m_Size);
+    ASSERT_EQ(0, memcmp(p, m_NullContext->m_VertexStreams[0][0].m_Source, 3 * sizeof(float)));
     float uv[] = { 3.0f, 4.0f, 8.0f, 9.0f };
-    ASSERT_EQ(sizeof(uv) / 2, m_NullContext->m_VertexStreams[1].m_Size);
-    ASSERT_EQ(0, memcmp(uv, m_NullContext->m_VertexStreams[1].m_Source, 2 * sizeof(float)));
+    ASSERT_EQ(sizeof(uv) / 2, m_NullContext->m_VertexStreams[0][1].m_Size);
+    ASSERT_EQ(0, memcmp(uv, m_NullContext->m_VertexStreams[0][1].m_Source, 2 * sizeof(float)));
 
     dmGraphics::DisableVertexDeclaration(m_Context, vertex_declaration);
 
-    ASSERT_EQ(0u, m_NullContext->m_VertexStreams[0].m_Size);
-    ASSERT_EQ(0u, m_NullContext->m_VertexStreams[1].m_Size);
+    ASSERT_EQ(0u, m_NullContext->m_VertexStreams[0][0].m_Size);
+    ASSERT_EQ(0u, m_NullContext->m_VertexStreams[0][1].m_Size);
 
     dmGraphics::DeleteVertexDeclaration(vertex_declaration);
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
@@ -350,15 +350,15 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::EnableVertexBuffer(m_Context, vb, 0);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, 0);
-    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, dmGraphics::TYPE_UNSIGNED_INT, ib);
+    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, dmGraphics::TYPE_UNSIGNED_INT, ib, 1);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, 0);
-    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, 6, dmGraphics::TYPE_UNSIGNED_INT, ib);
+    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, 6, dmGraphics::TYPE_UNSIGNED_INT, ib, 1);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, 0);
-    dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
+    dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::DisableVertexBuffer(m_Context, vb);

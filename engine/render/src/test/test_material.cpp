@@ -174,21 +174,21 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     // Reconfigure all streams and set new data
     uint8_t bytes_one[] = { 127, 32 };
     attribute_overrides[0].m_NameHash                      = dmHashString64("attribute_one");
-    attribute_overrides[0].m_ElementCount                  = 2;
+    attribute_overrides[0].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_VEC2;
     attribute_overrides[0].m_DataType                      = dmGraphics::VertexAttribute::TYPE_BYTE;
     attribute_overrides[0].m_Values.m_BinaryValues.m_Data  = bytes_one;
     attribute_overrides[0].m_Values.m_BinaryValues.m_Count = 2;
 
     uint8_t bytes_two[] = { 4, 3, 2, 1 };
     attribute_overrides[1].m_NameHash                      = dmHashString64("attribute_two");
-    attribute_overrides[1].m_ElementCount                  = 4;
+    attribute_overrides[1].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_VEC4;
     attribute_overrides[1].m_DataType                      = dmGraphics::VertexAttribute::TYPE_BYTE;
     attribute_overrides[1].m_Values.m_BinaryValues.m_Data  = bytes_two;
     attribute_overrides[1].m_Values.m_BinaryValues.m_Count = 4;
 
     uint8_t bytes_three[] = { 64, 32, 16 };
     attribute_overrides[2].m_NameHash                      = dmHashString64("attribute_three");
-    attribute_overrides[2].m_ElementCount                  = 3;
+    attribute_overrides[2].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_VEC3;
     attribute_overrides[2].m_DataType                      = dmGraphics::VertexAttribute::TYPE_BYTE;
     attribute_overrides[2].m_Values.m_BinaryValues.m_Data  = bytes_three;
     attribute_overrides[2].m_Values.m_BinaryValues.m_Count = 3;
