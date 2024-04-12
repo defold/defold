@@ -50,6 +50,11 @@
 #elif defined (ANDROID)
     #define GL_GLEXT_PROTOTYPES
     #include <GLES2/gl2ext.h>
+
+    #define glDrawArraysInstanced PFN_glDrawArraysInstanced
+    #define glDrawElementsInstanced PFN_glDrawElementsInstanced
+    #define glVertexAttribDivisor PFN_glVertexAttribDivisor
+
 #elif defined (__MACH__)
     // NOP
 #elif defined (_WIN32)
@@ -387,6 +392,15 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data);
     DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC PFN_glCompressedTexSubImage3D = NULL;
+
+    typedef void (* DM_PFNGLDRAWARRAYSINSTANCEDPROC) (GLenum mode, GLint first, GLsizei count, GLsizei primcount);
+    DM_PFNGLDRAWARRAYSINSTANCEDPROC PFN_glDrawArraysInstanced = NULL;
+
+    typedef void (* DM_PFNGLDRAWELEMENTSINSTANCEDPROC) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLsizei primcount);
+    DM_PFNGLDRAWELEMENTSINSTANCEDPROC PFN_glDrawElementsInstanced = NULL;
+
+    typedef void (* DM_PFNGLVERTEXATTRIBDIVISORPROC) (GLuint index, GLuint divisor);
+    DM_PFNGLVERTEXATTRIBDIVISORPROC PFN_glVertexAttribDivisor = NULL;
 #endif
 
     OpenGLContext* g_Context = 0x0;
@@ -665,22 +679,26 @@ static void LogFrameBufferError(GLenum status)
             4) Optionally check as core function (if not GLES and core_name is set)
         */
         uintptr_t func = 0x0;
-        static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
-        static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
-        char proc_str[256];
-        for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
+
+        if (extension_name)
         {
-            // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
-            size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
-            dmStrlCpy(proc_str + l, extension_name, 256-l);
-            if(!OpenGLIsExtensionSupported(context, proc_str))
-                continue;
-            l = dmStrlCpy(proc_str, name, 255);
-            dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
-            func = (uintptr_t) glfwGetProcAddress(proc_str);
-            if(func != 0x0)
+            static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
+            static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
+            char proc_str[256];
+            for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
             {
-                break;
+                // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
+                size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
+                dmStrlCpy(proc_str + l, extension_name, 256-l);
+                if(!OpenGLIsExtensionSupported(context, proc_str))
+                    continue;
+                l = dmStrlCpy(proc_str, name, 255);
+                dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
+                func = (uintptr_t) glfwGetProcAddress(proc_str);
+                if(func != 0x0)
+                {
+                    break;
+                }
             }
         }
     #if !defined(__EMSCRIPTEN__)
@@ -1012,6 +1030,9 @@ static void LogFrameBufferError(GLenum status)
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D,              "glTexImage3D",              "texture_array", "glTexImage3D",              DM_PFNGLTEXIMAGE3DPROC, context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "texture_array", "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D,    "glCompressedTexImage3D",    "texture_array", "glCompressedTexImage3D",    DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawArraysInstanced,     "glDrawArraysInstanced",                NULL, "glDrawArraysInstanced",     DM_PFNGLDRAWARRAYSINSTANCEDPROC,   context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawElementsInstanced,   "glDrawElementsInstanced",              NULL, "glDrawElementsInstanced",   DM_PFNGLDRAWELEMENTSINSTANCEDPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glVertexAttribDivisor,     "glVertexAttribDivisor",                NULL, "glVertexAttribDivisor",     DM_PFNGLVERTEXATTRIBDIVISORPROC,   context);
     #endif
     #undef DMGRAPHICS_GET_PROC_ADDRESS_EXT
 
@@ -1085,7 +1106,13 @@ static void LogFrameBufferError(GLenum status)
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
 
-            context->m_InstancingSupport = true;
+            context->m_InstancingSupport = 1;
+
+        #ifdef ANDROID
+            context->m_InstancingSupport &= PFN_glDrawArraysInstanced   != 0;
+            context->m_InstancingSupport &= PFN_glDrawElementsInstanced != 0;
+            context->m_InstancingSupport &= PFN_glVertexAttribDivisor   != 0;
+        #endif
         }
         else
         {
