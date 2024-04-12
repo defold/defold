@@ -31,7 +31,6 @@ namespace dmGraphics
 {
     const static uint32_t MAX_REGISTER_COUNT = 16;
     const static uint32_t MAX_TEXTURE_COUNT  = 32;
-    const static uint8_t MAX_VERTEX_BUFFERS  = 3;
 
     struct TextureSampler
     {
