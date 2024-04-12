@@ -34,10 +34,6 @@ namespace dmGraphics
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t DM_MAX_FRAMES_IN_FLIGHT       = 2; // In flight frames - number of concurrent frames being processed
-    const static uint8_t MAX_VERTEX_BUFFERS            = 3;
-    const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 16;
-    const static uint8_t MAX_SET_COUNT                 = 4;
-    const static uint8_t MAX_STORAGE_BUFFERS           = 4;
 
     enum VulkanResourceType
     {
@@ -254,41 +250,21 @@ namespace dmGraphics
 
     struct ShaderModule
     {
-        ShaderMeta     m_ShaderMeta;
-        uint64_t       m_Hash;
-        VkShaderModule m_Module;
+        ShaderMeta                      m_ShaderMeta;
+        uint64_t                        m_Hash;
+        VkShaderModule                  m_Module;
+        VkPipelineShaderStageCreateInfo m_PipelineStageInfo;
     };
 
     struct Program
     {
         Program();
 
-        enum ModuleType
-        {
-            MODULE_TYPE_VERTEX   = 0,
-            MODULE_TYPE_FRAGMENT = 1,
-            MODULE_TYPE_COUNT    = 2
-        };
-
         struct VulkanHandle
         {
             VkDescriptorSetLayout m_DescriptorSetLayouts[MAX_SET_COUNT];
             VkPipelineLayout      m_PipelineLayout;
             uint8_t               m_DescriptorSetLayoutsCount;
-        };
-
-        struct ProgramResourceBinding
-        {
-            ShaderResourceBinding*           m_Res;
-            dmArray<ShaderResourceTypeInfo>* m_TypeInfos;
-            uint32_t                         m_DataOffset;
-
-            union
-            {
-                uint16_t m_DynamicOffsetIndex;
-                uint16_t m_TextureUnit;
-                uint16_t m_StorageBufferUnit;
-            };
         };
 
         uint64_t                        m_Hash;
@@ -299,8 +275,6 @@ namespace dmGraphics
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
         ShaderModule*                   m_ComputeModule;
-
-        VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
         ShaderDesc::Language            m_Language;
 
         uint32_t                        m_UniformDataSizeAligned;
@@ -469,7 +443,7 @@ namespace dmGraphics
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode, VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
-    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut);
+    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut);
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count, const PipelineState pipelineState, Program* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount, RenderTarget* render_target, Pipeline* pipelineOut);
 
     // Destroy functions

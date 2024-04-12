@@ -1437,17 +1437,20 @@ namespace dmGameSystem
      * local function set_shape_data()
      *     -- set capsule shape data
      *     local data = {}
+     *     data.type = physics.SHAPE_TYPE_CAPSULE
      *     data.diameter = 10
      *     data.height = 20
      *     physics.set_shape("#collisionobject", "my_capsule_shape", data)
      *
      *     -- set sphere shape data
      *     data = {}
+     *     data.type = physics.SHAPE_TYPE_SPHERE
      *     data.diameter = 10
      *     physics.set_shape("#collisionobject", "my_sphere_shape", data)
      *
      *     -- set box shape data
      *     data = {}
+     *     data.type = physics.SHAPE_TYPE_BOX
      *     data.dimensions = vmath.vector3(10, 10, 5)
      *     physics.set_shape("#collisionobject", "my_box_shape", data)
      * end

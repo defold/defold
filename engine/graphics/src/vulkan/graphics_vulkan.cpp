@@ -1949,7 +1949,7 @@ bail:
         {
             for (int binding = 0; binding < program->m_MaxBinding; ++binding)
             {
-                Program::ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
+                ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
 
                 if (pgm_res.m_Res == 0x0)
                     continue;
@@ -2257,7 +2257,7 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VulkanContext* context = (VulkanContext*) _context;
 
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, VK_SHADER_STAGE_VERTEX_BIT, shader);
         CHECK_VK_ERROR(res);
 
         CreateShaderMeta(ddf, &shader->m_ShaderMeta);
@@ -2277,7 +2277,7 @@ bail:
         memset(shader, 0, sizeof(*shader));
         VulkanContext* context = (VulkanContext*) _context;
 
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, VK_SHADER_STAGE_FRAGMENT_BIT, shader);
         CHECK_VK_ERROR(res);
 
         CreateShaderMeta(ddf, &shader->m_ShaderMeta);
@@ -2352,18 +2352,6 @@ bail:
         vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
     }
 
-    struct ProgramResourceBindingsInfo
-    {
-        uint32_t m_UniformBufferCount;
-        uint32_t m_StorageBufferCount;
-        uint32_t m_TextureCount;
-        uint32_t m_TotalUniformCount;
-        uint32_t m_UniformDataSize;
-        uint32_t m_UniformDataSizeAligned;
-        uint32_t m_MaxSet;
-        uint32_t m_MaxBinding;
-    };
-
     static void FillProgramResourceBindings(
         Program*                         program,
         dmArray<ShaderResourceBinding>&  resources,
@@ -2378,7 +2366,7 @@ bail:
         {
             ShaderResourceBinding& res            = resources[i];
             VkDescriptorSetLayoutBinding& binding = bindings[res.m_Set][res.m_Binding];
-            Program::ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
+            ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
 
             if (binding.descriptorCount == 0)
             {
@@ -2485,46 +2473,17 @@ bail:
 
     static void CreateComputeProgram(VulkanContext* context, Program* program, ShaderModule* compute_module)
     {
-        VkPipelineShaderStageCreateInfo vk_compute_shader_create_info = {};
-        vk_compute_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vk_compute_shader_create_info.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
-        vk_compute_shader_create_info.module = compute_module->m_Module;
-        vk_compute_shader_create_info.pName  = "main"; // Should come from reflection!
-
-        memset(program, 0, sizeof(Program));
-
-        program->m_PipelineStageInfo[0] = vk_compute_shader_create_info;
-        program->m_ComputeModule        = compute_module;
-        program->m_Hash                 = compute_module->m_Hash;
-
+        program->m_ComputeModule  = compute_module;
+        program->m_Hash           = compute_module->m_Hash;
         CreateProgramResourceBindings(context, program);
     }
 
     static void CreateGraphicsProgram(VulkanContext* context, Program* program, ShaderModule* vertex_module, ShaderModule* fragment_module)
     {
-        // Set pipeline creation info
-        VkPipelineShaderStageCreateInfo vk_vertex_shader_create_info;
-        memset(&vk_vertex_shader_create_info, 0, sizeof(vk_vertex_shader_create_info));
-
-        vk_vertex_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vk_vertex_shader_create_info.stage  = VK_SHADER_STAGE_VERTEX_BIT;
-        vk_vertex_shader_create_info.module = vertex_module->m_Module;
-        vk_vertex_shader_create_info.pName  = "main";
-
-        VkPipelineShaderStageCreateInfo vk_fragment_shader_create_info;
-        memset(&vk_fragment_shader_create_info, 0, sizeof(VkPipelineShaderStageCreateInfo));
-
-        vk_fragment_shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vk_fragment_shader_create_info.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
-        vk_fragment_shader_create_info.module = fragment_module->m_Module;
-        vk_fragment_shader_create_info.pName  = "main";
-
-        program->m_PipelineStageInfo[Program::MODULE_TYPE_VERTEX]   = vk_vertex_shader_create_info;
-        program->m_PipelineStageInfo[Program::MODULE_TYPE_FRAGMENT] = vk_fragment_shader_create_info;
-        program->m_Hash               = 0;
-        program->m_UniformData        = 0;
-        program->m_VertexModule       = vertex_module;
-        program->m_FragmentModule     = fragment_module;
+        program->m_Hash           = 0;
+        program->m_UniformData    = 0;
+        program->m_VertexModule   = vertex_module;
+        program->m_FragmentModule = fragment_module;
 
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
@@ -2577,10 +2536,10 @@ bail:
         DestroyShaderMeta(shader->m_ShaderMeta);
     }
 
-    static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf)
+    static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage_flag)
     {
         ShaderModule tmp_shader;
-        VkResult res = CreateShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, &tmp_shader);
+        VkResult res = CreateShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, stage_flag, &tmp_shader);
         if (res == VK_SUCCESS)
         {
             DestroyShader(shader);
@@ -2599,12 +2558,12 @@ bail:
 
     static bool VulkanReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
-        return ReloadShader((ShaderModule*) prog, ddf);
+        return ReloadShader((ShaderModule*) prog, ddf, VK_SHADER_STAGE_VERTEX_BIT);
     }
 
     static bool VulkanReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
     {
-        return ReloadShader((ShaderModule*) prog, ddf);
+        return ReloadShader((ShaderModule*) prog, ddf, VK_SHADER_STAGE_FRAGMENT_BIT);
     }
 
     static void VulkanDeleteVertexProgram(HVertexProgram prog)
@@ -2659,7 +2618,7 @@ bail:
 
     static bool VulkanReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
     {
-        return ReloadShader((ShaderModule*) prog, ddf);
+        return ReloadShader((ShaderModule*) prog, ddf, VK_SHADER_STAGE_COMPUTE_BIT);
     }
 
     static uint32_t VulkanGetAttributeCount(HProgram prog)
@@ -2698,7 +2657,7 @@ bail:
         {
             for (int binding = 0; binding < program->m_MaxBinding; ++binding)
             {
-                Program::ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
+                ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
 
                 if (pgm_res.m_Res == 0x0)
                     continue;
@@ -2751,7 +2710,7 @@ bail:
         {
             for (int binding = 0; binding < program_ptr->m_MaxBinding; ++binding)
             {
-                Program::ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
+                ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
 
                 if (pgm_res.m_Res == 0x0)
                     continue;
@@ -2801,7 +2760,7 @@ bail:
         uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        Program::ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
+        ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
         const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
@@ -2821,7 +2780,7 @@ bail:
         uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        Program::ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
+        ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
         const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
@@ -4045,7 +4004,7 @@ bail:
         ShaderModule* shader   = new ShaderModule;
         memset(shader, 0, sizeof(*shader));
 
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, VK_SHADER_STAGE_COMPUTE_BIT, shader);
         CHECK_VK_ERROR(res);
         CreateShaderMeta(ddf, &shader->m_ShaderMeta);
 
@@ -4721,7 +4680,7 @@ bail:
         {
             for (int binding = 0; binding < program->m_MaxBinding; ++binding)
             {
-                Program::ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
+                ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
 
                 if (pgm_res.m_Res == 0x0)
                     continue;
