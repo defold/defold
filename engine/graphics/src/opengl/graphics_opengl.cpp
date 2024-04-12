@@ -152,6 +152,9 @@
         PFNGLDRAWBUFFERSPROC glDrawBuffers = NULL;
         PFNGLGETFRAGDATALOCATIONPROC glGetFragDataLocation = NULL;
         PFNGLBINDFRAGDATALOCATIONPROC glBindFragDataLocation = NULL;
+        PFNGLDRAWARRAYSINSTANCEDPROC glDrawArraysInstanced = NULL;
+        PFNGLDRAWELEMENTSINSTANCEDPROC glDrawElementsInstanced = NULL;
+        PFNGLVERTEXATTRIBDIVISORPROC glVertexAttribDivisor = NULL;
     #endif
 #elif defined(__EMSCRIPTEN__)
     #include <GL/glext.h>
@@ -871,6 +874,9 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glDrawBuffers, "glDrawBuffers", PFNGLDRAWBUFFERSPROC);
         GET_PROC_ADDRESS(glGetFragDataLocation, "glGetFragDataLocation", PFNGLGETFRAGDATALOCATIONPROC);
         GET_PROC_ADDRESS(glBindFragDataLocation, "glBindFragDataLocation", PFNGLBINDFRAGDATALOCATIONPROC);
+        GET_PROC_ADDRESS(glDrawArraysInstanced, "glDrawArraysInstanced", PFNGLDRAWARRAYSINSTANCEDPROC);
+        GET_PROC_ADDRESS(glDrawElementsInstanced, "glDrawElementsInstanced", PFNGLDRAWELEMENTSINSTANCEDPROC);
+        GET_PROC_ADDRESS(glVertexAttribDivisor, "glVertexAttribDivisor", PFNGLVERTEXATTRIBDIVISORPROC);
     #endif
 
     #undef GET_PROC_ADDRESS
@@ -1079,7 +1085,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
 
-            context->m_InstancingSupport =true;
+            context->m_InstancingSupport = true;
         }
         else
         {
