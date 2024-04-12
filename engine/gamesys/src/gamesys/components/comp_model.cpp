@@ -1050,17 +1050,13 @@ namespace dmGameSystem
         uint32_t vertex_stride = 0;
         uint32_t instance_stride = 0;
 
-        if (!HasCustomVertexAttributes(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX))
-        {
-            vx_decl = world->m_VertexDeclaration;
-        }
-        if (!HasCustomVertexAttributes(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE))
-        {
-            inst_decl = world->m_InstanceVertexDeclaration;
-        }
-
         if (vx_decl)
         {
+            if (!HasCustomVertexAttributes(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX))
+            {
+                vx_decl = world->m_VertexDeclaration;
+            }
+
             // Prepare vertex buffer
             vertex_stride = dmGraphics::GetVertexDeclarationStride(vx_decl);
             uint32_t required_vertex_memory_count = vertex_count * vertex_stride;
@@ -1088,6 +1084,11 @@ namespace dmGameSystem
 
         if (inst_decl)
         {
+            if (!HasCustomVertexAttributes(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE))
+            {
+                inst_decl = world->m_InstanceVertexDeclaration;
+            }
+
             // Prepare instance buffer
             instance_stride = dmGraphics::GetVertexDeclarationStride(inst_decl);
             uint32_t required_instance_memory_count = instance_count * instance_stride;
