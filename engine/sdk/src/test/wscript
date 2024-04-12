@@ -94,8 +94,11 @@ def build(bld):
                 return False
             if ends_with(f, exclude_endings):
                 continue
-            path = os.path.join(root, f)
-            includes.append(path)
+
+            ext = os.path.splitext(f)[1]
+            if ext in ['.h', '.hpp']:
+                path = os.path.join(root, f)
+                includes.append(path)
 
     # Create the test files and try to build them
     with open('src/test/test_include.cpp', 'rt', encoding='utf-8') as f:
@@ -111,7 +114,7 @@ def build(bld):
             content = template.replace('{custom_include}', include)
             f.write(content)
 
-        bld.stlib(features = 'cxx sdk_include_filter',
+        bld.stlib(features = 'cxx sdk_include_filter test',
               includes = ['.','../'] + [extra_node],
               source   = source,
               target   = 'test_sdk_include_%s_%d' % (basename, index),
