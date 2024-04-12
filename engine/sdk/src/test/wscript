@@ -37,19 +37,6 @@ def copy_file_task(bld, src_dir, src, dst_dir_node):
                 shell = True)
 
 def build(bld):
-    bld.stlib(features = 'cxx test sdk_include_filter',
-              includes = '. ../',
-              source   = 'test_sdk_lib.cpp',
-              target   = 'test_sdk_lib',
-              always   = True)
-
-    bld.program(features         = 'c cxx embed test',
-                includes         = '.',
-                use              = 'TESTMAIN EXTENSION DLIB SOCKET LUA PROFILE_NULL test_sdk_lib',
-                exported_symbols = ['TestSdk'],
-                target           = 'test_sdk',
-                source           = 'test_sdk.cpp',
-                always           = True)
 
     # copy the semi-public dmsdk files (*_ddf.h + res_*.h)
     extra_includes = []
@@ -69,6 +56,20 @@ def build(bld):
         copy_file_task(bld, extra_include_dir, extra_include, extra_node)
 
     bld.add_group()
+
+    bld.stlib(features = 'cxx test sdk_include_filter',
+              includes = ['.','../'] + [extra_node],
+              source   = 'test_sdk_lib.cpp',
+              target   = 'test_sdk_lib',
+              always   = True)
+
+    bld.program(features         = 'c cxx embed test',
+                includes         = '.',
+                use              = 'TESTMAIN EXTENSION DLIB SOCKET LUA PROFILE_NULL test_sdk_lib',
+                exported_symbols = ['TestSdk'],
+                target           = 'test_sdk',
+                source           = 'test_sdk.cpp',
+                always           = True)
 
     # gather the includes that we wish to test
 
