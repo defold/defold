@@ -303,8 +303,9 @@ namespace dmGui
         PROPERTY_PIE_PARAMS = 8,
         PROPERTY_TEXT_PARAMS= 9,
         PROPERTY_EULER      = 10,
+        PROPERTY_PREV_EULER = 11, // Used to automatically detect if the euler property has been animated
 
-        PROPERTY_COUNT      = 11,
+        PROPERTY_COUNT      = 12,
     };
 
     /*#
