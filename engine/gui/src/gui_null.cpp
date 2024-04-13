@@ -797,20 +797,6 @@ namespace dmGui
     {
     }
 
-    void AnimateNode(HScene scene,
-                     HNode node,
-                     Property property,
-                     const Vector4& to,
-                     dmEasing::Curve easing,
-                     Playback playback,
-                     float duration,
-                     float delay,
-                     AnimationComplete animation_complete,
-                     void* userdata1,
-                     void* userdata2)
-    {
-    }
-
     dmhash_t GetPropertyHash(Property property)
     {
         return 0;
