@@ -25,6 +25,8 @@
 
 #include "components/comp_collision_object.h"
 
+#include <extension/extension.h>
+
 #include "script_box2d.h"
 
 extern "C"
@@ -124,27 +126,31 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    void ScriptBox2DInitialize(const ScriptLibContext& context)
+    static dmExtension::Result ScriptBox2DInitialize(dmExtension::Params* params)
     {
         float physics_scale_default = 1.0f;
-        float physics_scale = context.m_ConfigFile ? dmConfigFile::GetFloat(context.m_ConfigFile, "physics.scale", physics_scale_default) : physics_scale_default;
-        SetPhysicsScale(physics_scale);
+        float physics_scale = params->m_ConfigFile ? dmConfigFile::GetFloat(params->m_ConfigFile, "physics.scale", physics_scale_default) : physics_scale_default;
+        dmGameSystem::SetPhysicsScale(physics_scale);
 
-        lua_State* L = context.m_LuaState;
+        lua_State* L = params->m_L;
+        luaL_register(L, "b2d", dmGameSystem::BOX2D_FUNCTIONS);
 
-        luaL_register(L, "b2d", BOX2D_FUNCTIONS);
-
-        ScriptBox2DInitializeBody(L);
+            dmGameSystem::ScriptBox2DInitializeBody(L);
 
         lua_pop(L, 1); // pop the lua module
+        return dmExtension::RESULT_OK;
     }
 
-    void ScriptBox2DFinalize(const ScriptLibContext& context)
+
+    static dmExtension::Result ScriptBox2DFinalize(dmExtension::Params* params)
     {
-        (void)context;
+        return dmExtension::RESULT_OK;
     }
-}
 
+
+    DM_DECLARE_EXTENSION(ScriptBox2DExt, "ScriptBox2d", 0, 0, ScriptBox2DInitialize, 0, 0, ScriptBox2DFinalize)
+
+}
 
 /*# Box2D documentation
  *

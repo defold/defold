@@ -20,7 +20,7 @@ def build(bld):
         includes = '. .. ../../src ../../proto',
         proto_gen_py = True,
         protoc_includes = '../../proto',
-        source = bld.path.ant_glob(['*.cpp', 'resources/*.cpp', 'components/*.cpp', 'scripts/*.cpp', 'scripts/box2d/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*'),
+        source = bld.path.ant_glob(['*.cpp', 'resources/*.cpp', 'components/*.cpp', 'scripts/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*'),
         target = 'gamesys')
 
     if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
@@ -34,6 +34,16 @@ def build(bld):
         resource.source = remove_from_node_list(resource.source, 'script_http.cpp')
     else:
         resource.source = remove_from_node_list(resource.source, 'script_http_js.cpp')
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src',
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body.cpp',
+        target = 'script_box2d')
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src',
+        source = 'scripts/box2d/script_box2d_null.cpp',
+        target = 'script_box2d_null')
 
     bld.add_group()
 
