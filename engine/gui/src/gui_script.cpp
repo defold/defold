@@ -1303,6 +1303,7 @@ namespace dmGui
         }
 
         Vector3* v3;
+        Quat*   q;
         Vector4 to;
         if (lua_isnumber(L, 3))
         {
@@ -1312,6 +1313,10 @@ namespace dmGui
         {
             Vector4 original = dmGui::GetNodePropertyHash(scene, hnode, property_hash);
             to = Vector4(*v3, original.getW());
+        }
+        else if ((q = dmScript::ToQuat(L, 3)))
+        {
+            to = Vector4(*q);
         }
         else
         {
@@ -1554,7 +1559,7 @@ namespace dmGui
      *
      * @name gui.set_text
      * @param node [type:node] node to set text for
-     * @param text [type:string] text to set
+     * @param text [type:string|number] text to set
      */
     static int LuaSetText(lua_State* L)
     {
@@ -3206,7 +3211,7 @@ namespace dmGui
      *
      * @name gui.is_enabled
      * @param node [type:node] node to query
-     * @param recursive [type:boolean] check hierarchy recursively
+     * @param [recursive] [type:boolean] check hierarchy recursively
      * @return enabled [type:boolean] whether the node is enabled or not
      */
     static int LuaIsEnabled(lua_State* L)
@@ -3464,8 +3469,8 @@ namespace dmGui
      *
      * @name gui.set_parent
      * @param node [type:node] node for which to set its parent
-     * @param parent [type:node] parent node to set
-     * @param keep_scene_transform [type:boolean] optional flag to make the scene position being perserved
+     * @param [parent] [type:node] parent node to set, pass `nil` to remove parent
+     * @param [keep_scene_transform] [type:boolean] optional flag to make the scene position being perserved
      */
     static int LuaSetParent(lua_State* L)
     {
@@ -3847,9 +3852,27 @@ namespace dmGui
 
     /*# gets the node rotation
      * Returns the rotation of the supplied node.
-     * The rotation is expressed in degree Euler angles.
+     * The rotation is expressed as a quaternion
      *
      * @name gui.get_rotation
+     * @param node [type:node] node to get the rotation from
+     * @return rotation [type:quat] node rotation
+     */
+
+    /*# sets the node rotation
+     * Sets the rotation of the supplied node.
+     * The rotation is expressed as a quaternion
+     *
+     * @name gui.set_rotation
+     * @param node [type:node] node to set the rotation for
+     * @param rotation [type:quat|vector4] new rotation
+     */
+
+    /*# gets the node rotation
+     * Returns the rotation of the supplied node.
+     * The rotation is expressed in degree Euler angles.
+     *
+     * @name gui.get_euler
      * @param node [type:node] node to get the rotation from
      * @return rotation [type:vector3] node rotation
      */
@@ -3858,7 +3881,7 @@ namespace dmGui
      * Sets the rotation of the supplied node.
      * The rotation is expressed in degree Euler angles.
      *
-     * @name gui.set_rotation
+     * @name gui.set_euler
      * @param node [type:node] node to set the rotation for
      * @param rotation [type:vector3|vector4] new rotation
      */
@@ -4002,8 +4025,8 @@ namespace dmGui
     int LuaGetRotation(lua_State* L)
     {
         InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
-        const Vector4& v = n->m_Node.m_Properties[PROPERTY_EULER];
-        dmScript::PushVector3(L, v.getXYZ());
+        const Vector4& v = n->m_Node.m_Properties[PROPERTY_ROTATION];
+        dmScript::PushQuat(L, Quat(v));
         return 1;
     }
 
@@ -4032,11 +4055,51 @@ namespace dmGui
         }
         else
         {
-            Scene* scene = GetScene(L);
-            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_EULER);
             Quat* q = dmScript::CheckQuat(L, 2);
-            v = Vector4(dmVMath::QuatToEuler(q->getX(), q->getY(), q->getZ(), q->getW()), original.getW());
+            v = Vector4(dmVMath::QuatToEuler(q->getX(), q->getY(), q->getZ(), q->getW()));
             r = *q;
+        }
+
+        n->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(r);
+        n->m_Node.m_Properties[PROPERTY_EULER] = v;
+        n->m_Node.m_DirtyLocal = 1;
+        return 0;
+    }
+
+
+    // Euler
+    int LuaGetEuler(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNodeInternal(L, 1, 0);
+        const Vector4& v = n->m_Node.m_Properties[PROPERTY_EULER];
+        dmScript::PushVector3(L, v.getXYZ());
+        return 1;
+    }
+
+    int LuaSetEuler(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNodeInternal(L, 1, &hnode);
+        if (n->m_Node.m_IsBone) {
+            return 0;
+        }
+        Quat r;
+        Vector4 v;
+        Vector3* v3;
+        Vector4* v4;
+        if ((v3 = dmScript::ToVector3(L, 2)))
+        {
+            v = Vector4(*v3, 0.0f);
+            r = dmVMath::EulerToQuat(v.getXYZ());
+        }
+        else if ((v4 = dmScript::ToVector4(L, 2)))
+        {
+            v = *v4;
+            r = dmVMath::EulerToQuat(v.getXYZ());
+        }
+        else
+        {
+            return luaL_argerror(L, 2, "Valid types are vmath.vector3 and vmath.vector4");
         }
 
         n->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(r);
@@ -4443,7 +4506,7 @@ namespace dmGui
      *
      * @name gui.stop_particlefx
      * @param node [type:node] node to stop particle fx for
-     * @param options [type:table] options when stopping the particle fx. Supported options:
+     * @param [options] [type:table] options when stopping the particle fx. Supported options:
      *
      * - [type:boolean] `clear`: instantly clear spawned particles
      */
@@ -4732,6 +4795,7 @@ namespace dmGui
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
+        REGGETSET(Euler, euler)
         REGGETSET(Scale, scale)
         REGGETSET(Color, color)
         REGGETSET(Outline, outline)

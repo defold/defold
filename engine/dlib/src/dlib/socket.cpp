@@ -119,7 +119,7 @@ namespace dmSocket
 #else
     Result GetHostByNameT(const char* name, Address* address, uint64_t timeout, int* cancelflag, bool ipv4, bool ipv6)
     {
-        const uint32_t THREAD_STACK_SIZE = 0x20000;
+        const uint32_t THREAD_STACK_SIZE = 256*1024;
 
         GetHostByNameThreadContext* ctx = new GetHostByNameThreadContext;
         ctx->m_Name = strdup(name);

@@ -12,11 +12,12 @@ var LibraryScript = {
           resp_headers += "\n";
 
           if (xhr.status != 0) {
-              // ALLOC_NORMAL - allocation uses _malloc (see preamble.js)
               var ab = new Uint8Array(xhr.response);
-              var b = allocate(ab, ALLOC_NORMAL);
-              var resp_headers_buffer = allocate(intArrayFromString(resp_headers), ALLOC_NORMAL);
+              var b = _malloc(ab.length * ab.BYTES_PER_ELEMENT);
+              HEAPU8.set(ab, b);
+              var resp_headers_buffer = stringToNewUTF8(resp_headers);
               {{{ makeDynCall('viiiii', 'onload') }}}(arg, xhr.status, b, ab.length, resp_headers_buffer);
+              _free(resp_headers_buffer);
               _free(b);
           } else {
               {{{ makeDynCall('vii', 'onerror') }}}(arg, xhr.status);
@@ -54,4 +55,4 @@ var LibraryScript = {
 }
 
 autoAddDeps(LibraryScript, '$Script');
-mergeInto(LibraryManager.library, LibraryScript);
+addToLibrary(LibraryScript);

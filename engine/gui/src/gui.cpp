@@ -2390,7 +2390,7 @@ namespace dmGui
         InternalNode* node = &scene->m_Nodes[index];
         memset(node, 0, sizeof(InternalNode));
         node->m_Node.m_Properties[PROPERTY_POSITION] = Vector4(Vector3(position), 1);
-        node->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(0);
+        node->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(0, 0, 0, 1);
         node->m_Node.m_Properties[PROPERTY_SCALE] = Vector4(1,1,1,0);
         node->m_Node.m_Properties[PROPERTY_COLOR] = Vector4(1,1,1,1);
         node->m_Node.m_Properties[PROPERTY_OUTLINE] = Vector4(0,0,0,1);
@@ -2400,6 +2400,7 @@ namespace dmGui
         node->m_Node.m_Properties[PROPERTY_PIE_PARAMS] = Vector4(0,360,0,0);
         node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 0, 0);
         node->m_Node.m_Properties[PROPERTY_EULER] = Vector4(0);
+        node->m_Node.m_Properties[PROPERTY_PREV_EULER] = Vector4(0);
         node->m_Node.m_LocalTransform = Matrix4::identity();
         node->m_Node.m_LocalAdjustScale = Vector4(1.0, 1.0, 1.0, 1.0);
         node->m_Node.m_PerimeterVertices = 32;
@@ -2770,9 +2771,41 @@ namespace dmGui
         scale = mulPerElem(adjust_scale, scale);
     }
 
+    // Same euler checks as in gameobject.cpp
+    static void UpdateEulerToRotation(Node& node)
+    {
+        dmVMath::Vector4 euler = node.m_Properties[dmGui::PROPERTY_EULER];
+        node.m_Properties[dmGui::PROPERTY_PREV_EULER] = euler;
+        dmVMath::Quat r = dmVMath::EulerToQuat(euler.getXYZ());
+        node.m_Properties[dmGui::PROPERTY_ROTATION] = dmVMath::Vector4(r);
+    }
+
+    static inline bool Vec3Equals(const uint32_t* a, const uint32_t* b)
+    {
+        return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
+    }
+
+    static bool HasEulerChanged(Node& node)
+    {
+        Vector4& euler = node.m_Properties[dmGui::PROPERTY_EULER];
+        Vector4& prev_euler = node.m_Properties[dmGui::PROPERTY_PREV_EULER];
+        return !Vec3Equals((uint32_t*)(&euler), (uint32_t*)(&prev_euler));
+    }
+
+    static void CheckEuler(Node& node)
+    {
+        if (HasEulerChanged(node))
+        {
+            UpdateEulerToRotation(node);
+        }
+    }
+
     void UpdateLocalTransform(HScene scene, InternalNode* n)
     {
         Node& node = n->m_Node;
+
+        // Check if the euler has been animated/altered, and we need to update rotation
+        CheckEuler(node);
 
         Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
         Vector4 prop_scale = node.m_Properties[dmGui::PROPERTY_SCALE];
@@ -3681,22 +3714,6 @@ namespace dmGui
         {
             dmLogError("property '%s' not found", dmHashReverseSafe64(property));
         }
-    }
-
-    void AnimateNode(HScene scene,
-                     HNode node,
-                     Property property,
-                     const Vector4& to,
-                     dmEasing::Curve easing,
-                     Playback playback,
-                     float duration,
-                     float delay,
-                     AnimationComplete animation_complete,
-                     void* userdata1,
-                     void* userdata2)
-    {
-        dmhash_t prop_hash = g_PropTable[property].m_Hash;
-        AnimateNodeHash(scene, node, prop_hash, to, easing, playback, duration, delay, animation_complete, userdata1, userdata2);
     }
 
     dmhash_t GetPropertyHash(Property property)

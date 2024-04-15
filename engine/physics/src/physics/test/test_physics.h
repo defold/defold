@@ -130,6 +130,8 @@ struct Funcs
     typedef void (*SetGravityFunc)(typename T::WorldType world, const dmVMath::Vector3& gravity);
     typedef bool (*IsBulletFunc)(typename T::CollisionObjectType collision_object);
     typedef void (*SetBulletFunc)(typename T::CollisionObjectType collision_object, bool value);
+    typedef void* (*GetWorldContextFunc)(typename T::WorldType world);
+    typedef void* (*GetCollisionObjectContextFunc)(typename T::CollisionObjectType collision_object);
     typedef dmVMath::Vector3 (*GetGravityFunc)(typename T::WorldType world);
 };
 
@@ -246,6 +248,8 @@ struct Test2D
     Funcs<Test2D>::GetGravityFunc                   m_GetGravityFunc;
     Funcs<Test2D>::IsBulletFunc                     m_IsBulletFunc;
     Funcs<Test2D>::SetBulletFunc                    m_SetBulletFunc;
+    Funcs<Test2D>::GetWorldContextFunc              m_GetWorldContextFunc;
+    Funcs<Test2D>::GetCollisionObjectContextFunc    m_GetCollisionObjectContextFunc;
 
     float*      m_Vertices;
     uint32_t    m_VertexCount;

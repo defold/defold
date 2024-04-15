@@ -38,7 +38,6 @@
 #include "scripts/script_sys_gamesys.h"
 #include "scripts/script_camera.h"
 #include "scripts/script_http.h"
-#include "scripts/box2d/script_box2d.h"
 
 #include "components/comp_gui.h"
 
@@ -139,7 +138,6 @@ namespace dmGameSystem
         ScriptParticleFXRegister(context);
         ScriptTileMapRegister(context);
         ScriptPhysicsRegister(context);
-        ScriptBox2DInitialize(context);
         ScriptFactoryRegister(context);
         ScriptCollectionFactoryRegister(context);
         ScriptSpriteRegister(context);
@@ -161,7 +159,6 @@ namespace dmGameSystem
         ScriptCollectionProxyFinalize(context);
         ScriptLabelFinalize(context);
         ScriptPhysicsFinalize(context);
-        ScriptBox2DFinalize(context);
         ScriptResourceFinalize(context);
         ScriptWindowFinalize(context);
         ScriptSysGameSysFinalize(context);

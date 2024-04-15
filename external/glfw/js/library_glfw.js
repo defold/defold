@@ -581,7 +581,7 @@ var LibraryGLFW = {
                     GLFW.disconnectJoystick(joy);
                   }
                   GLFW.joys[joy] = {
-                    id: allocate(intArrayFromString(gamepad_id), ALLOC_NORMAL),
+                    id: stringToNewUTF8(gamepad_id),
                     id_string: gamepad_id,
                     axesCount: gamepad.axes.length,
                     buttonsCount: gamepad.buttons.length
@@ -1131,4 +1131,4 @@ var LibraryGLFW = {
 };
 
 autoAddDeps(LibraryGLFW, '$GLFW');
-mergeInto(LibraryManager.library, LibraryGLFW);
+addToLibrary(LibraryGLFW);
