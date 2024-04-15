@@ -13,5 +13,5 @@ input_method = HiddenInputField
 
 [project]
 title = simpledata_project
-dependencies#0 = https://github.com/defold/extension-simpledata/archive/refs/heads/editor-save-value.zip
+dependencies#0 = {{defold.extension.simpledata.url}}
 

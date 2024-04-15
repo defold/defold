@@ -13,5 +13,5 @@ input_method = HiddenInputField
 
 [project]
 title = rive_project
-dependencies#0 = https://github.com/defold/extension-rive/archive/refs/heads/editor-save-value.zip
+dependencies#0 = {{defold.extension.rive.url}}
 

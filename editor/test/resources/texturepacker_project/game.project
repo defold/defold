@@ -13,5 +13,5 @@ input_method = HiddenInputField
 
 [project]
 title = texturepacker_project
-dependencies#0 = https://__DEFOLD_GITHUB_USERNAME__:__DEFOLD_GITHUB_PERSONAL_ACCESS_TOKEN__@github.com/defold/extension-texturepacker/archive/refs/heads/editor-save-value.zip
+dependencies#0 = {{defold.extension.texturepacker.url}}
 
