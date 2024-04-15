@@ -523,77 +523,109 @@
     (map (comp second key)
          (is/system-cache @g/*the-system*))))
 
-(defn- simplify-namespace-name [^String reference-ns-name reference-ns-aliases ^String namespace-name]
-  (if (or (nil? namespace-name)
-          (= "clojure.core" namespace-name)
-          (= reference-ns-name namespace-name))
-    nil ; Strip the namespace.
-    (let [namespace-symbol (symbol namespace-name)
-          alias-name (some (fn [[alias-symbol referenced-ns]]
-                             (when (= namespace-symbol (ns-name referenced-ns))
-                               (name alias-symbol)))
-                           reference-ns-aliases)]
-      (or alias-name
-          namespace-name))))
+(defn- ns->namespace-name
+  ^String [ns]
+  (name (ns-name ns)))
+
+(defn- class->canonical-symbol [^Class class]
+  (symbol (.getName class)))
+
+(defn- make-alias-names-by-namespace-name [ns]
+  (into {(ns->namespace-name 'clojure.core) nil
+         (ns->namespace-name ns) nil}
+        (map (fn [[alias-symbol referenced-ns]]
+               (pair (ns->namespace-name referenced-ns)
+                     (name alias-symbol))))
+        (ns-aliases ns)))
+
+(defn- make-simple-symbols-by-canonical-symbol [ns]
+  (into {}
+        (map (fn [[alias-symbol imported-class]]
+               (pair (class->canonical-symbol imported-class)
+                     alias-symbol)))
+        (ns-imports ns)))
+
+(defn- simplify-namespace-name [namespace-name alias-names-by-namespace-name]
+  {:pre [(or (nil? namespace-name) (string? namespace-name))
+         (map? alias-names-by-namespace-name)]}
+  (let [alias-name (get alias-names-by-namespace-name namespace-name ::not-found)]
+    (case alias-name
+      ::not-found namespace-name
+      alias-name)))
 
 (defn- simplify-symbol-name [symbol-name]
   (string/replace symbol-name
                   #"__(\d+)__auto__$"
                   "#"))
 
-(defn- simplify-symbol [^String reference-ns-name reference-ns-aliases expression]
-  (symbol (simplify-namespace-name reference-ns-name reference-ns-aliases (namespace expression))
-          (simplify-symbol-name (name expression))))
+(defn- simplify-symbol [expression alias-names-by-namespace-name]
+  (-> expression
+      (namespace)
+      (simplify-namespace-name alias-names-by-namespace-name)
+      (symbol (-> expression name simplify-symbol-name))
+      (with-meta (meta expression))))
 
-(defn- simplify-keyword [^String reference-ns-name ns-aliases expression]
-  (keyword (simplify-namespace-name reference-ns-name ns-aliases (namespace expression))
-           (name expression)))
+(defn- simplify-keyword [expression alias-names-by-namespace-name]
+  (-> expression
+      (namespace)
+      (simplify-namespace-name alias-names-by-namespace-name)
+      (keyword (name expression))))
 
-(defn- simplify-namespaces [^String reference-ns-name reference-ns-aliases expression]
+(defn- simplify-expression-impl [expression alias-names-by-namespace-name simple-symbols-by-canonical-symbol]
   (cond
     (map? expression)
-    (into (empty expression)
+    (into (coll/empty-with-meta expression)
           (map (fn [[key value]]
-                 [key (simplify-namespaces reference-ns-name reference-ns-aliases value)])))
+                 (pair (simplify-expression-impl key alias-names-by-namespace-name simple-symbols-by-canonical-symbol)
+                       (simplify-expression-impl value alias-names-by-namespace-name simple-symbols-by-canonical-symbol))))
+          expression)
 
     (or (vector? expression)
         (set? expression))
-    (into (empty expression)
-          (map #(simplify-namespaces reference-ns-name reference-ns-aliases %))
+    (into (coll/empty-with-meta expression)
+          (map #(simplify-expression-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol))
           expression)
 
     (coll/list-or-cons? expression)
-    (into (empty expression)
-          (map #(simplify-namespaces reference-ns-name reference-ns-aliases %))
+    (into (coll/empty-with-meta expression)
+          (map #(simplify-expression-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol))
           (reverse expression))
 
     (symbol? expression)
-    (simplify-symbol reference-ns-name reference-ns-aliases expression)
+    (or (get simple-symbols-by-canonical-symbol expression)
+        (simplify-symbol expression alias-names-by-namespace-name))
 
     (keyword? expression)
-    (simplify-keyword reference-ns-name reference-ns-aliases expression)
+    (simplify-keyword expression alias-names-by-namespace-name)
 
     :else
     expression))
 
-(defn- pprint-code-impl [reference-ns expression]
-  (let [reference-ns-name (str (ns-name reference-ns))
-        reference-ns-aliases (ns-aliases reference-ns)]
-    (binding [pprint/*print-suppress-namespaces* false
-              pprint/*print-right-margin* 100
-              pprint/*print-miser-width* 60]
-      (pprint/with-pprint-dispatch
-        pprint/code-dispatch
-        (pprint/pprint
-          (simplify-namespaces reference-ns-name reference-ns-aliases expression))))))
+(defmacro simplify-expression
+  ([expression]
+   `(simplify-expression *ns* ~expression))
+  ([ns expression]
+   `(let [ns# ~ns]
+      (#'simplify-expression-impl
+        ~expression
+        (#'make-alias-names-by-namespace-name ns#)
+        (#'make-simple-symbols-by-canonical-symbol ns#)))))
+
+(defn- pprint-code-impl [expression]
+  (binding [pprint/*print-suppress-namespaces* false
+            pprint/*print-right-margin* 100
+            pprint/*print-miser-width* 60]
+    (pprint/with-pprint-dispatch
+      pprint/code-dispatch
+      (pprint/pprint expression))))
 
 (defmacro pprint-code
   "Pretty-print the supplied code expression while attempting to retain readable
-  formatting. The aliases in the invoking namespace Useful when developing macros."
+  formatting. Useful when developing macros."
   ([expression]
-   `(#'pprint-code-impl *ns* ~expression))
+   `(#'pprint-code-impl (simplify-expression ~expression)))
   ([ns expression]
-   `(#'pprint-code-impl ~ns ~expression)))
+   `(#'pprint-code-impl (simplify-expression ~ns ~expression))))
 
 ;; Utilities for investigating successors performance
 
