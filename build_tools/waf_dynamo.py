@@ -72,7 +72,7 @@ def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan':
-        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'x86_64-linux']
+        return platform not in ['js-web', 'wasm-web', 'x86_64-ios']
     if feature == 'compute':
         return platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'win32', 'x86_64-win32']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
