@@ -338,9 +338,9 @@
 
 (def physics-setting
   (make-choice-setting
-    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "Box2D"]))
+    :none (concat (libs-toggles all-platforms ["physics_null"]) (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision" "Box2D" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
     :2d   (concat (libs-toggles all-platforms ["physics_2d"])   (exclude-libs-toggles all-platforms ["physics" "LinearMath" "BulletDynamics" "BulletCollision"]))
-    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "Box2D"]))
+    :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "Box2D" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
     :both))
 
 (def vulkan-toggles
