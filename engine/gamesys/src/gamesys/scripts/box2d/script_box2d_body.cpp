@@ -482,11 +482,6 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int Body_newindex(lua_State *L)
-    {
-        return luaL_error(L, BOX2D_TYPE_NAME_BODY " does not support adding new elemnents");
-    }
-
     static const luaL_reg Body_methods[] =
     {
         {0,0}
