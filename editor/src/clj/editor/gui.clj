@@ -2896,10 +2896,6 @@
   (let [load-fn-sym (fn/declared-symbol load-fn)]
     (swap! custom-gui-scene-loaders assoc load-fn-sym load-fn)))
 
-;; Used by tests
-(defn clear-custom-gui-scene-loaders-for-tests! []
-  (reset! custom-gui-scene-loaders (sorted-map)))
-
 (defn- get-registered-gui-scene-loaders []
   (vals @custom-gui-scene-loaders))
 
@@ -3380,7 +3376,7 @@
     :icon particlefx/particle-fx-icon
     :defaults visual-base-node-defaults}])
 
-(defonce ^:private custom-node-type-infos (atom {}))
+(defonce ^:private custom-node-type-infos (atom (sorted-map)))
 
 (defn- get-registered-node-type-infos []
   (into base-node-type-infos
@@ -3439,3 +3435,9 @@
                                  {:custom-type custom-type
                                   :node-cls node-cls
                                   :conflicting-node-cls old-node-cls}))))))))
+
+;; Used by tests
+(defn clear-custom-gui-scene-loaders-and-node-types-for-tests! []
+  ;; TODO(save-value-cleanup): These really should be registered with the workspace so they don't pollute integration tests across projects.
+  (reset! custom-gui-scene-loaders (sorted-map))
+  (reset! custom-node-type-infos (sorted-map)))

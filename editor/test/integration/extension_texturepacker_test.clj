@@ -38,9 +38,19 @@
   (test-util/with-loaded-project project-path
     (is (= #{} (test-util/protobuf-resource-exts-that-read-defaults workspace)))))
 
+(deftest dirty-save-data-test
+  (test-util/with-loaded-project project-path
+    (test-util/clear-cached-save-data!)
+    (is (= #{} (test-util/dirty-proj-paths project)))
+    (test-util/edit-proj-path! project "/examples/basic/basic.tpatlas")
+    (is (= #{"/examples/basic/basic.tpatlas"} (test-util/dirty-proj-paths project)))))
+
 (deftest tpinfo-outputs-test
   (test-util/with-loaded-project project-path
     (let [node-id (test-util/resource-node project "/examples/basic/basic.tpinfo")]
+
+      (testing "build-targets"
+        (is (not (g/error? (g/node-value node-id :build-targets)))))
 
       (testing "node-outline"
         (is (= {:label "Texture Packer Export File"
@@ -322,11 +332,14 @@
                                                {:x 0.0 :y 120.0}
                                                {:x 60.0 :y 0.0}
                                                {:x 67.0 :y 0.0}]}]}]}
-               (g/valid-node-value node-id :save-value)))))))
+               (g/node-value node-id :save-value)))))))
 
 (deftest tpatlas-outputs-test
   (test-util/with-loaded-project project-path
     (let [node-id (test-util/resource-node project "/examples/basic/basic.tpatlas")]
+
+      (testing "build-targets"
+        (is (not (g/error? (g/node-value node-id :build-targets)))))
 
       (testing "node-outline"
         (is (= {:label "Texture Packer Atlas",
@@ -357,7 +370,7 @@
                               :playback :playback-loop-forward
                               :images ["box_fill_128"
                                        "box_fill_64"]}]}
-               (g/valid-node-value node-id :save-value)))))))
+               (g/node-value node-id :save-value)))))))
 
 (deftest tpatlas-build-test
   (test-util/with-scratch-project project-path

@@ -1400,6 +1400,12 @@
 (defmethod edit-resource-node "render_target" [resource-node-id]
   (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
 
+(defmethod edit-resource-node "rivemodel" [resource-node-id]
+  (g/update-property resource-node-id :create-go-bones not))
+
+(defmethod edit-resource-node "rivescene" [resource-node-id]
+  (g/set-property resource-node-id :rive-file nil))
+
 (defmethod edit-resource-node "simpledata" [resource-node-id]
   (g/update-property resource-node-id :i64 type-preserving-add 1))
 
@@ -1430,6 +1436,9 @@
 
 (defmethod edit-resource-node "tilesource" [resource-node-id]
   (g/update-property resource-node-id :tile-spacing type-preserving-add 1))
+
+(defmethod edit-resource-node "tpatlas" [resource-node-id]
+  (g/update-property resource-node-id :rename-patterns  str \_))
 
 (defn edit-resource-node! [resource-node-id]
   (g/transact

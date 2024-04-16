@@ -32,16 +32,20 @@
 (deftest dirty-save-data-test
   (test-util/with-loaded-project project-path
     (test-util/clear-cached-save-data!)
-    (= #{} (test-util/dirty-proj-paths project))
+    (is (= #{} (test-util/dirty-proj-paths project)))
     (test-util/edit-proj-path! project "/main/fields_assigned.simpledata")
-    (= #{"/main/fields_assigned.simpledata"} (test-util/dirty-proj-paths project))
+    (is (= #{"/main/fields_assigned.simpledata"} (test-util/dirty-proj-paths project)))
     (test-util/edit-proj-path! project "/main/fields_unassigned.simpledata")
-    (= #{"/main/fields_assigned.simpledata" "/main/fields_unassigned.simpledata"} (test-util/dirty-proj-paths project))))
+    (is (= #{"/main/fields_assigned.simpledata" "/main/fields_unassigned.simpledata"} (test-util/dirty-proj-paths project)))))
 
 (deftest outputs-test
   (test-util/with-loaded-project project-path
     (let [fields-assigned (test-util/resource-node project "/main/fields_assigned.simpledata")
           fields-unassigned (test-util/resource-node project "/main/fields_unassigned.simpledata")]
+
+      (testing "build-targets"
+        (is (not (g/error? (g/node-value fields-assigned :build-targets))))
+        (is (not (g/error? (g/node-value fields-unassigned :build-targets)))))
 
       (testing "form-data"
         (is (= {:sections [{:fields [{:label "Name"
@@ -91,9 +95,9 @@
                 :i64 (long 1)
                 :v3 (vector-of :float 0.1 0.2 0.3)
                 :array-f32 (vector-of :float 0.1 0.2 0.3 0.4)}
-               (g/valid-node-value fields-assigned :save-value)))
+               (g/node-value fields-assigned :save-value)))
         (is (= {:name "untitled"}
-               (g/valid-node-value fields-unassigned :save-value)))))))
+               (g/node-value fields-unassigned :save-value)))))))
 
 (defn- built-pb-map [project proj-path]
   (let [workspace (project/workspace project)
