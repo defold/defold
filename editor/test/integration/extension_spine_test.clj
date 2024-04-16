@@ -32,7 +32,11 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:private extension-spine-url (settings-core/inject-jvm-properties "{{defold.extension.spine.url}}"))
+(def ^:private project-path "test/resources/spine_project")
+
+(def ^:private migration-project-path "test/resources/spine_migration_project")
+
+(def ^:private extension-spine-url (settings-core/inject-jvm-properties "{{defold.extension.spine.url}}"))
 
 (def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
@@ -51,6 +55,17 @@
                     (pair proj-path diff-lines)))))
         save-data-content-by-proj-path-after))
 
+(deftest registered-resource-types-test
+  (test-util/with-loaded-project project-path
+    (is (= #{} (test-util/protobuf-resource-exts-that-read-defaults workspace)))))
+
+(deftest collection-usage-test
+  (test-util/with-loaded-project project-path
+    (let [main-collection (test-util/resource-node project "/main/main.collection")]
+      (is (not (g/error? (g/node-value main-collection :build-targets))))
+      (is (not (g/error? (g/node-value main-collection :scene))))
+      (is (not (g/error? (g/node-value main-collection :node-outline)))))))
+
 (deftest legacy-spine-project-user-migration-test
   ;; Clear custom gui scene loaders to ensure a clean test.
   (gui/clear-custom-gui-scene-loaders-for-tests!)
@@ -58,7 +73,7 @@
   ;; Load the unmigrated project to check that the editor won't corrupt it. Then
   ;; add a dependency to the extension-spine library and reload the project.
   (let [migrated-game-project-content
-        (test-util/with-loaded-project "test/resources/spine_migration_project" :logging-suppressed true
+        (test-util/with-loaded-project migration-project-path :logging-suppressed true
           (let [main-collection-resource (workspace/find-resource workspace "/main/main.collection")
                 main-gui-resource (workspace/find-resource workspace "/main/main.gui")
                 main-collection (test-util/resource-node project main-collection-resource)
@@ -94,7 +109,7 @@
               (resource-node/save-data-content migrated-game-project-save-data))))]
     (testing "Manual migration steps."
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-scratch-workspace! world "test/resources/spine_migration_project")]
+        (let [workspace (test-util/setup-scratch-workspace! world migration-project-path)]
           ;; Add a dependency to extension-spine to game.project
           (let [game-project-file (io/as-file (workspace/find-resource workspace "/game.project"))]
             (test-support/spit-until-new-mtime game-project-file migrated-game-project-content)

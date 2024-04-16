@@ -23,12 +23,14 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private project-path "test/resources/simpledata_project")
+
 (deftest registered-resource-types-test
-  (test-util/with-loaded-project "test/resources/simpledata_project"
+  (test-util/with-loaded-project project-path
     (is (= #{} (test-util/protobuf-resource-exts-that-read-defaults workspace)))))
 
 (deftest dirty-save-data-test
-  (test-util/with-loaded-project "test/resources/simpledata_project"
+  (test-util/with-loaded-project project-path
     (test-util/clear-cached-save-data!)
     (= #{} (test-util/dirty-proj-paths project))
     (test-util/edit-proj-path! project "/main/fields_assigned.simpledata")
@@ -37,7 +39,7 @@
     (= #{"/main/fields_assigned.simpledata" "/main/fields_unassigned.simpledata"} (test-util/dirty-proj-paths project))))
 
 (deftest outputs-test
-  (test-util/with-loaded-project "test/resources/simpledata_project"
+  (test-util/with-loaded-project project-path
     (let [fields-assigned (test-util/resource-node project "/main/fields_assigned.simpledata")
           fields-unassigned (test-util/resource-node project "/main/fields_unassigned.simpledata")]
 
@@ -104,7 +106,7 @@
            (protobuf/bytes->map-without-defaults pb-class)))))
 
 (deftest build-test
-  (test-util/with-scratch-project "test/resources/simpledata_project"
+  (test-util/with-scratch-project project-path
     (test-util/build! (test-util/resource-node project "/main/main.collection"))
     (is (= {:name "simple-data-test"
             :f32 (float 1.0)
@@ -119,7 +121,7 @@
            (built-pb-map project "/main/fields_unassigned.simpledata")))))
 
 (deftest collection-usage-test
-  (test-util/with-loaded-project "test/resources/simpledata_project"
+  (test-util/with-loaded-project project-path
     (let [main-collection (test-util/resource-node project "/main/main.collection")]
       (is (not (g/error? (g/node-value main-collection :build-targets))))
       (is (not (g/error? (g/node-value main-collection :scene))))

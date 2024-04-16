@@ -24,6 +24,8 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private project-path "test/resources/texturepacker_project")
+
 (defn- outline-info [{:keys [children label read-only]}]
   (cond-> {:label label}
           read-only (assoc :read-only true)
@@ -33,11 +35,11 @@
   (outline-info (g/valid-node-value node-id :node-outline)))
 
 (deftest registered-resource-types-test
-  (test-util/with-loaded-project "test/resources/texturepacker_project"
+  (test-util/with-loaded-project project-path
     (is (= #{} (test-util/protobuf-resource-exts-that-read-defaults workspace)))))
 
 (deftest tpinfo-outputs-test
-  (test-util/with-loaded-project "test/resources/texturepacker_project"
+  (test-util/with-loaded-project project-path
     (let [node-id (test-util/resource-node project "/examples/basic/basic.tpinfo")]
 
       (testing "node-outline"
@@ -323,7 +325,7 @@
                (g/valid-node-value node-id :save-value)))))))
 
 (deftest tpatlas-outputs-test
-  (test-util/with-loaded-project "test/resources/texturepacker_project"
+  (test-util/with-loaded-project project-path
     (let [node-id (test-util/resource-node project "/examples/basic/basic.tpatlas")]
 
       (testing "node-outline"
@@ -358,7 +360,7 @@
                (g/valid-node-value node-id :save-value)))))))
 
 (deftest tpatlas-build-test
-  (test-util/with-scratch-project "test/resources/texturepacker_project"
+  (test-util/with-scratch-project project-path
     (let [node-id (test-util/resource-node project "/examples/basic/basic.tpatlas")]
       (with-open [_ (test-util/build! node-id)]
         (let [built-textureset (->> node-id test-util/node-build-output (protobuf/bytes->map-without-defaults TextureSetProto$TextureSet))
@@ -381,7 +383,7 @@
                  (mapv :id (:animations built-textureset)))))))))
 
 (deftest collection-usage-test
-  (test-util/with-loaded-project "test/resources/texturepacker_project"
+  (test-util/with-loaded-project project-path
     (let [main-collection (test-util/resource-node project "/main/main.collection")]
       (is (not (g/error? (g/node-value main-collection :build-targets))))
       (is (not (g/error? (g/node-value main-collection :scene))))
