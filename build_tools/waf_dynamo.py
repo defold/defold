@@ -482,10 +482,11 @@ def default_flags(self):
             'INITIAL_MEMORY=33554432',
             'MAX_WEBGL_VERSION=2',
             'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0',
+            'IMPORTED_MEMORY=1',
             'STACK_SIZE=5MB']
 
         if 'wasm' == build_util.get_target_architecture():
-            emflags_link += ['WASM=1', 'IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=1']
+            emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
         else:
             emflags_link += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
 
