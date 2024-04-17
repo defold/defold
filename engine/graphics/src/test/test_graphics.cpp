@@ -103,8 +103,8 @@ protected:
     virtual void TearDown()
     {
         dmGraphics::CloseWindow(m_Context);
-        dmGraphics::DeleteContext(m_Context);
         dmJobThread::Destroy(m_JobThread);
+        dmGraphics::DeleteContext(m_Context);
     }
 };
 
