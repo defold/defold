@@ -337,7 +337,11 @@
 
 (defn collection-scene [node-id child-game-object-and-collection-instance-scenes]
   {:pre [(g/node-id? node-id)
+         (or (nil? child-game-object-and-collection-instance-scenes)
+             (vector? child-game-object-and-collection-instance-scenes))
          (not (vector? (first child-game-object-and-collection-instance-scenes)))]}
-  {:node-id node-id
-   :aabb geom/null-aabb
-   :children child-game-object-and-collection-instance-scenes})
+  (cond-> {:node-id node-id
+           :aabb geom/null-aabb}
+
+          (pos? (count child-game-object-and-collection-instance-scenes))
+          (assoc :children child-game-object-and-collection-instance-scenes)))

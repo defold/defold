@@ -113,15 +113,24 @@ Macros currently mean no foreseeable performance gain, however."
                                                 val-or-desc)]
     (enum-name->keyword (.getName desc))))
 
+(defn- pb-primitive->clj-fn [field-type-key]
+  (case field-type-key
+    :enum pb-enum->val
+    :bool boolean ; Java reflection returns unique Boolean instances. We want either Boolean/TRUE or Boolean/FALSE.
+    :message (throw (IllegalArgumentException. "Non-primitive protobuf types are not supported."))
+    identity))
+
+(defn- pb-primitive->clj [pb-value field-type-key]
+  (let [pb-value->clj (pb-primitive->clj-fn field-type-key)]
+    (pb-value->clj pb-value)))
+
 (declare ^:private pb->clj-fn)
 
-(defn- pb-value->clj-fn [field-info default-included-field-rules]
+(defn- pb-value->clj-fn [{:keys [field-type-key] :as field-info} default-included-field-rules]
   (let [pb-value->clj
-        (case (:field-type-key field-info)
+        (case field-type-key
           :message (pb->clj-fn (:type field-info) default-included-field-rules)
-          :enum pb-enum->val
-          :bool boolean ; Java reflection returns unique Boolean instances. We want either Boolean/TRUE or Boolean/FALSE.
-          identity)]
+          (pb-primitive->clj-fn field-type-key))]
     (if (not= :repeated (:field-rule field-info))
       pb-value->clj
       (fn repeated-pb-value->clj [^Collection values]
@@ -179,10 +188,16 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defonce ^:private resource-desc (.getDescriptor DdfExtensions/resource))
 
+(defonce ^:private runtime-only-desc (.getDescriptor DdfExtensions/runtimeOnly))
+
 (defn- options [^DescriptorProtos$FieldOptions field-options]
   (cond-> {}
+
           (.getField field-options resource-desc)
-          (assoc :resource true)))
+          (assoc :resource true)
+
+          (.getField field-options runtime-only-desc)
+          (assoc :runtime-only true)))
 
 (defn field-value-class [^Class class ^Descriptors$FieldDescriptor field-desc]
   (let [java-name (underscores-to-camel-case (.getName field-desc))
@@ -244,21 +259,22 @@ Macros currently mean no foreseeable performance gain, however."
                                         (.isRequired field-desc) :required
                                         (.isOptional field-desc) :optional
                                         :else (assert false))
+                       field-type-key (field-type->key (.getType field-desc))
                        default (when (not= Descriptors$FieldDescriptor$JavaType/MESSAGE (.getJavaType field-desc))
-                                 (.getDefaultValue field-desc))
+                                 (pb-primitive->clj (.getDefaultValue field-desc) field-type-key))
                        declared-default (when (.hasDefaultValue field-desc)
                                           default)]
                    (pair field-key
                          {:type (field-value-class cls field-desc)
                           :java-name (underscores-to-camel-case (.getName field-desc))
-                          :field-type-key (field-type->key (.getType field-desc))
+                          :field-type-key field-type-key
                           :field-rule field-rule
                           :default default
                           :declared-default declared-default
                           :options (options (.getOptions field-desc))}))))
           (.getFields desc))))
 
-(def ^:private field-infos (fn/memoize field-infos-raw))
+(def field-infos (fn/memoize field-infos-raw))
 
 (defn resource-field? [field-info]
   (and (= :string (:field-type-key field-info))
@@ -743,12 +759,20 @@ Macros currently mean no foreseeable performance gain, however."
 (defn vector4->vector3 [vector4]
   (subvec vector4 0 3))
 
-(defn sanitize-vector4-zero-as-vector3 [vector4]
+(defn sanitize-required-vector4-zero-as-vector3 [vector4]
+  (let [vector3 (vector4->vector3 vector4)]
+    (vector3->vector4-zero vector3)))
+
+(defn sanitize-optional-vector4-zero-as-vector3 [vector4]
   (let [vector3 (vector4->vector3 vector4)]
     (when (not-every? zero? vector3)
       (vector3->vector4-zero vector3))))
 
-(defn sanitize-vector4-one-as-vector3 [vector4]
+(defn sanitize-required-vector4-one-as-vector3 [vector4]
+  (let [vector3 (vector4->vector3 vector4)]
+    (vector3->vector4-one vector3)))
+
+(defn sanitize-optional-vector4-one-as-vector3 [vector4]
   (let [vector3 (vector4->vector3 vector4)]
     (when (not-every? #(= float-one %) vector3)
       (vector3->vector4-one vector3))))

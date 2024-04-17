@@ -44,7 +44,7 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.digestable :as digestable])
   (:import [com.dynamo.gamesys.proto TextureSetProto$TextureSet Tile$Animation Tile$ConvexHull Tile$Playback Tile$SpriteTrimmingMode Tile$TileSet]
            [com.jogamp.opengl GL2]
@@ -912,7 +912,9 @@
 (defn- make-convex-hulls
   [{:keys [convex-hulls convex-hull-points] :as tile-set}]
   {:pre [(map? tile-set)]} ; Tile$TileSet in map format.
-  (if-not (= (count convex-hull-points) (* 2 (transduce (map :count) + convex-hulls)))
+  (if (or (coll/empty? convex-hull-points)
+          (not= (count convex-hull-points)
+                (* 2 (transduce (map :count) + convex-hulls))))
     []
     (mapv (fn [{:keys [index count]}]
             {:index index

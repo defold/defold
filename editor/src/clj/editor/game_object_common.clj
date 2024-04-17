@@ -79,25 +79,27 @@
 (defn- sanitize-embedded-component-data [embedded-component-desc ext->embedded-component-resource-type]
   ;; GameObject$EmbeddedComponentDesc in map format.
   (let [component-ext (:type embedded-component-desc)
-        resource-type (ext->embedded-component-resource-type component-ext)
-        tag-opts (:tag-opts resource-type)
-        read-fn (:read-fn resource-type)
-        sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))
-        unsanitized-data-string (:data embedded-component-desc)]
-    (try
-      (let [sanitized-data
-            (with-open [reader (StringReader. unsanitized-data-string)]
-              (read-fn reader))
+        resource-type (ext->embedded-component-resource-type component-ext)]
+    (if (nil? resource-type)
+      embedded-component-desc ; Unknown resource-type. Leave unsanitized.
+      (let [tag-opts (:tag-opts resource-type)
+            read-fn (:read-fn resource-type)
+            sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))
+            unsanitized-data-string (:data embedded-component-desc)]
+        (try
+          (let [sanitized-data
+                (with-open [reader (StringReader. unsanitized-data-string)]
+                  (read-fn reader))
 
-            [embedded-component-desc sanitized-data]
-            (if sanitize-embedded-component-fn
-              (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
-              [embedded-component-desc sanitized-data])]
-        (assoc embedded-component-desc :data sanitized-data))
-      (catch Exception error
-        ;; Leave unsanitized.
-        (log/warn :msg (str "Failed to sanitize embedded component of type: " (or component-ext "nil")) :exception error)
-        embedded-component-desc))))
+                [embedded-component-desc sanitized-data]
+                (if sanitize-embedded-component-fn
+                  (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
+                  [embedded-component-desc sanitized-data])]
+            (assoc embedded-component-desc :data sanitized-data))
+          (catch Exception error
+            ;; Leave unsanitized.
+            (log/warn :msg (str "Failed to sanitize embedded component of type: " (or component-ext "nil")) :exception error)
+            embedded-component-desc))))))
 
 (defn- sanitize-embedded-component-desc [embedded-component-desc ext->embedded-component-resource-type]
   ;; GameObject$EmbeddedComponentDesc in map format.
@@ -263,8 +265,11 @@
 
 (defn game-object-scene [node-id component-scenes]
   {:pre [(g/node-id? node-id)
-         (vector? component-scenes)
+         (or (nil? component-scenes)
+             (vector? component-scenes))
          (not (vector? (first component-scenes)))]}
-  {:node-id node-id
-   :aabb geom/null-aabb
-   :children component-scenes})
+  (cond-> {:node-id node-id
+           :aabb geom/null-aabb}
+
+          (pos? (count component-scenes))
+          (assoc :children component-scenes)))

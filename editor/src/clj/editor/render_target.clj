@@ -114,7 +114,7 @@
     (format "'%s' render targets cannot have more than %d color attachments"
             name max-color-attachment-count)))
 
-(defn- color-attachments->error-values [color-attachment-index {:keys [width height]} node-id label]
+(defn- color-attachment->error-values [color-attachment-index {:keys [width height]} node-id label]
   (filterv some?
            [(when (< width 1)
               (g/->error node-id label :fatal width
@@ -148,7 +148,7 @@
                                                  (validation/prop-error :fatal _node-id :color-attachments validate-color-attachment-count color-attachments "Color Attachments")
                                                  (into [] (map-indexed
                                                             (fn [i color-attachment]
-                                                              (color-attachments->error-values i color-attachment _node-id :color-attachments))
+                                                              (color-attachment->error-values i color-attachment _node-id :color-attachments))
                                                             color-attachments))
                                                  (validation/prop-error :fatal _node-id :depth-stencil-attachment-width validation/prop-negative? depth-stencil-attachment-width "Depth/Stencil Width")
                                                  (validation/prop-error :fatal _node-id :depth-stencil-attachment-height validation/prop-negative? depth-stencil-attachment-height "Depth/Stencil Height")

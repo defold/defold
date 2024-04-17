@@ -119,13 +119,6 @@
               value))]
     (util/deep-keep-kv util/with-sorted-keys value-fn output)))
 
-(defn- set-non-editable-directories! [project-root-path non-editable-directory-proj-paths]
-  (shared-editor-settings/write-config!
-    project-root-path
-    (cond-> {}
-            (seq non-editable-directory-proj-paths)
-            (assoc :non-editable-directories (vec non-editable-directory-proj-paths)))))
-
 (defn- load-non-editable-project! [world project-path proj-paths-by-node-key]
   (let [workspace (log/without-logging (tu/setup-workspace! world project-path))
         project (tu/setup-project! workspace)
@@ -242,7 +235,7 @@
                                        :room (g/node-value room :build-targets)
                                        :house (g/node-value house :build-targets)}}]
                   (tu/save-project! project)
-                  (set-non-editable-directories! project-path ["/assets"])
+                  (tu/set-non-editable-directories! project-path ["/assets"])
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state
         ;; and compare the non-editable output to the editable output.
@@ -404,7 +397,7 @@
                                :room (g/node-value room :scene)
                                :house (g/node-value house :scene)}}]
                   (tu/save-project! project)
-                  (set-non-editable-directories! project-path ["/assets"])
+                  (tu/set-non-editable-directories! project-path ["/assets"])
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state
         ;; and compare the non-editable output to the editable output.

@@ -324,7 +324,7 @@
   (input shader ShaderLifecycle)
   (input blend-mode g/Any)
 
-  (property cell-map g/Any ; Vector assigned in load-fn.
+  (property cell-map g/Any (default (int-map/int-map))
             (dynamic visible (g/constantly false)))
 
   (property id g/Str) ; Required protobuf field.

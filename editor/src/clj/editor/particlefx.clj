@@ -172,11 +172,13 @@
 
 (defn- pb-property->curve [pb-property]
   {:pre [(map? pb-property)]} ; Particle$Emitter$Property, Particle$Emitter$ParticleProperty, or Particle$Modifier$Property in map format.
-  (props/->curve (map pb-spline-point->control-point (:points pb-property))))
+  (props/->curve (some->> (:points pb-property)
+                          (map pb-spline-point->control-point))))
 
 (defn- pb-property->curve-spread [pb-property]
   {:pre [(map? pb-property)]} ; Particle$Emitter$Property or Particle$Modifier$Property in map format.
-  (props/->curve-spread (map pb-spline-point->control-point (:points pb-property))
+  (props/->curve-spread (some->> (:points pb-property)
+                                 (map pb-spline-point->control-point))
                         (:spread pb-property)))
 
 (defn- curve->pb-property [^Class property-pb-class property-key curve]

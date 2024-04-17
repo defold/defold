@@ -1990,7 +1990,7 @@
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides] (into {} node-overrides)))
   (input node-ids IDMap :array)
-  (output node-ids IDMap :cached (g/fnk [node-ids] (reduce merge node-ids)))
+  (output node-ids IDMap :cached (g/fnk [node-ids] (reduce merge {} node-ids)))
   (input texture-gpu-textures GuiResourceTextures)
   (output texture-gpu-textures GuiResourceTextures (gu/passthrough texture-gpu-textures))
   (input texture-infos GuiResourceTextureInfos)
@@ -3158,10 +3158,10 @@
 
 (defn- sanitize-node-geometry [node]
   (-> node
-      (protobuf/sanitize :position protobuf/sanitize-vector4-zero-as-vector3)
+      (protobuf/sanitize :position protobuf/sanitize-optional-vector4-zero-as-vector3)
       (protobuf/sanitize :rotation sanitize-euler-v4)
-      (protobuf/sanitize :scale protobuf/sanitize-vector4-one-as-vector3)
-      (protobuf/sanitize :size protobuf/sanitize-vector4-zero-as-vector3)))
+      (protobuf/sanitize :scale protobuf/sanitize-optional-vector4-one-as-vector3)
+      (protobuf/sanitize :size protobuf/sanitize-optional-vector4-zero-as-vector3)))
 
 (defn- sanitize-node-specifics [node-desc]
   (case (:type node-desc)

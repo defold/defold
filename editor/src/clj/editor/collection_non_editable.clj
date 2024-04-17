@@ -24,14 +24,13 @@
             [editor.outline :as outline]
             [editor.pose :as pose]
             [editor.properties :as properties]
-            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [javax.vecmath Matrix4d]))
 
@@ -294,17 +293,27 @@
 
         any-game-object-instance-desc->source-scene
         (fn any-game-object-instance-desc->source-scene [game-object-instance-desc]
-          ;; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format.
+          {:pre [(map? game-object-instance-desc)]} ; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format.
+          ;; If the game-object-instance-desc contains a :prototype key, it is a
+          ;; GameObject$InstanceDesc. If not, it is a GameObject$EmbeddedInstanceDesc.
           (if-some [referenced-game-object-proj-path (:prototype game-object-instance-desc)]
-            (-> referenced-game-object-proj-path
-                referenced-game-object-proj-path->index
-                referenced-game-object-scenes)
+            (if (coll/empty? referenced-game-object-proj-path)
+              (game-object-common/game-object-scene _node-id nil)
+              (-> referenced-game-object-proj-path
+                  referenced-game-object-proj-path->index
+                  referenced-game-object-scenes))
             (-> game-object-instance-desc
                 :data
                 (prototype-desc->scene _node-id))))
 
         collection-instance-desc->source-scene
-        #(-> % :collection referenced-collection-proj-path->index referenced-collection-scenes)
+        (fn collection-instance-desc->source-scene [collection-instance-desc]
+          (let [referenced-collection-proj-path (:collection collection-instance-desc)]
+            (if (coll/empty? referenced-collection-proj-path)
+              (collection-common/collection-scene _node-id nil)
+              (-> referenced-collection-proj-path
+                  referenced-collection-proj-path->index
+                  referenced-collection-scenes))))
 
         game-object-instance-descs
         (concat (:embedded-instances collection-desc)

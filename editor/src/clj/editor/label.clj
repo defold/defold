@@ -355,7 +355,7 @@
 
 (defn- sanitize-label [label-desc]
   (let [legacy-scale-v3 (some-> label-desc :scale protobuf/vector4->vector3)
-        sanitized-label (protobuf/sanitize label-desc :size protobuf/sanitize-vector4-zero-as-vector3)
+        sanitized-label (protobuf/sanitize label-desc :size protobuf/sanitize-required-vector4-zero-as-vector3)
         sanitized-label (if (scene/significant-scale? legacy-scale-v3)
                           (assoc sanitized-label :scale (protobuf/vector3->vector4-one legacy-scale-v3))
                           (dissoc sanitized-label :scale))]

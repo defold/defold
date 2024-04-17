@@ -371,7 +371,9 @@
       (attach-shape-node false parent shape-node))))
 
 (defn- decode-embedded-shape [embedded-collision-shape-data {:keys [index count] :as shape}]
-  (let [shape-data (subvec embedded-collision-shape-data index (+ index count))
+  (let [shape-data (if embedded-collision-shape-data
+                     (subvec embedded-collision-shape-data index (+ index count))
+                     protobuf/vector3-zero)
         decoded-shape-data (decode-shape-data shape shape-data)]
     (merge shape decoded-shape-data)))
 
