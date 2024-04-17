@@ -240,16 +240,29 @@ static bool UpdateAndWaitUntilDone(
     bool                               ignore_script_update_fail,
     const char*                        tests_done_key)
 {
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    uint64_t timeout = 1 * 1000000; // microseconds
+    uint64_t stop_time = dmTime::GetTime() + timeout;
     bool tests_done = false;
-    while (dmTime::GetTime() < stop_time && !tests_done)
+    while (!tests_done)
     {
+        if (dmTime::GetTime() >= stop_time)
+        {
+            dmLogError("Test timed out after %f seconds", timeout / 1000000.0f);
+            break;
+        }
+
         dmJobThread::Update(scriptlibcontext.m_JobThread);
         dmGameSystem::ScriptSysGameSysUpdate(scriptlibcontext);
         if (!dmGameSystem::GetScriptSysGameSysLastUpdateResult() && !ignore_script_update_fail)
+        {
+            dmLogError("Test failed on dmGameSystem::GetScriptSysGameSysLastUpdateResult()");
             return false;
+        }
         if (!dmGameObject::Update(collection, update_context))
+        {
+            dmLogError("Test failed on dmGameObject::Update()");
             return false;
+        }
 
         // check if tests are done
         lua_getglobal(scriptlibcontext.m_LuaState, tests_done_key);
