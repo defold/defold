@@ -396,7 +396,7 @@ platforms:
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "-lidbfs.js"]
         emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
-        emscriptenLinkFlags: ["INITIAL_MEMORY=33554432", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE=5MB"]
+        emscriptenLinkFlags: ["INITIAL_MEMORY=33554432", "DISABLE_EXCEPTION_CATCHING=1", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE=5MB"]
         libs:       []
     exePrefix:      ''
     exeExt:         '.js'
@@ -416,7 +416,7 @@ platforms:
   js-web:
     context:        
         libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
-        emscriptenLinkFlags: ["WASM=0"]
+        emscriptenLinkFlags: ["WASM=0", "LEGACY_VM_SUPPORT=1"]
 
     zipContentPattern: 'dmengine.js'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
@@ -425,7 +425,7 @@ platforms:
   wasm-web:
     context:
         libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
-        emscriptenLinkFlags: ["IMPORTED_MEMORY=1", "ALLOW_MEMORY_GROWTH=1", "WASM=1"]
+        emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1"]
 
     zipContentPattern: 'dmengine.(wasm|js)'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
