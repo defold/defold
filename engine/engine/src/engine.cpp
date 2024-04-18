@@ -349,6 +349,12 @@ namespace dmEngine
             dmResource::DeleteFactory(engine->m_Factory);
         }
 
+        // Stop processing graphics requests before deleting the graphics context
+        if (engine->m_JobThreadContext)
+        {
+            dmJobThread::Destroy(engine->m_JobThreadContext);
+        }
+
         if (engine->m_GraphicsContext)
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
