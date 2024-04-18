@@ -33,6 +33,7 @@ import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URI;
+import java.nio.file.attribute.FileTime;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,11 +55,22 @@ import java.util.concurrent.ExecutionException;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
+import com.defold.extension.pipeline.ILuaTranspiler;
+import com.dynamo.bob.fs.ClassLoaderMountPoint;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.DefaultResource;
+import com.dynamo.bob.fs.FileSystemMountPoint;
+import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.IFileSystem;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.plugin.PluginScanner;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -79,11 +91,6 @@ import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.IBundler;
 import com.dynamo.bob.bundle.BundlerParams;
-import com.dynamo.bob.fs.ClassLoaderMountPoint;
-import com.dynamo.bob.fs.FileSystemWalker;
-import com.dynamo.bob.fs.IFileSystem;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
@@ -450,7 +457,7 @@ public class Project {
     /**
      * Create task from resource. Typically called from builder
      * that create intermediate output/input-files
-     * @param input input resource
+     * @param inputResource input resource
      * @return task
      * @throws CompileExceptionError
      */
@@ -467,7 +474,7 @@ public class Project {
     /**
      * Create task from resource with explicit builder.
      * Make sure that task is unique.
-     * @param input input resource
+     * @param inputResource input resource
      * @param builderClass class to build resource with
      * @return task
      * @throws CompileExceptionError
@@ -1327,7 +1334,7 @@ public class Project {
     }
 
     private Future buildRemoteEngine(IProgress monitor, ExecutorService executor) {
-        Callable<Void> callable = new Callable<>() {
+        Callable<Void> callable = new Callable<Void>() {
             public Void call() throws Exception {
                 logInfo("Build Remote Engine...");
                 TimeProfiler.addMark("StartBuildRemoteEngine", "Build Remote Engine");
@@ -1422,6 +1429,89 @@ public class Project {
             this.setOption("output-spirv", this.option("debug-output-spirv", "false"));
         } else {
             this.setOption("output-spirv", getSpirvRequired() ? "true" : "false");
+        }
+    }
+
+    private void transpileLua(IProgress monitor) throws CompileExceptionError, IOException {
+        List<ILuaTranspiler> transpilers = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaTranspiler.class);
+        if (transpilers != null) {
+            IProgress transpilerProgress = monitor.subProgress(1);
+            transpilerProgress.beginTask("Transpiling to Lua", 1);
+            for (ILuaTranspiler transpiler : transpilers) {
+                IResource buildFileResource = getResource(transpiler.getBuildFileResourcePath());
+                if (buildFileResource.exists()) {
+                    String ext = "." + transpiler.getSourceExt();
+                    List<IResource> sources = inputs.stream()
+                            .filter(s -> s.endsWith(ext))
+                            .map(this::getResource)
+                            .collect(Collectors.toList());
+                    if (!sources.isEmpty()) {
+                        boolean useProjectDir = buildFileResource instanceof DefaultResource && sources.stream().allMatch(s -> s instanceof DefaultResource);
+                        File sourceDir;
+                        if (useProjectDir) {
+                            sourceDir = new File(rootDirectory);
+                        } else {
+                            sourceDir = Files.createTempDirectory("tr-" + transpiler.getClass().getSimpleName()).toFile();
+                            buildFileResource.getContent();
+                            File buildFile = new File(sourceDir, buildFileResource.getPath());
+                            Path buildFilePath = buildFile.toPath();
+                            Files.write(buildFilePath, buildFileResource.getContent());
+                            Files.setLastModifiedTime(buildFilePath, FileTime.fromMillis(buildFileResource.getLastModified()));
+                            for (IResource source : sources) {
+                                Path sourcePath = new File(sourceDir, source.getPath()).toPath();
+                                Files.write(sourcePath, source.getContent());
+                                Files.setLastModifiedTime(sourcePath, FileTime.fromMillis(source.getLastModified()));
+                            }
+                        }
+                        File outputDir = new File(rootDirectory, "build/tr/" + transpiler.getClass().getSimpleName());
+                        Files.createDirectories(outputDir.toPath());
+                        try {
+                            List<ILuaTranspiler.Issue> issues = transpiler.transpile(new File(getPluginsDirectory()), sourceDir, outputDir);
+                            List<ILuaTranspiler.Issue> errors = issues.stream().filter(issue -> issue.severity == ILuaTranspiler.Severity.ERROR).collect(Collectors.toList());
+                            if (!errors.isEmpty()) {
+                                MultipleCompileException exception = new MultipleCompileException("Transpilation failed", null);
+                                errors.forEach(issue -> exception.addIssue(issue.severity.ordinal(), getResource(issue.resourcePath), issue.message, issue.lineNumber));
+                                throw exception;
+                            } else {
+                                issues.forEach(issue -> {
+                                    Level level;
+                                    switch (issue.severity) {
+                                        case INFO:
+                                            level = Level.INFO;
+                                            break;
+                                        case WARNING:
+                                            level = Level.WARNING;
+                                            break;
+                                        default:
+                                            throw new IllegalStateException();
+                                    }
+                                    logger.log(level, issue.resourcePath + ":" + issue.lineNumber + ": " + issue.message);
+                                });
+                            }
+                            DefaultFileSystem fs = new DefaultFileSystem();
+                            fs.setRootDirectory(outputDir.toString());
+                            ArrayList<String> results = new ArrayList<>();
+                            fs.walk("", new FileSystemWalker() {
+                                @Override
+                                public void handleFile(String path, Collection<String> results) {
+                                    if (path.endsWith(".lua")) {
+                                        results.add(path);
+                                    }
+                                }
+                            }, results);
+                            inputs.addAll(results);
+                            fileSystem.addMountPoint(new FileSystemMountPoint(fileSystem, fs));
+                        } catch (Exception e) {
+                            throw new CompileExceptionError(buildFileResource, 1, "Transpilation failed", e);
+                        } finally {
+                            if (!useProjectDir) {
+                                FileUtils.deleteDirectory(sourceDir);
+                            }
+                        }
+                    }
+                }
+            }
+            transpilerProgress.done();
         }
     }
 
@@ -1580,6 +1670,15 @@ public class Project {
                     Future<Void> remoteBuildFuture = null;
                     // Get or build engine binary
                     boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                    boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
+
+                    if (shouldBuildProject) {
+                        // do this before buildRemoteEngine to prevent concurrent modification exception, since
+                        // lua transpilation adds new mounts with compiled Lua that buildRemoteEngine iterates over
+                        // when sending to extender
+                        transpileLua(monitor);
+                    }
+
                     if (shouldBuildRemoteEngine) {
                         remoteBuildFuture = buildRemoteEngine(monitor, executor);
                     }
@@ -1593,7 +1692,7 @@ public class Project {
                         }
                     }
 
-                    if (shouldBuildEngine() && BundleHelper.isArchiveIncluded(this)) {
+                    if (shouldBuildProject) {
                         result = createAndRunTasks(monitor);
                     }
 

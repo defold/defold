@@ -276,3 +276,26 @@
 
     (is (not (sorted? (:a (coll/path-map->nested-map {[:a :A] 1})))))
     (is (sorted? (:a (coll/path-map->nested-map (sorted-map [:a :A] 1)))))))
+
+(deftest flatten-xf-test
+  (testing "flatten behavior"
+    (are [test-coll] (= (flatten test-coll) (into [] coll/flatten-xf test-coll))
+      nil
+      []
+      [[[]] [[[]]] () () []]
+      [1 [3 [4 [3 [2 [22 [4]] 6] 6] 6] 54 [3]]]))
+  (testing "difference with clojure.core/flatten in nil handling"
+    (is (= [1 2 nil] (flatten [[1 [2 [nil]]]])))
+    (is (= [1 2] (into [] coll/flatten-xf [[1 [2 [nil]]]]))))
+  (testing "reduced support"
+    (is (= :stop
+           (transduce
+             (comp
+               coll/flatten-xf
+               (halt-when #{:stop}))
+             conj
+             []
+             [(range 100)
+              [[]]
+              [[:stop
+                (repeatedly #(throw (Exception. "Should not be reduced!")))]]])))))

@@ -489,17 +489,13 @@ ordinary paths."
            :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
       false)))
 
-(defn- load-clojure-editor-plugins! [workspace added]
+(defn load-clojure-editor-plugins! [workspace added]
   (->> added
        (filterv is-plugin-clojure-file?)
        ;; FIXME: hack for extension-spine: spineguiext.clj requires spineext.clj
        ;;        that needs to be loaded first
        (sort-by resource/proj-path util/natural-order)
        (run! #(load-clojure-plugin! workspace %))))
-
-(defn- load-java-editor-plugins! [workspace]
-  (let [code-preprocessors (code-preprocessors workspace)]
-    (code.preprocessors/reload-lua-preprocessors! code-preprocessors class-loader)))
 
 ; Determine if the extension has plugins, if so, it needs to be extracted
 
@@ -521,6 +517,7 @@ ordinary paths."
 
 (defn- is-plugin-file? [resource]
   (and
+    (= :file (resource/source-type resource))
     (string/includes? (resource/proj-path resource) "/plugins/")
     (is-extension-file? resource)))
 
@@ -614,7 +611,7 @@ ordinary paths."
             (filter #(= :file (resource/source-type %)))
             (:tree (resource/load-zip-resources workspace plugin-file))))))
 
-(defn- unpack-editor-plugins! [workspace changed]
+(defn unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
   (let [{plugin-zips true resources false} (->> changed
@@ -630,11 +627,6 @@ ordinary paths."
          (sort-by plugin-zip-priority)
          (run! #(unpack-plugin-zip! workspace %)))
     (run! #(unpack-resource! workspace %) resources)))
-
-(defn reload-plugins! [workspace touched-resources]
-  (unpack-editor-plugins! workspace touched-resources)
-  (load-java-editor-plugins! workspace)
-  (load-clojure-editor-plugins! workspace touched-resources))
 
 (defn- sync-snapshot-errors-notifications! [workspace old-errors new-errors]
   (when (or old-errors new-errors)
@@ -736,11 +728,7 @@ ordinary paths."
                                            (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
          (try
            (let [listeners @(g/node-value workspace :resource-listeners)
-                 total-progress-size (transduce (map first) + 0 listeners)
-                 added (:added changes)
-                 changed (:changed changes)
-                 all-changed (set/union added changed)]
-             (reload-plugins! workspace all-changed)
+                 total-progress-size (transduce (map first) + 0 listeners)]
              (loop [listeners listeners
                     parent-progress (progress/make "" total-progress-size)]
                (when-some [[progress-span listener] (first listeners)]

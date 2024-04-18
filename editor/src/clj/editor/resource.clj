@@ -446,7 +446,7 @@
 
 (def ^:private ext->style-class
   (let [config {"script" ["fp" "gui_script" "lua" "render_script" "script" "vp"
-                          "glsl"]
+                          "glsl" "tl"]
                 "design" ["atlas" "collection" "collisionobject" "cubemap" "dae"
                           "font" "go" "gui" "label" "model" "particlefx"
                           "spinemodel" "spinescene" "sprite" "tilemap"

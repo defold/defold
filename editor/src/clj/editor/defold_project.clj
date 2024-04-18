@@ -16,8 +16,11 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
   ordinary paths."
   (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.code.preprocessors :as code.preprocessors]
             [editor.code.script-intelligence :as si]
+            [editor.code.transpilers :as code.transpilers]
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
@@ -62,6 +65,12 @@
 (defn graph [project]
   (g/node-id->graph-id project))
 
+(defn code-transpilers
+  ([project]
+   (code-transpilers (g/now) project))
+  ([basis project]
+   (g/graph-value basis (g/node-id->graph-id project) :code-transpilers)))
+
 (defn- load-registered-resource-node [resource-type project node-id resource]
   (concat
     (when-some [load-fn (:load-fn resource-type)]
@@ -85,9 +94,14 @@
           (try
             (when *load-cache*
               (swap! *load-cache* conj node-id))
-            (if (nil? resource-type)
-              (placeholder-resource/load-node project node-id resource)
-              (load-registered-resource-node resource-type project node-id resource))
+            (let [load-tx-steps (if (nil? resource-type)
+                                  (placeholder-resource/load-node project node-id resource)
+                                  (load-registered-resource-node resource-type project node-id resource))
+                  transpiler-tx-steps (code.transpilers/load-build-file-transaction-step
+                                        (code-transpilers project)
+                                        node-id
+                                        (resource/proj-path resource))]
+              (cond-> load-tx-steps transpiler-tx-steps (concat transpiler-tx-steps)))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
               (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource (.getMessage e))))))))
@@ -656,7 +670,18 @@
                  :resource-metrics @resource-metrics
                  :transaction-metrics @transaction-metrics})))))
 
+(defn reload-plugins! [project touched-resources]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [workspace (workspace project evaluation-context)
+          code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
+          code-transpilers (code-transpilers project)]
+      (workspace/unpack-editor-plugins! workspace touched-resources)
+      (code.preprocessors/reload-lua-preprocessors! code-preprocessors workspace/class-loader)
+      (code.transpilers/reload-lua-transpilers! code-transpilers workspace workspace/class-loader)
+      (workspace/load-clojure-editor-plugins! workspace touched-resources))))
+
 (defn- handle-resource-changes [project changes render-progress!]
+  (reload-plugins! project (set/union (set (:added changes)) (set (:changed changes))))
   (let [[old-nodes-by-path old-node->old-disk-sha256]
         (g/with-auto-evaluation-context evaluation-context
           (let [workspace (workspace project evaluation-context)
@@ -856,7 +881,15 @@
     (handle-resource-changes project-id changes render-progress!)))
 
 (defn make-project [graph workspace-id extensions]
-  (let [project-id
+  (let [plugin-graph (g/make-graph! :history false :volatility 2)
+        code-preprocessors (workspace/code-preprocessors workspace-id)
+        transpilers-id
+        (first
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes plugin-graph [code-transpilers code.transpilers/CodeTranspilersNode]
+                (g/connect code-preprocessors :lua-preprocessors code-transpilers :lua-preprocessors)))))
+        project-id
         (second
           (g/tx-nodes-added
             (g/transact
@@ -869,7 +902,9 @@
                 (g/connect workspace-id :resource-list project :resources)
                 (g/connect workspace-id :resource-map project :resource-map)
                 (g/set-graph-value graph :project-id project)
-                (g/set-graph-value graph :lsp (lsp/make project get-resource-node))))))]
+                (g/set-graph-value graph :lsp (lsp/make project get-resource-node))
+                (g/set-graph-value graph :code-transpilers transpilers-id)))))]
+    (reload-plugins! project-id (g/node-value project-id :resources))
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 

@@ -16,9 +16,9 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.build :as build]
             [editor.defold-project :as project]
             [editor.game-project :as game-project]
-            [editor.pipeline :as pipeline]
             [editor.placeholder-resource :refer [PlaceholderResourceNode]]
             [editor.resource :as resource]
             [editor.system :as system]
@@ -181,21 +181,16 @@
         (g/error-fatal (.getMessage error))))))
 
 (defn- all-build-targets [project]
-  (transduce (comp (map second)
-                   (map build-targets-or-error)
-                   (remove g/error?)
-                   (remove empty?))
-             (completing
-               (fn [all-build-targets resource-build-targets]
-                 (let [seen-content-hashes (into #{}
-                                                 (map :content-hash)
-                                                 all-build-targets)]
-                   (into all-build-targets
-                         (pipeline/flatten-build-targets
-                           resource-build-targets seen-content-hashes)))))
-             []
-             (sort-by key
-                      (g/node-value project :nodes-by-resource-path))))
+  (build/resolve-dependencies
+    (->> (g/node-value project :nodes-by-resource-path)
+         (sort-by key)
+         (->Eduction
+           (comp
+             (map val)
+             (map build-targets-or-error)
+             (remove g/error?)
+             (remove empty?))))
+    project))
 
 (defn- build-target-content-hashes-by-path [project]
   (into (sorted-map)
@@ -218,7 +213,7 @@
                                (keep (fn [[resource-path build-targets]]
                                        (when-not (g/error? build-targets)
                                          (try
-                                           (pipeline/flatten-build-targets build-targets)
+                                           (build/resolve-dependencies build-targets project)
                                            nil
                                            (catch Throwable error
                                              [resource-path (g/error-fatal (.getMessage error))])))))

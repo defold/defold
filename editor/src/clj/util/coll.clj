@@ -244,3 +244,19 @@
               (assoc-in nested-map path value)))
           (empty path-map)
           path-map))
+
+(defn- preserving-reduced [rf]
+  #(let [result (rf %1 %2)]
+     (cond-> result (reduced? result) reduced)))
+
+(defn flatten-xf
+  "Like clojure.core/flatten, but transducer and treats nils as empty sequences"
+  [rf]
+  (fn xf
+    ([] (rf))
+    ([result] (rf result))
+    ([result input]
+     (cond
+       (nil? input) result
+       (sequential? input) (reduce (preserving-reduced xf) result input)
+       :else (rf result input)))))
