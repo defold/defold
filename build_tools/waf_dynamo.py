@@ -483,7 +483,10 @@ def default_flags(self):
             'MAX_WEBGL_VERSION=2',
             'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0',
             'IMPORTED_MEMORY=1',
-            'STACK_SIZE=5MB']
+            'STACK_SIZE=5MB',
+            'MIN_FIREFOX_VERSION=34',
+            'MIN_SAFARI_VERSION=90000',
+            'MIN_CHROME_VERSION=32']
 
         if 'wasm' == build_util.get_target_architecture():
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']

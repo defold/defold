@@ -396,7 +396,7 @@ platforms:
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "-lidbfs.js"]
         emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
-        emscriptenLinkFlags: ["INITIAL_MEMORY=33554432", "DISABLE_EXCEPTION_CATCHING=1", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE=5MB"]
+        emscriptenLinkFlags: ["INITIAL_MEMORY=33554432", "DISABLE_EXCEPTION_CATCHING=1", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE=5MB", "MIN_FIREFOX_VERSION=34", "MIN_SAFARI_VERSION=90000", "MIN_CHROME_VERSION=32"]
         libs:       []
     exePrefix:      ''
     exeExt:         '.js'
