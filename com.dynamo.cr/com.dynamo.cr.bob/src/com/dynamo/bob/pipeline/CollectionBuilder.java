@@ -22,6 +22,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.stream.Collectors;
+import java.util.Stack;
+import java.util.Collections;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -333,6 +336,56 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         collectionBuilder.clearCollectionInstances();
     }
 
+    // Sort instances by hierarchy
+    private List<InstanceDesc.Builder> sortInstancesByHierarchy(IResource resource, List<InstanceDesc.Builder> instances) throws CompileExceptionError {
+        Map<String, InstanceDesc.Builder> instanceMap = new HashMap<>();
+        Map<String, List<String>> dependencies = new HashMap<>();
+
+        for (InstanceDesc.Builder inst : instances) {
+            instanceMap.put(inst.getId(), inst);
+            dependencies.put(inst.getId(), inst.getChildrenList());
+        }
+
+        List<InstanceDesc.Builder> sortedInstances = new ArrayList<>();
+        Set<String> visited = new HashSet<>();
+        Set<String> inStack = new HashSet<>();
+        Stack<String> stack = new Stack<>();
+
+        for (String instanceId : instanceMap.keySet()) {
+            if (!visited.contains(instanceId)) {
+                if (!topologicalSort(instanceId, instanceMap, dependencies, visited, inStack, stack)) {
+                    throw new CompileExceptionError(resource, 0, "Cyclic dependency found in instance hierarchy");
+                }
+            }
+        }
+
+        while (!stack.isEmpty()) {
+            sortedInstances.add(instanceMap.get(stack.pop()));
+        }
+        
+        return sortedInstances;
+    }
+
+    private boolean topologicalSort(String currentId, Map<String, InstanceDesc.Builder> instanceMap,
+                                    Map<String, List<String>> dependencies, Set<String> visited, Set<String> inStack, Stack<String> stack) {
+        visited.add(currentId);
+        inStack.add(currentId);
+
+        for (String depId : dependencies.get(currentId)) {
+            if (!visited.contains(depId)) {
+                if (!topologicalSort(depId, instanceMap, dependencies, visited, inStack, stack)) {
+                    return false; // found a cycle
+                }
+            } else if (inStack.contains(depId)) {
+                return false; // found a cycle
+            }
+        }
+
+        inStack.remove(currentId);
+        stack.push(currentId);
+        return true;
+    }
+
     @Override
     protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
         Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
@@ -377,6 +430,16 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             ++embedIndex;
         }
         messageBuilder.clearEmbeddedInstances();
+
+        // Sort instances by children/parent hierarchy
+        List<InstanceDesc.Builder> sortedInstanceBuilders = sortInstancesByHierarchy(resource, messageBuilder.getInstancesList().stream()
+                .map(InstanceDesc::newBuilder)
+                .collect(Collectors.toList()));
+
+        messageBuilder.clearInstances();
+        for (InstanceDesc.Builder builder : sortedInstanceBuilders) {
+            messageBuilder.addInstances(builder.build());
+        }
 
         Collection<String> propertyResources = new HashSet<String>();
         for (int i = 0; i < messageBuilder.getInstancesCount(); ++i) {
