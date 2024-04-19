@@ -26,7 +26,8 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :refer [pair]])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [java.io StringReader]
            [javax.vecmath Matrix4d]))
@@ -269,8 +270,19 @@
         property-resource-paths (into (sorted-set)
                                       (comp cat cat (keep properties/try-get-go-prop-proj-path))
                                       go-instance-component-go-props)
+        instance-id->parent-id (into {}
+                                     (mapcat (fn [{:keys [id children]}]
+                                               (map (fn [child-id]
+                                                      (pair child-id id))
+                                                    children)))
+                                     instance-descs)
+        instance-desc->hierarchy-depth (fn [instance-desc]
+                                         (->> (:id instance-desc)
+                                              (iterate instance-id->parent-id)
+                                              (take-while some?)
+                                              (count)))
         collection-desc {:name name
-                         :instances instance-descs
+                         :instances (sort-by instance-desc->hierarchy-depth instance-descs)
                          :scale-along-z (if scale-along-z 1 0)
                          :property-resources property-resource-paths}]
     {:resource build-resource
