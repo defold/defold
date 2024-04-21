@@ -1068,7 +1068,7 @@ namespace dmGraphics
         }
     }
 
-    uint16_t PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params)
+    uint16_t PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params, SetTextureAsyncCallback callback, void* user_data)
     {
         DM_MUTEX_SCOPED_LOCK(state.m_Mutex);
         if (state.m_Indices.Remaining() == 0)
@@ -1081,11 +1081,14 @@ namespace dmGraphics
         SetTextureAsyncParams& ap  = state.m_Params[param_array_index];
         ap.m_Texture               = texture;
         ap.m_Params                = params;
+        ap.m_Callback              = callback;
+        ap.m_UserData              = user_data;
         return param_array_index;
     }
 
     void PushSetTextureAsyncDeleteTexture(SetTextureAsyncState& state, HTexture texture)
     {
+        DM_MUTEX_SCOPED_LOCK(state.m_Mutex);
         if (state.m_PostDeleteTextures.Full())
         {
             state.m_PostDeleteTextures.OffsetCapacity(64);
@@ -1145,7 +1148,8 @@ namespace dmGraphics
 
     void Finalize()
     {
-        g_functions.m_Finalize();
+        if (g_functions.m_Finalize)
+            g_functions.m_Finalize();
     }
 
     ///////////////////////////////////////////////////
@@ -1500,9 +1504,9 @@ namespace dmGraphics
     {
         g_functions.m_SetTexture(texture, params);
     }
-    void SetTextureAsync(HTexture texture, const TextureParams& paramsa)
+    void SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
-        g_functions.m_SetTextureAsync(texture, paramsa);
+        g_functions.m_SetTextureAsync(texture, params, callback, user_data);
     }
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
@@ -1609,25 +1613,6 @@ namespace dmGraphics
     {
         return g_functions.m_DeleteComputeProgram(prog);
     }
-
-#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-    void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
-    {
-        return g_functions.m_MapVertexBuffer(context, buffer, access);
-    }
-    bool UnmapVertexBuffer(HContext context, HVertexBuffer buffer)
-    {
-        return g_functions.m_UnmapVertexBuffer(context, buffer);
-    }
-    void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
-    {
-        return g_functions.m_MapIndexBuffer(context, buffer, access);
-    }
-    bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
-    {
-        return g_functions.m_UnmapIndexBuffer(context, buffer);
-    }
-#endif
 
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)

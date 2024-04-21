@@ -128,21 +128,9 @@ namespace dmConfigFile
     /**
      * Extension declaration helper. Internal
      */
-    #ifdef __GNUC__
-        // Workaround for dead-stripping on OSX/iOS. The symbol "name" is explicitly exported. See wscript "exported_symbols"
-        // Otherwise it's dead-stripped even though -no_dead_strip_inits_and_terms is passed to the linker
-        // The bug only happens when the symbol is in a static library though
-        #define DM_REGISTER_CONFIGFILE_EXTENSION(symbol, desc, desc_size, name, create, destroy, get_string, get_int, get_float) extern "C" void __attribute__((constructor)) symbol () { \
-            dmConfigFile::Register((struct dmConfigFile::PluginDesc*) &desc, desc_size, name, create, destroy, get_string, get_int, get_float); \
-        }
-    #else
-        #define DM_REGISTER_CONFIGFILE_EXTENSION(symbol, desc, desc_size, name, create, destroy, get_string, get_int, get_float) extern "C" void symbol () { \
-            dmConfigFile::Register((struct dmConfigFile::PluginDesc*) &desc, desc_size, name, create, destroy, get_string, get_int, get_float); \
-            }\
-            int symbol ## Wrapper(void) { symbol(); return 0; } \
-            __pragma(section(".CRT$XCU",read)) \
-            __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
-    #endif
+    #define DM_REGISTER_CONFIGFILE_EXTENSION(symbol, desc, desc_size, name, create, destroy, get_string, get_int, get_float) extern "C" void symbol () { \
+        dmConfigFile::Register((struct dmConfigFile::PluginDesc*) &desc, desc_size, name, create, destroy, get_string, get_int, get_float); \
+    }
 
     /**
     * Extension desc bytesize declaration. Internal

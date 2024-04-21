@@ -30,10 +30,17 @@ def build(bld):
     else:
         resource.source += ['scripts/window/script_window_null.cpp']
 
-    if bld.env.PLATFORM in ('web'):
+    if 'web' in bld.env.PLATFORM:
         resource.source = remove_from_node_list(resource.source, 'script_http.cpp')
     else:
         resource.source = remove_from_node_list(resource.source, 'script_http_js.cpp')
+
+    bld.add_group() # depends on the proto files (_ddf.h) generated in the previous step
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto',
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body.cpp',
+        target = 'script_box2d')
 
     bld.add_group()
 
@@ -58,6 +65,8 @@ def build(bld):
         'scripts/script_image.cpp',
         'scripts/script_sys_gamesys.cpp',
         'scripts/script_http.cpp',
+        'scripts/box2d/script_box2d.cpp',
+        'scripts/box2d/script_box2d_body.cpp',
         'components/comp_sound.cpp',
         'components/comp_collection_proxy.cpp'] + proto_files)
 

@@ -348,4 +348,15 @@ namespace dmPhysics
     void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
     {
     }
+
+    void* GetWorldContext2D(HWorld2D world)
+    {
+        return 0;
+    }
+
+    void* GetCollisionObjectContext2D(HCollisionObject2D collision_object)
+    {
+        return 0;
+    }
+
 }

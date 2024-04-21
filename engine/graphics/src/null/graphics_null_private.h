@@ -20,6 +20,7 @@
 
 #include "../graphics_private.h"
 
+
 namespace dmGraphics
 {
     const static uint32_t MAX_REGISTER_COUNT = 16;
@@ -104,6 +105,8 @@ namespace dmGraphics
         NullContext(const ContextParams& params);
 
         dmJobThread::HContext              m_JobThread;
+        dmMutex::HMutex                    m_AssetContainerMutex;
+
         dmPlatform::HWindow                m_Window;
         SetTextureAsyncState               m_SetTextureAsyncState;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;

@@ -57,11 +57,12 @@
         {resources :tree crc :crc} (load-library-zip workspace file)
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources
-     :status-map (into {} (map (fn [resource]
-                                 (let [path (resource/proj-path resource)
-                                       version (str zip-file-version ":" (crc path))]
-                                   [path {:version version :source :library :library uri-string}]))
-                               flat-resources))}))
+     :status-map (into {}
+                       (map (fn [resource]
+                              (let [path (resource/proj-path resource)
+                                    version (str zip-file-version ":" (crc path))]
+                                [path {:version version :source :library :library uri-string}])))
+                       flat-resources)}))
 
 (defn- update-library-snapshot-cache
   [library-snapshot-cache workspace lib-states]
@@ -93,7 +94,7 @@
         resources (:tree (resource/load-zip-resources workspace builtins-zip-file))
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources
-     :status-map (into {} (map (juxt resource/proj-path (constantly {:version :constant :source :builtins})) flat-resources))}))
+     :status-map (into {} (map (juxt resource/proj-path (constantly {:version :constant :source :builtins}))) flat-resources)}))
 
 (def reserved-proj-paths #{"/builtins" "/build" "/.internal" "/.git"})
 
@@ -152,10 +153,22 @@
    :status-map nil
    :errors nil})
 
+(defn map-intersection
+  "Given 2 maps, return a vector of keys present in both maps"
+  [m1 m2]
+  (if (< (count m2) (count m1))
+    (recur m2 m1)
+    (persistent!
+      (reduce-kv
+        (fn [acc k _]
+          (cond-> acc (contains? m2 k) (conj! k)))
+        (transient [])
+        m1))))
+
 (defn- combine-snapshots [snapshots]
   (reduce
    (fn [result snapshot]
-     (if-let [collisions (seq (clojure.set/intersection (resource-paths result) (resource-paths snapshot)))]
+     (if-let [collisions (not-empty (map-intersection (:status-map result) (:status-map snapshot)))]
        (update result :errors conj {:type :collision :collisions (select-keys (:status-map snapshot) collisions)})
        (-> result
            (update :resources concat (:resources snapshot))
@@ -182,16 +195,17 @@
   (update snapshot :status-map into file-resource-status-map-entries))
 
 (defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
-  (let [lib-states (library/current-library-state project-directory library-uris)
-        new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-states)]
-    {:snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
-                                         (make-directory-snapshot workspace project-directory)
-                                         (make-debugger-snapshot workspace)
-                                         (make-library-snapshots new-library-snapshot-cache lib-states)))
-     :snapshot-cache new-library-snapshot-cache}))
+  (resource/with-defignore-pred project-directory
+    (let [lib-states (library/current-library-state project-directory library-uris)
+          new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-states)]
+      {:snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
+                                           (make-directory-snapshot workspace project-directory)
+                                           (make-debugger-snapshot workspace)
+                                           (make-library-snapshots new-library-snapshot-cache lib-states)))
+       :snapshot-cache new-library-snapshot-cache})))
 
 (defn make-resource-map [snapshot]
-  (into {} (map (juxt resource/proj-path identity) (resource/resource-list-seq (:resources snapshot)))))
+  (into {} (map (juxt resource/proj-path identity)) (resource/resource-list-seq (:resources snapshot))))
 
 (defn- resource-status [snapshot path]
   (get-in snapshot [:status-map path]))

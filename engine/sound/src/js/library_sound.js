@@ -102,4 +102,4 @@ var LibrarySoundDevice =
 }
 
 autoAddDeps(LibrarySoundDevice, '$DefoldSoundDevice');
-mergeInto(LibraryManager.library, LibrarySoundDevice);
+addToLibrary(LibrarySoundDevice);

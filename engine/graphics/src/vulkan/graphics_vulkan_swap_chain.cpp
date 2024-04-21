@@ -153,6 +153,8 @@ namespace dmGraphics
                 capabilities.m_SurfaceCapabilities.maxImageCount);
         }
 
+        swap_chain_image_count = dmMath::Min(swap_chain_image_count, (uint32_t) DM_MAX_FRAMES_IN_FLIGHT);
+
         VkSwapchainCreateInfoKHR vk_swap_chain_create_info;
         memset((void*)&vk_swap_chain_create_info, 0, sizeof(vk_swap_chain_create_info));
 
@@ -314,6 +316,8 @@ namespace dmGraphics
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk_device, surface, &capabilities.m_SurfaceCapabilities);
         vkGetPhysicalDeviceSurfaceFormatsKHR(vk_device, surface, &format_count, 0);
         vkGetPhysicalDeviceSurfacePresentModesKHR(vk_device, surface, &present_modes_count, 0);
+
+        capabilities.m_SurfaceCapabilities.currentTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 
         if (format_count > 0)
         {

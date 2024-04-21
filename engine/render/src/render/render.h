@@ -129,6 +129,7 @@ namespace dmRender
         uint32_t                        m_VertexShaderDescSize;
         uint32_t                        m_FragmentShaderDescSize;
         uint32_t                        m_MaxCharacters;
+        uint32_t                        m_MaxBatches;
         uint32_t                        m_CommandBufferSize;
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum
