@@ -130,6 +130,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D_ARRAY);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_CUBE_MAP);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_IMAGE_2D);
             default:break;
         }
         return "<unknown dmGraphics::TextureType>";

@@ -42,6 +42,7 @@ namespace dmGameSystem
             CASE_TT(TYPE_2D,       TYPE_2D);
             CASE_TT(TYPE_2D_ARRAY, TYPE_2D_ARRAY);
             CASE_TT(TYPE_CUBEMAP,  TYPE_CUBE_MAP);
+            CASE_TT(TYPE_2D_IMAGE, TYPE_IMAGE_2D);
             default: assert(0);
         }
         return (dmGraphics::TextureType) -1;
@@ -163,7 +164,12 @@ namespace dmGameSystem
                 creation_params.m_OriginalWidth  = image->m_OriginalWidth;
                 creation_params.m_OriginalHeight = image->m_OriginalHeight;
                 creation_params.m_MipMapCount    = num_mips;
-                texture                          = dmGraphics::NewTexture(context, creation_params);
+
+                if (image_desc->m_DDFImage->m_UsageFlags != 0)
+                {
+                    creation_params.m_UsageHintBits = image_desc->m_DDFImage->m_UsageFlags;
+                }
+                texture = dmGraphics::NewTexture(context, creation_params);
             }
             else
             {

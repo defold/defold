@@ -248,6 +248,7 @@ struct CreateTextureResourceParams
     uint32_t                                  m_Height;
     uint32_t                                  m_MaxMipMaps;
     uint32_t                                  m_TextureBpp;
+    uint32_t                                  m_UsageFlags;
 };
 
 struct ResourceModule
@@ -578,6 +579,7 @@ static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(dmGraphics:
         case dmGraphics::TEXTURE_TYPE_2D:       return dmGraphics::TextureImage::TYPE_2D;
         case dmGraphics::TEXTURE_TYPE_2D_ARRAY: return dmGraphics::TextureImage::TYPE_2D_ARRAY;
         case dmGraphics::TEXTURE_TYPE_CUBE_MAP: return dmGraphics::TextureImage::TYPE_CUBEMAP;
+        case dmGraphics::TEXTURE_TYPE_IMAGE_2D: return dmGraphics::TextureImage::TYPE_2D_IMAGE;
         default: assert(0);
     }
     dmLogError("Unsupported texture type (%d)", texturetype);
@@ -636,6 +638,7 @@ static void MakeTextureImage(CreateTextureResourceParams params, dmGraphics::Tex
     texture_image->m_Alternatives.m_Count  = 1;
     texture_image->m_Type                  = params.m_TextureType;
     texture_image->m_Count                 = layer_count;
+    texture_image->m_UsageFlags            = params.m_UsageFlags;
 
     image->m_Width                = params.m_Width;
     image->m_Height               = params.m_Height;
@@ -692,6 +695,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     int width                        = CheckTableInteger(L, 2, "width");
     int height                       = CheckTableInteger(L, 2, "height");
     uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+    uint32_t usage_flags             = (uint32_t) CheckTableInteger(L, 2, "flags", dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE);
 
     if (width < 1 || height < 1)
     {
@@ -699,7 +703,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     }
 
     // TODO: Texture arrays
-    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP || type == dmGraphics::TEXTURE_TYPE_IMAGE_2D))
     {
         return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
@@ -762,6 +766,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_CompressionType = compression_type;
     params->m_Buffer          = buffer;
     params->m_Collection      = dmGameObject::GetCollection(sender_instance);
+    params->m_UsageFlags      = usage_flags;
     return 0;
 }
 
@@ -1433,7 +1438,7 @@ static int SetTexture(lua_State* L)
     }
 
     // TODO: Texture arrays
-    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP || type == dmGraphics::TEXTURE_TYPE_IMAGE_2D))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
@@ -3415,6 +3420,7 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETGRAPHICS_ENUM(TEXTURE_TYPE_2D);
     SETGRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
     SETGRAPHICS_ENUM(TEXTURE_TYPE_2D_ARRAY);
+    SETGRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_2D);
 
     SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR0_BIT);
     SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR1_BIT);
@@ -3422,6 +3428,12 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR3_BIT);
     SETGRAPHICS_ENUM(BUFFER_TYPE_DEPTH_BIT);
     SETGRAPHICS_ENUM(BUFFER_TYPE_STENCIL_BIT);
+
+    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_SAMPLE);
+    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_MEMORYLESS);
+    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_INPUT);
+    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_COLOR);
+    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_STORAGE);
 #undef SETGRAPHICS_ENUM
 
 #define SETTEXTUREFORMAT_IF_SUPPORTED(name) \

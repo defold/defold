@@ -432,31 +432,34 @@ namespace dmGraphics
         return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
     }
 
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout,
+    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture,
+        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout,
         uint32_t baseMipLevel, uint32_t layer_count)
     {
+        VkImageLayout vk_from_layout = texture->m_ImageLayout[baseMipLevel];
+
+        if (vk_from_layout == vk_to_layout)
+        {
+            return VK_SUCCESS;
+        }
+
         // Create a one-time-execute command buffer that will only be used for the transition
         VkCommandBuffer vk_command_buffer;
         CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
 
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-        memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-        vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        VkCommandBufferBeginInfo vk_command_buffer_begin_info = {};
+        vk_command_buffer_begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        vk_command_buffer_begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
         vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
 
-        VkImageMemoryBarrier vk_memory_barrier;
-        memset(&vk_memory_barrier, 0, sizeof(vk_memory_barrier));
-
+        VkImageMemoryBarrier vk_memory_barrier            = {};
         vk_memory_barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         vk_memory_barrier.oldLayout                       = vk_from_layout;
         vk_memory_barrier.newLayout                       = vk_to_layout;
         vk_memory_barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
         vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.image                           = vk_image;
+        vk_memory_barrier.image                           = texture->m_Handle.m_Image;
         vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
         vk_memory_barrier.subresourceRange.baseMipLevel   = baseMipLevel;
         vk_memory_barrier.subresourceRange.levelCount     = 1;
@@ -480,7 +483,7 @@ namespace dmGraphics
             vk_source_stage      = VK_PIPELINE_STAGE_HOST_BIT;
             vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
         }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
         {
             vk_memory_barrier.srcAccessMask = 0;
             vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -512,7 +515,7 @@ namespace dmGraphics
             vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_GENERAL)
+        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_GENERAL)
         {
             vk_memory_barrier.srcAccessMask = 0;
             vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
@@ -544,6 +547,8 @@ namespace dmGraphics
         vkQueueSubmit(vk_graphics_queue, 1, &vk_submit_info, VK_NULL_HANDLE);
         vkQueueWaitIdle(vk_graphics_queue);
         vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
+
+        texture->m_ImageLayout[baseMipLevel] = vk_to_layout;
 
         return VK_SUCCESS;
     }
@@ -785,7 +790,6 @@ bail:
         VkImageUsageFlags     vk_usage,
         VkMemoryPropertyFlags vk_memory_flags,
         VkImageAspectFlags    vk_aspect,
-        VkImageLayout         vk_initial_layout,
         VulkanTexture*        textureOut)
     {
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
@@ -803,7 +807,7 @@ bail:
         vk_image_create_info.arrayLayers   = imageLayers;
         vk_image_create_info.format        = vk_format;
         vk_image_create_info.tiling        = vk_tiling;
-        vk_image_create_info.initialLayout = vk_initial_layout;
+        vk_image_create_info.initialLayout = textureOut->m_ImageLayout[0];
         vk_image_create_info.usage         = vk_usage;
         vk_image_create_info.samples       = vk_sample_count;
         vk_image_create_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;

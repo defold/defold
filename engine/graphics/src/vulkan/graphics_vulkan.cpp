@@ -454,14 +454,17 @@ namespace dmGraphics
             vk_usage_flags,
             vk_memory_type,
             vk_aspect_flags,
-            VK_IMAGE_LAYOUT_UNDEFINED,
             depth_stencil_texture_out);
         CHECK_VK_ERROR(res);
 
         if (res == VK_SUCCESS)
         {
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, depth_stencil_texture_out->m_Handle.m_Image, vk_aspect_flags,
-                VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+            res = TransitionImageLayout(vk_device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                depth_stencil_texture_out,
+                vk_aspect_flags,
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
             CHECK_VK_ERROR(res);
         }
 
@@ -687,7 +690,7 @@ namespace dmGraphics
         default_texture_params.m_Format                 = TEXTURE_FORMAT_RGBA;
         default_texture_creation_params.m_Depth         = 1;
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_IMAGE_2D;
-        default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_HINT_STORAGE;
+        default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_HINT_STORAGE | TEXTURE_USAGE_HINT_SAMPLE;
         context->m_DefaultStorageImage2D                = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultStorageImage2D, default_texture_params);
 
@@ -1946,9 +1949,20 @@ bail:
             image_view      = VK_NULL_HANDLE;
         }
 
+        if (texture->m_ImageLayout[0] != VK_IMAGE_LAYOUT_GENERAL && image_layout != texture->m_ImageLayout[0])
+        {
+            VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                texture,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                image_layout);
+            CHECK_VK_ERROR(res);
+        }
+
         vk_image_info.sampler     = image_sampler;
-        vk_image_info.imageLayout = image_layout;
         vk_image_info.imageView   = image_view;
+        vk_image_info.imageLayout = texture->m_ImageLayout[0];
 
         vk_write_desc_info.descriptorType = descriptor_type;
         vk_write_desc_info.pImageInfo     = &vk_image_info;
@@ -1964,8 +1978,8 @@ bail:
         vk_buffer_info.offset = offset;
         vk_buffer_info.range  = buffer_size;
 
-        vk_write_desc_info.descriptorType   = descriptor_type;
-        vk_write_desc_info.pBufferInfo      = &vk_buffer_info;
+        vk_write_desc_info.descriptorType = descriptor_type;
+        vk_write_desc_info.pBufferInfo    = &vk_buffer_info;
     }
 
     static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, Program* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment)
@@ -2074,8 +2088,13 @@ bail:
         UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment);
 
         vkCmdBindDescriptorSets(vk_command_buffer,
-            VK_PIPELINE_BIND_POINT_COMPUTE, program_ptr->m_Handle.m_PipelineLayout,
-            0, 1, vk_descriptor_set_list, 0, 0);
+            VK_PIPELINE_BIND_POINT_COMPUTE,
+            program_ptr->m_Handle.m_PipelineLayout,
+            0,
+            1,
+            vk_descriptor_set_list,
+            num_dynamic_offsets,
+            dynamic_offsets);
 
         return VK_SUCCESS;
     }
@@ -2101,10 +2120,26 @@ bail:
 
         UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment);
 
+        /*
+        void vkCmdBindDescriptorSets(
+        VkCommandBuffer                             commandBuffer,
+        VkPipelineBindPoint                         pipelineBindPoint,
+        VkPipelineLayout                            layout,
+        uint32_t                                    firstSet,
+        uint32_t                                    descriptorSetCount,
+        const VkDescriptorSet*                      pDescriptorSets,
+        uint32_t                                    dynamicOffsetCount,
+        const uint32_t*                             pDynamicOffsets);
+        */
+
         vkCmdBindDescriptorSets(vk_command_buffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_Handle.m_PipelineLayout,
-            0, program_ptr->m_Handle.m_DescriptorSetLayoutsCount, vk_descriptor_set_list,
-            num_dynamic_offsets, dynamic_offsets);
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            program_ptr->m_Handle.m_PipelineLayout,
+            0,
+            program_ptr->m_Handle.m_DescriptorSetLayoutsCount,
+            vk_descriptor_set_list,
+            num_dynamic_offsets,
+            dynamic_offsets);
 
         return VK_SUCCESS;
     }
@@ -3315,15 +3350,15 @@ bail:
                     vk_usage_flags,
                     vk_memory_type,
                     VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_LAYOUT_UNDEFINED,
                     new_texture_color);
                 CHECK_VK_ERROR(res);
 
                 res = TransitionImageLayout(g_VulkanContext->m_LogicalDevice.m_Device,
                     g_VulkanContext->m_LogicalDevice.m_CommandPool,
                     g_VulkanContext->m_LogicalDevice.m_GraphicsQueue,
-                    new_texture_color->m_Handle.m_Image,
-                    VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    new_texture_color,
+                    VK_IMAGE_ASPECT_COLOR_BIT,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 CHECK_VK_ERROR(res);
 
                 VulkanSetTextureParamsInternal(new_texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap, 1.0f);
@@ -3471,6 +3506,8 @@ bail:
                     vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
                 }
 
+                texture_color->m_ImageLayout[0] = VK_IMAGE_LAYOUT_PREINITIALIZED;
+
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
                 VkResult res = CreateTexture2D(
                     g_VulkanContext->m_PhysicalDevice.m_Device,
@@ -3481,7 +3518,6 @@ bail:
                     vk_usage_flags,
                     vk_memory_type,
                     VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_LAYOUT_PREINITIALIZED,
                     texture_color);
                 CHECK_VK_ERROR(res);
 
@@ -3555,6 +3591,11 @@ bail:
         tex->m_Depth       = params.m_Depth;
         tex->m_MipMapCount = params.m_MipMapCount;
         tex->m_UsageFlags  = GetVulkanUsageFromHints(params.m_UsageHintBits);
+
+        for (int i = 0; i < DM_ARRAY_SIZE(tex->m_ImageLayout); ++i)
+        {
+            tex->m_ImageLayout[i] = VK_IMAGE_LAYOUT_UNDEFINED;
+        }
 
         if (params.m_OriginalWidth == 0)
         {
@@ -3659,9 +3700,14 @@ bail:
             CHECK_VK_ERROR(res);
 
             // Transition image to transfer dst for the mipmap level we are uploading
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                params.m_MipMap, layer_count);
+            res = TransitionImageLayout(vk_device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                textureOut,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                params.m_MipMap,
+                layer_count);
             CHECK_VK_ERROR(res);
 
             // NOTE: We should check max layer count in the device properties!
@@ -3696,9 +3742,14 @@ bail:
 
             vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue);
 
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                params.m_MipMap, layer_count);
+            res = TransitionImageLayout(vk_device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                textureOut,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                params.m_MipMap,
+                layer_count);
             CHECK_VK_ERROR(res);
 
             DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
@@ -3714,8 +3765,14 @@ bail:
             VkResult res = WriteToDeviceBuffer(vk_device, texDataSize, write_offset, texDataPtr, &textureOut->m_DeviceBuffer);
             CHECK_VK_ERROR(res);
 
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, textureOut->m_Handle.m_Image,
-                VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap, layer_count);
+            res = TransitionImageLayout(vk_device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                textureOut,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                params.m_MipMap,
+                layer_count);
             CHECK_VK_ERROR(res);
         }
     }
@@ -3825,7 +3882,6 @@ bail:
             VkImageTiling vk_image_tiling           = VK_IMAGE_TILING_OPTIMAL;
             VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
-            VkImageLayout vk_initial_layout         = VK_IMAGE_LAYOUT_UNDEFINED;
             VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
             if (!use_stage_buffer)
@@ -3842,24 +3898,25 @@ bail:
             }
 
             // Check this format for optimal layout support
-            if (VK_FORMAT_UNDEFINED == GetSupportedTilingFormat(vk_physical_device, &vk_format,
-                1, vk_image_tiling, vk_format_features))
+            if (GetSupportedTilingFormat(vk_physical_device, &vk_format, 1, vk_image_tiling, vk_format_features) == VK_FORMAT_UNDEFINED)
             {
                 // Linear doesn't support mipmapping (for MoltenVK only?)
                 vk_image_tiling        = VK_IMAGE_TILING_LINEAR;
                 texture->m_MipMapCount = 1;
             }
 
-            VkResult res = CreateTexture2D(
-                vk_physical_device, logical_device.m_Device,
-                texture->m_Width, texture->m_Height, tex_layer_count, texture->m_MipMapCount,
+            VkResult res = CreateTexture2D(vk_physical_device,
+                logical_device.m_Device,
+                texture->m_Width,
+                texture->m_Height,
+                tex_layer_count,
+                texture->m_MipMapCount,
                 VK_SAMPLE_COUNT_1_BIT,
                 vk_format,
                 vk_image_tiling,
                 vk_usage_flags,
                 vk_memory_type,
                 VK_IMAGE_ASPECT_COLOR_BIT,
-                vk_initial_layout,
                 texture);
             CHECK_VK_ERROR(res);
         }
@@ -4311,9 +4368,8 @@ bail:
         VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
                 context->m_LogicalDevice.m_CommandPool,
                 context->m_LogicalDevice.m_GraphicsQueue,
-                texture->m_Handle.m_Image,
+                texture,
                 VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_UNDEFINED,
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         CHECK_VK_ERROR(res);
 
@@ -4348,9 +4404,8 @@ bail:
         res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_CommandPool,
             context->m_LogicalDevice.m_GraphicsQueue,
-            texture->m_Handle.m_Image,
+            texture,
             VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             0, // mipmap,
             layer_count);
@@ -4722,9 +4777,8 @@ bail:
             context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_CommandPool,
             context->m_LogicalDevice.m_GraphicsQueue,
-            texture->m_Handle.m_Image,
+            texture,
             VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_GENERAL);
         CHECK_VK_ERROR(res);
 

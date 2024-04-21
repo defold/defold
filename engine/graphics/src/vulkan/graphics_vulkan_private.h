@@ -86,6 +86,7 @@ namespace dmGraphics
         TextureType       m_Type;
         TextureFormat     m_GraphicsFormat;
         VkFormat          m_Format;
+        VkImageLayout     m_ImageLayout[16];
         VkImageUsageFlags m_UsageFlags;
         DeviceBuffer      m_DeviceBuffer;
         uint16_t          m_Width;
@@ -440,7 +441,7 @@ namespace dmGraphics
     VkResult CreateLogicalDevice(PhysicalDevice* device, const VkSurfaceKHR surface, const QueueFamily queueFamily, const char** deviceExtensions, const uint8_t deviceExtensionCount, const char** validationLayers, const uint8_t validationLayerCount, void* pNext, LogicalDevice* logicalDeviceOut);
     VkResult CreateDescriptorAllocator(VkDevice vk_device, uint32_t descriptor_count, DescriptorAllocator* descriptorAllocator);
     VkResult CreateScratchBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, uint32_t bufferSize, bool clearData, DescriptorAllocator* descriptorAllocator, ScratchBuffer* scratchBufferOut);
-    VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device, uint32_t imageWidth, uint32_t imageHeight, uint32_t imageLayers, uint16_t imageMips, VkSampleCountFlagBits vk_sample_count, VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage, VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, VkImageLayout vk_initial_layout, VulkanTexture* textureOut);
+    VkResult CreateTexture2D(VkPhysicalDevice vk_physical_device, VkDevice vk_device, uint32_t imageWidth, uint32_t imageHeight, uint32_t imageLayers, uint16_t imageMips, VkSampleCountFlagBits vk_sample_count, VkFormat vk_format, VkImageTiling vk_tiling, VkImageUsageFlags vk_usage, VkMemoryPropertyFlags vk_memory_flags, VkImageAspectFlags vk_aspect, VulkanTexture* textureOut);
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode, VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
@@ -473,7 +474,7 @@ namespace dmGraphics
     VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount);
 
     // Misc functions
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VkImage vk_image, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_from_layout, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
+    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1);
     VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
     void     DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
     void     FlushResourcesToDestroy(VkDevice vk_device, ResourcesToDestroyList* resource_list);

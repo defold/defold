@@ -20,6 +20,38 @@
 
 namespace dmRender
 {
+
+    static inline bool IsTypeTextureType(dmGraphics::Type type)
+    {
+        return type == dmGraphics::TYPE_SAMPLER_2D ||
+               type == dmGraphics::TYPE_SAMPLER_CUBE ||
+               type == dmGraphics::TYPE_SAMPLER_2D_ARRAY ||
+               type == dmGraphics::TYPE_IMAGE_2D;
+    }
+
+    static inline dmGraphics::TextureType TypeToTextureType(dmGraphics::Type type)
+    {
+        switch(type)
+        {
+            case dmGraphics::TYPE_SAMPLER_2D:       return dmGraphics::TEXTURE_TYPE_2D;
+            case dmGraphics::TYPE_SAMPLER_2D_ARRAY: return dmGraphics::TEXTURE_TYPE_2D_ARRAY;
+            case dmGraphics::TYPE_SAMPLER_CUBE:     return dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+            case dmGraphics::TYPE_IMAGE_2D:         return dmGraphics::TEXTURE_TYPE_IMAGE_2D;
+            default:break;
+        }
+        assert(0);
+        return (dmGraphics::TextureType) -1;
+    }
+
+    static inline bool IsContextLanguageGlsl(dmGraphics::ShaderDesc::Language language)
+    {
+        return language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM120 ||
+               language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140 ||
+               language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430 ||
+               language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100 ||
+               language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM300;
+    }
+
     void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out)
     {
         uint32_t constants_count = 0;
@@ -39,7 +71,7 @@ namespace dmRender
             {
                 constants_count++;
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY || type == dmGraphics::TYPE_IMAGE_2D)
+            else if (IsTypeTextureType(type))
             {
                 samplers_count++;
             }
@@ -51,15 +83,6 @@ namespace dmRender
 
         *constant_count_out = constants_count;
         *samplers_count_out = samplers_count;
-    }
-
-    static inline bool IsContextLanguageGlsl(dmGraphics::ShaderDesc::Language language)
-    {
-        return language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM120 ||
-               language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140 ||
-               language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430 ||
-               language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100 ||
-               language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM300;
     }
 
     void FillElementIds(char* buffer, uint32_t buffer_size, dmhash_t element_ids[4])
@@ -183,25 +206,12 @@ namespace dmRender
                 }
                 constants.Push(constant);
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
+            else if (IsTypeTextureType(type))
             {
                 name_hash_to_location.Put(name_hash, location);
                 Sampler& s           = samplers[sampler_index];
                 s.m_UnitValueCount   = num_values;
-
-                switch(type)
-                {
-                    case dmGraphics::TYPE_SAMPLER_2D:
-                        s.m_Type = dmGraphics::TEXTURE_TYPE_2D;
-                        break;
-                    case dmGraphics::TYPE_SAMPLER_2D_ARRAY:
-                        s.m_Type = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
-                        break;
-                    case dmGraphics::TYPE_SAMPLER_CUBE:
-                        s.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
-                        break;
-                    default: assert(0);
-                }
+                s.m_Type             = TypeToTextureType(type);
                 sampler_index++;
             }
         }
