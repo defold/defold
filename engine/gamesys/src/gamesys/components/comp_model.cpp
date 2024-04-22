@@ -449,7 +449,9 @@ namespace dmGameSystem
         for (int i = 0; i < component->m_RenderItems.Size(); ++i)
         {
             if (component->m_RenderItems[i].m_AttributeDataHash)
+            {
                 dmHashUpdateBuffer32(&state, &component->m_RenderItems[i].m_AttributeDataHash, sizeof(component->m_RenderItems[i].m_AttributeDataHash));
+            }
         }
 
         component->m_MixedHash = dmHashFinal32(&state);
@@ -708,6 +710,10 @@ namespace dmGameSystem
         for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
         {
             const dmGraphics::VertexAttributeInfo& attr = attribute_infos.m_Infos[i];
+            // We can skip hashing instance attribute values since the data can be shared
+            // between all meshes in a regular draw call.
+            if (attr.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
+                continue;
             dmHashUpdateBuffer32(&state, attr.m_ValuePtr, attr.m_ValueByteSize);
         }
         return dmHashFinal32(&state);
@@ -784,12 +790,12 @@ namespace dmGameSystem
         create_params.m_EventCBUserData1 = component;
         create_params.m_EventCBUserData2 = 0;
 
-        create_params.m_BindPose         = &rig_resource->m_BindPose;
-        create_params.m_Skeleton         = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
+        create_params.m_BindPose = &rig_resource->m_BindPose;
+        create_params.m_Skeleton = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : rig_resource->m_SkeletonRes->m_Skeleton;
         if (create_params.m_Skeleton)
         {
-            create_params.m_BoneIndices      = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : &rig_resource->m_SkeletonRes->m_BoneIndices;
-            create_params.m_AnimationSet     = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
+            create_params.m_BoneIndices  = rig_resource->m_SkeletonRes == 0x0 ? 0x0 : &rig_resource->m_SkeletonRes->m_BoneIndices;
+            create_params.m_AnimationSet = rig_resource->m_AnimationSetRes == 0x0 ? 0x0 : rig_resource->m_AnimationSetRes->m_AnimationSet;
         }
         else
         {
@@ -919,9 +925,12 @@ namespace dmGameSystem
         dmRender::HMaterial material             = GetMaterial(component, component->m_Resource, material_index);
         dmGraphics::HVertexDeclaration inst_decl = dmRender::GetInstanceVertexDeclaration(material);
 
-        uint32_t instance_count    = 0;
-        uint32_t instance_stride   = 0;
-        dmRender::RenderObject* ro = 0;
+        uint32_t instance_count     = 0;
+        uint32_t instance_start     = 0;
+        uint32_t instance_stride    = 0;
+        uint32_t instance_padding   = 0;
+        uint8_t* instance_write_ptr = 0;
+        dmRender::RenderObject* ro  = 0;
 
         if (inst_decl)
         {
@@ -929,10 +938,20 @@ namespace dmGameSystem
             instance_stride                         = dmGraphics::GetVertexDeclarationStride(inst_decl);
             uint32_t required_instance_memory_count = instance_count * instance_stride;
 
+            const uint32_t inst_buffer_offset = world->m_InstanceBufferDataLocalSpace.Size();
+            if (inst_buffer_offset % instance_stride != 0)
+            {
+                required_instance_memory_count += instance_stride;
+                instance_padding                = instance_stride - inst_buffer_offset % instance_stride;
+            }
+
             if (world->m_InstanceBufferDataLocalSpace.Remaining() < required_instance_memory_count)
             {
                 world->m_InstanceBufferDataLocalSpace.OffsetCapacity(required_instance_memory_count - world->m_InstanceBufferDataLocalSpace.Remaining());
             }
+
+            instance_write_ptr = world->m_InstanceBufferDataLocalSpace.End() + instance_padding;
+            instance_start     = (instance_write_ptr - world->m_InstanceBufferDataLocalSpace.Begin()) / instance_stride;
         }
 
         for (uint32_t *i=begin;i!=end;i++)
@@ -958,6 +977,7 @@ namespace dmGameSystem
                 ro->m_IndexType             = buffers->m_IndexBufferElementType;
                 ro->m_VertexDeclarations[0] = world->m_VertexDeclaration;
                 ro->m_VertexBuffers[0]      = buffers->m_VertexBuffer;
+                ro->m_InstanceStart         = instance_start;
 
                 if (inst_decl)
                 {
@@ -997,9 +1017,6 @@ namespace dmGameSystem
             {
                 ro->m_InstanceCount++;
 
-                uint8_t* write_ptr = (uint8_t*) world->m_InstanceBufferDataLocalSpace.Begin() + world->m_InstanceBufferDataLocalSpace.Size();
-                uint32_t write_stride = 0;
-
                 if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
                 {
                     dmGraphics::VertexAttributeInfos material_infos;
@@ -1017,19 +1034,17 @@ namespace dmGameSystem
                     FillWriteVertexAttributeParams(render_item->m_Mesh, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
                         &attribute_infos, &render_item->m_World, &normal_matrix, &params);
 
-                    dmRig::WriteSingleVertexDataByAttributes(write_ptr, params);
-                    write_stride = instance_stride;
+                    dmRig::WriteSingleVertexDataByAttributes(instance_write_ptr, params);
+                    instance_write_ptr += instance_stride;
                 }
                 else
                 {
                     assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclaration) == sizeof(ModelInstanceData));
-                    ModelInstanceData* instance_data = (ModelInstanceData*) write_ptr;
+                    ModelInstanceData* instance_data = (ModelInstanceData*) instance_write_ptr;
                     instance_data->m_WorldTransform  = render_item->m_World;
                     instance_data->m_NormalTransform = dmRender::GetNormalMatrix(render_context, render_item->m_World);
-                    write_stride = sizeof(ModelInstanceData);
+                    instance_write_ptr += sizeof(ModelInstanceData);
                 }
-
-                world->m_InstanceBufferDataLocalSpace.SetSize(world->m_InstanceBufferDataLocalSpace.Size() + write_stride);
             }
             else
             {
@@ -1054,6 +1069,8 @@ namespace dmGameSystem
         {
             dmRender::AddToRender(render_context, ro);
         }
+
+        world->m_InstanceBufferDataLocalSpace.SetSize(instance_write_ptr - world->m_InstanceBufferDataLocalSpace.Begin());
     }
 
     #if 0
