@@ -1,0 +1,10 @@
+attribute vec3 position;
+attribute vec2 my_custom_vertex_attribute;
+// Per instance:
+attribute mat4 mtx_world;
+attribute vec4 my_custom_instance_attribute;
+
+void main()
+{
+    gl_Position = vec4(position.xyz, 1.0);
+}

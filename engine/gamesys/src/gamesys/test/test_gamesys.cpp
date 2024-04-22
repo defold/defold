@@ -68,6 +68,8 @@ namespace dmGameSystem
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
 
+static const float EPSILON = 0.000001;
+
 static bool RunString(lua_State* L, const char* script)
 {
     if (luaL_dostring(L, script) != 0)
@@ -1949,12 +1951,11 @@ TEST_P(DrawCountTest, DrawCount)
 
 void AssertVertexEqual(const dmGameSystem::BoxVertex& lhs, const dmGameSystem::BoxVertex& rhs)
 {
-    static const float test_epsilon = 0.000001f;
-    EXPECT_NEAR(lhs.m_Position[0], rhs.m_Position[0], test_epsilon);
-    EXPECT_NEAR(lhs.m_Position[1], rhs.m_Position[1], test_epsilon);
-    EXPECT_NEAR(lhs.m_UV[0], rhs.m_UV[0], test_epsilon);
-    EXPECT_NEAR(lhs.m_UV[1], rhs.m_UV[1], test_epsilon);
-    EXPECT_NEAR(lhs.m_PageIndex, rhs.m_PageIndex, test_epsilon);
+    EXPECT_NEAR(lhs.m_Position[0], rhs.m_Position[0], EPSILON);
+    EXPECT_NEAR(lhs.m_Position[1], rhs.m_Position[1], EPSILON);
+    EXPECT_NEAR(lhs.m_UV[0], rhs.m_UV[0], EPSILON);
+    EXPECT_NEAR(lhs.m_UV[1], rhs.m_UV[1], EPSILON);
+    EXPECT_NEAR(lhs.m_PageIndex, rhs.m_PageIndex, EPSILON);
 }
 
 TEST_P(BoxRenderTest, BoxRender)
@@ -2473,7 +2474,7 @@ TEST_F(ComponentTest, PhysicsUpdateMassTest)
 namespace dmGameSystem
 {
     extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
-    extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
+    extern void GetModelWorldRenderBuffers(void* model_world, dmRender::HBufferedRenderBuffer** vx_buffers, dmRender::HBufferedRenderBuffer** inst_buffers, uint32_t* vx_buffers_count);
     extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
     extern void GetTileGridWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
 };
@@ -2481,7 +2482,6 @@ namespace dmGameSystem
 TEST_F(ComponentTest, DispatchBuffersTest)
 {
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmRender::RenderContext* render_context_ptr  = (dmRender::RenderContext*) m_RenderContext;
     render_context_ptr->m_MultiBufferingRequired = 1;
@@ -2567,7 +2567,6 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     const uint32_t vertex_stride_a = sizeof(vs_format_a);
     const uint32_t vertex_stride_b = sizeof(vs_format_b);
 
-    const float EPSILON = 0.0001;
 
     #define SET_VTX_A(vtx, x,y,z, pi) \
         vtx.position[0] = x; \
@@ -2658,8 +2657,8 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     ///////////////////////////////////////
     {
         uint32_t vx_buffers_count;
-        dmRender::BufferedRenderBuffer** vx_buffers;
-        dmGameSystem::GetModelWorldRenderBuffers(model_world, &vx_buffers, &vx_buffers_count);
+        dmRender::BufferedRenderBuffer **vx_buffers, **inst_buffers;
+        dmGameSystem::GetModelWorldRenderBuffers(model_world, &vx_buffers, &inst_buffers, &vx_buffers_count);
         ASSERT_TRUE(vx_buffers_count > 0);
 
         dmRender::BufferedRenderBuffer* vx_buffer = vx_buffers[0];
@@ -2785,6 +2784,258 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     #undef SET_VTX_B
     #undef ASSERT_VTX_A_EQ
     #undef ASSERT_VTX_B_EQ
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ComponentTest, DispatchBuffersInstancingTest)
+{
+    dmHashEnableReverseHash(true);
+
+    dmRender::RenderContext* render_context_ptr  = (dmRender::RenderContext*) m_RenderContext;
+
+    render_context_ptr->m_MultiBufferingRequired = 1;
+
+    void* model_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc")));
+    ASSERT_NE((void*) 0, model_world);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_instancing_test/dispatch_buffers_instancing_test.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+
+    // Do a couple of dispatches, this should allocate multiple buffers since we have forced multi-buffering
+    const uint8_t DISPATCH_NUMBER_OF_DRAWS = 4;
+    const uint8_t DISPATCH_NUMBER_OF_INSTANCES = 3;
+
+    for (int i = 0; i < DISPATCH_NUMBER_OF_DRAWS; ++i)
+    {
+        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    }
+
+    struct vs_format_a
+    {
+        float position[3];
+        float page_index;
+
+        void set(float p[3], float pi)
+        {
+            memcpy(position, p, sizeof(position));
+            page_index = pi;
+        }
+
+        void check(vs_format_a& other)
+        {
+            ASSERT_NEAR(position[0], other.position[0], EPSILON);
+            ASSERT_NEAR(position[1], other.position[1], EPSILON);
+            ASSERT_NEAR(position[2], other.position[2], EPSILON);
+            ASSERT_NEAR(page_index, other.page_index, EPSILON);
+        }
+    };
+
+    struct inst_format_a
+    {
+        float mtx_world[16];
+        void set(float m[16])
+        {
+            memcpy(mtx_world, m, sizeof(mtx_world));
+        }
+        void check(inst_format_a& other)
+        {
+            for (int i = 0; i < 16; ++i)
+            {
+                ASSERT_NEAR(mtx_world[i], other.mtx_world[i], EPSILON);
+            }
+        }
+    };
+
+    struct vs_format_b
+    {
+        float position[3];
+        float my_custom_vertex_attribute[2];
+
+        void set(float p[3], float custom[2])
+        {
+            memcpy(position, p, sizeof(position));
+            memcpy(my_custom_vertex_attribute, custom, sizeof(my_custom_vertex_attribute));
+        }
+
+        void check(vs_format_b& other)
+        {
+            ASSERT_NEAR(position[0], other.position[0], EPSILON);
+            ASSERT_NEAR(position[1], other.position[1], EPSILON);
+            ASSERT_NEAR(position[2], other.position[2], EPSILON);
+            ASSERT_NEAR(my_custom_vertex_attribute[0], other.my_custom_vertex_attribute[0], EPSILON);
+            ASSERT_NEAR(my_custom_vertex_attribute[1], other.my_custom_vertex_attribute[1], EPSILON);
+        }
+    };
+
+    struct inst_format_b
+    {
+        float mtx_world[16];
+        float my_custom_instance_attribute[4];
+
+        void set(float m[16], float custom[4])
+        {
+            memcpy(mtx_world, m, sizeof(mtx_world));
+            memcpy(my_custom_instance_attribute, custom, sizeof(my_custom_instance_attribute));
+        }
+
+        void check(inst_format_b& other)
+        {
+            for (int i = 0; i < 16; ++i)
+            {
+                ASSERT_NEAR(mtx_world[i], other.mtx_world[i], EPSILON);
+            }
+            for (int i = 0; i < 4; ++i)
+            {
+                ASSERT_NEAR(my_custom_instance_attribute[i], other.my_custom_instance_attribute[i], EPSILON);
+            }
+        }
+    };
+
+    const uint32_t vertex_stride_a   = sizeof(vs_format_a);
+    const uint32_t vertex_stride_b   = sizeof(vs_format_b);
+    const uint32_t instance_stride_a = sizeof(inst_format_a);
+    const uint32_t instance_stride_b = sizeof(inst_format_b);
+
+    /////////////////////////////////////////////
+    // Model (only component supported currently)
+    /////////////////////////////////////////////
+    {
+
+        dmGameSystem::MaterialResource *material_a, *material_b;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/misc/dispatch_buffers_instancing_test/material_a.materialc", (void**) &material_a));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/misc/dispatch_buffers_instancing_test/material_b.materialc", (void**) &material_b));
+
+        ASSERT_NE((void*)0, material_a->m_Material);
+        ASSERT_NE((void*)0, material_b->m_Material);
+
+        dmGraphics::HVertexDeclaration vx_decl_a   = dmRender::GetVertexDeclaration(material_a->m_Material);
+        dmGraphics::HVertexDeclaration vx_decl_b   = dmRender::GetVertexDeclaration(material_b->m_Material);
+        dmGraphics::HVertexDeclaration inst_decl_a = dmRender::GetInstanceVertexDeclaration(material_a->m_Material);
+        dmGraphics::HVertexDeclaration inst_decl_b = dmRender::GetInstanceVertexDeclaration(material_b->m_Material);
+
+        ASSERT_EQ(vertex_stride_a, dmGraphics::GetVertexDeclarationStride(vx_decl_a));
+        ASSERT_EQ(vertex_stride_b, dmGraphics::GetVertexDeclarationStride(vx_decl_b));
+
+        ASSERT_EQ(instance_stride_a, dmGraphics::GetVertexDeclarationStride(inst_decl_a));
+        ASSERT_EQ(instance_stride_b, dmGraphics::GetVertexDeclarationStride(inst_decl_b));
+
+        uint32_t vx_buffers_count;
+        dmRender::BufferedRenderBuffer **vx_buffers, **inst_buffers;
+        dmGameSystem::GetModelWorldRenderBuffers(model_world, &vx_buffers, &inst_buffers, &vx_buffers_count);
+        ASSERT_TRUE(vx_buffers_count > 0);
+
+        // Vertex buffer
+        dmRender::BufferedRenderBuffer* vx_buffer = vx_buffers[0];
+        ASSERT_EQ(DISPATCH_NUMBER_OF_DRAWS, vx_buffer->m_Buffers.Size());
+        ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER, vx_buffer->m_Type);
+
+        const uint32_t vertex_count        = 6;
+        const uint32_t buffer_write_offset = vertex_stride_a * vertex_count;
+        ASSERT_TRUE(buffer_write_offset % vertex_stride_b != 0);
+
+        const uint32_t vertex_padding = vertex_stride_b - (vertex_stride_a * vertex_count) % vertex_stride_b;
+        const uint32_t buffer_size    = vertex_stride_a * vertex_count + vertex_padding + vertex_stride_b * vertex_count;
+
+        uint8_t buffer[buffer_size];
+        vs_format_a* model_a = (vs_format_a*) &buffer[0];
+        vs_format_b* model_b = (vs_format_b*) &buffer[vertex_stride_a * vertex_count + vertex_padding];
+
+        // Instancing buffer
+        dmRender::BufferedRenderBuffer* inst_buffer = inst_buffers[0];
+        ASSERT_EQ(DISPATCH_NUMBER_OF_DRAWS, inst_buffer->m_Buffers.Size());
+        ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER, inst_buffer->m_Type);
+
+        const uint32_t buffer_write_offset_inst = instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES;
+        ASSERT_TRUE(buffer_write_offset_inst % instance_stride_b != 0);
+
+        const uint32_t instance_padding     = instance_stride_b - (instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES) % instance_stride_b;
+        const uint32_t instance_buffer_size = instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES + instance_padding + instance_stride_b * DISPATCH_NUMBER_OF_INSTANCES;
+
+        uint8_t instance_buffer[instance_buffer_size];
+        inst_format_a* inst_model_a = (inst_format_a*) &instance_buffer[0];
+        inst_format_b* inst_model_b = (inst_format_b*) &instance_buffer[instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES + instance_padding];
+
+        // NOTE: The z component here is different between these two components since we want to sort them in a specific order.
+        float p0[] = {  1.0,  1.0, 0.0f };
+        float p1[] = { -1.0,  1.0, 0.0f };
+        float p2[] = { -1.0, -1.0, 0.0f };
+        float p3[] = {  1.0, -1.0, 0.0f };
+
+        model_a[0].set(p0, 0.0f);
+        model_a[1].set(p1, 0.0f);
+        model_a[2].set(p2, 0.0f);
+        model_a[3].set(p0, 0.0f);
+        model_a[4].set(p2, 0.0f);
+        model_a[5].set(p3, 0.0f);
+
+        float custom_vertex_attribute_b[2] = { 4.0f, 3.0f };
+        model_b[0].set(p0, custom_vertex_attribute_b);
+        model_b[1].set(p1, custom_vertex_attribute_b);
+        model_b[2].set(p2, custom_vertex_attribute_b);
+        model_b[3].set(p0, custom_vertex_attribute_b);
+        model_b[4].set(p2, custom_vertex_attribute_b);
+        model_b[5].set(p3, custom_vertex_attribute_b);
+
+        dmVMath::Matrix4 mtx_world_a[] = {
+            dmVMath::Matrix4::translation(dmVMath::Vector3(0.0f, 0.0f,  0.0f)),
+            dmVMath::Matrix4::translation(dmVMath::Vector3(0.0f, 0.0f, -1.0f)),
+            dmVMath::Matrix4::translation(dmVMath::Vector3(0.0f, 0.0f, -2.0f)),
+        };
+
+        dmVMath::Matrix4 mtx_world_b[] = {
+            dmVMath::Matrix4::translation(dmVMath::Vector3(0.0f, 0.0f, -3.0f)),
+            dmVMath::Matrix4::translation(dmVMath::Vector3(0.0f, 0.0f, -4.0f)),
+            dmVMath::Matrix4::translation(dmVMath::Vector3(0.0f, 0.0f, -5.0f)),
+        };
+
+        ASSERT_EQ(DISPATCH_NUMBER_OF_INSTANCES, DM_ARRAY_SIZE(mtx_world_a));
+        ASSERT_EQ(DISPATCH_NUMBER_OF_INSTANCES, DM_ARRAY_SIZE(mtx_world_b));
+
+        float custom_instance_attribute_b[4] = { 1.0f, 2.0f, 3.0f, 4.0f };
+        for (int i = 0; i < DISPATCH_NUMBER_OF_INSTANCES; ++i)
+        {
+            inst_model_a[i].set((float*) &mtx_world_a[i]);
+            inst_model_b[i].set((float*) &mtx_world_b[i], custom_instance_attribute_b);
+        }
+
+        for (int i = 0; i < DISPATCH_NUMBER_OF_DRAWS; ++i)
+        {
+            dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer->m_Buffers[i];
+            ASSERT_EQ(buffer_size, gfx_vx_buffer->m_Size);
+
+            dmGraphics::VertexBuffer* gfx_inst_buffer = (dmGraphics::VertexBuffer*) inst_buffer->m_Buffers[i];
+            ASSERT_EQ(instance_buffer_size, gfx_inst_buffer->m_Size);
+
+            vs_format_a* written_model_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
+            vs_format_b* written_model_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
+
+            inst_format_a* written_inst_model_a = (inst_format_a*) &gfx_inst_buffer->m_Buffer[0];
+            inst_format_b* written_inst_model_b = (inst_format_b*) &gfx_inst_buffer->m_Buffer[instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES + instance_padding];
+
+            for (int j = 0; j < vertex_count; ++j)
+            {
+                model_a[j].check(written_model_a[j]);
+                model_b[j].check(written_model_b[j]);
+            }
+
+            for (int j = 0; j < DISPATCH_NUMBER_OF_INSTANCES; ++j)
+            {
+                inst_model_a[j].check(written_inst_model_a[j]);
+                inst_model_b[j].check(written_inst_model_b[j]);
+            }
+        }
+
+        dmResource::Release(m_Factory, material_a);
+        dmResource::Release(m_Factory, material_b);
+    }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -3186,9 +3437,8 @@ INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, jc_test_values_in(inval
 
 void AssertPointEquals(const Vector4& p, float x, float y)
 {
-    static const float test_epsilon = 0.000001f;
-    EXPECT_NEAR(p.getX(), x, test_epsilon);
-    EXPECT_NEAR(p.getY(), y, test_epsilon);
+    EXPECT_NEAR(p.getX(), x, EPSILON);
+    EXPECT_NEAR(p.getY(), y, EPSILON);
 }
 
 TEST_F(LabelTest, LabelMovesWhenSwitchingPivot)
@@ -4461,7 +4711,6 @@ TEST_F(MaterialTest, CustomVertexAttributes)
 
     const uint8_t* value_ptr;
     uint32_t num_values;
-    const float EPSILON = 0.0001;
 
     // Test position values
     {
@@ -4578,7 +4827,6 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
     ASSERT_NE((void*)0, material);
 
     const uint32_t INITIAL_SIZE = 4;
-    const float EPSILON = 0.0001;
 
     DynamicVertexAttributesContext ctx;
     ctx.m_Attributes.SetCapacity(INITIAL_SIZE);
