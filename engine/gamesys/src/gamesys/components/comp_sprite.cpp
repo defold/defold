@@ -2044,7 +2044,13 @@ namespace dmGameSystem
             {
                 return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_OPERATION;
             }
-            return SetProperty(set_property, params.m_Value, component->m_Slice9, SPRITE_PROP_SLICE);
+
+            dmGameObject::PropertyResult result = SetProperty(set_property, params.m_Value, component->m_Slice9, SPRITE_PROP_SLICE);
+            if (dmGameObject::PROPERTY_RESULT_OK == result)
+            {
+                component->m_UseSlice9 = sum(component->m_Slice9) != 0;
+            }
+            return result;
         }
         else if (params.m_PropertyId == SPRITE_PROP_CURSOR)
         {

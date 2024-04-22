@@ -26,11 +26,6 @@ namespace dmGameObject
 
 namespace dmGameSystem
 {
-    void ScriptBox2DInitialize(const struct ScriptLibContext& context);
-    void ScriptBox2DFinalize(const struct ScriptLibContext& context);
-
-    // internal
-
     float GetPhysicsScale();
     float GetInvPhysicsScale();
 
