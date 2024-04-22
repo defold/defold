@@ -4373,6 +4373,55 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
     dmGameSystem::DestroyRenderConstants(constants);
 }
 
+TEST_F(MaterialTest, CustomInstanceAttributes)
+{
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/attributes_instancing_valid.materialc", (void**)&material_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    const dmGraphics::VertexAttribute* attributes;
+    uint32_t attribute_count;
+    dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+    ASSERT_EQ(5, attribute_count);
+    ASSERT_EQ(dmHashString64("position"),   attributes[0].m_NameHash);
+    ASSERT_EQ(dmHashString64("normal"),     attributes[1].m_NameHash);
+    ASSERT_EQ(dmHashString64("texcoord0"),  attributes[2].m_NameHash);
+    ASSERT_EQ(dmHashString64("mtx_normal"), attributes[3].m_NameHash);
+    ASSERT_EQ(dmHashString64("mtx_world"),  attributes[4].m_NameHash);
+
+    ASSERT_EQ(2,  attributes[0].m_ElementCount); // Position has been overridden!
+    ASSERT_EQ(3,  attributes[1].m_ElementCount);
+    ASSERT_EQ(2,  attributes[2].m_ElementCount);
+    ASSERT_EQ(9,  attributes[3].m_ElementCount);
+    ASSERT_EQ(16, attributes[4].m_ElementCount);
+
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, attributes[0].m_SemanticType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,     attributes[1].m_SemanticType); // No normal semantic type (yet)
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, attributes[2].m_SemanticType);
+
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX, attributes[3].m_SemanticType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX,  attributes[4].m_SemanticType);
+
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[0].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_BYTE,  attributes[1].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_SHORT, attributes[2].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[3].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[4].m_DataType);
+
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[0].m_StepFunction);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,   attributes[1].m_StepFunction);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[2].m_StepFunction);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[3].m_StepFunction);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[4].m_StepFunction);
+
+    dmResource::Release(m_Factory, material_res);
+}
+
 TEST_F(MaterialTest, CustomVertexAttributes)
 {
     dmGameSystem::MaterialResource* material_res;

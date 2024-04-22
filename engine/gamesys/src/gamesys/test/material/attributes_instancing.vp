@@ -1,0 +1,10 @@
+attribute vec4 position;
+attribute vec3 normal;
+attribute vec2 texcoord0;
+attribute mat3 mtx_normal;
+attribute mat4 mtx_world;
+
+void main()
+{
+    gl_Position = position;
+}
