@@ -97,6 +97,16 @@ namespace dmGraphics
             *out_type = TYPE_FLOAT_VEC4;
             return true;
         }
+        else if (STRNCMP("mat2", string, count))
+        {
+            *out_type = TYPE_FLOAT_MAT2;
+            return true;
+        }
+        else if (STRNCMP("mat3", string, count))
+        {
+            *out_type = TYPE_FLOAT_MAT3;
+            return true;
+        }
         else if (STRNCMP("mat4", string, count))
         {
             *out_type = TYPE_FLOAT_MAT4;

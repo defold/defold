@@ -24,6 +24,10 @@
 #include "render/render.h"
 #include "render/render_private.h"
 
+#include "../../../graphics/src/graphics_private.h"
+
+#define ASSERT_EPS 0.0001f
+
 using namespace dmVMath;
 
 namespace dmGraphics
@@ -136,7 +140,6 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
 
 TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
 {
-
     const char* vs_src = \
        "attribute vec4 attribute_one;\n \
         attribute vec2 attribute_two;\n \
@@ -212,6 +215,152 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
     ASSERT_EQ(attribute_overrides[2].m_Values.m_BinaryValues.m_Count, num_values);
     ASSERT_EQ(0, memcmp(attribute_overrides[2].m_Values.m_BinaryValues.m_Data, value_ptr, num_values));
+
+    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
+    dmRender::DeleteMaterial(m_RenderContext, material);
+}
+
+TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
+{
+    const char* vs_src = \
+       "attribute vec4 position;\n \
+        attribute vec2 normal;\n \
+        attribute mat3 mtx_normal;\n \
+        attribute mat4 mtx_world;\n";
+
+    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader(vs_src, strlen(vs_src));
+    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_shader);
+
+    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader("foo", 3);
+    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_shader);
+    dmRender::HMaterial material             = dmRender::NewMaterial(m_RenderContext, vp, fp);
+
+    const dmGraphics::VertexAttribute* attributes;
+    uint32_t attribute_count;
+
+    dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+
+    ASSERT_NE((void*) 0x0, attributes);
+    ASSERT_EQ(4, attribute_count);
+
+    ASSERT_EQ(dmHashString64("position"),                    attributes[0].m_NameHash);
+    ASSERT_EQ(4,                                             attributes[0].m_ElementCount);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SHADER_TYPE_VEC4, attributes[0].m_ShaderType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT,       attributes[0].m_DataType);
+
+    ASSERT_EQ(dmHashString64("normal"),                      attributes[1].m_NameHash);
+    ASSERT_EQ(2,                                             attributes[1].m_ElementCount);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SHADER_TYPE_VEC2, attributes[1].m_ShaderType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT,       attributes[1].m_DataType);
+
+    ASSERT_EQ(dmHashString64("mtx_normal"),                  attributes[2].m_NameHash);
+    ASSERT_EQ(9,                                             attributes[2].m_ElementCount);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SHADER_TYPE_MAT3, attributes[2].m_ShaderType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT,       attributes[2].m_DataType);
+
+    ASSERT_EQ(dmHashString64("mtx_world"),                   attributes[3].m_NameHash);
+    ASSERT_EQ(16,                                            attributes[3].m_ElementCount);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SHADER_TYPE_MAT4, attributes[3].m_ShaderType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT,       attributes[3].m_DataType);
+
+    dmGraphics::HVertexDeclaration vx_decl   = dmRender::GetVertexDeclaration(material);
+    ASSERT_NE((void*) 0x0, vx_decl);
+
+    ASSERT_EQ(2,                                       vx_decl->m_StreamCount);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, vx_decl->m_StepFunction);
+
+    ASSERT_EQ(dmHashString64("position"), vx_decl->m_Streams[0].m_NameHash);
+    ASSERT_EQ(4,                          vx_decl->m_Streams[0].m_Size);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT,     vx_decl->m_Streams[0].m_Type);
+
+    ASSERT_EQ(dmHashString64("normal"),   vx_decl->m_Streams[1].m_NameHash);
+    ASSERT_EQ(2,                          vx_decl->m_Streams[1].m_Size);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT,     vx_decl->m_Streams[1].m_Type);
+
+    dmGraphics::HVertexDeclaration inst_decl = dmRender::GetInstanceVertexDeclaration(material);
+    ASSERT_NE((void*) 0x0, inst_decl);
+
+    ASSERT_EQ(2,                                         inst_decl->m_StreamCount);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, inst_decl->m_StepFunction);
+
+    ASSERT_EQ(dmHashString64("mtx_normal"), inst_decl->m_Streams[0].m_NameHash);
+    ASSERT_EQ(9,                            inst_decl->m_Streams[0].m_Size);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT,       inst_decl->m_Streams[0].m_Type);
+
+    ASSERT_EQ(dmHashString64("mtx_world"), inst_decl->m_Streams[1].m_NameHash);
+    ASSERT_EQ(16,                          inst_decl->m_Streams[1].m_Size);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT,      inst_decl->m_Streams[1].m_Type);
+
+    // Override the attributes with custom values and settings
+    dmGraphics::VertexAttribute attribute_overrides[4] = {};
+
+    uint8_t bytes_position[] = { 127, 32 };
+    attribute_overrides[0].m_NameHash                      = dmHashString64("position");
+    attribute_overrides[0].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_VEC2;
+    attribute_overrides[0].m_DataType                      = dmGraphics::VertexAttribute::TYPE_BYTE;
+    attribute_overrides[0].m_Values.m_BinaryValues.m_Data  = bytes_position;
+    attribute_overrides[0].m_Values.m_BinaryValues.m_Count = sizeof(bytes_position);
+
+    uint8_t bytes_normal[] = { 4, 3, 2, 1 };
+    attribute_overrides[1].m_NameHash                      = dmHashString64("normal");
+    attribute_overrides[1].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_VEC4;
+    attribute_overrides[1].m_DataType                      = dmGraphics::VertexAttribute::TYPE_BYTE;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Data  = bytes_normal;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Count = sizeof(bytes_normal);
+
+    float bytes_mtx_normal_2x2[2][2] = { { 1.0f, 2.0f }, { 3.0f, 4.0f } };
+    attribute_overrides[2].m_NameHash                      = dmHashString64("mtx_normal");
+    attribute_overrides[2].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_MAT2;
+    attribute_overrides[2].m_DataType                      = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    attribute_overrides[2].m_Values.m_BinaryValues.m_Data  = (uint8_t*) bytes_mtx_normal_2x2;
+    attribute_overrides[2].m_Values.m_BinaryValues.m_Count = sizeof(bytes_mtx_normal_2x2);
+
+    float bytes_mtx_world_3x3[3][3] = { { 1.0f, 2.0f, 3.0f }, { 4.0f, 5.0f, 6.0f }, { 7.0f, 8.0f, 9.0f } };
+    attribute_overrides[3].m_NameHash                      = dmHashString64("mtx_world");
+    attribute_overrides[3].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_MAT3;
+    attribute_overrides[3].m_DataType                      = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    attribute_overrides[3].m_Values.m_BinaryValues.m_Data  = (uint8_t*) bytes_mtx_world_3x3;
+    attribute_overrides[3].m_Values.m_BinaryValues.m_Count = sizeof(bytes_mtx_world_3x3);
+
+    dmRender::SetMaterialProgramAttributes(material, attribute_overrides, DM_ARRAY_SIZE(attribute_overrides));
+
+    const uint8_t* value_ptr;
+    uint32_t num_values;
+
+    // position
+    dmRender::GetMaterialProgramAttributeValues(material, 0, &value_ptr, &num_values);
+    ASSERT_EQ(attribute_overrides[0].m_Values.m_BinaryValues.m_Count, num_values);
+    ASSERT_EQ(0, memcmp(attribute_overrides[0].m_Values.m_BinaryValues.m_Data, value_ptr, num_values));
+
+    // normal
+    dmRender::GetMaterialProgramAttributeValues(material, 1, &value_ptr, &num_values);
+    ASSERT_EQ(attribute_overrides[1].m_Values.m_BinaryValues.m_Count, num_values);
+    ASSERT_EQ(0, memcmp(attribute_overrides[1].m_Values.m_BinaryValues.m_Data, value_ptr, num_values));
+
+    // mtx_normal
+    dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
+    ASSERT_EQ(attribute_overrides[2].m_Values.m_BinaryValues.m_Count, num_values);
+    {
+        float* f_value = (float*) value_ptr;
+        float* f_exp   = (float*) attribute_overrides[2].m_Values.m_BinaryValues.m_Data;
+        for (int i = 0; i < num_values / sizeof(float); ++i)
+        {
+            ASSERT_NEAR(f_exp[i], f_value[i], ASSERT_EPS);
+        }
+    }
+
+    // mtx_world
+    dmRender::GetMaterialProgramAttributeValues(material, 3, &value_ptr, &num_values);
+    ASSERT_EQ(attribute_overrides[3].m_Values.m_BinaryValues.m_Count, num_values);
+    {
+        float* f_value = (float*) value_ptr;
+        float* f_exp   = (float*) attribute_overrides[3].m_Values.m_BinaryValues.m_Data;
+        for (int i = 0; i < num_values / sizeof(float); ++i)
+        {
+            ASSERT_NEAR(f_exp[i], f_value[i], ASSERT_EPS);
+        }
+    }
 
     dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);
