@@ -83,6 +83,7 @@ namespace dmGameSystem
         ModelResourceBuffers*       m_Buffers;
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
+        uint32_t                    m_AttributeDataHash;
         uint32_t                    m_BoneIndex;
         uint32_t                    m_MaterialIndex;
         uint32_t                    m_Enabled : 1;
@@ -444,6 +445,13 @@ namespace dmGameSystem
         {
             dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
         }
+
+        for (int i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
+            if (component->m_RenderItems[i].m_AttributeDataHash)
+                dmHashUpdateBuffer32(&state, &component->m_RenderItems[i].m_AttributeDataHash, sizeof(component->m_RenderItems[i].m_AttributeDataHash));
+        }
+
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
     }
@@ -677,6 +685,34 @@ namespace dmGameSystem
         rd->m_Initialized = true;
     }
 
+    static uint32_t GetAttributeDataHash(ModelComponent* component, dmRender::HMaterial material, uint32_t material_index)
+    {
+        dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetInstanceVertexDeclaration(material);
+        if (!instance_vx_decl)
+        {
+            return 0;
+        }
+
+        dmGraphics::VertexAttributeInfos material_infos;
+        FillMaterialAttributeInfos(material, instance_vx_decl, &material_infos);
+
+        dmGraphics::VertexAttributeInfos attribute_infos;
+        FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
+                    component->m_Resource->m_Materials[material_index].m_Attributes,
+                    component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                    &material_infos,
+                    &attribute_infos);
+
+        HashState32 state;
+        dmHashInit32(&state, false);
+        for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& attr = attribute_infos.m_Infos[i];
+            dmHashUpdateBuffer32(&state, attr.m_ValuePtr, attr.m_ValueByteSize);
+        }
+        return dmHashFinal32(&state);
+    }
+
     static void SetupRenderItems(ModelComponent* component, ModelResource* resource)
     {
         component->m_RenderItems.SetCapacity(resource->m_Meshes.Size());
@@ -714,11 +750,20 @@ namespace dmGameSystem
 
             dmRender::HMaterial material = GetMaterial(component, component->m_Resource, item.m_MaterialIndex);
 
-            if (HasCustomVertexAttributes(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX) || HasCustomVertexAttributes(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE))
+            if (HasCustomVertexAttributes(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX) ||
+                HasCustomVertexAttributes(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE))
             {
                 item.m_AttributeRenderDataIndex = num_custom_attributes;
                 num_custom_attributes++;
             }
+
+            item.m_AttributeDataHash = GetAttributeDataHash(component, material, item.m_MaterialIndex);
+
+        #if 0
+            dmLogInfo("Resource %p", component->m_Resource);
+            dmLogInfo("  Mesh %d", i);
+            dmLogInfo("  Attribute hash %d", item.m_AttributeDataHash);
+        #endif
 
             component->m_RenderItems.Push(item);
         }
