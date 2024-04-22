@@ -425,6 +425,9 @@
 
 (def load-system-and-project (fn/memoize load-system-and-project-raw))
 
+(defn clear-cached-libraries! []
+  (fn/clear-memoized! (var-get #'editor.library/fetch-library!)))
+
 (defn clear-cached-projects! []
   (fn/clear-memoized! load-system-and-project))
 

@@ -17,7 +17,8 @@
             [clojure.string :as str]
             [editor.fs :as fs]
             [editor.progress :as progress]
-            [editor.settings-core :as settings-core])
+            [editor.settings-core :as settings-core]
+            [util.fn :as fn])
   (:import [java.io File InputStream]
            [java.net HttpURLConnection URI]
            [java.util Base64]
@@ -146,7 +147,7 @@
        :stream (when (= status :stale) (.getInputStream connection))
        :tag tag})))
 
-(defn- fetch-library! [resolver ^URI uri tag]
+(defn- fetch-library-raw! [resolver ^URI uri tag]
   (try
     (let [response (resolver uri tag)]
       {:status (:status response)
@@ -156,6 +157,15 @@
       {:status :error
        :reason :fetch-failed
        :exception e})))
+
+(def ^:private fetch-library!
+  ;; The tests are creating various new projects inside temporary folders. We
+  ;; can speed things up by caching the fetched artifacts, so they do not have
+  ;; to be downloaded over and over for each new project. This assumes the
+  ;; libraries will not be updated on the server during our process lifetime.
+  (if (Boolean/getBoolean "defold.tests")
+    (fn/memoize fetch-library-raw!)
+    fetch-library-raw!))
 
 (defn- fetch-library-update! [{:keys [tag uri] :as lib-state} resolver render-progress!]
   (let [progress (progress/make (str "Fetching " uri))]
