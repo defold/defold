@@ -15,16 +15,8 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.Stack;
-import java.util.Collections;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -337,53 +329,57 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     }
 
     // Sort instances by hierarchy
-    private List<InstanceDesc.Builder> sortInstancesByHierarchy(IResource resource, List<InstanceDesc.Builder> instances) throws CompileExceptionError {
+    private List<InstanceDesc.Builder> sortInstancesByHierarchy(IResource resource, List<InstanceDesc.Builder> instances) {
         Map<String, InstanceDesc.Builder> instanceMap = new HashMap<>();
-        Map<String, List<String>> dependencies = new HashMap<>();
+        Map<String, List<String>> children = new HashMap<>();
 
         for (InstanceDesc.Builder inst : instances) {
             instanceMap.put(inst.getId(), inst);
-            dependencies.put(inst.getId(), inst.getChildrenList());
+            children.put(inst.getId(), inst.getChildrenList());
+        }
+
+        Map<String, Integer> depthMap = new HashMap<>();
+        for (String id : instanceMap.keySet()) {
+            calculateDepth(id, children, depthMap, 0);
+        }
+
+        Map<Integer, List<InstanceDesc.Builder>> depthGroups = new HashMap<>();
+        for (Map.Entry<String, Integer> entry : depthMap.entrySet()) {
+            Integer depth = entry.getValue();
+            if (!depthGroups.containsKey(depth)) {
+                depthGroups.put(depth, new ArrayList<InstanceDesc.Builder>());
+            }
+            depthGroups.get(depth).add(instanceMap.get(entry.getKey()));
         }
 
         List<InstanceDesc.Builder> sortedInstances = new ArrayList<>();
-        Set<String> visited = new HashSet<>();
-        Set<String> inStack = new HashSet<>();
-        Stack<String> stack = new Stack<>();
-
-        for (String instanceId : instanceMap.keySet()) {
-            if (!visited.contains(instanceId)) {
-                if (!topologicalSort(instanceId, instanceMap, dependencies, visited, inStack, stack)) {
-                    throw new CompileExceptionError(resource, 0, "Cyclic dependency found in instance hierarchy");
+        List<Integer> depths = new ArrayList<>(depthGroups.keySet());
+        Collections.sort(depths);
+        for (Integer depth : depths) {
+            List<InstanceDesc.Builder> group = depthGroups.get(depth);
+            Collections.sort(group, new Comparator<InstanceDesc.Builder>() {
+                public int compare(InstanceDesc.Builder o1, InstanceDesc.Builder o2) {
+                    return o1.getId().compareTo(o2.getId());
                 }
-            }
+            });
+            sortedInstances.addAll(group);
         }
 
-        while (!stack.isEmpty()) {
-            sortedInstances.add(instanceMap.get(stack.pop()));
-        }
-        
         return sortedInstances;
     }
 
-    private boolean topologicalSort(String currentId, Map<String, InstanceDesc.Builder> instanceMap,
-                                    Map<String, List<String>> dependencies, Set<String> visited, Set<String> inStack, Stack<String> stack) {
-        visited.add(currentId);
-        inStack.add(currentId);
-
-        for (String depId : dependencies.get(currentId)) {
-            if (!visited.contains(depId)) {
-                if (!topologicalSort(depId, instanceMap, dependencies, visited, inStack, stack)) {
-                    return false; // found a cycle
-                }
-            } else if (inStack.contains(depId)) {
-                return false; // found a cycle
-            }
+    // Recursive function to calculate the depth of each instance
+    private void calculateDepth(String id, Map<String, List<String>> children, Map<String, Integer> depthMap, int currentDepth) {
+        if (depthMap.containsKey(id)) {
+            return;
         }
 
-        inStack.remove(currentId);
-        stack.push(currentId);
-        return true;
+        depthMap.put(id, currentDepth);
+        if (children.containsKey(id)) {
+            for (String childId : children.get(id)) {
+                calculateDepth(childId, children, depthMap, currentDepth + 1);
+            }
+        }
     }
 
     @Override
