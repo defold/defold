@@ -683,7 +683,7 @@ public class AndroidBundler implements IBundler {
         logger.info("Creating Android Application Bundle");
         try {
             File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
-            File baseAab = new File(outDir, getProjectTitle(project) + ".aab");
+            File baseAab = new File(outDir, getBinaryNameFromProject(project) + ".aab");
 
             File aabDir = new File(outDir, "aab");
             File baseConfig = new File(aabDir, "BundleConfig.json");
@@ -743,7 +743,7 @@ public class AndroidBundler implements IBundler {
         if (!has_symbols) {
             return;
         }
-        File symbolsDir = new File(outDir, getProjectTitle(project) + ".apk.symbols");
+        File symbolsDir = new File(outDir, getBinaryNameFromProject(project) + ".apk.symbols");
         symbolsDir.mkdirs();
         final String exeName = getBinaryNameFromProject(project);
         final String extenderExeDir = project.getBinaryOutputDirectory();
@@ -976,7 +976,7 @@ public class AndroidBundler implements IBundler {
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant, this);
 
-        File outDir = new File(bundleDir, getProjectTitle(project));
+        File outDir = new File(bundleDir, getBinaryNameFromProject(project));
         FileUtils.deleteDirectory(outDir);
         outDir.mkdirs();
 
