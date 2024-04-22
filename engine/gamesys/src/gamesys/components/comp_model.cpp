@@ -1165,7 +1165,8 @@ namespace dmGameSystem
                 &attribute_infos, &world_matrix, &normal_matrix, &params);
 
             // 3. Write the vertex into the instance buffer based on the attributes
-            return dmRig::WriteSingleVertexDataByAttributes(write_ptr, params);
+            dmRig::WriteSingleVertexDataByAttributes(write_ptr, params);
+            return write_ptr + stride;
         }
         else
         {
@@ -1301,6 +1302,7 @@ namespace dmGameSystem
 
         uint32_t vx_start = (vb_begin - vertex_buffer.Begin()) / vertex_stride;
         uint32_t vx_count = (vb_end - vb_begin) / vertex_stride;
+        uint32_t instance_start = (inst_begin - instance_buffer.Begin()) / instance_stride;
 
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
         instance_buffer.SetSize(inst_end - instance_buffer.Begin());
@@ -1316,6 +1318,7 @@ namespace dmGameSystem
         ro.m_VertexStart           = vx_start;
         ro.m_VertexCount           = vx_count;
         ro.m_InstanceCount         = instance_count;
+        ro.m_InstanceStart         = instance_start;
         ro.m_WorldTransform        = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
 
         if (inst_decl)

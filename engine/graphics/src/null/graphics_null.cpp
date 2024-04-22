@@ -643,7 +643,7 @@ namespace dmGraphics
         return ~0;
     }
 
-    static void NullDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
+    static void NullDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count, uint32_t instance_start)
     {
         assert(_context);
         assert(index_buffer);
@@ -680,7 +680,7 @@ namespace dmGraphics
         g_DrawCount++;
     }
 
-    static void NullDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
+    static void NullDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t instance_start)
     {
         assert(context);
 
