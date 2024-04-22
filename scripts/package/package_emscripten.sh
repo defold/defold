@@ -23,9 +23,18 @@ PLATFORM="$(tr [A-Z] [a-z] <<< "$PLATFORM")"
 
 PWD=`pwd`
 
+ARCH=$(arch)
+if [ "${ARCH}" == 'i386' ]; then
+	ARCH='x86_64'
+fi
+
+if [ "${PLATFORM}" == 'darwin' ]; then
+	PLATFORM='macos'
+fi
+
 TARGET_PATH=${PWD}/local_sdks
 TMP=${TARGET_PATH}/_tmpdir
-TARGET=$TARGET_PATH/emsdk-${VERSION}-${PLATFORM}.tar.gz
+TARGET=$TARGET_PATH/emsdk-${VERSION}-${ARCH}-${PLATFORM}.tar.gz
 
 if [ ! -d $TMP ]; then
 	mkdir -p $TMP

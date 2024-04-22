@@ -610,8 +610,8 @@ void GamesysTest<T>::TearDown()
 
     dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
-    dmGraphics::DeleteContext(m_GraphicsContext);
     dmJobThread::Destroy(m_JobThread);
+    dmGraphics::DeleteContext(m_GraphicsContext);
     dmPlatform::CloseWindow(m_Window);
     dmPlatform::DeleteWindow(m_Window);
     dmScript::Finalize(m_ScriptContext);
