@@ -1686,7 +1686,7 @@ static void LogFrameBufferError(GLenum status)
     #undef BUFFER_OFFSET
     }
 
-    static void OpenGLEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
+    static void OpenGLEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
     {
         assert(_context);
         assert(vertex_declaration);
@@ -1704,7 +1704,7 @@ static void LogFrameBufferError(GLenum status)
             {
                 uint32_t sub_vector_bind_count = GetSubVectorBindCount(vertex_declaration->m_Streams[i].m_Size);
                 uint32_t base_location = vertex_declaration->m_Streams[i].m_Location;
-                uint32_t base_offset = vertex_declaration->m_Streams[i].m_Offset;
+                uint32_t stream_offset = base_offset + vertex_declaration->m_Streams[i].m_Offset;
                 uint32_t sub_vector_component_count = sub_vector_bind_count > 1 ? sub_vector_bind_count : vertex_declaration->m_Streams[i].m_Size;
 
                 for (int j = 0; j < sub_vector_bind_count; ++j)
@@ -1715,7 +1715,7 @@ static void LogFrameBufferError(GLenum status)
                         GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
                         vertex_declaration->m_Streams[i].m_Normalize,
                         vertex_declaration->m_Stride,
-                        base_offset + j * GetTypeSize(vertex_declaration->m_Streams[i].m_Type) * sub_vector_component_count,
+                        stream_offset + j * GetTypeSize(vertex_declaration->m_Streams[i].m_Type) * sub_vector_component_count,
                         vertex_declaration->m_StepFunction);
                 }
             }

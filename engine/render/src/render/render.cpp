@@ -1017,7 +1017,7 @@ namespace dmRender
                 }
                 if (ro->m_VertexDeclarations[i])
                 {
-                    dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclarations[i], i, material_program);
+                    dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclarations[i], i, ro->m_VertexBufferOffsets[i], material_program);
                 }
             }
 

@@ -981,9 +981,11 @@ namespace dmGameSystem
 
                 if (inst_decl)
                 {
-                    ro->m_WorldTransform        = Matrix4::identity();
-                    ro->m_VertexDeclarations[2] = world->m_InstanceVertexDeclaration;
-                    ro->m_VertexBuffers[2]      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_InstanceBufferLocalSpace);
+                    ro->m_WorldTransform         = Matrix4::identity();
+                    ro->m_VertexDeclarations[2]  = world->m_InstanceVertexDeclaration;
+                    ro->m_VertexBuffers[2]       = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_InstanceBufferLocalSpace);
+                    ro->m_VertexBufferOffsets[2] = instance_write_ptr - world->m_InstanceBufferDataLocalSpace.Begin(); // world->m_InstanceBufferDataLocalSpace.Size();
+                    // dmLogInfo("%d", ro->m_VertexBufferOffsets[2]);
                 }
             }
 

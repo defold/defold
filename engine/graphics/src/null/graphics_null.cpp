@@ -592,7 +592,7 @@ namespace dmGraphics
         context->m_VertexDeclarations[binding_index] = vertex_declaration;
     }
 
-    static void NullEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
+    static void NullEnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
     {
         EnableVertexDeclaration(context, vertex_declaration, binding_index);
     }

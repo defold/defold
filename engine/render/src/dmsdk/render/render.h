@@ -178,8 +178,7 @@ namespace dmRender
         RenderObject();
         void Init();
 
-        // JG: These should be moved to graphics..
-        static const uint32_t MAX_TEXTURE_COUNT = 8;
+        static const uint32_t MAX_TEXTURE_COUNT       = 8;
         static const uint32_t MAX_VERTEX_BUFFER_COUNT = 3;
 
         HNamedConstantBuffer            m_ConstantBuffer;
@@ -205,6 +204,9 @@ namespace dmRender
         dmGraphics::BlendFactor         m_DestinationBlendFactor;
         dmGraphics::FaceWinding         m_FaceWinding;
         StencilTestParams               m_StencilTestParams;
+
+        uint32_t                        m_VertexBufferOffsets[MAX_VERTEX_BUFFER_COUNT];
+
         uint32_t                        m_VertexStart;
         uint32_t                        m_VertexCount;
         uint32_t                        m_InstanceCount;
