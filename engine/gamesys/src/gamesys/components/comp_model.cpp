@@ -938,20 +938,12 @@ namespace dmGameSystem
             instance_stride                         = dmGraphics::GetVertexDeclarationStride(inst_decl);
             uint32_t required_instance_memory_count = instance_count * instance_stride;
 
-            const uint32_t inst_buffer_offset = world->m_InstanceBufferDataLocalSpace.Size();
-            if (inst_buffer_offset % instance_stride != 0)
-            {
-                required_instance_memory_count += instance_stride;
-                instance_padding                = instance_stride - inst_buffer_offset % instance_stride;
-            }
-
             if (world->m_InstanceBufferDataLocalSpace.Remaining() < required_instance_memory_count)
             {
                 world->m_InstanceBufferDataLocalSpace.OffsetCapacity(required_instance_memory_count - world->m_InstanceBufferDataLocalSpace.Remaining());
             }
 
-            instance_write_ptr = world->m_InstanceBufferDataLocalSpace.End() + instance_padding;
-            instance_start     = (instance_write_ptr - world->m_InstanceBufferDataLocalSpace.Begin()) / instance_stride;
+            instance_write_ptr = world->m_InstanceBufferDataLocalSpace.End();
         }
 
         for (uint32_t *i=begin;i!=end;i++)
@@ -977,15 +969,13 @@ namespace dmGameSystem
                 ro->m_IndexType             = buffers->m_IndexBufferElementType;
                 ro->m_VertexDeclarations[0] = world->m_VertexDeclaration;
                 ro->m_VertexBuffers[0]      = buffers->m_VertexBuffer;
-                ro->m_InstanceStart         = instance_start;
 
                 if (inst_decl)
                 {
                     ro->m_WorldTransform         = Matrix4::identity();
                     ro->m_VertexDeclarations[2]  = world->m_InstanceVertexDeclaration;
                     ro->m_VertexBuffers[2]       = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_InstanceBufferLocalSpace);
-                    ro->m_VertexBufferOffsets[2] = instance_write_ptr - world->m_InstanceBufferDataLocalSpace.Begin(); // world->m_InstanceBufferDataLocalSpace.Size();
-                    // dmLogInfo("%d", ro->m_VertexBufferOffsets[2]);
+                    ro->m_VertexBufferOffsets[2] = world->m_InstanceBufferDataLocalSpace.Size();
                 }
             }
 
@@ -1161,29 +1151,19 @@ namespace dmGameSystem
             uint32_t required_instance_memory_count = instance_count * instance_stride;
             dmArray<uint8_t>& instance_buffer = world->m_InstanceBufferData[batch_index];
 
-            // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
-            const uint32_t inst_buffer_offset = instance_buffer.Size();
-            uint32_t inst_buffer_padding = 0;
-
-            if (inst_buffer_offset % instance_stride != 0)
-            {
-                required_instance_memory_count += instance_stride;
-                inst_buffer_padding = instance_stride - inst_buffer_offset % instance_stride;
-            }
-
             if (instance_buffer.Remaining() < required_instance_memory_count)
             {
                 instance_buffer.OffsetCapacity(required_instance_memory_count - instance_buffer.Remaining());
             }
 
-            *inst_begin = instance_buffer.End() + inst_buffer_padding;
+            *inst_begin = instance_buffer.End();
 
             FillMaterialAttributeInfos(material, inst_decl, material_infos_instancing);
         }
 
-        *vx_decl_in_out = vx_decl;
-        *inst_decl_in_out = inst_decl;
-        *vertex_stride_out = vertex_stride;
+        *vx_decl_in_out      = vx_decl;
+        *inst_decl_in_out    = inst_decl;
+        *vertex_stride_out   = vertex_stride;
         *instance_stride_out = instance_stride;
     }
 
@@ -1366,7 +1346,6 @@ namespace dmGameSystem
 
         uint32_t vx_start = (vb_begin - vertex_buffer.Begin()) / vertex_stride;
         uint32_t vx_count = (vb_end - vb_begin) / vertex_stride;
-        uint32_t instance_start = (inst_begin - instance_buffer.Begin()) / instance_stride;
 
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
         instance_buffer.SetSize(inst_end - instance_buffer.Begin());
@@ -1382,13 +1361,13 @@ namespace dmGameSystem
         ro.m_VertexStart           = vx_start;
         ro.m_VertexCount           = vx_count;
         ro.m_InstanceCount         = instance_count;
-        ro.m_InstanceStart         = instance_start;
         ro.m_WorldTransform        = Matrix4::identity(); // Pass identity world transform if outputing world positions directly.
 
         if (inst_decl)
         {
-            ro.m_VertexDeclarations[1] = inst_decl;
-            ro.m_VertexBuffers[1]      = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, gfx_instance_buffer);
+            ro.m_VertexDeclarations[1]  = inst_decl;
+            ro.m_VertexBuffers[1]       = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, gfx_instance_buffer);
+            ro.m_VertexBufferOffsets[1] = inst_begin - instance_buffer.Begin();
         }
 
         FillTextures(&ro, component, material_index);

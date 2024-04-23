@@ -1658,15 +1658,15 @@ static void LogFrameBufferError(GLenum status)
         return 1;
     }
 
-    static inline void SetVertexAttribute(int32_t loc, uint32_t component_count, GLenum opengl_type, bool normalize, uint32_t stride, uint32_t offset, VertexStepFunction step_function)
+    static inline void SetVertexAttribute(OpenGLContext* context, int32_t loc, uint32_t component_count, GLenum opengl_type, bool normalize, uint32_t stride, uint32_t offset, VertexStepFunction step_function)
     {
-    #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
-        glEnableVertexAttribArray(loc);
-        CHECK_GL_ERROR;
-
     #if 0
         dmLogInfo("Attribute: %d, %d, %d, %d, %d, %d", loc, component_count, opengl_type, normalize, stride, offset);
     #endif
+
+        // TODO: We should cache these bindings and skip applying them if they haven't changed
+        glEnableVertexAttribArray(loc);
+        CHECK_GL_ERROR;
 
         glVertexAttribPointer(
             loc,
@@ -1674,16 +1674,14 @@ static void LogFrameBufferError(GLenum status)
             opengl_type,
             normalize,
             stride,
-            BUFFER_OFFSET(offset)); // The starting point of the VBO, for the vertices
+            (GLvoid*) (size_t) offset); // The starting point of the VBO, for the vertices
         CHECK_GL_ERROR;
 
-        if (step_function == VERTEX_STEP_FUNCTION_INSTANCE)
+        if (context->m_InstancingSupport)
         {
-            glVertexAttribDivisor(loc, 1);
+            glVertexAttribDivisor(loc, step_function);
             CHECK_GL_ERROR;
         }
-
-    #undef BUFFER_OFFSET
     }
 
     static void OpenGLEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
@@ -1710,6 +1708,7 @@ static void LogFrameBufferError(GLenum status)
                 for (int j = 0; j < sub_vector_bind_count; ++j)
                 {
                     SetVertexAttribute(
+                        context,
                         base_location + j,
                         sub_vector_component_count,
                         GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
@@ -1749,7 +1748,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count, uint32_t instance_start)
+    static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
@@ -1771,7 +1770,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count, uint32_t instance_start)
+    static void OpenGLDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
