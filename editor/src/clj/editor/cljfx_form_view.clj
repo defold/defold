@@ -16,7 +16,6 @@
   (:require [cljfx.api :as fx]
             [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.ext.table-view :as fx.ext.table-view]
-            [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
@@ -54,7 +53,8 @@
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.fn :as fn])
   (:import [java.io File]
            [javafx.event Event]
            [javafx.scene Node]
@@ -561,9 +561,9 @@
                  :desc {:fx/type fxui/ext-with-advance-events
                         :desc
                         {:fx/type ext-with-list-cell-factory-props
-                         :props {:cell-factory (fxui/partial list-cell-factory
-                                                             element
-                                                             (:index edit))}
+                         :props {:cell-factory (fn/partial list-cell-factory
+                                                           element
+                                                           (:index edit))}
                          :desc
                          {:fx/type fx.ext.list-view/with-selection-props
                           :props {:selection-mode :multiple
@@ -910,8 +910,8 @@
                       :on-value-changed on-value-changed
                       :state-path state-path}
      :text label
-     :cell-value-factory (fxui/partial table-cell-value-factory path)
-     :cell-factory (fxui/partial table-cell-factory column (dissoc edit :value))}))
+     :cell-value-factory (fn/partial table-cell-value-factory path)
+     :cell-factory (fn/partial table-cell-factory column (dissoc edit :value))}))
 
 (defmethod form-input-view :table [{:keys [value
                                            on-value-changed
