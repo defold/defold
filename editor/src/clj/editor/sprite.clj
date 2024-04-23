@@ -415,7 +415,7 @@
 (defn- clear-texture-binding-node-id [texture-binding-node-id _]
   (g/delete-node texture-binding-node-id))
 
-(defn- set-texture-biding-id [sampler-name _ node-id _ new]
+(defn- set-texture-binding-id [sampler-name _ node-id _ new]
   (create-texture-binding-tx node-id sampler-name new))
 
 (g/defnk produce-properties [_declared-properties _node-id default-animation material-attribute-infos material-max-page-count material-samplers material-shader texture-binding-infos vertex-attribute-overrides]
@@ -474,7 +474,7 @@
                        :error (validation/prop-error :info _node-id :texture validation/prop-nil? nil label)
                        :edit-type {:type resource/Resource
                                    :ext extension
-                                   :set-fn (fn/partial set-texture-biding-id sampler-name)}}])))))
+                                   :set-fn (fn/partial set-texture-binding-id sampler-name)}}])))))
         attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
     (-> _declared-properties
         (update :properties (fn [props]
