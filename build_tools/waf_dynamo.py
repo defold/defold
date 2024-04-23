@@ -476,7 +476,7 @@ def default_flags(self):
 
         emflags_link = [
             'DISABLE_EXCEPTION_CATCHING=1',
-            'EXPORTED_RUNTIME_METHODS=["ccall","stackTrace","UTF8ToString","callMain","HEAPU8"]',
+            'EXPORTED_RUNTIME_METHODS=["ccall","stackTrace","UTF8ToString","callMain","HEAPU8","stringToNewUTF8"]',
             'EXPORTED_FUNCTIONS=_main,_malloc,_free',
             'ERROR_ON_UNDEFINED_SYMBOLS=1',
             'INITIAL_MEMORY=33554432',
@@ -502,6 +502,8 @@ def default_flags(self):
             flags = ['-gsource-map']
             linkflags = ['-gsource-map']
 
+        flags += ['-O3']
+        linkflags += ['-O3']
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
                                         '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DDM_NO_SYSTEM_FUNCTION'])
