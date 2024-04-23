@@ -31,9 +31,15 @@
 
 (set! *warn-on-reflection* true)
 
-;; This is the limit to how deeply we iterate into nested protobuf messages.
-;; Ten is plenty. Currently, our deepest file formats only reach depth04.
-(def ^:private ^:const max-pb-map-depth 10)
+;; String urls that will be added as library dependencies to our test project.
+;; These extensions register additional protobuf resource types that we want to
+;; cover in our tests.
+(def ^:private sanctioned-extension-urls
+  (mapv #(System/getProperty %)
+        ["defold.extension.rive.url"
+         "defold.extension.simpledata.url"
+         "defold.extension.spine.url"
+         "defold.extension.texturepacker.url"]))
 
 ;; Some file formats require real-world protobuf field values.
 ;; This map controls what values get injected into the generated files.
@@ -64,16 +70,17 @@
      "label" {:font "/builtins/fonts/default.font"
               :material "/builtins/fonts/label-df.material"}
      "model" {:materials [{:attributes [vertex-attribute-override]}]}
+     "tpinfo" {:pages [{:name "tpinfo_page_image.png"
+                        :size {:width (float 16.0)
+                               :height (float 16.0)}}]}
+     "tpatlas" {:file "/editable/depth01.tpinfo"}
      "sprite" {:attributes [vertex-attribute-override]}
      "tileset" tile-source
      "tilesource" tile-source}))
 
-(defn- sanctioned-extension-uris []
-  (into (sorted-set)
-        (keep (fn [[key value]]
-                (when (re-matches #"^defold\.extension\..+\.url$" key)
-                  value)))
-        (System/getProperties)))
+;; This is the limit to how deeply we iterate into nested protobuf messages.
+;; Ten is plenty. Currently, our deepest file formats only reach depth04.
+(def ^:private ^:const max-pb-map-depth 10)
 
 (defn- resource-type->pb-class
   ^Class [resource-type]
@@ -153,16 +160,16 @@
                     resource-types)))
         (protobuf-resource-types-by-editability workspace)))
 
-(defn- write-sparse-protobuf-resources! [^File project-root-directory sparse-protobuf-content-by-proj-path]
-  (let [sparse-protobuf-content-by-absolute-file
-        (into (sorted-map)
-              (map (fn [[proj-path content]]
-                     (let [relative-path (subs proj-path 1) ; Strip leading slash.
-                           absolute-file (io/file project-root-directory relative-path)]
-                       (pair absolute-file content))))
-              sparse-protobuf-content-by-proj-path)
+(defn- sparse-protobuf-content-by-absolute-file [^File project-root-directory sparse-protobuf-content-by-proj-path]
+  (into (sorted-map)
+        (map (fn [[proj-path content]]
+               (let [relative-path (subs proj-path 1) ; Strip leading slash.
+                     absolute-file (io/file project-root-directory relative-path)]
+                 (pair absolute-file content))))
+        sparse-protobuf-content-by-proj-path))
 
-        absolute-directories
+(defn- create-parent-directories! [sparse-protobuf-content-by-absolute-file]
+  (let [absolute-directories
         (into (sorted-set)
               (keep (fn [[^File absolute-file]]
                       (.getParentFile absolute-file)))
@@ -170,11 +177,11 @@
 
     ;; Create parent directories in the project.
     (doseq [directory absolute-directories]
-      (fs/create-directories! directory))
+      (fs/create-directories! directory))))
 
-    ;; Write files in the project.
-    (doseq [[absolute-file content] sparse-protobuf-content-by-absolute-file]
-      (test-support/spit-until-new-mtime absolute-file content))))
+(defn- write-sparse-protobuf-resources! [sparse-protobuf-content-by-absolute-file]
+  (doseq [[absolute-file content] sparse-protobuf-content-by-absolute-file]
+    (test-support/spit-until-new-mtime absolute-file content)))
 
 (deftest sparse-pb-map-meta-test
   (testing "go"
@@ -226,18 +233,28 @@
       (test-support/with-clean-system
         (let [workspace (test-util/setup-workspace! world project-path)]
 
-          ;; TODO(save-value): Add dependencies to all sanctioned extensions to game.project.
-          #_ (let [sanctioned-extension-uris (sanctioned-extension-uris)]
-               (test-util/set-libraries! workspace sanctioned-extension-uris))
+          ;; Add dependencies to all sanctioned extensions to game.project.
+          (test-util/set-libraries! workspace sanctioned-extension-urls)
 
-          ;; With the extensions added, we can populate the workspace with
-          ;; sparse files for all the protobuf resource types.
-          (let [sparse-protobuf-content-by-proj-path (sparse-protobuf-content-by-proj-path workspace)
-                project-root-directory (workspace/project-path workspace)]
-            (write-sparse-protobuf-resources! project-root-directory sparse-protobuf-content-by-proj-path)
-            (workspace/resource-sync! workspace)
+          ;; With the extensions added, we can populate the workspace.
+          (let [project-root-directory (workspace/project-path workspace)
+                sparse-protobuf-content-by-proj-path (sparse-protobuf-content-by-proj-path workspace)
+                sparse-protobuf-content-by-absolute-file (sparse-protobuf-content-by-absolute-file project-root-directory sparse-protobuf-content-by-proj-path)]
+
+            ;; Ensure we have the parent directories in place for our content.
+            (create-parent-directories! sparse-protobuf-content-by-absolute-file)
+
+            ;; Add supplemental content to the project for our sparse protobuf
+            ;; resources to reference.
+            (fs/copy! (io/file "test/resources/images/small.png")
+                      (io/file project-path "editable/tpinfo_page_image.png"))
+
+            ;; Add sparse files for all the protobuf resource types.
+            (write-sparse-protobuf-resources! sparse-protobuf-content-by-absolute-file)
 
             ;; With the workspace populated, we can load the project.
+            (workspace/resource-sync! workspace)
+
             (let [project (test-util/setup-project! workspace)
                   proj-paths (keys sparse-protobuf-content-by-proj-path)]
               (doseq [proj-path proj-paths]
