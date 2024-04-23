@@ -409,7 +409,7 @@
         properties (mapv flatten-properties properties)
         display-orders (mapv :display-order properties)
         node-count (count properties)
-        ; Filter out invisible properties
+        ;; Filter out invisible properties
         visible-prop-colls (->> properties
                                 (eduction
                                   (mapcat :properties)
@@ -417,16 +417,14 @@
                                 (util/group-into {} [] key val))
         coalesced (into {}
                         (comp
-                          ; Filter out properties not common to *all* property sets
-                          ; Heuristic is to compare count and also type
+                          ;; Filter out properties not common to *all* property sets
+                          ;; Heuristic is to compare count and also type
                           (filter
                             (fn [e]
-                              (let [ret (and (= node-count (count (val e)))
-                                             (apply = (map property-edit-type (val e))))]
-                                (when-not ret
-                                  (tap> (map property-edit-type (val e))))
-                                ret)))
-                          ; Coalesce into properties consumable by e.g. the properties view
+                              (let [v (val e)]
+                                (and (= node-count (count v))
+                                     (apply = (map property-edit-type v))))))
+                          ;; Coalesce into properties consumable by e.g. the properties view
                           (map (fn [[k v]]
                                  (let [prop {:key k
                                              :node-ids (mapv :node-id v)
@@ -443,7 +441,13 @@
                                                                  (when (g/error? value) value))) v)
                                              :edit-type (property-edit-type (first v))
                                              :label (:label (first v))
-                                             :read-only? (reduce (fn [res read-only] (or res read-only)) false (map #(get % :read-only? false) v))}
+                                             :read-only? (reduce
+                                                           (fn [acc prop]
+                                                             (if (:read-only? prop false)
+                                                               (reduced true)
+                                                               acc))
+                                                           false
+                                                           v)}
                                        default-vals (mapv :original-value (filter #(contains? % :original-value) v))
                                        prop (if (empty? default-vals) prop (assoc prop :original-values default-vals))]
                                    (pair k prop)))))

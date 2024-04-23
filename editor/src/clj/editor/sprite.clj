@@ -16,7 +16,6 @@
   (:require [dynamo.graph :as g]
             [editor.colors :as colors]
             [editor.defold-project :as project]
-            [editor.fxui :as fxui]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -38,7 +37,8 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.fn :as fn])
   (:import [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
@@ -474,7 +474,7 @@
                        :error (validation/prop-error :info _node-id :texture validation/prop-nil? nil label)
                        :edit-type {:type resource/Resource
                                    :ext extension
-                                   :set-fn (fxui/partial set-texture-biding-id sampler-name)}}])))))
+                                   :set-fn (fn/partial set-texture-biding-id sampler-name)}}])))))
         attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
     (-> _declared-properties
         (update :properties (fn [props]
