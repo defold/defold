@@ -2953,15 +2953,12 @@ TEST_F(ComponentTest, DispatchBuffersInstancingTest)
         ASSERT_EQ(DISPATCH_NUMBER_OF_DRAWS, inst_buffer->m_Buffers.Size());
         ASSERT_EQ(dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER, inst_buffer->m_Type);
 
-        const uint32_t buffer_write_offset_inst = instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES;
-        ASSERT_TRUE(buffer_write_offset_inst % instance_stride_b != 0);
-
-        const uint32_t instance_padding     = instance_stride_b - (instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES) % instance_stride_b;
-        const uint32_t instance_buffer_size = instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES + instance_padding + instance_stride_b * DISPATCH_NUMBER_OF_INSTANCES;
-
+        // There is no padding here, because we use an offset for the instance vertex buffer instead.
+        // We should probably do the same for all vertex buffers that use different vertex declarations in the same batch
+        const uint32_t instance_buffer_size = instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES + instance_stride_b * DISPATCH_NUMBER_OF_INSTANCES;
         uint8_t instance_buffer[instance_buffer_size];
         inst_format_a* inst_model_a = (inst_format_a*) &instance_buffer[0];
-        inst_format_b* inst_model_b = (inst_format_b*) &instance_buffer[instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES + instance_padding];
+        inst_format_b* inst_model_b = (inst_format_b*) &instance_buffer[instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES];
 
         // NOTE: The z component here is different between these two components since we want to sort them in a specific order.
         float p0[] = {  1.0,  1.0, 0.0f };
@@ -3018,7 +3015,7 @@ TEST_F(ComponentTest, DispatchBuffersInstancingTest)
             vs_format_b* written_model_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
 
             inst_format_a* written_inst_model_a = (inst_format_a*) &gfx_inst_buffer->m_Buffer[0];
-            inst_format_b* written_inst_model_b = (inst_format_b*) &gfx_inst_buffer->m_Buffer[instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES + instance_padding];
+            inst_format_b* written_inst_model_b = (inst_format_b*) &gfx_inst_buffer->m_Buffer[instance_stride_a * DISPATCH_NUMBER_OF_INSTANCES];
 
             for (int j = 0; j < vertex_count; ++j)
             {

@@ -1,6 +1,6 @@
 attribute vec3 position;
 attribute float page_index;
-attribute mat4 mtx_world;
+attribute mat4 mtx_world_custom;
 
 void main()
 {

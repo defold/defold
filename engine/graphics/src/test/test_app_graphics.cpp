@@ -471,7 +471,7 @@ struct StorageBufferTest : ITest
     {
         dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
         dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
-        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, m_Program);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
 
         dmGraphics::HUniformLocation loc = dmGraphics::GetUniformLocation(m_Program, "Test");
         dmGraphics::VulkanSetStorageBuffer(engine->m_GraphicsContext, m_StorageBuffer, 0, 0, loc);
