@@ -158,9 +158,10 @@ namespace dmGameSystem
  *
  * @document
  * @name b2d
+ * @namespace b2d
  */
 
-/** Get the Box2D world from the current collection
+/*# Get the Box2D world from the current collection
  * @name b2d.get_world
  * @return world [type: b2World] the world if successful. Otherwise `nil`.
  */
