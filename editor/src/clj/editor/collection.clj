@@ -36,7 +36,7 @@
             [editor.workspace :as workspace]
             [internal.cache :as c]
             [internal.util :as util])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$EmbeddedInstanceDesc GameObject$InstanceDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$EmbeddedInstanceDesc GameObject$InstanceDesc]
            [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
@@ -622,15 +622,15 @@
           id
           (recur (inc postfix)))))))
 
-(defn- make-ref-go [self source-resource id position rotation scale parent overrides select-fn]
+(defn- make-ref-go [self source-resource id transform-properties parent overrides select-fn]
   (let [path {:resource source-resource
               :overrides overrides}]
-    ;; TODO(save-value): set-properties-from-pb-map.
     (g/make-nodes (g/node-id->graph-id self)
       [go-node [ReferencedGOInstanceNode :id id]]
-      (some->> position (g/set-property go-node :position))
-      (some->> rotation (g/set-property go-node :rotation))
-      (some->> scale (g/set-property go-node :scale))
+      (gu/set-properties-from-pb-map go-node GameObject$InstanceDesc transform-properties
+        position :position
+        rotation :rotation
+        scale :scale3)
       (g/set-property go-node :path path) ; Set last so the :alter-referenced-component-fn can alter component properties.
       (attach-coll-ref-go self go-node)
       (when parent
@@ -654,7 +654,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Game Object")
-        (make-ref-go coll-node resource id nil nil nil parent nil select-fn)))))
+        (make-ref-go coll-node resource id nil parent nil select-fn)))))
 
 (defn- select-go-file [workspace project]
   (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"})))
@@ -667,16 +667,17 @@
          (when-let [resource (first (resource-dialog/make workspace project {:ext "go" :title "Select Game Object File"}))]
            (add-referenced-game-object! collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
 
-(defn- make-embedded-go [self project prototype-desc id position rotation scale parent select-fn]
+(defn- make-embedded-go [self project prototype-desc id transform-properties parent select-fn]
   {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
   (let [graph (g/node-id->graph-id self)
         resource (project/make-embedded-resource project :editable "go" prototype-desc)
         node-type (project/resource-node-type resource)]
     (g/make-nodes graph [go-node [EmbeddedGOInstanceNode :id id]
                          resource-node [node-type :resource resource]]
-      (some->> position (g/set-property go-node :position))
-      (some->> rotation (g/set-property go-node :rotation))
-      (some->> scale (g/set-property go-node :scale))
+      (gu/set-properties-from-pb-map go-node GameObject$EmbeddedInstanceDesc transform-properties
+        position :position
+        rotation :rotation
+        scale :scale3)
       (g/connect go-node :url resource-node :base-url)
       (project/load-embedded-resource-node project resource-node resource prototype-desc)
       (project/connect-if-output node-type resource-node go-node
@@ -704,7 +705,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Game Object")
-        (make-embedded-go coll-node project prototype-desc id nil nil nil parent select-fn)))))
+        (make-embedded-go coll-node project prototype-desc id nil parent select-fn)))))
 
 (handler/defhandler :add :workbench
   (active? [selection] (selection->collection selection))
@@ -713,25 +714,26 @@
        (let [collection (selection->collection selection)]
          (add-embedded-game-object! workspace project collection collection (fn [node-ids] (app-view/select app-view node-ids))))))
 
-(defn- make-collection-instance [self source-resource id position rotation scale overrides select-fn]
+(defn- make-collection-instance [self source-resource id transform-properties overrides select-fn]
   (let [path {:resource source-resource
               :overrides overrides}]
     (g/make-nodes (g/node-id->graph-id self)
       [coll-node [CollectionInstanceNode :id id]]
-      (some->> position (g/set-property coll-node :position))
-      (some->> rotation (g/set-property coll-node :rotation))
-      (some->> scale (g/set-property coll-node :scale))
+      (gu/set-properties-from-pb-map coll-node GameObject$CollectionInstanceDesc transform-properties
+        position :position
+        rotation :rotation
+        scale :scale3)
       (g/set-property coll-node :path path) ; Set last so the :alter-referenced-component-fn can alter component properties.
       (attach-coll-coll self coll-node)
       (child-coll-any self coll-node)
       (when select-fn
         (select-fn [coll-node])))))
 
-(defn add-referenced-collection! [self source-resource id position rotation scale overrides select-fn]
+(defn add-referenced-collection! [self source-resource id transform-properties overrides select-fn]
   (g/transact
     (concat
       (g/operation-label "Add Collection")
-      (make-collection-instance self source-resource id position rotation scale overrides select-fn))))
+      (make-collection-instance self source-resource id transform-properties overrides select-fn))))
 
 (handler/defhandler :add-secondary :workbench
   (active? [selection] (selection->game-object-instance selection))
@@ -756,7 +758,7 @@
              (let [base (resource/base-name resource)
                    id (gen-instance-id coll-node base)
                    select-fn (fn [node-ids] (app-view/select app-view node-ids))]
-               (add-referenced-collection! coll-node resource id nil nil nil nil select-fn))))
+               (add-referenced-collection! coll-node resource id nil nil select-fn))))
          (when-let [resource (select-go-file workspace project)]
            (let [go-node (selection->game-object-instance selection)
                  coll-node (core/scope-of-type go-node CollectionNode)
@@ -764,15 +766,16 @@
              (add-referenced-game-object! coll-node go-node resource select-fn))))))
 
 (defn load-collection [project self resource collection]
+  {:pre [(map? collection)]} ; GameObject$CollectionDesc in map format.
   (concat
-    (g/set-property self :name (:name collection))
-    (g/set-property self :scale-along-z (= 1 (:scale-along-z collection)))
+    (gu/set-properties-from-pb-map self GameObject$CollectionDesc collection
+      name :name
+      scale-along-z (protobuf/int->boolean :scale-along-z))
     (let [tx-go-creation (flatten
                            (concat
                              (for [game-object (:instances collection)
                                    :let [source-resource (workspace/resolve-resource resource (:prototype game-object))]]
-                               (make-ref-go self source-resource (:id game-object) (:position game-object)
-                                            (:rotation game-object) (:scale3 game-object) nil (:component-properties game-object) nil))
+                               (make-ref-go self source-resource (:id game-object) game-object nil (:component-properties game-object) nil))
                              (for [embedded (:embedded-instances collection)]
                                (do
                                  ;; Note: We only need to check that the
@@ -780,11 +783,7 @@
                                  ;; here. Any EmbeddedComponentDescs inside will
                                  ;; be validated by the game-object :load-fn.
                                  (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded resource)
-                                 (make-embedded-go self project (:data embedded) (:id embedded)
-                                                   (:position embedded)
-                                                   (:rotation embedded)
-                                                   (:scale3 embedded)
-                                                   nil nil)))))
+                                 (make-embedded-go self project (:data embedded) (:id embedded) embedded nil nil)))))
           new-instance-data (filter #(and (= :create-node (:type %)) (g/node-instance*? GameObjectInstanceNode (:node %))) tx-go-creation)
           id->nid (into {} (map #(do [(get-in % [:node :id]) (g/node-id (:node %))]) new-instance-data))
           child->parent (into {} (map #(do [% nil]) (keys id->nid)))
@@ -800,8 +799,7 @@
             (child-coll-any self child-id)))))
     (for [coll-instance (:collection-instances collection)
           :let [source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
-      (make-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
-                                (:rotation coll-instance) (:scale3 coll-instance) (:instance-properties coll-instance) nil))))
+      (make-collection-instance self source-resource (:id coll-instance) coll-instance (:instance-properties coll-instance) nil))))
 
 (defn- sanitize-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]

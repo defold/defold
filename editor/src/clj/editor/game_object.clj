@@ -112,11 +112,11 @@
   Unsupported properties will be initialized to the identity transform.
   If the resource type is unknown to us, keep all transform properties."
   [component-resource-type component]
-  (merge scene/identity-transform-properties
-         (select-keys component
-                      (if (some? component-resource-type)
-                        (supported-transform-properties component-resource-type)
-                        game-object-common/component-transform-property-keys))))
+  (select-keys
+    component
+    (if (some? component-resource-type)
+      (supported-transform-properties component-resource-type)
+      game-object-common/component-transform-property-keys)))
 
 (g/defnk produce-component-transform-properties
   "Determines which transform properties we allow the user to edit using the
@@ -466,14 +466,15 @@
           id
           (recur (inc postfix)))))))
 
-(defn- add-component [self source-resource id {:keys [position rotation scale]} properties select-fn]
+(defn- add-component [self source-resource id transform-properties properties select-fn]
   (let [path {:resource source-resource
               :overrides properties}]
     (g/make-nodes (g/node-id->graph-id self)
       [comp-node [ReferencedComponent :id id]]
-      (some->> position (g/set-property comp-node :position))
-      (some->> rotation (g/set-property comp-node :rotation))
-      (some->> scale (g/set-property comp-node :scale))
+      (gu/set-properties-from-pb-map comp-node GameObject$ComponentDesc transform-properties
+        position :position
+        rotation :rotation
+        scale :scale)
       (g/set-property comp-node :path path) ; Set last so the :alter-referenced-component-fn can alter component properties.
       (attach-ref-component self comp-node)
       (when select-fn
@@ -484,7 +485,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Component")
-        (add-component go-id resource id scene/identity-transform-properties [] select-fn)))))
+        (add-component go-id resource id nil nil select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
   (let [component-exts (keep (fn [[ext {:keys [tags :as _resource-type]}]]
@@ -504,16 +505,17 @@
   (run [workspace project selection app-view]
        (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
 
-(defn- add-embedded-component [self project type pb-map id {:keys [position rotation scale]} select-fn]
+(defn- add-embedded-component [self project type pb-map id transform-properties select-fn]
   {:pre [(map? pb-map)]}
   (let [graph (g/node-id->graph-id self)
         resource (project/make-embedded-resource project :editable type pb-map)
         node-type (project/resource-node-type resource)]
     (g/make-nodes graph [comp-node [EmbeddedComponent :id id]
                          resource-node [node-type :resource resource]]
-      (some->> position (g/set-property comp-node :position))
-      (some->> rotation (g/set-property comp-node :rotation))
-      (some->> scale (g/set-property comp-node :scale))
+      (gu/set-properties-from-pb-map comp-node GameObject$EmbeddedComponentDesc transform-properties
+        position :position
+        rotation :rotation
+        scale :scale)
       (project/load-embedded-resource-node project resource-node resource pb-map)
       (project/connect-if-output node-type resource-node comp-node
                                  [[:_node-id :embedded-resource-id]
@@ -535,7 +537,7 @@
     (g/transact
       (concat
         (g/operation-label "Add Component")
-        (add-embedded-component go-id project (:ext resource-type) pb-map id scene/identity-transform-properties select-fn)))))
+        (add-embedded-component go-id project (:ext resource-type) pb-map id nil select-fn)))))
 
 (defn- add-embedded-component-handler [user-data select-fn]
   (let [go-id (:_node-id user-data)

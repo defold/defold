@@ -977,12 +977,10 @@
   [collection-or-instance-id collection-resource]
   (let [collection-id (to-collection-node-id collection-or-instance-id)
         id (resource/base-name collection-resource)
-        position [0.0 0.0 0.0]
-        rotation [0.0 0.0 0.0 1.0]
-        scale [1.0 1.0 1.0]
-        overrides []
+        transform-properties nil
+        overrides nil
         select-fn (make-call-logger)]
-    (collection/add-referenced-collection! collection-id collection-resource id position rotation scale overrides select-fn)
+    (collection/add-referenced-collection! collection-id collection-resource id transform-properties overrides select-fn)
     (created-node select-fn)))
 
 (defn- checked-source-node-ids

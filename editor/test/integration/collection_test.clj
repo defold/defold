@@ -148,7 +148,7 @@
           go-id     (test-util/resource-node project "/game_object/test.go")
           script-id (test-util/resource-node project "/script/props.script")
           select-fn (fn [node-ids] (app-view/select app-view node-ids))]
-      (collection/add-referenced-collection! parent-id (test-util/resource workspace "/collection/test.collection") "child" [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] [] select-fn)
+      (collection/add-referenced-collection! parent-id (test-util/resource workspace "/collection/test.collection") "child" nil nil select-fn)
       (collection/add-referenced-game-object! coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
       (is (nil? (test-util/outline coll-id [0 0])))
       (let [inst (first (test-util/selection app-view))]
@@ -191,7 +191,7 @@
           coll-id   (test-util/resource-node project "/collection/test.collection")
           go-id     (test-util/resource-node project "/game_object/test.go")
           select-fn (fn [node-ids] (app-view/select app-view node-ids))]
-      (collection/add-referenced-collection! parent-id (test-util/resource workspace "/collection/test.collection") "child" [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] [] select-fn)
+      (collection/add-referenced-collection! parent-id (test-util/resource workspace "/collection/test.collection") "child" nil nil select-fn)
       (collection/add-referenced-game-object! coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
       (game-object/add-referenced-component! go-id (test-util/resource workspace "/script/props.script") select-fn)
       (testing "component id should only be editable on the game object including the component"
@@ -234,7 +234,7 @@
       (testing "collection ref instance"
                (is (not (build-error? coll-id)))
                (let [res (workspace/resolve-workspace-resource workspace "/collection/test.collection")]
-                 (collection/add-referenced-collection! coll-id res "coll" [0.0 0.0 0.0] [0.0 0.0 0.0 1.0] [1.0 1.0 1.0] [] nil)
+                 (collection/add-referenced-collection! coll-id res "coll" nil nil nil)
                  (let [inst-id (:node-id (test-util/outline coll-id [0]))]
                    (is (nil? (test-util/prop-error inst-id :path)))
                    (test-util/with-prop [inst-id :path {:resource nil :overrides []}]
