@@ -116,48 +116,80 @@ namespace dmRender
         return -1;
     }
 
-    static dmGraphics::HVertexDeclaration CreateVertexDeclarationFromStepFunction(dmGraphics::HContext graphics_context,
-        const dmArray<MaterialAttribute>& material_attributes, const dmArray<dmGraphics::VertexAttribute>& vertex_attributes,
-        dmGraphics::VertexStepFunction step_function)
-    {
-        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context, step_function);
-        bool has_attributes = false;
-        for (int i = 0; i < material_attributes.Size(); ++i)
-        {
-            const dmGraphics::VertexAttribute& graphics_attribute = vertex_attributes[i];
-            if (graphics_attribute.m_StepFunction == step_function)
-            {
-                has_attributes = true;
-                dmGraphics::AddVertexStream(stream_declaration,
-                    graphics_attribute.m_NameHash,
-                    graphics_attribute.m_ElementCount,
-                    dmGraphics::GetGraphicsType(graphics_attribute.m_DataType),
-                    graphics_attribute.m_Normalize);
-            }
-        }
-
-        if (!has_attributes)
-            return 0;
-
-        dmGraphics::HVertexDeclaration vertex_decl = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
-        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
-
-        return vertex_decl;
-    }
-
     static void CreateVertexDeclarations(dmGraphics::HContext graphics_context, Material* m)
     {
+        if (m->m_VertexDeclarationShared != 0)
+        {
+            dmGraphics::DeleteVertexDeclaration(m->m_VertexDeclarationShared);
+            m->m_VertexDeclarationShared = 0;
+        }
         if (m->m_VertexDeclarationPerVertex != 0)
         {
             dmGraphics::DeleteVertexDeclaration(m->m_VertexDeclarationPerVertex);
+            m->m_VertexDeclarationPerVertex = 0;
         }
         if (m->m_VertexDeclarationPerInstance != 0)
         {
             dmGraphics::DeleteVertexDeclaration(m->m_VertexDeclarationPerInstance);
+            m->m_VertexDeclarationPerInstance = 0;
         }
 
-        m->m_VertexDeclarationPerVertex   = CreateVertexDeclarationFromStepFunction(graphics_context, m->m_MaterialAttributes, m->m_VertexAttributes, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
-        m->m_VertexDeclarationPerInstance = CreateVertexDeclarationFromStepFunction(graphics_context, m->m_MaterialAttributes, m->m_VertexAttributes, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+        uint32_t num_material_attributes = m->m_MaterialAttributes.Size();
+        bool use_secondary_vertex_declarations = false;
+
+        // 1. Find out if we need to use secondary vertex declarations
+        for (int i = 0; i < num_material_attributes; ++i)
+        {
+            const dmGraphics::VertexAttribute& graphics_attribute = m->m_VertexAttributes[i];
+            if (graphics_attribute.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
+            {
+                use_secondary_vertex_declarations = true;
+                break;
+            }
+        }
+
+        dmGraphics::HVertexStreamDeclaration sd_shared   = dmGraphics::NewVertexStreamDeclaration(graphics_context);
+        dmGraphics::HVertexStreamDeclaration sd_vertex   = 0;
+        dmGraphics::HVertexStreamDeclaration sd_instance = 0;
+
+        if (use_secondary_vertex_declarations)
+        {
+            sd_vertex   = dmGraphics::NewVertexStreamDeclaration(graphics_context, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+            sd_instance = dmGraphics::NewVertexStreamDeclaration(graphics_context, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+        }
+
+        #define ADD_VERTEX_STREAM(sd, graphics_attribute) \
+            dmGraphics::AddVertexStream(sd, \
+                graphics_attribute.m_NameHash, \
+                graphics_attribute.m_ElementCount, \
+                dmGraphics::GetGraphicsType(graphics_attribute.m_DataType), \
+                graphics_attribute.m_Normalize);
+
+        // 2. Construct all vertex declarations
+        for (int i = 0; i < num_material_attributes; ++i)
+        {
+            const dmGraphics::VertexAttribute& graphics_attribute = m->m_VertexAttributes[i];
+            ADD_VERTEX_STREAM(sd_shared, graphics_attribute);
+            if (use_secondary_vertex_declarations)
+            {
+                ADD_VERTEX_STREAM(graphics_attribute.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE ?
+                    sd_instance : sd_vertex, graphics_attribute);
+            }
+        }
+
+        #undef ADD_VERTEX_STREAM
+
+        m->m_VertexDeclarationShared = dmGraphics::NewVertexDeclaration(graphics_context, sd_shared);
+        dmGraphics::DeleteVertexStreamDeclaration(sd_shared);
+
+        if (use_secondary_vertex_declarations)
+        {
+            m->m_VertexDeclarationPerVertex   = dmGraphics::NewVertexDeclaration(graphics_context, sd_vertex);
+            m->m_VertexDeclarationPerInstance = dmGraphics::NewVertexDeclaration(graphics_context, sd_instance);
+
+            dmGraphics::DeleteVertexStreamDeclaration(sd_vertex);
+            dmGraphics::DeleteVertexStreamDeclaration(sd_instance);
+        }
     }
 
     static void CreateAttributes(dmGraphics::HContext graphics_context, Material* m)
@@ -251,6 +283,7 @@ namespace dmRender
         m->m_VertexProgram                = vertex_program;
         m->m_FragmentProgram              = fragment_program;
         m->m_Program                      = program;
+        m->m_VertexDeclarationShared      = 0;
         m->m_VertexDeclarationPerVertex   = 0;
         m->m_VertexDeclarationPerInstance = 0;
 
@@ -753,12 +786,12 @@ namespace dmRender
 
     dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material)
     {
-        return material->m_VertexDeclarationPerVertex;
+        return material->m_VertexDeclarationShared;
     }
 
-    dmGraphics::HVertexDeclaration GetInstanceVertexDeclaration(HMaterial material)
+    dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function)
     {
-        return material->m_VertexDeclarationPerInstance;
+        return step_function == dmGraphics::VERTEX_STEP_FUNCTION_VERTEX ? material->m_VertexDeclarationPerVertex : material->m_VertexDeclarationPerInstance;
     }
 
     HRenderContext GetMaterialRenderContext(HMaterial material)

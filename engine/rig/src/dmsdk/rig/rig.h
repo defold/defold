@@ -189,10 +189,10 @@ namespace dmRig
     };
 
     // Returns the new position in the array
-    uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out);
-    uint8_t* WriteSingleVertexDataByAttributes(uint8_t* write_ptr, const WriteVertexAttributeParams& params);
+    uint8_t*        GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out);
+    uint8_t*        WriteSingleVertexDataByAttributes(uint8_t* write_ptr, const WriteVertexAttributeParams& params);
     RigModelVertex* GenerateVertexData(HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, RigModelVertex* vertex_data_out);
-    uint32_t GetVertexCount(HRigInstance instance);
+    uint32_t        GetVertexCount(HRigInstance instance);
 
     Result SetModel(HRigInstance instance, dmhash_t model_id);
     dmhash_t GetModel(HRigInstance instance);

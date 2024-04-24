@@ -253,7 +253,7 @@ namespace dmRender
     };
 
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
-    dmGraphics::HVertexDeclaration  GetInstanceVertexDeclaration(HMaterial material);
+    dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function);
     bool                            GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, MaterialProgramAttributeInfo& info);
     void                            GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count);
     void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* num_values);

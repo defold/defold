@@ -62,27 +62,6 @@ namespace dmGraphics
         uint8_t            m_StreamCount;
     };
 
-    struct VertexDeclaration
-    {
-        struct Stream
-        {
-            dmhash_t m_NameHash;
-            int16_t  m_Location;
-            uint16_t m_Size;
-            uint16_t m_Offset;
-            Type     m_Type;
-            bool     m_Normalize;
-        };
-
-        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
-        dmhash_t           m_PipelineHash; // Vulkan
-        uint16_t           m_StreamCount;
-        uint16_t           m_Stride;
-        VertexStepFunction m_StepFunction;
-        HProgram           m_BoundForProgram;     // OpenGL
-        uint32_t           m_ModificationVersion; // OpenGL
-    };
-
     struct ShaderResourceType
     {
         union

@@ -1002,7 +1002,7 @@ namespace dmRig
         return write_ptr;
     }
 
-    static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* out_write_ptr)
+    static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, uint8_t* out_write_ptr)
     {
         const float* uv0 = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
         const float* uv1 = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
@@ -1025,15 +1025,15 @@ namespace dmRig
         }
 
         WriteVertexAttributeParams params = {};
-        params.m_AttributeInfos = attribute_infos;
-        params.m_Positions      = positions;
-        params.m_Normals        = normals;
-        params.m_Tangents       = tangents;
-        params.m_UV0            = uv0;
-        params.m_UV1            = uv1;
-        params.m_Colors         = colors;
-
-        // TODO: World + normal matrix
+        params.m_AttributeInfos  = attribute_infos;
+        params.m_Positions       = positions;
+        params.m_Normals         = normals;
+        params.m_Tangents        = tangents;
+        params.m_UV0             = uv0;
+        params.m_UV1             = uv1;
+        params.m_Colors          = colors;
+        params.m_WorldTransform  = &world_matrix;
+        params.m_NormalTransform = &normal_matrix;
 
         for (uint32_t i = 0; i < num_indices; ++i)
         {
@@ -1131,7 +1131,7 @@ namespace dmRig
         array.SetSize(size);
     }
 
-    uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out)
+    uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out)
     {
         const dmRigDDF::Model* model = instance->m_Model;
 
@@ -1204,7 +1204,7 @@ namespace dmRig
             dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer, tangents_buffer);
         }
 
-        return WriteVertexDataByAttributes(mesh, positions_buffer, normals_buffer, tangents_buffer, attribute_infos, vertex_stride, vertex_data_out);
+        return WriteVertexDataByAttributes(mesh, positions_buffer, normals_buffer, tangents_buffer, attribute_infos, vertex_stride, world_matrix, normal_matrix, vertex_data_out);
     }
 
     RigModelVertex* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const Matrix4& world_matrix, RigModelVertex* vertex_data_out)
