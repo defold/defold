@@ -60,23 +60,6 @@ namespace dmGameSystem
 
     static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED = 0xffff;
 
-    struct LocalVsInstanceData
-    {
-        ModelResourceBuffers* m_Buffers;
-        dmVMath::Matrix4*     m_WorldMatrices; // TODO: Custom formats
-        uint32_t              m_InstanceCount;
-    };
-
-    struct LocalVsInstanceContext
-    {
-        ModelWorld*              m_World;
-        ModelComponent*          m_Component;
-        dmRender::HRenderContext m_RenderContext;
-        dmRender::HMaterial      m_Material;
-        uint32_t                 m_MaterialIndex;
-        uint32_t                 m_InstanceStride;
-    };
-
     struct ModelInstanceData
     {
         dmVMath::Matrix4 m_WorldTransform;
@@ -100,7 +83,7 @@ namespace dmGameSystem
         ModelResourceBuffers*       m_Buffers;
         dmRigDDF::Model*            m_Model;    // Used for world space materials
         dmRigDDF::Mesh*             m_Mesh;     // Used for world space materials
-        uint32_t                    m_AttributeDataHash;
+        uint32_t                    m_InstanceRenderHash;
         uint32_t                    m_BoneIndex;
         uint32_t                    m_MaterialIndex;
         uint32_t                    m_Enabled : 1;
@@ -141,11 +124,8 @@ namespace dmGameSystem
         dmArray<dmRender::RenderObject>  m_RenderObjects;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
         dmGraphics::HVertexDeclaration   m_InstanceVertexDeclaration;
-
-        dmHashTable<uintptr_t, LocalVsInstanceData> m_InstanceUniqueMeshesScratch;
-        dmArray<uint8_t>                            m_InstanceBufferDataLocalSpace;
-        dmRender::HBufferedRenderBuffer             m_InstanceBufferLocalSpace;
-
+        dmArray<uint8_t>                 m_InstanceBufferDataLocalSpace;
+        dmRender::HBufferedRenderBuffer  m_InstanceBufferLocalSpace;
         dmRender::HBufferedRenderBuffer* m_VertexBuffers;
         dmArray<uint8_t>*                m_VertexBufferData;
         uint32_t*                        m_VertexBufferVertexCounts;
@@ -461,19 +441,15 @@ namespace dmGameSystem
             dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
         }
 
+        /*
         for (int i = 0; i < component->m_RenderItems.Size(); ++i)
         {
-            if (component->m_RenderItems[i].m_AttributeDataHash)
+            if (component->m_RenderItems[i].m_InstanceRenderHash)
             {
-                dmHashUpdateBuffer32(&state, &component->m_RenderItems[i].m_AttributeDataHash, sizeof(component->m_RenderItems[i].m_AttributeDataHash));
-            }
-
-            dmRender::HMaterial ri_material = GetMaterial(component, resource, component->m_RenderItems[i].m_MaterialIndex);
-            if (dmRender::GetVertexDeclaration(ri_material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE) != 0x0)
-            {
-                dmHashUpdateBuffer32(&state, component->m_RenderItems[i].m_Mesh, sizeof(component->m_RenderItems[i].m_Mesh));
+                dmHashUpdateBuffer32(&state, &component->m_RenderItems[i].m_InstanceRenderHash, sizeof(component->m_RenderItems[i].m_InstanceRenderHash));
             }
         }
+        */
 
         component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
@@ -715,10 +691,10 @@ namespace dmGameSystem
         rd->m_Initialized = true;
     }
 
-    static uint32_t GetAttributeDataHash(ModelComponent* component, dmRender::HMaterial material, uint32_t material_index)
+    static uint32_t GetInstancedRenderItemHash(ModelComponent* component, dmRigDDF::Mesh* mesh, dmRender::HMaterial material, uint32_t material_index)
     {
         dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
-        if (!instance_vx_decl)
+        if (dmRender::GetMaterialVertexSpace(material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && !instance_vx_decl)
         {
             return 0;
         }
@@ -744,6 +720,9 @@ namespace dmGameSystem
                 continue;
             dmHashUpdateBuffer32(&state, attr.m_ValuePtr, attr.m_ValueByteSize);
         }
+
+        dmHashUpdateBuffer32(&state, mesh, sizeof(*mesh));
+
         return dmHashFinal32(&state);
     }
 
@@ -790,12 +769,12 @@ namespace dmGameSystem
                 num_custom_attributes++;
             }
 
-            item.m_AttributeDataHash = GetAttributeDataHash(component, material, item.m_MaterialIndex);
+            item.m_InstanceRenderHash = GetInstancedRenderItemHash(component, item.m_Mesh, material, item.m_MaterialIndex);
 
         #if 0
             dmLogInfo("Resource %p", component->m_Resource);
             dmLogInfo("  Mesh %d", i);
-            dmLogInfo("  Attribute hash %d", item.m_AttributeDataHash);
+            dmLogInfo("  Attribute hash %d", item.m_InstanceRenderHash);
         #endif
 
             component->m_RenderItems.Push(item);
@@ -962,12 +941,19 @@ namespace dmGameSystem
     }
     #endif
 
-    static void DoRenderInstance(LocalVsInstanceContext* context, const uintptr_t* key, LocalVsInstanceData* value)
+    static void RenderBatchLocalVSInstanced(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::HMaterial material,
+        uint32_t material_index, ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
     {
-        ModelResourceBuffers* buffers = value->m_Buffers;
-        ModelWorld* world             = context->m_World;
-        ModelComponent* component     = context->m_Component;
-        dmRender::HMaterial material  = context->m_Material;
+        const MeshRenderItem* render_item       = (MeshRenderItem*) buf[*begin].m_UserData;
+        uint32_t instance_count                 = end - begin;
+        uint32_t instance_stride                = dmGraphics::GetVertexDeclarationStride(inst_decl);
+        uint32_t required_instance_memory_count = instance_count * instance_stride;
+
+        if (world->m_InstanceBufferDataLocalSpace.Remaining() < required_instance_memory_count)
+        {
+            world->m_InstanceBufferDataLocalSpace.OffsetCapacity(required_instance_memory_count - world->m_InstanceBufferDataLocalSpace.Remaining());
+        }
+
         uint8_t* instance_write_ptr   = world->m_InstanceBufferDataLocalSpace.End();
 
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
@@ -977,107 +963,37 @@ namespace dmGameSystem
         ro.m_Material               = material;
         ro.m_PrimitiveType          = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart            = 0;
-        ro.m_VertexCount            = buffers->m_IndexCount;
-        ro.m_IndexBuffer            = buffers->m_IndexBuffer;              // May be 0
-        ro.m_IndexType              = buffers->m_IndexBufferElementType;
-        ro.m_InstanceCount          = value->m_InstanceCount;
+        ro.m_VertexCount            = render_item->m_Buffers->m_IndexCount;
+        ro.m_IndexBuffer            = render_item->m_Buffers->m_IndexBuffer;              // May be 0
+        ro.m_IndexType              = render_item->m_Buffers->m_IndexBufferElementType;
+        ro.m_InstanceCount          = instance_count;
         ro.m_VertexDeclarations[0]  = world->m_VertexDeclaration;
-        ro.m_VertexBuffers[0]       = buffers->m_VertexBuffer;
+        ro.m_VertexBuffers[0]       = render_item->m_Buffers->m_VertexBuffer;
         ro.m_WorldTransform         = Matrix4::identity();
         ro.m_VertexDeclarations[1]  = world->m_InstanceVertexDeclaration;
-        ro.m_VertexBuffers[1]       = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(context->m_RenderContext, world->m_InstanceBufferLocalSpace);
+        ro.m_VertexBuffers[1]       = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_InstanceBufferLocalSpace);
         ro.m_VertexBufferOffsets[1] = world->m_InstanceBufferDataLocalSpace.Size();
 
-        // TODO: Custom vertex formats!
-        for (int i = 0; i < value->m_InstanceCount; ++i)
+        for (uint32_t *i=begin;i!=end;i++)
         {
-            // if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
-            // {
-            //     assert(0);
-            // }
-            // else
-            {
-                assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclaration) == sizeof(ModelInstanceData));
-                ModelInstanceData* instance_data = (ModelInstanceData*) instance_write_ptr;
-                instance_data->m_WorldTransform  = value->m_WorldMatrices[i];
-                instance_data->m_NormalTransform = dmRender::GetNormalMatrix(context->m_RenderContext, instance_data->m_WorldTransform);
-                instance_write_ptr              += sizeof(ModelInstanceData);
-            }
+            const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
+            assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclaration) == sizeof(ModelInstanceData));
+            ModelInstanceData* instance_data = (ModelInstanceData*) instance_write_ptr;
+            instance_data->m_WorldTransform  = render_item->m_World;
+            instance_data->m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_WorldTransform);
+            instance_write_ptr              += sizeof(ModelInstanceData);
         }
 
-        FillTextures(&ro, component, context->m_MaterialIndex);
+        FillTextures(&ro, component, material_index);
 
         if (component->m_RenderConstants)
         {
             dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
         }
 
-        dmRender::AddToRender(context->m_RenderContext, &ro);
+        dmRender::AddToRender(render_context, &ro);
 
         world->m_InstanceBufferDataLocalSpace.SetSize(instance_write_ptr - world->m_InstanceBufferDataLocalSpace.Begin());
-    }
-
-    static void RenderBatchLocalVSInstanced(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::HMaterial material,
-        uint32_t material_index, ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
-    {
-        uint32_t render_item_count  = end - begin;
-        uint32_t instance_stride    = dmGraphics::GetVertexDeclarationStride(inst_decl);
-        uint32_t required_instance_memory_count = render_item_count * instance_stride;
-
-        if (world->m_InstanceBufferDataLocalSpace.Remaining() < required_instance_memory_count)
-        {
-            world->m_InstanceBufferDataLocalSpace.OffsetCapacity(required_instance_memory_count - world->m_InstanceBufferDataLocalSpace.Remaining());
-        }
-
-        // We need to keep track of unique instances in case a model contains multiple meshes
-        // E.g if we want to render two models that share the same batch key, but contains multiple meshes,
-        // in the non-instanced code path every sub-mesh would get a new render object, but in the instanced case
-        // we can share everything except for the instance data, so we need to group all render items together.
-        // To do the grouping, we use a hash of the mesh resource pointer.
-        dmHashTable<uintptr_t, LocalVsInstanceData>& unique_meshes = world->m_InstanceUniqueMeshesScratch;
-        unique_meshes.Clear();
-        if (unique_meshes.Capacity() < render_item_count)
-        {
-            unique_meshes.SetCapacity(dmMath::Max(1U, render_item_count/3), render_item_count);
-        }
-
-        for (uint32_t *i=begin;i!=end;i++)
-        {
-            const MeshRenderItem* render_item  = (MeshRenderItem*) buf[*i].m_UserData;
-            LocalVsInstanceData* instance_data = unique_meshes.Get((uintptr_t) render_item->m_Mesh);
-
-            // This is alot of mallocing/reallocing, perhaps we should do a second pass over the render items when
-            // we know the exact instance count of each instance group?
-            // Perhaps we don't need to malloc here since the scratch instance data buffer is already large enough
-            // to handle all the instance data. We could do a second pass and just set the write pointer for each
-            // instance group?
-            if (instance_data)
-            {
-                instance_data->m_InstanceCount++;
-                instance_data->m_WorldMatrices = (dmVMath::Matrix4*) realloc(instance_data->m_WorldMatrices, instance_data->m_InstanceCount * sizeof(dmVMath::Matrix4));
-                instance_data->m_WorldMatrices[instance_data->m_InstanceCount - 1] = render_item->m_World;
-            }
-            else
-            {
-                LocalVsInstanceData instance_data;
-                instance_data.m_InstanceCount  = 1;
-                instance_data.m_Buffers        = render_item->m_Buffers;
-                instance_data.m_WorldMatrices = (dmVMath::Matrix4*) malloc(sizeof(dmVMath::Matrix4));
-                instance_data.m_WorldMatrices[0] = render_item->m_World;
-
-                unique_meshes.Put((uintptr_t) render_item->m_Mesh, instance_data);
-            }
-        }
-
-        LocalVsInstanceContext ctx;
-        ctx.m_World                = world;
-        ctx.m_Material             = material;
-        ctx.m_RenderContext        = render_context;
-        ctx.m_Component            = component;
-        ctx.m_MaterialIndex        = material_index;
-        ctx.m_InstanceStride       = instance_stride;
-
-        unique_meshes.Iterate(DoRenderInstance, (LocalVsInstanceContext*) &ctx);
     }
 
     static void RenderBatchLocalVSUninstanced(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::HMaterial material, uint32_t material_index, ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
@@ -1752,7 +1668,7 @@ namespace dmGameSystem
 
                 write_ptr->m_UserData = (uintptr_t) &render_item;
                 // TODO: Currently assuming only one material for all meshes
-                write_ptr->m_BatchKey = component.m_MixedHash;
+                write_ptr->m_BatchKey = render_item.m_InstanceRenderHash != 0 ? render_item.m_InstanceRenderHash : component.m_MixedHash;
                 write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource, render_item.m_MaterialIndex));
                 write_ptr->m_Dispatch = dispatch;
                 write_ptr->m_MinorOrder = minor_order;
