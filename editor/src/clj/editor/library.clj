@@ -163,7 +163,8 @@
   ;; can speed things up by caching the fetched artifacts, so they do not have
   ;; to be downloaded over and over for each new project. This assumes the
   ;; libraries will not be updated on the server during our process lifetime.
-  (if (Boolean/getBoolean "defold.tests")
+  ;; True during tests, or when using the :cache-libraries lein profile.
+  (if (Boolean/getBoolean "defold.cache.libraries")
     (fn/memoize fetch-library-raw!)
     fetch-library-raw!))
 

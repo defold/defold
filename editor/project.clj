@@ -173,7 +173,8 @@
 
   :profiles          {:test    {:injections [(com.defold.libs.ResourceUnpacker/unpackResources)]
                                 :resource-paths ["test/resources"]
-                                :jvm-opts ["-Ddefold.tests=true"]}
+                                :jvm-opts ["-Ddefold.tests=true"
+                                           "-Ddefold.cache.libraries=true"]}
                       :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
                                                  [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}
                       :sidecar {:source-paths ["sidecar"]}
@@ -191,6 +192,7 @@
                       :headless {:jvm-opts ["-Dtestfx.robot=glass" "-Dglass.platform=Monocle" "-Dmonocle.platform=Headless" "-Dprism.order=sw"]
                                  :dependencies [[org.testfx/openjfx-monocle "jdk-12.0.1+2"]]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
+                      :cache-libraries {:jvm-opts ["-Ddefold.cache.libraries=true"]}
                       :reveal {:source-paths ["src/reveal"]
                                :injections [(require 'editor.reveal)]
                                :dependencies [[vlaaad/reveal "1.3.280"]]}
