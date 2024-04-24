@@ -1,5 +1,5 @@
 name: "model"
-tags: "model" 
+tags: "model"
 vertex_program: "/builtins/materials/model.vp"
 fragment_program: "/builtins/materials/model.fp"
 vertex_space: VERTEX_SPACE_LOCAL
@@ -39,4 +39,12 @@ fragment_constants {
     w: 1.0
   }
 }
-textures: "tex0"
+samplers {
+  name: "tex0"
+  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_LINEAR
+  filter_mag: FILTER_MODE_MAG_LINEAR
+  max_anisotropy: 1.0
+}
+max_page_count: 0

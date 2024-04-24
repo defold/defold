@@ -14,7 +14,8 @@
 
 (ns util.coll
   (:refer-clojure :exclude [bounded-count empty?])
-  (:import [clojure.lang IEditableCollection MapEntry]))
+  (:import [clojure.lang IEditableCollection MapEntry]
+           [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -131,6 +132,39 @@
    (into {}
          (map (pair-fn key-fn value-fn))
          coll)))
+
+(defn partition-all-primitives
+  "Returns a lazy sequence of primitive vectors. Like core.partition-all, but
+  creates a new vector of a single primitive-type for each partition. The
+  primitive-type must be one of :int :long :float :double :byte :short :char, or
+  :boolean. Returns a stateful transducer when no collection is provided."
+  ([primitive-type ^long partition-length]
+   (fn [rf]
+     (let [in-progress (ArrayList. partition-length)]
+       (fn
+         ([] (rf))
+         ([result]
+          (let [result
+                (if (.isEmpty in-progress)
+                  result
+                  (let [finished (apply vector-of primitive-type (.toArray in-progress))]
+                    (.clear in-progress)
+                    (unreduced (rf result finished))))]
+            (rf result)))
+         ([result input]
+          (.add in-progress input)
+          (if (= partition-length (.size in-progress))
+            (let [finished (apply vector-of primitive-type (.toArray in-progress))]
+              (.clear in-progress)
+              (rf result finished))
+            result))))))
+  ([primitive-type ^long partition-length coll]
+   (partition-all-primitives primitive-type partition-length partition-length coll))
+  ([primitive-type ^long partition-length ^long step coll]
+   (lazy-seq
+     (when-let [in-progress (seq coll)]
+       (let [finished (apply vector-of primitive-type (take partition-length in-progress))]
+         (cons finished (partition-all-primitives primitive-type partition-length step (nthrest in-progress step))))))))
 
 (defn separate-by
   "Separates items in the supplied collection into two based on a predicate.

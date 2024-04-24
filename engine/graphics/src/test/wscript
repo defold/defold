@@ -21,5 +21,5 @@ def build(bld):
                     includes = ['../../src', '../../proto'],
                     exported_symbols = ['GraphicsAdapterVulkan', 'GraphicsAdapterOpenGL'],
                     source = 'test_app_graphics.cpp',
-                    use = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE PLATFORM VULKAN GRAPHICS graphics_vulkan_experimental graphics_transcoder_basisu'.split() + extra_libs,
+                    use = 'TESTMAIN APP DDF DLIB DMGLFW PROFILE PLATFORM VULKAN GRAPHICS graphics_vulkan graphics_transcoder_basisu'.split() + extra_libs,
                     target = 'test_app_graphics')

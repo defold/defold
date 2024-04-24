@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -599,7 +599,7 @@ namespace dmParticle
     static void UpdateEmitterState(Instance* instance, Emitter* emitter, EmitterPrototype* emitter_prototype, dmParticleDDF::Emitter* emitter_ddf, float dt);
     static void EvaluateEmitterProperties(Emitter* emitter, Property* emitter_properties, float duration, float properties[EMITTER_KEY_COUNT]);
     static void EvaluateParticleProperties(Emitter* emitter, Property* particle_properties, dmParticleDDF::Emitter* emitter_ddf, float dt);
-    static GenerateVertexDataResult UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* bytes_written, float dt);
+    static GenerateVertexDataResult UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* bytes_written, float dt);
     static void GenerateKeys(Emitter* emitter, float max_particle_life_time);
     static void SortParticles(Emitter* emitter);
     static void Simulate(Instance* instance, Emitter* emitter, EmitterPrototype* prototype, dmParticleDDF::Emitter* ddf, float dt);
@@ -640,9 +640,9 @@ namespace dmParticle
         emitter->m_LastPosition = world_position;
     }
 
-    GenerateVertexDataResult GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index,  const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
+    GenerateVertexDataResult GenerateVertexData(HParticleContext context, float dt, HInstance instance, uint32_t emitter_index,  const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size)
     {
-        assert(attribute_infos.m_StructSize == sizeof(ParticleVertexAttributeInfos));
+        assert(attribute_infos.m_StructSize == sizeof(dmGraphics::VertexAttributeInfos));
         assert(attribute_infos.m_VertexStride != 0);
 
         DM_PROFILE(__FUNCTION__);
@@ -1032,24 +1032,12 @@ namespace dmParticle
         particle->m_SourceAngularVelocity = emitter_properties[EMITTER_KEY_PARTICLE_ANGULAR_VELOCITY];
     }
 
-    static inline bool HasLocalPositionAttribute(const ParticleVertexAttributeInfos& attribute_infos)
+    // TODO: Use the shared dmGraphics function instead of this (needs to solve dynamic library linking for the particle library)
+    static uint8_t* WriteParticleVertex(const dmGraphics::VertexAttributeInfos& attribute_infos, uint8_t* write_ptr, const Vector3& p, const Vector3& p_local, const Vector4& color, float* uv, float page_index)
     {
         for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
         {
-            if (attribute_infos.m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION &&
-                attribute_infos.m_Infos[i].m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    static uint8_t* WriteParticleVertex(const ParticleVertexAttributeInfos& attribute_infos, uint8_t* write_ptr, const Vector3& p, const Vector3& p_local, const Vector4& color, float* uv, float page_index)
-    {
-        for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
-        {
-            const ParticleVertexAttributeInfo& info = attribute_infos.m_Infos[i];
+            const dmGraphics::VertexAttributeInfo& info = attribute_infos.m_Infos[i];
 
             switch(info.m_SemanticType)
             {
@@ -1097,7 +1085,7 @@ namespace dmParticle
         1.0f, 1.0f,
     };
 
-    static GenerateVertexDataResult UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const ParticleVertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* bytes_written, float dt)
+    static GenerateVertexDataResult UpdateRenderData(HParticleContext context, Instance* instance, Emitter* emitter, dmParticleDDF::Emitter* ddf, const dmGraphics::VertexAttributeInfos& attribute_infos, const Vector4& color, uint32_t vertex_index, uint8_t* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* bytes_written, float dt)
     {
         DM_PROFILE(__FUNCTION__);
         static int tex_coord_order[] = {
@@ -1133,7 +1121,7 @@ namespace dmParticle
         bool anim_bwd = playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_LOOP_BACKWARD;
         bool anim_ping_pong = playback == ANIM_PLAYBACK_ONCE_PINGPONG || playback == ANIM_PLAYBACK_LOOP_PINGPONG;
         bool use_pivot = length(pivot_vector) > 0.0f;
-        bool use_local_position = HasLocalPositionAttribute(attribute_infos);
+        bool use_local_position = dmGraphics::HasLocalPositionAttribute(attribute_infos);
 
         if (anim_ping_pong) {
             tile_count = dmMath::Max(1u, tile_count * 2 - 2);
@@ -2290,7 +2278,7 @@ namespace dmParticle
 
     DM_PARTICLE_TRAMPOLINE2(bool, IsSleeping, HParticleContext, HInstance);
     DM_PARTICLE_TRAMPOLINE3(void, Update, HParticleContext, float, FetchAnimationCallback);
-    DM_PARTICLE_TRAMPOLINE9(GenerateVertexDataResult, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, const ParticleVertexAttributeInfos&, const Vector4&, void*, uint32_t, uint32_t*);
+    DM_PARTICLE_TRAMPOLINE9(GenerateVertexDataResult, GenerateVertexData, HParticleContext, float, HInstance, uint32_t, const dmGraphics::VertexAttributeInfos&, const Vector4&, void*, uint32_t, uint32_t*);
 
     DM_PARTICLE_TRAMPOLINE2(HPrototype, NewPrototype, const void*, uint32_t);
     DM_PARTICLE_TRAMPOLINE1(HPrototype, NewPrototypeFromDDF, dmParticleDDF::ParticleFX*);

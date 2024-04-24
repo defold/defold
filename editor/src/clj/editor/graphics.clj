@@ -18,6 +18,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.types :as types]
             [editor.util :as eutil]
             [editor.validation :as validation]
@@ -26,7 +27,8 @@
             [util.coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.google.protobuf ByteString]
+  (:import [com.dynamo.graphics.proto Graphics$VertexAttribute$SemanticType]
+           [com.google.protobuf ByteString]
            [com.jogamp.opengl GL2]
            [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteBuffer]))
@@ -512,15 +514,20 @@
         world-transform (:world-transform renderable-data)]
     (geom/transf-p4 world-transform local-positions)))
 
-(defn- renderable-data->world-normal-v3 [renderable-data]
-  (let [local-normals (:normal-data renderable-data)
+(defn- renderable-data->world-direction-v3 [renderable-data->local-directions renderable-data]
+  (let [local-directions (renderable-data->local-directions renderable-data)
         normal-transform (:normal-transform renderable-data)]
-    (geom/transf-n normal-transform local-normals)))
+    (geom/transf-n normal-transform local-directions)))
 
-(defn- renderable-data->world-normal-v4 [renderable-data]
-  (let [local-normals (:normal-data renderable-data)
+(defn- renderable-data->world-direction-v4 [renderable-data->local-directions renderable-data]
+  (let [local-directions (renderable-data->local-directions renderable-data)
         normal-transform (:normal-transform renderable-data)]
-    (geom/transf-n4 normal-transform local-normals)))
+    (geom/transf-n4 normal-transform local-directions)))
+
+(def ^:private renderable-data->world-normal-v3 (partial renderable-data->world-direction-v3 :normal-data))
+(def ^:private renderable-data->world-normal-v4 (partial renderable-data->world-direction-v4 :normal-data))
+(def ^:private renderable-data->world-tangent-v3 (partial renderable-data->world-direction-v3 :tangent-data))
+(def ^:private renderable-data->world-tangent-v4 (partial renderable-data->world-direction-v4 :tangent-data))
 
 (defn put-attributes! [^VertexBuffer vbuf renderable-datas]
   (let [vertex-description (.vertex-description vbuf)
@@ -555,15 +562,43 @@
                   attribute-byte-offset
                   renderable-datas))
 
-        texcoord-index-vol (volatile! -1)
-        page-index-vol (volatile! -1)]
+        mesh-data-exists?
+        (let [renderable-data (first renderable-datas)
+              texcoord-datas (:texcoord-datas renderable-data)]
+          (if (nil? renderable-data)
+            (constantly false)
+            (fn mesh-data-exists? [semantic-type ^long channel]
+              (case semantic-type
+                :semantic-type-position
+                (some? (:position-data renderable-data))
 
-    (reduce (fn [^long attribute-byte-offset attribute]
+                :semantic-type-texcoord
+                (some? (get-in texcoord-datas [channel :uv-data]))
+
+                :semantic-type-page-index
+                (some? (get-in texcoord-datas [channel :page-index]))
+
+                :semantic-type-color
+                (and (zero? channel)
+                     (some? (:color-data renderable-data)))
+
+                :semantic-type-normal
+                (some? (:normal-data renderable-data))
+
+                :semantic-type-tangent
+                (and (zero? channel)
+                     (some? (:tangent-data renderable-data)))
+
+                false))))]
+
+    (reduce (fn [reduce-info attribute]
               (let [semantic-type (:semantic-type attribute)
                     buffer-data-type (:type attribute)
                     element-count (long (:components attribute))
                     normalize (:normalize attribute)
                     name-key (:name-key attribute)
+                    ^long attribute-byte-offset (:attribute-byte-offset reduce-info)
+                    channel (get reduce-info semantic-type)
 
                     put-attribute-bytes!
                     (fn put-attribute-bytes!
@@ -581,51 +616,77 @@
                         (catch Exception e
                           (throw (decorate-attribute-exception e attribute (first vertices))))))]
 
-                (case semantic-type
-                  :semantic-type-position
-                  (case (:coordinate-space attribute)
-                    :coordinate-space-world
-                    (let [renderable-data->world-position
-                          (case element-count
-                            3 renderable-data->world-position-v3
-                            4 renderable-data->world-position-v4)]
-                      (put-renderables! attribute-byte-offset renderable-data->world-position put-attribute-doubles!))
-                    (put-renderables! attribute-byte-offset :position-data put-attribute-doubles!))
+                (if (mesh-data-exists? semantic-type channel)
 
-                  :semantic-type-texcoord
-                  (let [i (vswap! texcoord-index-vol inc)]
-                    (put-renderables! attribute-byte-offset #(get-in % [:texcoord-datas i :uv-data]) put-attribute-doubles!))
+                  ;; Mesh data exists for this attribute. It takes precedence
+                  ;; over any attribute values specified on the material or
+                  ;; overrides.
+                  (case semantic-type
+                    :semantic-type-position
+                    (case (:coordinate-space attribute)
+                      :coordinate-space-world
+                      (let [renderable-data->world-position
+                            (case element-count
+                              3 renderable-data->world-position-v3
+                              4 renderable-data->world-position-v4)]
+                        (put-renderables! attribute-byte-offset renderable-data->world-position put-attribute-doubles!))
+                      (put-renderables! attribute-byte-offset :position-data put-attribute-doubles!))
 
-                  :semantic-type-page-index
-                  (let [i (vswap! page-index-vol inc)]
+                    :semantic-type-texcoord
+                    (put-renderables! attribute-byte-offset #(get-in % [:texcoord-datas channel :uv-data]) put-attribute-doubles!)
+
+                    :semantic-type-page-index
                     (put-renderables! attribute-byte-offset
                                       (fn [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
-                                              page-index (get-in renderable-data [:texcoord-datas i :page-index])]
+                                              page-index (get-in renderable-data [:texcoord-datas channel :page-index])]
                                           (repeat vertex-count [(double page-index)])))
-                                      put-attribute-doubles!))
+                                      put-attribute-doubles!)
 
-                  :semantic-type-normal
-                  (case (:coordinate-space attribute)
-                    :coordinate-space-world
-                    (let [renderable-data->world-normal
-                          (case element-count
-                            3 renderable-data->world-normal-v3
-                            4 renderable-data->world-normal-v4)]
-                      (put-renderables! attribute-byte-offset renderable-data->world-normal put-attribute-doubles!))
-                    (put-renderables! attribute-byte-offset :normal-data put-attribute-doubles!))
+                    :semantic-type-color
+                    (put-renderables! attribute-byte-offset :color-data put-attribute-doubles!)
 
-                  ;; Default case.
+                    :semantic-type-normal
+                    (case (:coordinate-space attribute)
+                      :coordinate-space-world
+                      (let [renderable-data->world-normal
+                            (case element-count
+                              3 renderable-data->world-normal-v3
+                              4 renderable-data->world-normal-v4)]
+                        (put-renderables! attribute-byte-offset renderable-data->world-normal put-attribute-doubles!))
+                      (put-renderables! attribute-byte-offset :normal-data put-attribute-doubles!))
+
+                    :semantic-type-tangent
+                    (case (:coordinate-space attribute)
+                      :coordinate-space-world
+                      (let [renderable-data->world-tangent
+                            (case element-count
+                              3 renderable-data->world-tangent-v3
+                              4 renderable-data->world-tangent-v4)]
+                        (put-renderables! attribute-byte-offset renderable-data->world-tangent put-attribute-doubles!))
+                      (put-renderables! attribute-byte-offset :tangent-data put-attribute-doubles!)))
+
+                  ;; Mesh data doesn't exist. Use the attribute data from the
+                  ;; material or overrides.
                   (put-renderables! attribute-byte-offset
                                     (fn [renderable-data]
                                       (let [vertex-count (count (:position-data renderable-data))
                                             attribute-bytes (get (:vertex-attribute-bytes renderable-data) name-key)]
                                         (repeat vertex-count attribute-bytes)))
                                     put-attribute-bytes!))
-
-                (+ attribute-byte-offset
-                   (vtx/attribute-size attribute))))
-            0
+                (-> reduce-info
+                    (update semantic-type inc)
+                    (assoc :attribute-byte-offset (+ attribute-byte-offset
+                                                     (vtx/attribute-size attribute))))))
+            ;; The reduce-info is a map of how many times we've encountered an
+            ;; attribute of a particular semantic-type. We also include a
+            ;; special key, :attribute-byte-offset, to keep track of where the
+            ;; next encountered attribute will start writing its data to the
+            ;; vertex buffer.
+            (into {:attribute-byte-offset 0}
+                  (map (fn [[semantic-type]]
+                         (pair semantic-type 0)))
+                  (protobuf/enum-values Graphics$VertexAttribute$SemanticType))
             (:attributes vertex-description))
     (.position buf (.limit buf))
     (vtx/flip! vbuf)))

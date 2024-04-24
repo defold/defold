@@ -69,6 +69,7 @@ protected:
         params.m_ScriptContext = m_ScriptContext;
         params.m_MaxDebugVertexCount = 256;
         params.m_MaxCharacters = 256;
+        params.m_MaxBatches = 128;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
 
         dmRender::FontMapParams font_map_params;
@@ -680,8 +681,6 @@ TEST_F(dmRenderTest, TestEnableDisableContextTextures)
 
     dmGraphics::HVertexDeclaration vx_decl = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
     dmGraphics::HVertexBuffer vx_buffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
 
     ASSERT_EQ(0, m_Context->m_TextureBindTable.Size());
 
@@ -1841,8 +1840,11 @@ TEST(Render, BatchIterator)
     ASSERT_FALSE(iterator1.Next());
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

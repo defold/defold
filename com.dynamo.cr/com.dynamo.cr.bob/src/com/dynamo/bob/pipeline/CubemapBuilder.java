@@ -33,7 +33,6 @@ import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
-import com.google.protobuf.ByteString;
 
 @BuilderParams(name = "Cubemap", inExts = {".cubemap"}, outExt = ".texturec", ignoreTaskAutoCreation = true)
 public class CubemapBuilder extends Builder<Void> {

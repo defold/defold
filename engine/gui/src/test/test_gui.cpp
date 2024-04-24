@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1774,8 +1774,18 @@ TEST_F(dmGuiTest, ScriptGetSet)
                     "    assert(string.find(tostring(s), \"vector3\") ~= nil)\n"
                     "    gui.set_scale(self.n1, s)\n"
                     "    local r = gui.get_rotation(self.n1)\n"
-                    "    assert(string.find(tostring(r), \"vector3\") ~= nil)\n"
+                    "    assert(string.find(tostring(r), \"quat\") ~= nil)\n"
+                    "    assert(r.x == 0)\n"
+                    "    assert(r.y == 0)\n"
+                    "    assert(r.z == 0)\n"
+                    "    assert(r.w == 1)\n"
                     "    gui.set_rotation(self.n1, r)\n"
+                    "    local e = gui.get_euler(self.n1)\n"
+                    "    assert(string.find(tostring(e), \"vector3\") ~= nil)\n"
+                    "    assert(e.x == 0)\n"
+                    "    assert(e.y == 0)\n"
+                    "    assert(e.z == 0)\n"
+                    "    gui.set_euler(self.n1, e)\n"
                     "    local c = gui.get_color(self.n1)\n"
                     "    assert(string.find(tostring(c), \"vector4\") ~= nil)\n"
                     "    gui.set_color(self.n1, c)\n"
@@ -2713,13 +2723,13 @@ TEST_F(dmGuiTest, Picking)
     ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, tmax.getX(), tmin.getY()));
     ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, ceil(size.getX() + 0.5f), size.getY()));
 
-    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 45, 0, 0));
+    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_EULER, Vector4(0, 45, 0, 0));
     Vector3 ext(pos);
     ext.setX(ext.getX() * cosf((float) (M_PI * 0.25)));
     ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX() + floor(ext.getX()), pos.getY()));
     ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + ceil(ext.getX()), pos.getY()));
 
-    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(0, 90, 0, 0));
+    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_EULER, Vector4(0, 90, 0, 0));
     ASSERT_TRUE(dmGui::PickNode(m_Scene, n1, pos.getX(), pos.getY()));
     ASSERT_FALSE(dmGui::PickNode(m_Scene, n1, pos.getX() + 1.0f, pos.getY()));
 }
@@ -3904,7 +3914,7 @@ TEST_F(dmGuiTest, NodeTransform)
     ref_mat *= dmVMath::Matrix4::rotation(radians * 0.50f, Vector3(0.0f, 1.0f, 0.0f));
     ref_mat *= dmVMath::Matrix4::rotation(radians * 1.00f, Vector3(0.0f, 0.0f, 1.0f));
     ref_mat *= dmVMath::Matrix4::rotation(radians * 0.25f, Vector3(1.0f, 0.0f, 0.0f));
-    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_ROTATION, Vector4(90.0f*0.25f, 90.0f*0.5f, 90.0f, 0.0f));
+    dmGui::SetNodeProperty(m_Scene, n1, dmGui::PROPERTY_EULER, Vector4(90.0f*0.25f, 90.0f*0.5f, 90.0f, 0.0f));
     dmGui::RenderScene(m_Scene, render_params, transforms);
     ASSERT_MAT4(transforms[0], ref_mat);
 

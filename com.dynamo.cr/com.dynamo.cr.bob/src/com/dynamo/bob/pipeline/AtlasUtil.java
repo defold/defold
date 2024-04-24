@@ -15,16 +15,13 @@
 package com.dynamo.bob.pipeline;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Set;
 import java.util.HashSet;
 
 import javax.imageio.ImageIO;
@@ -44,7 +41,6 @@ import com.dynamo.gamesys.proto.AtlasProto.AtlasAnimation;
 import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 import com.dynamo.gamesys.proto.Tile.Playback;
 import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
-import com.dynamo.proto.DdfMath.Point3;
 
 public class AtlasUtil {
     public static class MappedAnimDesc extends AnimDesc {

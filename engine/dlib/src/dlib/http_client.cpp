@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -220,13 +220,14 @@ namespace dmHttpClient
         }
     }
 
-    static void DefaultHttpContentData(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    static void DefaultHttpContentData(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
     {
         (void) response;
         (void) user_data;
         (void) status_code;
         (void) content_data;
         (void) content_data_size;
+        (void) content_length;
     }
 
     void SetDefaultParams(NewParams* params)
@@ -653,7 +654,7 @@ bail:
             } else {
                 n = dmMath::Min(to_transfer - total_transferred, response->m_TotalReceived - response->m_ContentOffset);
             }
-            http_content(response, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n);
+            http_content(response, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n, response->m_ContentLength);
 
             if (response->m_CacheCreator && add_to_cache)
             {
@@ -726,13 +727,14 @@ bail:
         }
     }
 
-    static void HttpContentConsume(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size)
+    static void HttpContentConsume(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
     {
         (void) response;
         (void) user_data;
         (void) status_code;
         (void) content_data;
         (void) content_data_size;
+        (void) content_length;
     }
 
     static Result HandleCached(HClient client, const char* path, Response* response)
@@ -777,8 +779,9 @@ bail:
         }
 
         FILE* file = 0;
+        uint32_t file_size = 0;
         uint64_t checksum;
-        cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_URI, cache_etag, &file, &checksum);
+        cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_URI, cache_etag, &file, &file_size, &checksum);
         if (cache_result == dmHttpCache::RESULT_OK)
         {
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
@@ -787,7 +790,7 @@ bail:
             {
                 nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
                 client->m_Buffer[nread] = '\0';
-                client->m_HttpContent(response, client->m_Userdata, response->m_Status, client->m_Buffer, nread);
+                client->m_HttpContent(response, client->m_Userdata, response->m_Status, client->m_Buffer, nread, file_size);
             }
             while (nread > 0);
             dmHttpCache::Release(client->m_HttpCache, client->m_URI, cache_etag, file);
@@ -806,7 +809,7 @@ bail:
     {
         Result r = RESULT_OK;
 
-        client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0);
+        client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, 0);
 
         if (strcmp(method, "HEAD") == 0) {
             // A response from a HEAD request should not attempt to read any body despite
@@ -824,7 +827,6 @@ bail:
             response->m_ContentOffset = 0;
 
             int chunk_size;
-            int chunk_number = 0;
             while(true)
             {
                 chunk_size = 0;
@@ -855,8 +857,6 @@ bail:
                         r = RESULT_OK;
                         break;
                     }
-
-                    ++chunk_number;
                 }
                 else
                 {
@@ -1057,9 +1057,10 @@ bail:
         client->m_Statistics.m_DirectFromCache++;
 
         FILE* file = 0;
+        uint32_t file_size = 0;
         uint64_t checksum;
 
-        dmHttpCache::Result cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_URI, info->m_ETag, &file, &checksum);
+        dmHttpCache::Result cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_URI, info->m_ETag, &file, &file_size, &checksum);
         if (cache_result == dmHttpCache::RESULT_OK)
         {
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
@@ -1068,7 +1069,7 @@ bail:
             {
                 nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
                 client->m_Buffer[nread] = '\0';
-                client->m_HttpContent(&response, client->m_Userdata, 304, client->m_Buffer, nread);
+                client->m_HttpContent(&response, client->m_Userdata, 304, client->m_Buffer, nread, file_size);
             }
             while (nread > 0);
             dmHttpCache::Release(client->m_HttpCache, client->m_URI, info->m_ETag, file);

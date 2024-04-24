@@ -43,12 +43,10 @@ import java.awt.image.BufferedImage;
 import java.awt.image.Raster;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.stream.Collectors;
 
 /*

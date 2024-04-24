@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -71,15 +71,34 @@ TEST_F(ScriptHashTest, TestHashUnknown)
     int top = lua_gettop(L);
     (void)top;
 
+    dmHashEnableReverseHash(false);
+
     dmhash_t hash = 1234;
     dmScript::PushHash(L, hash);
     lua_setglobal(L, "test_hash");
     const char* script =
-        "print(\"tostring: \" .. tostring(test_hash))\n"
-        "print(\"concat: \" .. test_hash)\n"
-        "print(test_hash .. \" :concat\")\n"
-        "print(test_hash .. test_hash)\n";
+        "test_fail = false\n"
+        "local function test(s, expected)\n"
+        "   if s ~= expected then\n"
+        "       print('Expected: \"' .. expected .. '\"')"
+        "       print(' but got: \"' .. s .. '\"')"
+        "       test_fail = true\n"
+        "   end\n"
+        "end\n"
+        // string .. tostring(hash)
+        "test('concat: ' .. tostring(test_hash), 'concat: hash: [<unknown:1234>]')\n"
+        // string .. hash
+        "test('concat: ' .. test_hash,           'concat: <unknown:1234>')\n"
+        // hash .. string
+        "test(test_hash .. ' :concat',           '<unknown:1234> :concat')\n"
+        // hash .. hash
+        "test(test_hash .. test_hash,            '<unknown:1234><unknown:1234>')\n";
     ASSERT_TRUE(RunString(L, script));
+
+    lua_getglobal(L, "test_fail");
+    bool test_fail = (bool)lua_toboolean(L, -1);
+    lua_pop(L, 1);
+    ASSERT_FALSE(test_fail);
 
     ASSERT_EQ(top, lua_gettop(L));
 }
@@ -106,21 +125,21 @@ TEST_F(ScriptHashTest, TestGetStringFromHashOrString)
 
     s = dmScript::GetStringFromHashOrString(L, -1, buffer, sizeof(buffer));
     ASSERT_NE(0U, (uintptr_t)s);
-    ASSERT_TRUE(strcmp("8244253450232885714", s) == 0);
+    ASSERT_STREQ("<unknown:8244253450232885714>", s);
 
     lua_pop(L, 1);
     lua_pushstring(L, "Lua Hello");
 
     s = dmScript::GetStringFromHashOrString(L, -1, buffer, sizeof(buffer));
     ASSERT_NE(0U, (uintptr_t)s);
-    ASSERT_TRUE(strcmp("Lua Hello", s) == 0);
+    ASSERT_STREQ("Lua Hello", s);
 
     lua_pop(L, 1);
     lua_pushnumber(L, 42.0);
 
     s = dmScript::GetStringFromHashOrString(L, -1, buffer, sizeof(buffer));
     ASSERT_NE(0U, (uintptr_t)s);
-    ASSERT_TRUE(strcmp("<unknown>", s) == 0);
+    ASSERT_STREQ("<unknown type>", s);
 
     lua_pop(L, 1);
     ASSERT_EQ(top, lua_gettop(L));
@@ -141,8 +160,11 @@ TEST_F(ScriptHashTest, TestHashTString) // def2821 - Making sure that the string
     ASSERT_EQ(hash_tostring, hash_tolstring);
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     jc_test_init(&argc, argv);
     return jc_test_run_all();

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 #include <dlib/configfile.h>
 #include <dlib/testutil.h>
 #define JC_TEST_IMPLEMENTATION
@@ -27,6 +28,16 @@
 
 const char* DEFAULT_ARGV[] = { "test_engine" };
 int g_HttpPort = -1;
+
+extern "C" void TestConfigfileExtension();
+
+struct ExtensionInitializer
+{
+    ExtensionInitializer()
+    {
+        TestConfigfileExtension();
+    }
+} g_Initializer;
 
 struct TestParam
 {
@@ -82,7 +93,7 @@ public:
         else
         {
             if (strstr(param.m_Url, "http") != 0) {
-                sprintf(path, param.m_Url, g_HttpPort);
+                dmSnPrintf(path, sizeof(path), param.m_Url, g_HttpPort);
             }
 
             r = dmConfigFile::Load(path, param.m_Argc, param.m_Argv, &config);
@@ -420,4 +431,3 @@ int main(int argc, char **argv)
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }
-

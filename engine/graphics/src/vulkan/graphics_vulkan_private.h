@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,7 +20,8 @@
 #include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
-#include "graphics_vulkan.h"
+
+#include <dmsdk/graphics/graphics_vulkan.h>
 
 namespace dmGraphics
 {
@@ -36,6 +37,7 @@ namespace dmGraphics
     const static uint8_t MAX_VERTEX_BUFFERS            = 2;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 16;
     const static uint8_t MAX_SET_COUNT                 = 4;
+    const static uint8_t MAX_STORAGE_BUFFERS           = 4;
 
     enum VulkanResourceType
     {
@@ -186,6 +188,12 @@ namespace dmGraphics
         const VulkanResourceType GetType();
     };
 
+    struct StorageBufferBinding
+    {
+        HStorageBuffer m_Buffer;
+        uint32_t       m_BufferOffset;
+    };
+
     struct Viewport
     {
         uint16_t m_X;
@@ -246,13 +254,9 @@ namespace dmGraphics
 
     struct ShaderModule
     {
-        uint64_t                       m_Hash;
-        VkShaderModule                 m_Module;
-        dmArray<ShaderResourceBinding> m_Uniforms;
-        dmArray<ShaderResourceBinding> m_Inputs;
-        uint16_t                       m_UniformBufferCount;
-        uint16_t                       m_TextureSamplerCount;
-        uint16_t                       m_TotalUniformCount;
+        ShaderMeta     m_ShaderMeta;
+        uint64_t       m_Hash;
+        VkShaderModule m_Module;
     };
 
     struct Program
@@ -275,13 +279,15 @@ namespace dmGraphics
 
         struct ProgramResourceBinding
         {
-            ShaderResourceBinding* m_Res;
-            uint32_t               m_DataOffset;
+            ShaderResourceBinding*           m_Res;
+            dmArray<ShaderResourceTypeInfo>* m_TypeInfos;
+            uint32_t                         m_DataOffset;
 
             union
             {
                 uint16_t m_DynamicOffsetIndex;
                 uint16_t m_TextureUnit;
+                uint16_t m_StorageBufferUnit;
             };
         };
 
@@ -299,9 +305,10 @@ namespace dmGraphics
 
         uint32_t                        m_UniformDataSizeAligned;
         uint16_t                        m_UniformBufferCount;
+        uint16_t                        m_StorageBufferCount;
         uint16_t                        m_TextureSamplerCount;
-        uint16_t                        m_TotalUniformCount;
         uint16_t                        m_TotalResourcesCount;
+        uint16_t                        m_TotalUniformCount;
 
         uint8_t                         m_MaxSet;
         uint8_t                         m_MaxBinding;
@@ -405,6 +412,7 @@ namespace dmGraphics
         HRenderTarget                   m_CurrentRenderTarget;
         DeviceBuffer*                   m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
+        StorageBufferBinding            m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
         Program*                        m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
         HTexture                        m_CurrentSwapchainTexture;
