@@ -460,6 +460,7 @@ var LibraryGLFW = {
         for (var i = 0; i < GLFW.keys.length; i++) {
           GLFW.keys[i] = 0;
         }
+        GLFW.buttons = 0;
       }
       if (GLFW.focusFunc) {
         {{{ makeDynCall('vi', 'GLFW.focusFunc') }}}(focus);
