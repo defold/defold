@@ -35,7 +35,8 @@
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.fn :as fn])
   (:import [java.net URI]
            [javafx.scene.control ScrollPane]
            [org.commonmark.ext.autolink AutolinkExtension]
@@ -311,7 +312,7 @@
               (-> ctx
                   (style tag)
                   (cond-> (pos? (count href))
-                          (assoc :on-mouse-clicked (fxui/partial #'open-link! (:base-url ctx) (:project ctx) href))))))
+                          (assoc :on-mouse-clicked (fn/partial #'open-link! (:base-url ctx) (:project ctx) href))))))
       "span" (let [class (attr node "class")]
                (case class
                  ("icon-alert" "icon-attention" "icon-android" "icon-html5"
