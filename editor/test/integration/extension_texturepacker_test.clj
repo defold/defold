@@ -77,7 +77,7 @@
                (node-outline-info node-id))))
 
       (testing "scene"
-        (is (= "TexturePacker File (.tpinfo): 4 pages 256 x 256"
+        (is (= "Texture Packer Export File: 4 pages, 256 x 256"
                (:info-text (g/valid-node-value node-id :scene)))))
 
       (testing "save-value"
@@ -360,7 +360,7 @@
                (node-outline-info node-id))))
 
       (testing "scene"
-        (is (= "Atlas: 4 pages 256 x 256 (Default profile)"
+        (is (= "Texture Packer Atlas: 4 pages, 256 x 256 (Default profile)"
                (:info-text (g/valid-node-value node-id :scene)))))
 
       (testing "save-value"
