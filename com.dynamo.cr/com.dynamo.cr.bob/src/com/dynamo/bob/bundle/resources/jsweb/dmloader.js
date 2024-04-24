@@ -124,9 +124,9 @@ var CUSTOM_PARAMETERS = {
         app_container.style.marginTop = margin_top + "px";
     {{/DEFOLD_SCALE_MODE_IS_NO_SCALE}}
         var dpi = 1;
-        if (typeof GLFW !== 'undefined' && GLFW) {
-            dpi = GLFW.dpi;
-        }
+    {{#display.high_dpi}}
+        dpi = window.devicePixelRatio || 1;
+    {{/display.high_dpi}}
         app_container.style.width = width + "px";
         app_container.style.height = height + buttonHeight + "px";
         game_canvas.width = Math.floor(width * dpi);

@@ -765,6 +765,7 @@ var LibraryGLFW = {
     // we get information about the current pixel ratio from browser
     if (target == 0x00020019) { //GLFW_WINDOW_HIGH_DPI
       if (hint != 0) {
+        // the same logic is in dmloader.js -> using display.high_dpi
         GLFW.dpi = window.devicePixelRatio || 1;
       }
     }
