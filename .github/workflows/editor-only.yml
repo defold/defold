@@ -48,7 +48,7 @@ jobs:
 
   sign-editor-macos:
     needs: [build-editor]
-    runs-on: macOS-latest
+    runs-on: macOS-13
     strategy:
       matrix:
         platform: [x86_64-macos, arm64-macos]
