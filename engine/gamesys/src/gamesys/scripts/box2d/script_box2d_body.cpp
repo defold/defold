@@ -582,14 +582,14 @@ namespace dmGameSystem
         lua_newtable(L);
         luaL_register(L, 0, Body_functions);
 
-#define SET_CONSTANT(NS, NAME) \
+#define SET_CONSTANT(NS, NAME, CUSTOM_NAME) \
         lua_pushnumber(L, (lua_Number) NS :: NAME); \
         lua_setfield(L, -2, #NAME);
 
         lua_newtable(L);
-        SET_CONSTANT(b2BodyType, b2_staticBody);
-        SET_CONSTANT(b2BodyType, b2_kinematicBody);
-        SET_CONSTANT(b2BodyType, b2_dynamicBody);
+        SET_CONSTANT(b2BodyType, b2_staticBody, "B2_STATIC_BODY");
+        SET_CONSTANT(b2BodyType, b2_kinematicBody, "B2_KINEMATIC_BODY");
+        SET_CONSTANT(b2BodyType, b2_dynamicBody, "B2_DYNAMIC_BODY");
         lua_setfield(L, -2, "b2BodyType");
 
 #undef SET_CONSTANT
@@ -604,21 +604,22 @@ namespace dmGameSystem
  *
  * @document
  * @name b2d.body
+ * @namespace b2d.body
  */
 
 /*# Static (immovable) body
  *
- * @name b2d.body.b2_staticBody
+ * @name b2d.body.B2_STATIC_BODY
  * @variable
  */
 /*# Kinematic body
  *
- * @name b2d.body.b2_kinematicBody
+ * @name b2d.body.B2_KINEMATIC_BODY
  * @variable
  */
 /*# Dynamic body
  *
- * @name b2d.body.b2_dynamicBody
+ * @name b2d.body.B2_DYNAMIC_BODY
  * @variable
  */
 
