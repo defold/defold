@@ -12,23 +12,9 @@ textures {
   texture: "/checked.atlas"
 }
 nodes {
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
-  }
   size {
     x: 200.0
     y: 100.0
-    z: 0.0
-    w: 0.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
   }
   type: TYPE_BOX
   id: "parent"
@@ -36,23 +22,9 @@ nodes {
   size_mode: SIZE_MODE_AUTO
 }
 nodes {
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
-  }
   size {
     x: 200.0
     y: 100.0
-    z: 0.0
-    w: 0.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
   }
   type: TYPE_BOX
   texture: "first_texture/white"
@@ -62,23 +34,9 @@ nodes {
   material: "first_material"
 }
 nodes {
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
-  }
   size {
     x: 200.0
     y: 100.0
-    z: 0.0
-    w: 0.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
   }
   type: TYPE_BOX
   texture: "first_texture/white"
@@ -89,23 +47,9 @@ nodes {
   material: "first_material"
 }
 nodes {
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
-  }
   size {
     x: 200.0
     y: 100.0
-    z: 0.0
-    w: 0.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
   }
   type: TYPE_PIE
   texture: "first_texture/white"
@@ -116,23 +60,9 @@ nodes {
   material: "first_material"
 }
 nodes {
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
-  }
   size {
     x: 200.0
     y: 100.0
-    z: 0.0
-    w: 0.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
   }
   type: TYPE_PIE
   texture: "first_texture/white"
@@ -144,23 +74,9 @@ nodes {
   material: "first_material"
 }
 nodes {
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
-  }
   size {
     x: 200.0
     y: 100.0
-    z: 0.0
-    w: 0.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
   }
   type: TYPE_TEXT
   text: "line one\n"
@@ -171,36 +87,20 @@ nodes {
     x: 1.0
     y: 1.0
     z: 1.0
-    w: 1.0
   }
   shadow {
     x: 1.0
     y: 1.0
     z: 1.0
-    w: 1.0
   }
   parent: "parent"
   layer: "first_layer"
   material: "first_material"
 }
 nodes {
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
-  }
   size {
     x: 1.0
     y: 1.0
-    z: 0.0
-    w: 0.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
   }
   type: TYPE_PARTICLEFX
   id: "particlefx"
@@ -211,23 +111,9 @@ nodes {
   material: "first_material"
 }
 nodes {
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
-  }
   size {
     x: 1.0
     y: 1.0
-    z: 0.0
-    w: 0.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
   }
   type: TYPE_CUSTOM
   id: "spine"
@@ -241,23 +127,9 @@ nodes {
   material: "first_material"
 }
 nodes {
-  scale {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
-  }
   size {
     x: 200.0
     y: 100.0
-    z: 0.0
-    w: 0.0
-  }
-  color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
-    w: 1.0
   }
   type: TYPE_TEMPLATE
   id: "template"
@@ -279,25 +151,21 @@ layouts {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     rotation {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     scale {
       x: 1.1
       y: 1.2
       z: 1.3
-      w: 1.0
     }
     color {
       x: 0.949
       y: 0.949
       z: 0.949
-      w: 1.0
     }
     type: TYPE_BOX
     blend_mode: BLEND_MODE_MULT
@@ -344,7 +212,6 @@ layouts {
       x: 150.0
       y: 150.0
       z: 0.1
-      w: 0.0
     }
     type: TYPE_BOX
     id: "box02"
@@ -364,25 +231,21 @@ layouts {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     rotation {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     scale {
       x: 1.1
       y: 1.2
       z: 1.3
-      w: 1.0
     }
     color {
       x: 0.949
       y: 0.949
       z: 0.949
-      w: 1.0
     }
     type: TYPE_PIE
     blend_mode: BLEND_MODE_MULT
@@ -437,7 +300,6 @@ layouts {
       x: 150.0
       y: 150.0
       z: 0.1
-      w: 0.0
     }
     type: TYPE_PIE
     id: "pie02"
@@ -450,31 +312,26 @@ layouts {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     rotation {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     scale {
       x: 1.1
       y: 1.2
       z: 1.3
-      w: 1.0
     }
     size {
       x: 150.0
       y: 150.0
       z: 0.1
-      w: 0.0
     }
     color {
       x: 0.949
       y: 0.949
       z: 0.949
-      w: 1.0
     }
     type: TYPE_TEXT
     blend_mode: BLEND_MODE_MULT
@@ -490,13 +347,11 @@ layouts {
       x: 0.949
       y: 0.949
       z: 0.949
-      w: 1.0
     }
     shadow {
       x: 0.949
       y: 0.949
       z: 0.949
-      w: 1.0
     }
     adjust_mode: ADJUST_MODE_STRETCH
     line_break: true
@@ -542,25 +397,21 @@ layouts {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     rotation {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     scale {
       x: 1.1
       y: 1.2
       z: 1.3
-      w: 1.0
     }
     color {
       x: 0.949
       y: 0.949
       z: 0.949
-      w: 1.0
     }
     type: TYPE_PARTICLEFX
     id: "particlefx"
@@ -595,25 +446,21 @@ layouts {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     rotation {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     scale {
       x: 1.1
       y: 1.2
       z: 1.3
-      w: 1.0
     }
     color {
       x: 0.949
       y: 0.949
       z: 0.949
-      w: 1.0
     }
     type: TYPE_CUSTOM
     blend_mode: BLEND_MODE_MULT
@@ -663,19 +510,16 @@ layouts {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     rotation {
       x: 0.1
       y: 0.2
       z: 0.3
-      w: 0.0
     }
     scale {
       x: 1.1
       y: 1.2
       z: 1.3
-      w: 1.0
     }
     type: TYPE_TEMPLATE
     id: "template"

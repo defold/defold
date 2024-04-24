@@ -8,6 +8,3 @@ color {
 }
 range: 1.0
 decay: 1.0
-cone_angle: 0.0
-penumbra_angle: 0.0
-drop_off: 0.0

@@ -27,7 +27,6 @@ embedded_components {
   type: "sprite"
   data: "default_animation: \"diamond\"\n"
   "material: \"/checked.material\"\n"
-  "blend_mode: BLEND_MODE_ALPHA\n"
   "textures {\n"
   "  sampler: \"texture0\"\n"
   "  texture: \"/checked.atlas\"\n"
