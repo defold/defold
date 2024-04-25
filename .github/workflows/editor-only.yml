@@ -119,11 +119,9 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
-        with: {
-          fetch-tags: true
-        }
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
       },
+      { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
