@@ -582,15 +582,13 @@ namespace dmGameSystem
         lua_newtable(L);
         luaL_register(L, 0, Body_functions);
 
-#define SET_CONSTANT(NS, NAME, CUSTOM_NAME) \
-        lua_pushnumber(L, (lua_Number) NS :: NAME); \
-        lua_setfield(L, -2, #NAME);
+#define SET_CONSTANT(NAME, CUSTOM_NAME) \
+        lua_pushnumber(L, (lua_Number) NAME); \
+        lua_setfield(L, -2, CUSTOM_NAME);
 
-        lua_newtable(L);
-        SET_CONSTANT(b2BodyType, b2_staticBody, "B2_STATIC_BODY");
-        SET_CONSTANT(b2BodyType, b2_kinematicBody, "B2_KINEMATIC_BODY");
-        SET_CONSTANT(b2BodyType, b2_dynamicBody, "B2_DYNAMIC_BODY");
-        lua_setfield(L, -2, "b2BodyType");
+        SET_CONSTANT(b2_staticBody, "B2_STATIC_BODY");
+        SET_CONSTANT(b2_kinematicBody, "B2_KINEMATIC_BODY");
+        SET_CONSTANT(b2_dynamicBody, "B2_DYNAMIC_BODY");
 
 #undef SET_CONSTANT
 
@@ -631,6 +629,7 @@ namespace dmGameSystem
  * Contacts are not created until the next time step.
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_fixture
+ * @param body [type: b2Body] body
  * @param definition [type: b2FixtureDef] the fixture definition.
  */
 
@@ -641,6 +640,7 @@ namespace dmGameSystem
  * If the density is non-zero, this function automatically updates the mass of the body.
  * @warning This function is locked during callbacks.
  * @name b2d.body.create_fixture
+ * @param body [type: b2Body] body
  * @param shape  [type: b2Shape] the shape to be cloned.
  * @param density [type: number] the shape density (set to zero for static bodies).
  */
@@ -653,6 +653,7 @@ namespace dmGameSystem
  * All fixtures attached to a body are implicitly destroyed when the body is destroyed.
  * @warning This function is locked during callbacks.
  * @name b2d.body.destroy_fixture
+ * @param body [type: b2Body] body
  * @param fixture [type: b2Fixture] the world position of the body's origin.
  */
 
@@ -661,52 +662,62 @@ namespace dmGameSystem
  * This breaks any contacts and wakes the other bodies.
  * Manipulating a body's transform may cause non-physical behavior.
  * @name b2d.body.set_transform
+ * @param body [type: b2Body] body
  * @param position [type: vmath.vector3] the world position of the body's local origin.
  * @param angle [type: number] the world position of the body's local origin.
  */
 
 /** Get the body transform for the body's origin.
  * @name b2d.body.get_transform
+ * @param body [type: b2Body] body
  * @return transform [type: b2Transform] the world position of the body's origin.
  */
 
 /*# Get the world body origin position.
  * @name b2d.body.get_position
+ * @param body [type: b2Body] body
  * @return position [type: vmath.vector3] the world position of the body's origin.
  */
 
 /*# Get the angle in radians.
  * @name b2d.body.get_world_center
+ * @param body [type: b2Body] body
  * @return angle [type: number] the current world rotation angle in radians.
  */
 
 /*# Get the world position of the center of mass.
  * @name b2d.body.get_world_center
+ * @param body [type: b2Body] body
  * @return center [type: vmath.vector3] Get the world position of the center of mass.
  */
 
 /*# Get the local position of the center of mass.
  * @name b2d.body.get_local_center
+ * @param body [type: b2Body] body
  * @return center [type: vmath.vector3] Get the local position of the center of mass.
  */
 
 /*# Set the linear velocity of the center of mass.
  * @name b2d.body.set_linear_velocity
+ * @param body [type: b2Body] body
  * @param velocity [type: vmath.vector3] the new linear velocity of the center of mass.
  */
 
 /*# Get the linear velocity of the center of mass.
  * @name b2d.body.get_linear_velocity
+ * @param body [type: b2Body] body
  * @return velocity [type: vmath.vector3] the linear velocity of the center of mass.
  */
 
 /*# Set the angular velocity.
  * @name b2d.body.get_angular_velocity
+ * @param body [type: b2Body] body
  * @param omega [type: number] the new angular velocity in radians/second.
  */
 
 /*# Get the angular velocity.
  * @name b2d.body.get_angular_velocity
+ * @param body [type: b2Body] body
  * @return velocity [type: number] the angular velocity in radians/second.
  */
 
@@ -715,12 +726,14 @@ namespace dmGameSystem
  * applied at the center of mass, it will generate a torque and
  * affect the angular velocity. This wakes up the body.
  * @name b2d.body.apply_force
+ * @param body [type: b2Body] body
  * @param force [type: vmath.vector3] the world force vector, usually in Newtons (N).
  * @param point [type: vmath.vector3] the world position of the point of application.
  */
 
 /*# Apply a force to the center of mass. This wakes up the body.
  * @name b2d.body.apply_force_to_center
+ * @param body [type: b2Body] body
  * @param force [type: vmath.vector3] the world force vector, usually in Newtons (N).
  */
 
@@ -729,36 +742,42 @@ namespace dmGameSystem
  * without affecting the linear velocity of the center of mass.
  * This wakes up the body.
  * @name b2d.body.apply_torque
+ * @param body [type: b2Body] body
  * @param torque [type: number] torque about the z-axis (out of the screen), usually in N-m.
  */
 
 /*#
  * Apply an impulse at a point. This immediately modifies the velocity.
- * It also modifies the angular velocity if the point of application 
+ * It also modifies the angular velocity if the point of application
  * is not at the center of mass. This wakes up the body.
  * @name b2d.body.apply_linear_impulse
+ * @param body [type: b2Body] body
  * @param impulse [type: vmath.vector3] the world impulse vector, usually in N-seconds or kg-m/s.
  * @param point [type: vmath.vector3] the world position of the point of application.
  */
 
 /*# Apply an angular impulse.
  * @name b2d.body.apply_angular_impulse
+ * @param body [type: b2Body] body
  * @param impulse [type: number] impulse the angular impulse in units of kg*m*m/s
  */
 
 /*# Get the total mass of the body.
  * @name b2d.body.get_mass
+ * @param body [type: b2Body] body
  * @return mass [type: number] the mass, usually in kilograms (kg).
  */
 
 /*# Get the rotational inertia of the body about the local origin.
  * @name b2d.body.get_inertia
+ * @param body [type: b2Body] body
  * @return inertia [type: number] the rotational inertia, usually in kg-m^2.
  */
 
 /**
  * Get the mass data of the body.
  * @name b2d.body.get_mass_data
+ * @param body [type: b2Body] body
  * @return data [type: b2MassData] a struct containing the mass, inertia and center of the body.
  */
 
@@ -768,6 +787,7 @@ namespace dmGameSystem
  * @note This changes the center of mass position.
  * @note Creating or destroying fixtures can also alter the mass.
  * @name b2d.body.set_mass_data
+ * @param body [type: b2Body] body
  * @param data [type: b2MassData] the mass properties.
  */
 
@@ -775,112 +795,133 @@ namespace dmGameSystem
  * This resets the mass properties to the sum of the mass properties of the fixtures.
  * This normally does not need to be called unless you called SetMassData to override
  * @name b2d.body.reset_mass_data
+ * @param body [type: b2Body] body
  */
 
 /*# Get the world coordinates of a point given the local coordinates.
  * @name b2d.body.get_world_point
+ * @param body [type: b2Body] body
  * @param local_vector [type: vmath.vector3] localPoint a point on the body measured relative the the body's origin.
  * @return vector [type: vmath.vector3] the same point expressed in world coordinates.
  */
 
 /*# Get the world coordinates of a vector given the local coordinates.
  * @name b2d.body.get_world_vector
+ * @param body [type: b2Body] body
  * @param local_vector [type: vmath.vector3] a vector fixed in the body.
  * @return vector [type: vmath.vector3] the same vector expressed in world coordinates.
  */
 
 /*# Gets a local point relative to the body's origin given a world point.
  * @name b2d.body.get_local_point
+ * @param body [type: b2Body] body
  * @param world_point [type: vmath.vector3] a point in world coordinates.
  * @return vector [type: vmath.vector3] the corresponding local point relative to the body's origin.
  */
 
 /*# Gets a local vector given a world vector.
  * @name b2d.body.get_local_vector
+ * @param body [type: b2Body] body
  * @param world_vector [type: vmath.vector3] a vector in world coordinates.
  * @return vector [type: vmath.vector3] the corresponding local vector.
  */
 
 /*# Get the world linear velocity of a world point attached to this body.
  * @name b2d.body.get_linear_velocity_from_world_point
+ * @param body [type: b2Body] body
  * @param world_point [type: vmath.vector3] a point in world coordinates.
  * @return velocity [type: vmath.vector3] the world velocity of a point.
  */
 
 /*# Get the world velocity of a local point.
  * @name b2d.body.get_linear_velocity_from_world_point
+ * @param body [type: b2Body] body
  * @param world_point [type: vmath.vector3] a point in local coordinates.
  * @return velocity [type: vmath.vector3] the world velocity of a point.
  */
 
 /*# Set the linear damping of the body.
  * @name b2d.body.set_linear_damping
+ * @param body [type: b2Body] body
  * @param damping [type: number] the damping
  */
 
 /*# Get the linear damping of the body.
  * @name b2d.body.get_linear_damping
+ * @param body [type: b2Body] body
  * @return damping [type: number] the damping
  */
 
 /*# Set the angular damping of the body.
  * @name b2d.body.set_angular_damping
+ * @param body [type: b2Body] body
  * @param damping [type: number] the damping
  */
 
 /*# Get the angular damping of the body.
  * @name b2d.body.get_angular_damping
+ * @param body [type: b2Body] body
  * @return damping [type: number] the damping
  */
 
 /*# Set the gravity scale of the body.
  * @name b2d.body.set_gravity_scale
+ * @param body [type: b2Body] body
  * @param scale [type: number] the scale
  */
 
 /*# Get the gravity scale of the body.
  * @name b2d.body.get_gravity_scale
+ * @param body [type: b2Body] body
  * @return scale [type: number] the scale
  */
 
 /*# Set the type of this body. This may alter the mass and velocity.
  * @name b2d.body.set_type
+ * @param body [type: b2Body] body
  * @param type [type: b2BodyType] the body type
  */
 
 /*# Get the type of this body.
  * @name b2d.body.get_type
+ * @param body [type: b2Body] body
  * @return type [type: b2BodyType] the body type
  */
 
 
 /*# Should this body be treated like a bullet for continuous collision detection?
  * @name b2d.body.set_bullet
+ * @param body [type: b2Body] body
  * @param enable [type: bool] if true, the body will be in bullet mode
  */
 
 /*# Is this body in bullet mode
  * @name b2d.body.is_bullet
+ * @param body [type: b2Body] body
  * @return enabled [type: bool] true if the body is in bullet mode
  */
 
 /*# You can disable sleeping on this body. If you disable sleeping, the body will be woken.
  * @name b2d.body.set_sleeping_allowed
+ * @param body [type: b2Body] body
  * @param enable [type: bool] if false, the body will never sleep, and consume more CPU
  */
 
 /*# Is this body allowed to sleep
  * @name b2d.body.is_sleeping_allowed
+ * @param body [type: b2Body] body
  * @return enabled [type: bool] true if the body is allowed to sleep
  */
 
 /*# Set the sleep state of the body. A sleeping body has very low CPU cost.
  * @name b2d.body.set_awake
+ * @param body [type: b2Body] body
  * @param enable [type: bool] flag set to false to put body to sleep, true to wake it.
  */
 
 /*# Get the sleeping state of this body.
  * @name b2d.body.is_awake
+ * @param body [type: b2Body] body
  * @return enabled [type: bool] true if the body is awake, false if it's sleeping.
  */
 
@@ -900,67 +941,80 @@ namespace dmGameSystem
  * in the body list.
  *
  * @name b2d.body.set_active
+ * @param body [type: b2Body] body
  * @param enable [type: bool] true if the body should be active
  */
 
 /*# Get the active state of the body.
  * @name b2d.body.is_active
+ * @param body [type: b2Body] body
  * @return enabled [type: bool] is the body active
  */
 
 
 /*# Set this body to have fixed rotation. This causes the mass to be reset.
  * @name b2d.body.set_fixed_rotation
+ * @param body [type: b2Body] body
  * @param enable [type: bool] true if the rotation should be fixed
  */
 
 /*# Does this body have fixed rotation?
  * @name b2d.body.is_fixed_rotation
+ * @param body [type: b2Body] body
  * @return enabled [type: bool] is the rotation fixed
  */
 
 /** Get the list of all fixtures attached to this body.
  * @name b2d.body.get_fixture_list
+ * @param body [type: b2Body] body
  * @return edge [type: b2Fixture] the first fixture
  */
 
 /** Get the list of all joints attached to this body.
  * @name b2d.body.get_joint_list
+ * @param body [type: b2Body] body
  * @return edge [type: b2JointEdge] the first joint
  */
 
 /** Get the list of all contacts attached to this body.
  * @name b2d.body.get_contact_list
+ * @param body [type: b2Body] body
  * @return edge [type: b2ContactEdge] the first edge
  */
 
 /*# Get the next body in the world's body list.
  * @name b2d.body.get_next
+ * @param body [type: b2Body] body
  * @return body [type: b2Body] the next body
  */
 
 /** Get the user data pointer that was provided in the body definition.
  * @name b2d.body.get_user_data
+ * @param body [type: b2Body] body
  * @return id [type: hash] the game object id this body is connected to
  */
 
 /** Set the user data. Use this to store your application specific data.
  * @name b2d.body.set_user_data
+ * @param body [type: b2Body] body
  * @param id [type: hash] the game object id
  */
 
 /*# Get the parent world of this body.
  * @name b2d.body.get_world
+ * @param body [type: b2Body] body
  * @return world [type: b2World]
  */
 
 /*# Print the body representation to the log output
+ * @param body [type: b2Body] body
  * @name b2d.body.dump
  */
 
 /** Get the total force currently applied on this object
  * @name b2d.body.get_force
  * @note Defold Specific
+ * @param body [type: b2Body] body
  * @return force [type: vmath.vector3]
  */
 

@@ -168,7 +168,7 @@ namespace dmGameSystem
 
 /*# Get the Box2D body from a collision object
  * @name b2d.get_body
- * @param url [type: url] the url to the game object collision component
+ * @param url [type: string|hash|url] the url to the game object collision component
  * @return body [type: b2Body] the body if successful. Otherwise `nil`.
  */
 
