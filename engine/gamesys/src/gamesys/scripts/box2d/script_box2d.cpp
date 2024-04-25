@@ -158,16 +158,17 @@ namespace dmGameSystem
  *
  * @document
  * @name b2d
+ * @namespace b2d
  */
 
-/** Get the Box2D world from the current collection
+/*# Get the Box2D world from the current collection
  * @name b2d.get_world
  * @return world [type: b2World] the world if successful. Otherwise `nil`.
  */
 
 /*# Get the Box2D body from a collision object
  * @name b2d.get_body
- * @param url [type: url] the url to the game object collision component
+ * @param url [type: string|hash|url] the url to the game object collision component
  * @return body [type: b2Body] the body if successful. Otherwise `nil`.
  */
 

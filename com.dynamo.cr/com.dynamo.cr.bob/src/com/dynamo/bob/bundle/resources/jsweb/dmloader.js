@@ -123,10 +123,14 @@ var CUSTOM_PARAMETERS = {
         app_container.style.marginLeft = margin_left + "px";
         app_container.style.marginTop = margin_top + "px";
     {{/DEFOLD_SCALE_MODE_IS_NO_SCALE}}
+        var dpi = 1;
+    {{#display.high_dpi}}
+        dpi = window.devicePixelRatio || 1;
+    {{/display.high_dpi}}
         app_container.style.width = width + "px";
         app_container.style.height = height + buttonHeight + "px";
-        game_canvas.width = width;
-        game_canvas.height = height;
+        game_canvas.width = Math.floor(width * dpi);
+        game_canvas.height = Math.floor(height * dpi);
     }
 }
 
@@ -729,7 +733,6 @@ var Module = {
     _filesToPreload: [],
     _archiveLoaded: false,
     _preLoadDone: false,
-    _waitingForArchive: false,
     _isEngineLoaded: false,
 
     // Persistent storage
@@ -843,11 +846,7 @@ var Module = {
                     e.preventDefault();
                 };
             }
-            if (Module._archiveLoaded) {
-                // "Starting...."
-                ProgressUpdater.complete();
-                Module._callMain();
-            }
+            Module._preloadAndCallMain();
         } else {
             // "Unable to start game, WebGL not supported"
             ProgressUpdater.complete();
@@ -868,9 +867,7 @@ var Module = {
     onArchiveLoaded: function() {
         GameArchiveLoader.cleanUp();
         Module._archiveLoaded = true;
-        if (Module._waitingForArchive) {
-            Module._preloadAndCallMain();
-        }
+        Module._preloadAndCallMain();
     },
 
     toggleFullscreen: function(element) {
@@ -883,7 +880,6 @@ var Module = {
 
     preSync: function(done) {
         if (Module.persistentStorage != true) {
-            Module._syncInitial = true;
             done();
             return;
         }
@@ -988,16 +984,16 @@ var Module = {
     }],
 
     _preloadAndCallMain: function() {
-        // If the archive isn't loaded,
-        // we will have to wait with calling main.
-        if (!Module._archiveLoaded) {
-            Module._waitingForArchive = true;
-        } else {
-            Module.preloadAll();
-            if (Module._isEngineLoaded) {
-                // "Starting...."
-                ProgressUpdater.complete();
-                Module._callMain();
+        if (Module._syncInitial || Module.persistentStorage != true) {
+            // If the archive isn't loaded,
+            // we will have to wait with calling main.
+            if (Module._archiveLoaded) {
+                Module.preloadAll();
+                if (Module._isEngineLoaded) {
+                    // "Starting...."
+                    ProgressUpdater.complete();
+                    Module._callMain();
+                }
             }
         }
     },
