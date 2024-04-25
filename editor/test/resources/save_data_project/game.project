@@ -65,7 +65,10 @@ compress_archive = 1
 custom_resources = /referenced/custom
 bundle_resources = /referenced/bundle
 bundle_exclude_resources = /referenced/bundle/log.txt
-dependencies#0 = {{defold.extension.spine.url}}
+dependencies#0 = {{defold.extension.rive.url}}
+dependencies#1 = {{defold.extension.simpledata.url}}
+dependencies#2 = {{defold.extension.spine.url}}
+dependencies#3 = {{defold.extension.texturepacker.url}}
 
 [input]
 game_binding = /checked.input_bindingc

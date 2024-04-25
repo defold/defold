@@ -945,10 +945,7 @@
                                   (pb-nested-field-frequencies (.getField pb field-desc) pb-path count-field-value?)))
 
                               (.isRepeated field-desc)
-                              (if (pb-field-has-single-valid-value? field-desc)
-                                (.getRepeatedFieldCount pb field-desc)
-                                (util/count-where #(count-field-value? % field-desc)
-                                                  (.getField pb field-desc)))
+                              (.getRepeatedFieldCount pb field-desc) ; Repeated fields cannot specify a default, so any values count.
 
                               (.hasField pb field-desc)
                               (if (or (pb-field-has-single-valid-value? field-desc)
@@ -1433,11 +1430,12 @@
                         (let [message (str "Unsaved changes detected before editing. This is likely due to an interdependency between resources. You might need to adjust the order resources are edited.\n"
                                            (save-data-diff-message save-data))]
                           (is (not (:dirty save-data)) message)))))
-              (test-util/edit-resource-node! node-id)
-              (testing (format "File `%s` should have unsaved changes after editing." proj-path)
-                (let [save-data (g/valid-node-value node-id :save-data)]
-                  (is (:dirty save-data)
-                      "No unsaved changes detected after editing. Possibly, `test-util/edit-resource-node!` is not making a meaningful change to the file?"))))))
+              (when (test-util/can-edit-resource-node? node-id)
+                (test-util/edit-resource-node! node-id)
+                (testing (format "File `%s` should have unsaved changes after editing." proj-path)
+                  (let [save-data (g/valid-node-value node-id :save-data)]
+                    (is (:dirty save-data)
+                        "No unsaved changes detected after editing. Possibly, `test-util/edit-resource-node!` is not making a meaningful change to the file?")))))))
         (test-util/save-project! project)
         (test-util/clear-cached-save-data!)
         (doseq [resource checked-resources]
@@ -1469,10 +1467,11 @@
                       (is (= (test-util/cacheable-save-data-outputs node-id)
                              (test-util/cached-save-data-outputs node-id))))
 
-                    (test-util/edit-resource-node! node-id)
+                    (when (test-util/can-edit-resource-node? node-id)
+                      (test-util/edit-resource-node! node-id)
 
-                    (testing (format "File `%s` should not have its save-related data in the cache after editing." proj-path)
-                      (is (= #{} (test-util/cached-save-data-outputs node-id))))
+                      (testing (format "File `%s` should not have its save-related data in the cache after editing." proj-path)
+                        (is (= #{} (test-util/cached-save-data-outputs node-id)))))
 
                     true)))))]
 
@@ -1494,7 +1493,8 @@
       (g/transact
         (for [resource checked-resources
               :let [node-id (test-util/resource-node project resource)]]
-          (test-util/edit-resource-node node-id)))
+          (when (test-util/can-edit-resource-node? node-id)
+            (test-util/edit-resource-node node-id))))
 
       ;; Save the changes.
       (test-util/save-project! project)

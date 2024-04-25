@@ -1313,21 +1313,28 @@
     Short (short (+ a b))
     Byte (byte (+ a b))))
 
-(defmulti edit-resource-node
-  (fn [resource-node-id]
-    (let [resource (resource-node/resource resource-node-id)
-          resource-type (resource/resource-type resource)]
-      (if (resource/placeholder-resource-type? resource-type)
-        (if (text-util/binary? resource)
-          :binary
-          :code)
-        (case (:type (:test-info resource-type))
-          :code :code
-          (let [ext (:ext resource-type)]
-            (case ext
-              ("tilegrid" "tilemap") "tilemap"
-              ("tileset" "tilesource") "tilesource"
-              ext)))))))
+(defn- edit-multimethod-dispatch-fn [resource-node-id]
+  (let [resource (resource-node/resource resource-node-id)
+        resource-type (resource/resource-type resource)]
+    (if (resource/placeholder-resource-type? resource-type)
+      (if (text-util/binary? resource)
+        :binary
+        :code)
+      (case (:type (:test-info resource-type))
+        :code :code
+        (let [ext (:ext resource-type)]
+          (case ext
+            ("tilegrid" "tilemap") "tilemap"
+            ("tileset" "tilesource") "tilesource"
+            ext))))))
+
+(defmulti can-edit-resource-node? edit-multimethod-dispatch-fn)
+
+(defmethod can-edit-resource-node? :default [_resource-node-id] true)
+
+(defmethod can-edit-resource-node? "tpinfo" [_resource-node-id] false)
+
+(defmulti edit-resource-node edit-multimethod-dispatch-fn)
 
 (defmethod edit-resource-node :code [resource-node-id]
   (update-code-editor-lines resource-node-id conj ""))
