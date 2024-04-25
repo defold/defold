@@ -1,23 +1,23 @@
 * {
 	// Background
-	-df-background-darker:    derive(#212428, -10%);
-	-df-background-dark:      derive(#212428, -5%);
-	-df-background:           #212428;
-	-df-background-light:     derive(#212428, 10%);
-	-df-background-lighter:   derive(#212428, 20%);
+	-df-background-darker:    derive(#212428, -13%);	// dialog input field background
+	-df-background-dark:      derive(#212428, -6%);
+	-df-background:           #212428;					// background, #212428 (original: dark-grey #212428)
+	-df-background-light:     derive(#212428, 6%);		// panels, input field background, +6%=#c3036 (original: dark-grey-light #2c2e33)
+	-df-background-lighter:   derive(#212428, 13%);		// tree view selection, +13%=#3c4249 (original: dark-grey-selected #3B3F43)
 
 	// Component
-	-df-component-darker:     derive(#464c55, -20%);
-	-df-component-dark:       derive(#464c55, -10%);
-	-df-component:            #464c55;
-	-df-component-light:      derive(#464c55, 10%);
-	-df-component-lighter:    derive(#464c55, 20%);
+	-df-component-darker:     derive(#52575c, -30%);	// button outline, scene view controls panel, -30%=#222426 (original: dark-grey #212428)
+	-df-component-dark:       derive(#52575c, -15%);	// button, input field border, -15%=#383c3f (original: mid-grey #393c41)
+	-df-component:            #52575c;					// button hovered (original: grey #52575c)
+	-df-component-light:      derive(#52575c, 15%);		// input field border selected, +15%=#697076 (original: mid-grey-light #45474B)
+	-df-component-lighter:    derive(#52575c, 30%);		// button icon, +30%=#828990
 
 	// Text & icons
-	-df-text-darker:          derive(#b4bac1, -20%);
-	-df-text-dark:            derive(#b4bac1, -40%);
-	-df-text:                 #b4bac1;
-	-df-text-selected:        derive(#b4bac1, 20%);
+	-df-text-dark:            derive(#a2b0be, -30%);	// property components, -30%=#8698aa (original: #848484)
+	-df-text:                 #a2b0be;					// non editable text, input field hint (original: bright-grey-light #a2b0be)
+	-df-text-light:           derive(#a2b0be, 85%);		// editable text, +85%=#f1f3f5 (original: defold-white #f0f2f6)
+	-df-text-selected:        derive(#a2b0be, 85%);		// non editable selected text (original: defold-white #f0f2f6)
 
 	// Red
 	-df-defold-red-dark:     derive(#e32f44, -10%);
@@ -48,11 +48,11 @@
 	-df-defold-blue-lighter: derive(#4cb1ff, 20%);
 
 	/* Status colors */
-	-df-error-severity-fatal: -df-defold-red;
-	-df-error-severity-fatal-dim: -df-defold-red-dark;
-	-df-error-severity-warning: -df-defold-yellow;
+	-df-error-severity-fatal:       -df-defold-red;
+	-df-error-severity-fatal-dim:   -df-defold-red-dark;
+	-df-error-severity-warning:     -df-defold-yellow;
 	-df-error-severity-warning-dim: -df-defold-yellow-dark;
-	-df-error-severity-info: -df-defold-blue-lighter;
+	-df-error-severity-info:        -df-defold-blue-lighter;
 
 	/* Lua script colors */
 	-df-script-helper:         #33cccc;
