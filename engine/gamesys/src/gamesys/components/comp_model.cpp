@@ -99,7 +99,6 @@ namespace dmGameSystem
         Matrix4                     m_World;
         ModelResource*              m_Resource;
         dmRig::HRigInstance         m_RigInstance;
-        uint32_t                    m_MixedHash;
         dmMessage::URL              m_Listener;
         int                         m_FunctionRef;
         HComponentRenderConstants   m_RenderConstants;
@@ -407,6 +406,45 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(state, material->m_Textures, sizeof(dmGameSystem::TextureResource*)*material->m_NumTextures);
     }
 
+    static void HashRenderItem(HashState32* state, ModelComponent* component, const MeshRenderItem& item)
+    {
+        dmRender::HMaterial material = GetMaterial(component, component->m_Resource, item.m_MaterialIndex);
+        dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+        if (dmRender::GetMaterialVertexSpace(material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && !instance_vx_decl)
+        {
+            return;
+        }
+
+        // We need to hash the mesh pointer for instance grouping
+        dmHashUpdateBuffer32(state, item.m_Mesh, sizeof(*item.m_Mesh));
+
+        // If we use an override material, we don't need to hash the override values
+        if (component->m_Material && component->m_Material->m_Material == material)
+        {
+            return;
+        }
+
+        dmGraphics::VertexAttributeInfos material_infos;
+        FillMaterialAttributeInfos(material, instance_vx_decl, &material_infos);
+
+        dmGraphics::VertexAttributeInfos attribute_infos;
+        FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
+                    component->m_Resource->m_Materials[item.m_MaterialIndex].m_Attributes,
+                    component->m_Resource->m_Materials[item.m_MaterialIndex].m_AttributeCount,
+                    &material_infos,
+                    &attribute_infos);
+
+        for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& attr = attribute_infos.m_Infos[i];
+            // We can skip hashing instance attribute values since the data can be shared
+            // between all meshes in a regular draw call.
+            if (attr.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
+                continue;
+            dmHashUpdateBuffer32(state, attr.m_ValuePtr, attr.m_ValueByteSize);
+        }
+    }
+
     static void ReHash(ModelComponent* component)
     {
         // material, textures and render constants
@@ -441,17 +479,14 @@ namespace dmGameSystem
             dmGameSystem::HashRenderConstants(component->m_RenderConstants, &state);
         }
 
-        /*
         for (int i = 0; i < component->m_RenderItems.Size(); ++i)
         {
-            if (component->m_RenderItems[i].m_InstanceRenderHash)
-            {
-                dmHashUpdateBuffer32(&state, &component->m_RenderItems[i].m_InstanceRenderHash, sizeof(component->m_RenderItems[i].m_InstanceRenderHash));
-            }
+            HashState32 state_clone;
+            dmHashClone32(&state_clone, &state, false);
+            HashRenderItem(&state_clone, component, component->m_RenderItems[i]);
+            component->m_RenderItems[i].m_InstanceRenderHash = dmHashFinal32(&state_clone);
         }
-        */
 
-        component->m_MixedHash = dmHashFinal32(&state);
         component->m_ReHash = 0;
     }
 
@@ -691,41 +726,6 @@ namespace dmGameSystem
         rd->m_Initialized = true;
     }
 
-    static uint32_t GetInstancedRenderItemHash(ModelComponent* component, dmRigDDF::Mesh* mesh, dmRender::HMaterial material, uint32_t material_index)
-    {
-        dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
-        if (dmRender::GetMaterialVertexSpace(material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && !instance_vx_decl)
-        {
-            return 0;
-        }
-
-        dmGraphics::VertexAttributeInfos material_infos;
-        FillMaterialAttributeInfos(material, instance_vx_decl, &material_infos);
-
-        dmGraphics::VertexAttributeInfos attribute_infos;
-        FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
-                    component->m_Resource->m_Materials[material_index].m_Attributes,
-                    component->m_Resource->m_Materials[material_index].m_AttributeCount,
-                    &material_infos,
-                    &attribute_infos);
-
-        HashState32 state;
-        dmHashInit32(&state, false);
-        for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
-        {
-            const dmGraphics::VertexAttributeInfo& attr = attribute_infos.m_Infos[i];
-            // We can skip hashing instance attribute values since the data can be shared
-            // between all meshes in a regular draw call.
-            if (attr.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
-                continue;
-            dmHashUpdateBuffer32(&state, attr.m_ValuePtr, attr.m_ValueByteSize);
-        }
-
-        dmHashUpdateBuffer32(&state, mesh, sizeof(*mesh));
-
-        return dmHashFinal32(&state);
-    }
-
     static void SetupRenderItems(ModelComponent* component, ModelResource* resource)
     {
         component->m_RenderItems.SetCapacity(resource->m_Meshes.Size());
@@ -750,6 +750,7 @@ namespace dmGameSystem
             item.m_Enabled = 1;
             item.m_BoneIndex = dmRig::INVALID_BONE_INDEX;
             item.m_AttributeRenderDataIndex = ATTRIBUTE_RENDER_DATA_INDEX_UNUSED;
+            item.m_InstanceRenderHash = 0;
 
             // This model is a child under a bone, but isn't actually skinned
             if (item.m_Model->m_BoneId && bone_id_to_indices)
@@ -768,14 +769,6 @@ namespace dmGameSystem
                 item.m_AttributeRenderDataIndex = num_custom_attributes;
                 num_custom_attributes++;
             }
-
-            item.m_InstanceRenderHash = GetInstancedRenderItemHash(component, item.m_Mesh, material, item.m_MaterialIndex);
-
-        #if 0
-            dmLogInfo("Resource %p", component->m_Resource);
-            dmLogInfo("  Mesh %d", i);
-            dmLogInfo("  Attribute hash %d", item.m_InstanceRenderHash);
-        #endif
 
             component->m_RenderItems.Push(item);
         }
@@ -1668,9 +1661,9 @@ namespace dmGameSystem
 
                 write_ptr->m_UserData = (uintptr_t) &render_item;
                 // TODO: Currently assuming only one material for all meshes
-                write_ptr->m_BatchKey = render_item.m_InstanceRenderHash != 0 ? render_item.m_InstanceRenderHash : component.m_MixedHash;
+                write_ptr->m_BatchKey   = render_item.m_InstanceRenderHash;
                 write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(&component, component.m_Resource, render_item.m_MaterialIndex));
-                write_ptr->m_Dispatch = dispatch;
+                write_ptr->m_Dispatch   = dispatch;
                 write_ptr->m_MinorOrder = minor_order;
                 write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
                 ++write_ptr;
