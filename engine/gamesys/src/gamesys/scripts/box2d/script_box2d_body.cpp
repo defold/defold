@@ -582,15 +582,13 @@ namespace dmGameSystem
         lua_newtable(L);
         luaL_register(L, 0, Body_functions);
 
-#define SET_CONSTANT(NS, NAME, CUSTOM_NAME) \
-        lua_pushnumber(L, (lua_Number) NS :: NAME); \
-        lua_setfield(L, -2, #NAME);
+#define SET_CONSTANT(NAME, CUSTOM_NAME) \
+        lua_pushnumber(L, (lua_Number) NAME); \
+        lua_setfield(L, -2, CUSTOM_NAME);
 
-        lua_newtable(L);
-        SET_CONSTANT(b2BodyType, b2_staticBody, "B2_STATIC_BODY");
-        SET_CONSTANT(b2BodyType, b2_kinematicBody, "B2_KINEMATIC_BODY");
-        SET_CONSTANT(b2BodyType, b2_dynamicBody, "B2_DYNAMIC_BODY");
-        lua_setfield(L, -2, "b2BodyType");
+        SET_CONSTANT(b2_staticBody, "B2_STATIC_BODY");
+        SET_CONSTANT(b2_kinematicBody, "B2_KINEMATIC_BODY");
+        SET_CONSTANT(b2_dynamicBody, "B2_DYNAMIC_BODY");
 
 #undef SET_CONSTANT
 
