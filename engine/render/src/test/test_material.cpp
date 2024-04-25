@@ -25,6 +25,7 @@
 #include "render/render_private.h"
 
 #include "../../../graphics/src/graphics_private.h"
+#include "../../../graphics/src/null/graphics_null_private.h"
 
 #define ASSERT_EPS 0.0001f
 
@@ -221,6 +222,38 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     dmRender::DeleteMaterial(m_RenderContext, material);
 }
 
+TEST_F(dmRenderMaterialTest, TestMaterialInstanceNotSupported)
+{
+    const char* vs_src = \
+       "attribute vec4 position;\n \
+        attribute vec2 normal;\n \
+        attribute mat3 mtx_normal;\n \
+        attribute mat4 mtx_world;\n";
+
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    // Turn off all context features manually
+    null_context->m_ContextFeatures = 0;
+
+    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader(vs_src, strlen(vs_src));
+    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_shader);
+
+    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader("foo", 3);
+    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_shader);
+    dmRender::HMaterial material             = dmRender::NewMaterial(m_RenderContext, vp, fp);
+
+    dmGraphics::HVertexDeclaration vx_decl_shared = dmRender::GetVertexDeclaration(material);
+    dmGraphics::HVertexDeclaration vx_decl_vert = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+    dmGraphics::HVertexDeclaration vx_decl_inst = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+
+    ASSERT_EQ(vx_decl_shared, vx_decl_vert);
+    ASSERT_EQ((void*) 0, vx_decl_inst);
+
+    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
+    dmRender::DeleteMaterial(m_RenderContext, material);
+}
+
 TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
 {
     const char* vs_src = \
@@ -264,8 +297,10 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
     ASSERT_EQ(dmGraphics::VertexAttribute::SHADER_TYPE_MAT4, attributes[3].m_ShaderType);
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT,       attributes[3].m_DataType);
 
-    dmGraphics::HVertexDeclaration vx_decl   = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+    dmGraphics::HVertexDeclaration vx_decl_shared = dmRender::GetVertexDeclaration(material);
+    dmGraphics::HVertexDeclaration vx_decl        = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
     ASSERT_NE((void*) 0x0, vx_decl);
+    ASSERT_NE(vx_decl_shared, vx_decl);
 
     ASSERT_EQ(2,                                       vx_decl->m_StreamCount);
     ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, vx_decl->m_StepFunction);

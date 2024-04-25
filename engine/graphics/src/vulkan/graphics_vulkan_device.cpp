@@ -1051,20 +1051,26 @@ bail:
                 vk_vertex_input_descs[ix].offset = ofs; \
                 vk_vertex_input_descs[ix].format = fmt;
 
-            // TODO: mat3, mat2
-            if (stream.m_Type == dmGraphics::TYPE_FLOAT && stream.m_Size == 16)
+            uint32_t stream_data_size = GetGraphicsTypeDataSize(stream.m_Type);
+            switch(stream.m_Size)
             {
-                uint32_t vec4_size = GetGraphicsTypeDataSize(dmGraphics::TYPE_FLOAT_VEC4);
-                PUT_ATTRIBUTE(num_attributes + 0, (stream.m_Location + 0), (stream.m_Offset + 0 * vec4_size), fmt);
-                PUT_ATTRIBUTE(num_attributes + 1, (stream.m_Location + 1), (stream.m_Offset + 1 * vec4_size), fmt);
-                PUT_ATTRIBUTE(num_attributes + 2, (stream.m_Location + 2), (stream.m_Offset + 2 * vec4_size), fmt);
-                PUT_ATTRIBUTE(num_attributes + 3, (stream.m_Location + 3), (stream.m_Offset + 3 * vec4_size), fmt);
+            case 9: // 3x3 matrix
+                PUT_ATTRIBUTE(num_attributes + 0, (stream.m_Location + 0), (stream.m_Offset + 0 * stream_data_size * 3), fmt);
+                PUT_ATTRIBUTE(num_attributes + 1, (stream.m_Location + 1), (stream.m_Offset + 1 * stream_data_size * 3), fmt);
+                PUT_ATTRIBUTE(num_attributes + 2, (stream.m_Location + 2), (stream.m_Offset + 2 * stream_data_size * 3), fmt);
+                num_attributes += 3;
+                break;
+            case 16: // 4x4 matrix
+                PUT_ATTRIBUTE(num_attributes + 0, (stream.m_Location + 0), (stream.m_Offset + 0 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 1, (stream.m_Location + 1), (stream.m_Offset + 1 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 2, (stream.m_Location + 2), (stream.m_Offset + 2 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 3, (stream.m_Location + 3), (stream.m_Offset + 3 * stream_data_size * 4), fmt);
                 num_attributes += 4;
-            }
-            else
-            {
+                break;
+            default:
                 PUT_ATTRIBUTE(num_attributes, stream.m_Location, stream.m_Offset, fmt);
                 num_attributes++;
+                break;
             }
 
             #undef PUT_ATTRIBUTE

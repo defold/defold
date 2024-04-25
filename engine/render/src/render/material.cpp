@@ -137,7 +137,7 @@ namespace dmRender
         uint32_t num_material_attributes = m->m_MaterialAttributes.Size();
         bool use_secondary_vertex_declarations = false;
 
-        // 1. Find out if we need to use secondary vertex declarations
+        // 1. Find out if we need to use secondary vertex and instance declarations
         for (int i = 0; i < num_material_attributes; ++i)
         {
             const dmGraphics::VertexAttribute& graphics_attribute = m->m_VertexAttributes[i];
@@ -154,40 +154,40 @@ namespace dmRender
 
         if (use_secondary_vertex_declarations)
         {
-            sd_vertex   = dmGraphics::NewVertexStreamDeclaration(graphics_context, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+            sd_vertex = dmGraphics::NewVertexStreamDeclaration(graphics_context, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
             sd_instance = dmGraphics::NewVertexStreamDeclaration(graphics_context, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
         }
-
-        #define ADD_VERTEX_STREAM(sd, graphics_attribute) \
-            dmGraphics::AddVertexStream(sd, \
-                graphics_attribute.m_NameHash, \
-                graphics_attribute.m_ElementCount, \
-                dmGraphics::GetGraphicsType(graphics_attribute.m_DataType), \
-                graphics_attribute.m_Normalize);
 
         // 2. Construct all vertex declarations
         for (int i = 0; i < num_material_attributes; ++i)
         {
             const dmGraphics::VertexAttribute& graphics_attribute = m->m_VertexAttributes[i];
+
+            #define ADD_VERTEX_STREAM(sd, graphics_attribute) \
+                dmGraphics::AddVertexStream(sd, \
+                    graphics_attribute.m_NameHash, \
+                    graphics_attribute.m_ElementCount, \
+                    dmGraphics::GetGraphicsType(graphics_attribute.m_DataType), \
+                    graphics_attribute.m_Normalize);
+
             ADD_VERTEX_STREAM(sd_shared, graphics_attribute);
             if (use_secondary_vertex_declarations)
             {
                 ADD_VERTEX_STREAM(graphics_attribute.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE ?
-                    sd_instance : sd_vertex, graphics_attribute);
+                        sd_instance : sd_vertex, graphics_attribute);
             }
-        }
 
-        #undef ADD_VERTEX_STREAM
+            #undef ADD_VERTEX_STREAM
+        }
 
         m->m_VertexDeclarationShared = dmGraphics::NewVertexDeclaration(graphics_context, sd_shared);
         dmGraphics::DeleteVertexStreamDeclaration(sd_shared);
 
         if (use_secondary_vertex_declarations)
         {
-            m->m_VertexDeclarationPerVertex   = dmGraphics::NewVertexDeclaration(graphics_context, sd_vertex);
-            m->m_VertexDeclarationPerInstance = dmGraphics::NewVertexDeclaration(graphics_context, sd_instance);
-
+            m->m_VertexDeclarationPerVertex = dmGraphics::NewVertexDeclaration(graphics_context, sd_vertex);
             dmGraphics::DeleteVertexStreamDeclaration(sd_vertex);
+            m->m_VertexDeclarationPerInstance = dmGraphics::NewVertexDeclaration(graphics_context, sd_instance);
             dmGraphics::DeleteVertexStreamDeclaration(sd_instance);
         }
     }
@@ -201,6 +201,8 @@ namespace dmRender
         m->m_MaterialAttributes.SetSize(num_program_attributes);
         m->m_VertexAttributes.SetCapacity(num_program_attributes);
         m->m_VertexAttributes.SetSize(num_program_attributes);
+
+        bool instancing_supported = m->m_InstancingSupported;
 
         for (int i = 0; i < num_program_attributes; ++i)
         {
@@ -219,8 +221,8 @@ namespace dmRender
             vertex_attribute.m_ElementCount    = element_count;
             vertex_attribute.m_Normalize       = false;
             vertex_attribute.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
-            vertex_attribute.m_StepFunction    = GetAttributeVertexStepFunction(vertex_attribute.m_SemanticType);
             vertex_attribute.m_ShaderType      = GetAttributeShaderType(type);
+            vertex_attribute.m_StepFunction    = instancing_supported ? GetAttributeVertexStepFunction(vertex_attribute.m_SemanticType) : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
 
             MaterialAttribute& material_attribute = m->m_MaterialAttributes[i];
             material_attribute.m_Location         = location;
@@ -286,6 +288,7 @@ namespace dmRender
         m->m_VertexDeclarationShared      = 0;
         m->m_VertexDeclarationPerVertex   = 0;
         m->m_VertexDeclarationPerInstance = 0;
+        m->m_InstancingSupported          = dmGraphics::IsContextFeatureSupported(graphics_context, dmGraphics::CONTEXT_FEATURE_INSTANCING);
 
         CreateAttributes(graphics_context, m);
         CreateVertexDeclarations(graphics_context, m);
@@ -667,7 +670,7 @@ namespace dmRender
             graphics_attribute.m_ShaderType                 = graphics_attribute_in.m_ShaderType;
             graphics_attribute.m_SemanticType               = graphics_attribute_in.m_SemanticType;
             graphics_attribute.m_CoordinateSpace            = graphics_attribute_in.m_CoordinateSpace;
-            graphics_attribute.m_StepFunction               = graphics_attribute_in.m_StepFunction;
+            graphics_attribute.m_StepFunction               = material->m_InstancingSupported ? graphics_attribute_in.m_StepFunction : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
 
             update_attributes = true;
         }
@@ -791,7 +794,14 @@ namespace dmRender
 
     dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function)
     {
-        return step_function == dmGraphics::VERTEX_STEP_FUNCTION_VERTEX ? material->m_VertexDeclarationPerVertex : material->m_VertexDeclarationPerInstance;
+        if (step_function == dmGraphics::VERTEX_STEP_FUNCTION_VERTEX)
+        {
+            return material->m_InstancingSupported ? material->m_VertexDeclarationPerVertex : material->m_VertexDeclarationShared;
+        }
+        else
+        {
+            return material->m_VertexDeclarationPerInstance;
+        }
     }
 
     HRenderContext GetMaterialRenderContext(HMaterial material)

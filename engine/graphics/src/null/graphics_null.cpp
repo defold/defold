@@ -185,6 +185,7 @@ namespace dmGraphics
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_MULTI_TARGET_RENDERING;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
         context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
+        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_INSTANCING;
 
         if (context->m_AsyncProcessingSupport)
         {

@@ -98,6 +98,7 @@ namespace dmRender
         uint64_t                                m_UserData1;  // used for hot reloading. stores shader name
         uint64_t                                m_UserData2;  // --||–-
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
+        uint8_t                                 m_InstancingSupported : 1;
     };
 
     struct ComputeProgram

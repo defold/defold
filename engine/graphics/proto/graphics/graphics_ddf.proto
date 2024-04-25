@@ -83,16 +83,16 @@ message VertexAttribute
     optional bool            normalize        = 5 [default = false];
     optional DataType        data_type        = 6 [default = TYPE_FLOAT];
     optional CoordinateSpace coordinate_space = 7 [default = COORDINATE_SPACE_LOCAL];
-    optional VertexStepFunction step_function = 8 [default = VERTEX_STEP_FUNCTION_VERTEX];
+    optional VertexStepFunction step_function = 11 [default = VERTEX_STEP_FUNCTION_VERTEX];
     optional ShaderType shader_type           = 12 [default = SHADER_TYPE_NUMBER];
 
     // Note: Add a channel field here for identifying a semantic "channel", i.e a second UV set
 
     oneof values
     {
-        LongValues   long_values   = 9;  // Saved integer values (project files only)
-        DoubleValues double_values = 10;  // Saved floating point values (project files only)
-        bytes        binary_values = 11 [(runtime_only) = true]; // Packed binary representation of the input values (engine only)
+        LongValues   long_values   = 8;  // Saved integer values (project files only)
+        DoubleValues double_values = 9;  // Saved floating point values (project files only)
+        bytes        binary_values = 10 [(runtime_only) = true]; // Packed binary representation of the input values (engine only)
     }
 }
 

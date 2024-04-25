@@ -2657,7 +2657,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     ///////////////////////////////////////
     {
         uint32_t vx_buffers_count;
-        dmRender::BufferedRenderBuffer **vx_buffers;
+        dmRender::BufferedRenderBuffer** vx_buffers;
         dmGameSystem::GetModelWorldRenderBuffers(model_world, &vx_buffers, &vx_buffers_count);
         ASSERT_TRUE(vx_buffers_count > 0);
 
@@ -2864,8 +2864,8 @@ TEST_F(ComponentTest, DispatchBuffersInstancingTest)
 
         // TODO: Ideally we should test the actual result of the dispatch here, but there are 
         //       currently limitations in how the content is generated via waf_gamesys.
-        //       Right now all rig scenes are referencing a skeleton, which isn't compatible
-        //       with models
+        //       Right now all rig scenes will be referencing a skeleton, which isn't compatible
+        //       with local spaced models.
 
         dmResource::Release(m_Factory, material_a);
         dmResource::Release(m_Factory, material_b);
