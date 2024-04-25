@@ -53,7 +53,7 @@ def build(bld):
             'vertex_program/*',
             'window/*']
 
-    excl_pattern = ['**/*.ttf', '**/*.basis', '**/*.psd']
+    excl_pattern = ['**/*.ttf', '**/*.basis', '**/*.psd', '**/*.DS_Store']
 
     if not platform_supports_feature(bld.env.PLATFORM, 'compute', None):
         excl_pattern.append('**/*.cp')

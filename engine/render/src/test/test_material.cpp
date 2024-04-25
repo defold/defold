@@ -264,7 +264,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
     ASSERT_EQ(dmGraphics::VertexAttribute::SHADER_TYPE_MAT4, attributes[3].m_ShaderType);
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT,       attributes[3].m_DataType);
 
-    dmGraphics::HVertexDeclaration vx_decl   = dmRender::GetVertexDeclaration(material);
+    dmGraphics::HVertexDeclaration vx_decl   = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
     ASSERT_NE((void*) 0x0, vx_decl);
 
     ASSERT_EQ(2,                                       vx_decl->m_StreamCount);
@@ -278,7 +278,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
     ASSERT_EQ(2,                          vx_decl->m_Streams[1].m_Size);
     ASSERT_EQ(dmGraphics::TYPE_FLOAT,     vx_decl->m_Streams[1].m_Type);
 
-    dmGraphics::HVertexDeclaration inst_decl = dmRender::GetInstanceVertexDeclaration(material);
+    dmGraphics::HVertexDeclaration inst_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
     ASSERT_NE((void*) 0x0, inst_decl);
 
     ASSERT_EQ(2,                                         inst_decl->m_StreamCount);
