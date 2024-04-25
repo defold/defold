@@ -733,7 +733,6 @@ var Module = {
     _filesToPreload: [],
     _archiveLoaded: false,
     _preLoadDone: false,
-    _waitingForArchive: false,
     _isEngineLoaded: false,
 
     // Persistent storage
@@ -847,11 +846,7 @@ var Module = {
                     e.preventDefault();
                 };
             }
-            if (Module._archiveLoaded) {
-                // "Starting...."
-                ProgressUpdater.complete();
-                Module._callMain();
-            }
+            Module._preloadAndCallMain();
         } else {
             // "Unable to start game, WebGL not supported"
             ProgressUpdater.complete();
@@ -872,9 +867,7 @@ var Module = {
     onArchiveLoaded: function() {
         GameArchiveLoader.cleanUp();
         Module._archiveLoaded = true;
-        if (Module._waitingForArchive) {
-            Module._preloadAndCallMain();
-        }
+        Module._preloadAndCallMain();
     },
 
     toggleFullscreen: function(element) {
@@ -887,7 +880,6 @@ var Module = {
 
     preSync: function(done) {
         if (Module.persistentStorage != true) {
-            Module._syncInitial = true;
             done();
             return;
         }
@@ -992,16 +984,16 @@ var Module = {
     }],
 
     _preloadAndCallMain: function() {
-        // If the archive isn't loaded,
-        // we will have to wait with calling main.
-        if (!Module._archiveLoaded) {
-            Module._waitingForArchive = true;
-        } else {
-            Module.preloadAll();
-            if (Module._isEngineLoaded) {
-                // "Starting...."
-                ProgressUpdater.complete();
-                Module._callMain();
+        if (Module._syncInitial || Module.persistentStorage != true) {
+            // If the archive isn't loaded,
+            // we will have to wait with calling main.
+            if (Module._archiveLoaded) {
+                Module.preloadAll();
+                if (Module._isEngineLoaded) {
+                    // "Starting...."
+                    ProgressUpdater.complete();
+                    Module._callMain();
+                }
             }
         }
     },
