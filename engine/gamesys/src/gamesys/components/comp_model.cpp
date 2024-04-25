@@ -941,40 +941,93 @@ namespace dmGameSystem
         uint32_t instance_count                 = end - begin;
         uint32_t instance_stride                = dmGraphics::GetVertexDeclarationStride(inst_decl);
         uint32_t required_instance_memory_count = instance_count * instance_stride;
+        MeshAttributeRenderData* attribute_rd   = 0;
 
         if (world->m_InstanceBufferDataLocalSpace.Remaining() < required_instance_memory_count)
         {
             world->m_InstanceBufferDataLocalSpace.OffsetCapacity(required_instance_memory_count - world->m_InstanceBufferDataLocalSpace.Remaining());
         }
 
-        uint8_t* instance_write_ptr   = world->m_InstanceBufferDataLocalSpace.End();
+        uint8_t* instance_write_ptr = world->m_InstanceBufferDataLocalSpace.End();
 
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
         dmRender::RenderObject& ro  = world->m_RenderObjects.Back();
 
+        const uint8_t IX_STATIC_BUFFER      = 0;
+        const uint8_t IX_INSTANCE_BUFFER    = 1;
+        const uint8_t IX_CUSTOM_DATA_BUFFER = 2;
+
         ro.Init();
-        ro.m_Material               = material;
-        ro.m_PrimitiveType          = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_VertexStart            = 0;
-        ro.m_VertexCount            = render_item->m_Buffers->m_IndexCount;
-        ro.m_IndexBuffer            = render_item->m_Buffers->m_IndexBuffer;              // May be 0
-        ro.m_IndexType              = render_item->m_Buffers->m_IndexBufferElementType;
-        ro.m_InstanceCount          = instance_count;
-        ro.m_VertexDeclarations[0]  = world->m_VertexDeclaration;
-        ro.m_VertexBuffers[0]       = render_item->m_Buffers->m_VertexBuffer;
-        ro.m_WorldTransform         = Matrix4::identity();
-        ro.m_VertexDeclarations[1]  = world->m_InstanceVertexDeclaration;
-        ro.m_VertexBuffers[1]       = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_InstanceBufferLocalSpace);
-        ro.m_VertexBufferOffsets[1] = world->m_InstanceBufferDataLocalSpace.Size();
+        ro.m_Material                                = material;
+        ro.m_PrimitiveType                           = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_VertexStart                             = 0;
+        ro.m_VertexCount                             = render_item->m_Buffers->m_IndexCount;
+        ro.m_IndexBuffer                             = render_item->m_Buffers->m_IndexBuffer;              // May be 0
+        ro.m_IndexType                               = render_item->m_Buffers->m_IndexBufferElementType;
+        ro.m_InstanceCount                           = instance_count;
+        ro.m_VertexDeclarations[IX_STATIC_BUFFER]    = world->m_VertexDeclaration;
+        ro.m_VertexBuffers[IX_STATIC_BUFFER]         = render_item->m_Buffers->m_VertexBuffer;
+        ro.m_WorldTransform                          = Matrix4::identity();
+        ro.m_VertexDeclarations[IX_INSTANCE_BUFFER]  = world->m_InstanceVertexDeclaration;
+        ro.m_VertexBuffers[IX_INSTANCE_BUFFER]       = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_InstanceBufferLocalSpace);
+        ro.m_VertexBufferOffsets[IX_INSTANCE_BUFFER] = world->m_InstanceBufferDataLocalSpace.Size();
+
+        dmGraphics::VertexAttributeInfos material_infos;
+        dmGraphics::VertexAttributeInfos attribute_infos;
 
         for (uint32_t *i=begin;i!=end;i++)
         {
-            const MeshRenderItem* render_item = (MeshRenderItem*) buf[*i].m_UserData;
-            assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclaration) == sizeof(ModelInstanceData));
-            ModelInstanceData* instance_data = (ModelInstanceData*) instance_write_ptr;
-            instance_data->m_WorldTransform  = render_item->m_World;
-            instance_data->m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_WorldTransform);
-            instance_write_ptr              += sizeof(ModelInstanceData);
+            const MeshRenderItem* instance_render_item = (MeshRenderItem*) buf[*i].m_UserData;
+            ModelComponent* instance_component         = instance_render_item->m_Component;
+
+            if (instance_render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+            {
+                attribute_rd = &instance_component->m_MeshAttributeRenderDatas[instance_render_item->m_AttributeRenderDataIndex];
+
+                if (!attribute_rd->m_Initialized)
+                {
+                    SetupMeshAttributeRenderData(render_context,
+                        ro.m_Material,
+                        instance_render_item,
+                        instance_component->m_Resource->m_Materials[material_index].m_Attributes,
+                        instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                        attribute_rd);
+                }
+
+                if (dmGraphics::GetVertexDeclarationStreamCount(attribute_rd->m_VertexDeclaration) > 0)
+                {
+                    ro.m_VertexDeclarations[IX_CUSTOM_DATA_BUFFER] = attribute_rd->m_VertexDeclaration;
+                    ro.m_VertexBuffers[IX_CUSTOM_DATA_BUFFER]      = attribute_rd->m_VertexBuffer;
+                }
+
+                if (dmGraphics::GetVertexDeclarationStreamCount(attribute_rd->m_InstanceVertexDeclaration) > 0)
+                {
+                    ro.m_VertexDeclarations[IX_INSTANCE_BUFFER] = attribute_rd->m_InstanceVertexDeclaration;
+                }
+
+                FillMaterialAttributeInfos(material, attribute_rd->m_InstanceVertexDeclaration, &material_infos);
+                FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
+                            instance_component->m_Resource->m_Materials[material_index].m_Attributes,
+                            instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                            &material_infos,
+                            &attribute_infos);
+
+                dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, instance_render_item->m_World);
+                dmRig::WriteVertexAttributeParams params = {};
+                FillWriteVertexAttributeParams(instance_render_item->m_Mesh, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
+                    &attribute_infos, &instance_render_item->m_World, &normal_matrix, &params);
+
+                dmRig::WriteSingleVertexDataByAttributes(instance_write_ptr, params);
+                instance_write_ptr += instance_stride;
+            }
+            else
+            {
+                assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclaration) == sizeof(ModelInstanceData));
+                ModelInstanceData* instance_data = (ModelInstanceData*) instance_write_ptr;
+                instance_data->m_WorldTransform  = instance_render_item->m_World;
+                instance_data->m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_WorldTransform);
+                instance_write_ptr              += sizeof(ModelInstanceData);
+            }
         }
 
         FillTextures(&ro, component, material_index);
@@ -1057,147 +1110,12 @@ namespace dmGameSystem
 
         if (inst_decl)
         {
-            inst_decl = world->m_InstanceVertexDeclaration;
             RenderBatchLocalVSInstanced(world, render_context, material, material_index, component, buf, begin, end, inst_decl);
         }
         else
         {
             RenderBatchLocalVSUninstanced(world, render_context, material, material_index, component, buf, begin, end);
         }
-
-        /*
-        if (inst_decl)
-        {
-            instance_count                          = end - begin;
-            instance_stride                         = dmGraphics::GetVertexDeclarationStride(inst_decl);
-            uint32_t required_instance_memory_count = instance_count * instance_stride;
-
-            if (world->m_InstanceBufferDataLocalSpace.Remaining() < required_instance_memory_count)
-            {
-                world->m_InstanceBufferDataLocalSpace.OffsetCapacity(required_instance_memory_count - world->m_InstanceBufferDataLocalSpace.Remaining());
-            }
-
-            instance_write_ptr = world->m_InstanceBufferDataLocalSpace.End();
-        }
-
-        for (uint32_t *i=begin;i!=end;i++)
-        {
-            render_item                           = (MeshRenderItem*) buf[*i].m_UserData;
-            component                             = render_item->m_Component;
-            material_index                        = render_item->m_MaterialIndex;
-            material                              = GetMaterial(component, component->m_Resource, material_index);
-            ModelResourceBuffers* buffers         = render_item->m_Buffers;
-            MeshAttributeRenderData* attribute_rd = 0;
-
-            bool new_ro = inst_decl ? ro == 0x0 : true;
-            if (new_ro)
-            {
-                world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
-                ro = &world->m_RenderObjects.Back();
-                ro->Init();
-                ro->m_Material              = material;
-                ro->m_PrimitiveType         = dmGraphics::PRIMITIVE_TRIANGLES;
-                ro->m_VertexStart           = 0;
-                ro->m_VertexCount           = buffers->m_IndexCount;
-                ro->m_IndexBuffer           = buffers->m_IndexBuffer;              // May be 0
-                ro->m_IndexType             = buffers->m_IndexBufferElementType;
-                ro->m_VertexDeclarations[0] = world->m_VertexDeclaration;
-                ro->m_VertexBuffers[0]      = buffers->m_VertexBuffer;
-
-                if (inst_decl)
-                {
-                    ro->m_WorldTransform         = Matrix4::identity();
-                    ro->m_VertexDeclarations[2]  = world->m_InstanceVertexDeclaration;
-                    ro->m_VertexBuffers[2]       = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_InstanceBufferLocalSpace);
-                    ro->m_VertexBufferOffsets[2] = world->m_InstanceBufferDataLocalSpace.Size();
-                }
-            }
-
-            if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
-            {
-                attribute_rd = &component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex];
-
-                if (!attribute_rd->m_Initialized)
-                {
-                    SetupMeshAttributeRenderData(render_context,
-                        ro->m_Material,
-                        render_item,
-                        component->m_Resource->m_Materials[material_index].m_Attributes,
-                        component->m_Resource->m_Materials[material_index].m_AttributeCount,
-                        attribute_rd);
-                }
-
-                if (dmGraphics::GetVertexDeclarationStreamCount(attribute_rd->m_VertexDeclaration) > 0)
-                {
-                    ro->m_VertexDeclarations[1] = attribute_rd->m_VertexDeclaration;
-                    ro->m_VertexBuffers[1]      = attribute_rd->m_VertexBuffer;
-                }
-
-                if (dmGraphics::GetVertexDeclarationStreamCount(attribute_rd->m_InstanceVertexDeclaration) > 0)
-                {
-                    ro->m_VertexDeclarations[2] = attribute_rd->m_InstanceVertexDeclaration;
-                }
-            }
-
-            if (inst_decl)
-            {
-                ro->m_InstanceCount++;
-
-                if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
-                {
-                    dmGraphics::VertexAttributeInfos material_infos;
-                    FillMaterialAttributeInfos(material, attribute_rd->m_InstanceVertexDeclaration, &material_infos);
-
-                    dmGraphics::VertexAttributeInfos attribute_infos;
-                    FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
-                                component->m_Resource->m_Materials[material_index].m_Attributes,
-                                component->m_Resource->m_Materials[material_index].m_AttributeCount,
-                                &material_infos,
-                                &attribute_infos);
-
-                    dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
-                    dmRig::WriteVertexAttributeParams params = {};
-                    FillWriteVertexAttributeParams(render_item->m_Mesh, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
-                        &attribute_infos, &render_item->m_World, &normal_matrix, &params);
-
-                    dmRig::WriteSingleVertexDataByAttributes(instance_write_ptr, params);
-                    instance_write_ptr += instance_stride;
-                }
-                else
-                {
-                    assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclaration) == sizeof(ModelInstanceData));
-                    ModelInstanceData* instance_data = (ModelInstanceData*) instance_write_ptr;
-                    instance_data->m_WorldTransform  = render_item->m_World;
-                    instance_data->m_NormalTransform = dmRender::GetNormalMatrix(render_context, render_item->m_World);
-                    instance_write_ptr += sizeof(ModelInstanceData);
-                }
-            }
-            else
-            {
-                ro->m_WorldTransform = render_item->m_World;
-            }
-
-            FillTextures(ro, component, material_index);
-
-            if (component->m_RenderConstants)
-            {
-                dmGameSystem::EnableRenderObjectConstants(ro, component->m_RenderConstants);
-            }
-
-            if (!inst_decl)
-            {
-                dmRender::AddToRender(render_context, ro);
-                ro = 0;
-            }
-        }
-
-        if (ro)
-        {
-            dmRender::AddToRender(render_context, ro);
-        }
-
-        world->m_InstanceBufferDataLocalSpace.SetSize(instance_write_ptr - world->m_InstanceBufferDataLocalSpace.Begin());
-        */
     }
 
     #if 0
