@@ -19,6 +19,7 @@
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.outline :as outline]
+            [editor.pipeline :as pipeline]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -127,30 +128,15 @@
     :speed speed
     :loopcount loopcount))
 
-(defn build-sound
-  [resource dep-resources user-data]
-  (let [pb-msg (reduce #(assoc %1 (first %2) (second %2))
-                       (:pb-msg user-data)
-                       (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
-    {:resource resource
-     :content (protobuf/map->bytes Sound$SoundDesc pb-msg)}))
+(defn make-sound-desc-build-target [owner-resource-node-id sound-desc-resource sound-desc dep-build-targets]
+  {:pre [(map? sound-desc)]} ; Sound$SoundDesc in map format.
+  (pipeline/make-protobuf-build-target owner-resource-node-id sound-desc-resource Sound$SoundDesc sound-desc dep-build-targets))
 
 (g/defnk produce-build-targets
   [_node-id resource sound dep-build-targets save-value]
   (or (validation/prop-error :fatal _node-id :sound validation/prop-nil? sound "Sound")
       (validation/prop-error :fatal _node-id :sound validation/prop-nil? (seq dep-build-targets) "Sound")
-      (let [dep-build-targets (flatten dep-build-targets)
-            deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
-            dep-resources (map (fn [[label resource]]
-                                 [label (get deps-by-resource resource)])
-                               [[:sound sound]])]
-        [(bt/with-content-hash
-           {:node-id _node-id
-            :resource (workspace/make-build-resource resource)
-            :build-fn build-sound
-            :user-data {:pb-msg save-value
-                        :dep-resources dep-resources}
-            :deps dep-build-targets})])))
+      [(make-sound-desc-build-target _node-id resource save-value dep-build-targets)]))
 
 (defn load-sound [_project self resource sound-desc]
   {:pre [(map? sound-desc)]} ; Sound$SoundDesc in map format.

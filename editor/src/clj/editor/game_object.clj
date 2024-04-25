@@ -62,27 +62,18 @@
         :data source-save-value)
       (game-object-common/strip-default-scale-from-component-desc)))
 
-(defn- build-raw-sound [resource dep-resources user-data]
-  (let [pb (:pb user-data)
-        pb (assoc pb :sound (resource/proj-path (second (first dep-resources))))]
-    {:resource resource :content (protobuf/map->bytes Sound$SoundDesc pb)}))
-
-(defn- wrap-if-raw-sound [target _node-id]
-  (let [resource (:resource (:resource target))
-        source-path (resource/proj-path resource)
-        ext (resource/type-ext resource)]
-    (if (sound/supported-audio-formats ext)
-      (let [workspace (project/workspace (project/get-project _node-id))
-            res-type  (workspace/get-resource-type workspace "sound")
-            pb        {:sound source-path}
-            target    (bt/with-content-hash
-                        {:node-id _node-id
-                         ;; TODO(save-value): Should this sound really be embedded as a string?
-                         :resource (workspace/make-build-resource (resource/make-memory-resource workspace res-type (protobuf/map->str Sound$SoundDesc pb)))
-                         :build-fn build-raw-sound
-                         :deps [target]})]
-        target)
-      target)))
+(defn- wrap-if-raw-sound [component-source-build-target _node-id]
+  (let [build-resource (:resource component-source-build-target)
+        source-resource (:resource build-resource)
+        ext (resource/type-ext source-resource)]
+    (if-not (sound/supported-audio-formats ext)
+      component-source-build-target ; Not a raw sound. Return unaltered.
+      (let [workspace (resource/workspace source-resource)
+            sound-desc (protobuf/make-map-without-defaults Sound$SoundDesc
+                         :sound (resource/proj-path source-resource))
+            sound-desc-resource (workspace/make-embedded-resource workspace :editable "sound" sound-desc)
+            dep-build-targets [component-source-build-target]]
+        (sound/make-sound-desc-build-target _node-id sound-desc-resource sound-desc dep-build-targets)))))
 
 (defn- source-outline-subst [err]
   (if-let [resource (get-in err [:user-data :resource])]
