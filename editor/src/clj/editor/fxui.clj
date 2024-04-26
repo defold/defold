@@ -13,7 +13,6 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.fxui
-  (:refer-clojure :exclude [partial])
   (:require [cljfx.api :as fx]
             [cljfx.coerce :as fx.coerce]
             [cljfx.component :as fx.component]
@@ -34,7 +33,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.ui :as ui]
             [editor.util :as eutil])
-  (:import [clojure.lang Fn IFn IHashEq MultiFn]
+  (:import [clojure.lang MultiFn]
            [com.defold.control ListCell]
            [java.util Collection]
            [javafx.application Platform]
@@ -593,66 +592,3 @@
                                 :icon/circle-check "#65c647"
                                 (:icon/triangle-error :icon/triangle-sad) "#e32f44"
                                 "#9fb0be"))))
-
-(deftype PartialFn [pfn fn args]
-  Fn
-  IFn
-  (invoke [_]
-    (pfn))
-  (invoke [_ a]
-    (pfn a))
-  (invoke [_ a b]
-    (pfn a b))
-  (invoke [_ a b c]
-    (pfn a b c))
-  (invoke [_ a b c d]
-    (pfn a b c d))
-  (invoke [_ a b c d e]
-    (pfn a b c d e))
-  (invoke [_ a b c d e f]
-    (pfn a b c d e f))
-  (invoke [_ a b c d e f g]
-    (pfn a b c d e f g))
-  (invoke [_ a b c d e f g h]
-    (pfn a b c d e f g h))
-  (invoke [_ a b c d e f g h i]
-    (pfn a b c d e f g h i))
-  (invoke [_ a b c d e f g h i j]
-    (pfn a b c d e f g h i j))
-  (invoke [_ a b c d e f g h i j k]
-    (pfn a b c d e f g h i j k))
-  (invoke [_ a b c d e f g h i j k l]
-    (pfn a b c d e f g h i j k l))
-  (invoke [_ a b c d e f g h i j k l m]
-    (pfn a b c d e f g h i j k l m))
-  (invoke [_ a b c d e f g h i j k l m n]
-    (pfn a b c d e f g h i j k l m n))
-  (invoke [_ a b c d e f g h i j k l m n o]
-    (pfn a b c d e f g h i j k l m n o))
-  (invoke [_ a b c d e f g h i j k l m n o p]
-    (pfn a b c d e f g h i j k l m n o p))
-  (invoke [_ a b c d e f g h i j k l m n o p q]
-    (pfn a b c d e f g h i j k l m n o p q))
-  (invoke [_ a b c d e f g h i j k l m n o p q r]
-    (pfn a b c d e f g h i j k l m n o p q r))
-  (invoke [_ a b c d e f g h i j k l m n o p q r s]
-    (pfn a b c d e f g h i j k l m n o p q r s))
-  (invoke [_ a b c d e f g h i j k l m n o p q r s t]
-    (pfn a b c d e f g h i j k l m n o p q r s t))
-  (invoke [_ a b c d e f g h i j k l m n o p q r s t rest]
-    (apply pfn a b c d e f g h i j k l m n o p q r s t rest))
-  (applyTo [_ arglist]
-    (apply pfn arglist))
-  IHashEq
-  (hasheq [_]
-    (hash [fn args]))
-  Object
-  (equals [_ obj]
-    (if (instance? PartialFn obj)
-      (let [^PartialFn that obj]
-        (and (= fn (.-fn that))
-             (= args (.-args that))))
-      false)))
-
-(defn partial [f & args]
-  (PartialFn. (apply clojure.core/partial f args) f args))

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -931,7 +931,7 @@ namespace dmGameSystem
                     dmMessage::ResetURL(receiver);
                     receiver->m_Socket = dmGameObject::GetMessageSocket(collection);
                     receiver->m_Path = dmGameObject::GetIdentifier(sender_instance);
-                    
+
                     dmPhysics::RayCastRequest request;
                     request.m_From = ddf->m_From;
                     request.m_To = ddf->m_To;
@@ -1770,26 +1770,6 @@ namespace dmGameSystem
         }
     }
 
-    static void CalculateBoxDimensions2D(float* vertices, uint32_t vertex_count, float* dimension2d)
-    {
-        float min_x = INT32_MAX,
-              min_y = INT32_MAX,
-              max_x = -INT32_MAX,
-              max_y = -INT32_MAX;
-
-        for (int i = 0; i < vertex_count * 2; i += 2)
-        {
-            min_x = dmMath::Min(min_x, vertices[i]);
-            max_x = dmMath::Max(max_x, vertices[i]);
-            min_y = dmMath::Min(min_y, vertices[i+1]);
-            max_y = dmMath::Max(max_y, vertices[i+1]);
-        }
-
-        dimension2d[0] = (max_x - min_x) * 0.5f;
-        dimension2d[1] = (max_y - min_y) * 0.5f;
-        dimension2d[2] = 1.0f;
-    }
-
     bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out)
     {
         CollisionComponent* component = (CollisionComponent*) _component;
@@ -1857,20 +1837,22 @@ namespace dmGameSystem
         }
         else
         {
-            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(component->m_Object2D, shape_ix);
+            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(world->m_World2D, component->m_Object2D, shape_ix);
 
             switch(shape_info->m_Type)
             {
                 case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
                 {
-                    dmPhysics::GetCollisionShapeRadius2D(shape2d, &shape_info->m_SphereDiameter);
+                    float sphere_radius;
+                    dmPhysics::GetCollisionShapeRadius2D(world->m_World2D, shape2d, &sphere_radius);
+                    shape_info->m_SphereDiameter = sphere_radius * 2.0f;
                 } break;
                 case dmPhysicsDDF::CollisionShape::TYPE_BOX:
                 {
-                    float* vertices;
-                    uint32_t vertex_count;
-                    dmPhysics::GetCollisionShapePolygonVertices2D(shape2d, &vertices, &vertex_count);
-                    CalculateBoxDimensions2D(vertices, vertex_count, shape_info->m_BoxDimensions);
+                    shape_info->m_BoxDimensions[0] = 0.0f;
+                    shape_info->m_BoxDimensions[1] = 0.0f;
+                    shape_info->m_BoxDimensions[2] = 1.0f;
+                    dmPhysics::GetCollisionShapeBoxDimensions2D(world->m_World2D, shape2d, component->m_Resource->m_ShapeRotation[shape_ix], shape_info->m_BoxDimensions[0], shape_info->m_BoxDimensions[1]);
                 } break;
                 default: assert(0);
             }
@@ -1946,18 +1928,18 @@ namespace dmGameSystem
         }
         else
         {
-            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(component->m_Object2D, shape_ix);
+            dmPhysics::HCollisionShape2D shape2d = dmPhysics::GetCollisionShape2D(world->m_World2D, component->m_Object2D, shape_ix);
 
             switch(shape_info->m_Type)
             {
                 case dmPhysicsDDF::CollisionShape::TYPE_SPHERE:
                 {
-                    dmPhysics::SetCollisionShapeRadius2D(shape2d, shape_info->m_SphereDiameter);
-                    dmPhysics::SynchronizeObject2D(component->m_Object2D);
+                    dmPhysics::SetCollisionShapeRadius2D(world->m_World2D, shape2d, shape_info->m_SphereDiameter * 0.5f);
+                    dmPhysics::SynchronizeObject2D(world->m_World2D, component->m_Object2D);
                 } break;
                 case dmPhysicsDDF::CollisionShape::TYPE_BOX:
                 {
-                    dmPhysics::SetCollisionShapeBoxDimensions2D(shape2d, shape_info->m_BoxDimensions[0], shape_info->m_BoxDimensions[1]);
+                    dmPhysics::SetCollisionShapeBoxDimensions2D(world->m_World2D, shape2d, component->m_Resource->m_ShapeRotation[shape_ix], shape_info->m_BoxDimensions[0] * 0.5f, shape_info->m_BoxDimensions[1] * 0.5f);
                 } break;
                 default: assert(0);
             }
@@ -2156,5 +2138,28 @@ namespace dmGameSystem
         pit->m_Node = node;
         pit->m_Next = 0;
         pit->m_FnIterateNext = CompCollisionIterPropertiesGetNext;
+    }
+
+    b2World* CompCollisionObjectGetBox2DWorld(void* _world)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (world->m_3D)
+            return 0;
+        return (b2World*)dmPhysics::GetWorldContext2D(world->m_World2D);
+    }
+
+    b2Body* CompCollisionObjectGetBox2DBody(void* _component)
+    {
+        CollisionComponent* component = (CollisionComponent*)_component;
+        if (component->m_3D)
+            return 0;
+        return (b2Body*)dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
+    }
+
+    // We use this to determine if a physics object is still alive, by determinig if the game object is still alive
+    dmGameObject::HInstance CompCollisionObjectGetInstance(void* _user_data)
+    {
+        CollisionComponent* component = (CollisionComponent*)_user_data; // See SetCollisionObjectData and dmPhysics::NewCollisionObject2D
+        return component->m_Instance;
     }
 }

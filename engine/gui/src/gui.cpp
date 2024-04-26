@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -99,13 +99,6 @@ namespace dmGui
     { dmHashString64(#name ".z"), prop, 2 }, \
     { dmHashString64(#name ".w"), prop, 3 },
 
-    struct PropDesc
-    {
-        dmhash_t m_Hash;
-        Property m_Property;
-        uint8_t  m_Component;
-    };
-
     PropDesc g_Properties[] = {
             PROP(position, PROPERTY_POSITION )
             PROP(rotation, PROPERTY_ROTATION )
@@ -115,6 +108,7 @@ namespace dmGui
             PROP(outline, PROPERTY_OUTLINE )
             PROP(shadow, PROPERTY_SHADOW )
             PROP(slice9, PROPERTY_SLICE9 )
+            PROP(euler, PROPERTY_EULER )
             { dmHashString64("inner_radius"), PROPERTY_PIE_PARAMS, 0 },
             { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
             { dmHashString64("leading"), PROPERTY_TEXT_PARAMS, 0 },
@@ -131,9 +125,10 @@ namespace dmGui
             { dmHashString64("outline"), PROPERTY_OUTLINE, 0xff },
             { dmHashString64("shadow"), PROPERTY_SHADOW, 0xff },
             { dmHashString64("slice"), PROPERTY_SLICE9, 0xff },
+            { dmHashString64("euler"), PROPERTY_EULER, 0xff },
     };
 
-    static PropDesc* GetPropertyDesc(dmhash_t property_hash)
+    PropDesc* GetPropertyDesc(dmhash_t property_hash)
     {
         int n_props = sizeof(g_Properties) / sizeof(g_Properties[0]);
         for (int i = 0; i < n_props; ++i) {
@@ -443,19 +438,19 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    Result AddTexture(HScene scene, dmhash_t texture_name_hash, void* texture, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    Result AddTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
         if (scene->m_Textures.Full())
             return RESULT_OUT_OF_RESOURCES;
 
-        scene->m_Textures.Put(texture_name_hash, TextureInfo(texture, texture_type, original_width, original_height));
+        scene->m_Textures.Put(texture_name_hash, TextureInfo(texture_source, texture_type, original_width, original_height));
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
             if (nodes[i].m_Node.m_TextureHash == texture_name_hash)
             {
-                nodes[i].m_Node.m_Texture     = texture;
+                nodes[i].m_Node.m_Texture     = texture_source;
                 nodes[i].m_Node.m_TextureType = texture_type;
             }
         }
@@ -500,7 +495,7 @@ namespace dmGui
         }
     }
 
-    void* GetTexture(HScene scene, dmhash_t texture_name_hash)
+    HTextureSource GetTexture(HScene scene, dmhash_t texture_name_hash)
     {
         TextureInfo* textureInfo = scene->m_Textures.Get(texture_name_hash);
         if (!textureInfo)
@@ -1073,7 +1068,7 @@ namespace dmGui
             if (texture->m_Handle) {
                 float buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024.0 / 1024.0;
                 DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
-                params->m_Params->m_DeleteTexture(scene, texture->m_Handle, context);
+                params->m_Params->m_DeleteTexture(scene, texture->m_Handle, NODE_TEXTURE_TYPE_DYNAMIC, context);
             }
             if (scene->m_DeletedDynamicTextures.Full()) {
                 scene->m_DeletedDynamicTextures.OffsetCapacity(16);
@@ -1131,7 +1126,7 @@ namespace dmGui
             if (texture.m_Handle) {
                 float buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type) / 1024.0 / 1024.0;
                 DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
-                delete_texture(scene, texture.m_Handle, scene->m_Context);
+                delete_texture(scene, texture.m_Handle, NODE_TEXTURE_TYPE_DYNAMIC, scene->m_Context);
             }
         }
         scene->m_DynamicTextures.Clear();
@@ -2395,7 +2390,7 @@ namespace dmGui
         InternalNode* node = &scene->m_Nodes[index];
         memset(node, 0, sizeof(InternalNode));
         node->m_Node.m_Properties[PROPERTY_POSITION] = Vector4(Vector3(position), 1);
-        node->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(0);
+        node->m_Node.m_Properties[PROPERTY_ROTATION] = Vector4(0, 0, 0, 1);
         node->m_Node.m_Properties[PROPERTY_SCALE] = Vector4(1,1,1,0);
         node->m_Node.m_Properties[PROPERTY_COLOR] = Vector4(1,1,1,1);
         node->m_Node.m_Properties[PROPERTY_OUTLINE] = Vector4(0,0,0,1);
@@ -2404,6 +2399,8 @@ namespace dmGui
         node->m_Node.m_Properties[PROPERTY_SLICE9] = Vector4(0,0,0,0);
         node->m_Node.m_Properties[PROPERTY_PIE_PARAMS] = Vector4(0,360,0,0);
         node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 0, 0);
+        node->m_Node.m_Properties[PROPERTY_EULER] = Vector4(0);
+        node->m_Node.m_Properties[PROPERTY_PREV_EULER] = Vector4(0);
         node->m_Node.m_LocalTransform = Matrix4::identity();
         node->m_Node.m_LocalAdjustScale = Vector4(1.0, 1.0, 1.0, 1.0);
         node->m_Node.m_PerimeterVertices = 32;
@@ -2774,9 +2771,41 @@ namespace dmGui
         scale = mulPerElem(adjust_scale, scale);
     }
 
+    // Same euler checks as in gameobject.cpp
+    static void UpdateEulerToRotation(Node& node)
+    {
+        dmVMath::Vector4 euler = node.m_Properties[dmGui::PROPERTY_EULER];
+        node.m_Properties[dmGui::PROPERTY_PREV_EULER] = euler;
+        dmVMath::Quat r = dmVMath::EulerToQuat(euler.getXYZ());
+        node.m_Properties[dmGui::PROPERTY_ROTATION] = dmVMath::Vector4(r);
+    }
+
+    static inline bool Vec3Equals(const uint32_t* a, const uint32_t* b)
+    {
+        return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
+    }
+
+    static bool HasEulerChanged(Node& node)
+    {
+        Vector4& euler = node.m_Properties[dmGui::PROPERTY_EULER];
+        Vector4& prev_euler = node.m_Properties[dmGui::PROPERTY_PREV_EULER];
+        return !Vec3Equals((uint32_t*)(&euler), (uint32_t*)(&prev_euler));
+    }
+
+    static void CheckEuler(Node& node)
+    {
+        if (HasEulerChanged(node))
+        {
+            UpdateEulerToRotation(node);
+        }
+    }
+
     void UpdateLocalTransform(HScene scene, InternalNode* n)
     {
         Node& node = n->m_Node;
+
+        // Check if the euler has been animated/altered, and we need to update rotation
+        CheckEuler(node);
 
         Vector4 position = node.m_Properties[dmGui::PROPERTY_POSITION];
         Vector4 prop_scale = node.m_Properties[dmGui::PROPERTY_SCALE];
@@ -2786,9 +2815,11 @@ namespace dmGui
             reference_scale = CalculateReferenceScale(scene, n);
             AdjustPosScale(scene, n, reference_scale, position, node.m_LocalAdjustScale);
         }
-        const Vector3& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION].getXYZ();
-        Quat r = dmVMath::EulerToQuat(rotation);
-        r = normalize(r);
+
+        // const Vector3& rotation = node.m_Properties[dmGui::PROPERTY_ROTATION].getXYZ();
+        // Quat r = dmVMath::EulerToQuat(rotation);
+        // r = normalize(r);
+        Quat r(node.m_Properties[dmGui::PROPERTY_ROTATION]);
 
         node.m_LocalTransform.setUpper3x3(Matrix3::rotation(r) * Matrix3::scale( mulPerElem(node.m_LocalAdjustScale, prop_scale).getXYZ() ));
         node.m_LocalTransform.setTranslation(position.getXYZ());
@@ -2909,6 +2940,19 @@ namespace dmGui
     {
         assert(property < PROPERTY_COUNT);
         InternalNode* n = GetNode(scene, node);
+
+        if (property == PROPERTY_EULER)
+        {
+            dmVMath::Quat qr = dmVMath::EulerToQuat(value.getXYZ());
+            n->m_Node.m_Properties[PROPERTY_ROTATION] = dmVMath::Vector4(qr);
+        }
+        else if (property == PROPERTY_ROTATION)
+        {
+            Quat q = dmVMath::Quat(value);
+            Vector4 v = Vector4(dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW()));
+            n->m_Node.m_Properties[PROPERTY_EULER] = v;
+        }
+
         n->m_Node.m_Properties[property] = value;
         n->m_Node.m_DirtyLocal = 1;
     }
@@ -2985,7 +3029,7 @@ namespace dmGui
         return n->m_Node.m_MaterialNameHash;
     }
 
-    void* GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
+    HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         InternalNode* n = GetNode(scene, node);
         *textureTypeOut = n->m_Node.m_TextureType;
@@ -3071,7 +3115,7 @@ namespace dmGui
         return SetNodeTexture(scene, node, dmHashString64(texture_id));
     }
 
-    Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, void* texture)
+    Result SetNodeTexture(HScene scene, HNode node, NodeTextureType type, HTextureSource texture)
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_TextureHash = (uintptr_t)texture;
@@ -3670,22 +3714,6 @@ namespace dmGui
         {
             dmLogError("property '%s' not found", dmHashReverseSafe64(property));
         }
-    }
-
-    void AnimateNode(HScene scene,
-                     HNode node,
-                     Property property,
-                     const Vector4& to,
-                     dmEasing::Curve easing,
-                     Playback playback,
-                     float duration,
-                     float delay,
-                     AnimationComplete animation_complete,
-                     void* userdata1,
-                     void* userdata2)
-    {
-        dmhash_t prop_hash = g_PropTable[property].m_Hash;
-        AnimateNodeHash(scene, node, prop_hash, to, easing, playback, duration, delay, animation_complete, userdata1, userdata2);
     }
 
     dmhash_t GetPropertyHash(Property property)

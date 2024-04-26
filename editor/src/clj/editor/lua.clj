@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -30,12 +30,12 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private docs
-  ["base" "bit" "buffer" "builtins" "camera" "collectionfactory"
-   "collectionproxy" "coroutine" "crash" "debug" "facebook" "factory" "go" "gui"
-   "html5" "http" "iac" "iap" "image" "io" "json" "label" "math" "model" "msg"
-   "os" "package" "particlefx" "physics" "profiler" "push" "render" "resource"
+  ["base" "bit" "buffer" "b2d" "b2d.body" "builtins" "camera" "collectionfactory"
+   "collectionproxy" "coroutine" "crash" "debug" "factory" "go" "gui"
+   "html5" "http" "image" "io" "json" "label" "math" "model" "msg"
+   "os" "package" "particlefx" "physics" "profiler" "render" "resource"
    "socket" "sound" "sprite" "string" "sys" "table" "tilemap" "timer" "vmath"
-   "webview" "window" "zlib"])
+   "window" "zlib"])
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))

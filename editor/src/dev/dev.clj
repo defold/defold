@@ -17,25 +17,46 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
+            [editor.buffers :as buffers]
             [editor.changes-view :as changes-view]
+            [editor.code.data :as code.data]
+            [editor.code.util :as code.util]
+            [editor.collection :as collection]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
             [editor.defold-project :as project]
+            [editor.game-object :as game-object]
+            [editor.gl.vertex2 :as vtx]
             [editor.math :as math]
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.scene-cache :as scene-cache]
             [editor.util :as eutil]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
             [internal.util :as util]
-            [util.coll :as coll :refer [pair]])
+            [lambdaisland.deep-diff2 :as deep-diff]
+            [lambdaisland.deep-diff2.minimize-impl :as deep-diff.minimize-impl]
+            [lambdaisland.deep-diff2.puget.color :as puget.color]
+            [lambdaisland.deep-diff2.puget.printer :as puget.printer]
+            [util.coll :as coll :refer [pair]]
+            [util.diff :as diff])
   (:import [com.defold.util WeakInterner]
-           [internal.graph.types Arc]
+           [editor.code.data Cursor CursorRange]
+           [editor.gl.pass RenderPass]
+           [editor.gl.vertex2 VertexBuffer]
+           [editor.resource FileResource MemoryResource ZipResource]
+           [editor.types AABB]
+           [internal.graph.types Arc Endpoint]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
-           [javafx.stage Window]))
+           [java.nio ByteBuffer]
+           [javafx.stage Window]
+           [javax.vecmath Matrix3d Matrix4d Point2d Point3d Point4d Quat4d Vector2d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -74,6 +95,74 @@
        first))
 
 (def sel (comp first selection))
+
+(defn- throw-invalid-component-resource-node-id-exception [basis node-id]
+  (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
+                  {:node-id node-id
+                   :node-type (g/node-type* basis node-id)})))
+
+(defn- validate-component-resource-node-id
+  ([node-id]
+   (validate-component-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   (if (and (g/node-instance? basis resource-node/ResourceNode node-id)
+            (when-some [resource-type (resource/resource-type (resource-node/resource basis node-id))]
+              (contains? (:tags resource-type) :component)))
+     node-id
+     (throw-invalid-component-resource-node-id-exception basis node-id))))
+
+(defn to-component-resource-node-id
+  ([node-id]
+   (to-component-resource-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [resource-node/ResourceNode
+                                                  game-object/EmbeddedComponent
+                                                  game-object/ReferencedComponent])
+     resource-node/ResourceNode
+     (validate-component-resource-node-id basis node-id)
+
+     game-object/EmbeddedComponent
+     (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :embedded-resource-id))
+
+     game-object/ReferencedComponent
+     (validate-component-resource-node-id basis (g/node-feeding-into basis node-id :source-resource))
+
+     :else
+     (throw-invalid-component-resource-node-id-exception basis node-id))))
+
+(defn to-game-object-node-id
+  ([node-id]
+   (to-game-object-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [game-object/GameObjectNode
+                                                  collection/GameObjectInstanceNode])
+     game-object/GameObjectNode
+     node-id
+
+     collection/GameObjectInstanceNode
+     (g/node-feeding-into basis node-id :source-resource)
+
+     :else
+     (throw (ex-info "The specified node cannot be resolved to a GameObjectNode."
+                     {:node-id node-id
+                      :node-type (g/node-type* basis node-id)})))))
+
+(defn to-collection-node-id
+  ([node-id]
+   (to-collection-node-id (g/now) node-id))
+  ([basis node-id]
+   (condp = (g/node-instance-match basis node-id [collection/CollectionNode
+                                                  collection/CollectionInstanceNode])
+     collection/CollectionNode
+     node-id
+
+     collection/CollectionInstanceNode
+     (g/node-feeding-into basis node-id :source-resource)
+
+     :else
+     (throw (ex-info "The specified node cannot be resolved to a CollectionNode."
+                     {:node-id node-id
+                      :node-type (g/node-type* basis node-id)})))))
 
 (defn prefs []
   (prefs/make-prefs "defold"))
@@ -180,10 +269,16 @@
 
 (def node-type-key (comp :k g/node-type*))
 
-(defn- class-symbol [^Class class]
-  (-> (.getSimpleName class)
+(defn- class-name->symbol [^String class-name]
+  (-> class-name
       (string/replace "[]" "-array") ; For arrays, e.g. "byte[]" -> "byte-array"
       (symbol)))
+
+(defn- class-symbol [^Class class]
+  (class-name->symbol (.getSimpleName class)))
+
+(defn- namespaced-class-symbol [^Class class]
+  (class-name->symbol (.getName class)))
 
 (defn- node-value-type-symbol [node-value-type]
   (if-some [class (:class (deref node-value-type))]
@@ -682,3 +777,298 @@
   (System/gc)
   (Thread/sleep 500)
   (weak-interner-stats gt/endpoint-interner))
+
+(defn scene-cache-stats-by-context-id
+  "Returns a sorted map where the keys are scene cache context ids mapped to a
+  sorted map of cache-ids, to the number of entries in the context cache for that
+  cache-id. The number of entries represent the number of unique request-ids
+  in the cache. The contexts are typically OpenGL contexts, so in order to group
+  the results, we use a string representation of the identity hash code of the
+  OpenGL context as the context-id."
+  []
+  (util/group-into
+    (sorted-map) (sorted-map)
+    (fn key-fn [[[context-id _cache-id] _entry-count]]
+      context-id)
+    (fn value-fn [[[_context-id cache-id] entry-count]]
+      (pair cache-id entry-count))
+    (scene-cache/cache-stats)))
+
+(defn cache-stats-by-cache-id
+  "Returns a sorted map where the keys are scene cache cache-ids mapped to a
+  sorted map of context ids, to the number of entries in the identified cache
+  for that context. The number of entries represent the number of unique
+  request-ids in the cache. The contexts are typically OpenGL contexts, so in
+  order to group the results, we use a string representation of the identity
+  hash code of the OpenGL context as the context-id."
+  []
+  (util/group-into
+    (sorted-map) (sorted-map)
+    (fn key-fn [[[_context-id cache-id] _entry-count]]
+      cache-id)
+    (fn value-fn [[[context-id _cache-id] entry-count]]
+      (pair context-id entry-count))
+    (scene-cache/cache-stats)))
+
+(set! *warn-on-reflection* false)
+
+(defn- buf-clj-attribute-data [^ByteBuffer buf ^long buf-vertex-attribute-offset ^long attribute-byte-size component-data-type]
+  (let [primitive-type-kw (buffers/primitive-type-kw component-data-type)
+        read-buf (-> buf
+                     (.slice buf-vertex-attribute-offset attribute-byte-size)
+                     (.order (.order buf))
+                     (buffers/as-typed-buffer component-data-type))]
+    (loop [clj-vector (vector-of primitive-type-kw)]
+      (if (.hasRemaining read-buf)
+        (let [attribute-component (.get read-buf) ; Return type differs by Buffer subclass.
+              clj-vector (conj clj-vector attribute-component)]
+          (recur clj-vector))
+        clj-vector))))
+
+(set! *warn-on-reflection* true)
+
+(defn- buf-clj-vertex-data [^ByteBuffer buf vertex-attributes ^long vertex-stride]
+  (let [buf-size (.limit buf)]
+    (assert (zero? (rem buf-size vertex-stride)) "Buffer size does not confirm to vertex stride.")
+    (mapv (fn [^long buf-vertex-offset]
+            (persistent!
+              (val
+                (reduce (fn [[^long buf-vertex-attribute-offset clj-vertex] vertex-attribute]
+                          (let [attribute-key (:name-key vertex-attribute)
+                                attribute-byte-size (vtx/attribute-size vertex-attribute)
+                                component-data-type (:type vertex-attribute)
+                                clj-vertex-attribute-data (buf-clj-attribute-data buf buf-vertex-attribute-offset attribute-byte-size component-data-type)
+                                clj-vertex-attribute (pair attribute-key clj-vertex-attribute-data)
+                                clj-vertex (conj! clj-vertex clj-vertex-attribute)
+                                buf-vertex-attribute-offset (+ buf-vertex-attribute-offset attribute-byte-size)]
+                            (pair buf-vertex-attribute-offset clj-vertex)))
+                        (pair buf-vertex-offset (transient []))
+                        vertex-attributes))))
+          (range 0 buf-size vertex-stride))))
+
+(defn vertex-buffer-to-clj
+  [^VertexBuffer vbuf]
+  (let [{:keys [attributes ^long size]} (.vertex-description vbuf)
+        vertex-count (count vbuf)
+        buf (.buf vbuf)]
+    {:bytes (* vertex-count size)
+     :count vertex-count
+     :stride size
+     :verts (buf-clj-vertex-data buf attributes size)}))
+
+(defn vertex-buffer-print-data [^VertexBuffer vbuf]
+  (-> (vertex-buffer-to-clj vbuf)
+      (update :verts (fn [verts]
+                       (conj (subvec verts 0 (min 3 (count verts)))
+                             '...)))))
+
+(defmulti matrix-row (fn [matrix ^long _row-index] (class matrix)))
+
+(defmethod matrix-row Matrix3d
+  [^Matrix3d matrix ^long row-index]
+  (let [row (double-array 3)]
+    (.getRow matrix row-index row)
+    row))
+
+(defmethod matrix-row Matrix4d
+  [^Matrix4d matrix ^long row-index]
+  (let [row (double-array 4)]
+    (.getRow matrix row-index row)
+    row))
+
+(def pretty-printer
+  (let [fmt-doc puget.printer/format-doc
+        col-doc puget.color/document
+        col-txt puget.color/text]
+    (letfn [(cls-tag [printer ^Class class]
+              (col-doc printer :class-name [:span "#" (.getSimpleName class)]))
+
+            (cls-tag-doc [printer ^Class class document]
+              [:group
+               (cls-tag printer class)
+               document])
+
+            (object-data-pprint-handler [printer-opts object->value printer object]
+              (cls-tag-doc
+                (cond-> pretty-printer printer-opts (merge printer-opts))
+                (class object)
+                (fmt-doc printer (object->value object))))]
+
+      (let [editor-pprint-handlers
+            {(namespaced-class-symbol AABB)
+             (letfn [(aabb->value [^AABB aabb]
+                       {:min (math/vecmath->clj (.min aabb))
+                        :max (math/vecmath->clj (.max aabb))})]
+               (partial object-data-pprint-handler {:sort-keys false} aabb->value))
+
+             (namespaced-class-symbol Cursor)
+             (partial object-data-pprint-handler nil code.data/cursor-print-data)
+
+             (namespaced-class-symbol CursorRange)
+             (partial object-data-pprint-handler nil code.data/cursor-range-print-data)
+
+             (namespaced-class-symbol RenderPass)
+             (fn render-pass-pprint-handler [printer ^RenderPass render-pass]
+               (fmt-doc printer (symbol "pass" (.nm render-pass))))
+
+             (namespaced-class-symbol VertexBuffer)
+             (partial object-data-pprint-handler nil vertex-buffer-print-data)}
+
+            graph-pprint-handlers
+            {(namespaced-class-symbol Arc)
+             (partial object-data-pprint-handler nil (juxt gt/source-id gt/source-label gt/target-id gt/target-label))
+
+             (namespaced-class-symbol Endpoint)
+             (partial object-data-pprint-handler nil (juxt g/endpoint-node-id g/endpoint-label))}
+
+            java-pprint-handlers
+            {(namespaced-class-symbol Class)
+             (fn class-pprint-handler [printer ^Class class]
+               (col-txt printer :class-name (.getName class)))}
+
+            resource-pprint-handlers
+            (letfn [(project-resource->value [resource]
+                      [(resource/proj-path resource)])
+
+                    (project-resource-pprint-handler [printer resource]
+                      (object-data-pprint-handler nil project-resource->value printer resource))]
+
+              {(namespaced-class-symbol FileResource)
+               project-resource-pprint-handler
+
+               (namespaced-class-symbol MemoryResource)
+               (fn memory-resource-pprint-handler [printer resource]
+                 (object-data-pprint-handler nil (comp vector resource/ext) printer resource))
+
+               (namespaced-class-symbol ZipResource)
+               project-resource-pprint-handler})
+
+            vecmath-pprint-handlers
+            (letfn [(vecmath-tuple-pprint-handler [printer vecmath-value]
+                      (object-data-pprint-handler nil math/vecmath->clj printer vecmath-value))
+
+                    (vecmath-matrix-pprint-handler [^long dim printer matrix]
+                      (let [fmt-num #(eutil/format* "%.3f" %)
+                            num-strs (into []
+                                           (mapcat (fn [^long row-index]
+                                                     (let [row (matrix-row matrix row-index)]
+                                                       (map fmt-num row))))
+                                           (range dim))
+                            first-col-width (transduce (comp (take-nth 4)
+                                                             (map count))
+                                                       max
+                                                       0
+                                                       num-strs)
+                            rest-col-width (transduce (map count)
+                                                      max
+                                                      0
+                                                      num-strs)
+                            first-col-width-fmt (str \% first-col-width \s)
+                            rest-col-width-fmt (str \% rest-col-width \s)
+                            fmt-col (fn [^long index num-str]
+                                      (let [element (case num-str
+                                                      ("-0.000" "0.000") :number
+                                                      :string)
+                                            fmt (if (zero? (rem index 4))
+                                                  first-col-width-fmt
+                                                  rest-col-width-fmt)]
+                                        (col-txt printer element (format fmt num-str))))
+                            data (into [:align]
+                                       (comp (partition-all dim)
+                                             (map (fn [row-num-strs]
+                                                    (interpose " " (map-indexed fmt-col row-num-strs))))
+                                             (interpose :break))
+                                       num-strs)]
+                        [:group
+                         (cls-tag printer (class matrix))
+                         (col-doc printer :delimiter "[")
+                         data
+                         (col-doc printer :delimiter "]")]))]
+
+              {(namespaced-class-symbol Matrix3d)
+               (partial vecmath-matrix-pprint-handler 3)
+
+               (namespaced-class-symbol Matrix4d)
+               (partial vecmath-matrix-pprint-handler 4)
+
+               (namespaced-class-symbol Point2d)
+               vecmath-tuple-pprint-handler
+
+               (namespaced-class-symbol Point3d)
+               vecmath-tuple-pprint-handler
+
+               (namespaced-class-symbol Point4d)
+               vecmath-tuple-pprint-handler
+
+               (namespaced-class-symbol Quat4d)
+               vecmath-tuple-pprint-handler
+
+               (namespaced-class-symbol Vector2d)
+               vecmath-tuple-pprint-handler
+
+               (namespaced-class-symbol Vector3d)
+               vecmath-tuple-pprint-handler
+
+               (namespaced-class-symbol Vector4d)
+               vecmath-tuple-pprint-handler})]
+
+        (deep-diff/printer
+          {:extra-handlers
+           (merge editor-pprint-handlers
+                  graph-pprint-handlers
+                  java-pprint-handlers
+                  resource-pprint-handlers
+                  vecmath-pprint-handlers)})))))
+
+(defonce last-pprint-value-atom (atom nil))
+
+(defn pprint
+  ([value]
+   (pprint value nil))
+  ([value printer-opts]
+   (reset! last-pprint-value-atom value)
+   (deep-diff/pretty-print value (cond-> pretty-printer printer-opts (merge printer-opts)))))
+
+(defn last-pprint []
+  @last-pprint-value-atom)
+
+(defonce repl-pprint-tap-atom (atom nil))
+
+(defn install-repl-pprint-tap! []
+  (let [[old-repl-pprint-tap new-repl-pprint-tap] (swap-vals! repl-pprint-tap-atom #(or % (bound-fn* pprint)))]
+    (when old-repl-pprint-tap
+      (remove-tap old-repl-pprint-tap))
+    (when new-repl-pprint-tap
+      (add-tap new-repl-pprint-tap))))
+
+(defn uninstall-repl-pprint-tap! []
+  (when-some [repl-pprint-tap (first (reset-vals! repl-pprint-tap-atom nil))]
+    (remove-tap repl-pprint-tap)))
+
+(defn diff-values!
+  ([expected-value actual-value]
+   (diff-values! expected-value actual-value nil))
+  ([expected-value actual-value opts]
+   (let [diff (deep-diff/diff expected-value actual-value)]
+     (if (deep-diff.minimize-impl/has-diff-item? diff)
+       (deep-diff/pretty-print
+         (cond-> diff
+                 (:minimize opts) (deep-diff/minimize))
+         (cond-> pretty-printer
+                 opts (merge opts)))
+       (println "Values are identical.")))))
+
+(defn- to-diffable-text
+  ^String [value]
+  (if (and (seqable? value)
+           (string? (first value)))
+    (code.util/join-lines value)
+    (str value)))
+
+(defn diff-text! [expected-lines-or-string actual-lines-or-string]
+  (let [expected-string (to-diffable-text expected-lines-or-string)
+        actual-string (to-diffable-text actual-lines-or-string)]
+    (println
+      (or (some->> (diff/make-diff-output-lines expected-string actual-string 3)
+                   (code.util/join-lines))
+          "Strings are identical."))))

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,18 +24,12 @@ import java.net.URL;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -56,12 +50,11 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.logging.LogHelper;
-import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.cache.ResourceCacheKey;
-import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.util.FileUtil;
 
 public class Bob {
     private static Logger logger = Logger.getLogger(Bob.class.getName());
@@ -166,7 +159,7 @@ public class Bob {
 
                     File dstFile = new File(toFolder, entry.getName());
                     if (deleteOnExit)
-                        dstFile.deleteOnExit();
+                        FileUtil.deleteOnExit(dstFile);
                     dstFile.getParentFile().mkdirs();
 
                     OutputStream fileStream = null;
@@ -354,7 +347,7 @@ public class Bob {
                 File file = new File(downloadFolder, exeName);
                 HttpUtil http = new HttpUtil();
                 http.downloadToFile(url, file);
-                file.deleteOnExit();
+                FileUtil.deleteOnExit(file);
                 binaryFiles.add(file);
             }
             catch (Exception e) {
@@ -600,49 +593,6 @@ public class Bob {
         else if (severity == MultipleCompileException.Info.SEVERITY_WARNING)
             strSeverity = "WARNING";
         return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
-    }
-
-    private static boolean getShaderTypeRequired(Project project, String requiredSymbol, String requiredLib) throws IOException, CompileExceptionError {
-        IResource appManifestResource = project.getResource("native_extension", "app_manifest", false);
-        if (appManifestResource != null && appManifestResource.exists()) {
-            Map<String, Object> yamlAppManifest = ExtenderUtil.readYaml(appManifestResource);
-            Map<String, Object> yamlPlatforms = (Map<String, Object>) yamlAppManifest.getOrDefault("platforms", null);
-
-            if (yamlPlatforms != null) {
-                String targetPlatform = project.getPlatform().toString();
-                Map<String, Object> yamlPlatform = (Map<String, Object>) yamlPlatforms.getOrDefault(targetPlatform, null);
-
-                if (yamlPlatform != null) {
-                    Map<String, Object> yamlPlatformContext = (Map<String, Object>) yamlPlatform.getOrDefault("context", null);
-
-                    if (yamlPlatformContext != null) {
-                        boolean symbolFound = false;
-                        boolean libraryFound = false;
-
-                        List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
-                        List<String> libs = (List<String>) yamlPlatformContext.getOrDefault("libs", new ArrayList<String>());
-
-                        for (String symbol : symbols) {
-                            if (symbol.equals(requiredSymbol)) {
-                                symbolFound = true;
-                                break;
-                            }
-                        }
-
-                        for (String lib : libs) {
-                            if (lib.equals(requiredLib)) {
-                                libraryFound = true;
-                                break;
-                            }
-                        }
-
-                        return libraryFound && symbolFound;
-                    }
-                }
-            }
-        }
-
-        return false;
     }
 
     private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
@@ -930,21 +880,6 @@ public class Bob {
         if (project.hasOption("build-artifacts")) {
             String[] validArtifacts = {"engine", "plugins", "library"};
             validateChoicesList(project, "build-artifacts", validArtifacts);
-        }
-
-        // Build spir-v either if:
-        //   1. If the user has specified explicitly to build or not to build with spir-v
-        //   2. The project has an app manifest with vulkan enabled
-        if (project.hasOption("debug-output-spirv")) {
-            project.setOption("output-spirv", project.option("debug-output-spirv", "false"));
-        } else {
-            project.setOption("output-spirv", getShaderTypeRequired(project, "GraphicsAdapterVulkan", "graphics_vulkan") ? "true" : "false");
-        }
-
-        if (project.hasOption("debug-output-hlsl")) {
-            project.setOption("output-hlsl", project.option("debug-output-hlsl", "false"));
-        } else {
-            project.setOption("output-hlsl", getShaderTypeRequired(project, "GraphicsAdapterDX12", "graphics_dx12") ? "true" : "false");
         }
 
         boolean ret = true;

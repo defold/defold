@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,14 +14,11 @@
 
 package com.dynamo.bob.bundle;
 
-import static org.apache.commons.io.FilenameUtils.normalize;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.FileSystem;
@@ -35,7 +32,6 @@ import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Hashtable;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +40,6 @@ import java.security.KeyStore;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
@@ -55,10 +50,9 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.TimeProfiler;
-
-import com.defold.extender.client.ExtenderResource;
 
 @BundlerParams(platforms = {Platform.Armv7Android, Platform.Arm64Android})
 public class AndroidBundler implements IBundler {
@@ -436,7 +430,7 @@ public class AndroidBundler implements IBundler {
     */
     private static File copyLocalResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         File androidResDir = createDir(outDir, "res");
-        androidResDir.deleteOnExit();
+        FileUtil.deleteOnExit(androidResDir);
 
         File resDir = new File(androidResDir, "com.defold.android");
         resDir.mkdirs();
@@ -460,7 +454,7 @@ public class AndroidBundler implements IBundler {
         try {
             // compile the resources using aapt2 to flat format files
             File compiledResourcesDir = Files.createTempDirectory("compiled_resources").toFile();
-            compiledResourcesDir.deleteOnExit();
+            FileUtil.deleteOnExit(compiledResourcesDir);
 
             String aapt2 = Bob.getLibExecPath(getAapt2Name());
 
@@ -689,7 +683,7 @@ public class AndroidBundler implements IBundler {
         logger.info("Creating Android Application Bundle");
         try {
             File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
-            File baseAab = new File(outDir, getProjectTitle(project) + ".aab");
+            File baseAab = new File(outDir, getBinaryNameFromProject(project) + ".aab");
 
             File aabDir = new File(outDir, "aab");
             File baseConfig = new File(aabDir, "BundleConfig.json");
@@ -749,7 +743,7 @@ public class AndroidBundler implements IBundler {
         if (!has_symbols) {
             return;
         }
-        File symbolsDir = new File(outDir, getProjectTitle(project) + ".apk.symbols");
+        File symbolsDir = new File(outDir, getBinaryNameFromProject(project) + ".apk.symbols");
         symbolsDir.mkdirs();
         final String exeName = getBinaryNameFromProject(project);
         final String extenderExeDir = project.getBinaryOutputDirectory();
@@ -980,9 +974,9 @@ public class AndroidBundler implements IBundler {
         TimeProfiler.stop();
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant, this);
 
-        File outDir = new File(bundleDir, getProjectTitle(project));
+        File outDir = new File(bundleDir, getBinaryNameFromProject(project));
         FileUtils.deleteDirectory(outDir);
         outDir.mkdirs();
 

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,21 +15,12 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
-
-import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -41,7 +32,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
-import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionInstanceDesc;
@@ -338,6 +328,60 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         collectionBuilder.clearCollectionInstances();
     }
 
+    // Sort instances by hierarchy
+    private List<InstanceDesc.Builder> sortInstancesByHierarchy(IResource resource, List<InstanceDesc.Builder> instances) {
+        Map<String, InstanceDesc.Builder> instanceMap = new HashMap<>();
+        Map<String, List<String>> children = new HashMap<>();
+
+        for (InstanceDesc.Builder inst : instances) {
+            instanceMap.put(inst.getId(), inst);
+            children.put(inst.getId(), inst.getChildrenList());
+        }
+
+        Map<String, Integer> depthMap = new HashMap<>();
+        for (String id : instanceMap.keySet()) {
+            calculateDepth(id, children, depthMap, 0);
+        }
+
+        Map<Integer, List<InstanceDesc.Builder>> depthGroups = new HashMap<>();
+        for (Map.Entry<String, Integer> entry : depthMap.entrySet()) {
+            Integer depth = entry.getValue();
+            if (!depthGroups.containsKey(depth)) {
+                depthGroups.put(depth, new ArrayList<InstanceDesc.Builder>());
+            }
+            depthGroups.get(depth).add(instanceMap.get(entry.getKey()));
+        }
+
+        List<InstanceDesc.Builder> sortedInstances = new ArrayList<>();
+        List<Integer> depths = new ArrayList<>(depthGroups.keySet());
+        Collections.sort(depths);
+        for (Integer depth : depths) {
+            List<InstanceDesc.Builder> group = depthGroups.get(depth);
+            Collections.sort(group, new Comparator<InstanceDesc.Builder>() {
+                public int compare(InstanceDesc.Builder o1, InstanceDesc.Builder o2) {
+                    return o1.getId().compareTo(o2.getId());
+                }
+            });
+            sortedInstances.addAll(group);
+        }
+
+        return sortedInstances;
+    }
+
+    // Recursive function to calculate the depth of each instance
+    private void calculateDepth(String id, Map<String, List<String>> children, Map<String, Integer> depthMap, int currentDepth) {
+        if (depthMap.containsKey(id)) {
+            return;
+        }
+
+        depthMap.put(id, currentDepth);
+        if (children.containsKey(id)) {
+            for (String childId : children.get(id)) {
+                calculateDepth(childId, children, depthMap, currentDepth + 1);
+            }
+        }
+    }
+
     @Override
     protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
         Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
@@ -382,6 +426,16 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             ++embedIndex;
         }
         messageBuilder.clearEmbeddedInstances();
+
+        // Sort instances by children/parent hierarchy
+        List<InstanceDesc.Builder> sortedInstanceBuilders = sortInstancesByHierarchy(resource, messageBuilder.getInstancesList().stream()
+                .map(InstanceDesc::newBuilder)
+                .collect(Collectors.toList()));
+
+        messageBuilder.clearInstances();
+        for (InstanceDesc.Builder builder : sortedInstanceBuilders) {
+            messageBuilder.addInstances(builder.build());
+        }
 
         Collection<String> propertyResources = new HashSet<String>();
         for (int i = 0; i < messageBuilder.getInstancesCount(); ++i) {

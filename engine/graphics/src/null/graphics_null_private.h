@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,6 +17,9 @@
 
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/opaque_handle_container.h>
+
+#include "../graphics_private.h"
+
 
 namespace dmGraphics
 {
@@ -43,6 +46,8 @@ namespace dmGraphics
         uint32_t          m_Depth;
         uint32_t          m_OriginalWidth;
         uint32_t          m_OriginalHeight;
+        uint16_t          m_NumTextureIds;
+        int32_t*          m_LastBoundUnit; // testing
         volatile uint16_t m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         uint8_t           m_MipMapCount;
     };
@@ -100,6 +105,8 @@ namespace dmGraphics
         NullContext(const ContextParams& params);
 
         dmJobThread::HContext              m_JobThread;
+        dmMutex::HMutex                    m_AssetContainerMutex;
+
         dmPlatform::HWindow                m_Window;
         SetTextureAsyncState               m_SetTextureAsyncState;
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
@@ -115,6 +122,7 @@ namespace dmGraphics
         TextureFilter                      m_DefaultTextureMinFilter;
         TextureFilter                      m_DefaultTextureMagFilter;
         ShaderDesc::Language               m_ShaderClassLanguage[2];
+
         uint32_t                           m_Width;
         uint32_t                           m_Height;
         int32_t                            m_ScissorRect[4];
@@ -125,6 +133,7 @@ namespace dmGraphics
         uint32_t                           m_UseAsyncTextureLoad    : 1;
         uint32_t                           m_RequestWindowClose     : 1;
         uint32_t                           m_PrintDeviceInfo        : 1;
+        uint32_t                           m_ContextFeatures        : 3;
     };
 }
 

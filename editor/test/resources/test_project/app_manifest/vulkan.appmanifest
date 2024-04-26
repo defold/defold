@@ -25,6 +25,7 @@ platforms:
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan","X11-xcb"]
+            dynamicLibs: ["vulkan"]
             linkFlags: []
 
     js-web:
@@ -96,7 +97,7 @@ platforms:
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan","MoltenVK"]
-            frameworks: ["Metal","QuartzCore"]
+            frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 
     x86_64-ios:

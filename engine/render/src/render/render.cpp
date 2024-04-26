@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -124,9 +124,7 @@ namespace dmRender
             InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_VertexShaderDesc, params.m_VertexShaderDescSize, params.m_FragmentShaderDesc, params.m_FragmentShaderDescSize);
         }
 
-        memset(context->m_Textures, 0, sizeof(dmGraphics::HTexture) * RenderObject::MAX_TEXTURE_COUNT);
-
-        InitializeTextContext(context, params.m_MaxCharacters);
+        InitializeTextContext(context, params.m_MaxCharacters, params.m_MaxBatches);
 
         context->m_OutOfResources = 0;
 
@@ -681,6 +679,120 @@ namespace dmRender
         }
     }
 
+    void SetTextureBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HTexture texture)
+    {
+        uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+        for (int i = 0; i < num_bindings; ++i)
+        {
+            // The sampler is already bound to this texture, reuse or unbind the current binding
+            if (render_context->m_TextureBindTable[i].m_Samplerhash == sampler_hash)
+            {
+                if (texture == 0)
+                {
+                    render_context->m_TextureBindTable[i].m_Samplerhash = 0;
+                }
+                render_context->m_TextureBindTable[i].m_Texture = texture;
+                return;
+            }
+            // Take an empty slot if we can find one
+            else if (render_context->m_TextureBindTable[i].m_Texture == 0)
+            {
+                render_context->m_TextureBindTable[i].m_Texture     = texture;
+                render_context->m_TextureBindTable[i].m_Samplerhash = sampler_hash;
+                return;
+            }
+        }
+
+        if (render_context->m_TextureBindTable.Full())
+        {
+            render_context->m_TextureBindTable.OffsetCapacity(4);
+        }
+
+        // Otherwise, we add a new binding to the end of the list
+        TextureBinding new_binding;
+        new_binding.m_Samplerhash = sampler_hash;
+        new_binding.m_Texture     = texture;
+        render_context->m_TextureBindTable.Push(new_binding);
+    }
+
+    void SetTextureBindingByUnit(HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture)
+    {
+        if (unit >= render_context->m_TextureBindTable.Size())
+        {
+            render_context->m_TextureBindTable.SetCapacity(unit + 1);
+
+            // Make sure new data area is zeroed out
+            uint32_t fill_index_start = render_context->m_TextureBindTable.Size();
+            uint32_t fill_size = render_context->m_TextureBindTable.Remaining() * sizeof(TextureBinding);
+
+            render_context->m_TextureBindTable.SetSize(render_context->m_TextureBindTable.Capacity());
+            memset(&render_context->m_TextureBindTable[fill_index_start], 0, fill_size);
+        }
+
+        render_context->m_TextureBindTable[unit].m_Texture     = texture;
+        render_context->m_TextureBindTable[unit].m_Samplerhash = 0;
+    }
+
+    static void TrimTextureBindingTable(HRenderContext render_context)
+    {
+        uint32_t num_bindings    = render_context->m_TextureBindTable.Size();
+        uint32_t last_zero_index = -1;
+
+        for (uint32_t i = 0; i < num_bindings; ++i)
+        {
+            if (render_context->m_TextureBindTable[i].m_Texture == 0)
+            {
+                if (last_zero_index == -1)
+                {
+                    last_zero_index = i;
+                }
+            }
+            else
+            {
+                last_zero_index = -1;
+            }
+        }
+
+        // Trim the iteration space
+        if (last_zero_index != -1)
+        {
+            render_context->m_TextureBindTable.SetSize(last_zero_index);
+        }
+    }
+
+    static void GetRenderContextTextures(HRenderContext render_context, HMaterial material, dmGraphics::HTexture* textures)
+    {
+        uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+        for (uint32_t i = 0; i < num_bindings; ++i)
+        {
+            uint32_t sampler_index       = i;
+            dmGraphics::HTexture texture = textures[i];
+
+            if (render_context->m_TextureBindTable[i].m_Samplerhash)
+            {
+                int32_t hash_sampler_index = GetMaterialSamplerIndex(material, render_context->m_TextureBindTable[i].m_Samplerhash);
+                if (hash_sampler_index >= 0)
+                {
+                    sampler_index = hash_sampler_index;
+                    texture       = render_context->m_TextureBindTable[i].m_Texture;
+                }
+            }
+            else if (texture == 0)
+            {
+                texture = render_context->m_TextureBindTable[i].m_Texture;
+            }
+
+            if (sampler_index >= 0 && sampler_index < RenderObject::MAX_TEXTURE_COUNT)
+            {
+                textures[sampler_index] = texture;
+            }
+            else
+            {
+                dmLogOnceWarning("Unable to bind texture to unit %d, max %d texture units are supported.", i, RenderObject::MAX_TEXTURE_COUNT);
+            }
+        }
+    }
+
     Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options)
     {
         DM_PROFILE("DrawRenderList");
@@ -810,14 +922,16 @@ namespace dmRender
         if (render_context == 0x0)
             return RESULT_INVALID_CONTEXT;
 
-
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT];
+        memset(render_context_textures, 0, sizeof(render_context_textures));
 
         HMaterial material = render_context->m_Material;
         HMaterial context_material = render_context->m_Material;
         if(context_material)
         {
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
+            GetRenderContextTextures(render_context, context_material, render_context_textures);
         }
 
         dmGraphics::PipelineState ps_orig = dmGraphics::GetPipelineState(context);
@@ -843,6 +957,7 @@ namespace dmRender
                 {
                     material = ro->m_Material;
                     dmGraphics::EnableProgram(context, GetMaterialProgram(material));
+                    GetRenderContextTextures(render_context, material, render_context_textures);
                 }
             }
 
@@ -860,14 +975,15 @@ namespace dmRender
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
-                if (render_context->m_Textures[i])
+                if (render_context_textures[i])
                 {
-                    texture = render_context->m_Textures[i];
+                    texture = render_context_textures[i];
                 }
 
                 if (texture)
                 {
-                    for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
+                    uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
+                    for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                     {
                         // TODO paged-atlas: We can remove the HSampler concept now I think, unless we want to do validation in a debug runtime?
                         HSampler sampler = GetMaterialSampler(material, next_texture_unit);
@@ -916,8 +1032,8 @@ namespace dmRender
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
-                if (render_context->m_Textures[i])
-                    texture = render_context->m_Textures[i];
+                if (render_context_textures[i])
+                    texture = render_context_textures[i];
                 if (texture)
                 {
                     for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(texture); ++sub_handle)
@@ -930,6 +1046,8 @@ namespace dmRender
         }
 
         ResetRenderStateIfChanged(context, ps_orig, dmGraphics::GetPipelineState(context));
+
+        TrimTextureBindingTable(render_context);
 
         return RESULT_OK;
     }

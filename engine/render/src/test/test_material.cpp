@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -56,6 +56,7 @@ public:
         m_GraphicsContext        = dmGraphics::NewContext(graphics_context_params);
         m_Params.m_ScriptContext = dmScript::NewContext(0, 0, true);
         m_Params.m_MaxCharacters = 256;
+        m_Params.m_MaxBatches = 128;
         m_RenderContext          = dmRender::NewRenderContext(m_GraphicsContext, m_Params);
     }
     virtual void TearDown()
@@ -168,7 +169,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     ASSERT_EQ(1, attributes[2].m_ElementCount);
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[2].m_DataType);
 
-    dmGraphics::VertexAttribute attribute_overrides[3];
+    dmGraphics::VertexAttribute attribute_overrides[3] = {};
 
     // Reconfigure all streams and set new data
     uint8_t bytes_one[] = { 127, 32 };
@@ -302,8 +303,11 @@ TEST_F(dmRenderMaterialTest, MatchMaterialTags)
     ASSERT_FALSE(dmRender::MatchMaterialTags(DM_ARRAY_SIZE(material_tags), material_tags, DM_ARRAY_SIZE(tags_e), tags_e));
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     dmHashEnableReverseHash(true);
     jc_test_init(&argc, argv);

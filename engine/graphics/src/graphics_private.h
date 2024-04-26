@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -23,10 +23,9 @@
 namespace dmGraphics
 {
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
-
-    const static uint8_t MAX_VERTEX_BUFFERS         = 2;
-    const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 16;
-    const static uint8_t MAX_SET_COUNT              = 4;
+    const static uint8_t MAX_VERTEX_BUFFERS            = 2;
+    const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 16;
+    const static uint8_t MAX_SET_COUNT                 = 4;
 
     // In OpenGL, there is a single global resource identifier between
     // fragment and vertex uniforms for a single program. In Vulkan,
@@ -83,36 +82,66 @@ namespace dmGraphics
         uint32_t           m_ModificationVersion; // OpenGL
     };
 
-    struct UniformBlockMember
+    struct ShaderResourceType
     {
-        char*                      m_Name;
-        uint64_t                   m_NameHash;
-        ShaderDesc::ShaderDataType m_Type;
-        uint32_t                   m_Offset;
-        uint16_t                   m_ElementCount;
+        union
+        {
+            dmGraphics::ShaderDesc::ShaderDataType m_ShaderType;
+            uint32_t                               m_TypeIndex;
+        };
+        uint8_t m_UseTypeIndex : 1;
+    };
+
+    struct ShaderResourceMember
+    {
+        char*                       m_Name;
+        dmhash_t                    m_NameHash;
+        ShaderResourceType          m_Type;
+        uint32_t                    m_ElementCount;
+        uint16_t                    m_Offset;
+    };
+
+    struct ShaderResourceTypeInfo
+    {
+        char*                         m_Name;
+        dmhash_t                      m_NameHash;
+        dmArray<ShaderResourceMember> m_Members;
     };
 
     struct ShaderResourceBinding
     {
+        enum BindingFamily
+        {
+            BINDING_FAMILY_GENERIC        = 0,
+            BINDING_FAMILY_UNIFORM_BUFFER = 1,
+            BINDING_FAMILY_STORAGE_BUFFER = 2,
+            BINDING_FAMILY_TEXTURE        = 3,
+        };
+
         char*                       m_Name;
-        uint64_t                    m_NameHash;
-        ShaderDesc::ShaderDataType  m_Type;
-        dmArray<UniformBlockMember> m_BlockMembers;
-        uint32_t                    m_DataSize;
-        uint16_t                    m_ElementCount;
+        dmhash_t                    m_NameHash;
+        ShaderResourceType          m_Type;
+        BindingFamily               m_BindingFamily;
         uint16_t                    m_Set;
         uint16_t                    m_Binding;
-        union
-        {
-            uint16_t               m_UniformDataIndex;
-            uint16_t               m_TextureUnit;
-        };
+        uint16_t                    m_BlockSize;
+    };
+
+    struct ShaderMeta
+    {
+        dmArray<ShaderResourceBinding>  m_UniformBuffers;
+        dmArray<ShaderResourceBinding>  m_StorageBuffers;
+        dmArray<ShaderResourceBinding>  m_Textures;
+        dmArray<ShaderResourceBinding>  m_Inputs;
+        dmArray<ShaderResourceTypeInfo> m_TypeInfos;
     };
 
     struct SetTextureAsyncParams
     {
-        HTexture      m_Texture;
-        TextureParams m_Params;
+        HTexture                m_Texture;
+        TextureParams           m_Params;
+        SetTextureAsyncCallback m_Callback;
+        void*                   m_UserData;
     };
 
     struct SetTextureAsyncState
@@ -123,9 +152,36 @@ namespace dmGraphics
         dmArray<HTexture>              m_PostDeleteTextures;
     };
 
+    struct ProgramResourceBindingsInfo
+    {
+        uint32_t m_UniformBufferCount;
+        uint32_t m_StorageBufferCount;
+        uint32_t m_TextureCount;
+        uint32_t m_TotalUniformCount;
+        uint32_t m_UniformDataSize;
+        uint32_t m_UniformDataSizeAligned;
+        uint32_t m_MaxSet;
+        uint32_t m_MaxBinding;
+    };
+
+    struct ProgramResourceBinding
+    {
+        ShaderResourceBinding*           m_Res;
+        dmArray<ShaderResourceTypeInfo>* m_TypeInfos;
+        uint32_t                         m_DataOffset;
+
+        union
+        {
+            uint16_t m_DynamicOffsetIndex;
+            uint16_t m_TextureUnit;
+            uint16_t m_StorageBufferUnit;
+        };
+
+        uint8_t m_StageFlags;
+    };
+
     uint32_t             GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
     uint32_t             GetGraphicsTypeDataSize(Type type);
-    const char*          GetGraphicsTypeLiteral(Type type);
     void                 InstallAdapterVendor();
     PipelineState        GetDefaultPipelineState();
     Type                 GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
@@ -133,18 +189,20 @@ namespace dmGraphics
     void                 SetForceVertexReloadFail(bool should_fail);
     void                 SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
     bool                 IsTextureFormatCompressed(TextureFormat format);
-    bool                 IsUniformTextureSampler(const ShaderResourceBinding& uniform);
     void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
     const char*          TextureFormatToString(TextureFormat format);
-    bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
     Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
 
+    void                 CreateShaderMeta(ShaderDesc::Shader* ddf, ShaderMeta* meta);
+    void                 DestroyShaderMeta(ShaderMeta& meta);
+    bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
+
     void                  InitializeSetTextureAsyncState(SetTextureAsyncState& state);
     void                  ResetSetTextureAsyncState(SetTextureAsyncState& state);
     SetTextureAsyncParams GetSetTextureAsyncParams(SetTextureAsyncState& state, uint16_t index);
-    uint16_t              PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params);
+    uint16_t              PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params, SetTextureAsyncCallback callback, void* user_data);
     void                  ReturnSetTextureAsyncIndex(SetTextureAsyncState& state, uint16_t index);
     void                  PushSetTextureAsyncDeleteTexture(SetTextureAsyncState& state, HTexture texture);
 

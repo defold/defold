@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -20,7 +20,8 @@
 #include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
-#include "graphics_vulkan.h"
+
+#include <dmsdk/graphics/graphics_vulkan.h>
 
 namespace dmGraphics
 {
@@ -182,6 +183,12 @@ namespace dmGraphics
         const VulkanResourceType GetType();
     };
 
+    struct StorageBufferBinding
+    {
+        HStorageBuffer m_Buffer;
+        uint32_t       m_BufferOffset;
+    };
+
     struct Viewport
     {
         uint16_t m_X;
@@ -242,43 +249,21 @@ namespace dmGraphics
 
     struct ShaderModule
     {
-        uint64_t                       m_Hash;
-        VkShaderModule                 m_Module;
-        dmArray<ShaderResourceBinding> m_Uniforms;
-        dmArray<ShaderResourceBinding> m_Inputs;
-        uint16_t                       m_UniformBufferCount;
-        uint16_t                       m_TextureSamplerCount;
-        uint16_t                       m_TotalUniformCount;
+        ShaderMeta                      m_ShaderMeta;
+        uint64_t                        m_Hash;
+        VkShaderModule                  m_Module;
+        VkPipelineShaderStageCreateInfo m_PipelineStageInfo;
     };
 
     struct Program
     {
         Program();
 
-        enum ModuleType
-        {
-            MODULE_TYPE_VERTEX   = 0,
-            MODULE_TYPE_FRAGMENT = 1,
-            MODULE_TYPE_COUNT    = 2
-        };
-
         struct VulkanHandle
         {
             VkDescriptorSetLayout m_DescriptorSetLayouts[MAX_SET_COUNT];
             VkPipelineLayout      m_PipelineLayout;
             uint8_t               m_DescriptorSetLayoutsCount;
-        };
-
-        struct ProgramResourceBinding
-        {
-            ShaderResourceBinding* m_Res;
-            uint32_t               m_DataOffset;
-
-            union
-            {
-                uint16_t m_DynamicOffsetIndex;
-                uint16_t m_TextureUnit;
-            };
         };
 
         uint64_t                        m_Hash;
@@ -289,15 +274,14 @@ namespace dmGraphics
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
         ShaderModule*                   m_ComputeModule;
-
-        VkPipelineShaderStageCreateInfo m_PipelineStageInfo[MODULE_TYPE_COUNT];
         ShaderDesc::Language            m_Language;
 
         uint32_t                        m_UniformDataSizeAligned;
         uint16_t                        m_UniformBufferCount;
+        uint16_t                        m_StorageBufferCount;
         uint16_t                        m_TextureSamplerCount;
-        uint16_t                        m_TotalUniformCount;
         uint16_t                        m_TotalResourcesCount;
+        uint16_t                        m_TotalUniformCount;
 
         uint8_t                         m_MaxSet;
         uint8_t                         m_MaxBinding;
@@ -401,6 +385,7 @@ namespace dmGraphics
         HRenderTarget                   m_CurrentRenderTarget;
         DeviceBuffer*                   m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
+        StorageBufferBinding            m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
         Program*                        m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
         HTexture                        m_CurrentSwapchainTexture;
@@ -457,7 +442,7 @@ namespace dmGraphics
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode, VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachment, VkRenderPass* renderPassOut);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
-    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut);
+    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut);
     VkResult CreatePipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count, const PipelineState pipelineState, Program* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount, RenderTarget* render_target, Pipeline* pipelineOut);
 
     // Destroy functions

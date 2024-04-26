@@ -29,7 +29,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas *assert*))
+(def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas (and *assert* (not (Boolean/getBoolean "defold.schema.check.disable")))))
 
 (defn trace-expr [node-id label evaluation-context label-type deferred-expr]
   (if-let [tracer (:tracer evaluation-context)]
@@ -470,14 +470,26 @@
         [_ declared-schema] (peek conditional-cases)]
     declared-schema))
 
+(defn- property-schema->declared-schema [property-schema]
+  ;; The property schema declared using g/deftype is wrapped in a Maybe to allow
+  ;; nil values.
+  (:schema property-schema)) ; Maybe -> Declared
+
+(defn- warn-declared-schema [node-id label node-type-name value declared-schema error]
+  (println "Schema validation failed for output" label "on" node-type-name node-id)
+  (println "Output value:" (pr-str value))
+  (println "Should match:" (s/explain declared-schema))
+  (println "But:" (pr-str error)))
+
 (defn warn-output-schema [node-id label node-type-name value output-schema error]
   (when-not *suppress-schema-warnings*
-    (let [output-name (symbol label)
-          declared-schema (output-schema->declared-schema output-schema)]
-      (println "Schema validation failed for output" output-name "on" node-type-name node-id)
-      (println "Output value:" (pr-str value))
-      (println "Should match:" (s/explain declared-schema))
-      (println "But:" (pr-str error)))))
+    (let [declared-schema (output-schema->declared-schema output-schema)]
+      (warn-declared-schema node-id label node-type-name value declared-schema error))))
+
+(defn warn-property-schema [node-id label node-type-name value output-schema error]
+  (when-not *suppress-schema-warnings*
+    (let [declared-schema (property-schema->declared-schema output-schema)]
+      (warn-declared-schema node-id label node-type-name value declared-schema error))))
 
 ;;; ----------------------------------------
 ;; Type checking

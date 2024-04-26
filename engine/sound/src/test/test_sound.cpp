@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -121,7 +121,7 @@ struct TestParams
         m_MixRate = mix_rate;
         m_BufferFrameCount = buffer_frame_count;
     }
-    
+
     TestParams(const char* device_name, void* sound, uint32_t sound_size, SoundDataType type, uint32_t tone_rate, uint32_t mix_rate,
                 uint32_t frame_count, uint32_t buffer_frame_count, float pan, float speed, uint32_t loopcount)
     : m_Pan(pan)
@@ -136,7 +136,7 @@ struct TestParams
         m_ToneRate = tone_rate;
         m_MixRate = mix_rate;
         m_BufferFrameCount = buffer_frame_count;
-    }    
+    }
 
 };
 
@@ -454,8 +454,8 @@ TEST_P(dmSoundTestLoopingTest, Loopcount)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     // This is set up by observation: after first iteration, m_Time is 164.
-    // For each loop done afterwards, another 172 is added. 
-    ASSERT_EQ(g_LoopbackDevice->m_Time, 164 + 172*loopcount); 
+    // For each loop done afterwards, another 172 is added.
+    ASSERT_EQ(g_LoopbackDevice->m_Time, 164 + 172*loopcount);
 
     r = dmSound::DeleteSoundData(sd);
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -1175,7 +1175,7 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
 
     r = dmSound::SetLooping(instance, 1, params.m_Loopcount);
-        
+
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.5f,0,0,0));
     ASSERT_EQ(dmSound::RESULT_OK, r);
     r = dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(params.m_Speed,0,0,0));
@@ -1263,7 +1263,7 @@ const TestParams params_test_play_speed_test[] = {
             0.0f,
             2.0f,
             0       // loopcount. Increase it to stress the mix algorithm when testing by listening.
-    ), 
+    ),
     TestParams("default",
             MONO_TONE_440_32000_64000_WAV,
             MONO_TONE_440_32000_64000_WAV_SIZE,
@@ -1323,7 +1323,7 @@ const TestParams params_test_play_speed_test[] = {
             0.0f,
             2.159f,     // float speed - this would result in crackling sounds in #5613
             5           // loop 5 times
-    ),        
+    ),
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestPlaySpeedTest, dmSoundTestPlaySpeedTest, jc_test_values_in(params_test_play_speed_test));
 #endif
@@ -1612,8 +1612,13 @@ INSTANTIATE_TEST_CASE_P(dmSoundMixerTest, dmSoundMixerTest, jc_test_values_in(pa
 
 DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLoopbackClose, DeviceLoopbackQueue, DeviceLoopbackFreeBufferSlots, DeviceLoopbackDeviceInfo, DeviceLoopbackRestart, DeviceLoopbackStop);
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
+    LoopBackDevice();
+
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

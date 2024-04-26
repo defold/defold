@@ -167,6 +167,10 @@
 
   :javac-options ["-Xlint:unchecked" "-Xlint:deprecation"]
 
+  ;; Skip native extensions tests:
+  ;; lein test :no-native-extensions
+  :test-selectors {:no-native-extensions (complement :native-extensions)}
+
   :profiles          {:test    {:injections [(com.defold.libs.ResourceUnpacker/unpackResources)]
                                 :resource-paths ["test/resources"]
                                 :jvm-opts ["-Ddefold.tests=true"]}
@@ -191,7 +195,12 @@
                                :injections [(require 'editor.reveal)]
                                :dependencies [[vlaaad/reveal "1.3.280"]]}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
+                      :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
+                             :jvm-opts [~(str "-javaagent:"
+                                           (.replace (System/getProperty "user.home") \\ \/)
+                                           "/.m2/repository/com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")]}
                       :no-asserts {:global-vars {*assert* false}}
+                      :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
                       :x86_64-linux {:dependencies [[org.openjfx/javafx-base "23-ea+3" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-controls "23-ea+3" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "23-ea+3" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
@@ -233,7 +242,6 @@
                                                     [org.openjfx/javafx-fxml "23-ea+3"]
                                                     [org.openjfx/javafx-swing "23-ea+3"]
                                                     [com.clojure-goes-fast/clj-async-profiler "0.5.1"]
-                                                    [com.clojure-goes-fast/clj-memory-meter "0.1.2"]
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]
                                                     [org.clojure/test.check "0.9.0"]

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -346,6 +346,9 @@ namespace dmPhysics
      * @param world Physics world
      */
     void DeleteWorld2D(HContext2D context, HWorld2D world);
+
+    void* GetWorldContext2D(HWorld2D world);
+    void* GetCollisionObjectContext2D(HCollisionObject2D collision_object);
 
     /**
      * Arguments passed to the StepWorld* functions.
@@ -1419,12 +1422,12 @@ namespace dmPhysics
     void              SetCollisionShapeRadius3D(HCollisionShape3D shape, float radius);
     void              SetCollisionShapeHalfBoxExtents3D(HCollisionShape2D shape, float w, float h, float d);
 
-    void              GetCollisionShapeRadius2D(HCollisionShape2D shape, float* radius);
-    void              GetCollisionShapePolygonVertices2D(HCollisionShape2D shape, float** vertices, uint32_t* vertex_count);
-    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object, uint32_t shape_index);
-    void              SetCollisionShapeRadius2D(HCollisionShape2D shape, float radius);
-    void              SetCollisionShapeBoxDimensions2D(HCollisionShape2D shape, float w, float h);
-    void              SynchronizeObject2D(HCollisionObject2D collision_object);
+    void              GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D shape, float* radius);
+    void              GetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D shape, dmVMath::Quat rotation, float& w, float& h);
+    HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index);
+    void              SetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D shape, float radius);
+    void              SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D shape, dmVMath::Quat rotation, float w, float h);
+    void              SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object);
 }
 
 #endif // DM_PHYSICS_H

@@ -44,6 +44,7 @@
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
             [editor.slice9 :as slice9]
+            [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.util :as eutil]
             [editor.validation :as validation]
@@ -1011,10 +1012,12 @@
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
             (let [frame (get-in anim-data [:frames 0])
-                  slice9-data (slice9/vertex-data frame size slice9 pivot)
-                  user-data {:geom-data (:position-data slice9-data)
-                             :line-data (:line-data slice9-data)
-                             :uv-data (:uv-data slice9-data)
+                  vertex-data (if (and (:use-geometries frame))
+                                (texture-set/vertex-data frame)
+                                (slice9/vertex-data frame size slice9 pivot))
+                  user-data {:geom-data (:position-data vertex-data)
+                             :line-data (:line-data vertex-data)
+                             :uv-data (:uv-data vertex-data)
                              :color color+alpha
                              :page-index (:page-index frame 0)
                              :renderable-tags #{:gui-shape}}]
@@ -1552,9 +1555,9 @@
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id texture]
                              (prop-resource-error _node-id :texture texture "Texture")))
-            (dynamic edit-type (g/constantly
+            (dynamic edit-type (g/fnk [_node-id]
                                  {:type resource/Resource
-                                  :ext ["atlas" "tilesource"]})))
+                                  :ext (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)})))
 
   (input name-counts NameCounts)
   (input default-tex-params g/Any)
@@ -2018,7 +2021,7 @@
 
 (defn- add-textures-handler [project {:keys [scene parent]} select-fn]
   (query-and-add-resources!
-   "Textures" ["atlas" "tilesource"] (g/node-value parent :name-counts) project select-fn
+   "Textures" (workspace/resource-kind-extensions (project/workspace project) :atlas) (g/node-value parent :name-counts) project select-fn
    (partial add-texture scene parent)))
 
 (g/defnode TexturesNode
@@ -2842,7 +2845,7 @@
       (g/make-nodes graph-id [fonts-node FontsNode
                               no-font [FontNode
                                        :name ""
-                                       :font (workspace/resolve-resource resource "/builtins/fonts/system_font.font")]]
+                                       :font (workspace/resolve-resource resource "/builtins/fonts/default.font")]]
                     (g/connect fonts-node :_node-id self :fonts-node) ; for the tests :/
                     (g/connect fonts-node :_node-id self :nodes)
                     (g/connect fonts-node :build-errors self :build-errors)

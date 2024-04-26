@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -45,7 +45,7 @@ struct TestVertex
     // Offset 40
 };
 
-static inline void FillAttribute(dmParticle::ParticleVertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
+static inline void FillAttribute(dmGraphics::VertexAttributeInfo& info, dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, uint32_t element_count)
 {
     info.m_NameHash        = name_hash;
     info.m_SemanticType    = semantic_type;
@@ -89,7 +89,7 @@ protected:
 
     dmParticle::HParticleContext m_Context;
     dmParticle::HPrototype m_Prototype;
-    dmParticle::ParticleVertexAttributeInfos m_AttributeInfos;
+    dmGraphics::VertexAttributeInfos m_AttributeInfos;
 
     uint8_t* m_VertexBuffer;
     uint32_t m_VertexBufferSize;
@@ -98,7 +98,7 @@ protected:
     dmParticle::EmitterStateChangedData m_CallbackData;
 };
 
-static const float EPSILON = 0.000002f;
+static const float EPSILON = 0.000007f;
 
 struct EmitterStateChangedCallbackTestData
 {

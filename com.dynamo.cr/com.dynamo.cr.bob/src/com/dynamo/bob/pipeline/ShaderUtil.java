@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,11 +14,11 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Scanner;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.io.IOException;
@@ -241,72 +241,124 @@ public class ShaderUtil {
     public static class SPIRVReflector {
         private static JsonNode root;
 
-        public SPIRVReflector(String json) throws IOException
-        {
+        public SPIRVReflector(String json) throws IOException {
             this.root = (new ObjectMapper()).readTree(json);
         }
 
-        public static class Resource
-        {
+        public static class ResourceMember {
             public String name;
             public String type;
             public int    elementCount;
+            public int    offset;
+        }
+
+        public static class Resource {
+            public String name;
+            public String type;
             public int    binding;
             public int    set;
+            public int    blockSize;
         }
 
-        public static class UniformBlock extends Resource
-        {
-            public ArrayList<Resource> uniforms = new ArrayList<Resource>();
+        public static class ResourceType {
+            public String                    key;
+            public String                    name;
+            public ArrayList<ResourceMember> members = new ArrayList<ResourceMember>();
         }
 
-        public static ArrayList<UniformBlock> getUniformBlocks()
-        {
-            ArrayList<UniformBlock> uniformBlocks = new ArrayList<UniformBlock>();
-
-            JsonNode uboNode   = root.get("ubos");
+        public static ArrayList<ResourceType> getTypes() {
+            ArrayList<ResourceType> resourceTypes = new ArrayList<ResourceType>();
             JsonNode typesNode = root.get("types");
-
-            if (uboNode == null || typesNode == null) {
-                return uniformBlocks;
+            if (typesNode == null) {
+                return resourceTypes;
             }
 
-            Iterator<JsonNode> uniformBlockNodeIt = uboNode.getElements();
-            while (uniformBlockNodeIt.hasNext()) {
-                JsonNode uniformBlockNode = uniformBlockNodeIt.next();
+            for (Iterator<Map.Entry<String, JsonNode>> jsonFields = typesNode.getFields(); jsonFields.hasNext();) {
+                Map.Entry<String, JsonNode> jsonField = jsonFields.next();
+                String key = jsonField.getKey();
+                JsonNode value = jsonField.getValue();
 
-                UniformBlock ubo = new UniformBlock();
-                ubo.name         = uniformBlockNode.get("name").asText();
-                ubo.set          = uniformBlockNode.get("set").asInt();
-                ubo.binding      = uniformBlockNode.get("binding").asInt();
-                ubo.type         = "ubo";
+                ResourceType type = new ResourceType();
+                type.key = key;
+                type.name = value.get("name").asText();
 
-                JsonNode typeNode    = typesNode.get(uniformBlockNode.get("type").asText());
-                JsonNode membersNode = typeNode.get("members");
+                JsonNode membersNode = value.get("members");
+                Iterator<JsonNode> membersNodeIt = membersNode.getElements();
 
-                for (Iterator<JsonNode> membersNodeIt = membersNode.getElements(); membersNodeIt.hasNext();) {
-                    JsonNode uniformNode = membersNodeIt.next();
-                    Resource res         = new Resource();
-                    res.name             = uniformNode.get("name").asText();
-                    res.type             = uniformNode.get("type").asText();
-                    res.elementCount     = 1;
-                    res.binding          = 0;
-                    res.set              = 0;
+                while(membersNodeIt.hasNext()) {
+                    JsonNode memberNode = membersNodeIt.next();
+                    ResourceMember res  = new ResourceMember();
+                    res.name            = memberNode.get("name").asText();
+                    res.type            = memberNode.get("type").asText();
 
-                    JsonNode arrayNode = uniformNode.get("array");
+                    JsonNode offsetNode = memberNode.get("offset");
+                    if (offsetNode != null) {
+                        res.offset = offsetNode.asInt();
+                    }
+
+                    JsonNode arrayNode = memberNode.get("array");
                     if (arrayNode != null && arrayNode.isArray())
                     {
                         ArrayNode array = (ArrayNode) arrayNode;
                         res.elementCount = arrayNode.get(0).asInt();
                     }
 
-                    ubo.uniforms.add(res);
+                    type.members.add(res);
                 }
 
-                uniformBlocks.add(ubo);
+                resourceTypes.add(type);
             }
 
-            return uniformBlocks;
+            return resourceTypes;
+        }
+
+        public static ArrayList<Resource> getUBOs() {
+            ArrayList<Resource> ubos = new ArrayList<Resource>();
+            JsonNode ubosNode = root.get("ubos");
+
+            if (ubosNode == null) {
+                return ubos;
+            }
+
+            Iterator<JsonNode> uniformBlockNodeIt = ubosNode.getElements();
+            while (uniformBlockNodeIt.hasNext()) {
+                JsonNode uboNode = uniformBlockNodeIt.next();
+
+                Resource ubo  = new Resource();
+                ubo.name      = uboNode.get("name").asText();
+                ubo.set       = uboNode.get("set").asInt();
+                ubo.binding   = uboNode.get("binding").asInt();
+                ubo.type      = uboNode.get("type").asText();
+                ubo.blockSize = uboNode.get("block_size").asInt();
+                ubos.add(ubo);
+            }
+
+            return ubos;
+        }
+
+        public static ArrayList<Resource> getSsbos() {
+            ArrayList<Resource> ssbos = new ArrayList<Resource>();
+
+            JsonNode ssboNode  = root.get("ssbos");
+
+            if (ssboNode == null) {
+                return ssbos;
+            }
+
+            Iterator<JsonNode> ssboBlockIt = ssboNode.getElements();
+            while (ssboBlockIt.hasNext()) {
+                JsonNode ssboBlockNode = ssboBlockIt.next();
+
+                Resource ssbo  = new Resource();
+                ssbo.name      = ssboBlockNode.get("name").asText();
+                ssbo.set       = ssboBlockNode.get("set").asInt();
+                ssbo.binding   = ssboBlockNode.get("binding").asInt();
+                ssbo.type      = ssboBlockNode.get("type").asText();
+                ssbo.blockSize = ssboBlockNode.get("block_size").asInt();
+                ssbos.add(ssbo);
+            }
+
+            return ssbos;
         }
 
         private static void addTexturesFromNode(JsonNode node, ArrayList<Resource> textures) {
@@ -318,7 +370,7 @@ public class ShaderUtil {
                     res.type         = textureNode.get("type").asText();
                     res.binding      = textureNode.get("binding").asInt();
                     res.set          = textureNode.get("set").asInt();
-                    res.elementCount = 1;
+                    res.blockSize    = 0;
                     textures.add(res);
                 }
             }

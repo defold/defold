@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,16 +15,13 @@
 package com.dynamo.bob.pipeline;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Set;
 import java.util.HashSet;
 
 import javax.imageio.ImageIO;
@@ -34,6 +31,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimIterator;
@@ -43,7 +41,6 @@ import com.dynamo.gamesys.proto.AtlasProto.AtlasAnimation;
 import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 import com.dynamo.gamesys.proto.Tile.Playback;
 import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
-import com.dynamo.proto.DdfMath.Point3;
 
 public class AtlasUtil {
     public static class MappedAnimDesc extends AnimDesc {
@@ -180,19 +177,6 @@ public class AtlasUtil {
             resources.add(baseResource.getResource(path));
         }
         return resources;
-    }
-
-    public static List<BufferedImage> loadImages(List<IResource> resources) throws IOException, CompileExceptionError {
-        List<BufferedImage> images = new ArrayList<BufferedImage>(resources.size());
-
-        for (IResource resource : resources) {
-            BufferedImage image = ImageIO.read(new ByteArrayInputStream(resource.getContent()));
-            if (image == null) {
-                throw new CompileExceptionError(resource, -1, "Unable to load image " + resource.getPath());
-            }
-            images.add(image);
-        }
-        return images;
     }
 
     public interface PathTransformer {
@@ -338,7 +322,7 @@ public class AtlasUtil {
             imageTrimModes.add(image.getSpriteTrimMode());
         }
         List<IResource> imageResources = toResources(atlasResource, imageResourcePaths);
-        List<BufferedImage> images = AtlasUtil.loadImages(imageResources);
+        List<BufferedImage> images = TextureUtil.loadImages(imageResources);
 
         List<String> imageNames = new ArrayList<String>();
         int imageCount = imageResourcePaths.size();
@@ -349,7 +333,6 @@ public class AtlasUtil {
         }
 
         List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);
-
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imageResourcePaths);
         try {
             TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, imageNames, iterator,

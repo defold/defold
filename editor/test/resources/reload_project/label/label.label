@@ -34,5 +34,5 @@ pivot: PIVOT_CENTER
 blend_mode: BLEND_MODE_ALPHA
 line_break: false
 text: "Original"
-font: "/builtins/fonts/system_font.font"
+font: "/builtins/fonts/default.font"
 material: "/builtins/fonts/label.material"

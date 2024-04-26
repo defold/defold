@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -349,6 +349,13 @@ namespace dmEngine
             dmResource::DeleteFactory(engine->m_Factory);
         }
 
+// TODO: Temporarily disabled as it hangs the shutdown procedure
+        // // Stop processing graphics requests before deleting the graphics context
+        // if (engine->m_JobThreadContext)
+        // {
+        //     dmJobThread::Destroy(engine->m_JobThreadContext);
+        // }
+
         if (engine->m_GraphicsContext)
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
@@ -393,12 +400,29 @@ namespace dmEngine
     {
         if (strcmp(filter, "linear") == 0)
         {
-            return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+            return dmGraphics::TEXTURE_FILTER_LINEAR;
         }
-        else
+        else if (strcmp(filter, "nearest") == 0)
+        {
+            return dmGraphics::TEXTURE_FILTER_NEAREST;
+        }
+        else if (strcmp(filter, "nearest_mipmap_nearest") == 0)
         {
             return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
         }
+        else if (strcmp(filter, "nearest_mipmap_linear") == 0)
+        {
+            return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
+        }
+        else if (strcmp(filter, "linear_mipmap_nearest") == 0)
+        {
+            return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+        }
+        else if (strcmp(filter, "linear_mipmap_linear") == 0)
+        {
+            return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+        }
+        return (dmGraphics::TextureFilter) -1;
     }
 
     dmGraphics::TextureFilter ConvertMagTextureFilter(const char* filter)
@@ -1006,6 +1030,7 @@ namespace dmEngine
 #else
         render_params.m_MaxDebugVertexCount = 0;
 #endif
+        render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
         dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
@@ -1289,15 +1314,19 @@ namespace dmEngine
         script_lib_context.m_HidContext      = engine->m_HidContext;
         script_lib_context.m_GraphicsContext = engine->m_GraphicsContext;
         script_lib_context.m_JobThread       = engine->m_JobThreadContext;
+        script_lib_context.m_ConfigFile      = engine->m_Config;
 
         if (engine->m_SharedScriptContext) {
+            script_lib_context.m_ScriptContext = engine->m_SharedScriptContext;
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
         } else {
+            script_lib_context.m_ScriptContext = engine->m_GOScriptContext;
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
+            script_lib_context.m_ScriptContext = engine->m_GuiScriptContext;
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
@@ -1984,7 +2013,7 @@ bail:
     {
         dmResource::Result fact_error;
 #if !defined(DM_RELEASE)
-        const char* system_font_map = "/builtins/fonts/system_font.fontc";
+        const char* system_font_map = "/builtins/fonts/debug/always_on_top.fontc";
         fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
         if (fact_error != dmResource::RESULT_OK)
         {

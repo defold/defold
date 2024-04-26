@@ -1,0 +1,20 @@
+material: "/sprite/sprite.material"
+default_animation: "valid_png_128"
+blend_mode: BLEND_MODE_ALPHA
+slice9 {
+  x: 32.0
+  y: 32.0
+  z: 32.0
+  w: 32.0
+}
+size {
+  x: 256.0
+  y: 256.0
+  z: 0.0
+  w: 0.0
+}
+size_mode: SIZE_MODE_MANUAL
+textures {
+  sampler: "texture_sampler"
+  texture: "/atlas/valid.atlas"
+}

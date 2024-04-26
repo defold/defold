@@ -4,10 +4,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -123,7 +123,7 @@ ANDROID_BUILD_TOOLS_VERSION="33.0.1"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "2.0.11"
+EMSCRIPTEN_VERSION_STR = "3.1.55"
 EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
 SHELL = os.environ.get('SHELL', 'bash')
@@ -132,7 +132,7 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib texc modelc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record iap push iac webview profiler facebook engine sdk".split()
+ENGINE_LIBS = "testmain dlib texc modelc ddf platform graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc".split()
 
 EXTERNAL_LIBS = "glfw bullet3d".split()
@@ -185,9 +185,8 @@ class ThreadPool(object):
         self.workers = []
         self.work_queue = Queue()
 
-        for i in range(worker_count):
-            w = Thread(target = self.worker)
-            w.setDaemon(True)
+        for _ in range(worker_count):
+            w = Thread(target = self.worker, daemon=True)
             w.start()
             self.workers.append(w)
 
@@ -329,8 +328,8 @@ class Configuration(object):
     def get_python(self):
         if 'macos' in self.host and 'arm64' == platform.machine():
             if 'x86_64-macos' == self.target_platform:
-                return 'arch -x86_64 python'
-        return 'python'
+                return ['arch', '-x86_64', 'python']
+        return ['python']
 
     def _create_common_dirs(self):
         for p in ['ext/lib/python', 'share', 'lib/js-web/js', 'lib/wasm-web/js']:
@@ -519,10 +518,10 @@ class Configuration(object):
             installed_packages.update(target_package_paths)
 
         print("Installing python wheels")
-        run.env_command(self._form_env(), [self.get_python(), '-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
+        run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '-t', join(self.ext, 'lib', 'python'), 'requests', 'pyaml'])
         for whl in glob(join(self.defold_root, 'packages', '*.whl')):
             self._log('Installing %s' % basename(whl))
-            run.env_command(self._form_env(), [self.get_python(), '-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
+            run.env_command(self._form_env(), self.get_python() + ['-m', 'pip', '-q', '-q', 'install', '--upgrade', '-t', join(self.ext, 'lib', 'python'), whl])
 
         print("Installing javascripts")
         for n in 'js-web-pre.js'.split():
@@ -617,10 +616,7 @@ class Configuration(object):
         return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
 
     def _form_ems_path(self):
-        upstream = join(self.get_ems_dir(), 'upstream', 'emscripten')
-        if os.path.exists(upstream):
-            return upstream
-        return join(self.get_ems_dir(), 'fastcomp', 'emscripten')
+        return join(self.get_ems_dir(), 'upstream', 'emscripten')
 
     def install_ems(self):
         # TODO: should eventually be moved to install_sdk
@@ -634,11 +630,7 @@ class Configuration(object):
             print("Emscripten is already installed:", emsDir)
         else:
             self._check_package_path()
-            platform_map = {'x86_64-linux':'linux',
-                            'x86_64-macos':'darwin',
-                            'arm64-macos':'darwin',
-                            'x86_64-win32':'win32'}
-            path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, platform_map.get(self.host, self.host)))
+            path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, self.host))
             path = self.get_local_or_remote_file(path)
             self._extract(path, join(self.ext, 'SDKs'))
 
@@ -648,8 +640,6 @@ class Configuration(object):
 
     def activate_ems(self):
         version = EMSCRIPTEN_VERSION_STR
-        if 'fastcomp' in self._form_ems_path():
-            version += "-fastcomp"
         run.env_command(self._form_env(), [join(self.get_ems_dir(), 'emsdk'), 'activate', version, '--embedded'])
 
         # prewarm the cache
@@ -1080,7 +1070,7 @@ class Configuration(object):
 
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, prefix):
         prefix = prefix and prefix or self.dynamo_home
-        return '%s %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (self.get_python(), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
+        return '%s %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
@@ -1160,7 +1150,7 @@ class Configuration(object):
         if '--static-analyze' in self.waf_options:
             scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
             report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
-            run.command([self.get_python(), './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
+            run.command(self.get_python() + ['./scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
@@ -1329,14 +1319,11 @@ class Configuration(object):
 
         for platform in platforms:
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')
-            entry = bucket.get_key(prefix)
-
-            if entry is None:
-                raise Exception("Could not find sdk: %s" % prefix)
+            entry = bucket.Object(prefix)
 
             platform_sdk_zip = tempfile.NamedTemporaryFile(delete = False)
             print ("Downloading", entry.key)
-            entry.get_contents_to_filename(platform_sdk_zip.name)
+            entry.download_file(platform_sdk_zip.name)
             print ("Downloaded", entry.key, "to", platform_sdk_zip.name)
 
             self._extract_zip(platform_sdk_zip.name, tempdir)
@@ -1347,12 +1334,11 @@ class Configuration(object):
 
         # Due to an issue with how the attributes are preserved, let's go through the bin/ folders
         # and set the flags explicitly
-        for root, dirs, files in os.walk(tempdir):
+        for root, _, files in os.walk(tempdir):
             for f in files:
                 p = os.path.join(root, f)
                 if '/bin/' in p:
                     os.chmod(p, 0o755)
-                    st = os.stat(p)
 
         treepath = os.path.join(tempdir, 'defoldsdk')
         sdkpath = self._ziptree(treepath, directory=tempdir)
@@ -1372,7 +1358,7 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         self._log('Building API docs')
         cwd = join(self.defold_root, 'engine/docs')
-        cmd = '%s %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.get_python(), self.dynamo_home, self.dynamo_home, skip_tests)
+        cmd = '%s %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (' '.join(self.get_python()), self.dynamo_home, self.dynamo_home, skip_tests)
         run.env_command(self._form_env(), cmd.split() + self.waf_options, cwd = cwd)
         with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
@@ -1414,7 +1400,7 @@ class Configuration(object):
         run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
-        cmd = [self.get_python(), './scripts/bundle.py',
+        cmd = self.get_python() + ['./scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                '--archive-domain=%s' % self.archive_domain,
                'build']
@@ -1428,7 +1414,7 @@ class Configuration(object):
         if not self.channel:
             raise Exception('No channel provided when bundling the editor')
 
-        cmd = [self.get_python(), './scripts/bundle.py',
+        cmd = self.get_python() + ['./scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
@@ -1439,7 +1425,7 @@ class Configuration(object):
 
     def sign_editor2(self):
         editor_bundle_dir = join(self.defold_root, 'editor', 'target', 'editor')
-        cmd = [self.get_python(), './scripts/bundle.py',
+        cmd = self.get_python() + ['./scripts/bundle.py',
                '--platform=%s' % self.target_platform,
                '--bundle-dir=%s' % editor_bundle_dir,
                '--archive-domain=%s' % self.archive_domain,
@@ -1618,26 +1604,26 @@ class Configuration(object):
         html = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
             html = file.read()
+            file.close()
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
         self._log('Uploading %s/index.html' % self.channel)
 
-        key = bucket.new_key('%s/index.html' % self.channel)
-        key.content_type = 'text/html'
-        key.set_contents_from_string(html)
+        index_obj = bucket.Object('%s/index.html' % self.channel)
+        index_obj.put(Body=html, ContentType='text/html')
 
         self._log('Uploading %s/info.json' % self.channel)
-        key = bucket.new_key('%s/info.json' % self.channel)
-        key.content_type = 'application/json'
-        key.set_contents_from_string(json.dumps({'version': self.version,
-                                                 'sha1' : release_sha1}))
+        new_obj = bucket.Object('%s/info.json' % self.channel)
+        new_obj_content = json.dumps({'version': self.version,
+                                                 'sha1' : release_sha1})
+        new_obj.put(Body=new_obj_content, ContentType='application/json')
 
         # Editor update-v4.json
-        key_v4 = bucket.new_key('editor2/channels/%s/update-v4.json' % self.channel)
-        key_v4.content_type = 'application/json'
-        self._log("Updating channel '%s' for update-v4.json: %s" % (self.channel, key_v4))
-        key_v4.set_contents_from_string(json.dumps({'sha1': release_sha1}))
+        v4_obj = bucket.Object('editor2/channels/%s/update-v4.json' % self.channel)
+        self._log("Updating channel '%s' for update-v4.json: %s" % (self.channel, v4_obj.key))
+        v4_content = json.dumps({'sha1': release_sha1})
+        v4_obj.put(Body=v4_content, ContentType='application/json')
 
         # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
         # Used by www.defold.com/download
@@ -1647,8 +1633,11 @@ class Configuration(object):
             key_name = 'editor2/channels/%s/%s' % (editor_channel, name)
             redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, editor_channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
-            key = bucket.new_key(key_name)
-            key.set_redirect(redirect)
+            obj = bucket.Object(key_name)
+            obj.copy_from(
+                CopySource={'Bucket': hostname, 'Key': key_name},
+                WebsiteRedirectLocation=redirect
+            )
 
     def _get_tag_pattern_from_tag_name(self, channel, tag_name):
         # NOTE: Each of the main branches has a channel (stable, beta and alpha)
@@ -1820,9 +1809,9 @@ class Configuration(object):
         if not self.thread_pool:
             self.thread_pool = ThreadPool(8)
 
-        def download(key, path):
-            self._log('s3://%s/%s -> %s' % (bucket_name, key.name, path))
-            key.get_contents_to_filename(path)
+        def download(obj, path):
+            self._log('s3://%s/%s -> %s' % (bucket_name, obj.key, path))
+            obj.download_file(path)
 
         futures = []
         sha1 = self._git_sha1()
@@ -1833,13 +1822,13 @@ class Configuration(object):
         # * launcher files, used to launch editor2
         pattern = re.compile(r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$')
         prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
-        for key in bucket.list(prefix = prefix):
-            rel = os.path.relpath(key.name, prefix)
+        for obj_summary in bucket.objects.filter(Prefix=prefix):
+            rel = os.path.relpath(obj_summary.key, prefix)
 
             if not pattern.search(rel):
                 p = os.path.join(local_dir, sha1, rel)
                 self._mkdirs(os.path.dirname(p))
-                f = Future(self.thread_pool, download, key, p)
+                f = Future(self.thread_pool, download, bucket.Object(obj_summary.key), p)
                 futures.append(f)
 
         for f in futures:
@@ -2015,7 +2004,8 @@ class Configuration(object):
     def get_archive_redirect_key(self, url):
         old_url = url.replace(self.get_archive_path().replace("\\", "/"), self.archive_path)
         u = urlparse(old_url)
-        return u.path
+        p = u.path
+        return p.lstrip('/')
 
     def download_from_archive(self, src_path, dst_file):
         url = join(self.get_archive_path(), src_path)
@@ -2024,17 +2014,8 @@ class Configuration(object):
 
     def upload_to_archive(self, src_file, dst_path):
         url = join(self.get_archive_path(), dst_path).replace("\\", "/")
-        self._log("Uploading %s -> %s" % (src_file, url))
         self.upload_to_s3(src_file, url)
 
-        # create redirect so that the old s3 paths still work
-        # s3://d.defold.com/archive/channel/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
-        bucket = s3.get_bucket(urlparse(url).netloc)
-        redirect_key = self.get_archive_redirect_key(url)
-        redirect_url = url.replace("s3://", "http://")
-        key = bucket.new_key(redirect_key)
-        key.set_redirect(redirect_url)
-        self._log("Redirecting %s -> %s : %s" % (url, redirect_key, redirect_url))
 
     def download_from_s3(self, path, url):
         url = url.replace('\\', '/')
@@ -2043,12 +2024,9 @@ class Configuration(object):
 
         if u.scheme == 's3':
             self._mkdirs(os.path.dirname(path))
-            from boto.s3.key import Key
 
             bucket = s3.get_bucket(u.netloc)
-            k = Key(bucket)
-            k.key = u.path
-            k.get_contents_to_filename(path)
+            bucket.download_file(u.path.lstrip('/'), path)
             self._log('Downloaded %s -> %s' % (url, path))
         else:
             raise Exception('Unsupported url %s' % (url))
@@ -2062,6 +2040,10 @@ class Configuration(object):
 
         if u.scheme == 's3':
             bucket = s3.get_bucket(u.netloc)
+            # create redirect so that the old s3 paths still work
+            # s3://d.defold.com/archive/channel/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
+            redirect_key = self.get_archive_redirect_key(url)
+            redirect_url = url.replace("s3://", "http://")
 
             if not self.thread_pool:
                 self.thread_pool = ThreadPool(8)
@@ -2070,18 +2052,21 @@ class Configuration(object):
             if p[-1] == '/':
                 p += basename(path)
 
+            # strip first / character to make key like dir1/dir2/filename.ext
+            p = p.lstrip('/')
             def upload_singlefile():
-                key = bucket.new_key(p)
-                key.set_contents_from_filename(path)
+                bucket.upload_file(path, p)
                 self._log('Uploaded %s -> %s' % (path, url))
+                self._log("Create redirection %s -> %s : %s" % (url, redirect_key, redirect_url))
+                bucket.put_object(Key=redirect_key, Body='0', WebsiteRedirectLocation=redirect_url)
 
             def upload_multipart():
-                headers = {}
                 contenttype, _ = mimetypes.guess_type(path)
+                mp = None
                 if contenttype is not None:
-                    headers['Content-Type'] = contenttype
-
-                mp = bucket.initiate_multipart_upload(p, headers=headers)
+                    mp = bucket.Object(p).initiate_multipart_upload(ContentType=contenttype)
+                else:
+                    mp = bucket.Object(p).initiate_multipart_upload()
 
                 source_size = os.stat(path).st_size
                 chunksize = 64 * 1024 * 1024 # 64 MiB
@@ -2090,7 +2075,10 @@ class Configuration(object):
                 def upload_part(filepath, part, offset, size):
                     with open(filepath, 'rb') as fhandle:
                         fhandle.seek(offset)
-                        mp.upload_part_from_file(fp=fhandle, part_num=part, size=size)
+                        part_content = fhandle.read(size)
+                        part = mp.Part(part)
+                        part.upload(Body=part_content, ContentLength=size)
+                        fhandle.close()
 
                 _threads = []
                 for i in range(chunkcount):
@@ -2100,7 +2088,7 @@ class Configuration(object):
                     size = min(chunksize, remaining)
                     args = {'filepath': path, 'part': part, 'offset': offset, 'size': size}
 
-                    self._log('Uploading #%d %s -> %s' % (i + 1, path, url))
+                    self._log('Uploading #%d %s -> %s' % (part, path, url))
                     _thread = Thread(target=upload_part, kwargs=args)
                     _threads.append(_thread)
                     _thread.start()
@@ -2109,12 +2097,29 @@ class Configuration(object):
                     _threads[i].join()
                     self._log('Uploaded #%d %s -> %s' % (i + 1, path, url))
 
-                if len(mp.get_all_parts()) == chunkcount:
-                    mp.complete_upload()
-                    self._log('Uploaded %s -> %s' % (path, url))
+                
+                if len(list(mp.parts.all())) == chunkcount:
+                    try:
+                        parts = []
+                        for part_summary in mp.parts.all():
+                            parts.append({ 'ETag': part_summary.e_tag, 'PartNumber': part_summary.part_number })
+
+                        mp.complete(MultipartUpload={ 'Parts': parts })
+                        self._log('Uploaded %s -> %s' % (path, url))
+                        self._log("Create redirection %s -> %s : %s" % (url, redirect_key, redirect_url))
+                        bucket.put_object(Key=redirect_key, Body='0', WebsiteRedirectLocation=redirect_url)
+
+                    except:
+                        # If any exception ocurred during completion - we need to call abort()
+                        # to free storage from uploaded parts. S3 doesn't do it automatically
+                        mp.abort()
+                        self._log('Failed to upload %s -> %s' % (path, url))
+                        raise RuntimeError('Failed to upload %s -> %s' % (path, url))
+
                 else:
-                    mp.cancel_upload()
+                    mp.abort()
                     self._log('Failed to upload %s -> %s' % (path, url))
+                    raise RuntimeError('Failed to upload %s -> %s' % (path, url))
 
             f = None
             if sys.platform == 'win32':
@@ -2195,8 +2200,7 @@ class Configuration(object):
         return env
 
 if __name__ == '__main__':
-    boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.whl'))
-    sys.path.insert(0, boto_path)
+    s3.init_boto_data_path()
     usage = '''usage: %prog [options] command(s)
 
 Commands:

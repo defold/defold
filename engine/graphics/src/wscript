@@ -100,14 +100,6 @@ def build(bld):
         elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
             obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
 
-        # Build experimental version of the vulkan library
-        obj = bld.stlib(features = obj.features,
-                        includes = obj.includes,
-                        source   = obj.source,
-                        use      = obj.use,
-                        defines  = vulkan_defines + ['DM_EXPERIMENTAL_GRAPHICS_FEATURES'],
-                        target   = 'graphics_vulkan_experimental')
-
     if platform_supports_feature(bld.env.PLATFORM, 'dx12', {}):
 
         dx12_header_includes = [build_util.get_dynamo_ext('include', 'directx')]

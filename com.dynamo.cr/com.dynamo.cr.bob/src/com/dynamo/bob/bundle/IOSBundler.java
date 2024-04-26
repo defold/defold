@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -21,14 +21,11 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringWriter;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +52,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.FileUtil;
 
 @BundlerParams(platforms = {Platform.Arm64Ios, Platform.X86_64Ios})
 public class IOSBundler implements IBundler {
@@ -82,7 +80,7 @@ public class IOSBundler implements IBundler {
     private static File createTempDirectory() throws IOException {
         final File temp;
 
-        temp = File.createTempFile("temp", Long.toString(System.nanoTime()));
+        temp = File.createTempFile("temp_defold_", Long.toString(System.nanoTime()));
 
         if(!(temp.delete()))
         {
@@ -448,7 +446,7 @@ public class IOSBundler implements IBundler {
             logger.warning("ios.icons_asset is not set");
         }
 
-        BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant, this);
         copyManifestFile(helper, architectures.get(0), appDir);
         helper.copyIosIcons();
 
@@ -469,7 +467,7 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         // Create fat/universal binary
         File exe = File.createTempFile("dmengine", "");
-        exe.deleteOnExit();
+        FileUtil.deleteOnExit(exe);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -517,10 +515,13 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
+        // Copy PrivacyManifest.xcprivacy
+        BundleHelper.copyPrivacyManifest(project, platform, appDir);
+        BundleHelper.throwIfCanceled(canceled);
+
         // Package zip file
         File tmpZipDir = createTempDirectory();
-        tmpZipDir.deleteOnExit();
-
+        FileUtil.deleteOnExit(tmpZipDir);
         File swiftSupportDir = new File(tmpZipDir, "SwiftSupport");
 
         // Copy any libswift*.dylib files from the Frameworks folder
@@ -557,7 +558,7 @@ public class IOSBundler implements IBundler {
             FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
 
             File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
-            textProvisionFile.deleteOnExit();
+            FileUtil.deleteOnExit(textProvisionFile);
 
             Result securityResult = Exec.execResult("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
             if (securityResult.ret != 0) {
@@ -631,7 +632,7 @@ public class IOSBundler implements IBundler {
                     entitlements.initFileLocator(locator);
                     entitlements.write(writer);
                     writer.close();
-                    entitlementOut.deleteOnExit();
+                    FileUtil.deleteOnExit(entitlementOut);
                 }
                 catch (ConfigurationException e) {
                     logger.severe("Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );

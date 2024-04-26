@@ -21,6 +21,7 @@
             [util.coll :refer [pair]]
             [util.digest :as digest])
   (:import [clojure.lang Named]
+           [com.defold.util IDigestable]
            [java.io OutputStreamWriter Writer]))
 
 (set! *warn-on-reflection* true)
@@ -31,6 +32,10 @@
 (defn- named? [value]
   (or (instance? Named value)
       (string? value)))
+
+(defn- ignored-key? [value]
+  (and (instance? Named value)
+       (= "digest-ignored" (namespace value))))
 
 (defn- node-id-key? [value]
   (and (named? value)
@@ -70,10 +75,14 @@
         (recur remaining))))
   (digest-raw! end writer))
 
-(defn- digest-tagged! [tag-sym value writer]
+(defn- digest-header! [^String type-name writer]
   (digest-raw! "#dg/" writer)
-  (digest-raw! (name tag-sym) writer)
-  (digest-raw! " " writer)
+  (digest-raw! type-name writer)
+  (digest-raw! " " writer))
+
+(defn- digest-tagged! [tag-sym value writer]
+  {:pre [(symbol? tag-sym)]}
+  (digest-header! (name tag-sym) writer)
   (digest! value writer))
 
 (defn- digest-resource! [resource writer]
@@ -81,11 +90,12 @@
     (digest-tagged! tag-sym (resource/resource-hash resource) writer)))
 
 (defn- digest-map-entry! [[key value] ^Writer writer]
-  (digest! key writer)
-  (digest-raw! " " writer)
-  (if (node-id-entry? key value)
-    (digest-tagged! 'Node (node-id-data-representation value) writer)
-    (digest! value writer)))
+  (when-not (ignored-key? key)
+    (digest! key writer)
+    (digest-raw! " " writer)
+    (if (node-id-entry? key value)
+      (digest-tagged! 'Node (node-id-data-representation value) writer)
+      (digest! value writer))))
 
 (defn- digest-map! [coll writer]
   (let [sorted-sequence (if (sorted? coll) coll (sort-by key coll))]
@@ -138,7 +148,17 @@
 
   Class
   (digest! [value writer]
-    (digest-tagged! 'Class (symbol (.getName value)) writer)))
+    (digest-tagged! 'Class (symbol (.getName value)) writer))
+
+  IDigestable
+  (digest! [value writer]
+    (digest-header! (.getName (class value)) writer)
+    (.digest value writer))
+
+  Object
+  (digest! [value _writer]
+    (throw (ex-info (str "Encountered undigestable value: " value)
+                    {:value value}))))
 
 (defn sha1-hash
   ^String [object]

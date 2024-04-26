@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,8 +19,8 @@ import org.apache.commons.io.FilenameUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
+import java.util.List;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
@@ -104,12 +104,19 @@ public class MaterialBuilder extends Builder<Void>  {
         }
         ShaderDesc.Shader spirvFragment = getSpirvShader(fragmentBuildContext.desc);
 
-
         for (ShaderDesc.ResourceBinding input : spirvFragment.getInputsList()) {
             boolean input_found = false;
             for (ShaderDesc.ResourceBinding output : spirvVertex.getOutputsList()) {
                 if (output.getNameHash() == input.getNameHash()) {
                     input_found = true;
+
+                    if (input.getBinding() != output.getBinding()) {
+                        throw new CompileExceptionError(
+                            String.format("Location mismatch for fragment shader input '%s': The vertex shader specifies the input at location %d, and location %d in the fragment shader.",
+                            input.getName(),
+                            output.getBinding(),
+                            input.getBinding()));
+                    }
                     break;
                 }
             }
@@ -226,6 +233,27 @@ public class MaterialBuilder extends Builder<Void>  {
         }
     }
 
+    private static void migrateTexturesToSamplers(MaterialDesc.Builder materialBuilder) {
+        List<MaterialDesc.Sampler> samplers = materialBuilder.getSamplersList();
+
+        for (String texture : materialBuilder.getTexturesList()) {
+            // Cannot migrate textures that are already in samplers
+            if (samplers.stream().anyMatch(sampler -> sampler.getName().equals(texture))) {
+                continue;
+            }
+
+            MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder();
+            samplerBuilder.setName(texture);
+            samplerBuilder.setWrapU(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE);
+            samplerBuilder.setWrapV(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE);
+            samplerBuilder.setFilterMin(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_LINEAR);
+            samplerBuilder.setFilterMag(MaterialDesc.FilterModeMag.FILTER_MODE_MAG_LINEAR);
+            materialBuilder.addSamplers(samplerBuilder);
+        }
+
+        materialBuilder.clearTextures();
+    }
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         TaskBuilder<Void> task = Task.<Void> newBuilder(this)
@@ -241,6 +269,8 @@ public class MaterialBuilder extends Builder<Void>  {
 
         task.addInput(vertexProgramOutputResource);
         task.addInput(fragmentProgramOutputResource);
+
+        migrateTexturesToSamplers(materialBuilder);
 
         for (MaterialDesc.Sampler materialSampler : materialBuilder.getSamplersList()) {
             String texture = materialSampler.getTexture();
@@ -263,6 +293,22 @@ public class MaterialBuilder extends Builder<Void>  {
         }
     }
 
+    private static void buildSamplers(MaterialDesc.Builder materialBuilder) throws CompileExceptionError {
+        for (int i=0; i < materialBuilder.getSamplersCount(); i++) {
+            MaterialDesc.Sampler materialSampler = materialBuilder.getSamplers(i);
+
+            MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder(materialSampler);
+            samplerBuilder.setNameHash(MurmurHash.hash64(samplerBuilder.getName()));
+
+            String texture = materialSampler.getTexture();
+            if (!texture.isEmpty()) {
+                samplerBuilder.setTexture(ProtoBuilders.replaceTextureName(texture));
+            }
+
+            materialBuilder.setSamplers(i, samplerBuilder.build());
+        }
+    }
+
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         IResource res                        = task.input(0);
@@ -282,25 +328,16 @@ public class MaterialBuilder extends Builder<Void>  {
         BuilderUtil.checkResource(this.project, res, "fragment program", fragmentBuildContext.buildPath);
         materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(fragmentBuildContext.projectPath, ".fp", ".fpc"));
 
+        migrateTexturesToSamplers(materialBuilder);
         buildVertexAttributes(materialBuilder);
-
-        for (int i=0; i < materialBuilder.getSamplersCount(); i++) {
-            MaterialDesc.Sampler materialSampler = materialBuilder.getSamplers(i);
-
-            MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder(materialSampler);
-            samplerBuilder.setNameHash(MurmurHash.hash64(samplerBuilder.getName()));
-
-            String texture = materialSampler.getTexture();
-            if (!texture.isEmpty())
-                samplerBuilder.setTexture(ProtoBuilders.replaceTextureName(texture));
-
-            materialBuilder.setSamplers(i, samplerBuilder.build());
-        }
+        buildSamplers(materialBuilder);
 
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());
     }
 
+    // Running standalone:
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.MaterialBuilder <path-in.material> <path-out.materialc>
     public static void main(String[] args) throws IOException, CompileExceptionError {
 
         System.setProperty("java.awt.headless", "true");
@@ -317,7 +354,10 @@ public class MaterialBuilder extends Builder<Void>  {
             materialBuilder.setVertexProgram(BuilderUtil.replaceExt(materialBuilder.getVertexProgram(), ".vp", ".vpc"));
             materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(materialBuilder.getFragmentProgram(), ".fp", ".fpc"));
 
+            migrateTexturesToSamplers(materialBuilder);
+
             buildVertexAttributes(materialBuilder);
+            buildSamplers(materialBuilder);
 
             MaterialDesc materialDesc = materialBuilder.build();
             materialDesc.writeTo(output);

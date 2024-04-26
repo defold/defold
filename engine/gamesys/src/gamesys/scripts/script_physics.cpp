@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -392,7 +392,7 @@ namespace dmGameSystem
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param options [type:table] a lua table containing options for the raycast.
+     * @param [options] [type:table] a lua table containing options for the raycast.
      *
      * `all`
      * : [type:boolean] Set to `true` to return all ray cast hits. If `false`, it will only return the closest hit.
@@ -1305,6 +1305,26 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*#
+     * @name physics.SHAPE_TYPE_SPHERE
+     * @variable
+     */
+
+    /*#
+     * @name physics.SHAPE_TYPE_BOX
+     * @variable
+     */
+
+    /*#
+     * @name physics.SHAPE_TYPE_CAPSULE
+     * @variable
+     */
+
+    /*#
+     * @name physics.SHAPE_TYPE_HULL
+     * @variable
+     */
+
     /*# get collision shape info
      * Gets collision shape data from a collision object
      *
@@ -1392,7 +1412,10 @@ namespace dmGameSystem
                 lua_setfield(L, -2, "diameter");
                 lua_pushnumber(L, shape_info.m_CapsuleDiameterHeight[1]);
                 lua_setfield(L, -2, "height");
-            break;
+                break;
+            case dmPhysicsDDF::CollisionShape::TYPE_HULL:
+                break;
+            default:break;
         }
 
         return 1;
@@ -1414,17 +1437,20 @@ namespace dmGameSystem
      * local function set_shape_data()
      *     -- set capsule shape data
      *     local data = {}
+     *     data.type = physics.SHAPE_TYPE_CAPSULE
      *     data.diameter = 10
      *     data.height = 20
      *     physics.set_shape("#collisionobject", "my_capsule_shape", data)
      *
      *     -- set sphere shape data
      *     data = {}
+     *     data.type = physics.SHAPE_TYPE_SPHERE
      *     data.diameter = 10
      *     physics.set_shape("#collisionobject", "my_sphere_shape", data)
      *
      *     -- set box shape data
      *     data = {}
+     *     data.type = physics.SHAPE_TYPE_BOX
      *     data.dimensions = vmath.vector3(10, 10, 5)
      *     physics.set_shape("#collisionobject", "my_box_shape", data)
      * end
@@ -1453,6 +1479,10 @@ namespace dmGameSystem
         lua_pushvalue(L, 3);
 
         {
+#define check_val(type_str, v) \
+    if (v < 0.00005f) \
+        luaL_error(L, "Shape '%s' has invalid size '%f' for '%s' ", dmHashReverseSafe64(shape_name_hash), v, type_str);
+            
             lua_getfield(L, -1, "type");
             shape_info.m_Type = (dmPhysicsDDF::CollisionShape::Type) luaL_checkinteger(L, -1);
             lua_pop(L, 1);
@@ -1462,6 +1492,7 @@ namespace dmGameSystem
                 lua_getfield(L, -1, "diameter");
                 shape_info.m_SphereDiameter = luaL_checknumber(L, -1);
                 lua_pop(L, 1);
+                check_val("diameter", shape_info.m_SphereDiameter);
             }
             else if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_BOX)
             {
@@ -1469,6 +1500,8 @@ namespace dmGameSystem
                 dmVMath::Vector3* box_dimensions = dmScript::CheckVector3(L, -1);
                 memcpy(shape_info.m_BoxDimensions, &box_dimensions[0], sizeof(shape_info.m_BoxDimensions));
                 lua_pop(L, 1);
+                check_val("dimensions.x", box_dimensions->getX());
+                check_val("dimensions.y", box_dimensions->getY());
             }
             else if (shape_info.m_Type == dmPhysicsDDF::CollisionShape::TYPE_CAPSULE)
             {
@@ -1479,6 +1512,8 @@ namespace dmGameSystem
                 lua_getfield(L, -1, "height");
                 shape_info.m_CapsuleDiameterHeight[1] = luaL_checknumber(L, -1);
                 lua_pop(L, 1);
+                check_val("diameter", shape_info.m_CapsuleDiameterHeight[0]);
+                check_val("height", shape_info.m_CapsuleDiameterHeight[1]);
             }
             else
             {
@@ -1489,6 +1524,7 @@ namespace dmGameSystem
             {
                 return DM_LUA_ERROR( "Unable to set shape data at index %d", shape_ix);
             }
+#undef check_val
         }
 
         lua_pop(L, 1); // args table
@@ -1597,7 +1633,6 @@ namespace dmGameSystem
     static int Physics_SetListener(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        int top = lua_gettop(L);
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
         PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);

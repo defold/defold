@@ -216,6 +216,11 @@ void _glfwPlatformSetWindowTitle( const char *title )
 
 void _glfwPlatformSetWindowSize( int width, int height )
 {
+    if (_glfwWin.opened && _glfwWin.clientAPI == GLFW_NO_API)
+    {
+        _glfwWin.width = width;
+        _glfwWin.height = height;
+    }
 }
 
 //========================================================================

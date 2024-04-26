@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -53,7 +53,7 @@ struct JobThreadContext
 #if defined(DM_HAS_THREADS)
     dmMutex::HMutex                         m_Mutex;
     dmConditionVariable::HConditionVariable m_WakeupCond;
-    int32_atomic_t                          m_Run;
+    bool                                    m_Run;
 #endif
 };
 
@@ -89,16 +89,19 @@ static void PutDone(JobThreadContext* ctx, JobItem* item)
 static void JobThread(void* _ctx)
 {
     JobThreadContext* ctx = (JobThreadContext*)_ctx;
-    while (dmAtomicGet32(&ctx->m_Run) != 0)
+    while (true)
     {
-        JobItem item;
+        JobItem item = {};
         {
             DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
+
+            if (!ctx->m_Run)
+                break;
+
             while(ctx->m_Work.Empty())
             {
                 dmConditionVariable::Wait(ctx->m_WakeupCond, ctx->m_Mutex);
-
-                if(dmAtomicGet32(&ctx->m_Run) == 0)
+                if (!ctx->m_Run)
                     return;
             }
             item = ctx->m_Work.Pop();
@@ -130,7 +133,7 @@ HContext Create(const JobThreadCreationParams& create_params)
 #if defined(DM_HAS_THREADS)
     context->m_ThreadContext.m_Mutex = dmMutex::New();
     context->m_ThreadContext.m_WakeupCond = dmConditionVariable::New();
-    context->m_ThreadContext.m_Run = 1;
+    context->m_ThreadContext.m_Run = true;
 
     uint32_t thread_count = dmMath::Min(create_params.m_ThreadCount, DM_MAX_JOB_THREAD_COUNT);
     context->m_Threads.SetCapacity(thread_count);
@@ -152,14 +155,12 @@ void Destroy(HContext context)
         return;
 
 #if defined(DM_HAS_THREADS)
-    dmAtomicStore32(&context->m_ThreadContext.m_Run, 0);
     {
         DM_MUTEX_SCOPED_LOCK(context->m_ThreadContext.m_Mutex);
-        // Wake up the worker threads so it can exit and allow us to join
-        for (int i = 0; i < context->m_Threads.Size(); ++i)
-        {
-            dmConditionVariable::Signal(context->m_ThreadContext.m_WakeupCond);
-        }
+
+        context->m_ThreadContext.m_Run = false;;
+
+        dmConditionVariable::Broadcast(context->m_ThreadContext.m_WakeupCond);
     }
 
     for (int i = 0; i < context->m_Threads.Size(); ++i)
@@ -185,6 +186,15 @@ void PushJob(HContext context, FProcess process, FCallback callback, void* user_
     PutWork(&context->m_ThreadContext, &item);
 #if defined(DM_HAS_THREADS)
     dmConditionVariable::Signal(context->m_ThreadContext.m_WakeupCond);
+#endif
+}
+
+uint32_t GetWorkerCount(HContext context)
+{
+#if defined(DM_HAS_THREADS)
+    return context->m_Threads.Size();
+#else
+    return 0;
 #endif
 }
 

@@ -6,6 +6,15 @@ from waf_dynamo import apidoc_extract_task
 def configure(conf):
     conf.recurse('test')
 
+def has_ext(itm, ext):
+    if type("") == type(itm):
+        return itm.endswith(ext)
+    else:
+        return itm.abspath().endswith(ext)
+
+def remove_from_node_list(lst, name):
+    return [x for x in lst if not has_ext(x, name)]
+
 def build(bld):
     resource = bld.stlib(features = 'cxx ddf embed',
         includes = '. .. ../../src ../../proto',
@@ -21,12 +30,25 @@ def build(bld):
     else:
         resource.source += ['scripts/window/script_window_null.cpp']
 
+    if 'web' in bld.env.PLATFORM:
+        resource.source = remove_from_node_list(resource.source, 'script_http.cpp')
+    else:
+        resource.source = remove_from_node_list(resource.source, 'script_http_js.cpp')
+
+    bld.add_group() # depends on the proto files (_ddf.h) generated in the previous step
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto',
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body.cpp',
+        target = 'script_box2d')
+
     bld.add_group()
 
     proto_files = os.listdir('./proto/gamesys')
     proto_files = [os.path.join('../../proto/gamesys', os.path.basename(x)) for x in proto_files]
 
     apidoc_extract_task(bld, ['scripts/script_buffer.cpp',
+        'scripts/script_camera.cpp',
         'scripts/script_collection_factory.cpp',
         'scripts/script_collectionproxy.h',
         'scripts/script_physics.cpp',
@@ -42,6 +64,9 @@ def build(bld):
         'scripts/script_window.cpp',
         'scripts/script_image.cpp',
         'scripts/script_sys_gamesys.cpp',
+        'scripts/script_http.cpp',
+        'scripts/box2d/script_box2d.cpp',
+        'scripts/box2d/script_box2d_body.cpp',
         'components/comp_sound.cpp',
         'components/comp_collection_proxy.cpp'] + proto_files)
 

@@ -581,7 +581,7 @@ var LibraryGLFW = {
                     GLFW.disconnectJoystick(joy);
                   }
                   GLFW.joys[joy] = {
-                    id: allocate(intArrayFromString(gamepad_id), ALLOC_NORMAL),
+                    id: stringToNewUTF8(gamepad_id),
                     id_string: gamepad_id,
                     axesCount: gamepad.axes.length,
                     buttonsCount: gamepad.buttons.length
@@ -765,6 +765,7 @@ var LibraryGLFW = {
     // we get information about the current pixel ratio from browser
     if (target == 0x00020019) { //GLFW_WINDOW_HIGH_DPI
       if (hint != 0) {
+        // the same logic is in dmloader.js -> using display.high_dpi
         GLFW.dpi = window.devicePixelRatio || 1;
       }
     }
@@ -810,9 +811,6 @@ var LibraryGLFW = {
       if (GLFW.isFullscreen) {
         width = Math.floor(window.innerWidth * GLFW.dpi);
         height = Math.floor(window.innerHeight * GLFW.dpi);
-      } else {
-        width = Math.floor(width * GLFW.dpi);
-        height = Math.floor(height * GLFW.dpi);
       }
       GLFW.prevWidth = width;
       GLFW.prevHeight = height;
@@ -1131,4 +1129,4 @@ var LibraryGLFW = {
 };
 
 autoAddDeps(LibraryGLFW, '$GLFW');
-mergeInto(LibraryManager.library, LibraryGLFW);
+addToLibrary(LibraryGLFW);

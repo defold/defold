@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -54,6 +54,17 @@ namespace dmExtension
 
         desc->PreRender = 0x0;
         desc->PostRender = 0x0;
+
+        const Desc* first = g_FirstExtension;
+        while(first) {
+            if (strcmp(name, first->m_Name) == 0)
+            {
+                dmLogError("Extension %s is already registered!", name);
+                return;
+            }
+            first = first->m_Next;
+        }
+
         g_FirstExtension = desc;
     }
 
@@ -65,7 +76,6 @@ namespace dmExtension
     Result AppInitialize(AppParams* params)
     {
         dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
-        uint32_t i = 0;
         Result ret = RESULT_OK;
         while (ed) {
             if (ed->AppInitialize) {
@@ -79,7 +89,6 @@ namespace dmExtension
                     ed->m_AppInitialized = true;
                 }
             }
-            ++i;
             ed = (dmExtension::Desc*) ed->m_Next;
         }
 
@@ -178,4 +187,3 @@ namespace dmExtension
     }
 
 }
-

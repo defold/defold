@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -15,7 +15,9 @@
 #ifndef __GRAPHICS_DEVICE_OPENGL__
 #define __GRAPHICS_DEVICE_OPENGL__
 
+#include <dlib/atomic.h>
 #include <dlib/math.h>
+#include <dmsdk/dlib/atomic.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
 #include <platform/platform_window.h>
@@ -34,6 +36,7 @@ namespace dmGraphics
         TextureType       m_Type;
         GLuint*           m_TextureIds;
         uint32_t          m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
+        int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         uint16_t          m_NumTextureIds;
         uint16_t          m_Width;
         uint16_t          m_Height;
@@ -41,7 +44,6 @@ namespace dmGraphics
         uint16_t          m_OriginalWidth;
         uint16_t          m_OriginalHeight;
         uint16_t          m_MipMapCount;
-        volatile uint16_t m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         TextureParams     m_Params;
     };
 
@@ -76,6 +78,9 @@ namespace dmGraphics
         dmJobThread::HContext   m_JobThread;
         dmArray<const char*>    m_Extensions; // pointers into m_ExtensionsString
         char*                   m_ExtensionsString;
+        void*                   m_AuxContext;
+        int32_atomic_t          m_AuxContextJobPending;
+        int32_atomic_t          m_DeleteContextRequested;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 
@@ -99,6 +104,7 @@ namespace dmGraphics
         uint32_t                m_TextureArraySupport              : 1;
         uint32_t                m_MultiTargetRenderingSupport      : 1;
         uint32_t                m_ComputeSupport                   : 1;
+        uint32_t                m_StorageBufferSupport             : 1;
         uint32_t                m_FrameBufferInvalidateAttachments : 1;
         uint32_t                m_PackedDepthStencilSupport        : 1;
         uint32_t                m_VerifyGraphicsCalls              : 1;

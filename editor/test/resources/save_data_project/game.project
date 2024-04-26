@@ -87,6 +87,8 @@ show_fullscreen_button = 0
 show_made_with_defold = 0
 show_console_banner = 0
 scale_mode = no_scale
+retry_count = 11
+retry_time = 1.5
 
 [ios]
 app_icon_76x76 = /referenced/images/diamond.png
@@ -101,6 +103,7 @@ bundle_identifier = com.defold.save-data-project
 bundle_name = Save Data Project
 bundle_version = 1.0
 infoplist = /builtins/manifests/ios/Info.plist
+privacymanifest = /builtins/manifests/ios/PrivacyInfo.xcprivacy
 default_language = en
 localizations = en
 entitlements = /referenced/entitlements.plist
@@ -112,6 +115,7 @@ bundle_identifier = com.defold.save-data-project
 bundle_name = Save Data Project
 bundle_version = 1.0
 infoplist = /builtins/manifests/osx/Info.plist
+privacymanifest = /builtins/manifests/osx/PrivacyInfo.xcprivacy
 app_icon = /referenced/icon-macos.icns
 
 [windows]
@@ -181,6 +185,7 @@ default_texture_min_filter = nearest
 default_texture_mag_filter = nearest
 max_draw_calls = 512
 max_characters = 4096
+max_font_batches = 128
 max_debug_vertices = 8192
 texture_profiles = /checked.texture_profiles
 verify_graphics_calls = 0

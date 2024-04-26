@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -356,7 +356,7 @@ namespace dmGameSystem
                 texture_res = GetTextureFromSamplerNameHash(&component->m_Resource->m_Materials[material_index], material, i, material->m_SamplerNames[i]);
             }
 
-            ro->m_Textures[i] = texture_res->m_Texture;
+            ro->m_Textures[i] = texture_res ? texture_res->m_Texture : 0;
         }
     }
     static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
@@ -506,51 +506,6 @@ namespace dmGameSystem
         return false;
     }
 
-    static inline int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash)
-    {
-        for (int i = 0; i < attributes_count; ++i)
-        {
-            if (attributes[i].m_NameHash == name_hash)
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    static void FillAttributeInfos(dmRig::AttributeInfo* material_infos, uint32_t material_infos_count, const dmGraphics::VertexAttribute* attributes, uint32_t attribute_count, dmRig::AttributeInfo* attribute_infos)
-    {
-        for (int i = 0; i < material_infos_count; ++i)
-        {
-            int attribute_index        = FindAttributeIndex(attributes, attribute_count, material_infos[i].m_Attribute->m_NameHash);
-            dmRig::AttributeInfo& info = attribute_infos[i];
-            info.m_Attribute           = material_infos[i].m_Attribute;
-            info.m_ValuePtr            = material_infos[i].m_ValuePtr;
-            info.m_ValueByteSize       = material_infos[i].m_ValueByteSize;
-
-            if (attribute_index >= 0)
-            {
-                dmGraphics::GetAttributeValues(attributes[attribute_index], &info.m_ValuePtr, &info.m_ValueByteSize);
-            }
-        }
-    }
-
-    static uint32_t FillMaterialAttributeInfos(dmRender::HMaterial material, dmRig::AttributeInfo* infos)
-    {
-        const dmGraphics::VertexAttribute* attributes = 0;
-        uint32_t attributes_count                     = 0;
-        dmRender::GetMaterialProgramAttributes(material, &attributes, &attributes_count);
-        attributes_count = dmMath::Min(attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
-
-        for (int i = 0; i < attributes_count; ++i)
-        {
-            dmRig::AttributeInfo& info = infos[i];
-            info.m_Attribute = attributes + i;
-            dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
-        }
-        return attributes_count;
-    }
-
     static void SetupMeshAttributeRenderData(dmRender::HRenderContext render_context, dmRender::HMaterial material, const MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
     {
         assert(!rd->m_VertexBuffer);
@@ -560,44 +515,61 @@ namespace dmGameSystem
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
         dmGraphics::HVertexDeclaration material_vx_decl         = dmRender::GetVertexDeclaration(material);
 
-        dmRig::AttributeInfo material_attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
-        uint32_t material_attributes_count = FillMaterialAttributeInfos(material, material_attributes);
+        dmGraphics::VertexAttributeInfos material_infos;
+        FillMaterialAttributeInfos(material, material_vx_decl, &material_infos);
 
-        dmRig::AttributeInfo attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
-        FillAttributeInfos(material_attributes, material_attributes_count, model_attributes, model_attribute_count, attributes);
+        dmGraphics::VertexAttributeInfos attribute_infos;
+        FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
+                    model_attributes,
+                    model_attribute_count,
+                    &material_infos,
+                    &attribute_infos);
 
         uint8_t* scratch_attribute_vertex = (uint8_t*) malloc(dmGraphics::GetVertexDeclarationStride(material_vx_decl));
-        uint32_t custom_vertex_size       = 0;
 
-        for (int i = 0; i < material_attributes_count; ++i)
+        dmGraphics::VertexAttributeInfos non_default_attribute;
+        non_default_attribute.m_VertexStride = 0;
+        non_default_attribute.m_NumInfos     = 0;
+
+        for (int i = 0; i < material_infos.m_NumInfos; ++i)
         {
-            const dmGraphics::VertexAttribute* attr = attributes[i].m_Attribute;
-            const dmGraphics::VertexAttribute* attr_material = material_attributes[i].m_Attribute;
+            const dmGraphics::VertexAttributeInfo& attr_material = material_infos.m_Infos[i];
+            const dmGraphics::VertexAttributeInfo& attr_model    = attribute_infos.m_Infos[i];
 
-            if (!IsDefaultStream(attr->m_NameHash, attr_material->m_SemanticType))
+            if (!IsDefaultStream(attr_model.m_NameHash, attr_material.m_SemanticType))
             {
-                assert(attr->m_NameHash == attr_material->m_NameHash);
+                assert(attr_model.m_NameHash == attr_material.m_NameHash);
                 dmGraphics::AddVertexStream(stream_declaration,
-                    attr->m_NameHash,
-                    attr_material->m_ElementCount, // Need the material attribute here to get the _actual_ element count
-                    dmGraphics::GetGraphicsType(attr->m_DataType),
-                    attr->m_Normalize);
+                    attr_model.m_NameHash,
+                    attr_material.m_ElementCount, // Need the material attribute here to get the _actual_ element count
+                    dmGraphics::GetGraphicsType(attr_model.m_DataType),
+                    attr_model.m_Normalize);
 
-                uint8_t* data_write_ptr = scratch_attribute_vertex + custom_vertex_size;
-                memcpy(data_write_ptr, attributes[i].m_ValuePtr, attributes[i].m_ValueByteSize);
-                custom_vertex_size += attributes[i].m_ValueByteSize;
+                uint32_t attribute_index = non_default_attribute.m_NumInfos++;
+                non_default_attribute.m_Infos[attribute_index]                 = attr_model;
+                non_default_attribute.m_Infos[attribute_index].m_ElementCount  = attr_material.m_ElementCount;
+                non_default_attribute.m_VertexStride                          += attr_model.m_ValueByteSize;
             }
         }
 
         uint32_t vertex_count     = render_item->m_Buffers->m_VertexCount;
-        uint32_t vertex_data_size = custom_vertex_size * vertex_count;
+        uint32_t vertex_data_size = non_default_attribute.m_VertexStride * vertex_count;
         void* attribute_data      = malloc(vertex_data_size);
+        memset(attribute_data, 0, vertex_data_size);
         uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
+
+        const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
+        const float* positions     = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
+        const float* normals       = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
+        const float* tangents      = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
+        const float* colors        = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
+        const float* uv0           = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
+        const float* uv1           = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
 
         for (int i = 0; i < vertex_count; ++i)
         {
-            memcpy(vertex_write_ptr, scratch_attribute_vertex, custom_vertex_size);
-            vertex_write_ptr += custom_vertex_size;
+            vertex_write_ptr = dmRig::WriteSingleVertexDataByAttributes(vertex_write_ptr, i, &non_default_attribute,
+                positions, normals, tangents, uv0, uv1, colors);
         }
 
         rd->m_VertexBuffer      = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
@@ -885,8 +857,8 @@ namespace dmGameSystem
         dmRender::HMaterial material           = GetMaterial(component, component->m_Resource, material_index);
         dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
 
-        dmRig::AttributeInfo material_attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
-        uint32_t material_attributes_count = FillMaterialAttributeInfos(material, material_attributes);
+        dmGraphics::VertexAttributeInfos material_infos;
+        FillMaterialAttributeInfos(material, vx_decl, &material_infos);
 
         uint32_t vertex_count = 0;
         uint32_t index_count = 0;
@@ -977,13 +949,14 @@ namespace dmGameSystem
                 // This should mean that we won't take a performance hit if we don't use attributes.
                 if (render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
                 {
-                    dmRig::AttributeInfo attributes[dmGraphics::MAX_VERTEX_STREAM_COUNT];
-                    FillAttributeInfos(material_attributes, material_attributes_count,
+                    dmGraphics::VertexAttributeInfos attribute_infos;
+                    FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Not supported yet
                         c->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Data,
                         c->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Count,
-                        attributes);
+                        &material_infos,
+                        &attribute_infos);
 
-                    vb_end = dmRig::GenerateVertexDataFromAttributes(world->m_RigContext, c->m_RigInstance, render_item->m_Mesh, world_matrix, attributes, material_attributes_count, vertex_stride, vb_end);
+                    vb_end = dmRig::GenerateVertexDataFromAttributes(world->m_RigContext, c->m_RigInstance, render_item->m_Mesh, world_matrix, &attribute_infos, vertex_stride, vb_end);
                 }
                 else
                 {

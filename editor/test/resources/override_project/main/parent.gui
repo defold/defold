@@ -118,7 +118,7 @@ nodes {
   type: TYPE_TEXT
   blend_mode: BLEND_MODE_ALPHA
   text: "original"
-  font: "system_font"
+  font: "default_font"
   id: "template/template/text"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE

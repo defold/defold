@@ -132,7 +132,7 @@
                                    :scale [0.0 0.0 0.0 0.0], ; Default from legacy field added by editor.protobuf/field-desc-default. Not in actual Label$LabelDesc.
                                    :blend-mode :blend-mode-alpha,
                                    :leading 1.0,
-                                   :font "/builtins/fonts/system_font.fontc",
+                                   :font "/builtins/fonts/default.fontc",
                                    :size [128.0 32.0 0.0 0.0],
                                    :tracking 0.0,
                                    :material "/builtins/fonts/label.materialc",
@@ -513,7 +513,7 @@
   (with-build-results "/script/props.collection"
     (doseq [[res-path pb decl-path] [["/script/props.script" Lua$LuaModule [:properties]]
                                      ["/script/props.go" GameObject$PrototypeDesc [:components 0 :property-decls]]
-                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
+                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
             desc (protobuf/bytes->map pb content)
             decl (get-in desc decl-path)]
@@ -545,7 +545,7 @@
       (is (not-empty (:hash-values decl)))
       (is (not-empty (:string-values decl)))))
   (with-build-results "/script/sub_props.collection"
-    (doseq [[res-path pb decl-path] [["/script/sub_props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
+    (doseq [[res-path pb decl-path] [["/script/sub_props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
             desc (protobuf/bytes->map pb content)
             decl (get-in desc decl-path)]
@@ -562,7 +562,7 @@
     ;; Sub-collections should not be built separately
     (is (not (contains? content-by-source "/script/props.collection"))))
   (with-build-results "/script/sub_sub_props.collection"
-    (doseq [[res-path pb decl-path] [["/script/sub_sub_props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
+    (doseq [[res-path pb decl-path] [["/script/sub_sub_props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
             desc (protobuf/bytes->map pb content)
             decl (get-in desc decl-path)]
@@ -593,7 +593,7 @@
                                                  desc (protobuf/bytes->map pb-class content)
                                                  float-values (get-in desc val-path)]
                                              (= [expected] float-values))
-      "/script/override_parent.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls :float-values] 4.0)))
+      "/script/override_parent.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls :float-values] 4.0)))
 
 (deftest build-gui-templates
   ;; Reads from test_project rather than build_project
@@ -618,7 +618,7 @@
         (is (= "/gui/gui.a.texturesetc" (get textures "main")))
         (is (= "/graphics/atlas.a.texturesetc" (get textures "sub_main"))))
       (let [fonts (zipmap (map :name (:fonts desc)) (map :font (:fonts desc)))]
-        (is (= "/builtins/fonts/system_font.fontc" (get fonts "system_font")))
+        (is (= "/builtins/fonts/default.fontc" (get fonts "default_font")))
         (is (= "/fonts/big_score.fontc" (get fonts "sub_font")))))))
 
 (deftest build-game-project

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -22,8 +22,8 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 
-#include "Box2D/Box2D.h"
-#include "Box2D/Dynamics/Contacts/b2ContactSolver.h"
+#include <Box2D/Box2D.h>
+#include <Box2D/Dynamics/Contacts/b2ContactSolver.h>
 
 #include "physics_2d.h"
 
@@ -272,6 +272,16 @@ namespace dmPhysics
             if (context->m_Worlds[i] == world)
                 context->m_Worlds.EraseSwap(i);
         delete world;
+    }
+
+    void* GetWorldContext2D(HWorld2D world)
+    {
+        return (void*)&world->m_World;
+    }
+
+    void* GetCollisionObjectContext2D(HCollisionObject2D collision_object)
+    {
+        return (void*) collision_object;
     }
 
     static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context);
@@ -1020,7 +1030,7 @@ namespace dmPhysics
         return i;
     }
 
-    HCollisionShape2D GetCollisionShape2D(HCollisionObject2D collision_object, uint32_t shape_index)
+    HCollisionShape2D GetCollisionShape2D(HWorld2D world, HCollisionObject2D collision_object, uint32_t shape_index)
     {
         b2Fixture* fixture = ((b2Body*)collision_object)->GetFixtureList();
         uint32_t i = 0;
@@ -1034,46 +1044,67 @@ namespace dmPhysics
         return 0;
     }
 
-    void GetCollisionShapeRadius2D(HCollisionShape2D _shape, float* radius)
+    void GetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float* radius)
     {
         b2Shape* shape = (b2Shape*) _shape;
-        *radius = shape->m_radius;
+        *radius = shape->m_radius * world->m_Context->m_InvScale;
     }
 
-    void SetCollisionShapeRadius2D(HCollisionShape2D _shape, float radius)
+    void SetCollisionShapeRadius2D(HWorld2D world, HCollisionShape2D _shape, float radius)
     {
         b2Shape* shape = (b2Shape*) _shape;
-        shape->m_radius = radius;
+        shape->m_radius = radius * world->m_Context->m_Scale;
+        shape->m_creationScale = radius;
     }
 
-    void SynchronizeObject2D(HCollisionObject2D collision_object)
+    void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
     {
         ((b2Body*)collision_object)->SynchronizeFixtures();
     }
 
-    void SetCollisionShapeBoxDimensions2D(HCollisionShape2D _shape, float w, float h)
+    void SetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D _shape, Quat rotation, float w, float h)
     {
         b2Shape* shape = (b2Shape*) _shape;
         if (shape->m_type == b2Shape::e_polygon)
         {
+            float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
             b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
-            polygon_shape->SetAsBox(w, h);
+            float scale = world->m_Context->m_Scale;
+            polygon_shape->SetAsBox(w * scale, h * scale, polygon_shape->m_centroid, angle);
+            for (int32 i = 0; i < polygon_shape->m_vertexCount; ++i)
+            {
+                polygon_shape->m_verticesOriginal[i] = polygon_shape->m_vertices[i];
+            }
         }
     }
 
-    void GetCollisionShapePolygonVertices2D(HCollisionShape2D _shape, float** vertices, uint32_t* vertex_count)
+    void GetCollisionShapeBoxDimensions2D(HWorld2D world, HCollisionShape2D _shape, Quat rotation, float& w, float& h)
     {
         b2Shape* shape = (b2Shape*) _shape;
         if (shape->m_type == b2Shape::e_polygon)
         {
+            b2Vec2 t;
+            ToB2(Vector3(0), t, world->m_Context->m_Scale);
+            b2Rot r;
+            r.SetComplex(1 - 2 * rotation.getZ() * rotation.getZ(), 2 * rotation.getZ() * rotation.getW());
+            b2Transform transform(t, r);
             b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
-            *vertex_count                 = polygon_shape->GetVertexCount();
-            *vertices                     = (float*) polygon_shape->m_vertices;
-        }
-        else
-        {
-            *vertices     = 0;
-            *vertex_count = 0;
+            b2Vec2* vertices = polygon_shape->m_vertices;
+            float min_x = INT32_MAX,
+              min_y = INT32_MAX,
+              max_x = -INT32_MAX,
+              max_y = -INT32_MAX;
+            float inv_scale = world->m_Context->m_InvScale;
+            for (int i = 0; i < polygon_shape->GetVertexCount(); i += 1)
+            {
+                b2Vec2 v1 = FromTransformScaleB2(transform, inv_scale, vertices[i]);
+                min_x = dmMath::Min(min_x, v1.x);
+                max_x = dmMath::Max(max_x, v1.x);
+                min_y = dmMath::Min(min_y, v1.y);
+                max_y = dmMath::Max(max_y, v1.y);
+            }
+            w = (max_x - min_x);
+            h = (max_y - min_y);
         }
     }
 

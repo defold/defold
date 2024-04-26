@@ -31,6 +31,13 @@ local tparams = {
     format         = resource.TEXTURE_FORMAT_RGBA,
 }
 
+local tparams_invalid = {
+    width          = 0,
+    height         = 0,
+    type           = resource.TEXTURE_TYPE_2D,
+    format         = resource.TEXTURE_FORMAT_RGBA,
+}
+
 local tparams_cube = {
     width          = 128,
     height         = 128,
@@ -49,6 +56,12 @@ local tparams_compressed = {
 function test_simple()
     local t_id = resource.create_texture("/test_simple.texturec", tparams)
     go.set("#model", "texture0", t_id)
+end
+
+function test_invalid()
+    assert_error(function()
+        resource.create_texture("/test_invalid.texturec", tparams_invalid)
+    end)
 end
 
 function test_with_buffer()
@@ -104,6 +117,77 @@ function test_compressed_fail()
     resource.create_texture("/test_compressed_fail.texturec", tparams_compressed, tex_buffer)
 end
 
+async_test_done = false
+async_tests_complete = 0
+
+function async_test_completed(self)
+    async_tests_complete = async_tests_complete + 1
+    async_test_done = async_tests_complete == #self.requests
+end
+
+function test_async_simple(self)
+    self.requests = {}
+    
+    -- Request with buffer + callback
+    local tex_buffer = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
+    self.requests[1] = {}
+    self.requests[1].path, self.requests[1].id = resource.create_texture_async("/test_async_simple.texturec", tparams, tex_buffer,
+        function(self, request_id, result)
+            assert(request_id  == self.requests[1].id)
+            assert(result.path == self.requests[1].path)
+
+            local t_info = resource.get_texture_info(result.path)
+            pprint(t_info)
+            assert(t_info.width == tparams.width)
+            assert(t_info.height == tparams.height)
+            async_test_completed(self)
+        end)
+
+    local t_info = resource.get_texture_info(self.requests[1].path)
+    assert(t_info.width  == 1)
+    assert(t_info.height == 1)
+
+    -- Request with no buffer + callback
+    self.requests[2] = {}
+    self.requests[2].path, self.requests[2].id = resource.create_texture_async("/test_async_no_buffer.texturec", tparams, nil,
+        function(self, request_id, result)
+            assert(request_id  == self.requests[2].id)
+            assert(result.path == self.requests[2].path)
+
+            local t_info = resource.get_texture_info(result.path)
+            pprint(t_info)
+            assert(t_info.width == tparams.width)
+            assert(t_info.height == tparams.height)
+            async_test_completed(self)
+        end)
+
+    local t_info = resource.get_texture_info(self.requests[2].path)
+    assert(t_info.width  == 1)
+    assert(t_info.height == 1)
+
+    -- Request with garbagecollected buffer
+    local tex_buffer_gc = buffer.create(tparams.width * tparams.height, {{name = hash("data"), type = buffer.VALUE_TYPE_UINT8, count = 4 }})
+    self.requests[3] = {}
+    self.requests[3].path, self.requests[3].id = resource.create_texture_async("/test_async_gc_buffer.texturec", tparams, tex_buffer_gc,
+        function(self, request_id, result)
+            assert(request_id  == self.requests[3].id)
+            assert(result.path == self.requests[3].path)
+
+            local t_info = resource.get_texture_info(result.path)
+            pprint(t_info)
+            assert(t_info.width == tparams.width)
+            assert(t_info.height == tparams.height)
+            async_test_completed(self)
+        end)
+
+    local t_info = resource.get_texture_info(self.requests[3].path)
+    assert(t_info.width  == 1)
+    assert(t_info.height == 1)
+
+    tex_buffer_gc = nil
+    collectgarbage("collect")
+end
+
 function test_get_texture_info()
     local t_id   = resource.create_texture("/test_get_texture_info.texturec", tparams)
     local t_info = resource.get_texture_info(t_id)
@@ -154,9 +238,14 @@ function update(self)
         test_compressed,
         test_compressed_fail,
         test_get_texture_info,
+        test_invalid,
+        test_async_simple,
     }
 
     if tests[self.update_counter] ~= nil then
-        tests[self.update_counter]()
+        tests[self.update_counter](self)
+    else
+        -- some tests can take more iterations, so we roll back here
+        self.update_counter = self.update_counter - 1
     end
 end

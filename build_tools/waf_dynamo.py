@@ -3,10 +3,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -72,7 +72,7 @@ def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan':
-        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'x86_64-linux']
+        return platform not in ['js-web', 'wasm-web', 'x86_64-ios']
     if feature == 'compute':
         return platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'win32', 'x86_64-win32']
     if feature == 'dx12':
@@ -420,9 +420,9 @@ def default_flags(self):
             extra_linkflags += ['-target', target_triplet, '-L%s' % os.path.join(sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']),'usr/lib/clang/%s/lib/darwin' % self.sdkinfo['xcode-clang']['version']),
                                 '-lclang_rt.ios', '-Wl,-force_load', '-Wl,%s' % os.path.join(sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), 'usr/lib/arc/libarclite_iphoneos.a')]
         else:
+            #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
             extra_linkflags += ['-fobjc-link-runtime']
 
-        #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
         if 'x86_64' == build_util.get_target_architecture():
@@ -471,33 +471,49 @@ def default_flags(self):
                 '-static-libstdc++'] + getAndroidLinkFlags(target_arch))
     elif 'web' == build_util.get_target_os():
 
-        emflags = ['DISABLE_EXCEPTION_CATCHING=1', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', 'PRECISE_F32=2',
-                   'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall","stackTrace","UTF8ToString","callMain"]',
-                   'ERROR_ON_UNDEFINED_SYMBOLS=1', 'INITIAL_MEMORY=33554432', 'LLD_REPORT_UNDEFINED', 'MAX_WEBGL_VERSION=2',
-                   'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0']
+        emflags_compile = ['DISABLE_EXCEPTION_CATCHING=1']
+
+        emflags_compile = zip(['-s'] * len(emflags_compile), emflags_compile)
+        emflags_compile =[j for i in emflags_compile for j in i]
+
+        emflags_link = [
+            'DISABLE_EXCEPTION_CATCHING=1',
+            'EXPORTED_RUNTIME_METHODS=["ccall","stackTrace","UTF8ToString","callMain","HEAPU8","stringToNewUTF8"]',
+            'EXPORTED_FUNCTIONS=_main,_malloc,_free',
+            'ERROR_ON_UNDEFINED_SYMBOLS=1',
+            'INITIAL_MEMORY=33554432',
+            'MAX_WEBGL_VERSION=2',
+            'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0',
+            'IMPORTED_MEMORY=1',
+            'STACK_SIZE=5MB',
+            'MIN_FIREFOX_VERSION=34',
+            'MIN_SAFARI_VERSION=90000',
+            'MIN_CHROME_VERSION=32']
 
         if 'wasm' == build_util.get_target_architecture():
-            emflags += ['WASM=1', 'IMPORTED_MEMORY=1', 'ALLOW_MEMORY_GROWTH=1']
+            emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
         else:
-            emflags += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
+            emflags_link += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
 
-        emflags = zip(['-s'] * len(emflags), emflags)
-        emflags =[j for i in emflags for j in i]
+        emflags_link = zip(['-s'] * len(emflags_link), emflags_link)
+        emflags_link =[j for i in emflags_link for j in i]
 
         flags = []
         linkflags = []
         if int(opt_level) < 2:
-            flags = ['-g4']
-            linkflags = ['-g4']
+            flags = ['-gsource-map']
+            linkflags = ['-gsource-map']
 
+        flags += ['-O3']
+        linkflags += ['-O3']
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
                                         '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DDM_NO_SYSTEM_FUNCTION'])
-            self.env.append_value(f, emflags)
+            self.env.append_value(f, emflags_compile)
             self.env.append_value(f, flags)
 
-        self.env.append_value('LINKFLAGS', ['-Wno-warn-absolute-paths', '--emit-symbol-map', '--memory-init-file', '0', '-lidbfs.js'])
-        self.env.append_value('LINKFLAGS', emflags)
+        self.env.append_value('LINKFLAGS', ['-Wno-warn-absolute-paths', '--emit-symbol-map', '-lidbfs.js'])
+        self.env.append_value('LINKFLAGS', emflags_link)
         self.env.append_value('LINKFLAGS', linkflags)
 
     elif build_util.get_target_platform() in ['win32', 'x86_64-win32']:
@@ -552,15 +568,11 @@ def web_exported_functions(self):
 
     for name in ('CFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
         arr = self.env[name]
-
-        for i, v in enumerate(arr):
-            if v.startswith('EXPORTED_FUNCTIONS'):
-                remove_flag_at_index(arr, i-1, 2) # "_main" is exported by default
-                break
-
-        if use_crash:
-            self.env.append_value(name, ['-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_dmExportedSymbols","_main"]'])
-
+        if use_crash and name is 'LINKFLAGS':
+            for i, v in enumerate(arr):
+                if v.startswith('EXPORTED_FUNCTIONS'):
+                    arr[i] = v + ",_JSWriteDump,_dmExportedSymbols"
+                    break
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @after('apply_obj_vars')
@@ -1129,22 +1141,16 @@ def create_android_package(self):
 
     self.android_package_task = android_package_task
 
-def copy_glue(task):
-    with open(task.glue_file, 'rb') as in_f:
-        with open(task.outputs[0].abspath(), 'wb') as out_f:
-            out_f.write(in_f.read())
-
-    with open(task.outputs[1].abspath(), 'w') as out_f:
+def copy_stub(task):
+    with open(task.outputs[0].abspath(), 'w') as out_f:
         out_f.write(ANDROID_STUB)
 
     return 0
 
-task = Task.task_factory('copy_glue',
-                            func  = copy_glue,
-                            color = 'PINK',
-                            before  = 'c cxx')
-
-task.runnable_status = lambda self: RUN_ME
+task = Task.task_factory('copy_stub',
+                                func  = copy_stub,
+                                color = 'PINK',
+                                before  = 'c cxx')
 
 task.runnable_status = lambda self: RUN_ME
 
@@ -1155,13 +1161,10 @@ def create_copy_glue(self):
     if not re.match('arm.*?android', self.env['PLATFORM']):
         return
 
-    glue = self.path.find_or_declare('android_native_app_glue.c')
-    self.source.append(glue)
     stub = self.path.get_bld().find_or_declare('android_stub.c')
     self.source.append(stub)
-    task = self.create_task('copy_glue')
-    task.glue_file = '%s/sources/android/native_app_glue/android_native_app_glue.c' % (ANDROID_NDK_ROOT)
-    task.set_outputs([glue, stub])
+    task = self.create_task('copy_stub')
+    task.set_outputs([stub])
 
 def embed_build(task):
     symbol = task.inputs[0].name.upper().replace('.', '_').replace('-', '_').replace('@', 'at')
@@ -1410,7 +1413,8 @@ def run_tests(ctx, valgrind = False, configfile = None):
             cmd = launch_pattern % (program, configfile if configfile else '')
 
             if 'web' in ctx.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
-                cmd = '%s %s' % (ctx.env['NODEJS'], cmd)
+                cmd = '%s %s' % (ctx.env['NODEJS'][0], cmd)
+
         # disable shortly during beta release, due to issue with jctest + test_gui
         valgrind = False
         if valgrind:
@@ -1442,11 +1446,10 @@ def js_web_link_flags(self):
 @feature('test')
 def test_flags(self):
     self.install_path = None # the tests shouldn't be installed
-    # When building tests for the web, we disable emission of emscripten js.mem init files,
-    # as the assumption when these are loaded is that the cwd will contain these items.
     if 'web' in self.env['PLATFORM']:
         for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
-            self.env.append_value(f, ['--memory-init-file', '0'])
+            if '-gsource-map' in self.env[f]:
+                self.env[f].remove('-gsource-map')
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')

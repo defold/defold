@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -14,9 +14,16 @@
 
 #include <assert.h>
 #include "mutex.h"
+#include <dmsdk/dlib/log.h>
 
 namespace dmMutex
 {
+    #define CHECK_RET(ret) \
+        if (ret) { \
+            dmLogError("%s:%d failed: %d", __FUNCTION__, __LINE__, ret); \
+            assert(ret == 0); \
+        }
+
     HMutex New()
     {
         pthread_mutexattr_t attr;
@@ -35,9 +42,9 @@ namespace dmMutex
         Mutex* mutex = new Mutex();
 
         ret = pthread_mutex_init(&mutex->m_NativeHandle, &attr);
-        assert(ret == 0);
+        CHECK_RET(ret);
         ret = pthread_mutexattr_destroy(&attr);
-        assert(ret == 0);
+        CHECK_RET(ret);
 
         return mutex;
     }
@@ -46,7 +53,7 @@ namespace dmMutex
     {
         assert(mutex);
         int ret = pthread_mutex_destroy(&mutex->m_NativeHandle);
-        assert(ret == 0);
+        CHECK_RET(ret);
         delete mutex;
     }
 
@@ -54,7 +61,7 @@ namespace dmMutex
     {
         assert(mutex);
         int ret = pthread_mutex_lock(&mutex->m_NativeHandle);
-        assert(ret == 0);
+        CHECK_RET(ret);
     }
 
     bool TryLock(HMutex mutex)
@@ -67,6 +74,8 @@ namespace dmMutex
     {
         assert(mutex);
         int ret = pthread_mutex_unlock(&mutex->m_NativeHandle);
-        assert(ret == 0);
+        CHECK_RET(ret);
     }
+
+    #undef CHECK_RET
 }

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,11 +24,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,8 +45,6 @@ import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.samskivert.mustache.Mustache;
-import com.samskivert.mustache.Template;
 
 @BundlerParams(platforms = {Platform.JsWeb, Platform.WasmWeb})
 public class HTML5Bundler implements IBundler {
@@ -59,6 +54,10 @@ public class HTML5Bundler implements IBundler {
     private static final String SplitFileJson = "archive_files.json";
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
 
+    // previously it was hardcoded in dmloader.js
+    private long WasmSize = 2000000;
+    private long WasmjsSize = 250000;
+    private long AsmjsSize = 4000000;
     public static final String MANIFEST_NAME = "engine_template.html";
 
     @Override
@@ -95,12 +94,15 @@ public class HTML5Bundler implements IBundler {
             }
         }
         properties.put("DEFOLD_HEAP_SIZE", customHeapSize);
+        properties.put("DEFOLD_WASM_SIZE", WasmSize);
+        properties.put("DEFOLD_WASMJS_SIZE", WasmjsSize);
+        properties.put("ASMJS_SIZE", AsmjsSize);
 
         String splashImage = projectProperties.getStringValue("html5", "splash_image", null);
         if (splashImage != null) {
             properties.put("DEFOLD_SPLASH_IMAGE", new File(project.getRootDirectory(), splashImage).getName());
         } else {
-            // Without this value we can't use Inverted Sections (^) in Mustache and recive an error:
+            // Without this value we can't use Inverted Sections (^) in Mustache and receive an error:
             // "No key, method or field with name 'DEFOLD_SPLASH_IMAGE' on line N"
             properties.put("DEFOLD_SPLASH_IMAGE", false);
         }
@@ -165,6 +167,21 @@ public class HTML5Bundler implements IBundler {
             subdivisions = new ArrayList<File>();
         }
 
+        public long getTotalSize() {
+            return source.length();
+        }
+
+        private static String insertNumberBeforeExtension(String filePath, int number) {
+            int dotIndex = filePath.indexOf('.');
+            if (dotIndex > 0) {
+                String baseName = filePath.substring(0, dotIndex);
+                String extension = filePath.substring(dotIndex);
+                return baseName + number + extension;
+            } else {
+                return filePath + number;
+            }
+        }
+
         void performSplit(File destDir) throws IOException {
             InputStream input = null;
             try {
@@ -176,8 +193,7 @@ public class HTML5Bundler implements IBundler {
                     byte[] readBuffer = new byte[thisRead];
                     long bytesRead = input.read(readBuffer, 0, thisRead);
                     assert(bytesRead == thisRead);
-
-                    File output = new File(destDir, source.getName() + subdivisions.size());
+                    File output = new File(destDir, insertNumberBeforeExtension(source.getName(), subdivisions.size()));
                     writeChunk(output, readBuffer);
                     subdivisions.add(output);
 
@@ -199,7 +215,7 @@ public class HTML5Bundler implements IBundler {
 
             generator.writeFieldName("pieces");
             generator.writeStartArray();
-            int offset = 0;
+            long offset = 0;
             for (File split : this.subdivisions) {
                 String path = split.getName();
 
@@ -233,6 +249,9 @@ public class HTML5Bundler implements IBundler {
         return getClass().getResource(String.format("resources/jsweb/%s", name));
     }
 
+    private void createDmLoader(BundleHelper helper, URL inputResource, File targetFile) throws IOException {
+        helper.formatResourceToFile(inputResource.openStream().readAllBytes(), inputResource.getPath(), targetFile);
+    }
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDirectory, ICanceled canceled)
             throws IOException, CompileExceptionError {
@@ -253,7 +272,6 @@ public class HTML5Bundler implements IBundler {
         String enginePrefix = BundleHelper.projectNameToBinaryName(title);
 
         BundleHelper.throwIfCanceled(canceled);
-        File projectRoot = new File(project.getRootDirectory());
 
         File appDir = new File(bundleDirectory, title);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
@@ -302,6 +320,7 @@ public class HTML5Bundler implements IBundler {
                 String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
                 if (binExtension.equals("js")) {
                     FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
+                    AsmjsSize = bin.length();
                 } else {
                     throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
                 }
@@ -323,8 +342,10 @@ public class HTML5Bundler implements IBundler {
                 String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
                 if (binExtension.equals("js")) {
                     FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_wasm.js"));
+                    WasmjsSize = bin.length();
                 } else if (binExtension.equals("wasm")) {
                     FileUtils.copyFile(bin, new File(appDir, enginePrefix + ".wasm"));
+                    WasmSize = bin.length();
                 } else {
                     throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
                 }
@@ -333,11 +354,12 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        BundleHelper helper = new BundleHelper(project, platform, appDir, variant);
+        BundleHelper helper = new BundleHelper(project, platform, appDir, variant, this);
 
         helper.copyOrWriteManifestFile(architectures.get(0), appDir);
 
-        FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
+        helper.updateTemplateProperties();
+        createDmLoader(helper, getResource("dmloader.js"), new File(appDir, "dmloader.js"));
 
         String splashImageName = projectProperties.getStringValue("html5", "splash_image");
         if (splashImageName != null && !splashImageName.isEmpty()) {
@@ -361,6 +383,7 @@ public class HTML5Bundler implements IBundler {
     private void createSplitFilesJson(ArrayList<SplitFile> splitFiles, File targetDir) throws IOException {
         BufferedWriter writer = null;
         JsonGenerator generator = null;
+        long totalSize = 0;
         try {
             File descFile = new File(targetDir, SplitFileJson);
             writer = new BufferedWriter(new FileWriter(descFile));
@@ -372,9 +395,10 @@ public class HTML5Bundler implements IBundler {
 
             for (SplitFile split : splitFiles) {
                 split.writeJson(generator);
+                totalSize += split.getTotalSize();
             }
-
             generator.writeEndArray();
+            generator.writeNumberField("total_size", totalSize);
             generator.writeEndObject();
         }
         finally {

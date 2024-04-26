@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -19,6 +19,8 @@
 
 #include "dlib/dlib.h"
 #include "dlib/log.h"
+#include "dlib/atomic.h"
+#include "dlib/spinlock.h"
 
 #include "dlib/hash.h"
 
@@ -26,11 +28,13 @@
 
 namespace dmProfile
 {
-    static Remotery* g_Remotery = 0;
+    static Remotery*                g_Remotery = 0;
     static FSampleTreeCallback      g_SampleTreeCallback = 0;
     static void*                    g_SampleTreeCallbackCtx = 0;
     static FPropertyTreeCallback    g_PropertyTreeCallback = 0;
     static void*                    g_PropertyTreeCallbackCtx = 0;
+    static int32_atomic_t           g_ProfilerInitialized = 0;
+    static dmSpinlock::Spinlock     g_ProfilerLock;
 
     static inline rmtSample* SampleFromHandle(HSample sample)
     {
@@ -49,8 +53,18 @@ namespace dmProfile
         return (HProperty)property;
     }
 
+    bool IsInitialized()
+    {
+        return dmAtomicGet32(&g_ProfilerInitialized) != 0 && g_Remotery != 0;
+    }
+
     static void SampleTreeCallback(void* ctx, rmtSampleTree* sample_tree)
     {
+        if (!IsInitialized())
+            return;
+
+        DM_SPINLOCK_SCOPED_LOCK(g_ProfilerLock);
+
         if (g_SampleTreeCallback)
         {
             const char* thread_name = rmt_SampleTreeGetThreadName(sample_tree);
@@ -62,6 +76,11 @@ namespace dmProfile
 
     static void PropertyTreeCallback(void* ctx, rmtProperty* root)
     {
+        if (!IsInitialized())
+            return;
+
+        DM_SPINLOCK_SCOPED_LOCK(g_ProfilerLock);
+
         if (g_PropertyTreeCallback)
         {
             g_PropertyTreeCallback(g_PropertyTreeCallbackCtx, PropertyToHandle(root));
@@ -102,24 +121,45 @@ namespace dmProfile
 
         rmt_SetCurrentThreadName("Main");
 
+        dmSpinlock::Create(&g_ProfilerLock);
+        dmAtomicStore32(&g_ProfilerInitialized, 1);
+
         dmLogInfo("Initialized Remotery (ws://127.0.0.1:%d/rmt)", settings->port);
+    }
+
+    static inline void WaitForFlag(int32_atomic_t* lock)
+    {
+        while (dmAtomicGet32(lock) == 0) {
+        }
+    }
+
+    static inline void AtomicUnlock(int32_atomic_t* lock)
+    {
+        dmAtomicStore32(lock, 0);
     }
 
     void Finalize()
     {
-        if (g_Remotery)
-            rmt_DestroyGlobalInstance(g_Remotery);
-        g_Remotery = 0;
-    }
+        {
+            DM_SPINLOCK_SCOPED_LOCK(g_ProfilerLock);
+            dmAtomicStore32(&g_ProfilerInitialized, 0);
 
-    bool IsInitialized()
-    {
-        return g_Remotery != 0;
+            g_SampleTreeCallback = 0;
+            g_SampleTreeCallbackCtx = 0;
+            g_PropertyTreeCallback = 0;
+            g_PropertyTreeCallbackCtx = 0;
+
+            if (g_Remotery)
+                rmt_DestroyGlobalInstance(g_Remotery);
+            g_Remotery = 0;
+        }
+
+        dmSpinlock::Destroy(&g_ProfilerLock);
     }
 
     HProfile BeginFrame()
     {
-        if (!g_Remotery)
+        if (!IsInitialized())
         {
             return 0;
         }
@@ -129,12 +169,15 @@ namespace dmProfile
 
     void SetThreadName(const char* name)
     {
+        if (!IsInitialized())
+            return;
+        DM_SPINLOCK_SCOPED_LOCK(g_ProfilerLock);
         rmt_SetCurrentThreadName(name);
     }
 
     void EndFrame(HProfile profile)
     {
-        if (!g_Remotery)
+        if (!IsInitialized())
         {
             return;
         }
@@ -159,6 +202,11 @@ namespace dmProfile
 
     void LogText(const char* format, ...)
     {
+        if (!IsInitialized())
+        {
+            return;
+        }
+
         char buffer[DM_PROFILE_TEXT_LENGTH];
 
         va_list lst;
@@ -172,19 +220,41 @@ namespace dmProfile
 
     void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)
     {
+        // This function is called both before the profiler is initialized, and during
+        if (IsInitialized())
+        {
+            dmSpinlock::Lock(&g_ProfilerLock);
+        }
+
         g_SampleTreeCallback = callback;
         g_SampleTreeCallbackCtx = ctx;
+
+        if (IsInitialized())
+        {
+            dmSpinlock::Unlock(&g_ProfilerLock);
+        }
     }
 
     void SetPropertyTreeCallback(void* ctx, FPropertyTreeCallback callback)
     {
+        // This function is called both before the profiler is initialized, and during
+        if (IsInitialized())
+        {
+            dmSpinlock::Lock(&g_ProfilerLock);
+        }
+
         g_PropertyTreeCallback = callback;
         g_PropertyTreeCallbackCtx = ctx;
+
+        if (IsInitialized())
+        {
+            dmSpinlock::Unlock(&g_ProfilerLock);
+        }
     }
 
     void ProfileScope::StartScope(const char* name, uint64_t* name_hash)
     {
-        if (g_Remotery == NULL) {
+        if (!IsInitialized()) {
             return;
         }
         if (name != 0)
@@ -206,7 +276,7 @@ namespace dmProfile
 
     void ScopeBegin(const char* name, uint64_t* name_hash)
     {
-        if (g_Remotery == NULL) {
+        if (!IsInitialized()) {
             return;
         }
         _rmt_BeginCPUSample(name, RMTSF_Aggregate, (uint32_t*)name_hash);
@@ -214,7 +284,7 @@ namespace dmProfile
 
     void ScopeEnd()
     {
-        if (g_Remotery == NULL) {
+        if (!IsInitialized()) {
             return;
         }
         rmt_EndCPUSample();

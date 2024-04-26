@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -40,18 +40,9 @@ namespace dmGraphics
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int8_t priority);
 
     // This snippet is taken from extension.h (SDK)
-    #ifdef __GNUC__
-        #define DM_REGISTER_GRAPHICS_ADAPTER(adapter_name, adapter_ptr, is_supported_cb, register_functions_cb, priority) extern "C" void __attribute__((constructor)) adapter_name () { \
-            RegisterGraphicsAdapter(adapter_ptr, is_supported_cb, register_functions_cb, priority); \
-        }
-    #else
-        #define DM_REGISTER_GRAPHICS_ADAPTER(adapter_name, adapter_ptr, is_supported_cb, register_functions_cb, priority) extern "C" void adapter_name () { \
-            RegisterGraphicsAdapter(adapter_ptr, is_supported_cb, register_functions_cb, priority); \
-            }\
-            int adapter_name ## Wrapper(void) { adapter_name(); return 0; } \
-            __pragma(section(".CRT$XCU",read)) \
-            __declspec(allocate(".CRT$XCU")) int (* _Fp ## adapter_name)(void) = adapter_name ## Wrapper;
-    #endif
+    #define DM_REGISTER_GRAPHICS_ADAPTER(adapter_name, adapter_ptr, is_supported_cb, register_functions_cb, priority) extern "C" void adapter_name () { \
+        RegisterGraphicsAdapter(adapter_ptr, is_supported_cb, register_functions_cb, priority); \
+    }
 
     typedef HContext (*NewContextFn)(const ContextParams& params);
     typedef void (*DeleteContextFn)(HContext context);
@@ -141,7 +132,7 @@ namespace dmGraphics
     typedef HTexture (*NewTextureFn)(HContext context, const TextureCreationParams& params);
     typedef void (*DeleteTextureFn)(HTexture t);
     typedef void (*SetTextureFn)(HTexture texture, const TextureParams& params);
-    typedef void (*SetTextureAsyncFn)(HTexture texture, const TextureParams& paramsa);
+    typedef void (*SetTextureAsyncFn)(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
     typedef void (*SetTextureParamsFn)(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
     typedef uint32_t (*GetTextureResourceSizeFn)(HTexture texture);
     typedef uint16_t (*GetTextureWidthFn)(HTexture texture);
@@ -167,13 +158,6 @@ namespace dmGraphics
     typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc::Shader* ddf);
     typedef HProgram (*NewProgramFromComputeFn)(HContext context, HComputeProgram compute_program);
     typedef void (*DeleteComputeProgramFn)(HComputeProgram prog);
-
-#ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-    typedef void* (*MapVertexBufferFn)(HContext context, HVertexBuffer buffer, BufferAccess access);
-    typedef bool (*UnmapVertexBufferFn)(HContext context, HVertexBuffer buffer);
-    typedef void* (*MapIndexBufferFn)(HContext context, HIndexBuffer buffer, BufferAccess access);
-    typedef bool (*UnmapIndexBufferFn)(HContext context, HIndexBuffer buffer);
-#endif
 
     struct GraphicsAdapterFunctionTable
     {
@@ -288,13 +272,6 @@ namespace dmGraphics
         NewComputeProgramFn     m_NewComputeProgram;
         NewProgramFromComputeFn m_NewProgramFromCompute;
         DeleteComputeProgramFn  m_DeleteComputeProgram;
-
-    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-        MapVertexBufferFn   m_MapVertexBuffer;
-        UnmapVertexBufferFn m_UnmapVertexBuffer;
-        MapIndexBufferFn    m_MapIndexBuffer;
-        UnmapIndexBufferFn  m_UnmapIndexBuffer;
-    #endif
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -409,15 +386,6 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewComputeProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgramFromCompute); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteComputeProgram);
-    #ifdef DM_EXPERIMENTAL_GRAPHICS_FEATURES
-        #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(tbl, adapter_name) \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapVertexBuffer); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapVertexBuffer); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, MapIndexBuffer); \
-            DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, UnmapIndexBuffer);
-    #else
-        #define DM_REGISTER_EXPERIMENTAL_GRAPHICS_FUNCTIONS(...)
-    #endif
 }
 
 #endif

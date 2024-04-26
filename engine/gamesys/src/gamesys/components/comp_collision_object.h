@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -25,6 +25,9 @@
 #include <gamesys/physics_ddf.h>
 
 template <typename T> class dmArray;
+
+class b2World;
+class b2Body;
 
 namespace dmGameSystem
 {
@@ -102,6 +105,12 @@ namespace dmGameSystem
     bool GetShapeIndex(void* _component, dmhash_t shape_name_hash, uint32_t* index_out);
     bool GetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
     bool SetShape(void* _world, void* _component, uint32_t shape_ix, ShapeInfo* shape_info);
+
+
+    // For script_box2d.cpp
+    b2World* CompCollisionObjectGetBox2DWorld(void* _world);
+    b2Body* CompCollisionObjectGetBox2DBody(void* _component);
+    dmGameObject::HInstance CompCollisionObjectGetInstance(void* _user_data);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H
