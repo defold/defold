@@ -1421,13 +1421,13 @@ public class Project {
         if (this.hasOption("debug-output-spirv")) {
             this.setOption("output-spirv", this.option("debug-output-spirv", "false"));
         } else {
-            this.setOption("output-spirv", getShaderTypeRequired(this, "GraphicsAdapterVulkan", "graphics_vulkan") ? "true" : "false");
+            this.setOption("output-spirv", getShaderTypeRequired("GraphicsAdapterVulkan", "graphics_vulkan") ? "true" : "false");
         }
 
         if (this.hasOption("debug-output-hlsl")) {
             this.setOption("output-hlsl", this.option("debug-output-hlsl", "false"));
         } else {
-            this.setOption("output-hlsl", getShaderTypeRequired(this, "GraphicsAdapterDX12", "graphics_dx12") ? "true" : "false");
+            this.setOption("output-hlsl", getShaderTypeRequired("GraphicsAdapterDX12", "graphics_dx12") ? "true" : "false");
         }
     }
 

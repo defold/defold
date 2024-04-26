@@ -26,6 +26,7 @@ namespace dmGraphics
     const static uint8_t MAX_VERTEX_BUFFERS            = 2;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 16;
     const static uint8_t MAX_SET_COUNT                 = 4;
+    const static uint8_t MAX_STORAGE_BUFFERS           = 4;
 
     // In OpenGL, there is a single global resource identifier between
     // fragment and vertex uniforms for a single program. In Vulkan,
@@ -44,6 +45,13 @@ namespace dmGraphics
     {
         RENDER_CONTEXT_STATE_FREE = 0,
         RENDER_CONTEXT_STATE_IN_USE = 1,
+    };
+
+    enum ShaderStageFlag
+    {
+        SHADER_STAGE_FLAG_VERTEX   = 0x1,
+        SHADER_STAGE_FLAG_FRAGMENT = 0x2,
+        SHADER_STAGE_FLAG_COMPUTE  = 0x4,
     };
 
     struct VertexStream

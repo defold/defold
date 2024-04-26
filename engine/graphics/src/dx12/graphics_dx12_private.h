@@ -26,8 +26,9 @@
 
 namespace dmGraphics
 {
-    const static uint8_t MAX_FRAMES_IN_FLIGHT = 2;
-    const static uint8_t MAX_FRAMEBUFFERS     = 3;
+    const static uint8_t MAX_FRAMES_IN_FLIGHT       = 2;
+    const static uint8_t MAX_FRAMEBUFFERS           = 3;
+    const static uint32_t UNIFORM_BUFFERS_ALIGNMENT = 256;
 
     typedef ID3D12PipelineState*          DX12Pipeline;
     typedef dmHashTable64<DX12Pipeline>   DX12PipelineCache;
@@ -65,12 +66,13 @@ namespace dmGraphics
 
     struct DX12ShaderModule
     {
-        ID3DBlob*                      m_ShaderBlob;
-        dmArray<ShaderResourceBinding> m_Uniforms;
-        dmArray<ShaderResourceBinding> m_Inputs;
-        uint16_t                       m_UniformBufferCount;
-        uint16_t                       m_TextureSamplerCount;
-        uint16_t                       m_TotalUniformCount;
+        ID3DBlob*  m_ShaderBlob;
+        ShaderMeta m_ShaderMeta;
+        // dmArray<ShaderResourceBinding> m_Uniforms;
+        // dmArray<ShaderResourceBinding> m_Inputs;
+        // uint16_t                       m_UniformBufferCount;
+        // uint16_t                       m_TextureSamplerCount;
+        // uint16_t                       m_TotalUniformCount;
     };
 
     struct DX12Viewport
@@ -83,6 +85,7 @@ namespace dmGraphics
 
     struct DX12ShaderProgram
     {
+        /*
         enum ModuleType
         {
             MODULE_TYPE_VERTEX   = 1,
@@ -102,6 +105,7 @@ namespace dmGraphics
                 uint16_t m_TextureUnit;
             };
         };
+        */
 
         ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
@@ -116,9 +120,10 @@ namespace dmGraphics
         ShaderDesc::Language   m_Language;
         uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformBufferCount;
+        uint16_t               m_StorageBufferCount;
         uint16_t               m_TextureSamplerCount;
-        uint16_t               m_TotalUniformCount;
         uint16_t               m_TotalResourcesCount;
+        uint16_t               m_TotalUniformCount;
         uint8_t                m_MaxSet;
         uint8_t                m_MaxBinding;
     };

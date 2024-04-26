@@ -481,7 +481,10 @@ public class ShaderCompilerHelpers {
 
         builder.addAllInputs(spirvBuilder.getInputsList());
         builder.addAllOutputs(spirvBuilder.getOutputsList());
-        builder.addAllResources(spirvBuilder.getResourcesList());
+        builder.addAllTextures(spirvBuilder.getTexturesList());
+        builder.addAllUniformBuffers(spirvBuilder.getUniformBuffersList());
+        builder.addAllStorageBuffers(spirvBuilder.getStorageBuffersList());
+        builder.addAllTypes(spirvBuilder.getTypesList());
 
         if (fileDebug) {
             System.out.println("FILES");
