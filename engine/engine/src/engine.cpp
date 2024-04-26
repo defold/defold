@@ -943,7 +943,8 @@ namespace dmEngine
         }
 
         int32_t liveupdate_enable = dmConfigFile::GetInt(engine->m_Config, "liveupdate.enabled", 1);
-        if (liveupdate_enable)
+        int32_t liveupdate_mount_on_start = dmConfigFile::GetInt(engine->m_Config, "liveupdate.mount_on_start", 1);
+        if (liveupdate_enable && liveupdate_mount_on_start)
         {
             params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE;
         }

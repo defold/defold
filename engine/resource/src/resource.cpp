@@ -326,7 +326,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         }
         else
         {
-            dmLogInfo("Resource mounts support disabled.");
+            dmLogInfo("LiveUpdate resource mounts disabled.");
         }
     }
 
