@@ -169,7 +169,8 @@ namespace dmGraphics
     static void CreateRootSignature(DX12Context* context, CD3DX12_ROOT_SIGNATURE_DESC* desc, DX12ShaderProgram* program)
     {
         ID3DBlob* signature;
-        HRESULT hr = D3D12SerializeRootSignature(desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, NULL);
+        ID3DBlob* error;
+        HRESULT hr = D3D12SerializeRootSignature(desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
         CHECK_HR_ERROR(hr);
 
         hr = context->m_Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&program->m_RootSignature));
@@ -1041,7 +1042,7 @@ namespace dmGraphics
         fs_byte_code.pShaderBytecode       = context->m_CurrentProgram->m_FragmentModule->m_ShaderBlob->GetBufferPointer();
 
         uint32_t stream_count = 0;
-        D3D12_INPUT_ELEMENT_DESC input_layout[MAX_VERTEX_STREAM_COUNT];
+        D3D12_INPUT_ELEMENT_DESC input_layout[MAX_VERTEX_STREAM_COUNT] = {};
 
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
@@ -1082,8 +1083,6 @@ namespace dmGraphics
             0,                                          // forcedSampleCount
             D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF); // conservativeRaster
 
-
-
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {}; // a structure to define a pso
         psoDesc.InputLayout           = inputLayoutDesc; // the structure describing our input layout
         psoDesc.pRootSignature        = context->m_CurrentProgram->m_RootSignature;
@@ -1092,8 +1091,8 @@ namespace dmGraphics
         psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // SHould we support points?
         psoDesc.RTVFormats[0]         = rt->m_Format;
         psoDesc.SampleDesc            = rt->m_SampleDesc; // must be the same sample description as the swapchain and depth/stencil buffer
-        psoDesc.SampleMask            = 0xffffffff; // TODO: sample mask has to do with multi-sampling. 0xffffffff means point sampling is done
-        psoDesc.RasterizerState       = rasterizerState;
+        psoDesc.SampleMask            = UINT_MAX; // TODO: sample mask has to do with multi-sampling. 0xffffffff means point sampling is done
+        psoDesc.RasterizerState       = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT); // TODO? rasterizerState;
         psoDesc.BlendState            = CD3DX12_BLEND_DESC(D3D12_DEFAULT); // TODO
         psoDesc.NumRenderTargets      = 1; // TODO
 
@@ -1174,53 +1173,18 @@ namespace dmGraphics
                 switch(pgm_res.m_Res->m_BindingFamily)
                 {
                     case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
-                        /*
-                        UpdateImageDescriptor(context,
-                            context->m_TextureUnits[pgm_res.m_TextureUnit],
-                            pgm_res.m_Res,
-                            vk_write_image_descriptors[image_to_write_index++],
-                            vk_write_desc_info);
-                        */
-                        break;
+                    {
+                        // TODO:
+                        // need to create texture + texture view to bind it to the shader somehow
+                        // https://www.braynzarsoft.net/viewtutorial/q16390-directx-12-textures-from-file
+                        assert(0);
+                    } break;
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
                     {
-                        /*
-                        const StorageBufferBinding binding = context->m_CurrentStorageBuffers[pgm_res.m_StorageBufferUnit];
-                        UpdateUniformBufferDescriptor(context,
-                            ((DeviceBuffer*) binding.m_Buffer)->m_Handle.m_Buffer,
-                            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                            vk_write_buffer_descriptors[buffer_to_write_index++],
-                            vk_write_desc_info,
-                            binding.m_BufferOffset,
-                            VK_WHOLE_SIZE);
-                            */
+                        assert(0);
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
-                        /*
-                        dynamic_offsets[pgm_res.m_DynamicOffsetIndex] = (uint32_t) scratch_buffer->m_MappedDataCursor;
-                        const uint32_t uniform_size_nonalign          = pgm_res.m_Res->m_BlockSize;
-                        const uint32_t uniform_size_align             = DM_ALIGN(uniform_size_nonalign, dynamic_alignment);
-
-                        assert(uniform_size_nonalign > 0);
-
-                        // Copy client data to aligned host memory
-                        // The data_offset here is the offset into the programs uniform data,
-                        // i.e the source buffer.
-                        memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
-                            &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
-
-                        UpdateUniformBufferDescriptor(context,
-                            scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer,
-                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                            vk_write_buffer_descriptors[buffer_to_write_index++],
-                            vk_write_desc_info,
-                            0,
-                            uniform_size_align);
-
-                        scratch_buffer->m_MappedDataCursor += uniform_size_align;
-                        */
-
                         const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BlockSize;
                         void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, uniform_size_nonalign);
                         memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
@@ -1319,6 +1283,27 @@ namespace dmGraphics
     static bool DX12ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
     {
         return true;
+    }
+
+    static D3D12_SHADER_VISIBILITY GetShaderVisibilityFromStage(uint8_t stage_flag)
+    {
+        if (stage_flag & SHADER_STAGE_FLAG_VERTEX && stage_flag & SHADER_STAGE_FLAG_FRAGMENT)
+        {
+            return D3D12_SHADER_VISIBILITY_ALL;
+        }
+        else if (stage_flag & SHADER_STAGE_FLAG_VERTEX)
+        {
+            return D3D12_SHADER_VISIBILITY_VERTEX;
+        }
+        else if (stage_flag & SHADER_STAGE_FLAG_FRAGMENT)
+        {
+            return D3D12_SHADER_VISIBILITY_PIXEL;
+        }
+        else if (stage_flag & SHADER_STAGE_FLAG_COMPUTE)
+        {
+            return D3D12_SHADER_VISIBILITY_ALL;
+        }
+        return D3D12_SHADER_VISIBILITY_ALL;
     }
 
     struct ResourceBindingDesc
@@ -1445,46 +1430,59 @@ namespace dmGraphics
         program->m_FragmentModule  = (DX12ShaderModule*) fragment_program;
         program->m_ComputeModule   = 0;
 
+        dmLogInfo("New program");
+
         CreateProgramResourceBindings(program, program->m_VertexModule, program->m_FragmentModule, 0);
 
-        /*
-        // TODO: We should hash the data needed to generate this signature
-        D3D12_DESCRIPTOR_RANGE desc_range;
-        desc_range.RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-        desc_range.NumDescriptors                    = num_buffers;
-        desc_range.BaseShaderRegister                = 0;
-        desc_range.RegisterSpace                     = 0;
-        desc_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        dmArray<CD3DX12_ROOT_PARAMETER > root_parameter_descs;
+        root_parameter_descs.SetCapacity(program->m_UniformBufferCount + program->m_TextureSamplerCount * 2);
 
-        D3D12_ROOT_DESCRIPTOR_TABLE desc_table;
-        desc_table.NumDescriptorRanges = 1;
-        desc_table.pDescriptorRanges   = &desc_range;
+        for (int set = 0; set < program->m_MaxSet; ++set)
+        {
+            for (int binding = 0; binding < program->m_MaxBinding; ++binding)
+            {
+                ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
 
-        D3D12_ROOT_PARAMETER  root_param;
-        root_param.ParameterType    = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        root_param.DescriptorTable  = desc_table;
-        root_param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-        */
+                if (pgm_res.m_Res == 0x0)
+                    continue;
+                switch(pgm_res.m_Res->m_BindingFamily)
+                {
+                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                    {
+                        uint32_t ix = root_parameter_descs.Size();
+                        root_parameter_descs.SetSize(ix + 2);
 
-        // D3D12_ROOT_DESCRIPTOR_TABLE desc_table;
-        // desc_table.NumDescriptorRanges = 1;
-        // desc_table.pDescriptorRanges   = &desc_range;
+                        CD3DX12_DESCRIPTOR_RANGE texture1Range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+                        CD3DX12_DESCRIPTOR_RANGE texture1SamplerRange(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);
 
-        D3D12_ROOT_PARAMETER  root_params[2];
-        root_params[0].ParameterType    = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-        root_params[0].Descriptor.ShaderRegister = 0;
-        root_params[0].Descriptor.RegisterSpace  = 0;
-
-        root_params[1].ParameterType    = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-        root_params[1].Descriptor.ShaderRegister = 0;
-        root_params[1].Descriptor.RegisterSpace  = 0;
+                        root_parameter_descs[ix + 0].InitAsDescriptorTable(1, &texture1Range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                        root_parameter_descs[ix + 1].InitAsDescriptorTable(1, &texture1SamplerRange, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                    } break;
+                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                    {
+                        // TODO
+                        assert(0);
+                    } break;
+                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                    {
+                        uint32_t ix = root_parameter_descs.Size();
+                        root_parameter_descs.SetSize(ix + 1);
+                        root_parameter_descs[ix].InitAsConstantBufferView(0, 0, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                    } break;
+                    case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                    default: continue;
+                }
+            }
+        }
 
         CD3DX12_ROOT_SIGNATURE_DESC root_signature_desc;
-        root_signature_desc.Init(2, root_params,
-            0, nullptr, // TODO: samplers
+        root_signature_desc.Init(
+            root_parameter_descs.Size(),
+            root_parameter_descs.Begin(),
+            // No static samplers
+            0, 0,
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
+            D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED |
             // we can deny more shader stages here for better performance
             D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
             D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
