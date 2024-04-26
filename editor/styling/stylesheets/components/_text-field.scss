@@ -3,7 +3,7 @@
     -fx-background-radius: 0px;
     -fx-border-radius: 0px;
     -fx-padding: 4px 8px;
-    -fx-background-color: -df-background-light;
+    -fx-background-color: -df-background-input;
     -fx-border-width: 1px 1px 1px 1px;
     -fx-border-color: -df-component-dark;
     -fx-text-fill: -df-text-light;
@@ -31,7 +31,7 @@
             -fx-background-color: -df-background-light;
             -fx-border-width: 1px 1px 1px 1px;
             -fx-border-color: -df-component-dark;
-            -fx-text-fill: -df-text;
+            -fx-text-fill: -df-text-light;
             -fx-prompt-text-fill: -df-text;
             -fx-min-height: 26px;
         }

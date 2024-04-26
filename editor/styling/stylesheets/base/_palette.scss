@@ -1,23 +1,23 @@
 * {
 	// Background
-	-df-background-darker:    derive(#212428, -13%);	// dialog input field background
-	-df-background-dark:      derive(#212428, -6%);
-	-df-background:           #212428;					// background, #212428 (original: dark-grey #212428)
-	-df-background-light:     derive(#212428, 6%);		// panels, input field background, +6%=#c3036 (original: dark-grey-light #2c2e33)
-	-df-background-lighter:   derive(#212428, 13%);		// tree view selection, +13%=#3c4249 (original: dark-grey-selected #3B3F43)
+	-df-background-darker:    derive(#212428, -40%);	// dialog input field background (original name: dark-grey-darker)
+	-df-background:           #212428;					// background (original name: dark-grey)
+	-df-background-light:     #2c2e33;					// panels (original name: dark-grey-light)
+	-df-background-lighter:   #3B3F43;					// tree view selection (original name: dark-grey-selected)
+	-df-background-input:     #292a2f;					// input field background (original name: input-background)
 
 	// Component
-	-df-component-darker:     derive(#52575c, -30%);	// button outline, scene view controls panel, -30%=#222426 (original: dark-grey #212428)
-	-df-component-dark:       derive(#52575c, -15%);	// button, input field border, -15%=#383c3f (original: mid-grey #393c41)
-	-df-component:            #52575c;					// button hovered (original: grey #52575c)
-	-df-component-light:      derive(#52575c, 15%);		// input field border selected, +15%=#697076 (original: mid-grey-light #45474B)
-	-df-component-lighter:    derive(#52575c, 30%);		// button icon, +30%=#828990
+	-df-component-darker:     #212428;		// button outline, scene view controls panel (original name: dark-grey)
+	-df-component-dark:       #393c41;		// button, input field border (original name: mid-grey)
+	-df-component-light:      #45474B;		// button selected, input field border selected (original: mid-grey-light)
+	-df-component-lighter:    #52575c;		// button hovered (original name: grey)
+	-df-component-icon:       #8f9296;		// button icon (original name: bright-grey)
 
 	// Text & icons
-	-df-text-dark:            derive(#a2b0be, -30%);	// property components, -30%=#8698aa (original: #848484)
-	-df-text:                 #a2b0be;					// non editable text, input field hint (original: bright-grey-light #a2b0be)
-	-df-text-light:           derive(#a2b0be, 85%);		// editable text, +85%=#f1f3f5 (original: defold-white #f0f2f6)
-	-df-text-selected:        derive(#a2b0be, 85%);		// non editable selected text (original: defold-white #f0f2f6)
+	-df-text-dark:            #848484;		// property components (hardcoded in fxml in original css)
+	-df-text:                 #a2b0be;		// non editable text, input field hint (original name: bright-grey-light)
+	-df-text-light:           #f0f2f6;		// editable text (original name: defold-white)
+	-df-text-selected:        #f0f2f6;		// non editable selected text (original name: defold-white)
 
 	// Red
 	-df-defold-red-dark:     derive(#e32f44, -10%);

@@ -4,13 +4,13 @@
     -fx-border-width: 1px 1px 1px 2px;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 12, 0, 0, 8);
     &:warning {
-      -fx-border-color: -df-component -df-component -df-component -df-error-severity-warning;
+      -fx-border-color: -df-component-lighter -df-component-lighter -df-component-lighter -df-error-severity-warning;
     }
     &:error {
-      -fx-border-color: -df-component -df-component -df-component -df-error-severity-fatal;
+      -fx-border-color: -df-component-lighter -df-component-lighter -df-component-lighter -df-error-severity-fatal;
     }
     &:info {
-      -fx-border-color: -df-component -df-component -df-component -df-error-severity-info;
+      -fx-border-color: -df-component-lighter -df-component-lighter -df-component-lighter -df-error-severity-info;
     }
   }
   &-close-button {
@@ -22,10 +22,10 @@
     }
   }
   &-button {
-    -fx-background-color: -df-component-light;
+    -fx-background-color: -df-component-dark;
     -fx-border-color: -df-component-darker;
     &:hover {
-      -fx-background-color: -df-component-lighter;
+      -fx-background-color: -df-component-light;
     }
   }
 }

@@ -101,13 +101,13 @@
     .separator {
         &:horizontal {
             .line {
-                -fx-border-color: -df-component;
+                -fx-border-color: -df-component-lighter;
             }
         }
 
         &:vertical {
             .line {
-                -fx-border-color: -df-component;
+                -fx-border-color: -df-component-lighter;
             }
         }
     }

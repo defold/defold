@@ -66,20 +66,20 @@ Label.emphasis {
 }
 
 * {
-  -df-background-darker: derive(#212428, -13%);
-  -df-background-dark: derive(#212428, -6%);
+  -df-background-darker: derive(#212428, -40%);
   -df-background: #212428;
-  -df-background-light: derive(#212428, 6%);
-  -df-background-lighter: derive(#212428, 13%);
-  -df-component-darker: derive(#52575c, -30%);
-  -df-component-dark: derive(#52575c, -15%);
-  -df-component: #52575c;
-  -df-component-light: derive(#52575c, 15%);
-  -df-component-lighter: derive(#52575c, 30%);
-  -df-text-dark: derive(#a2b0be, -30%);
+  -df-background-light: #2c2e33;
+  -df-background-lighter: #3B3F43;
+  -df-background-input: #292a2f;
+  -df-component-darker: #212428;
+  -df-component-dark: #393c41;
+  -df-component-light: #45474B;
+  -df-component-lighter: #52575c;
+  -df-component-icon: #8f9296;
+  -df-text-dark: #848484;
   -df-text: #a2b0be;
-  -df-text-light: derive(#a2b0be, 85%);
-  -df-text-selected: derive(#a2b0be, 85%);
+  -df-text-light: #f0f2f6;
+  -df-text-selected: #f0f2f6;
   -df-defold-red-dark: derive(#e32f44, -10%);
   -df-defold-red: #e32f44;
   -df-defold-red-light: derive(#e32f44, 10%);
@@ -179,7 +179,7 @@ Label.emphasis {
 }
 
 .progress-indicator {
-  -fx-progress-color: -df-component;
+  -fx-progress-color: -df-component-lighter;
 }
 
 @font-face {
@@ -243,7 +243,7 @@ Label.emphasis {
 }
 
 .button:hover {
-  -fx-background-color: -df-component;
+  -fx-background-color: -df-component-lighter;
 }
 
 .button:armed {
