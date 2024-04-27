@@ -263,9 +263,21 @@ public class TextureSetGenerator {
 
         int imageWidth = rect.getWidth();
         int imageHeight = rect.getHeight();
-        builder.setWidth(imageWidth);
-        builder.setHeight(imageHeight);
-        builder.setRotated(rect.getRotated());
+        boolean rotated = rect.getRotated();
+        builder.setRotated(rotated);
+
+        if (rotated)
+        {
+            // for legacy reasons, we need to rotate it back
+            // The geometry wants the size in unrotated form
+            builder.setWidth(imageHeight);
+            builder.setHeight(imageWidth);
+        }
+        else
+        {
+            builder.setWidth(imageWidth);
+            builder.setHeight(imageHeight);
+        }
 
         TextureSetLayout.Point center = rect.getCenter();
         builder.setCenterX(center.x);
@@ -783,11 +795,6 @@ public class TextureSetGenerator {
     private static void putRect(Rect r, float oneOverWidth, float oneOverHeight, ByteBuffer texCoordsBuffer, ByteBuffer texDimsBuffer) {
         float width = r.getWidth();
         float height = r.getHeight();
-        float x0 = r.getX();
-        float y0 = r.getY();
-        float x1 = x0 + width;
-        float y1 = y0 + height;
-
         if (r.getRotated()) {
             putRotatedQuad(texCoordsBuffer, r, oneOverWidth, oneOverHeight);
             putTexDim(texDimsBuffer, height, width);
