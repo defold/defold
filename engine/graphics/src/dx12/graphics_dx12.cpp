@@ -51,6 +51,8 @@ namespace dmGraphics
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterDX12, &g_dx12_adapter, DX12IsSupported, DX12RegisterFunctionTable, g_dx12_adapter_priority);
 
+    static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy);
+
     #define CHECK_HR_ERROR(result) \
     { \
         if(g_DX12Context->m_VerifyGraphicsCalls && result != S_OK) { \
@@ -201,65 +203,66 @@ namespace dmGraphics
 
     void DX12ScratchBuffer::Initialize(DX12Context* context, uint32_t frame_index)
     {
-        uint32_t pool_block_count = MAX_BLOCK_SIZE / BLOCK_STEP_SIZE;
-        m_MemoryPools.SetCapacity(pool_block_count);
-        m_MemoryPools.SetSize(pool_block_count);
-
         m_FrameIndex = frame_index;
 
-        for (int i = 0; i < m_MemoryPools.Size(); ++i)
+        // Initialize constant buffer heap
         {
-            m_MemoryPools[i].m_BlockSize        = (i+1) * BLOCK_STEP_SIZE;
-            m_MemoryPools[i].m_DescriptorCursor = 0;
-            m_MemoryPools[i].m_MemoryCursor     = 0;
+            uint32_t pool_block_count = MAX_BLOCK_SIZE / BLOCK_STEP_SIZE;
+            m_MemoryPools.SetCapacity(pool_block_count);
+            m_MemoryPools.SetSize(pool_block_count);
 
-            D3D12_DESCRIPTOR_HEAP_DESC heap_Desc = {};
-            heap_Desc.NumDescriptors             = DESCRIPTORS_PER_POOL;
-            heap_Desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-            heap_Desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-
-            HRESULT hr = context->m_Device->CreateDescriptorHeap(&heap_Desc, IID_PPV_ARGS(&m_MemoryPools[i].m_DescriptorHeap));
-            CHECK_HR_ERROR(hr);
-
-            const uint32_t memory_heap_alignment = 1024 * 64;
-            const uint32_t memory_heap_size      = memory_heap_alignment; // TODO: Some other memory metric here
-
-            hr = context->m_Device->CreateCommittedResource(
-                &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // this heap will be used to upload the constant buffer data
-                D3D12_HEAP_FLAG_NONE,                             // no flags
-                &CD3DX12_RESOURCE_DESC::Buffer(memory_heap_size), // size of the resource heap. Must be a multiple of 64KB for single-textures and constant buffers
-                D3D12_RESOURCE_STATE_GENERIC_READ,                // will be data that is read from so we keep it in the generic read state
-                NULL,                                             // we do not have use an optimized clear value for constant buffers
-                IID_PPV_ARGS(&m_MemoryPools[i].m_MemoryHeap));
-            CHECK_HR_ERROR(hr);
-
-            for (int j = 0; j < DESCRIPTORS_PER_POOL; ++j)
+            for (int i = 0; i < m_MemoryPools.Size(); ++i)
             {
-                D3D12_CONSTANT_BUFFER_VIEW_DESC view_desc = {};
-                view_desc.BufferLocation = m_MemoryPools[i].m_MemoryHeap->GetGPUVirtualAddress() + i * m_MemoryPools[i].m_BlockSize;
-                view_desc.SizeInBytes    = m_MemoryPools[i].m_BlockSize;
+                m_MemoryPools[i].m_BlockSize        = (i+1) * BLOCK_STEP_SIZE;
+                m_MemoryPools[i].m_DescriptorCursor = 0;
+                m_MemoryPools[i].m_MemoryCursor     = 0;
 
-                CD3DX12_CPU_DESCRIPTOR_HANDLE view_handle(m_MemoryPools[i].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(), i, context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-                context->m_Device->CreateConstantBufferView(&view_desc, view_handle);
+                D3D12_DESCRIPTOR_HEAP_DESC heap_Desc = {};
+                heap_Desc.NumDescriptors             = DESCRIPTORS_PER_POOL;
+                heap_Desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+                heap_Desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+
+                HRESULT hr = context->m_Device->CreateDescriptorHeap(&heap_Desc, IID_PPV_ARGS(&m_MemoryPools[i].m_DescriptorHeap));
+                CHECK_HR_ERROR(hr);
+
+                const uint32_t memory_heap_alignment = 1024 * 64;
+                const uint32_t memory_heap_size      = memory_heap_alignment; // TODO: Some other memory metric here
+
+                hr = context->m_Device->CreateCommittedResource(
+                    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD), // this heap will be used to upload the constant buffer data
+                    D3D12_HEAP_FLAG_NONE,                             // no flags
+                    &CD3DX12_RESOURCE_DESC::Buffer(memory_heap_size), // size of the resource heap. Must be a multiple of 64KB for single-textures and constant buffers
+                    D3D12_RESOURCE_STATE_GENERIC_READ,                // will be data that is read from so we keep it in the generic read state
+                    NULL,                                             // we do not have use an optimized clear value for constant buffers
+                    IID_PPV_ARGS(&m_MemoryPools[i].m_MemoryHeap));
+                CHECK_HR_ERROR(hr);
+
+                for (int j = 0; j < DESCRIPTORS_PER_POOL; ++j)
+                {
+                    D3D12_CONSTANT_BUFFER_VIEW_DESC view_desc = {};
+                    view_desc.BufferLocation = m_MemoryPools[i].m_MemoryHeap->GetGPUVirtualAddress() + i * m_MemoryPools[i].m_BlockSize;
+                    view_desc.SizeInBytes    = m_MemoryPools[i].m_BlockSize;
+
+                    CD3DX12_CPU_DESCRIPTOR_HANDLE view_handle(m_MemoryPools[i].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(), i, context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+                    context->m_Device->CreateConstantBufferView(&view_desc, view_handle);
+                }
+
+                hr = m_MemoryPools[i].m_MemoryHeap->Map(0, 0, &m_MemoryPools[i].m_MappedDataPtr);
+                CHECK_HR_ERROR(hr);
             }
-
-            hr = m_MemoryPools[i].m_MemoryHeap->Map(0, 0, &m_MemoryPools[i].m_MappedDataPtr);
-            CHECK_HR_ERROR(hr);
-
-            // m_MemoryPools[i].m_DescriptorCursor++;
         }
     }
 
     void* DX12ScratchBuffer::AllocateConstantBuffer(DX12Context* context, uint32_t non_aligned_byte_size)
     {
         assert(non_aligned_byte_size < MAX_BLOCK_SIZE);
-        uint32_t pool_index = non_aligned_byte_size / BLOCK_STEP_SIZE;
-        uint32_t cursor = m_MemoryPools[pool_index].m_MemoryCursor;
+        uint32_t pool_index     = non_aligned_byte_size / BLOCK_STEP_SIZE;
+        uint32_t memory_cursor  = m_MemoryPools[pool_index].m_MemoryCursor;
+        uint8_t* base_ptr       = ((uint8_t*) m_MemoryPools[pool_index].m_MappedDataPtr) + memory_cursor;
 
-        uint8_t* base_ptr = ((uint8_t*) m_MemoryPools[pool_index].m_MappedDataPtr) + cursor;
+        context->m_CommandList->SetGraphicsRootConstantBufferView(m_MemoryPools[pool_index].m_DescriptorCursor, m_MemoryPools[0].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
+
         m_MemoryPools[pool_index].m_MemoryCursor += m_MemoryPools[pool_index].m_BlockSize;
-
-        context->m_CommandList->SetGraphicsRootConstantBufferView(m_MemoryPools[pool_index].m_DescriptorCursor, m_MemoryPools[0].m_MemoryHeap->GetGPUVirtualAddress() + cursor);
         m_MemoryPools[pool_index].m_DescriptorCursor++;
 
     #if 0
@@ -267,6 +270,32 @@ namespace dmGraphics
     #endif
 
         return (void*) base_ptr;
+    }
+
+    void DX12ScratchBuffer::AllocateTexture2D(DX12Context* context, DX12Texture* texture, uint32_t texture_index, const DX12TextureSampler& sampler, uint32_t sampler_index)
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC view_desc = {};
+        view_desc.Format                          = texture->m_ResourceDesc.Format;
+        view_desc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURE2D;
+        view_desc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        view_desc.Texture2D.MipLevels             = texture->m_MipMapCount;
+
+        uint32_t desc_size   = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        uint32_t desc_offset = desc_size * m_MemoryPools[0].m_DescriptorCursor;
+
+        CD3DX12_CPU_DESCRIPTOR_HANDLE  view_desc_handle(
+            m_MemoryPools[0].m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+            m_MemoryPools[0].m_DescriptorCursor,
+            desc_size);
+
+        context->m_Device->CreateShaderResourceView(texture->m_Resource, &view_desc, view_desc_handle);
+        m_MemoryPools[0].m_DescriptorCursor++;
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE handle_sampler(context->m_SamplerPool.m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(), sampler.m_DescriptorOffset);
+        CD3DX12_GPU_DESCRIPTOR_HANDLE handle_texture(m_MemoryPools[0].m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(), desc_offset);
+
+        context->m_CommandList->SetGraphicsRootDescriptorTable(texture_index, handle_texture);
+        context->m_CommandList->SetGraphicsRootDescriptorTable(sampler_index, handle_sampler);
     }
 
     void DX12ScratchBuffer::Reset(DX12Context* context)
@@ -278,11 +307,14 @@ namespace dmGraphics
         }
     }
 
+    // Can we bind this at start of frame?
     void DX12ScratchBuffer::Bind(DX12Context* context)
     {
         // TODO: multiple heaps needs to be bound here
-        ID3D12DescriptorHeap* heaps[] = { m_MemoryPools[0].m_DescriptorHeap };
-        context->m_CommandList->SetDescriptorHeaps(1, heaps);
+        ID3D12DescriptorHeap* heaps[] = {
+            m_MemoryPools[0].m_DescriptorHeap
+        };
+        context->m_CommandList->SetDescriptorHeaps(DM_ARRAY_SIZE(heaps), heaps);
     }
 
     static bool DX12Initialize(HContext _context)
@@ -334,6 +366,14 @@ namespace dmGraphics
         context->m_SwapChain = static_cast<IDXGISwapChain3*>(swap_chain_tmp);
 
         // frameIndex = swapChain->GetCurrentBackBufferIndex();
+
+        ////// MOVE THIS?
+        D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc = {};
+        sampler_heap_desc.NumDescriptors             = 128; // TODO, I don't know if this is a good value, the sampler pool should be fully dynamic I think
+        sampler_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        sampler_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+        hr = context->m_Device->CreateDescriptorHeap(&sampler_heap_desc, IID_PPV_ARGS(&context->m_SamplerPool.m_DescriptorHeap));
+        CHECK_HR_ERROR(hr);
 
         // this heap is a render target view heap
         D3D12_DESCRIPTOR_HEAP_DESC rt_view_heap_desc = {};
@@ -392,6 +432,8 @@ namespace dmGraphics
         SetupMainRenderTarget(context, sample_desc);
 
         context->m_PipelineState = GetDefaultPipelineState();
+
+        CreateTextureSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
 
         if (context->m_PrintDeviceInfo)
         {
@@ -616,6 +658,13 @@ namespace dmGraphics
 
         context->m_FrameBegun = 1;
 
+        ID3D12DescriptorHeap* heaps[] = {
+            context->m_SamplerPool.m_DescriptorHeap,
+            current_frame_resource.m_ScratchBuffer.m_MemoryPools[0].m_DescriptorHeap
+        };
+
+        context->m_CommandList->SetDescriptorHeaps(DM_ARRAY_SIZE(heaps), heaps);
+
         BeginRenderPass(context, context->m_MainRenderTarget);
     }
 
@@ -644,6 +693,159 @@ namespace dmGraphics
         context->m_FrameBegun = 0;
     }
 
+    static inline uint32_t GetPitchFromMipMap(uint32_t pitch, uint8_t mipmap)
+    {
+        for (uint32_t i = 0; i < mipmap; ++i)
+        {
+            pitch /= 2;
+        }
+        return pitch;
+    }
+
+    // CopyToTexture((uint8_t*) tex->m_Texture.getBaseAddress(), (uint8_t*) tex_data_ptr, tex->m_TextureBuffer.m_DataSize, &tex->m_Texture, format_actual, format_orig, tex_layer_count, params);
+
+    static void CopyTextureData(D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, uint32_t* num_rows, uint32_t array_count, uint32_t mipmap_count, uint32_t* slice_row_pitch, uint8_t* pixels, uint8_t* upload_data)
+    {
+        for (uint64_t array = 0; array < array_count; array++)
+        {
+            for (uint64_t mipmap = 0; mipmap < mipmap_count; mipmap++)
+            {
+                const uint64_t subResourceIndex = mipmap + (array * mipmap_count);
+         
+                const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& subResourceLayout = layouts[subResourceIndex];
+                const uint64_t subResourceHeight                            = num_rows[subResourceIndex];
+                const uint64_t subResourcePitch                             = DM_ALIGN(subResourceLayout.Footprint.RowPitch, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+                const uint64_t subResourceDepth                             = subResourceLayout.Footprint.Depth;
+                uint8_t* destinationSubResourceMemory                       = upload_data + subResourceLayout.Offset;
+
+                uint64_t row_pitch = (uint64_t) slice_row_pitch[mipmap];
+         
+                for (uint64_t slice = 0; slice < subResourceDepth; slice++)
+                {
+                    //const DirectX::Image* subImage = imageData->GetImage(mipmap, array, slice);
+
+                    // Todo: This isn't right
+                    const uint8_t* sourceSubResourceMemory = pixels; // subImage->pixels;
+         
+                    for (uint64_t height = 0; height < subResourceHeight; height++)
+                    {
+                        memcpy(destinationSubResourceMemory, sourceSubResourceMemory, dmMath::Min(subResourcePitch, row_pitch));
+                        destinationSubResourceMemory += subResourcePitch;
+                        sourceSubResourceMemory      += row_pitch;
+                    }
+                }
+            }
+        }
+    }
+
+    static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format_dst, uint32_t mipmap, uint8_t* pixels)
+    {
+        uint64_t slice_upload_size = 0;
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp[16] = { 0 };
+
+        uint32_t num_rows[16];
+        uint64_t row_size_in_bytes[16];
+
+        context->m_Device->GetCopyableFootprints(&texture->m_ResourceDesc, mipmap, texture->m_MipMapCount, 0, fp, num_rows, row_size_in_bytes, &slice_upload_size);
+
+        // create upload heap
+        // upload heaps are used to upload data to the GPU. CPU can write to it, GPU can read from it
+        // We will upload the vertex buffer using this heap to the default heap
+        D3D12_RESOURCE_DESC upload_desc = {};
+        upload_desc.Dimension           = D3D12_RESOURCE_DIMENSION_BUFFER;
+        upload_desc.Alignment           = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+        upload_desc.Width               = slice_upload_size;
+        upload_desc.Height              = 1;
+        upload_desc.DepthOrArraySize    = 1;
+        upload_desc.MipLevels           = 1;
+        upload_desc.Format              = DXGI_FORMAT_UNKNOWN;
+        upload_desc.Layout              = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        upload_desc.SampleDesc.Count    = 1;
+
+        ID3D12Resource* upload_heap;
+        HRESULT hr = context->m_Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+            D3D12_HEAP_FLAG_NONE,
+            &upload_desc,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            NULL,
+            IID_PPV_ARGS(&upload_heap));
+        CHECK_HR_ERROR(hr);
+
+        uint8_t* upload_data = NULL;
+        hr = upload_heap->Map(0, NULL, (void**) &upload_data);
+        CHECK_HR_ERROR(hr);
+
+        uint8_t bpp_dst = GetTextureFormatBitsPerPixel(format_dst) / 8;
+        uint32_t texture_pitch = texture->m_Width * bpp_dst;
+        uint32_t mipmap_pitch = GetPitchFromMipMap(texture_pitch, mipmap);
+
+        CopyTextureData(fp, num_rows, 1, 1, &mipmap_pitch, pixels, upload_data);
+
+        if (!context->m_FrameBegun)
+        {
+            hr = context->m_CommandList->Reset(context->m_FrameResources[0].m_CommandAllocator, NULL); // Second argument is a pipeline object (TODO)
+            CHECK_HR_ERROR(hr);
+        }
+
+        D3D12_TEXTURE_COPY_LOCATION copy_dst = {};
+        copy_dst.pResource        = texture->m_Resource;
+        copy_dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        copy_dst.SubresourceIndex = mipmap;
+
+        D3D12_TEXTURE_COPY_LOCATION copy_src = {};
+        copy_src.pResource        = upload_heap;
+        copy_src.Type             = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        copy_src.PlacedFootprint  = fp[mipmap];
+
+        context->m_CommandList->CopyTextureRegion(&copy_dst, 0, 0, 0, &copy_src, NULL);
+
+        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
+
+        if (!context->m_FrameBegun)
+        {
+            context->m_CommandList->Close(); // THis might be wrong!
+            ID3D12CommandList* execute_cmd_lists[] = { context->m_CommandList };
+            context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
+        }
+
+        /*
+        for ( uint32_t mip = 0; mip < imageDesc->mipCount; mip++ )
+        {
+            preloaderCommandList->lpVtbl->CopyTextureRegion(
+                preloaderCommandList,
+                &(D3D12_TEXTURE_COPY_LOCATION){
+                    .pResource = texRes,
+                    .Type      = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
+                    .SubresourceIndex = mip,
+                },
+                0,0,0,
+                &(D3D12_TEXTURE_COPY_LOCATION){
+                    .pResource = texUploadRes,
+                    .Type      = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+                    .PlacedFootprint = fp[mip],
+                },
+                NULL
+            );
+        }
+        */
+
+        /*
+        // From: https://www.milty.nl/grad_guide/basic_implementation/d3d12/textures.html
+        uint8_t* uploadStart = data + fp[mipmap].Offset;
+        uint8_t* sourceStart = pixels + texture->m_ResourceDesc.mips[mipmap].offset;
+        uint32_t sourcePitch = (texture->m_ResourceDesc.mips[mipmap].width * sizeof(uint32_t));
+        for ( uint32_t i = 0; i < fp[mipmap].Footprint.Height; i++ )
+        {
+            memcpy(
+                uploadStart + i * fp[mipmap].Footprint.RowPitch,
+                sourceStart + i * sourcePitch,
+                sourcePitch
+            );
+        }
+        */
+    }
+
     static void DeviceBufferUploadHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, const void* data, uint32_t data_size)
     {
         if (data == 0 || data_size == 0)
@@ -656,7 +858,7 @@ namespace dmGraphics
         HRESULT hr = context->m_Device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),   // upload heap
             D3D12_HEAP_FLAG_NONE,                               // no flags
-            &CD3DX12_RESOURCE_DESC::Buffer(data_size),               // resource description for a buffer
+            &CD3DX12_RESOURCE_DESC::Buffer(data_size),          // resource description for a buffer
             D3D12_RESOURCE_STATE_GENERIC_READ,                  // GPU will read from this buffer and copy its contents to the default heap
             NULL,
             IID_PPV_ARGS(&upload_heap));
@@ -915,7 +1117,7 @@ namespace dmGraphics
         return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
     }
 
-    static inline DXGI_FORMAT GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
+    static inline DXGI_FORMAT GetDXGIFormat(Type type, uint16_t size, bool normalized)
     {
         /*
         // undefined formats:
@@ -1055,7 +1257,7 @@ namespace dmGraphics
 
                     desc.SemanticName         = "TEXCOORD";
                     desc.SemanticIndex        = stream.m_Location;
-                    desc.Format               = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
+                    desc.Format               = GetDXGIFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
                     desc.InputSlot            = i;
                     desc.AlignedByteOffset    = stream.m_Offset;
                     desc.InputSlotClass       = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
@@ -1161,6 +1363,8 @@ namespace dmGraphics
     {
         DX12ShaderProgram* program = context->m_CurrentProgram;
 
+        uint32_t texture_unit_start = program->m_UniformBufferCount;
+
         for (int set = 0; set < program->m_MaxSet; ++set)
         {
             for (int binding = 0; binding < program->m_MaxBinding; ++binding)
@@ -1174,10 +1378,10 @@ namespace dmGraphics
                 {
                     case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
                     {
-                        // TODO:
-                        // need to create texture + texture view to bind it to the shader somehow
-                        // https://www.braynzarsoft.net/viewtutorial/q16390-directx-12-textures-from-file
-                        assert(0);
+                        DX12Texture* texture              = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
+                        const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
+                        uint32_t ix = texture_unit_start + pgm_res.m_TextureUnit * 2;
+                        frame_resources.m_ScratchBuffer.AllocateTexture2D(context, texture, ix, sampler, ix + 1);
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
                     {
@@ -1233,7 +1437,7 @@ namespace dmGraphics
         context->m_CommandList->IASetPrimitiveTopology(GetPrimitiveTopology(prim_type));
         context->m_CommandList->IASetVertexBuffers(0, num_vx_buffers, vx_buffer_views); // set the vertex buffer (using the vertex buffer view)
 
-        frame_resources.m_ScratchBuffer.Bind(context);
+        // frame_resources.m_ScratchBuffer.Bind(context);
         CommitUniforms(context, frame_resources);
     }
 
@@ -1436,6 +1640,11 @@ namespace dmGraphics
 
         dmArray<CD3DX12_ROOT_PARAMETER > root_parameter_descs;
         root_parameter_descs.SetCapacity(program->m_UniformBufferCount + program->m_TextureSamplerCount * 2);
+        root_parameter_descs.SetSize(root_parameter_descs.Capacity());
+
+        uint32_t texture_unit_start = program->m_UniformBufferCount;
+        uint32_t texture_ix         = 0;
+        uint32_t ubo_ix             = 0;
 
         for (int set = 0; set < program->m_MaxSet; ++set)
         {
@@ -1449,14 +1658,15 @@ namespace dmGraphics
                 {
                     case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
                     {
-                        uint32_t ix = root_parameter_descs.Size();
-                        root_parameter_descs.SetSize(ix + 2);
+                        uint32_t ix = texture_unit_start + pgm_res.m_TextureUnit * 2;
 
-                        CD3DX12_DESCRIPTOR_RANGE texture1Range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-                        CD3DX12_DESCRIPTOR_RANGE texture1SamplerRange(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);
+                        CD3DX12_DESCRIPTOR_RANGE texture_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+                        CD3DX12_DESCRIPTOR_RANGE sampler_range(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);
 
-                        root_parameter_descs[ix + 0].InitAsDescriptorTable(1, &texture1Range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
-                        root_parameter_descs[ix + 1].InitAsDescriptorTable(1, &texture1SamplerRange, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                        root_parameter_descs[ix + 0].InitAsDescriptorTable(1, &texture_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                        root_parameter_descs[ix + 1].InitAsDescriptorTable(1, &sampler_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+
+                        texture_ix++;
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
                     {
@@ -1465,9 +1675,8 @@ namespace dmGraphics
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
-                        uint32_t ix = root_parameter_descs.Size();
-                        root_parameter_descs.SetSize(ix + 1);
-                        root_parameter_descs[ix].InitAsConstantBufferView(0, 0, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                        root_parameter_descs[ubo_ix].InitAsConstantBufferView(0, 0, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                        ubo_ix++;
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
                     default: continue;
@@ -1816,15 +2025,15 @@ namespace dmGraphics
     static HTexture DX12NewTexture(HContext _context, const TextureCreationParams& params)
     {
         DX12Context* context = (DX12Context*) _context;
-
         DX12Texture* tex = new DX12Texture;
-        // InitializeVulkanTexture(tex);
+        memset(tex, 0, sizeof(DX12Texture));
 
-        tex->m_Type        = params.m_Type;
-        tex->m_Width       = params.m_Width;
-        tex->m_Height      = params.m_Height;
-        tex->m_Depth       = params.m_Depth;
-        tex->m_MipMapCount = params.m_MipMapCount;
+        tex->m_Type             = params.m_Type;
+        tex->m_Width            = params.m_Width;
+        tex->m_Height           = params.m_Height;
+        tex->m_Depth            = params.m_Depth;
+        tex->m_MipMapCount      = params.m_MipMapCount;
+
         // tex->m_UsageFlags  = GetVulkanUsageFromHints(params.m_UsageHintBits);
 
         if (params.m_OriginalWidth == 0)
@@ -1850,13 +2059,254 @@ namespace dmGraphics
         return HANDLE_RESULT_OK;
     }
 
+    static float GetMaxAnisotrophyClamped(float max_anisotropy_requested)
+    {
+        return dmMath::Min(max_anisotropy_requested, 32.0f); // TODO: What's the max limit here?
+    }
+
+    static int16_t GetTextureSamplerIndex(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
+    {
+        if (minfilter == TEXTURE_FILTER_DEFAULT)
+            minfilter = context->m_DefaultTextureMinFilter;
+        if (magfilter == TEXTURE_FILTER_DEFAULT)
+            magfilter = context->m_DefaultTextureMagFilter;
+
+        for (uint32_t i=0; i < context->m_TextureSamplers.Size(); i++)
+        {
+            const DX12TextureSampler& sampler = context->m_TextureSamplers[i];
+            if (sampler.m_MagFilter     == magfilter &&
+                sampler.m_MinFilter     == minfilter &&
+                sampler.m_AddressModeU  == uwrap     &&
+                sampler.m_AddressModeV  == vwrap     &&
+                sampler.m_MaxLod        == maxLod    &&
+                sampler.m_MaxAnisotropy == max_anisotropy)
+            {
+                return (uint8_t) i;
+            }
+        }
+
+        return -1;
+    }
+
+    static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
+    {
+        DX12TextureSampler new_sampler  = {};
+        new_sampler.m_MinFilter     = minfilter;
+        new_sampler.m_MagFilter     = magfilter;
+        new_sampler.m_AddressModeU  = uwrap;
+        new_sampler.m_AddressModeV  = vwrap;
+        new_sampler.m_MaxLod        = maxLod;
+        new_sampler.m_MaxAnisotropy = max_anisotropy;
+
+        uint32_t sampler_index = context->m_TextureSamplers.Size();
+        if (context->m_TextureSamplers.Full())
+        {
+            context->m_TextureSamplers.OffsetCapacity(1);
+        }
+
+        D3D12_SAMPLER_DESC desc  = {};
+        desc.Filter              = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+        desc.AddressU            = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        desc.AddressV            = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        desc.AddressW            = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        desc.MinLOD              = 0;
+        desc.MaxLOD              = D3D12_FLOAT32_MAX;
+        desc.MipLODBias          = 0.0f;
+        desc.MaxAnisotropy       = 1;
+        desc.ComparisonFunc      = D3D12_COMPARISON_FUNC_ALWAYS;
+
+        CD3DX12_CPU_DESCRIPTOR_HANDLE  desc_handle(context->m_SamplerPool.m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(), sampler_index, context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER));
+        context->m_Device->CreateSampler(&desc, desc_handle);
+        context->m_SamplerPool.m_DescriptorCursor++;
+
+        new_sampler.m_DescriptorOffset = sampler_index * context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+
+        /*
+        // D3D12_SHADER_RESOURCE_VIEW_DESC desc = {};
+        // desc.Format              = texture->m_ResourceDesc.Format;
+        // desc.ViewDimension       = D3D12_SRV_DIMENSION_TEXTURE2D;
+        // desc.Texture2D.MipLevels = texture->m_MipMapCount;
+        // mDevice->CreateShaderResourceView(texture->m_Resource, &desc, m_SamplerPool.m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+        // cpuDesc.ptr += i * renderer->device->lpVtbl->GetDescriptorHandleIncrementSize ( renderer->device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV );
+
+        // g_DX12Context->m_SamplerPool
+        */
+
+        context->m_TextureSamplers.Push(new_sampler);
+        return (int16_t) sampler_index;
+    }
+
+    static void DX12SetTextureParamsInternal(DX12Context* context, DX12Texture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    {
+        const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
+        float anisotropy_clamped = GetMaxAnisotrophyClamped(max_anisotropy);
+
+        if (sampler.m_MinFilter     != minfilter              ||
+            sampler.m_MagFilter     != magfilter              ||
+            sampler.m_AddressModeU  != uwrap                  ||
+            sampler.m_AddressModeV  != vwrap                  ||
+            sampler.m_MaxLod        != texture->m_MipMapCount ||
+            sampler.m_MaxAnisotropy != anisotropy_clamped)
+        {
+            int16_t sampler_index = GetTextureSamplerIndex(context, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
+            if (sampler_index < 0)
+            {
+                sampler_index = CreateTextureSampler(context, minfilter, magfilter, uwrap, vwrap, texture->m_MipMapCount, anisotropy_clamped);
+            }
+            texture->m_TextureSamplerIndex = sampler_index;
+        }
+    }
+
     static void DX12SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
+        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture);
+        DX12SetTextureParamsInternal(g_DX12Context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+    }
+
+    /*
+    case TEXTURE_FORMAT_LUMINANCE:          return VK_FORMAT_R8_UNORM;
+    case TEXTURE_FORMAT_LUMINANCE_ALPHA:    return VK_FORMAT_R8G8_UNORM;
+    case TEXTURE_FORMAT_RGB:                return VK_FORMAT_R8G8B8_UNORM;
+    case TEXTURE_FORMAT_RGBA:               return VK_FORMAT_R8G8B8A8_UNORM;
+    case TEXTURE_FORMAT_RGB_16BPP:          return VK_FORMAT_R5G6B5_UNORM_PACK16;
+    case TEXTURE_FORMAT_RGBA_16BPP:         return VK_FORMAT_R4G4B4A4_UNORM_PACK16;
+    case TEXTURE_FORMAT_DEPTH:              return VK_FORMAT_UNDEFINED;
+    case TEXTURE_FORMAT_STENCIL:            return VK_FORMAT_UNDEFINED;
+    case TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:   return VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG;
+    case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   return VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG;
+    case dTEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  return VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG;
+    case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG;
+    case TEXTURE_FORMAT_RGB_ETC1:           return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+    case TEXTURE_FORMAT_RGBA_ETC2:          return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
+    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
+    case TEXTURE_FORMAT_RGB_BC1:            return VK_FORMAT_BC1_RGB_UNORM_BLOCK;
+    case TEXTURE_FORMAT_RGBA_BC3:           return VK_FORMAT_BC3_UNORM_BLOCK;
+    case TEXTURE_FORMAT_RGBA_BC7:           return VK_FORMAT_BC7_UNORM_BLOCK;
+    case TEXTURE_FORMAT_R_BC4:              return VK_FORMAT_BC4_UNORM_BLOCK;
+    case TEXTURE_FORMAT_RG_BC5:             return VK_FORMAT_BC5_UNORM_BLOCK;
+    case TEXTURE_FORMAT_RGB16F:             return VK_FORMAT_R16G16B16_SFLOAT;
+    case TEXTURE_FORMAT_RGB32F:             return VK_FORMAT_R32G32B32_SFLOAT;
+    case TEXTURE_FORMAT_RGBA16F:            return VK_FORMAT_R16G16B16A16_SFLOAT;
+    case TEXTURE_FORMAT_RGBA32F:            return VK_FORMAT_R32G32B32A32_SFLOAT;
+    case TEXTURE_FORMAT_R16F:               return VK_FORMAT_R16_SFLOAT;
+    case TEXTURE_FORMAT_RG16F:              return VK_FORMAT_R16G16_SFLOAT;
+    case TEXTURE_FORMAT_R32F:               return VK_FORMAT_R32_SFLOAT;
+    case TEXTURE_FORMAT_RG32F:              return VK_FORMAT_R32G32_SFLOAT;
+    case TEXTURE_FORMAT_RGBA32UI:           return VK_FORMAT_R32G32B32A32_UINT;
+    case TEXTURE_FORMAT_BGRA8U:             return VK_FORMAT_B8G8R8A8_UNORM;
+    case TEXTURE_FORMAT_R32UI:              return VK_FORMAT_R32_UINT;
+    default:                                return VK_FORMAT_UNDEFINED;
+        */
+
+    static DXGI_FORMAT GetDXGIFormatFromTextureFormat(TextureFormat format)
+    {
+        switch(format)
+        {
+            case TEXTURE_FORMAT_LUMINANCE:         return DXGI_FORMAT_R8_UNORM;
+            case TEXTURE_FORMAT_LUMINANCE_ALPHA:   return DXGI_FORMAT_R8G8_UNORM;
+            case TEXTURE_FORMAT_RGB:               return DXGI_FORMAT_UNKNOWN; // Unsupported?
+            case TEXTURE_FORMAT_RGBA:              return DXGI_FORMAT_R8G8B8A8_UNORM;
+            case TEXTURE_FORMAT_RGB_16BPP:         return DXGI_FORMAT_UNKNOWN; // Unsupported
+            case TEXTURE_FORMAT_RGBA_16BPP:        return DXGI_FORMAT_R16G16B16A16_UNORM;
+            /*
+            TEXTURE_FORMAT_DEPTH:             return ;
+            TEXTURE_FORMAT_STENCIL:           return ;
+            TEXTURE_FORMAT_RGB_PVRTC_2BPPV1:  return ;
+            TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:  return ;
+            TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1: return ;
+            TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1: return ;
+            TEXTURE_FORMAT_RGB_ETC1:          return ;
+            TEXTURE_FORMAT_R_ETC2:            return ;
+            TEXTURE_FORMAT_RG_ETC2:           return ;
+            TEXTURE_FORMAT_RGBA_ETC2:         return ;
+            TEXTURE_FORMAT_RGBA_ASTC_4x4:     return ;
+            TEXTURE_FORMAT_RGB_BC1: return ;
+            TEXTURE_FORMAT_RGBA_BC3: return ;
+            TEXTURE_FORMAT_R_BC4: return ;
+            TEXTURE_FORMAT_RG_BC5: return ;
+            TEXTURE_FORMAT_RGBA_BC7: return ;
+            // Floating point texture formats
+            TEXTURE_FORMAT_RGB16F: return ;
+            TEXTURE_FORMAT_RGB32F: return ;
+            TEXTURE_FORMAT_RGBA16F: return ;
+            TEXTURE_FORMAT_RGBA32F: return ;
+            TEXTURE_FORMAT_R16F: return ;
+            TEXTURE_FORMAT_RG16F: return ;
+            TEXTURE_FORMAT_R32F: return ;
+            TEXTURE_FORMAT_RG32F: return ;
+            // Internal formats (not exposed via script APIs)
+            TEXTURE_FORMAT_RGBA32UI: return ;
+            TEXTURE_FORMAT_BGRA8U: return ;
+            TEXTURE_FORMAT_R32UI: return ;
+            */
+        }
+
+        assert(0);
+
+        return (DXGI_FORMAT) -1;
     }
 
     static void DX12SetTexture(HTexture texture, const TextureParams& params)
     {
+        // Same as graphics_opengl.cpp
+        switch (params.m_Format)
+        {
+            case TEXTURE_FORMAT_DEPTH:
+            case TEXTURE_FORMAT_STENCIL:
+                dmLogError("Unable to upload texture data, unsupported type (%s).", TextureFormatToString(params.m_Format));
+                return;
+            default:break;
+        }
 
+        DX12Texture* tex            = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture);
+        TextureFormat format_orig   = params.m_Format;
+        TextureFormat format_actual = params.m_Format;
+        void* tex_data_ptr          = (void*) params.m_Data;
+        uint32_t tex_layer_count    = tex->m_Depth;
+        uint32_t tex_data_size      = params.m_DataSize;
+        DXGI_FORMAT dxgi_format     = GetDXGIFormatFromTextureFormat(format_orig);
+
+        if (tex->m_MipMapCount == 1 && params.m_MipMap > 0)
+        {
+            return;
+        }
+
+        tex->m_MipMapCount = dmMath::Max(tex->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
+
+        // Note: There's no 8 bit RGB format, we have to expand this to four channels
+        // TODO: Can we use R11G11B10 somehow?
+        if (format_orig == TEXTURE_FORMAT_RGB)
+        {
+            format_actual = TEXTURE_FORMAT_RGBA;
+            dxgi_format   = GetDXGIFormatFromTextureFormat(format_actual);
+        }
+
+        if (!tex->m_Resource)
+        {
+            D3D12_RESOURCE_DESC desc = {};
+            desc.Format              = dxgi_format;
+            desc.Width               = params.m_Width;
+            desc.Height              = params.m_Height;
+            desc.Flags               = D3D12_RESOURCE_FLAG_NONE;
+            desc.DepthOrArraySize    = dmMath::Max(1U, (uint32_t) params.m_Depth);
+            desc.MipLevels           = tex->m_MipMapCount;
+            desc.SampleDesc.Count    = 1;
+            desc.SampleDesc.Quality  = 0;
+            desc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+            desc.Layout              = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+            desc.Alignment           = 0;
+
+            CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_DEFAULT);
+
+            HRESULT hr = g_DX12Context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, NULL, IID_PPV_ARGS(&tex->m_Resource));
+            CHECK_HR_ERROR(hr);
+
+            tex->m_ResourceDesc = desc;
+        }
+
+        TextureBufferUploadHelper(g_DX12Context, tex, format_actual, params.m_MipMap, (uint8_t*) tex_data_ptr);
+
+        DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
     }
 
     static uint32_t DX12GetTextureResourceSize(HTexture texture)
@@ -1886,10 +2336,14 @@ namespace dmGraphics
 
     static void DX12EnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
     {
+        assert(unit < DM_MAX_TEXTURE_UNITS);
+        g_DX12Context->m_CurrentTextures[unit] = texture;
     }
 
     static void DX12DisableTexture(HContext context, uint32_t unit, HTexture texture)
     {
+        assert(unit < DM_MAX_TEXTURE_UNITS);
+        g_DX12Context->m_CurrentTextures[unit] = 0x0;
     }
 
     static void DX12ReadPixels(HContext context, void* buffer, uint32_t buffer_size)
@@ -2025,7 +2479,11 @@ namespace dmGraphics
 
     static void DX12SetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
-        // TODO
+        SetTexture(texture, params);
+        if (callback)
+        {
+            callback(texture, user_data);
+        }
     }
 
     static uint32_t DX12GetTextureStatusFlags(HTexture texture)

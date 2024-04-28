@@ -37,13 +37,27 @@ namespace dmGraphics
 
     struct DX12Texture
     {
-        TextureType       m_Type;
-        uint16_t          m_Width;
-        uint16_t          m_Height;
-        uint16_t          m_Depth;
-        uint16_t          m_OriginalWidth;
-        uint16_t          m_OriginalHeight;
-        uint16_t          m_MipMapCount         : 5;
+        ID3D12Resource*     m_Resource;
+        D3D12_RESOURCE_DESC m_ResourceDesc;
+        TextureType         m_Type;
+        uint16_t            m_Width;
+        uint16_t            m_Height;
+        uint16_t            m_Depth;
+        uint16_t            m_OriginalWidth;
+        uint16_t            m_OriginalHeight;
+        uint16_t            m_MipMapCount         : 5;
+        uint16_t            m_TextureSamplerIndex : 10;
+    };
+
+    struct DX12TextureSampler
+    {
+        uint32_t        m_DescriptorOffset;
+        TextureFilter   m_MinFilter;
+        TextureFilter   m_MagFilter;
+        TextureWrap     m_AddressModeU;
+        TextureWrap     m_AddressModeV;
+        float           m_MaxAnisotropy;
+        uint8_t         m_MaxLod;
     };
 
     struct DX12DeviceBuffer
@@ -68,11 +82,6 @@ namespace dmGraphics
     {
         ID3DBlob*  m_ShaderBlob;
         ShaderMeta m_ShaderMeta;
-        // dmArray<ShaderResourceBinding> m_Uniforms;
-        // dmArray<ShaderResourceBinding> m_Inputs;
-        // uint16_t                       m_UniformBufferCount;
-        // uint16_t                       m_TextureSamplerCount;
-        // uint16_t                       m_TotalUniformCount;
     };
 
     struct DX12Viewport
@@ -85,28 +94,6 @@ namespace dmGraphics
 
     struct DX12ShaderProgram
     {
-        /*
-        enum ModuleType
-        {
-            MODULE_TYPE_VERTEX   = 1,
-            MODULE_TYPE_FRAGMENT = 2,
-            MODULE_TYPE_COUNT    = 4,
-        };
-
-        struct ProgramResourceBinding
-        {
-            ShaderResourceBinding* m_Res;
-            uint32_t               m_DataOffset;
-            uint8_t                m_StageFlags;
-
-            union
-            {
-                uint16_t m_DynamicOffsetIndex;
-                uint16_t m_TextureUnit;
-            };
-        };
-        */
-
         ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         uint8_t*               m_UniformData;
@@ -137,6 +124,13 @@ namespace dmGraphics
         uint32_t         m_IsBound : 1;
     };
 
+    struct DX12DescriptorPool
+    {
+        ID3D12DescriptorHeap* m_DescriptorHeap;
+        uint32_t              m_DescriptorCursor;
+        // Some sort of free list + size is needed here
+    };
+
 
     // Per frame scratch buffer for dynamic constant memory
     struct DX12ScratchBuffer
@@ -156,11 +150,23 @@ namespace dmGraphics
             uint32_t              m_MemoryCursor;
         };
 
+        /*
+        struct SamplerPool
+        {
+            ID3D12DescriptorHeap* m_DescriptorHeap;
+            uint32_t              m_DescriptorCursor;
+        };
+        */
+
         dmArray<BlockSizedPool> m_MemoryPools;
+
+        // SamplerPool m_SamplerPool;
+
         uint32_t m_FrameIndex;
 
         void  Initialize(DX12Context* context, uint32_t frame_index);
         void* AllocateConstantBuffer(DX12Context* context, uint32_t non_aligned_byte_size);
+        void  AllocateTexture2D(DX12Context* context, DX12Texture* texture, uint32_t texture_index, const DX12TextureSampler& sampler, uint32_t sampler_index);
         void  Reset(DX12Context* context);
         void  Bind(DX12Context* context);
     };
@@ -193,6 +199,10 @@ namespace dmGraphics
         DX12PipelineCache                  m_PipelineCache;
         PipelineState                      m_PipelineState;
 
+        DX12DescriptorPool                 m_SamplerPool;
+        // DX12DescriptorPool                 m_SRVPool;
+        dmArray<DX12TextureSampler>        m_TextureSamplers;
+
         HRenderTarget                      m_MainRenderTarget;
         VertexDeclaration                  m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
 
@@ -201,6 +211,7 @@ namespace dmGraphics
         DX12Pipeline*                      m_CurrentPipeline;
         DX12VertexBuffer*                  m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
+        HTexture                           m_CurrentTextures[DM_MAX_TEXTURE_UNITS];
         DX12Viewport                       m_CurrentViewport;
 
         TextureFilter                      m_DefaultTextureMinFilter;
