@@ -942,7 +942,7 @@
 
 (defn- strip-size-from-shape-base-node-msg [node-desc]
   (-> node-desc
-      (assoc :size [200.0 100.0 0.0 0.0]) ; Default size for ShapeNode. The runtime uses this size if there is no texture applied.
+      (dissoc :size)
       (protobuf/sanitize :overridden-fields strip-size-from-overridden-fields)))
 
 (defn- add-size-to-overridden-fields-in-node-desc [node-desc]
@@ -1340,8 +1340,6 @@
 (g/defnk produce-template-node-msg [gui-base-node-msg template-resource]
   (merge gui-base-node-msg
          (protobuf/make-map-without-defaults Gui$NodeDesc
-           ;; TODO(save-value): Safe to remove now?
-           :size [200.0 100.0 0.0 0.0] ; Just here to avoid file format changes. We could remove this.
            :template (resource/resource->proj-path template-resource)
 
            ;; TODO: We should not have to overwrite the base properties here. Refactor?
@@ -1497,7 +1495,6 @@
   (-> visual-base-node-msg
       (merge (protobuf/make-map-without-defaults Gui$NodeDesc
                :particlefx particlefx
-               :size [1.0 1.0 0.0 0.0] ; TODO(save-value): Remove once the runtime can handle zero-sized objects.
                :size-mode :size-mode-auto))))
 
 (g/defnode ParticleFXNode
