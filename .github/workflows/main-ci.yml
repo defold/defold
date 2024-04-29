@@ -60,7 +60,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@v3, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
-      { name: 'XCode', uses: maxim-lobanov/setup-xcode@v1, with: { xcode-version: '14.2' } },
+      { name: 'XCode', uses: maxim-lobanov/setup-xcode@v1, with: { xcode-version: '15.1' } },
       { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
         name: 'Build engine',
