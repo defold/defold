@@ -47,21 +47,24 @@ namespace dmRender
     {
         DM_LUA_STACK_CHECK(L, 1);
 
+        int camera_index = 1;
+
         lua_newtable(L);
 
-        for (int i = 0; i < g_RenderScriptCameraModule.m_RenderContext->m_RenderCameras.Size(); ++i)
+        for (int i = 0; i < g_RenderScriptCameraModule.m_RenderContext->m_RenderCameras.Capacity(); ++i)
         {
-            lua_pushinteger(L, i + 1);
-            dmScript::PushURL(L, g_RenderScriptCameraModule.m_RenderContext->m_RenderCameras[i].m_URL);
-            lua_settable(L, -3);
+            RenderCamera* camera = g_RenderScriptCameraModule.m_RenderContext->m_RenderCameras.GetByIndex(i);
+
+            if (camera)
+            {
+                lua_pushinteger(L, camera_index);
+                dmScript::PushURL(L, camera->m_URL);
+                lua_settable(L, -3);
+                camera_index++;
+            }
         }
 
         return 1;
-    }
-
-    static inline RenderCamera* GetRenderCamera(HRenderContext render_context, HRenderCamera camera)
-    {
-        return &render_context->m_RenderCameras[camera];
     }
 
     static RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context)
@@ -69,16 +72,16 @@ namespace dmRender
         dmMessage::URL url;
         dmScript::ResolveURL(L, index, &url, 0);
 
-        HRenderCamera camera = GetRenderCameraByUrl(g_RenderScriptCameraModule.m_RenderContext, url);
+        RenderCamera* camera = GetRenderCameraByUrl(g_RenderScriptCameraModule.m_RenderContext, url);
 
-        if (camera == INVALID_RENDER_CAMERA)
+        if (camera == 0x0)
         {
             char buffer[256];
             dmScript::UrlToString(&url, buffer, sizeof(buffer));
             luaL_error(L, "Camera '%s' not found.", buffer);
             return 0;
         }
-        return GetRenderCamera(render_context, camera);
+        return camera;
     }
 
     static int RenderScriptCamera_GetInfo(lua_State* L)

@@ -18,6 +18,7 @@
 #include <string.h> // For memset
 
 #include <dmsdk/dlib/vmath.h>
+#include <dlib/opaque_handle_container.h>
 
 #include <dlib/array.h>
 #include <dlib/message.h>
@@ -268,7 +269,7 @@ namespace dmRender
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
-        dmArray<RenderCamera>       m_RenderCameras;
+        dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
 
         HFontMap                    m_SystemFontMap;
 
@@ -318,6 +319,9 @@ namespace dmRender
     void    SetTextureBindingByUnit(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture);
     bool    GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
     int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
+
+    // Render camera
+    RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

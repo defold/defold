@@ -49,7 +49,7 @@ namespace dmRender
     typedef struct ComputeProgram*          HComputeProgram;
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
-    typedef uint16_t                        HRenderCamera;
+    typedef HOpaqueHandle                   HRenderCamera;
 
     /**
      * Display profiles handle
@@ -332,8 +332,9 @@ namespace dmRender
     /** Render cameras
      * TODO: Description
      */
-    HRenderCamera                   NewRenderCamera(HRenderContext context, const dmMessage::URL& camera_url);
-    HRenderCamera                   GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
+    HRenderCamera                   NewRenderCamera(HRenderContext context);
+    void                            DeleteRenderCamera(HRenderContext context, HRenderCamera camera);
+    void                            SetRenderCameraURL(HRenderContext render_context, HRenderCamera camera, const dmMessage::URL& camera_url);
     void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const dmVMath::Matrix4& view, const dmVMath::Matrix4& projection);
 }
 

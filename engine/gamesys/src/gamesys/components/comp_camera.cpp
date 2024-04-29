@@ -53,6 +53,7 @@ namespace dmGameSystem
         float                   m_FarZ;
         float                   m_OrthographicZoom;
         uint16_t                m_ComponentIndex;
+        uint8_t                 m_Enabled                : 1;
         uint8_t                 m_AutoAspectRatio        : 1;
         uint8_t                 m_AddedToUpdate          : 1;
         uint8_t                 m_OrthographicProjection : 1;
@@ -61,7 +62,6 @@ namespace dmGameSystem
     struct CameraWorld
     {
         dmArray<CameraComponent> m_Cameras;
-        dmArray<CameraComponent*> m_FocusStack;
     };
 
     static const dmhash_t CAMERA_PROP_FOV = dmHashString64("fov");
@@ -107,6 +107,8 @@ namespace dmGameSystem
         Point3 look_at = pos + dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
         Vector3 up = dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
         camera->m_View = Matrix4::lookAt(pos, look_at, up);
+
+        SetRenderCameraData(render_context, camera->m_RenderCamera, camera->m_View, camera->m_Projection);
     }
 
     dmGameObject::CreateResult CompCameraNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -114,7 +116,6 @@ namespace dmGameSystem
         CameraWorld* cam_world = new CameraWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, MAX_COUNT);
         cam_world->m_Cameras.SetCapacity(comp_count);
-        cam_world->m_FocusStack.SetCapacity(MAX_STACK_COUNT);
         *params.m_World = cam_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -125,6 +126,15 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static inline dmMessage::URL CameraToURL(const CameraComponent* camera)
+    {
+        dmMessage::URL camera_url;
+        camera_url.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(camera->m_Instance));
+        camera_url.m_Path   = dmGameObject::GetIdentifier(camera->m_Instance);
+        dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &camera_url.m_Fragment);
+        return camera_url;
+    }
+
     dmGameObject::CreateResult CompCameraCreate(const dmGameObject::ComponentCreateParams& params)
     {
         CameraWorld* w = (CameraWorld*)params.m_World;
@@ -133,10 +143,13 @@ namespace dmGameSystem
             ShowFullBufferError("Camera", MAX_COUNT);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
+
+        dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
         dmGameSystem::CameraResource* cam_resource = (CameraResource*)params.m_Resource;
         CameraComponent camera;
         camera.m_Instance = params.m_Instance;
         camera.m_World = w;
+        camera.m_Enabled = 1;
         camera.m_AspectRatio = cam_resource->m_DDF->m_AspectRatio;
         camera.m_Fov = cam_resource->m_DDF->m_Fov;
         camera.m_NearZ = cam_resource->m_DDF->m_NearZ;
@@ -146,46 +159,26 @@ namespace dmGameSystem
         camera.m_OrthographicZoom = cam_resource->m_DDF->m_OrthographicZoom;
         camera.m_AddedToUpdate = 0;
         camera.m_ComponentIndex = params.m_ComponentIndex;
-        dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
+        camera.m_RenderCamera = dmRender::NewRenderCamera(render_context);
+
+        SetRenderCameraURL(render_context, camera.m_RenderCamera, CameraToURL(&camera));
         CompCameraUpdateViewProjection(&camera, render_context);
+
         w->m_Cameras.Push(camera);
         *params.m_UserData = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
-
-        dmMessage::URL url_id;
-        url_id.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(camera.m_Instance));
-        url_id.m_Path   = dmGameObject::GetIdentifier(camera.m_Instance);
-        dmGameObject::GetComponentId(camera.m_Instance, camera.m_ComponentIndex, &url_id.m_Fragment);
-
-        camera.m_RenderCamera = dmRender::NewRenderCamera(render_context, url_id);
-        SetRenderCameraData(render_context, camera.m_RenderCamera, camera.m_View, camera.m_Projection);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
 
     dmGameObject::CreateResult CompCameraDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
+        dmRender::RenderContext* render_context = (dmRender::RenderContext*) params.m_Context;
         CameraWorld* w = (CameraWorld*)params.m_World;
-        CameraComponent* camera = (CameraComponent*)*params.m_UserData;
-        bool found = false;
-        for (uint8_t i = 0; i < w->m_FocusStack.Size(); ++i)
-        {
-            if (w->m_FocusStack[i] == camera)
-            {
-                found = true;
-            }
-            if (found && i < w->m_FocusStack.Size() - 1)
-            {
-                w->m_FocusStack[i] = w->m_FocusStack[i + 1];
-            }
-        }
-        if (found)
-        {
-            w->m_FocusStack.Pop();
-        }
         for (uint8_t i = 0; i < w->m_Cameras.Size(); ++i)
         {
             if (w->m_Cameras[i].m_Instance == params.m_Instance)
             {
+                dmRender::DeleteRenderCamera(render_context, w->m_Cameras[i].m_RenderCamera);
                 w->m_Cameras.EraseSwap(i);
                 return dmGameObject::CREATE_RESULT_OK;
             }
@@ -200,65 +193,52 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static bool PostRenderScriptSetViewProjectionMsg(CameraComponent* camera, const dmMessage::URL& camera_url)
+    {
+        dmGameSystemDDF::SetViewProjection set_view_projection;
+        set_view_projection.m_View       = camera->m_View;
+        set_view_projection.m_Projection = camera->m_Projection;
+
+        dmGameObject::Result go_result = dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &set_view_projection.m_Id);
+        if (go_result != dmGameObject::RESULT_OK)
+        {
+            dmLogError("Could not send set_view_projection because of incomplete component.");
+            return false;
+        }
+
+        dmMessage::URL receiver;
+        dmMessage::ResetURL(&receiver);
+        dmMessage::Result result = dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket);
+        if (result != dmMessage::RESULT_OK)
+        {
+            dmLogError("The socket '%s' could not be found.", dmRender::RENDER_SOCKET_NAME);
+            return false;
+        }
+
+        dmMessage::Post(&camera_url, &receiver, dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_NameHash,
+            0, (uintptr_t)dmGameSystemDDF::SetViewProjection::m_DDFDescriptor, &set_view_projection, sizeof(dmGameSystemDDF::SetViewProjection), 0);
+        return true;
+    }
+
     dmGameObject::UpdateResult CompCameraUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         CameraWorld* camera_world = (CameraWorld*) params.m_World;
         DM_PROPERTY_ADD_U32(rmtp_Camera, camera_world->m_Cameras.Size());
 
-        uint32_t stack_size = camera_world->m_FocusStack.Size();
+        dmRender::RenderContext* render_context = (dmRender::RenderContext*) params.m_Context;
 
-        if (stack_size > 0)
+        uint32_t num_cameras = camera_world->m_Cameras.Size();
+        for (int i = 0; i < num_cameras; ++i)
         {
-            dmRender::RenderContext* render_context = (dmRender::RenderContext*) params.m_Context;
-            dmhash_t message_id                     = dmGameSystemDDF::SetViewProjection::m_DDFDescriptor->m_NameHash;
-            bool any_active_camera                  = false;
+            CameraComponent* camera = &camera_world->m_Cameras[i];
+            if (!camera->m_Enabled || !camera->m_AddedToUpdate)
+                continue;
 
-            for (int i = 0; i < stack_size; ++i)
+            CompCameraUpdateViewProjection(camera, render_context);
+
+            if (!PostRenderScriptSetViewProjectionMsg(camera, CameraToURL(camera)))
             {
-                CameraComponent* camera = camera_world->m_FocusStack[stack_size - 1 - i];
-                if (camera->m_AddedToUpdate)
-                {
-                    CompCameraUpdateViewProjection(camera, render_context);
-
-                    dmGameSystemDDF::SetViewProjection set_view_projection;
-                    set_view_projection.m_View       = camera->m_View;
-                    set_view_projection.m_Projection = camera->m_Projection;
-
-                    dmGameObject::Result go_result = dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &set_view_projection.m_Id);
-                    if (go_result != dmGameObject::RESULT_OK)
-                    {
-                        dmLogError("Could not send set_view_projection because of incomplete component.");
-                        return dmGameObject::UPDATE_RESULT_OK;
-                    }
-
-                    dmMessage::URL receiver;
-                    dmMessage::ResetURL(&receiver);
-                    dmMessage::Result result = dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &receiver.m_Socket);
-                    if (result != dmMessage::RESULT_OK)
-                    {
-                        dmLogError("The socket '%s' could not be found.", dmRender::RENDER_SOCKET_NAME);
-                        return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
-                    }
-
-                    dmMessage::URL sender;
-                    sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(camera->m_Instance));
-                    sender.m_Path = dmGameObject::GetIdentifier(camera->m_Instance);
-                    dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &sender.m_Fragment);
-
-                    dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t)dmGameSystemDDF::SetViewProjection::m_DDFDescriptor, &set_view_projection, sizeof(dmGameSystemDDF::SetViewProjection), 0);
-
-                    SetRenderCameraData(render_context, camera->m_RenderCamera, camera->m_View, camera->m_Projection);
-
-                    // Note: We only set the view/projection on the first active camera in the focus stack
-                    if (!any_active_camera)
-                    {
-                        // JG: What does this TODO mean here?
-                        // TODO: Remove this once render scripts are implemented everywhere
-                        dmRender::SetProjectionMatrix(render_context, camera->m_Projection);
-                        dmRender::SetViewMatrix(render_context, camera->m_View);
-                        any_active_camera = true;
-                    }
-                }
+                return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }
 
@@ -270,59 +250,21 @@ namespace dmGameSystem
         CameraComponent* camera = (CameraComponent*)*params.m_UserData;
         if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::SetCamera::m_DDFDescriptor)
         {
-            dmGamesysDDF::SetCamera* ddf = (dmGamesysDDF::SetCamera*)params.m_Message->m_Data;
-            camera->m_AspectRatio = ddf->m_AspectRatio;
-            camera->m_Fov = ddf->m_Fov;
-            camera->m_NearZ = ddf->m_NearZ;
-            camera->m_FarZ = ddf->m_FarZ;
+            dmGamesysDDF::SetCamera* ddf     = (dmGamesysDDF::SetCamera*)params.m_Message->m_Data;
+            camera->m_AspectRatio            = ddf->m_AspectRatio;
+            camera->m_Fov                    = ddf->m_Fov;
+            camera->m_NearZ                  = ddf->m_NearZ;
+            camera->m_FarZ                   = ddf->m_FarZ;
             camera->m_OrthographicProjection = ddf->m_OrthographicProjection;
-            camera->m_OrthographicZoom = ddf->m_OrthographicZoom;
+            camera->m_OrthographicZoom       = ddf->m_OrthographicZoom;
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor)
         {
-            bool found = false;
-            for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)
-            {
-                if (camera->m_World->m_FocusStack[i] == camera)
-                {
-                    found = true;
-                }
-                if (found && i < camera->m_World->m_FocusStack.Size() - 1)
-                {
-                    camera->m_World->m_FocusStack[i] = camera->m_World->m_FocusStack[i + 1];
-                }
-            }
-            if (found)
-            {
-                camera->m_World->m_FocusStack.Pop();
-            }
-            if (!camera->m_World->m_FocusStack.Full())
-            {
-                camera->m_World->m_FocusStack.Push(camera);
-            }
-            else
-            {
-                LogMessageError(params.m_Message, "Could not acquire camera focus since the buffer is full (%d).", camera->m_World->m_FocusStack.Size());
-            }
+            camera->m_Enabled = 1;
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor)
         {
-            bool found = false;
-            for (uint32_t i = 0; i < camera->m_World->m_FocusStack.Size(); ++i)
-            {
-                if (camera->m_World->m_FocusStack[i] == camera)
-                {
-                    found = true;
-                }
-                if (found && i < camera->m_World->m_FocusStack.Size() - 1)
-                {
-                    camera->m_World->m_FocusStack[i] = camera->m_World->m_FocusStack[i + 1];
-                }
-            }
-            if (found)
-            {
-                camera->m_World->m_FocusStack.Pop();
-            }
+            camera->m_Enabled = 0;
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -416,9 +358,9 @@ namespace dmGameSystem
             component->m_AspectRatio = params.m_Value.m_Number;
             return dmGameObject::PROPERTY_RESULT_OK;
         }
-        else if ((CAMERA_PROP_PROJECTION == set_property)
-            || (CAMERA_PROP_VIEW == set_property)
-            || (CAMERA_PROP_ASPECT_RATIO == set_property))
+        else if (CAMERA_PROP_PROJECTION   == set_property ||
+                 CAMERA_PROP_VIEW         == set_property ||
+                 CAMERA_PROP_ASPECT_RATIO == set_property)
         {
             return dmGameObject::PROPERTY_RESULT_READ_ONLY;
         }

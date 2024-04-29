@@ -18,43 +18,59 @@
 
 namespace dmRender
 {
-    HRenderCamera NewRenderCamera(HRenderContext render_context, const dmMessage::URL& camera_url)
+    HRenderCamera NewRenderCamera(HRenderContext render_context)
     {
-        HRenderCamera c = GetRenderCameraByUrl(render_context, camera_url);
-        if (c != INVALID_RENDER_CAMERA)
-        {
-            return INVALID_RENDER_CAMERA;
-        }
-
         if (render_context->m_RenderCameras.Full())
         {
-            render_context->m_RenderCameras.OffsetCapacity(4);
+            render_context->m_RenderCameras.Allocate(4);
         }
 
-        RenderCamera camera = {};
-        camera.m_URL = camera_url;
-        render_context->m_RenderCameras.Push(camera);
+        RenderCamera* camera = new RenderCamera();
+        memset(camera, 0, sizeof(RenderCamera));
 
-        return (HRenderCamera)(render_context->m_RenderCameras.Size() - 1);
+        return render_context->m_RenderCameras.Put(camera);
     }
 
-    HRenderCamera GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url)
+    void DeleteRenderCamera(HRenderContext context, HRenderCamera camera)
     {
-        for (int i = 0; i < render_context->m_RenderCameras.Size(); ++i)
+        RenderCamera* c = context->m_RenderCameras.Get(camera);
+        if (c)
         {
-            if (render_context->m_RenderCameras[i].m_URL.m_Socket   == camera_url.m_Socket &&
-                render_context->m_RenderCameras[i].m_URL.m_Path     == camera_url.m_Path &&
-                render_context->m_RenderCameras[i].m_URL.m_Fragment == camera_url.m_Fragment)
-            {
-                return i;
-            }
+            delete c;
+            context->m_RenderCameras.Release(camera);
         }
-        return INVALID_RENDER_CAMERA;
+    }
+
+    void SetRenderCameraURL(HRenderContext render_context, HRenderCamera camera, const dmMessage::URL& camera_url)
+    {
+        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        if (c)
+        {
+            c->m_URL = camera_url;
+        }
     }
 
     void SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const dmVMath::Matrix4& view, const dmVMath::Matrix4& projection)
     {
-        render_context->m_RenderCameras[camera].m_View       = view;
-        render_context->m_RenderCameras[camera].m_Projection = projection;
+        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        if (c)
+        {
+            c->m_View       = view;
+            c->m_Projection = projection;
+        }
+    }
+
+    // render_private.h
+    RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url)
+    {
+        for (int i = 0; i < render_context->m_RenderCameras.Capacity(); ++i)
+        {
+            RenderCamera* c = render_context->m_RenderCameras.GetByIndex(i);
+            if (c && memcmp(&c->m_URL, &camera_url, sizeof(dmMessage::URL)) == 0)
+            {
+                return c;
+            }
+        }
+        return 0x0;
     }
 }
