@@ -28,7 +28,7 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b
       },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
@@ -51,7 +51,7 @@ jobs:
       matrix:
         platform: [x86_64-macos, arm64-macos]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 },
+      { name: 'Checkout', uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
@@ -82,7 +82,7 @@ jobs:
       matrix:
         platform: [x86_64-win32]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 },
+      { name: 'Checkout', uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
@@ -119,7 +119,7 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b
       },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
