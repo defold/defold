@@ -813,8 +813,7 @@
         {:keys [cache-width cache-height cache-cell-width cache-cell-height cache-cell-max-ascent]} font-map
         data-format (glyph-channels->data-format (:glyph-channels font-map))
         size (* (int (/ cache-width cache-cell-width)) (int (/ cache-height cache-cell-height)))
-        w (int (/ cache-width cache-cell-width))
-        h (int (/ cache-height cache-cell-height))
+        cells-per-row (int (/ cache-width cache-cell-width))
         cache (atom {})]
     (fn
       ([] ; this arity allows for retrieving the underlying atom when debugging/repl'ing
@@ -826,8 +825,8 @@
                              (let [cell (count m)]
                                (if-not (< cell size)
                                  (assoc m glyph ::not-available)
-                                 (let [x (* (mod cell w) cache-cell-width)
-                                       y (+ (* (int (/ cell h)) cache-cell-height) (- cache-cell-max-ascent (:ascent glyph)))
+                                 (let [x (* (mod cell cells-per-row) cache-cell-width)
+                                       y (+ (* (int (/ cell cells-per-row)) cache-cell-height) (- cache-cell-max-ascent (:ascent glyph)))
                                        {w :width h :height} (:glyph-cell-wh glyph)
                                        ^ByteBuffer src-data (-> ^ByteBuffer (.asReadOnlyByteBuffer ^ByteString (:glyph-data font-map))
                                                                 ^ByteBuffer (.position (int (:glyph-data-offset glyph)))
