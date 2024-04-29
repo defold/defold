@@ -851,6 +851,11 @@
    :help "liveupdate settings"
    :preserve-extension true,
    :path ["liveupdate" "settings"]}
+   {:type :boolean
+   :filter "settings"
+   :default true
+   :help "enables auto-mount of previously mounted resources when the application starts"
+   :path ["liveupdate" "mount_on_start"]}
   {:type :integer,
    :help "max number of concurrent tilemaps in a collection",
    :default 16,

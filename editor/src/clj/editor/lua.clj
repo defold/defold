@@ -31,7 +31,7 @@
 (def ^:private docs
   ["base" "bit" "buffer" "builtins" "camera" "collectionfactory"
    "collectionproxy" "coroutine" "crash" "debug" "facebook" "factory" "go" "gui"
-   "html5" "http" "iac" "iap" "image" "io" "json" "label" "math" "model" "msg"
+   "html5" "http" "iac" "iap" "image" "io" "json" "label" "liveupdate" "math" "model" "msg"
    "os" "package" "particlefx" "physics" "profiler" "push" "render" "resource"
    "socket" "sound" "sprite" "string" "sys" "table" "tilemap" "timer" "vmath"
    "webview" "window" "zlib"])
