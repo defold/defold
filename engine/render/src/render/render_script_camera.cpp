@@ -41,6 +41,10 @@ namespace dmRender
         lua_pushstring(L, "view");
         dmScript::PushMatrix4(L, camera->m_View);
         lua_settable(L, -3);
+
+        lua_pushstring(L, "viewport");
+        dmScript::PushVector4(L, camera->m_Viewport);
+        lua_settable(L, -3);
     }
 
     static int RenderScriptCamera_GetCameras(lua_State* L)
@@ -125,6 +129,12 @@ namespace dmRender
         luaL_register(L, RENDER_SCRIPT_CAMERA_LIB_NAME, RenderScriptCamera_Methods);
         lua_pop(L, 1);
 
+        assert(g_RenderScriptCameraModule.m_RenderContext == 0x0);
         g_RenderScriptCameraModule.m_RenderContext = render_context;
+    }
+
+    void FinalizeRenderScriptCameraContext(HRenderContext render_context)
+    {
+        g_RenderScriptCameraModule.m_RenderContext = 0x0;
     }
 }

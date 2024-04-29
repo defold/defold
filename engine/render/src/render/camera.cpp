@@ -26,9 +26,12 @@ namespace dmRender
         }
 
         RenderCamera* camera = new RenderCamera();
-        memset(camera, 0, sizeof(RenderCamera));
-
-        return render_context->m_RenderCameras.Put(camera);
+        camera->m_URL        = dmMessage::URL();
+        camera->m_View       = dmVMath::Matrix4();
+        camera->m_Projection = dmVMath::Matrix4();
+        camera->m_Viewport   = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+        camera->m_Handle     = render_context->m_RenderCameras.Put(camera);
+        return camera->m_Handle;
     }
 
     void DeleteRenderCamera(HRenderContext context, HRenderCamera camera)

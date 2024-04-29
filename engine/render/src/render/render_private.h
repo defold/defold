@@ -245,8 +245,10 @@ namespace dmRender
     struct RenderCamera
     {
         dmMessage::URL   m_URL;
+        HOpaqueHandle    m_Handle;
         dmVMath::Matrix4 m_Projection;
         dmVMath::Matrix4 m_View;
+        dmVMath::Vector4 m_Viewport;
     };
 
     struct RenderContext

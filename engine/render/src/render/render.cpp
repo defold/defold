@@ -152,6 +152,7 @@ namespace dmRender
         if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
 
         FinalizeRenderScriptContext(render_context->m_RenderScriptContext, script_context);
+        FinalizeRenderScriptCameraContext(render_context);
         dmScript::DeleteScriptWorld(render_context->m_ScriptWorld);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
