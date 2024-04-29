@@ -49,6 +49,7 @@ namespace dmRender
     typedef struct ComputeProgram*          HComputeProgram;
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
+    typedef uint16_t                        HRenderCamera;
 
     /**
      * Display profiles handle
@@ -135,8 +136,8 @@ namespace dmRender
         uint32_t                        m_MaxDebugVertexCount;
     };
 
-    static const uint8_t RENDERLIST_INVALID_DISPATCH = 0xff;
-
+    static const uint8_t RENDERLIST_INVALID_DISPATCH    = 0xff;
+    static const uint16_t INVALID_RENDER_CAMERA         = 0xffff;
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0ULL;
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
@@ -328,6 +329,12 @@ namespace dmRender
     void                            TrimBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     void                            RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
 
+    /** Render cameras
+     * TODO: Description
+     */
+    HRenderCamera                   NewRenderCamera(HRenderContext context, const dmMessage::URL& camera_url);
+    HRenderCamera                   GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
+    void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const dmVMath::Matrix4& view, const dmVMath::Matrix4& projection);
 }
 
 #endif /* DM_RENDER_H */

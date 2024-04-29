@@ -43,18 +43,19 @@ namespace dmGameSystem
     struct CameraComponent
     {
         dmGameObject::HInstance m_Instance;
-        CameraWorld* m_World;
-        float m_AspectRatio;
-        float m_Fov;
-        float m_NearZ;
-        float m_FarZ;
-        float m_OrthographicZoom;
-        dmVMath::Matrix4 m_View;
-        dmVMath::Matrix4 m_Projection;
-        uint32_t m_AutoAspectRatio : 1;
-        uint32_t m_AddedToUpdate : 1;
-        uint32_t m_OrthographicProjection : 1;
-        uint16_t m_ComponentIndex;
+        dmRender::HRenderCamera m_RenderCamera;
+        CameraWorld*            m_World;
+        dmVMath::Matrix4        m_View;
+        dmVMath::Matrix4        m_Projection;
+        float                   m_AspectRatio;
+        float                   m_Fov;
+        float                   m_NearZ;
+        float                   m_FarZ;
+        float                   m_OrthographicZoom;
+        uint16_t                m_ComponentIndex;
+        uint8_t                 m_AutoAspectRatio        : 1;
+        uint8_t                 m_AddedToUpdate          : 1;
+        uint8_t                 m_OrthographicProjection : 1;
     };
 
     struct CameraWorld
@@ -149,6 +150,15 @@ namespace dmGameSystem
         CompCameraUpdateViewProjection(&camera, render_context);
         w->m_Cameras.Push(camera);
         *params.m_UserData = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
+
+        dmMessage::URL url_id;
+        url_id.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(camera.m_Instance));
+        url_id.m_Path   = dmGameObject::GetIdentifier(camera.m_Instance);
+        dmGameObject::GetComponentId(camera.m_Instance, camera.m_ComponentIndex, &url_id.m_Fragment);
+
+        camera.m_RenderCamera = dmRender::NewRenderCamera(render_context, url_id);
+        SetRenderCameraData(render_context, camera.m_RenderCamera, camera.m_View, camera.m_Projection);
+
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -236,6 +246,8 @@ namespace dmGameSystem
                     dmGameObject::GetComponentId(camera->m_Instance, camera->m_ComponentIndex, &sender.m_Fragment);
 
                     dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t)dmGameSystemDDF::SetViewProjection::m_DDFDescriptor, &set_view_projection, sizeof(dmGameSystemDDF::SetViewProjection), 0);
+
+                    SetRenderCameraData(render_context, camera->m_RenderCamera, camera->m_View, camera->m_Projection);
 
                     // Note: We only set the view/projection on the first active camera in the focus stack
                     if (!any_active_camera)

@@ -241,6 +241,13 @@ namespace dmRender
         dmGraphics::HTexture m_Texture;
     };
 
+    struct RenderCamera
+    {
+        dmMessage::URL   m_URL;
+        dmVMath::Matrix4 m_Projection;
+        dmVMath::Matrix4 m_View;
+    };
+
     struct RenderContext
     {
         DebugRenderer               m_DebugRenderer;
@@ -260,6 +267,8 @@ namespace dmRender
         dmhash_t                    m_FrustumHash;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
+
+        dmArray<RenderCamera>       m_RenderCameras;
 
         HFontMap                    m_SystemFontMap;
 
