@@ -312,7 +312,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     if (factory->m_BaseArchiveMount)
     {
-        if (params->m_Flags & RESOURCE_FACTORY_FLAGS_LIVE_UPDATE)
+        if (params->m_Flags & RESOURCE_FACTORY_FLAGS_LIVE_UPDATE_MOUNTS_ON_START)
         {
             dmResource::HManifest manifest;
             if (dmResourceProvider::RESULT_OK == dmResourceProvider::GetManifest(factory->m_BaseArchiveMount, &manifest))
