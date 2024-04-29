@@ -64,6 +64,7 @@ namespace dmGraphics
     {
         ID3D12Resource* m_Resource;
         uint32_t        m_DataSize;
+        uint32_t        m_Destroyed : 1;
     };
 
     struct DX12VertexBuffer
@@ -150,22 +151,12 @@ namespace dmGraphics
             uint32_t              m_MemoryCursor;
         };
 
-        /*
-        struct SamplerPool
-        {
-            ID3D12DescriptorHeap* m_DescriptorHeap;
-            uint32_t              m_DescriptorCursor;
-        };
-        */
-
         dmArray<BlockSizedPool> m_MemoryPools;
-
-        // SamplerPool m_SamplerPool;
 
         uint32_t m_FrameIndex;
 
         void  Initialize(DX12Context* context, uint32_t frame_index);
-        void* AllocateConstantBuffer(DX12Context* context, uint32_t non_aligned_byte_size);
+        void* AllocateConstantBuffer(DX12Context* context, uint32_t buffer_index, uint32_t non_aligned_byte_size);
         void  AllocateTexture2D(DX12Context* context, DX12Texture* texture, uint32_t texture_index, const DX12TextureSampler& sampler, uint32_t sampler_index);
         void  Reset(DX12Context* context);
         void  Bind(DX12Context* context);
@@ -178,6 +169,8 @@ namespace dmGraphics
         ID3D12Fence*            m_Fence;
         DX12ScratchBuffer       m_ScratchBuffer;
         uint64_t                m_FenceValue;
+
+        dmArray<ID3D12Resource*> m_ResourcesToDestroy;
     };
 
     struct DX12Context
@@ -200,7 +193,6 @@ namespace dmGraphics
         PipelineState                      m_PipelineState;
 
         DX12DescriptorPool                 m_SamplerPool;
-        // DX12DescriptorPool                 m_SRVPool;
         dmArray<DX12TextureSampler>        m_TextureSamplers;
 
         HRenderTarget                      m_MainRenderTarget;

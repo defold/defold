@@ -52,6 +52,7 @@ namespace dmGraphics
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterDX12, &g_dx12_adapter, DX12IsSupported, DX12RegisterFunctionTable, g_dx12_adapter_priority);
 
     static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy);
+    static void    FlushResourcesToDestroy(DX12FrameResource& current_frame_resource);
 
     #define CHECK_HR_ERROR(result) \
     { \
@@ -159,9 +160,10 @@ namespace dmGraphics
         {
             DX12Context* context = (DX12Context*) _context;
 
-            // SAFE_RELEASE(pipelineStateObject);
-            // SAFE_RELEASE(rootSignature);
-            // SAFE_RELEASE(vertexBuffer);
+            for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_FrameResources); i++)
+            {
+                FlushResourcesToDestroy(context->m_FrameResources[i]);
+            }
 
             delete (DX12Context*) context;
             g_DX12Context = 0x0;
@@ -253,14 +255,14 @@ namespace dmGraphics
         }
     }
 
-    void* DX12ScratchBuffer::AllocateConstantBuffer(DX12Context* context, uint32_t non_aligned_byte_size)
+    void* DX12ScratchBuffer::AllocateConstantBuffer(DX12Context* context, uint32_t buffer_index, uint32_t non_aligned_byte_size)
     {
         assert(non_aligned_byte_size < MAX_BLOCK_SIZE);
         uint32_t pool_index     = non_aligned_byte_size / BLOCK_STEP_SIZE;
         uint32_t memory_cursor  = m_MemoryPools[pool_index].m_MemoryCursor;
         uint8_t* base_ptr       = ((uint8_t*) m_MemoryPools[pool_index].m_MappedDataPtr) + memory_cursor;
 
-        context->m_CommandList->SetGraphicsRootConstantBufferView(m_MemoryPools[pool_index].m_DescriptorCursor, m_MemoryPools[0].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
+        context->m_CommandList->SetGraphicsRootConstantBufferView(buffer_index, m_MemoryPools[0].m_MemoryHeap->GetGPUVirtualAddress() + memory_cursor);
 
         m_MemoryPools[pool_index].m_MemoryCursor += m_MemoryPools[pool_index].m_BlockSize;
         m_MemoryPools[pool_index].m_DescriptorCursor++;
@@ -637,6 +639,35 @@ namespace dmGraphics
         context->m_CurrentRenderTarget = render_target;
     }
 
+    template <typename T>
+    static void DestroyResourceDeferred(DX12FrameResource& current_frame_resource, T* resource) 
+    {
+        if (resource == 0x0 || resource->m_Destroyed || resource->m_Resource == 0x0)
+        {
+            return;
+        }
+
+        if (current_frame_resource.m_ResourcesToDestroy.Full())
+        {
+            current_frame_resource.m_ResourcesToDestroy.OffsetCapacity(8);
+        }
+
+        current_frame_resource.m_ResourcesToDestroy.Push(resource->m_Resource);
+        resource->m_Destroyed = 1;
+    }
+
+    static void FlushResourcesToDestroy(DX12FrameResource& current_frame_resource)
+    {
+        if (current_frame_resource.m_ResourcesToDestroy.Size() > 0)
+        {
+            for (uint32_t i = 0; i < current_frame_resource.m_ResourcesToDestroy.Size(); ++i)
+            {
+                current_frame_resource.m_ResourcesToDestroy[i]->Release();
+            }
+            current_frame_resource.m_ResourcesToDestroy.SetSize(0);
+        }
+    }
+
     static void DX12BeginFrame(HContext _context)
     {
         DX12Context* context = (DX12Context*) _context;
@@ -649,6 +680,8 @@ namespace dmGraphics
 
         DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, context->m_MainRenderTarget);
         rt->m_Resource = current_frame_resource.m_RenderTarget.m_Resource;
+
+        FlushResourcesToDestroy(current_frame_resource);
 
         // Enter "record" mode
         hr = context->m_CommandList->Reset(current_frame_resource.m_CommandAllocator, NULL); // Second argument is a pipeline object (TODO)
@@ -702,10 +735,11 @@ namespace dmGraphics
         return pitch;
     }
 
-    // CopyToTexture((uint8_t*) tex->m_Texture.getBaseAddress(), (uint8_t*) tex_data_ptr, tex->m_TextureBuffer.m_DataSize, &tex->m_Texture, format_actual, format_orig, tex_layer_count, params);
-
-    static void CopyTextureData(D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, uint32_t* num_rows, uint32_t array_count, uint32_t mipmap_count, uint32_t* slice_row_pitch, uint8_t* pixels, uint8_t* upload_data)
+    static void CopyTextureData(const TextureParams& params, TextureFormat format_dst, TextureFormat format_src, D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, uint32_t* num_rows, uint32_t array_count, uint32_t mipmap_count, uint32_t* slice_row_pitch, uint8_t* pixels, uint8_t* upload_data)
     {
+        uint8_t bpp_dst = GetTextureFormatBitsPerPixel(format_dst) / 8;
+        uint8_t bpp_src = GetTextureFormatBitsPerPixel(format_src) / 8;
+
         for (uint64_t array = 0; array < array_count; array++)
         {
             for (uint64_t mipmap = 0; mipmap < mipmap_count; mipmap++)
@@ -722,31 +756,46 @@ namespace dmGraphics
          
                 for (uint64_t slice = 0; slice < subResourceDepth; slice++)
                 {
-                    //const DirectX::Image* subImage = imageData->GetImage(mipmap, array, slice);
-
                     // Todo: This isn't right
                     const uint8_t* sourceSubResourceMemory = pixels; // subImage->pixels;
-         
-                    for (uint64_t height = 0; height < subResourceHeight; height++)
+
+                    if (params.m_SubUpdate)
                     {
-                        memcpy(destinationSubResourceMemory, sourceSubResourceMemory, dmMath::Min(subResourcePitch, row_pitch));
-                        destinationSubResourceMemory += subResourcePitch;
-                        sourceSubResourceMemory      += row_pitch;
+                        for(int y = params.m_Y; y < (params.m_Y + params.m_Height); ++y)
+                        {
+                            uint8_t* dest_row = destinationSubResourceMemory + subResourcePitch * y;
+                            uint8_t* dest_pixel_start = dest_row + bpp_src * params.m_X;
+                            memcpy(dest_pixel_start, pixels, bpp_src * params.m_Width);
+                            pixels += bpp_src * params.m_Width;
+                        }
+                    }
+                    else
+                    {
+                        for (uint64_t height = 0; height < subResourceHeight; height++)
+                        {
+                            memcpy(destinationSubResourceMemory, sourceSubResourceMemory, dmMath::Min(subResourcePitch, row_pitch));
+                            destinationSubResourceMemory += subResourcePitch;
+                            sourceSubResourceMemory      += row_pitch;
+                        }
                     }
                 }
             }
         }
     }
 
-    static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format_dst, uint32_t mipmap, uint8_t* pixels)
+    static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format_dst, TextureFormat format_src, const TextureParams& params, uint8_t* pixels)
     {
         uint64_t slice_upload_size = 0;
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp[16] = { 0 };
 
+        uint8_t bpp_dst = GetTextureFormatBitsPerPixel(format_dst) / 8;
+        uint32_t texture_pitch = texture->m_Width * bpp_dst;
+        uint32_t mipmap_pitch = GetPitchFromMipMap(texture_pitch, params.m_MipMap);
+
         uint32_t num_rows[16];
         uint64_t row_size_in_bytes[16];
 
-        context->m_Device->GetCopyableFootprints(&texture->m_ResourceDesc, mipmap, texture->m_MipMapCount, 0, fp, num_rows, row_size_in_bytes, &slice_upload_size);
+        context->m_Device->GetCopyableFootprints(&texture->m_ResourceDesc, params.m_MipMap, texture->m_MipMapCount, 0, fp, num_rows, row_size_in_bytes, &slice_upload_size);
 
         // create upload heap
         // upload heaps are used to upload data to the GPU. CPU can write to it, GPU can read from it
@@ -776,11 +825,7 @@ namespace dmGraphics
         hr = upload_heap->Map(0, NULL, (void**) &upload_data);
         CHECK_HR_ERROR(hr);
 
-        uint8_t bpp_dst = GetTextureFormatBitsPerPixel(format_dst) / 8;
-        uint32_t texture_pitch = texture->m_Width * bpp_dst;
-        uint32_t mipmap_pitch = GetPitchFromMipMap(texture_pitch, mipmap);
-
-        CopyTextureData(fp, num_rows, 1, 1, &mipmap_pitch, pixels, upload_data);
+        CopyTextureData(params, format_dst, format_src, fp, num_rows, 1, 1, &mipmap_pitch, pixels, upload_data);
 
         if (!context->m_FrameBegun)
         {
@@ -791,14 +836,23 @@ namespace dmGraphics
         D3D12_TEXTURE_COPY_LOCATION copy_dst = {};
         copy_dst.pResource        = texture->m_Resource;
         copy_dst.Type             = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-        copy_dst.SubresourceIndex = mipmap;
+        copy_dst.SubresourceIndex = params.m_MipMap;
 
         D3D12_TEXTURE_COPY_LOCATION copy_src = {};
         copy_src.pResource        = upload_heap;
         copy_src.Type             = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-        copy_src.PlacedFootprint  = fp[mipmap];
+        copy_src.PlacedFootprint  = fp[params.m_MipMap];
 
-        context->m_CommandList->CopyTextureRegion(&copy_dst, 0, 0, 0, &copy_src, NULL);
+        D3D12_BOX box = {};
+        box.top    = params.m_Y;
+        box.left   = params.m_X;
+        box.bottom = params.m_Y + params.m_Height;
+        box.right  = params.m_X + params.m_Width;
+        box.front  = 0;
+        box.back   = 1;
+
+        // The box acts like a clip box, which indicates where from the source we should take the data from
+        context->m_CommandList->CopyTextureRegion(&copy_dst, params.m_X, params.m_Y, 0, &copy_src, &box);
 
         context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
 
@@ -808,48 +862,37 @@ namespace dmGraphics
             ID3D12CommandList* execute_cmd_lists[] = { context->m_CommandList };
             context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
         }
+    }
 
-        /*
-        for ( uint32_t mip = 0; mip < imageDesc->mipCount; mip++ )
-        {
-            preloaderCommandList->lpVtbl->CopyTextureRegion(
-                preloaderCommandList,
-                &(D3D12_TEXTURE_COPY_LOCATION){
-                    .pResource = texRes,
-                    .Type      = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
-                    .SubresourceIndex = mip,
-                },
-                0,0,0,
-                &(D3D12_TEXTURE_COPY_LOCATION){
-                    .pResource = texUploadRes,
-                    .Type      = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
-                    .PlacedFootprint = fp[mip],
-                },
-                NULL
-            );
-        }
-        */
+    static void CreateDeviceBuffer(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t size)
+    {
+        assert(device_buffer->m_Resource == 0x0);
 
-        /*
-        // From: https://www.milty.nl/grad_guide/basic_implementation/d3d12/textures.html
-        uint8_t* uploadStart = data + fp[mipmap].Offset;
-        uint8_t* sourceStart = pixels + texture->m_ResourceDesc.mips[mipmap].offset;
-        uint32_t sourcePitch = (texture->m_ResourceDesc.mips[mipmap].width * sizeof(uint32_t));
-        for ( uint32_t i = 0; i < fp[mipmap].Footprint.Height; i++ )
-        {
-            memcpy(
-                uploadStart + i * fp[mipmap].Footprint.RowPitch,
-                sourceStart + i * sourcePitch,
-                sourcePitch
-            );
-        }
-        */
+        // create default heap
+        // default heap is memory on the GPU. Only the GPU has access to this memory
+        // To get data into this heap, we will have to upload the data using
+        // an upload heap
+        HRESULT hr = context->m_Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), // a default heap
+            D3D12_HEAP_FLAG_NONE,                              // no flags
+            &CD3DX12_RESOURCE_DESC::Buffer(size),              // resource description for a buffer
+            D3D12_RESOURCE_STATE_COPY_DEST,                    // we will start this heap in the copy destination state since we will copy data from the upload heap to this heap
+            NULL,                                              // optimized clear value must be null for this type of resource. used for render targets and depth/stencil buffers
+            IID_PPV_ARGS(&device_buffer->m_Resource));
+        CHECK_HR_ERROR(hr);
+
+        device_buffer->m_Resource->SetName(L"Vertex Buffer Resource Heap");
     }
 
     static void DeviceBufferUploadHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, const void* data, uint32_t data_size)
     {
         if (data == 0 || data_size == 0)
             return;
+
+        if (device_buffer->m_Destroyed || device_buffer->m_Resource == 0x0)
+        {
+            CreateDeviceBuffer(context, device_buffer, data_size);
+        }
 
         // create upload heap
         // upload heaps are used to upload data to the GPU. CPU can write to it, GPU can read from it
@@ -893,35 +936,13 @@ namespace dmGraphics
         device_buffer->m_DataSize = data_size;
     }
 
-    static void CreateDeviceBuffer(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t size)
-    {
-        assert(device_buffer->m_Resource == 0x0);
-
-        // create default heap
-        // default heap is memory on the GPU. Only the GPU has access to this memory
-        // To get data into this heap, we will have to upload the data using
-        // an upload heap
-        HRESULT hr = context->m_Device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), // a default heap
-            D3D12_HEAP_FLAG_NONE,                              // no flags
-            &CD3DX12_RESOURCE_DESC::Buffer(size),              // resource description for a buffer
-            D3D12_RESOURCE_STATE_COPY_DEST,                    // we will start this heap in the copy destination state since we will copy data from the upload heap to this heap
-            NULL,                                              // optimized clear value must be null for this type of resource. used for render targets and depth/stencil buffers
-            IID_PPV_ARGS(&device_buffer->m_Resource));
-        CHECK_HR_ERROR(hr);
-
-        device_buffer->m_Resource->SetName(L"Vertex Buffer Resource Heap");
-    }
-
     static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DX12Context* context        = (DX12Context*) _context;
         DX12VertexBuffer* vx_buffer = new DX12VertexBuffer();
-        memset(vx_buffer, 0, sizeof(DX12VertexBuffer));
 
         if (size > 0)
         {
-            CreateDeviceBuffer(context, &vx_buffer->m_DeviceBuffer, size);
             DeviceBufferUploadHelper(context, &vx_buffer->m_DeviceBuffer, data, size);
         }
 
@@ -930,6 +951,8 @@ namespace dmGraphics
 
     static void DX12DeleteVertexBuffer(HVertexBuffer buffer)
     {
+        DX12VertexBuffer* buffer_ptr = (DX12VertexBuffer*) buffer;
+        DestroyResourceDeferred(g_DX12Context->m_FrameResources[g_DX12Context->m_CurrentFrameIndex], &buffer_ptr->m_DeviceBuffer);
     }
 
     static void DX12SetVertexBufferData(HVertexBuffer _buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -942,9 +965,9 @@ namespace dmGraphics
         }
 
         DX12VertexBuffer* vx_buffer = (DX12VertexBuffer*) _buffer;
-        if (vx_buffer->m_DeviceBuffer.m_Resource == 0x0)
+        if (size != vx_buffer->m_DeviceBuffer.m_DataSize)
         {
-            CreateDeviceBuffer(g_DX12Context, &vx_buffer->m_DeviceBuffer, size);
+            DestroyResourceDeferred(g_DX12Context->m_FrameResources[g_DX12Context->m_CurrentFrameIndex], &vx_buffer->m_DeviceBuffer);
         }
 
         DeviceBufferUploadHelper(g_DX12Context, &vx_buffer->m_DeviceBuffer, data, size);
@@ -952,6 +975,7 @@ namespace dmGraphics
 
     static void DX12SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        assert(0);
     }
 
     static uint32_t DX12GetMaxElementsVertices(HContext context)
@@ -963,11 +987,9 @@ namespace dmGraphics
     {
         DX12Context* context       = (DX12Context*) _context;
         DX12IndexBuffer* ix_buffer = new DX12IndexBuffer();
-        memset(ix_buffer, 0, sizeof(DX12IndexBuffer));
 
         if (size > 0)
         {
-            CreateDeviceBuffer(context, &ix_buffer->m_DeviceBuffer, size);
             DeviceBufferUploadHelper(context, &ix_buffer->m_DeviceBuffer, data, size);
         }
 
@@ -976,6 +998,8 @@ namespace dmGraphics
 
     static void DX12DeleteIndexBuffer(HIndexBuffer buffer)
     {
+        DX12IndexBuffer* buffer_ptr = (DX12IndexBuffer*) buffer;
+        DestroyResourceDeferred(g_DX12Context->m_FrameResources[g_DX12Context->m_CurrentFrameIndex], &buffer_ptr->m_DeviceBuffer);
     }
 
     static void DX12SetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -998,6 +1022,7 @@ namespace dmGraphics
 
     static void DX12SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        assert(0);
     }
 
     static bool DX12IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -1390,9 +1415,8 @@ namespace dmGraphics
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BlockSize;
-                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, uniform_size_nonalign);
+                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pgm_res.m_Res->m_Binding, uniform_size_nonalign);
                         memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
-
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
                     default: continue;
@@ -1675,7 +1699,7 @@ namespace dmGraphics
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
-                        root_parameter_descs[ubo_ix].InitAsConstantBufferView(0, 0, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                        root_parameter_descs[ubo_ix].InitAsConstantBufferView(pgm_res.m_Res->m_Binding, 0, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
                         ubo_ix++;
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
@@ -2279,6 +2303,8 @@ namespace dmGraphics
         {
             format_actual = TEXTURE_FORMAT_RGBA;
             dxgi_format   = GetDXGIFormatFromTextureFormat(format_actual);
+
+            assert(0);
         }
 
         if (!tex->m_Resource)
@@ -2304,7 +2330,7 @@ namespace dmGraphics
             tex->m_ResourceDesc = desc;
         }
 
-        TextureBufferUploadHelper(g_DX12Context, tex, format_actual, params.m_MipMap, (uint8_t*) tex_data_ptr);
+        TextureBufferUploadHelper(g_DX12Context, tex, format_actual, format_orig, params, (uint8_t*) tex_data_ptr);
 
         DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
     }
