@@ -1266,7 +1266,7 @@ Macros currently mean no foreseeable performance gain, however."
    (let [items (get pb-map field-kw ::not-found)]
      (if (= ::not-found items)
        pb-map
-       (assign-repeated pb-map field-kw (some->> items (mapv sanitize-item-fn)))))))
+       (assign-repeated pb-map field-kw (some->> items (into [] (keep sanitize-item-fn))))))))
 
 (defn make-map-search-match-fn
   "Returns a function that takes a value and returns it if its protobuf-text
