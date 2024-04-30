@@ -34,10 +34,6 @@ nodes {
   material: "first_material"
 }
 nodes {
-  size {
-    x: 200.0
-    y: 100.0
-  }
   type: TYPE_BOX
   texture: "first_texture/white"
   id: "box02"
@@ -60,10 +56,6 @@ nodes {
   material: "first_material"
 }
 nodes {
-  size {
-    x: 200.0
-    y: 100.0
-  }
   type: TYPE_PIE
   texture: "first_texture/white"
   id: "pie02"
@@ -98,10 +90,6 @@ nodes {
   material: "first_material"
 }
 nodes {
-  size {
-    x: 1.0
-    y: 1.0
-  }
   type: TYPE_PARTICLEFX
   id: "particlefx"
   parent: "parent"
@@ -111,10 +99,6 @@ nodes {
   material: "first_material"
 }
 nodes {
-  size {
-    x: 1.0
-    y: 1.0
-  }
   type: TYPE_CUSTOM
   id: "spine"
   parent: "parent"
@@ -127,10 +111,6 @@ nodes {
   material: "first_material"
 }
 nodes {
-  size {
-    x: 200.0
-    y: 100.0
-  }
   type: TYPE_TEMPLATE
   id: "template"
   parent: "parent"

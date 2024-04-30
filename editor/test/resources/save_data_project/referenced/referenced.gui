@@ -18,10 +18,6 @@ background_color {
   w: 0.9
 }
 nodes {
-  size {
-    x: 200.0
-    y: 100.0
-  }
   type: TYPE_BOX
   texture: "first_texture/diamond"
   id: "parent"
@@ -97,10 +93,6 @@ nodes {
     x: 1.1
     y: 1.2
     z: 1.3
-  }
-  size {
-    x: 200.0
-    y: 100.0
   }
   color {
     x: 0.949
@@ -197,10 +189,6 @@ nodes {
     x: 1.1
     y: 1.2
     z: 1.3
-  }
-  size {
-    x: 200.0
-    y: 100.0
   }
   color {
     x: 0.949
@@ -306,10 +294,6 @@ nodes {
     y: 1.2
     z: 1.3
   }
-  size {
-    x: 1.0
-    y: 1.0
-  }
   color {
     x: 0.949
     y: 0.949
@@ -345,10 +329,6 @@ nodes {
     x: 1.1
     y: 1.2
     z: 1.3
-  }
-  size {
-    x: 1.0
-    y: 1.0
   }
   color {
     x: 0.949
@@ -393,10 +373,6 @@ nodes {
     x: 1.1
     y: 1.2
     z: 1.3
-  }
-  size {
-    x: 200.0
-    y: 100.0
   }
   type: TYPE_TEMPLATE
   id: "template"

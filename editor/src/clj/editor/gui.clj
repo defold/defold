@@ -607,7 +607,7 @@
    :child-index ; No field exists for property.
    :overridden-fields]) ; No property exists for field.
 
-(defn- strip-unused-overridden-fields [node-desc]
+(defn- strip-unused-overridden-fields-from-node-desc [node-desc]
   {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
   (into (coll/empty-with-meta node-desc)
         (keep (fn [pb-field]
@@ -934,29 +934,45 @@
 
 (def ^:private is-size-mode-pb-field-index? (partial = (prop-key->pb-field-index :size-mode)))
 
+(def ^:private default-size-mode (protobuf/default Gui$NodeDesc :size-mode))
+
 (defn- strip-size-from-overridden-fields [overridden-fields]
   (util/removev is-size-pb-field-index? overridden-fields))
+
+(defn- strip-redundant-size-from-node-desc [{:keys [type] :as node-desc}]
+  ;; We don't want to write image sizes to the files, as it results in a lot of
+  ;; changed files whenever an image changes dimensions. We also used to write a
+  ;; dummy size value for auto-sized nodes to avoid a runtime culling issue that
+  ;; has since been fixed in the engine.
+  (let [effective-size-mode
+        (case type
+          (:type-particlefx :type-template) :size-mode-auto
+          (:type-text) :size-mode-manual
+          (:size-mode node-desc default-size-mode))
+
+        size-is-valuable
+        (case effective-size-mode
+          :size-mode-manual true
+          (case type
+            (:type-box :type-pie) (coll/empty? (:texture node-desc)) ; If no texture is assigned, these use the :size value.
+            false))]
+
+    (if size-is-valuable
+      node-desc ; Return unaltered.
+      (-> node-desc
+          (dissoc :size)
+          (protobuf/sanitize :overridden-fields strip-size-from-overridden-fields)))))
 
 (defn- add-size-to-overridden-fields [overridden-fields]
   (vec (sort (conj overridden-fields size-pb-field-index))))
 
-(defn- strip-size-from-shape-base-node-msg [node-desc]
-  (-> node-desc
-      (dissoc :size)
-      (protobuf/sanitize :overridden-fields strip-size-from-overridden-fields)))
-
 (defn- add-size-to-overridden-fields-in-node-desc [node-desc]
   (update node-desc :overridden-fields add-size-to-overridden-fields))
 
-(defn- fixup-shape-base-node-size-fields [node-desc]
+(defn- fixup-shape-base-node-size-overrides [node-desc]
   (let [size-mode (:size-mode node-desc)
         overridden-fields (:overridden-fields node-desc)]
     (cond-> node-desc
-
-            ;; We don't want to write image sizes to the files, as it results in
-            ;; a lot of changed files whenever an image changes dimensions.
-            (= :size-mode-auto size-mode)
-            (strip-size-from-shape-base-node-msg)
 
             ;; Previously, image sizes were written to the files, but if a node
             ;; overrode the size-mode of its original, its size field would not
@@ -979,7 +995,7 @@
                :clipping-mode clipping-mode
                :clipping-visible clipping-visible
                :clipping-inverted clipping-inverted))
-      (fixup-shape-base-node-size-fields)))
+      (fixup-shape-base-node-size-overrides)))
 
 (g/defnode ShapeNode
   (inherits VisualNode)
@@ -1295,21 +1311,6 @@
     (g/set-property node-id :font new-name)))
 
 ;; Template nodes
-
-(defn- trans-position [pos parent-p ^Quat4d parent-q parent-s]
-  (let [[x y z] (mapv * pos parent-s)]
-    (conj (->>
-           (math/rotate parent-q (Vector3d. x y z))
-           (math/vecmath->clj)
-           (mapv + parent-p))
-          0.0)))
-
-(defn- trans-rotation [rot ^Quat4d parent-q]
-  (let [q (math/euler->quat rot)]
-    (-> q
-      (doto (.mul parent-q q))
-      (math/quat->euler)
-      (conj 0.0))))
 
 (defn- template-outline-subst [err]
   ;; TODO: embed error so can warn in outline
@@ -2387,11 +2388,11 @@
       (protobuf/sanitize-repeated
         :nodes (fn [node-desc]
                  (if (:template-node-child node-desc)
-                   (strip-unused-overridden-fields node-desc)
-                   node-desc)))
+                   (strip-unused-overridden-fields-from-node-desc node-desc)
+                   (strip-redundant-size-from-node-desc node-desc))))
       (protobuf/sanitize-repeated
         :layouts (fn [layout-desc]
-                   (protobuf/sanitize-repeated layout-desc :nodes strip-unused-overridden-fields)))))
+                   (protobuf/sanitize-repeated layout-desc :nodes strip-unused-overridden-fields-from-node-desc)))))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [def (:def user-data)
@@ -3165,7 +3166,7 @@
 
     (:type-box :type-pie)
     (-> node-desc
-        (fixup-shape-base-node-size-fields))
+        (fixup-shape-base-node-size-overrides))
 
     :type-text
     (-> node-desc
@@ -3189,15 +3190,15 @@
         (sanitize-node-specifics))))
 
 (defn- sanitize-scene-node [node-desc]
-  (cond-> (sanitize-node-fields node-desc)
-
-          (:template-node-child node-desc)
-          (strip-unused-overridden-fields)))
+  (let [node-desc' (sanitize-node-fields node-desc)]
+    (if (:template-node-child node-desc)
+      (strip-unused-overridden-fields-from-node-desc node-desc')
+      (strip-redundant-size-from-node-desc node-desc'))))
 
 (defn- sanitize-layout-node [node-desc]
   (-> node-desc
       (sanitize-node-fields)
-      (strip-unused-overridden-fields)))
+      (strip-unused-overridden-fields-from-node-desc)))
 
 (defn- sanitize-layout [layout]
   (protobuf/sanitize-repeated layout :nodes sanitize-layout-node))

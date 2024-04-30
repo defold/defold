@@ -632,6 +632,9 @@
         (is (= [2.0 2.0 2.0] (g/node-value referenced-go :scale)))))
 
     (testing "gui"
+      (let [redundant-sizes-gui (test-util/resource-node project "/silently_migrated/redundant_sizes.gui")]
+        (is (= (g/node-value redundant-sizes-gui :source-value)
+               (g/node-value redundant-sizes-gui :save-value))))
       (let [redundant-layout-field-values-gui (test-util/resource-node project "/silently_migrated/redundant_layout_field_values.gui")]
         (is (= (g/node-value redundant-layout-field-values-gui :source-value)
                (g/node-value redundant-layout-field-values-gui :save-value))))
