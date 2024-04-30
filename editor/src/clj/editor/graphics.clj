@@ -314,7 +314,12 @@
           :semantic-type :semantic-type-normal
           :coordinate-space :coordinate-space-world
           :data-type :type-float
-          :element-count 3}]))
+          :element-count 3}
+         {:name "tangent"
+          :semantic-type :semantic-type-tangent
+          :coordinate-space :coordinate-space-world
+          :data-type :type-float
+          :element-count 4}]))
 
 (defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space]
   {:pre [(#{:coordinate-space-local :coordinate-space-world} default-coordinate-space)]}

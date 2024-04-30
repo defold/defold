@@ -133,7 +133,7 @@
 (defn mesh->renderable-data [mesh]
   (let [positions (flat->vectors 3 (:positions mesh))
         normals (flat->vectors 3 (:normals mesh))
-        tangents (flat->vectors 3 (:tangents mesh))
+        tangents (flat->vectors 4 (:tangents mesh))
         colors (flat->vectors 4 (:colors mesh))
         texcoord0s (flat->vectors (:num-texcoord0-components mesh 0) (:texcoord0 mesh))
         texcoord1s (flat->vectors (:num-texcoord1-components mesh 0) (:texcoord1 mesh))
@@ -193,7 +193,7 @@
                                    :vertex-space-local :coordinate-space-local
                                    :vertex-space-world :coordinate-space-world)
         vertex-description (or override-vertex-description
-                               (let [manufactured-attribute-keys [:position :texcoord0 :normal]
+                               (let [manufactured-attribute-keys [:position :texcoord0 :normal :tangent]
                                      shader-bound-attributes (graphics/shader-bound-attributes gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space)]
                                  (graphics/make-vertex-description shader-bound-attributes)))
         coordinate-space-info (graphics/coordinate-space-info (:attributes vertex-description))
