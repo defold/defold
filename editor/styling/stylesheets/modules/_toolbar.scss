@@ -65,14 +65,14 @@
     }
 
     .visibility-toggles-list {
-        -fx-background-color: -df-component-darker;
+        -fx-background-color: -df-component-dark;
         -fx-background-radius: 4px;
         -fx-padding: 0px 0px 7px 0px;
 
         > .first-entry {
             -fx-background-radius: 4px 4px 0px 0px;
             -fx-padding: 10px 8px 10px 8px;
-            -fx-background-color: -df-component-darker;
+            -fx-background-color: -df-component-dark;
         }
 
         > HBox {
@@ -81,7 +81,7 @@
 
         > Separator {
             -fx-padding: 7px 0px;
-            -fx-background-color: -df-component-darker;
+            -fx-background-color: -df-component-dark;
         }
     }
 
