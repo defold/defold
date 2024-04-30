@@ -1288,10 +1288,10 @@
               user-data (:user-data (:form-ops form-data))]
           (settings/set-tx-data user-data setting-path new-value))))))
 
-(defn clear-cached-save-data! []
+(defn clear-cached-save-data! [project]
   ;; Ensure any cache entries introduced by loading the project aren't covering
   ;; up an actual dirty-check issue.
-  (g/clear-system-cache!))
+  (project/clear-cached-save-data! project))
 
 (defn save-project! [project]
   (let [workspace (project/workspace project)

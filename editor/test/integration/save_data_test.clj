@@ -617,7 +617,7 @@
   ;; until the user changes something significant in the file. More involved
   ;; migrations might be covered by tests elsewhere.
   (test-util/with-loaded-project project-path
-    (test-util/clear-cached-save-data!)
+    (test-util/clear-cached-save-data! project)
 
     (testing "collection"
       (let [uniform-scale-collection (project/get-resource-node project "/silently_migrated/uniform_scale.collection")
@@ -1375,7 +1375,7 @@
 
 (defn- check-project-save-data-disk-equivalence! [project->save-datas]
   (test-util/with-loaded-project project-path
-    (test-util/clear-cached-save-data!)
+    (test-util/clear-cached-save-data! project)
     (doseq [save-data (project->save-datas project)]
       (check-save-data-disk-equivalence! save-data))))
 
@@ -1410,7 +1410,7 @@
   ;; any other tests in this module are failing as well, you should address them
   ;; first.
   (test-util/with-scratch-project project-path
-    (test-util/clear-cached-save-data!)
+    (test-util/clear-cached-save-data! project)
     (let [checked-resources (checked-resources workspace)
           dirty-proj-paths (into (sorted-set)
                                  (map (comp resource/proj-path :resource))
@@ -1437,7 +1437,7 @@
                     (is (:dirty save-data)
                         "No unsaved changes detected after editing. Possibly, `test-util/edit-resource-node!` is not making a meaningful change to the file?")))))))
         (test-util/save-project! project)
-        (test-util/clear-cached-save-data!)
+        (test-util/clear-cached-save-data! project)
         (doseq [resource checked-resources]
           (let [proj-path (resource/proj-path resource)]
             (testing (format "File `%s` should not have unsaved changes after saving." proj-path)

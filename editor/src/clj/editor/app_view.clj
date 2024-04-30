@@ -2272,7 +2272,8 @@ If you do not specifically require different script states, consider changing th
                          :result true}]})
 
            ;; The user has opted to proceed with the file format upgrade.
-           (async-save! app-view changes-view project project/all-save-data)))))
+           (do (project/clear-cached-save-data! project)
+               (async-save! app-view changes-view project project/all-save-data))))))
 
 (handler/defhandler :async-reload :global
   (active? [prefs] (not (async-reload-on-app-focus? prefs)))

@@ -69,7 +69,7 @@
 
 (deftest dirty-save-data-test
   (test-util/with-loaded-project project-path
-    (test-util/clear-cached-save-data!)
+    (test-util/clear-cached-save-data! project)
     (is (= #{} (test-util/dirty-proj-paths project)))
     (test-util/edit-proj-path! project "/assets/spineboy/spineboy.spinescene")
     (is (= #{"/assets/spineboy/spineboy.spinescene"} (test-util/dirty-proj-paths project)))

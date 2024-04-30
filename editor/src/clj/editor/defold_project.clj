@@ -1146,6 +1146,26 @@
     (:save-data :save-value) (project-file-resource-node? (:basis evaluation-context) node-id)
     false))
 
+(defn- cacheable-save-data-endpoints
+  ([project]
+   (cacheable-save-data-endpoints (g/now) project))
+  ([basis project]
+   (into []
+         (mapcat
+           (fn [[node-id]]
+             (when-not (g/defective? basis node-id)
+               (let [node-type (g/node-type* basis node-id)
+                     output-cached? (g/cached-outputs node-type)]
+                 (eduction
+                   (filter output-cached?)
+                   (map #(g/endpoint node-id %))
+                   [:save-data :save-value])))))
+         (g/sources-of basis project :save-data))))
+
+(defn clear-cached-save-data! [project]
+  (g/invalidate-outputs!
+    (cacheable-save-data-endpoints project)))
+
 (defn- update-system-cache-from-pruned-evaluation-context! [cache-entry-pred evaluation-context]
   ;; To avoid cache churn, we only transfer the most important entries to the system cache.
   (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cache-entry-pred)]

@@ -31,7 +31,7 @@
 
 (deftest dirty-save-data-test
   (test-util/with-loaded-project project-path
-    (test-util/clear-cached-save-data!)
+    (test-util/clear-cached-save-data! project)
     (is (= #{} (test-util/dirty-proj-paths project)))
     (test-util/edit-proj-path! project "/main/fields_assigned.simpledata")
     (is (= #{"/main/fields_assigned.simpledata"} (test-util/dirty-proj-paths project)))
