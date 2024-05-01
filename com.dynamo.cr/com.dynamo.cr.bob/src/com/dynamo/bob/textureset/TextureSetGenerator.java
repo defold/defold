@@ -271,7 +271,6 @@ public class TextureSetGenerator {
         int originalImageWidth = rotated ? imageHeight : imageWidth;
         int originalImageHeight = rotated ? imageWidth : imageHeight;
 
-        // for legacy reasons, we need to rotate it back
         // The geometry wants the size in unrotated form
         builder.setWidth(originalImageWidth);
         builder.setHeight(originalImageHeight);
