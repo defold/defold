@@ -3950,10 +3950,44 @@ bail:
         return 0;
     }
 
-    static void VulkanReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    static void VulkanReadPixels(HContext _context, void* buffer, uint32_t buffer_size)
     {
-        // JG: If someone needs this feature we should implement this at some point
-        assert(0 && "Not implemented on vulkan!");
+        uint32_t w = dmGraphics::GetWidth(_context);
+        uint32_t h = dmGraphics::GetHeight(_context);
+        assert (buffer_size >= w * h * 4);
+
+        VulkanContext* context = (VulkanContext*) _context;
+
+        DeviceBuffer stage_buffer(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+
+        VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device, buffer_size,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+        CHECK_VK_ERROR(res);
+
+        VkBufferImageCopy vk_copy_region = {};
+        vk_copy_region.imageExtent.width           = w;
+        vk_copy_region.imageExtent.height          = h;
+        vk_copy_region.imageExtent.depth           = 1;
+        vk_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        vk_copy_region.imageSubresource.layerCount = 1;
+
+        vkCmdCopyImageToBuffer(
+            context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
+            context->m_SwapChain->Image(),
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            stage_buffer.m_Handle.m_Buffer,
+            1, &vk_copy_region);
+
+        res = stage_buffer.MapMemory(context->m_LogicalDevice.m_Device);
+        CHECK_VK_ERROR(res);
+
+        memcpy(buffer, stage_buffer.m_MappedDataPtr, stage_buffer.m_MemorySize);
+
+        stage_buffer.UnmapMemory(context->m_LogicalDevice.m_Device);
+
+        DestroyResourceDeferred(context->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], &stage_buffer);
+
+        // DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
     }
 
     static void VulkanRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)

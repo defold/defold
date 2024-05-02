@@ -200,6 +200,33 @@ struct CopyToBufferTest : ITest
     }
 };
 
+struct ReadPixelsTest : ITest
+{
+    char* m_Buffer;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        m_Buffer = new char[512 * 512 * 4];
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        static uint8_t color_r = 0;
+        static uint8_t color_g = 80;
+        static uint8_t color_b = 140;
+        static uint8_t color_a = 255;
+
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+                                    (float)color_r,
+                                    (float)color_g,
+                                    (float)color_b,
+                                    (float)color_a,
+                                    1.0f, 0);
+
+        dmGraphics::ReadPixels(engine->m_GraphicsContext, m_Buffer, 512 * 512 * 4);
+    }
+};
+
 struct SubPassTest : ITest
 {
     dmGraphics::HRenderTarget               m_Rendertarget;
@@ -505,11 +532,14 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_VerifyGraphicsCalls     = 1;
     graphics_context_params.m_UseValidationLayers     = 1;
     graphics_context_params.m_Window                  = engine->m_Window;
+    graphics_context_params.m_Width                   = 512;
+    graphics_context_params.m_Height                  = 512;
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
     //engine->m_Test = new ComputeTest();
-    engine->m_Test = new StorageBufferTest();
+    //engine->m_Test = new StorageBufferTest();
+    engine->m_Test = new ReadPixelsTest();
 
     engine->m_Test->Initialize(engine);
 
@@ -604,9 +634,11 @@ TEST(App, Run)
     ASSERT_EQ(1, g_EngineCtx.m_WasResultCalled);
 }
 
+extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     InstallAdapter(argc, argv);
     jc_test_init(&argc, argv);
     return jc_test_run_all();
