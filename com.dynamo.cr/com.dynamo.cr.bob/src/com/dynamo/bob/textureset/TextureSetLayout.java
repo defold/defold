@@ -95,7 +95,7 @@ public class TextureSetLayout {
         private int index; // for easier keeping the original order
         private int page;
         private Rectanglei rect; // The final placement in the texture. May lay outside of the texture image.
-        private boolean rotated; // True if rotated 90 deg (CCW)
+        private boolean rotated; // True if rotated 90 deg (CW)
 
         // Texel coordinates within the original image.
         // Origin is top left corner of original image.
