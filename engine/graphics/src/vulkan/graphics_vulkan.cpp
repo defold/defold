@@ -1977,8 +1977,10 @@ bail:
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
                     {
                         const StorageBufferBinding binding = context->m_CurrentStorageBuffers[pgm_res.m_StorageBufferUnit];
+                        DeviceBuffer* ssbo = GetAssetFromContainer<DeviceBuffer>(context->m_AssetHandleContainer, binding.m_Buffer);
+
                         UpdateUniformBufferDescriptor(context,
-                            ((DeviceBuffer*) binding.m_Buffer)->m_Handle.m_Buffer,
+                            ssbo->m_Handle.m_Buffer,
                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                             vk_write_buffer_descriptors[buffer_to_write_index++],
                             vk_write_desc_info,
@@ -2665,9 +2667,16 @@ bail:
                     if (search_index == index)
                     {
                         ShaderResourceBinding* res = pgm_res.m_Res;
-                        *type = ShaderDataTypeToGraphicsType(res->m_Type.m_ShaderType);
+                        if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
+                        {
+                            *type = TYPE_STORAGE_BUFFER;
+                        }
+                        else
+                        {
+                            *type = ShaderDataTypeToGraphicsType(res->m_Type.m_ShaderType);
+                        }
                         *size = 1;
-                        return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
+                        return (uint32_t) dmStrlCpy(buffer, res->m_Name, buffer_size);
                     }
                     search_index++;
                 }
@@ -3984,13 +3993,12 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         AssetType type         = GetAssetType(asset_handle);
 
-        if (type == ASSET_TYPE_TEXTURE)
+        switch(type)
         {
-            return GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, asset_handle) != 0;
-        }
-        else if (type == ASSET_TYPE_RENDER_TARGET)
-        {
-            return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
+            case ASSET_TYPE_TEXTURE:        return GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, asset_handle) != 0;
+            case ASSET_TYPE_RENDER_TARGET:  return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
+            case ASSET_TYPE_STORAGE_BUFFER: return GetAssetFromContainer<DeviceBuffer>(context->m_AssetHandleContainer, asset_handle) != 0;
+            default:assert(0 && "Unsupported type");
         }
         return false;
     }
@@ -4041,27 +4049,30 @@ bail:
         {
             DeviceBufferUploadHelper(context, 0, buffer_size, 0, storage_buffer);
         }
-        return (HStorageBuffer) storage_buffer;
+
+        return StoreAssetInContainer(g_VulkanContext->m_AssetHandleContainer, storage_buffer, ASSET_TYPE_STORAGE_BUFFER);
     }
 
-    void VulkanDeleteStorageBuffer(HContext context, HStorageBuffer storage_buffer)
+    void VulkanDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
     {
         if (!storage_buffer)
             return;
 
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) storage_buffer;
-        if (!buffer_ptr->m_Destroyed)
+        VulkanContext* context = (VulkanContext*) _context;
+        DeviceBuffer* ssbo = GetAssetFromContainer<DeviceBuffer>(context->m_AssetHandleContainer, storage_buffer);
+        if (!ssbo->m_Destroyed)
         {
-            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
+            DestroyResourceDeferred(context->m_MainResourcesToDestroy[context->m_SwapChain->m_ImageIndex], ssbo);
         }
-        delete buffer_ptr;
+        context->m_AssetHandleContainer.Release(storage_buffer);
+        delete ssbo;
     }
 
-    void VulkanSetStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding_index, uint32_t data_offset, HUniformLocation base_location)
+    void VulkanSetStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding_unit, uint32_t data_offset, HUniformLocation base_location)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        context->m_CurrentStorageBuffers[binding_index].m_Buffer       = storage_buffer;
-        context->m_CurrentStorageBuffers[binding_index].m_BufferOffset = data_offset;
+        context->m_CurrentStorageBuffers[binding_unit].m_Buffer       = storage_buffer;
+        context->m_CurrentStorageBuffers[binding_unit].m_BufferOffset = data_offset;
 
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
@@ -4074,7 +4085,7 @@ bail:
         // TODO!
         assert(program_ptr->m_ComputeModule == 0x0);
         assert(program_ptr->m_ResourceBindings[set][binding].m_Res);
-        program_ptr->m_ResourceBindings[set][binding].m_StorageBufferUnit = binding_index;
+        program_ptr->m_ResourceBindings[set][binding].m_StorageBufferUnit = binding_unit;
     }
 
     void VulkanSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
@@ -4086,13 +4097,14 @@ bail:
         }
 
         VulkanContext* context = (VulkanContext*) _context;
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) storage_buffer;
-        if (size != buffer_ptr->m_MemorySize)
+
+        DeviceBuffer* ssbo = GetAssetFromContainer<DeviceBuffer>(context->m_AssetHandleContainer, storage_buffer);
+        if (size != ssbo->m_MemorySize)
         {
-            DestroyResourceDeferred(context->m_MainResourcesToDestroy[context->m_SwapChain->m_ImageIndex], buffer_ptr);
+            DestroyResourceDeferred(context->m_MainResourcesToDestroy[context->m_SwapChain->m_ImageIndex], ssbo);
         }
 
-        DeviceBufferUploadHelper(context, data, size, 0, buffer_ptr);
+        DeviceBufferUploadHelper(context, data, size, 0, ssbo);
     }
 
     void* VulkanMapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)

@@ -65,6 +65,12 @@ namespace dmRender
         }
     };
 
+    struct MaterialStorageBuffer
+    {
+        dmhash_t                     m_NameHash;
+        dmGraphics::HUniformLocation m_Location;
+    };
+
     struct MaterialAttribute
     {
         dmhash_t m_ElementIds[4];
@@ -92,6 +98,7 @@ namespace dmRender
         dmArray<uint8_t>                        m_MaterialAttributeValues;
         dmArray<RenderConstant>                 m_Constants;
         dmArray<Sampler>                        m_Samplers;
+        dmArray<MaterialStorageBuffer>          m_MaterialStorageBuffers;
         uint32_t                                m_TagListKey; // the key to use with GetMaterialTagList()
         uint64_t                                m_UserData1;  // used for hot reloading. stores shader name
         uint64_t                                m_UserData2;  // --||–-
@@ -104,6 +111,7 @@ namespace dmRender
         dmGraphics::HComputeProgram                 m_Shader;
         dmGraphics::HProgram                        m_Program;
         dmArray<RenderConstant>                     m_Constants;
+        dmArray<MaterialStorageBuffer>              m_MaterialStorageBuffers;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
         uint64_t                                    m_UserData;
     };
@@ -235,10 +243,10 @@ namespace dmRender
         dmhash_t m_Tags[MAX_MATERIAL_TAG_COUNT];
     };
 
-    struct TextureBinding
+    struct ResourceBinding
     {
-        dmhash_t             m_Samplerhash;
-        dmGraphics::HTexture m_Texture;
+        dmhash_t m_Samplerhash;
+        uint64_t m_Resource;
     };
 
     struct RenderContext
@@ -256,7 +264,8 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortBuffer;
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
-        dmArray<TextureBinding>     m_TextureBindTable;
+        dmArray<ResourceBinding>    m_TextureBindTable;
+        dmArray<ResourceBinding>    m_StorageBufferBindTable;
         dmhash_t                    m_FrustumHash;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
@@ -293,8 +302,8 @@ namespace dmRender
 
     Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix);
 
-    void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out);
-    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers);
+    void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out, uint32_t* storage_buffers_count_out);
+    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers, dmArray<MaterialStorageBuffer>& storage_buffers);
 
     void FillElementIds(char* buffer, uint32_t buffer_size, dmhash_t element_ids[4]);
 
@@ -305,10 +314,15 @@ namespace dmRender
     // Gets the list associated with a hash of all the tags (see RegisterMaterialTagList)
     void                            GetMaterialTagList(HRenderContext context, uint32_t list_hash, MaterialTagList* list);
 
+    dmGraphics::HUniformLocation GetStorageBufferUniformLocation(HMaterial material, uint32_t unit);
+    void                         SetStorageBufferBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HStorageBuffer storage_buffer);
+    void                         SetStorageBufferBindingByUnit(HRenderContext render_context, uint32_t unit, dmGraphics::HStorageBuffer storage_buffer);
+
     void    SetTextureBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HTexture texture);
     void    SetTextureBindingByUnit(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture);
     bool    GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
     int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
+    int32_t GetMaterialStorageBufferIndex(HMaterial material, dmhash_t name_hash);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

@@ -15,6 +15,7 @@
 #include "res_render_prototype.h"
 #include "res_texture.h"
 #include "res_render_target.h"
+#include "res_buffer.h"
 
 #include <render/render_ddf.h>
 
@@ -82,8 +83,9 @@ namespace dmGameSystem
 
                     dmRender::RenderResourceType render_resource_type = ResourcePathToRenderResourceType(prototype_desc->m_RenderResources[i].m_Path);
 
-                    if (!(render_resource_type == dmRender::RENDER_RESOURCE_TYPE_MATERIAL ||
-                          render_resource_type == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET))
+                    if (!(render_resource_type == dmRender::RENDER_RESOURCE_TYPE_MATERIAL      ||
+                          render_resource_type == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET ||
+                          render_resource_type == dmRender::RENDER_RESOURCE_TYPE_STORAGE_BUFFER))
                     {
                         dmLogError("Resource extension '%s' not supported.", dmResource::GetExtFromPath(prototype_desc->m_RenderResources[i].m_Path));
                         result = dmResource::RESULT_NOT_SUPPORTED;
@@ -118,6 +120,11 @@ namespace dmGameSystem
                         {
                             dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) render_resource;
                             render_resource_val = (uint64_t) material_res->m_Material;
+                        } break;
+                        case dmRender::RENDER_RESOURCE_TYPE_STORAGE_BUFFER:
+                        {
+                            dmGameSystem::BufferResource* buffer_res = (dmGameSystem::BufferResource*) render_resource;
+                            render_resource_val = (uint64_t) buffer_res->m_BufferGPU;
                         } break;
                     }
 

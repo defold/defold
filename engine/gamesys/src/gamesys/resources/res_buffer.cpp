@@ -109,7 +109,7 @@ namespace dmGameSystem
 
 #undef MAKE_STREAM_BUILDER
 
-    static bool BuildBuffer(BufferResource* buffer_resource)
+    static bool BuildBuffer(dmGraphics::HContext graphics_context, BufferResource* buffer_resource)
     {
         // Figure out stream count (+ element count, by counting max entries in each stream)
         uint64_t max_elem = 0;
@@ -198,6 +198,30 @@ namespace dmGameSystem
             }
         }
 
+        if (buffer_resource->m_BufferDDF->m_StorageMode == dmBufferDDF::STORAGE_MODE_GPU ||
+            buffer_resource->m_BufferDDF->m_StorageMode == dmBufferDDF::STORAGE_MODE_CPU_GPU) {
+
+            uint32_t size;
+            if (dmBuffer::CalcStructSize(stream_count, streams_decl, &size, 0) != dmBuffer::RESULT_OK)
+            {
+                dmLogError("Could not create GPU storage for buffer, calculate buffer size failed.");
+                free(streams_decl);
+                return false;
+            }
+
+            buffer_resource->m_BufferGPU = dmGraphics::NewStorageBuffer(graphics_context, size);
+
+            void* bytes = 0x0;
+            if (dmBuffer::GetBytes(buffer_resource->m_Buffer, &bytes, &size) != dmBuffer::RESULT_OK)
+            {
+                dmLogError("Could not create GPU storage for buffer, unable to get bytes from buffer.");
+                free(streams_decl);
+                return false;
+            }
+
+            dmGraphics::SetStorageBufferData(graphics_context, buffer_resource->m_BufferGPU, size, bytes);
+        }
+
         free(streams_decl);
 
         buffer_resource->m_Stride = dmBuffer::GetStructSize(buffer_resource->m_Buffer);
@@ -207,13 +231,14 @@ namespace dmGameSystem
 
     dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams& params)
     {
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
         BufferResource* buffer_resource = new BufferResource();
         memset(buffer_resource, 0, sizeof(BufferResource));
         buffer_resource->m_BufferDDF = (dmBufferDDF::BufferDesc*) params.m_PreloadData;
         params.m_Resource->m_Resource = (void*) buffer_resource;
         buffer_resource->m_NameHash = dmHashString64(params.m_Filename);
 
-        if (!BuildBuffer(buffer_resource))
+        if (!BuildBuffer(graphics_context, buffer_resource))
         {
             return dmResource::RESULT_INVALID_DATA;
         }
@@ -243,7 +268,8 @@ namespace dmGameSystem
         ReleaseResources(params.m_Factory, buffer_resource);
         buffer_resource->m_BufferDDF = ddf;
 
-        if (!BuildBuffer(buffer_resource))
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
+        if (!BuildBuffer(graphics_context, buffer_resource))
         {
             return dmResource::RESULT_INVALID_DATA;
         }

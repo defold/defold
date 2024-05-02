@@ -143,7 +143,8 @@ public class ShaderUtil {
                 new ShaderDataTypeConversionEntry("utexture2D",     ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D),
                 new ShaderDataTypeConversionEntry("uimage2D",       ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D),
                 new ShaderDataTypeConversionEntry("image2D",        ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D),
-                new ShaderDataTypeConversionEntry("sampler",        ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER)
+                new ShaderDataTypeConversionEntry("sampler",        ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER),
+                new ShaderDataTypeConversionEntry("buffer",         ShaderDesc.ShaderDataType.SHADER_TYPE_STORAGE_BUFFER)
             ));
 
         public static ShaderDesc.ShaderDataType stringTypeToShaderType(String typeAsString) {

@@ -90,7 +90,7 @@ namespace dmGraphics
      * @typedef
      * @name HStorageBuffer
      */
-    typedef uintptr_t HStorageBuffer;
+    typedef uint64_t HStorageBuffer;
 
     /*#
      * Uniform location handle
@@ -435,6 +435,7 @@ namespace dmGraphics
         TYPE_FLOAT_MAT2       = 14,
         TYPE_FLOAT_MAT3       = 15,
         TYPE_IMAGE_2D         = 16,
+        TYPE_STORAGE_BUFFER   = 17,
     };
 
     /*#

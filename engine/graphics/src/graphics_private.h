@@ -36,7 +36,6 @@ namespace dmGraphics
 
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 16;
     const static uint8_t MAX_SET_COUNT              = 4;
-    const static uint8_t MAX_STORAGE_BUFFERS        = 4;
 
     enum ShaderStageFlag
     {

@@ -3001,6 +3001,90 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    static int RenderScript_SetStorageBuffer(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        dmhash_t sampler_hash   = 0;
+        uint32_t unit           = 0;
+
+        // Move into function
+        if (lua_isnumber(L, 1))
+        {
+            unit = lua_tointeger(L, 1);
+        }
+        else
+        {
+            sampler_hash = dmScript::CheckHashOrString(L, 1);
+        }
+
+        // Move into function
+        dmGraphics::HAssetHandle asset_handle;
+        dmGraphics::AssetType    asset_type;
+        if (lua_isnumber(L, 2))
+        {
+            asset_handle = (dmGraphics::HAssetHandle) lua_tonumber(L, 2);
+            asset_type   = dmGraphics::GetAssetType(asset_handle);
+        }
+        else if (dmScript::IsHash(L, 2) || lua_isstring(L, 2))
+        {
+            dmhash_t rt_id                  = dmScript::CheckHashOrString(L, 2);
+            RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
+
+            if (render_resource->m_Type != RENDER_RESOURCE_TYPE_STORAGE_BUFFER)
+            {
+                return DM_LUA_ERROR("Render resource is not a storage buffer");
+            }
+
+            asset_handle = (dmGraphics::HStorageBuffer) render_resource->m_Resource;
+            asset_type   = dmGraphics::ASSET_TYPE_STORAGE_BUFFER;
+        }
+        else if (lua_isnil(L, 2))
+        {
+            if (InsertCommand(i, Command(COMMAND_TYPE_SET_STORAGE_BUFFER, sampler_hash, unit, 0)))
+            {
+                return 0;
+            }
+            else
+            {
+                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            }
+        }
+        else
+        {
+            return DM_LUA_ERROR("%s.set_storage_buffer(unit, handle) for unit %d called with illegal parameters.", RENDER_SCRIPT_LIB_NAME, unit);
+        }
+
+        if (!dmGraphics::IsAssetHandleValid(i->m_RenderContext->m_GraphicsContext, asset_handle))
+        {
+            char buf[128];
+            return DM_LUA_ERROR("Storage buffer handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+        }
+        else if (asset_type != dmGraphics::ASSET_TYPE_STORAGE_BUFFER)
+        {
+            char buf[128];
+            return DM_LUA_ERROR("Storage buffer handle '%s' is not a storage buffer.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+        }
+
+        dmGraphics::HStorageBuffer ssbo = (dmGraphics::HStorageBuffer) asset_handle;
+
+        if(ssbo != 0)
+        {
+            if (InsertCommand(i, Command(COMMAND_TYPE_SET_STORAGE_BUFFER, sampler_hash, unit, ssbo)))
+            {
+                return 0;
+            }
+            else
+            {
+                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            }
+        }
+
+        char buf[128];
+        return DM_LUA_ERROR("Storage buffer handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
+    }
+
     static const luaL_reg Render_methods[] =
     {
         {"enable_state",                    RenderScript_EnableState},
@@ -3039,6 +3123,7 @@ namespace dmRender
         {"constant_buffer",                 RenderScript_ConstantBuffer},
         {"enable_material",                 RenderScript_EnableMaterial},
         {"disable_material",                RenderScript_DisableMaterial},
+        {"set_storage_buffer",              RenderScript_SetStorageBuffer},
         {0, 0}
     };
 

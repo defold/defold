@@ -205,6 +205,15 @@ namespace dmRender
                     render_context->m_Material = 0;
                     break;
                 }
+                case COMMAND_TYPE_SET_STORAGE_BUFFER:
+                {
+                    // operand order: Hash, Unit, ssbo
+                    if (c->m_Operands[0])
+                        dmRender::SetStorageBufferBindingByHash(render_context, c->m_Operands[0], c->m_Operands[2]);
+                    else
+                        dmRender::SetStorageBufferBindingByUnit(render_context, c->m_Operands[1], c->m_Operands[2]);
+                    break;
+                }
                 default:
                 {
                     dmLogError("No such render command (%d).", c->m_Type);

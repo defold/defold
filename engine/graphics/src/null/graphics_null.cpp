@@ -1861,6 +1861,23 @@ namespace dmGraphics
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_MipMapCount;
     }
 
+    static HStorageBuffer NullNewStorageBuffer(HContext context, uint32_t buffer_size)
+    {
+        return 0;
+    }
+
+    static void NullDeleteStorageBuffer(HContext context, HStorageBuffer storage_buffer)
+    {
+    }
+
+    static void NullSetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
+    {
+    }
+
+    static void NullSetStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t binding_unit, uint32_t data_offset, HUniformLocation base_location)
+    {
+    }
+
     static bool NullIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
     {
         assert(_context);

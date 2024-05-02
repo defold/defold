@@ -679,68 +679,88 @@ namespace dmRender
         }
     }
 
-    void SetTextureBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HTexture texture)
+    static void SetResourceBindingByHash(dmArray<ResourceBinding>& binding_table, dmhash_t sampler_hash, uint64_t resource)
     {
-        uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+        uint32_t num_bindings = binding_table.Size();
         for (int i = 0; i < num_bindings; ++i)
         {
-            // The sampler is already bound to this texture, reuse or unbind the current binding
-            if (render_context->m_TextureBindTable[i].m_Samplerhash == sampler_hash)
+            // The sampler is already bound to this slot, reuse or unbind the current binding
+            if (binding_table[i].m_Samplerhash == sampler_hash)
             {
-                if (texture == 0)
+                if (resource == 0)
                 {
-                    render_context->m_TextureBindTable[i].m_Samplerhash = 0;
+                    binding_table[i].m_Samplerhash = 0;
                 }
-                render_context->m_TextureBindTable[i].m_Texture = texture;
+                binding_table[i].m_Resource = resource;
                 return;
             }
             // Take an empty slot if we can find one
-            else if (render_context->m_TextureBindTable[i].m_Texture == 0)
+            else if (binding_table[i].m_Resource)
             {
-                render_context->m_TextureBindTable[i].m_Texture     = texture;
-                render_context->m_TextureBindTable[i].m_Samplerhash = sampler_hash;
+                binding_table[i].m_Resource    = resource;
+                binding_table[i].m_Samplerhash = sampler_hash;
                 return;
             }
         }
 
-        if (render_context->m_TextureBindTable.Full())
+        if (binding_table.Full())
         {
-            render_context->m_TextureBindTable.OffsetCapacity(4);
+            binding_table.OffsetCapacity(4);
         }
 
         // Otherwise, we add a new binding to the end of the list
-        TextureBinding new_binding;
+        ResourceBinding new_binding;
         new_binding.m_Samplerhash = sampler_hash;
-        new_binding.m_Texture     = texture;
-        render_context->m_TextureBindTable.Push(new_binding);
+        new_binding.m_Resource    = resource;
+        binding_table.Push(new_binding);
+    }
+
+    static void SetResourceBindingByUnit(dmArray<ResourceBinding>& binding_table, uint32_t unit, uint64_t resource)
+    {
+        if (unit >= binding_table.Size())
+        {
+            binding_table.SetCapacity(unit + 1);
+
+            // Make sure new data area is zeroed out
+            uint32_t fill_index_start = binding_table.Size();
+            uint32_t fill_size = binding_table.Remaining() * sizeof(ResourceBinding);
+
+            binding_table.SetSize(binding_table.Capacity());
+            memset(&binding_table[fill_index_start], 0, fill_size);
+        }
+
+        binding_table[unit].m_Resource      = resource;
+        binding_table[unit].m_Samplerhash   = 0;
+    }
+
+    void SetTextureBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HTexture texture)
+    {
+        SetResourceBindingByHash(render_context->m_TextureBindTable, sampler_hash, texture);
     }
 
     void SetTextureBindingByUnit(HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture)
     {
-        if (unit >= render_context->m_TextureBindTable.Size())
-        {
-            render_context->m_TextureBindTable.SetCapacity(unit + 1);
-
-            // Make sure new data area is zeroed out
-            uint32_t fill_index_start = render_context->m_TextureBindTable.Size();
-            uint32_t fill_size = render_context->m_TextureBindTable.Remaining() * sizeof(TextureBinding);
-
-            render_context->m_TextureBindTable.SetSize(render_context->m_TextureBindTable.Capacity());
-            memset(&render_context->m_TextureBindTable[fill_index_start], 0, fill_size);
-        }
-
-        render_context->m_TextureBindTable[unit].m_Texture     = texture;
-        render_context->m_TextureBindTable[unit].m_Samplerhash = 0;
+        SetResourceBindingByUnit(render_context->m_TextureBindTable, unit, texture);
     }
 
-    static void TrimTextureBindingTable(HRenderContext render_context)
+    void SetStorageBufferBindingByHash(dmRender::HRenderContext render_context, dmhash_t sampler_hash, dmGraphics::HStorageBuffer storage_buffer)
     {
-        uint32_t num_bindings    = render_context->m_TextureBindTable.Size();
+        SetResourceBindingByHash(render_context->m_StorageBufferBindTable, sampler_hash, storage_buffer);
+    }
+
+    void SetStorageBufferBindingByUnit(HRenderContext render_context, uint32_t unit, dmGraphics::HStorageBuffer storage_buffer)
+    {
+        SetResourceBindingByUnit(render_context->m_StorageBufferBindTable, unit, storage_buffer);
+    }
+
+    static void TrimResourceBindingTable(dmArray<ResourceBinding>& resource_bindings)
+    {
+        uint32_t num_bindings = resource_bindings.Size();
         uint32_t last_zero_index = -1;
 
         for (uint32_t i = 0; i < num_bindings; ++i)
         {
-            if (render_context->m_TextureBindTable[i].m_Texture == 0)
+            if (resource_bindings[i].m_Resource == 0)
             {
                 if (last_zero_index == -1)
                 {
@@ -756,41 +776,52 @@ namespace dmRender
         // Trim the iteration space
         if (last_zero_index != -1)
         {
-            render_context->m_TextureBindTable.SetSize(last_zero_index);
+            resource_bindings.SetSize(last_zero_index);
         }
+    }
+
+    typedef int32_t (*GetResourceBindingIndexFn)(HMaterial, dmhash_t);
+    static void GetRenderContextResources(dmArray<ResourceBinding>& resources, GetResourceBindingIndexFn get_resource_binding_index_fn, HMaterial material, uint64_t* resource_array, uint32_t max_resource_count)
+    {
+        uint32_t num_bindings = resources.Size();
+        for (uint32_t i = 0; i < num_bindings; ++i)
+        {
+            uint32_t resource_index = i;
+            uint64_t resource       = resource_array[i];
+
+            if (resources[i].m_Samplerhash)
+            {
+                int32_t hash_sampler_index = get_resource_binding_index_fn(material, resources[i].m_Samplerhash);
+                if (hash_sampler_index >= 0)
+                {
+                    resource_index = hash_sampler_index;
+                    resource       = resources[i].m_Resource;
+                }
+            }
+            else if (resource == 0)
+            {
+                resource = resources[i].m_Resource;
+            }
+
+            if (resource_index >= 0 && resource_index < max_resource_count)
+            {
+                resource_array[resource_index] = resource;
+            }
+            else
+            {
+                dmLogOnceWarning("Unable to bind shader resource to unit %d, max %d resource units are supported.", i, RenderObject::MAX_TEXTURE_COUNT);
+            }
+        }
+    }
+
+    static void GetRenderContextStorageBuffers(HRenderContext render_context, HMaterial material, dmGraphics::HStorageBuffer* storage_buffers)
+    {
+        GetRenderContextResources(render_context->m_StorageBufferBindTable, GetMaterialStorageBufferIndex, material, storage_buffers, dmGraphics::MAX_STORAGE_BUFFERS);
     }
 
     static void GetRenderContextTextures(HRenderContext render_context, HMaterial material, dmGraphics::HTexture* textures)
     {
-        uint32_t num_bindings = render_context->m_TextureBindTable.Size();
-        for (uint32_t i = 0; i < num_bindings; ++i)
-        {
-            uint32_t sampler_index       = i;
-            dmGraphics::HTexture texture = textures[i];
-
-            if (render_context->m_TextureBindTable[i].m_Samplerhash)
-            {
-                int32_t hash_sampler_index = GetMaterialSamplerIndex(material, render_context->m_TextureBindTable[i].m_Samplerhash);
-                if (hash_sampler_index >= 0)
-                {
-                    sampler_index = hash_sampler_index;
-                    texture       = render_context->m_TextureBindTable[i].m_Texture;
-                }
-            }
-            else if (texture == 0)
-            {
-                texture = render_context->m_TextureBindTable[i].m_Texture;
-            }
-
-            if (sampler_index >= 0 && sampler_index < RenderObject::MAX_TEXTURE_COUNT)
-            {
-                textures[sampler_index] = texture;
-            }
-            else
-            {
-                dmLogOnceWarning("Unable to bind texture to unit %d, max %d texture units are supported.", i, RenderObject::MAX_TEXTURE_COUNT);
-            }
-        }
+        GetRenderContextResources(render_context->m_TextureBindTable, GetMaterialSamplerIndex, material, textures, RenderObject::MAX_TEXTURE_COUNT);
     }
 
     Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options)
@@ -923,8 +954,8 @@ namespace dmRender
             return RESULT_INVALID_CONTEXT;
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT];
-        memset(render_context_textures, 0, sizeof(render_context_textures));
+        dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
+        dmGraphics::HStorageBuffer render_context_ssbos[dmGraphics::MAX_STORAGE_BUFFERS] = {};
 
         HMaterial material = render_context->m_Material;
         HMaterial context_material = render_context->m_Material;
@@ -932,6 +963,7 @@ namespace dmRender
         {
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
             GetRenderContextTextures(render_context, context_material, render_context_textures);
+            GetRenderContextStorageBuffers(render_context, context_material, render_context_ssbos);
         }
 
         dmGraphics::PipelineState ps_orig = dmGraphics::GetPipelineState(context);
@@ -958,6 +990,7 @@ namespace dmRender
                     material = ro->m_Material;
                     dmGraphics::EnableProgram(context, GetMaterialProgram(material));
                     GetRenderContextTextures(render_context, material, render_context_textures);
+                    GetRenderContextStorageBuffers(render_context, material, render_context_ssbos);
                 }
             }
 
@@ -993,6 +1026,15 @@ namespace dmRender
 
                         next_texture_unit++;
                     }
+                }
+            }
+
+            for (int i = 0; i < dmGraphics::MAX_STORAGE_BUFFERS; ++i)
+            {
+                if (render_context_ssbos[i])
+                {
+                    dmGraphics::HUniformLocation loc = GetStorageBufferUniformLocation(material, i);
+                    dmGraphics::SetStorageBuffer(context, render_context_ssbos[i], i, 0, loc);
                 }
             }
 
@@ -1047,7 +1089,8 @@ namespace dmRender
 
         ResetRenderStateIfChanged(context, ps_orig, dmGraphics::GetPipelineState(context));
 
-        TrimTextureBindingTable(render_context);
+        TrimResourceBindingTable(render_context->m_TextureBindTable);
+        TrimResourceBindingTable(render_context->m_StorageBufferBindTable);
 
         return RESULT_OK;
     }

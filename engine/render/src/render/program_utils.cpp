@@ -20,10 +20,11 @@
 
 namespace dmRender
 {
-    void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out)
+    void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out, uint32_t* ssbo_count_out)
     {
         uint32_t constants_count = 0;
         uint32_t samplers_count  = 0;
+        uint32_t ssbo_count      = 0;
         int32_t value_count      = 0;
 
         dmGraphics::Type type;
@@ -43,6 +44,10 @@ namespace dmRender
             {
                 samplers_count++;
             }
+            else if (type == dmGraphics::TYPE_STORAGE_BUFFER)
+            {
+                ssbo_count++;
+            }
             else
             {
                 dmLogWarning("Type for uniform %s is not supported (%d)", buffer, type);
@@ -51,6 +56,7 @@ namespace dmRender
 
         *constant_count_out = constants_count;
         *samplers_count_out = samplers_count;
+        *ssbo_count_out     = ssbo_count;
     }
 
     static inline bool IsContextLanguageGlsl(dmGraphics::ShaderDesc::Language language)
@@ -79,7 +85,7 @@ namespace dmRender
         buffer[original_size] = 0;
     }
 
-    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
+    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers, dmArray<MaterialStorageBuffer>& storage_buffers)
     {
         dmGraphics::Type type;
         const uint32_t buffer_size = 128;
@@ -88,7 +94,8 @@ namespace dmRender
 
         uint32_t default_values_capacity = 0;
         dmVMath::Vector4* default_values = 0;
-        uint32_t sampler_index = 0;
+        uint32_t sampler_index           = 0;
+        uint32_t ssbo_index              = 0;
 
         bool program_language_glsl = IsContextLanguageGlsl(dmGraphics::GetProgramLanguage(program));
 
@@ -97,7 +104,7 @@ namespace dmRender
             uint32_t name_str_length              = dmGraphics::GetUniformName(program, i, buffer, buffer_size, &type, &num_values);
             dmGraphics::HUniformLocation location = dmGraphics::GetUniformLocation(program, buffer);
 
-        #if 0
+        #if 1
             dmLogInfo("Uniform[%d]: name=%s, type=%s, num_values=%d, location=%lld", i, buffer, dmGraphics::GetGraphicsTypeLiteral(type), num_values, location);
         #endif
 
@@ -108,7 +115,8 @@ namespace dmRender
             // that wasn't used, but after the upgrade these unused uniforms will return -1
             // as location instead. The fix here is to avoid asserting on such values, but
             // not saving them in the m_Constants and m_NameHashToLocation structs.
-            if (location == dmGraphics::INVALID_UNIFORM_LOCATION) {
+            if (location == dmGraphics::INVALID_UNIFORM_LOCATION)
+            {
                 continue;
             }
 
@@ -144,10 +152,10 @@ namespace dmRender
                 continue;
             }
 
+            name_hash_to_location.Put(name_hash, location);
+
             if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
             {
-                name_hash_to_location.Put(name_hash, location);
-
                 HConstant render_constant = dmRender::NewConstant(name_hash);
                 dmRender::SetConstantLocation(render_constant, location);
 
@@ -173,7 +181,9 @@ namespace dmRender
                 if (type == dmGraphics::TYPE_FLOAT_VEC4)
                 {
                     FillElementIds(buffer, buffer_size, constant.m_ElementIds);
-                } else {
+                }
+                else
+                {
                     // Clear element ids, otherwise we will compare against
                     // uninitialized values in GetMaterialProgramConstantInfo.
                     constant.m_ElementIds[0] = 0;
@@ -185,7 +195,6 @@ namespace dmRender
             }
             else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
             {
-                name_hash_to_location.Put(name_hash, location);
                 Sampler& s           = samplers[sampler_index];
                 s.m_UnitValueCount   = num_values;
 
@@ -203,6 +212,13 @@ namespace dmRender
                     default: assert(0);
                 }
                 sampler_index++;
+            }
+            else if (type == dmGraphics::TYPE_STORAGE_BUFFER)
+            {
+                MaterialStorageBuffer& ssbo = storage_buffers[ssbo_index];
+                ssbo.m_NameHash = name_hash;
+                ssbo.m_Location = location;
+                ssbo_index++;
             }
         }
 

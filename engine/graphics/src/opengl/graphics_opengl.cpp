@@ -3799,6 +3799,23 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
+    static HStorageBuffer OpenGLNewStorageBuffer(HContext context, uint32_t buffer_size)
+    {
+        return 0;
+    }
+
+    static void OpenGLDeleteStorageBuffer(HContext context, HStorageBuffer storage_buffer)
+    {
+    }
+
+    static void OpenGLSetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
+    {
+    }
+
+    static void OpenGLSetStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t binding_unit, uint32_t data_offset, HUniformLocation base_location)
+    {
+    }
+
     static bool OpenGLIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
     {
         if (asset_handle == 0)

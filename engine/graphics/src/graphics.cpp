@@ -1611,6 +1611,22 @@ namespace dmGraphics
     {
         return g_functions.m_DeleteComputeProgram(prog);
     }
+    HStorageBuffer NewStorageBuffer(HContext context, uint32_t buffer_size)
+    {
+        return g_functions.m_NewStorageBuffer(context, buffer_size);
+    }
+    void DeleteStorageBuffer(HContext context, HStorageBuffer storage_buffer)
+    {
+        return g_functions.m_DeleteStorageBuffer(context, storage_buffer);
+    }
+    void SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
+    {
+        return g_functions.m_SetStorageBufferData(context, storage_buffer, size, data);
+    }
+    void SetStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t binding_unit, uint32_t data_offset, HUniformLocation base_location)
+    {
+        return g_functions.m_SetStorageBuffer(context, storage_buffer, binding_unit, data_offset, base_location);
+    }
 
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)

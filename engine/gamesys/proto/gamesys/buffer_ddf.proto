@@ -34,7 +34,15 @@ message StreamDesc
     required uint64 name_hash     = 9;
 }
 
+enum StorageMode
+{
+    STORAGE_MODE_CPU     = 1;
+    STORAGE_MODE_GPU     = 2;
+    STORAGE_MODE_CPU_GPU = 3;
+}
+
 message BufferDesc
 {
-    repeated StreamDesc streams = 1;
+    repeated StreamDesc streams       = 1;
+    optional StorageMode storage_mode = 2 [default = STORAGE_MODE_CPU];
 }

@@ -35,6 +35,7 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.BufferProto.StreamDesc;
 import com.dynamo.gamesys.proto.BufferProto.ValueType;
+import com.dynamo.gamesys.proto.BufferProto.StorageMode;
 
 
 @BuilderParams(name="Buffer", inExts=".buffer", outExt=".bufferc")
@@ -66,6 +67,15 @@ public class BufferBuilder extends Builder<Void> {
             case "float32": return ValueType.VALUE_TYPE_FLOAT32;
             default:
                 return null;
+        }
+    }
+
+    static StorageMode stringStorageModeToDDFStorageMode(String storageMode) {
+        switch (storageMode) {
+            case "STORAGE_MODE_CPU":     return StorageMode.STORAGE_MODE_CPU;
+            case "STORAGE_MODE_GPU":     return StorageMode.STORAGE_MODE_GPU;
+            case "STORAGE_MODE_CPU_GPU": return StorageMode.STORAGE_MODE_CPU_GPU;
+            default: return null;
         }
     }
 
@@ -157,45 +167,54 @@ public class BufferBuilder extends Builder<Void> {
 
             Iterator<JsonNode> streamNodes = bufferNode.getElements();
             while (streamNodes.hasNext()) {
-                JsonNode streamNode = streamNodes.next();
+                JsonNode node = streamNodes.next();
+                JsonNode nameNode = node.get("name");
+                JsonNode settingsNode = node.get("settings");
 
-                // Get and check that all required fields are available for a stream.
+                if (nameNode != null) {
+                    // Get and check that all required fields are available for a stream.
+                    String streamName = node.get("name").asText();
 
-                // name field
-                if (streamNode.get("name") == null) {
+                    // type field (we also make sure it is a supported type)
+                    if (node.get("type") == null) {
+                        throw new CompileExceptionError(task.input(0), 0, "Stream '" + streamName + "' is missing required type field.");
+                    }
+
+                    String streamTypeString = node.get("type").asText();
+                    ValueType streamType = stringTypeToDDFType(streamTypeString);
+                    if (streamType == null) {
+                        throw new CompileExceptionError(task.input(0), 0, "Unknown stream type: " + streamTypeString + " (allowed types: " + allowedTypeStrings + ").");
+                    }
+
+                    // count field
+                    if (node.get("count") == null) {
+                        throw new CompileExceptionError(task.input(0), 0, "Stream '" + streamName + "' is missing required count field.");
+                    }
+                    int streamValueCount = node.get("count").asInt();
+
+                    StreamDesc.Builder streamDescBuilder = StreamDesc.newBuilder();
+                    streamDescBuilder.setName(streamName);
+                    streamDescBuilder.setNameHash(MurmurHash.hash64(streamName));
+                    streamDescBuilder.setValueType(streamType);
+                    streamDescBuilder.setValueCount(streamValueCount);
+
+                    // Fill corresponding protobuf data field depending on what the stream type is.
+                    JsonNode dataNode = node.get("data");
+                    if (dataNode != null) {
+                        fillData(streamDescBuilder, dataNode, streamType);
+                    }
+
+                    bufferDescBuilder.addStreams(streamDescBuilder.build());
+                } else if (settingsNode != null) {
+
+                    JsonNode storageModeNode = settingsNode.get("storage_mode");
+                    if (storageModeNode != null) {
+                        String storageMode = storageModeNode.asText();
+                        bufferDescBuilder.setStorageMode(stringStorageModeToDDFStorageMode(storageMode));
+                    }
+                } else {
                     throw new CompileExceptionError(task.input(0), 0, "Stream is missing required name field.");
                 }
-                String streamName = streamNode.get("name").asText();
-
-                // type field (we also make sure it is a supported type)
-                if (streamNode.get("type") == null) {
-                    throw new CompileExceptionError(task.input(0), 0, "Stream '" + streamName + "' is missing required type field.");
-                }
-                String streamTypeString = streamNode.get("type").asText();
-                ValueType streamType = stringTypeToDDFType(streamTypeString);
-                if (streamType == null) {
-                    throw new CompileExceptionError(task.input(0), 0, "Unknown stream type: " + streamTypeString + " (allowed types: " + allowedTypeStrings + ").");
-                }
-
-                // count field
-                if (streamNode.get("count") == null) {
-                    throw new CompileExceptionError(task.input(0), 0, "Stream '" + streamName + "' is missing required count field.");
-                }
-                int streamValueCount = streamNode.get("count").asInt();
-
-                StreamDesc.Builder streamDescBuilder = StreamDesc.newBuilder();
-                streamDescBuilder.setName(streamName);
-                streamDescBuilder.setNameHash(MurmurHash.hash64(streamName));
-                streamDescBuilder.setValueType(streamType);
-                streamDescBuilder.setValueCount(streamValueCount);
-
-                // Fill corresponding protobuf data field depending on what the stream type is.
-                JsonNode dataNode = streamNode.get("data");
-                if (dataNode != null) {
-                    fillData(streamDescBuilder, dataNode, streamType);
-                }
-
-                bufferDescBuilder.addStreams(streamDescBuilder.build());
             }
         } catch (JsonParseException e) {
             throw new CompileExceptionError(task.input(0), 0, "JSON error while parsing buffer resource: " + e.getMessage());

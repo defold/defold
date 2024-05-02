@@ -81,6 +81,11 @@ namespace dmGraphics
     typedef void (*EnableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
     typedef void (*DisableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer);
 
+    typedef HStorageBuffer (*NewStorageBufferFn)(HContext context, uint32_t buffer_size);
+    typedef void (*DeleteStorageBufferFn)(HContext context, HStorageBuffer storage_buffer);
+    typedef void (*SetStorageBufferDataFn)(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data);
+    typedef void (*SetStorageBufferFn)(HContext context, HStorageBuffer storage_buffer, uint32_t binding_unit, uint32_t data_offset, HUniformLocation base_location);
+
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
     typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc::Shader* ddf);
@@ -272,6 +277,12 @@ namespace dmGraphics
         NewComputeProgramFn     m_NewComputeProgram;
         NewProgramFromComputeFn m_NewProgramFromCompute;
         DeleteComputeProgramFn  m_DeleteComputeProgram;
+
+        // Storage Buffers
+        NewStorageBufferFn      m_NewStorageBuffer;
+        DeleteStorageBufferFn   m_DeleteStorageBuffer;
+        SetStorageBufferDataFn  m_SetStorageBufferData;
+        SetStorageBufferFn      m_SetStorageBuffer;
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -385,7 +396,11 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewComputeProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgramFromCompute); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteComputeProgram);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteComputeProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewStorageBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteStorageBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStorageBufferData); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStorageBuffer);
 }
 
 #endif

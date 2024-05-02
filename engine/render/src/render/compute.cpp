@@ -36,7 +36,8 @@ namespace dmRender
 
         uint32_t constants_count = 0;
         uint32_t sampler_count   = 0;
-        GetProgramUniformCount(program->m_Program, total_constants_count, &constants_count, &sampler_count);
+        uint32_t ssbo_count      = 0;
+        GetProgramUniformCount(program->m_Program, total_constants_count, &constants_count, &sampler_count, &ssbo_count);
 
         if (constants_count > 0)
         {
@@ -45,7 +46,7 @@ namespace dmRender
         }
 
         dmArray<Sampler> samplers;
-        SetMaterialConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, samplers);
+        SetMaterialConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, samplers, program->m_MaterialStorageBuffers);
 
         return (HComputeProgram) program;
     }

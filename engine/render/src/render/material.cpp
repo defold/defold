@@ -149,13 +149,20 @@ namespace dmRender
         uint32_t total_constants_count = dmGraphics::GetUniformCount(material->m_Program);
 
         uint32_t constants_count = 0;
-        uint32_t samplers_count   = 0;
-        GetProgramUniformCount(material->m_Program, total_constants_count, &constants_count, &samplers_count);
+        uint32_t samplers_count  = 0;
+        uint32_t ssbo_count      = 0;
+        GetProgramUniformCount(material->m_Program, total_constants_count, &constants_count, &samplers_count, &ssbo_count);
 
-        if ((constants_count + samplers_count) > 0)
+        if ((constants_count + samplers_count + ssbo_count) > 0)
         {
-            material->m_NameHashToLocation.SetCapacity((constants_count + samplers_count), (constants_count + samplers_count) * 2);
+            material->m_NameHashToLocation.SetCapacity((constants_count + samplers_count + ssbo_count), (constants_count + samplers_count + ssbo_count) * 2);
             material->m_Constants.SetCapacity(constants_count);
+        }
+
+        if (ssbo_count > 0)
+        {
+            material->m_MaterialStorageBuffers.SetCapacity(ssbo_count);
+            material->m_MaterialStorageBuffers.SetSize(ssbo_count);
         }
 
         if (samplers_count > 0)
@@ -167,7 +174,7 @@ namespace dmRender
             }
         }
 
-        SetMaterialConstantValues(graphics_context, material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers);
+        SetMaterialConstantValues(graphics_context, material->m_Program, total_constants_count, material->m_NameHashToLocation, material->m_Constants, material->m_Samplers, material->m_MaterialStorageBuffers);
     }
 
     HMaterial NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program)
@@ -326,6 +333,15 @@ namespace dmRender
         }
     }
 
+    dmGraphics::HUniformLocation GetStorageBufferUniformLocation(HMaterial material, uint32_t unit)
+    {
+        if (unit < material->m_MaterialStorageBuffers.Size())
+        {
+            return material->m_MaterialStorageBuffers[unit].m_Location;
+        }
+        return 0x0;
+    }
+
     HSampler GetMaterialSampler(HMaterial material, uint32_t unit)
     {
         if (unit < material->m_Samplers.Size())
@@ -360,6 +376,18 @@ namespace dmRender
         for (int i = 0; i < material->m_Samplers.Size(); ++i)
         {
             if (material->m_Samplers[i].m_NameHash == name_hash)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    int32_t GetMaterialStorageBufferIndex(HMaterial material, dmhash_t name_hash)
+    {
+        for (int i = 0; i < material->m_MaterialStorageBuffers.Size(); ++i)
+        {
+            if (material->m_MaterialStorageBuffers[i].m_NameHash == name_hash)
             {
                 return i;
             }

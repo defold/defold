@@ -83,6 +83,10 @@ namespace dmGameSystem
         {
             return dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET;
         }
+        else if (strcmp(path_ext, ".bufferc") == 0)
+        {
+            return dmRender::RENDER_RESOURCE_TYPE_STORAGE_BUFFER;
+        }
         return dmRender::RENDER_RESOURCE_TYPE_INVALID;
     }
 

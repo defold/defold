@@ -69,6 +69,7 @@ namespace dmGraphics
     const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
     const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
+    const static uint8_t  MAX_STORAGE_BUFFERS     = 4;
 
     const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
@@ -90,9 +91,10 @@ namespace dmGraphics
 
     enum AssetType
     {
-        ASSET_TYPE_NONE          = 0,
-        ASSET_TYPE_TEXTURE       = 1,
-        ASSET_TYPE_RENDER_TARGET = 2,
+        ASSET_TYPE_NONE           = 0,
+        ASSET_TYPE_TEXTURE        = 1,
+        ASSET_TYPE_RENDER_TARGET  = 2,
+        ASSET_TYPE_STORAGE_BUFFER = 3,
     };
 
     // buffer clear types, each value is guaranteed to be separate bits
@@ -573,11 +575,18 @@ namespace dmGraphics
     uint32_t         GetUniformCount(HProgram prog);
     HUniformLocation GetUniformLocation(HProgram prog, const char* name);
 
+    // Storage buffer
+    HStorageBuffer  NewStorageBuffer(HContext context, uint32_t buffer_size);
+    void            DeleteStorageBuffer(HContext context, HStorageBuffer storage_buffer);
+    void            SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data);
+
+    // Set shader resources
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetSampler(HContext context, HUniformLocation location, int32_t unit);
-    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
+    void SetStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t binding_unit, uint32_t data_offset, HUniformLocation base_location);
 
+    void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     void EnableState(HContext context, State state);
     void DisableState(HContext context, State state);
     void SetBlendFunc(HContext context, BlendFactor source_factor, BlendFactor destinaton_factor);
