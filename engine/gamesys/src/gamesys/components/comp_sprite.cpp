@@ -670,8 +670,6 @@ namespace dmGameSystem
         //   | |  w  | |
         // 3 *-*-----*-*
 
-        dmVMath::Vector4 tmp_color;
-
         for (uint32_t i = 0; i < textures->m_NumTextures; ++i)
         {
             dmArray<float>& uvs = scratch_uvs[i];
@@ -781,7 +779,7 @@ namespace dmGameSystem
                     p_local = Point3(p_world.getX() * sprite_size.getX(), p_world.getY() * sprite_size.getY(), 0.0f);
                 }
 
-                dmGraphics::WriteAttribute(sprite_infos, vertices + vertex_stride * vx_index, vx_index, &transform, p_world, p_local, tmp_color, &uvs, textures->m_PageIndices, textures->m_NumTextures);
+                dmGraphics::WriteAttribute(sprite_infos, vertices + vertex_stride * vx_index, vx_index, &transform, p_world, p_local, 0, &uvs, textures->m_PageIndices, textures->m_NumTextures);
                 vx_index++;
             }
         }
@@ -1066,7 +1064,6 @@ namespace dmGameSystem
             textures.m_TextureSets[i] = textures.m_Resources[i]->m_TextureSet;
         }
 
-        dmVMath::Vector4 tmp_color;
         dmGraphics::VertexAttributeInfos sprite_attribute_info = {};
 
         for (uint32_t* i = begin; i != end; ++i)
@@ -1138,7 +1135,7 @@ namespace dmGameSystem
                     }
 
                     float* uvs = scratch_uvs->Begin();
-                    dmGraphics::WriteAttribute(sprite_attribute_info_ptr, vertices + vert * vertex_stride, vert, &w, p_world, p_local, tmp_color, &uvs, textures.m_PageIndices, textures.m_NumTextures);
+                    dmGraphics::WriteAttribute(sprite_attribute_info_ptr, vertices + vert * vertex_stride, vert, &w, p_world, p_local, 0, &uvs, textures.m_PageIndices, textures.m_NumTextures);
                 }
 
                 uint32_t index_count = geometry->m_Indices.m_Count;
@@ -1220,10 +1217,10 @@ namespace dmGameSystem
                     }
 
                     float* uvs = scratch_uvs->Begin();
-                    dmGraphics::WriteAttribute(sprite_attribute_info_ptr, vertices                    , 0, &w, p0, p0_local, tmp_color, &uvs, textures.m_PageIndices, textures.m_NumTextures);
-                    dmGraphics::WriteAttribute(sprite_attribute_info_ptr, vertices + vertex_stride    , 1, &w, p1, p1_local, tmp_color, &uvs, textures.m_PageIndices, textures.m_NumTextures);
-                    dmGraphics::WriteAttribute(sprite_attribute_info_ptr, vertices + vertex_stride * 2, 2, &w, p2, p2_local, tmp_color, &uvs, textures.m_PageIndices, textures.m_NumTextures);
-                    dmGraphics::WriteAttribute(sprite_attribute_info_ptr, vertices + vertex_stride * 3, 3, &w, p3, p3_local, tmp_color, &uvs, textures.m_PageIndices, textures.m_NumTextures);
+                    dmGraphics::WriteAttribute(sprite_attribute_info_ptr, vertices                    , 0, &w, p0, p0_local, 0, &uvs, textures.m_PageIndices, textures.m_NumTextures);
+                    dmGraphics::WriteAttribute(sprite_attribute_info_ptr, vertices + vertex_stride    , 1, &w, p1, p1_local, 0, &uvs, textures.m_PageIndices, textures.m_NumTextures);
+                    dmGraphics::WriteAttribute(sprite_attribute_info_ptr, vertices + vertex_stride * 2, 2, &w, p2, p2_local, 0, &uvs, textures.m_PageIndices, textures.m_NumTextures);
+                    dmGraphics::WriteAttribute(sprite_attribute_info_ptr, vertices + vertex_stride * 3, 3, &w, p3, p3_local, 0, &uvs, textures.m_PageIndices, textures.m_NumTextures);
 
                 #if 0
                     for (int f = 0; f < 4; ++f)
