@@ -43,7 +43,8 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [util.coll :refer [flipped-pair]])
+            [util.coll :refer [flipped-pair]]
+            [util.fn :as fn])
   (:import [java.util Collection]
            [javafx.animation AnimationTimer]
            [javafx.event Event]
@@ -431,7 +432,7 @@
 (defmethod override-value-cell-view resource/Resource [{:keys [value open-resource-fn] :as property}]
   {:fx/type fx.hyperlink/lifecycle
    :style-class (into ["override-inspector-hyperlink"] (overridden-style-classes property))
-   :on-action (fxui/partial #'open-hyperlink-resource! open-resource-fn value)
+   :on-action (fn/partial #'open-hyperlink-resource! open-resource-fn value)
    :text (resource/resource->proj-path value)})
 
 (defn- value-cell [open-resource-fn property]
@@ -482,7 +483,7 @@
             :anchor-pane/left 0
             :anchor-pane/right 0
             :fixed-cell-size 24
-            :event-filter (fxui/partial #'tree-table-view-event-filter open-resource-fn)
+            :event-filter (fn/partial #'tree-table-view-event-filter open-resource-fn)
             :columns (into [{:fx/type fx.tree-table-column/lifecycle
                              :text "Resource"
                              :cell-value-factory identity
@@ -492,9 +493,9 @@
                                   {:fx/type fx.tree-table-column/lifecycle
                                    :text (str (properties/keyword->name property-keyword)
                                               (property-column-suffix (property-value property-keyword state)))
-                                   :cell-value-factory (fxui/partial #'property-value property-keyword)
+                                   :cell-value-factory (fn/partial #'property-value property-keyword)
                                    :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
-                                                  :describe (fxui/partial #'value-cell open-resource-fn)}}))
+                                                  :describe (fn/partial #'value-cell open-resource-fn)}}))
                            (:display-order state))
             :root (->tree-item state)})]}]}}))
 

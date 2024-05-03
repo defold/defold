@@ -61,6 +61,26 @@ namespace dmGraphics
 
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, g_null_adapter_priority);
 
+    struct AssetContainerLock
+    {
+        AssetContainerLock(dmMutex::HMutex mutex)
+        : m_Mutex(mutex)
+        {
+            if (m_Mutex)
+            {
+                dmMutex::Lock(m_Mutex);
+            }
+        }
+        ~AssetContainerLock()
+        {
+            if (m_Mutex)
+            {
+                dmMutex::Unlock(m_Mutex);
+            }
+        }
+        dmMutex::HMutex m_Mutex;
+    };
+
     static bool NullInitialize(HContext context);
     static void PostDeleteTextures(NullContext* context, bool force_delete);
 
@@ -132,6 +152,12 @@ namespace dmGraphics
         if (g_NullContext)
         {
             NullContext* context = (NullContext*) _context;
+
+            if (context->m_AssetContainerMutex)
+            {
+                dmMutex::Delete(context->m_AssetContainerMutex);
+            }
+
             ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
             delete (NullContext*) context;
             g_NullContext = 0x0;
@@ -162,6 +188,7 @@ namespace dmGraphics
 
         if (context->m_AsyncProcessingSupport)
         {
+            context->m_AssetContainerMutex = dmMutex::New();
             InitializeSetTextureAsyncState(context->m_SetTextureAsyncState);
         }
 
@@ -333,7 +360,7 @@ namespace dmGraphics
     static void NullFlip(HContext _context)
     {
         NullContext* context = (NullContext*) _context;
-        PostDeleteTextures(context, true);
+        PostDeleteTextures(context, false);
 
         // Mimick glfw
         if (context->m_RequestWindowClose)
@@ -1356,12 +1383,18 @@ namespace dmGraphics
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
+        AssetContainerLock lock(context->m_AssetContainerMutex);
+
         return StoreAssetInContainer(context->m_AssetHandleContainer, tex, ASSET_TYPE_TEXTURE);
     }
 
-    static int DoDeleteTexture(void* _h_texture, void* _texture)
+    static int DoDeleteTexture(void* _context, void* _h_texture)
     {
-        Texture* tex = (Texture*) _texture;
+        NullContext* context = (NullContext*) _context;
+        AssetContainerLock lock(context->m_AssetContainerMutex);
+        HTexture texture = (HTexture) _h_texture;
+
+        Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
         if (tex)
         {
             if (tex->m_Data != 0x0)
@@ -1375,16 +1408,18 @@ namespace dmGraphics
         return 0;
     }
 
-    static void DoDeleteTextureComplete(void* _h_texture, void* _texture, int result)
+    static void DoDeleteTextureComplete(void* _context, void* _h_texture, int result)
     {
+        NullContext* context = (NullContext*) _context;
+        AssetContainerLock lock(context->m_AssetContainerMutex);
         HTexture texture = (HTexture) _h_texture;
-        g_NullContext->m_AssetHandleContainer.Release(texture);
+        context->m_AssetHandleContainer.Release(texture);
     }
 
     static void NullDeleteTextureAsync(NullContext* context, HTexture texture)
     {
-        Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, texture);
-        dmJobThread::PushJob(context->m_JobThread, DoDeleteTexture, DoDeleteTextureComplete, (void*) texture, (void*) tex);
+        AssetContainerLock lock(context->m_AssetContainerMutex);
+        dmJobThread::PushJob(context->m_JobThread, DoDeleteTexture, DoDeleteTextureComplete, context, (void*) texture);
     }
 
     static void PostDeleteTextures(NullContext* context, bool force_delete)
@@ -1395,9 +1430,8 @@ namespace dmGraphics
             for (uint32_t i = 0; i < size; ++i)
             {
                 void* texture = (void*) (size_t) context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
-                void* tex     = (void*) GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
-                DoDeleteTexture(texture, tex);
-                DoDeleteTextureComplete(texture, tex, 0);
+                DoDeleteTexture(context, texture);
+                DoDeleteTextureComplete(context, texture, 0);
             }
             context->m_SetTextureAsyncState.m_PostDeleteTextures.SetSize(0);
             return;
@@ -1436,9 +1470,8 @@ namespace dmGraphics
         else
         {
             void* htexture = (void*) texture;
-            void* tex = GetAssetFromContainer<void*>(g_NullContext->m_AssetHandleContainer, texture);
-            DoDeleteTexture(htexture, tex);
-            DoDeleteTextureComplete(htexture, tex, 0);
+            DoDeleteTexture(g_NullContext, htexture);
+            DoDeleteTextureComplete(g_NullContext, htexture, 0);
         }
     }
 
@@ -1466,6 +1499,7 @@ namespace dmGraphics
 
     static void NullSetTexture(HTexture texture, const TextureParams& params)
     {
+        AssetContainerLock lock(g_NullContext->m_AssetContainerMutex);
         Texture* tex = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         assert(tex);
         assert(!params.m_SubUpdate || (params.m_X + params.m_Width <= tex->m_Width));
@@ -1712,6 +1746,15 @@ namespace dmGraphics
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
+
+        AssetContainerLock lock(context->m_AssetContainerMutex);
+        Texture* tex = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
+        if (tex)
+        {
+            SetTexture(ap.m_Texture, ap.m_Params);
+            tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
+        }
+
         return 0;
     }
 
@@ -1721,33 +1764,31 @@ namespace dmGraphics
         NullContext* context       = (NullContext*) _context;
         uint16_t param_array_index = (uint16_t) (size_t) data;
         SetTextureAsyncParams ap   = GetSetTextureAsyncParams(context->m_SetTextureAsyncState, param_array_index);
-        Texture* tex               = GetAssetFromContainer<Texture>(context->m_AssetHandleContainer, ap.m_Texture);
 
-        if (tex)
+        if (ap.m_Callback)
         {
-            SetTexture(ap.m_Texture, ap.m_Params);
-            tex->m_DataState &= ~(1<<ap.m_Params.m_MipMap);
+            ap.m_Callback(ap.m_Texture, ap.m_UserData);
         }
-        else
-        {
-            dmLogError("Unable to set texture with handle '%u', has it been deleted?", (uint32_t) ap.m_Texture);
-        }
+
         ReturnSetTextureAsyncIndex(context->m_SetTextureAsyncState, param_array_index);
     }
 
-    static void NullSetTextureAsync(HTexture texture, const TextureParams& params)
+    static void NullSetTextureAsync(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data)
     {
         if (g_NullContext->m_AsyncProcessingSupport && g_NullContext->m_UseAsyncTextureLoad)
         {
+            AssetContainerLock lock(g_NullContext->m_AssetContainerMutex);
+
             Texture* tex               = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
             tex->m_DataState          |= 1 << params.m_MipMap;
-            uint16_t param_array_index = PushSetTextureAsyncState(g_NullContext->m_SetTextureAsyncState, texture, params);
+            uint16_t param_array_index = PushSetTextureAsyncState(g_NullContext->m_SetTextureAsyncState, texture, params, callback, user_data);
 
             dmJobThread::PushJob(g_NullContext->m_JobThread,
                 AsyncProcessCallback,
                 AsyncCompleteCallback,
                 (void*) g_NullContext,
                 (void*) (uintptr_t) param_array_index);
+
         }
         else
         {
@@ -1757,6 +1798,7 @@ namespace dmGraphics
 
     static uint32_t NullGetTextureStatusFlags(HTexture texture)
     {
+        AssetContainerLock lock(g_NullContext->m_AssetContainerMutex);
         Texture* tex   = GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture);
         uint32_t flags = TEXTURE_STATUS_OK;
         if(tex && tex->m_DataState)

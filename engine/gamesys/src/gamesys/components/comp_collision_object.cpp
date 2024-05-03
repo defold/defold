@@ -931,7 +931,7 @@ namespace dmGameSystem
                     dmMessage::ResetURL(receiver);
                     receiver->m_Socket = dmGameObject::GetMessageSocket(collection);
                     receiver->m_Path = dmGameObject::GetIdentifier(sender_instance);
-                    
+
                     dmPhysics::RayCastRequest request;
                     request.m_From = ddf->m_From;
                     request.m_To = ddf->m_To;
@@ -2138,5 +2138,28 @@ namespace dmGameSystem
         pit->m_Node = node;
         pit->m_Next = 0;
         pit->m_FnIterateNext = CompCollisionIterPropertiesGetNext;
+    }
+
+    b2World* CompCollisionObjectGetBox2DWorld(void* _world)
+    {
+        CollisionWorld* world = (CollisionWorld*)_world;
+        if (world->m_3D)
+            return 0;
+        return (b2World*)dmPhysics::GetWorldContext2D(world->m_World2D);
+    }
+
+    b2Body* CompCollisionObjectGetBox2DBody(void* _component)
+    {
+        CollisionComponent* component = (CollisionComponent*)_component;
+        if (component->m_3D)
+            return 0;
+        return (b2Body*)dmPhysics::GetCollisionObjectContext2D(component->m_Object2D);
+    }
+
+    // We use this to determine if a physics object is still alive, by determinig if the game object is still alive
+    dmGameObject::HInstance CompCollisionObjectGetInstance(void* _user_data)
+    {
+        CollisionComponent* component = (CollisionComponent*)_user_data; // See SetCollisionObjectData and dmPhysics::NewCollisionObject2D
+        return component->m_Instance;
     }
 }

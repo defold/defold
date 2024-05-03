@@ -1114,11 +1114,28 @@ TEST_F(dmGuiScriptTest, TestGuiGetSet)
             "function assert_near(a,b)\n"
             "    assert(math.abs(a-b) < EPSILON)\n"
             "end\n"
-            "function assert_near_vector4(a,b)\n"
+            "function check_near_vector4(a,b)\n"
             "    assert(math.abs(a.x-b.x) < EPSILON)\n"
             "    assert(math.abs(a.y-b.y) < EPSILON)\n"
             "    assert(math.abs(a.z-b.z) < EPSILON)\n"
             "    assert(math.abs(a.w-b.w) < EPSILON)\n"
+            "end\n"
+            "function check_near_vector3(a,b)\n"
+            "    assert(math.abs(a.x-b.x) < EPSILON)\n"
+            "    assert(math.abs(a.y-b.y) < EPSILON)\n"
+            "    assert(math.abs(a.z-b.z) < EPSILON)\n"
+            "end\n"
+            "function assert_near_vector4(a,b)\n"
+            "    local ok = pcall(check_near_vector4, a, b)"
+            "    if ok then return end"
+            "    print(\"Wanted\", a, \"but got\", b)\n"
+            "    assert(false)\n"
+            "end\n"
+            "function assert_near_vector3(a,b)\n"
+            "    local ok = pcall(check_near_vector3, a, b)"
+            "    if ok then return end"
+            "    print(\"Wanted\", a, \"but got\", b)\n"
+            "    assert(false)\n"
             "end\n"
             "local function assert_error(func)\n"
             "    local r, err = pcall(func)\n"
@@ -1148,14 +1165,24 @@ TEST_F(dmGuiScriptTest, TestGuiGetSet)
             "   assert_near_vector4(vmath.vector4(2001, 2002, 2003, 2004), gui.get(node, 'position'))\n"
             // Test rotation <-> euler conversion
             "   gui.set(node, 'rotation', vmath.quat_rotation_z(math.rad(45)))\n"
-            "   assert_near_vector4(vmath.vector4(0, 0, 45, 0), gui.get(node, 'euler'))\n"
+            "   assert_near_vector3(vmath.vector4(0, 0, 45, 0), gui.get(node, 'euler'))\n"
+            "   assert_near_vector3(vmath.vector4(0, 0, 45, 0), gui.get_euler(node))\n"
+            "   gui.set_rotation(node, vmath.quat_rotation_z(math.rad(90)))\n"
+            "   assert_near_vector3(vmath.vector4(0, 0, 90, 0), gui.get(node, 'euler'))\n"
+            "   assert_near_vector3(vmath.vector4(0, 0, 90, 0), gui.get_euler(node))\n"
             "   gui.set(node, 'euler', vmath.vector3(0, 0, 45))\n"
             "   assert_near_vector4(vmath.quat_rotation_z(math.rad(45)), gui.get(node, 'rotation'))\n"
+            "   assert_near_vector4(vmath.quat_rotation_z(math.rad(45)), gui.get_rotation(node))\n"
+            "   gui.set_euler(node, vmath.vector3(0, 0, 90))\n"
+            "   assert_near_vector4(vmath.quat_rotation_z(math.rad(90)), gui.get(node, 'rotation'))\n"
+            "   assert_near_vector4(vmath.quat_rotation_z(math.rad(90)), gui.get_rotation(node))\n"
             // Test rotation <-> euler conversion subcomponents
             "   gui.set(node, 'euler', vmath.vector4())\n"
             "   assert_near_vector4(vmath.vector4(0,0,0,1), gui.get(node, 'rotation'))\n"
+            "   assert_near_vector4(vmath.vector4(0,0,0,1), gui.get_rotation(node))\n"
             "   gui.set(node, 'euler.x', 180)\n"
             "   assert_near(1, gui.get(node, 'rotation.x'))\n"
+            //"   assert_near(1, gui.get_rotation(node).x)\n"
             // Incorrect input for get
             "   assert_error(function() gui.get('invalid', 'position') end)\n"
             "   assert_error(function() gui.get(hash('invalid'), 'position') end)\n"
@@ -1176,6 +1203,61 @@ TEST_F(dmGuiScriptTest, TestGuiGetSet)
     result = dmGui::InitScene(scene);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
+    dmGui::DeleteScene(scene);
+
+    dmGui::DeleteScript(script);
+}
+
+TEST_F(dmGuiScriptTest, TestGuiAnimateEuler)
+{
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    //params.m_RigContext = m_RigContext;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneResolution(scene, 1, 1);
+    dmGui::SetSceneScript(scene, script);
+
+    // Set position
+    const char* src =
+            "function init(self)\n"
+            "    local n1 = gui.new_box_node(vmath.vector3(1, 1, 1), vmath.vector3(1, 1, 1))\n"
+            "    gui.animate(n1, gui.PROP_EULER, vmath.vector3(2, 3, 4), gui.EASING_LINEAR, 1)\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmVMath::Matrix4 transform;
+    dmGui::RenderScene(scene, m_RenderParams, &transform);
+
+    {
+        dmVMath::Quat q(transform.getUpper3x3());
+        dmVMath::Vector3 euler = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+
+        ASSERT_NEAR(0.0f, euler.getX(), EPSILON);
+        ASSERT_NEAR(0.0f, euler.getY(), EPSILON);
+        ASSERT_NEAR(0.0f, euler.getZ(), EPSILON);
+    }
+
+    dmGui::UpdateScene(scene, 1.0f);
+
+    dmGui::RenderScene(scene, m_RenderParams, &transform);
+    {
+        dmVMath::Quat q(transform.getUpper3x3());
+        dmVMath::Vector3 euler = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+
+        // We use a fairly large epsilon here, as we are doing two conversions back to euler values
+        ASSERT_NEAR(2.0f, euler.getX(), 0.01f);
+        ASSERT_NEAR(3.0f, euler.getY(), 0.01f);
+        ASSERT_NEAR(4.0f, euler.getZ(), 0.01f);
+    }
     dmGui::DeleteScene(scene);
 
     dmGui::DeleteScript(script);

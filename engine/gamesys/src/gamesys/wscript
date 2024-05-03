@@ -35,6 +35,13 @@ def build(bld):
     else:
         resource.source = remove_from_node_list(resource.source, 'script_http_js.cpp')
 
+    bld.add_group() # depends on the proto files (_ddf.h) generated in the previous step
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto',
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/script_box2d_body.cpp',
+        target = 'script_box2d')
+
     bld.add_group()
 
     proto_files = os.listdir('./proto/gamesys')
@@ -58,6 +65,8 @@ def build(bld):
         'scripts/script_image.cpp',
         'scripts/script_sys_gamesys.cpp',
         'scripts/script_http.cpp',
+        'scripts/box2d/script_box2d.cpp',
+        'scripts/box2d/script_box2d_body.cpp',
         'components/comp_sound.cpp',
         'components/comp_collection_proxy.cpp'] + proto_files)
 

@@ -349,6 +349,13 @@ namespace dmEngine
             dmResource::DeleteFactory(engine->m_Factory);
         }
 
+// TODO: Temporarily disabled as it hangs the shutdown procedure
+        // // Stop processing graphics requests before deleting the graphics context
+        // if (engine->m_JobThreadContext)
+        // {
+        //     dmJobThread::Destroy(engine->m_JobThreadContext);
+        // }
+
         if (engine->m_GraphicsContext)
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
@@ -936,9 +943,10 @@ namespace dmEngine
         }
 
         int32_t liveupdate_enable = dmConfigFile::GetInt(engine->m_Config, "liveupdate.enabled", 1);
-        if (liveupdate_enable)
+        int32_t liveupdate_mount_on_start = dmConfigFile::GetInt(engine->m_Config, "liveupdate.mount_on_start", 1);
+        if (liveupdate_enable && liveupdate_mount_on_start)
         {
-            params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE;
+            params.m_Flags |= RESOURCE_FACTORY_FLAGS_LIVE_UPDATE_MOUNTS_ON_START;
         }
 
 #if !defined(DM_RELEASE)
@@ -1306,6 +1314,7 @@ namespace dmEngine
         script_lib_context.m_HidContext      = engine->m_HidContext;
         script_lib_context.m_GraphicsContext = engine->m_GraphicsContext;
         script_lib_context.m_JobThread       = engine->m_JobThreadContext;
+        script_lib_context.m_ConfigFile      = engine->m_Config;
 
         if (engine->m_SharedScriptContext) {
             script_lib_context.m_ScriptContext = engine->m_SharedScriptContext;

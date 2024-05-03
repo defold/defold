@@ -26,11 +26,14 @@ jobs:
   build-editor:
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v3 },
+      {
+        name: 'Checkout',
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
-      { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@master, with: { lein: 2.8.3 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
+      { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@bc7570e912b028bbcc22f457adec7fdf98e2f4ed, with: { lein: 2.8.3 } },
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
@@ -43,14 +46,14 @@ jobs:
 
   sign-editor-macos:
     needs: [build-editor]
-    runs-on: macOS-latest
+    runs-on: macOS-13
     strategy:
       matrix:
         platform: [x86_64-macos, arm64-macos]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v3 },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
         name: 'Download editor',
         run: 'ci/ci.sh download-editor --platform=${{ matrix.platform }}'
@@ -79,9 +82,9 @@ jobs:
       matrix:
         platform: [x86_64-win32]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v3 },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
-      { name: 'Install Java', uses: actions/setup-java@v3, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
+      { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
         name: 'Download editor',
         shell: bash,
@@ -114,9 +117,12 @@ jobs:
     needs: [sign-editor-macos, sign-editor-windows]
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@v3 },
+      {
+        name: 'Checkout',
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+      },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
-      { name: 'Install Python', uses: actions/setup-python@v3, with: { python-version: 3.11, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
         name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)
