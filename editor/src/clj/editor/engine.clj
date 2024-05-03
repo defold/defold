@@ -19,7 +19,6 @@
             [editor.fs :as fs]
             [editor.process :as process]
             [editor.prefs :as prefs]
-            [service.log :as log]
             [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -279,10 +278,10 @@
     ;; the output of dmengine because there is a risk of the stream
     ;; buffer filling up, stopping the process.
     ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
-(let [p (do (log/info :message (str "opts: " opts))
-            (log/info :message (str "command: " command))
-            (log/info :message (str "args: " args))
-(apply process/start! opts command args))]
+(let [p (do (println "opts:" opts)
+            (println "command:" command)
+            (println "args:" args)
+            (apply process/start! opts command args))]
   {:process p
    :name (.getName engine)
    :log-stream (process/out p)})))
