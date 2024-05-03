@@ -58,6 +58,9 @@ var LibrarySoundDevice =
                     var len = sample_count / this.sampleRate;
                     // use real buffer length next time.
                     this.bufferDuration = len;
+                    // only append overall length of audio buffer in suspended stay
+                    // it helps prevent sound instance consume on the engine side
+                    // because from engine point of view - sound plays.
                     if (!this._isContextRunning()) {
                         this.suspendedBufferedTo += len;
                         return;
@@ -89,6 +92,10 @@ var LibrarySoundDevice =
                             return 1;
                         ahead = this.bufferedTo - shared.audioCtx.currentTime;
                     } else {
+                        // if audio context in suspended or closed state we simulate audio play
+                        // by calculating play time
+                        // when audio context become active - start filling audio buffer from the beginning
+                        // and start using audioCtx.currentTime
                         ahead = this.suspendedBufferedTo - this._getCurrentSuspendedTime();
                     }
                     var inqueue = Math.ceil(ahead / this.bufferDuration);
