@@ -27,10 +27,11 @@ namespace dmRender
 
         RenderCamera* camera = new RenderCamera();
         camera->m_URL        = dmMessage::URL();
-        camera->m_View       = dmVMath::Matrix4();
-        camera->m_Projection = dmVMath::Matrix4();
-        camera->m_Viewport   = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
         camera->m_Handle     = render_context->m_RenderCameras.Put(camera);
+
+        memset(&camera->m_Data, 0, sizeof(camera->m_Data));
+        camera->m_Data.m_Viewport = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+
         return camera->m_Handle;
     }
 
@@ -53,14 +54,24 @@ namespace dmRender
         }
     }
 
-    void SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const dmVMath::Matrix4& view, const dmVMath::Matrix4& projection)
+    void SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData data)
     {
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);
         if (c)
         {
-            c->m_View       = view;
-            c->m_Projection = projection;
+            c->m_Data = data;
         }
+    }
+
+    RenderCameraData GetRenderCameraData(HRenderContext render_context, HRenderCamera camera)
+    {
+        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        if (c)
+        {
+            return c->m_Data;
+        }
+
+        return {};
     }
 
     // render_private.h

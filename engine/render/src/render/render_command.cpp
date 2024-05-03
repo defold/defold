@@ -207,7 +207,7 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_SET_RENDER_CAMERA:
                 {
-                    render_context->m_RenderCamera = (RenderCamera*) c->m_Operands[0];
+                    render_context->m_CurrentRenderCamera = (RenderCamera*) c->m_Operands[0];
                 } break;
                 default:
                 {

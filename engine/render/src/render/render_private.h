@@ -246,9 +246,7 @@ namespace dmRender
     {
         dmMessage::URL   m_URL;
         HOpaqueHandle    m_Handle;
-        dmVMath::Matrix4 m_Projection;
-        dmVMath::Matrix4 m_View;
-        dmVMath::Vector4 m_Viewport;
+        RenderCameraData m_Data;
     };
 
     struct RenderContext
@@ -272,7 +270,7 @@ namespace dmRender
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
         dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
-        RenderCamera*                         m_RenderCamera;
+        RenderCamera*                         m_CurrentRenderCamera;
 
         HFontMap                    m_SystemFontMap;
 

@@ -329,13 +329,29 @@ namespace dmRender
     void                            TrimBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     void                            RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
 
+    struct RenderCameraData
+    {
+        dmVMath::Matrix4 m_View;
+        dmVMath::Matrix4 m_Projection;
+        dmVMath::Vector4 m_Viewport;
+        float            m_AspectRatio;
+        float            m_Fov;
+        float            m_NearZ;
+        float            m_FarZ;
+        float            m_OrthographicZoom;
+        uint8_t          m_AutoAspectRatio        : 1;
+        uint8_t          m_OrthographicProjection : 1;
+        uint8_t          m_IsMainCamera           : 1;
+    };
+
     /** Render cameras
      * TODO: Description
      */
     HRenderCamera                   NewRenderCamera(HRenderContext context);
     void                            DeleteRenderCamera(HRenderContext context, HRenderCamera camera);
     void                            SetRenderCameraURL(HRenderContext render_context, HRenderCamera camera, const dmMessage::URL& camera_url);
-    void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const dmVMath::Matrix4& view, const dmVMath::Matrix4& projection);
+    void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData data);
+    RenderCameraData                GetRenderCameraData(HRenderContext render_context, HRenderCamera camera);
 }
 
 #endif /* DM_RENDER_H */

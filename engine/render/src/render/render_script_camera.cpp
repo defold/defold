@@ -79,26 +79,93 @@ namespace dmRender
         lua_settable(L, -3);
 
         lua_pushstring(L, "projection");
-        dmScript::PushMatrix4(L, camera->m_Projection);
+        dmScript::PushMatrix4(L, camera->m_Data.m_Projection);
         lua_settable(L, -3);
 
         lua_pushstring(L, "view");
-        dmScript::PushMatrix4(L, camera->m_View);
+        dmScript::PushMatrix4(L, camera->m_Data.m_View);
         lua_settable(L, -3);
 
         lua_pushstring(L, "viewport");
-        dmScript::PushVector4(L, camera->m_Viewport);
+        dmScript::PushVector4(L, camera->m_Data.m_Viewport);
         lua_settable(L, -3);
+
+    #define PUSH_NUMBER(name, param) \
+        lua_pushstring(L, name); \
+        lua_pushnumber(L, camera->m_Data.param); \
+        lua_settable(L, -3);
+
+        PUSH_NUMBER("fov",          m_Fov);
+        PUSH_NUMBER("aspect_ratio", m_AspectRatio);
+        PUSH_NUMBER("near_z",       m_NearZ);
+        PUSH_NUMBER("far_z",        m_FarZ);
+    #undef PUSH_NUMBER
+
+    #define PUSH_BOOL(name, param) \
+        lua_pushstring(L, name); \
+        lua_pushboolean(L, camera->m_Data.param); \
+        lua_settable(L, -3);
+
+        PUSH_BOOL("orthographic_projection", m_OrthographicProjection);
+        PUSH_BOOL("auto_aspect_ratio",       m_AutoAspectRatio);
+        PUSH_BOOL("main_camera",             m_IsMainCamera);
+    #undef PUSH_BOOL
 
         return 1;
     }
 
+    static int RenderScriptCamera_ScreenToWorld(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        return 0;
+    }
+
+    static int RenderScriptCamera_WindowToWorld(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        return 0;
+    }
+
+    static int RenderScriptCamera_WorldToScreen(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        return 0;
+    }
+
+    static int RenderScriptCamera_WorldToWindow(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        return 0;
+    }
+
+    static int RenderScriptCamera_Project(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        return 0;
+    }
+
+    static int RenderScriptCamera_Unproject(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        return 0;
+    }
+
     static const luaL_reg RenderScriptCamera_Methods[] =
     {
-        {"get_cameras",    RenderScriptCamera_GetCameras},
-        {"get_info",       RenderScriptCamera_GetInfo},
-        // {"set_info",       RenderScriptCamera_SetInfo},
-        // convert
+        {"get_cameras",     RenderScriptCamera_GetCameras},
+        {"get_info",        RenderScriptCamera_GetInfo},
+        {"screen_to_world", RenderScriptCamera_ScreenToWorld},
+        {"window_to_world", RenderScriptCamera_WindowToWorld},
+        {"world_to_screen", RenderScriptCamera_WorldToScreen},
+        {"world_to_window", RenderScriptCamera_WorldToWindow},
+        {"project",         RenderScriptCamera_Project},
+        {"unproject",       RenderScriptCamera_Unproject},
         {0, 0}
     };
 
