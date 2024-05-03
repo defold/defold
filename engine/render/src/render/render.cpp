@@ -930,8 +930,8 @@ namespace dmRender
         // Do we want to store the old matrices here before overwriting them?
         if (render_context->m_CurrentRenderCamera)
         {
-            render_context->m_View       = render_context->m_CurrentRenderCamera->m_Data.m_View;
-            render_context->m_Projection = render_context->m_CurrentRenderCamera->m_Data.m_Projection;
+            render_context->m_View       = render_context->m_CurrentRenderCamera->m_View;
+            render_context->m_Projection = render_context->m_CurrentRenderCamera->m_Projection;
             render_context->m_ViewProj   = render_context->m_Projection * render_context->m_View;
         }
 

@@ -79,11 +79,11 @@ namespace dmRender
         lua_settable(L, -3);
 
         lua_pushstring(L, "projection");
-        dmScript::PushMatrix4(L, camera->m_Data.m_Projection);
+        dmScript::PushMatrix4(L, camera->m_Projection);
         lua_settable(L, -3);
 
         lua_pushstring(L, "view");
-        dmScript::PushMatrix4(L, camera->m_Data.m_View);
+        dmScript::PushMatrix4(L, camera->m_View);
         lua_settable(L, -3);
 
         lua_pushstring(L, "viewport");

@@ -246,6 +246,8 @@ namespace dmRender
     {
         dmMessage::URL   m_URL;
         HOpaqueHandle    m_Handle;
+        dmVMath::Matrix4 m_View;
+        dmVMath::Matrix4 m_Projection;
         RenderCameraData m_Data;
     };
 

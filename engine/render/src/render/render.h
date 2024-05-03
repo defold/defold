@@ -331,8 +331,6 @@ namespace dmRender
 
     struct RenderCameraData
     {
-        dmVMath::Matrix4 m_View;
-        dmVMath::Matrix4 m_Projection;
         dmVMath::Vector4 m_Viewport;
         float            m_AspectRatio;
         float            m_Fov;
@@ -351,6 +349,7 @@ namespace dmRender
     void                            DeleteRenderCamera(HRenderContext context, HRenderCamera camera);
     void                            SetRenderCameraURL(HRenderContext render_context, HRenderCamera camera, const dmMessage::URL& camera_url);
     void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData data);
+    void                            SetRenderCameraMatrices(HRenderContext render_context, HRenderCamera camera, const dmVMath::Matrix4 view, const dmVMath::Matrix4 projection);
     RenderCameraData                GetRenderCameraData(HRenderContext render_context, HRenderCamera camera);
 }
 

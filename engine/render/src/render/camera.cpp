@@ -63,6 +63,16 @@ namespace dmRender
         }
     }
 
+    void SetRenderCameraMatrices(HRenderContext render_context, HRenderCamera camera, const dmVMath::Matrix4 view, const dmVMath::Matrix4 projection)
+    {
+        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        if (c)
+        {
+            c->m_View = view;
+            c->m_Projection = projection;
+        }
+    }
+
     RenderCameraData GetRenderCameraData(HRenderContext render_context, HRenderCamera camera)
     {
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);
