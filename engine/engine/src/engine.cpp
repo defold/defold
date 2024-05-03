@@ -2051,7 +2051,7 @@ bail:
         fact_error = dmResource::Get(engine->m_Factory, game_input_binding, (void**)&engine->m_GameInputBinding);
         if (fact_error != dmResource::RESULT_OK)
         {
-            dmLogError("failed at /input/game.input_bindingc");
+            dmLogError("failed at /input/game.input_bindingc: %d", fact_error);
             return false;
         }
 
@@ -2059,7 +2059,7 @@ bail:
         fact_error = dmResource::Get(engine->m_Factory, render_path, (void**)&engine->m_RenderScriptPrototype);
         if (fact_error != dmResource::RESULT_OK)
         {
-            dmLogError("failed at /builtins/render/default.renderc");
+            dmLogError("failed at /builtins/render/default.renderc: %d", fact_error);
             return false;
         }
 
@@ -2067,7 +2067,7 @@ bail:
         fact_error = dmResource::Get(engine->m_Factory, display_profiles_path, (void**)&engine->m_DisplayProfiles);
         if (fact_error != dmResource::RESULT_OK)
         {
-            dmLogError("failed at /builtins/render/default.display_profilesc");
+            dmLogError("failed at /builtins/render/default.display_profilesc: %d", fact_error);
             return false;
         }
 
