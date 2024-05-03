@@ -205,6 +205,10 @@ namespace dmRender
                     render_context->m_Material = 0;
                     break;
                 }
+                case COMMAND_TYPE_SET_RENDER_CAMERA:
+                {
+                    render_context->m_RenderCamera = (RenderCamera*) c->m_Operands[0];
+                } break;
                 default:
                 {
                     dmLogError("No such render command (%d).", c->m_Type);

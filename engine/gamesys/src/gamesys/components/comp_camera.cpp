@@ -45,6 +45,7 @@ namespace dmGameSystem
         dmGameObject::HInstance m_Instance;
         dmRender::HRenderCamera m_RenderCamera;
         CameraWorld*            m_World;
+        
         dmVMath::Matrix4        m_View;
         dmVMath::Matrix4        m_Projection;
         float                   m_AspectRatio;
@@ -104,9 +105,9 @@ namespace dmGameSystem
         }
 
         dmVMath::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
-        Point3 look_at = pos + dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
-        Vector3 up = dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
-        camera->m_View = Matrix4::lookAt(pos, look_at, up);
+        Point3 look_at    = pos + dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+        Vector3 up        = dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
+        camera->m_View    = Matrix4::lookAt(pos, look_at, up);
 
         SetRenderCameraData(render_context, camera->m_RenderCamera, camera->m_View, camera->m_Projection);
     }

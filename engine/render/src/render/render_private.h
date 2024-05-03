@@ -272,6 +272,7 @@ namespace dmRender
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
         dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
+        RenderCamera*                         m_RenderCamera;
 
         HFontMap                    m_SystemFontMap;
 
@@ -324,6 +325,7 @@ namespace dmRender
 
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
+    RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

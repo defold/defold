@@ -27,24 +27,21 @@ namespace dmRender
 
     static RenderScriptCameraModule g_RenderScriptCameraModule = { 0 };
 
-    static void PushCamera(lua_State* L, const RenderCamera* camera)
+    RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context)
     {
-        lua_newtable(L);
-        lua_pushstring(L, "url");
-        dmScript::PushURL(L, camera->m_URL);
-        lua_settable(L, -3);
+        dmMessage::URL url;
+        dmScript::ResolveURL(L, index, &url, 0);
 
-        lua_pushstring(L, "projection");
-        dmScript::PushMatrix4(L, camera->m_Projection);
-        lua_settable(L, -3);
+        RenderCamera* camera = GetRenderCameraByUrl(g_RenderScriptCameraModule.m_RenderContext, url);
 
-        lua_pushstring(L, "view");
-        dmScript::PushMatrix4(L, camera->m_View);
-        lua_settable(L, -3);
-
-        lua_pushstring(L, "viewport");
-        dmScript::PushVector4(L, camera->m_Viewport);
-        lua_settable(L, -3);
+        if (camera == 0x0)
+        {
+            char buffer[256];
+            dmScript::UrlToString(&url, buffer, sizeof(buffer));
+            luaL_error(L, "Camera '%s' not found.", buffer);
+            return 0;
+        }
+        return camera;
     }
 
     static int RenderScriptCamera_GetCameras(lua_State* L)
@@ -71,44 +68,28 @@ namespace dmRender
         return 1;
     }
 
-    static RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context)
-    {
-        dmMessage::URL url;
-        dmScript::ResolveURL(L, index, &url, 0);
-
-        RenderCamera* camera = GetRenderCameraByUrl(g_RenderScriptCameraModule.m_RenderContext, url);
-
-        if (camera == 0x0)
-        {
-            char buffer[256];
-            dmScript::UrlToString(&url, buffer, sizeof(buffer));
-            luaL_error(L, "Camera '%s' not found.", buffer);
-            return 0;
-        }
-        return camera;
-    }
-
     static int RenderScriptCamera_GetInfo(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
-        PushCamera(L, camera);
-        return 1;
-    }
 
-    static int RenderScriptCamera_GetProjection(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        lua_newtable(L);
+        lua_pushstring(L, "url");
+        dmScript::PushURL(L, camera->m_URL);
+        lua_settable(L, -3);
+
+        lua_pushstring(L, "projection");
         dmScript::PushMatrix4(L, camera->m_Projection);
-        return 1;
-    }
+        lua_settable(L, -3);
 
-    static int RenderScriptCamera_GetView(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        lua_pushstring(L, "view");
         dmScript::PushMatrix4(L, camera->m_View);
+        lua_settable(L, -3);
+
+        lua_pushstring(L, "viewport");
+        dmScript::PushVector4(L, camera->m_Viewport);
+        lua_settable(L, -3);
+
         return 1;
     }
 
@@ -116,8 +97,8 @@ namespace dmRender
     {
         {"get_cameras",    RenderScriptCamera_GetCameras},
         {"get_info",       RenderScriptCamera_GetInfo},
-        {"get_projection", RenderScriptCamera_GetProjection},
-        {"get_view",       RenderScriptCamera_GetView},
+        // {"set_info",       RenderScriptCamera_SetInfo},
+        // convert
         {0, 0}
     };
 
