@@ -36,7 +36,6 @@ namespace dmGameSystem
     using namespace dmVMath;
 
     const uint32_t MAX_COUNT = 64;
-    const uint8_t MAX_STACK_COUNT = 8;
 
     struct CameraWorld;
 
@@ -45,7 +44,9 @@ namespace dmGameSystem
         dmGameObject::HInstance m_Instance;
         dmRender::HRenderCamera m_RenderCamera;
         CameraWorld*            m_World;
-        
+        uint16_t                m_ComponentIndex;
+
+        // Camera settings
         dmVMath::Matrix4        m_View;
         dmVMath::Matrix4        m_Projection;
         float                   m_AspectRatio;
@@ -53,25 +54,25 @@ namespace dmGameSystem
         float                   m_NearZ;
         float                   m_FarZ;
         float                   m_OrthographicZoom;
-        uint16_t                m_ComponentIndex;
-        uint8_t                 m_Enabled                : 1;
         uint8_t                 m_AutoAspectRatio        : 1;
         uint8_t                 m_AddedToUpdate          : 1;
         uint8_t                 m_OrthographicProjection : 1;
+        uint8_t                 m_IsMainCamera           : 1;
     };
 
     struct CameraWorld
     {
-        dmArray<CameraComponent> m_Cameras;
+        dmArray<CameraComponent>  m_Cameras;
+        dmArray<CameraComponent*> m_CameraStack;
     };
 
-    static const dmhash_t CAMERA_PROP_FOV = dmHashString64("fov");
-    static const dmhash_t CAMERA_PROP_NEAR_Z = dmHashString64("near_z");
-    static const dmhash_t CAMERA_PROP_FAR_Z = dmHashString64("far_z");
+    static const dmhash_t CAMERA_PROP_FOV               = dmHashString64("fov");
+    static const dmhash_t CAMERA_PROP_NEAR_Z            = dmHashString64("near_z");
+    static const dmhash_t CAMERA_PROP_FAR_Z             = dmHashString64("far_z");
     static const dmhash_t CAMERA_PROP_ORTHOGRAPHIC_ZOOM = dmHashString64("orthographic_zoom");
-    static const dmhash_t CAMERA_PROP_PROJECTION = dmHashString64("projection");
-    static const dmhash_t CAMERA_PROP_VIEW = dmHashString64("view");
-    static const dmhash_t CAMERA_PROP_ASPECT_RATIO = dmHashString64("aspect_ratio");
+    static const dmhash_t CAMERA_PROP_PROJECTION        = dmHashString64("projection");
+    static const dmhash_t CAMERA_PROP_VIEW              = dmHashString64("view");
+    static const dmhash_t CAMERA_PROP_ASPECT_RATIO      = dmHashString64("aspect_ratio");
 
 
     void CompCameraUpdateViewProjection(CameraComponent* camera, dmRender::RenderContext* render_context)
@@ -136,6 +137,41 @@ namespace dmGameSystem
         return camera_url;
     }
 
+    static void CameraStackPop(CameraWorld* world, CameraComponent* camera)
+    {
+        bool found = false;
+        uint32_t num_cameras_in_stack = world->m_CameraStack.Size();
+        for (uint32_t i = 0; i < num_cameras_in_stack; ++i)
+        {
+            if (world->m_CameraStack[i] == camera)
+            {
+                found = true;
+            }
+
+            // If the camera is in the stack, we move all other entries one step to the left
+            if (found && i < num_cameras_in_stack - 1)
+            {
+                world->m_CameraStack[i] = world->m_CameraStack[i + 1];
+            }
+        }
+        if (found)
+        {
+            world->m_CameraStack.Pop();
+        }
+    }
+
+    static void CameraStackPush(CameraWorld* world, CameraComponent* camera)
+    {
+        // Remove from stack in case the camera is already in the stack
+        CameraStackPop(world, camera);
+
+        if (world->m_CameraStack.Full())
+        {
+            world->m_CameraStack.OffsetCapacity(1);
+        }
+        world->m_CameraStack.Push(camera);
+    }
+
     dmGameObject::CreateResult CompCameraCreate(const dmGameObject::ComponentCreateParams& params)
     {
         CameraWorld* w = (CameraWorld*)params.m_World;
@@ -150,7 +186,6 @@ namespace dmGameSystem
         CameraComponent camera;
         camera.m_Instance = params.m_Instance;
         camera.m_World = w;
-        camera.m_Enabled = 1;
         camera.m_AspectRatio = cam_resource->m_DDF->m_AspectRatio;
         camera.m_Fov = cam_resource->m_DDF->m_Fov;
         camera.m_NearZ = cam_resource->m_DDF->m_NearZ;
@@ -166,7 +201,11 @@ namespace dmGameSystem
         CompCameraUpdateViewProjection(&camera, render_context);
 
         w->m_Cameras.Push(camera);
-        *params.m_UserData = (uintptr_t)&w->m_Cameras[w->m_Cameras.Size() - 1];
+        CameraComponent* new_camera = &w->m_Cameras[w->m_Cameras.Size() - 1];
+
+        *params.m_UserData = (uintptr_t) new_camera;
+
+        CameraStackPush(w, new_camera);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -175,10 +214,12 @@ namespace dmGameSystem
     {
         dmRender::RenderContext* render_context = (dmRender::RenderContext*) params.m_Context;
         CameraWorld* w = (CameraWorld*)params.m_World;
+
         for (uint8_t i = 0; i < w->m_Cameras.Size(); ++i)
         {
             if (w->m_Cameras[i].m_Instance == params.m_Instance)
             {
+                CameraStackPop(w, &w->m_Cameras[i]);
                 dmRender::DeleteRenderCamera(render_context, w->m_Cameras[i].m_RenderCamera);
                 w->m_Cameras.EraseSwap(i);
                 return dmGameObject::CREATE_RESULT_OK;
@@ -228,15 +269,17 @@ namespace dmGameSystem
 
         dmRender::RenderContext* render_context = (dmRender::RenderContext*) params.m_Context;
 
-        uint32_t num_cameras = camera_world->m_Cameras.Size();
+        // Update the cameras in order of first created - last created
+        uint32_t num_cameras = camera_world->m_CameraStack.Size();
         for (int i = 0; i < num_cameras; ++i)
         {
-            CameraComponent* camera = &camera_world->m_Cameras[i];
-            if (!camera->m_Enabled || !camera->m_AddedToUpdate)
+            CameraComponent* camera = &camera_world->m_CameraStack[i];
+            if (!camera->m_AddedToUpdate)
                 continue;
 
             CompCameraUpdateViewProjection(camera, render_context);
 
+            // Legacy, at some point we should deprecate this
             if (!PostRenderScriptSetViewProjectionMsg(camera, CameraToURL(camera)))
             {
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
@@ -261,11 +304,11 @@ namespace dmGameSystem
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor)
         {
-            camera->m_Enabled = 1;
+            CameraStackPush(camera->m_World, camera);
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor)
         {
-            camera->m_Enabled = 0;
+            CameraStackPop(camera->m_World, camera);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;

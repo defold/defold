@@ -3011,7 +3011,7 @@ namespace dmRender
 
         if (!lua_isnil(L, 1))
         {
-            camerea = CheckRenderCamera(L, 1, i->m_RenderContext);
+            camera = CheckRenderCamera(L, 1, i->m_RenderContext);
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_CAMERA, (uint64_t) camera)))
