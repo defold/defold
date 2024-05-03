@@ -68,8 +68,34 @@ namespace dmRender
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);
         if (c)
         {
-            c->m_View = view;
-            c->m_Projection = projection;
+            c->m_View           = view;
+            c->m_Projection     = projection;
+            c->m_ViewProjection = projection * view;
+        }
+    }
+
+    void SetRenderCameraMainCamera(HRenderContext render_context, HRenderCamera camera)
+    {
+        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        if (c)
+        {
+            for (int i = 0; i < render_context->m_RenderCameras.Capacity(); ++i)
+            {
+                RenderCamera* c_other = render_context->m_RenderCameras.GetByIndex(i);
+                if (c_other == NULL)
+                {
+                    continue;
+                }
+                if (c_other == c)
+                {
+                    c_other->m_IsMainCamera = 1;
+                    RenderScriptCameraSetMainCamera(c_other->m_URL);
+                }
+                else
+                {
+                    c_other->m_IsMainCamera = 0;
+                }
+            }
         }
     }
 

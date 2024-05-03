@@ -162,7 +162,8 @@ namespace dmRender
         return RESULT_OK;
     }
 
-    dmScript::HContext GetScriptContext(HRenderContext render_context) {
+    dmScript::HContext GetScriptContext(HRenderContext render_context)
+    {
         return render_context->m_ScriptContext;
     }
 
@@ -269,7 +270,6 @@ namespace dmRender
         // Unflushed leftovers are assumed to be the debug rendering
         // and we give them render orders statically here
         FlushTexts(render_context, RENDER_ORDER_AFTER_WORLD, 0xffffff, true);
-
     }
 
     void SetSystemFontMap(HRenderContext render_context, HFontMap font_map)
@@ -932,7 +932,7 @@ namespace dmRender
         {
             render_context->m_View       = render_context->m_CurrentRenderCamera->m_View;
             render_context->m_Projection = render_context->m_CurrentRenderCamera->m_Projection;
-            render_context->m_ViewProj   = render_context->m_Projection * render_context->m_View;
+            render_context->m_ViewProj   = render_context->m_CurrentRenderCamera->m_ViewProjection;
         }
 
         HMaterial material         = render_context->m_Material;

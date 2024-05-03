@@ -101,7 +101,6 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         luaL_register(L, LIB_NAME, ScriptCamera_methods);
-
         lua_pop(L, 1);
 
         assert(top == lua_gettop(L));

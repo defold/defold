@@ -339,7 +339,6 @@ namespace dmRender
         float            m_OrthographicZoom;
         uint8_t          m_AutoAspectRatio        : 1;
         uint8_t          m_OrthographicProjection : 1;
-        uint8_t          m_IsMainCamera           : 1;
     };
 
     /** Render cameras
@@ -351,6 +350,7 @@ namespace dmRender
     void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData data);
     void                            SetRenderCameraMatrices(HRenderContext render_context, HRenderCamera camera, const dmVMath::Matrix4 view, const dmVMath::Matrix4 projection);
     RenderCameraData                GetRenderCameraData(HRenderContext render_context, HRenderCamera camera);
+    void                            SetRenderCameraMainCamera(HRenderContext render_context, HRenderCamera camera);
 }
 
 #endif /* DM_RENDER_H */

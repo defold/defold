@@ -248,7 +248,9 @@ namespace dmRender
         HOpaqueHandle    m_Handle;
         dmVMath::Matrix4 m_View;
         dmVMath::Matrix4 m_Projection;
+        dmVMath::Matrix4 m_ViewProjection;
         RenderCameraData m_Data;
+        uint8_t          m_IsMainCamera : 1;
     };
 
     struct RenderContext
@@ -326,6 +328,7 @@ namespace dmRender
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
     RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
+    void          RenderScriptCameraSetMainCamera(const dmMessage::URL& camera_url);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

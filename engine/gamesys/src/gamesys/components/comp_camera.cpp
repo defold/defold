@@ -96,11 +96,10 @@ namespace dmGameSystem
             camera->m_Projection = Matrix4::perspective(camera_data.m_Fov, aspect_ratio, camera_data.m_NearZ, camera_data.m_FarZ);
         }
 
-        dmVMath::Quat rot  = dmGameObject::GetWorldRotation(camera->m_Instance);
-        Point3 look_at     = pos + dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
-        Vector3 up         = dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
-        camera->m_View = Matrix4::lookAt(pos, look_at, up);
-
+        dmVMath::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
+        Point3 look_at    = pos + dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+        Vector3 up        = dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
+        camera->m_View    = Matrix4::lookAt(pos, look_at, up);
         SetRenderCameraMatrices(render_context, camera->m_RenderCamera, camera->m_View, camera->m_Projection);
     }
 
@@ -192,6 +191,7 @@ namespace dmGameSystem
 
         SetRenderCameraURL(render_context, camera.m_RenderCamera, CameraToURL(&camera));
         SetRenderCameraData(render_context, camera.m_RenderCamera, camera_data);
+        SetRenderCameraMainCamera(render_context, camera.m_RenderCamera);
         CompCameraUpdateViewProjection(&camera, render_context);
 
         w->m_Cameras.Push(camera);
