@@ -2031,7 +2031,7 @@ bail:
             fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
             if (fact_error != dmResource::RESULT_OK)
             {
-                dmLogError("failed at input.gamepads");
+                dmLogError("failed at input.gamepads: %d", fact_error);
                 return false;
             }
             dmInput::RegisterGamepads(engine->m_InputContext, gamepad_maps_ddf);
