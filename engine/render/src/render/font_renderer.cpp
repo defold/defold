@@ -521,7 +521,7 @@ namespace dmRender
                 center_x += metrics.m_Width/2; // move halfway to the right since we're aligning left
             break;
             case TEXT_ALIGN_RIGHT:
-                center_x -= metrics.m_Height/2; // move halfway to the left from pivot since we're aligning right
+                center_x -= metrics.m_Width/2; // move halfway to the left from pivot since we're aligning right
             break;
             // nothing to do for TEXT_ALIGN_CENTER. Pivot is already at the center of the text X-wise
         }
