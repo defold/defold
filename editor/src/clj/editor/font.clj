@@ -162,7 +162,7 @@
       :defold)
     :distance-field))
 
-(defn- measure-line [glyphs text-tracking ^String line]
+(defn- measure-line [is-monospaced glyphs text-tracking ^String line]
   (let [w (transduce (comp
                        (map #(:advance (glyphs (int %)) 0.0))
                        (interpose text-tracking))
@@ -170,8 +170,10 @@
                      0.0
                      line)
         len (.length line)]
-    (if-let [last (get glyphs (and (pos? len) (int (.charAt line (dec len)))))]
-      (- (+ w (:left-bearing last) (:width last)) (:advance last))
+    (if (not is-monospaced)
+      (if-let [last (get glyphs (and (pos? len) (int (.charAt line (dec len)))))]
+        (- (+ w (:left-bearing last) (:width last)) (:advance last))
+        w)
       w)))
 
 (defn- split-text [glyphs ^String text line-break? max-width text-tracking]
@@ -274,7 +276,7 @@
            line-height (+ (:max-descent font-map) (:max-ascent font-map))
            text-tracking (* line-height text-tracking)
            lines (split-text glyphs text line-break? max-width text-tracking)
-           line-widths (map (partial measure-line glyphs text-tracking) lines)
+           line-widths (map (partial measure-line (:is-monospaced font-map) glyphs text-tracking) lines)
            max-width (reduce max 0 line-widths)]
        [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
 
@@ -301,7 +303,7 @@
             line-height (+ (:max-descent font-map) (:max-ascent font-map))
             text-tracking (* line-height text-tracking)
             lines (split-text glyphs text line-break? max-width text-tracking)
-            line-widths (mapv (partial measure-line glyphs text-tracking) lines)
+            line-widths (mapv (partial measure-line (:is-monospaced font-map) glyphs text-tracking) lines)
             max-width (reduce max 0 line-widths)]
         (assoc text-layout
                :width max-width
