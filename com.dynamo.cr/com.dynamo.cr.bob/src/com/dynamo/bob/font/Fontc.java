@@ -746,7 +746,10 @@ public class Fontc {
             }
 
             glyphBankBuilder.addGlyphs(glyphBuilder);
-            is_monospaced &= base_advance == glyph.advance;
+            if (base_advance != glyph.advance)
+            {
+                is_monospaced = false;
+            }
         }
         glyphBankBuilder.setIsMonospaced(is_monospaced);
         return previewImage;
