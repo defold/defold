@@ -83,6 +83,7 @@ namespace dmRender
     , m_CacheCellPadding(0)
     , m_LayerMask(FACE)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
+    , m_IsMonospaced(false)
     {
 
     }
@@ -111,6 +112,7 @@ namespace dmRender
         , m_CacheCellMaxAscent(0)
         , m_CacheCellPadding(0)
         , m_LayerMask(FACE)
+        , m_IsMonospaced(false)
         {
 
         }
@@ -162,6 +164,8 @@ namespace dmRender
         uint32_t                m_CacheCellMaxAscent;
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
+        uint8_t                 m_IsMonospaced:1;
+        uint8_t                 :7;
     };
 
     static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space);
@@ -235,6 +239,7 @@ namespace dmRender
         uint32_t cell_count = font_map->m_CacheColumns * font_map->m_CacheRows;
 
         font_map->m_CellTempData = (uint8_t*)malloc(font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4);
+        font_map->m_IsMonospaced = params.m_IsMonospaced;
 
         switch (params.m_GlyphChannels)
         {
@@ -325,6 +330,7 @@ namespace dmRender
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
         font_map->m_LayerMask = params.m_LayerMask;
+        font_map->m_IsMonospaced = params.m_IsMonospaced;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -1206,10 +1212,14 @@ namespace dmRender
         }
         if (n > 0 && 0 != last)
         {
-            uint32_t last_width = (measure_trailing_space && last->m_Character == ' ') ? (int16_t)last->m_Advance : last->m_Width;
-            float last_end_point = last->m_LeftBearing + last_width;
-            float last_right_bearing = last->m_Advance - last_end_point;
-            width = width - last_right_bearing - tracking;
+            if (!font_map->m_IsMonospaced) 
+            {
+                uint32_t last_width = (measure_trailing_space && last->m_Character == ' ') ? (int16_t)last->m_Advance : last->m_Width;
+                float last_end_point = last->m_LeftBearing + last_width;
+                float last_right_bearing = last->m_Advance - last_end_point;
+                width = width - last_right_bearing;
+            }
+            width -= tracking;
         }
 
         return width;

@@ -109,6 +109,7 @@ namespace dmGameSystem
         params.m_ImageFormat        = glyph_bank->m_ImageFormat;
         params.m_GlyphChannels      = glyph_bank->m_GlyphChannels;
         params.m_GlyphData          = glyph_bank->m_GlyphData.m_Data;
+        params.m_IsMonospaced       = glyph_bank->m_IsMonospaced;
 
         if (font_map == 0)
         {

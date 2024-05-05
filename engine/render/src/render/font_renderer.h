@@ -111,6 +111,8 @@ namespace dmRender
         uint32_t m_CacheCellMaxAscent;
         uint8_t m_CacheCellPadding;
         uint8_t m_LayerMask;
+        uint8_t m_IsMonospaced:1;
+        uint8_t :7;
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
     };
