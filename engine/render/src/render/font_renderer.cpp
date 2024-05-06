@@ -841,8 +841,8 @@ namespace dmRender
 
         for (int line = 0; line < line_count; ++line) {
             TextLine& l = lines[line];
-            int16_t x = (int16_t)(x_offset - OffsetX(te.m_Align, l.m_Width) + 0.5f);
-            int16_t y = (int16_t) (y_offset - line * leading + 0.5f);
+            float x = x_offset - OffsetX(te.m_Align, l.m_Width);
+            float y = y_offset - line * leading;
             const char* cursor = &text[l.m_Index];
             int n = l.m_Count;
             for (int j = 0; j < n; ++j)
@@ -1021,7 +1021,7 @@ namespace dmRender
                         vertexindex += vertices_per_quad;
                     }
                 }
-                x += (int16_t)(g->m_Advance + tracking);
+                x += g->m_Advance + tracking;
             }
         }
 
@@ -1207,8 +1207,7 @@ namespace dmRender
             }
 
             last = g;
-            // NOTE: We round advance here just as above in DrawText
-            width += (int16_t) (g->m_Advance + tracking);
+            width += g->m_Advance + tracking;
         }
         if (n > 0 && 0 != last)
         {
