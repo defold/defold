@@ -2182,6 +2182,47 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
+    static void OpenGLSetConstant(HContext context, dmGraphics::Type type, const uint8_t* data, int count, HUniformLocation base_location)
+    {
+        switch (type)
+        {
+            case TYPE_FLOAT:
+            {
+                glUniform1fv(base_location, count, (const float*) data);
+                CHECK_GL_ERROR;
+            } break;
+            case TYPE_FLOAT_VEC2:
+            {
+                glUniform2fv(base_location, count, (const GLfloat*) data);
+                CHECK_GL_ERROR;
+            } break;
+            case TYPE_FLOAT_VEC3:
+            {
+                glUniform3fv(base_location, count, (const GLfloat*) data);
+                CHECK_GL_ERROR;
+            } break;
+            case TYPE_FLOAT_VEC4:
+            {
+                glUniform4fv(base_location, count, (const GLfloat*) data);
+                CHECK_GL_ERROR;
+            } break;
+            case TYPE_FLOAT_MAT3:
+            {
+                glUniformMatrix3fv(base_location, count, false, (const GLfloat*) data);
+                CHECK_GL_ERROR;
+            } break;
+            case TYPE_FLOAT_MAT4:
+            {
+                glUniformMatrix4fv(base_location, count, false, (const GLfloat*) data);
+                CHECK_GL_ERROR;
+            } break;
+            default:
+                assert(0);
+                break;
+        }
+    }
+
+    /*
     static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
     {
         glUniform4fv(base_location, count, (const GLfloat*) data);
@@ -2193,6 +2234,7 @@ static void LogFrameBufferError(GLenum status)
         glUniformMatrix4fv(base_location, count, 0, (const GLfloat*) data);
         CHECK_GL_ERROR;
     }
+    */
 
     static void OpenGLSetSampler(HContext context, HUniformLocation location, int32_t unit)
     {

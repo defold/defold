@@ -157,7 +157,6 @@ namespace dmGraphics
         uint32_t m_StorageBufferCount;
         uint32_t m_TextureCount;
         uint32_t m_TotalUniformCount;
-        uint32_t m_UniformDataSize;
         uint32_t m_UniformDataSizeAligned;
         uint32_t m_MaxSet;
         uint32_t m_MaxBinding;

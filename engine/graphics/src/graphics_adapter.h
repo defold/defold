@@ -103,8 +103,9 @@ namespace dmGraphics
     typedef uint32_t (*GetUniformNameFn)(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     typedef uint32_t (*GetUniformCountFn)(HProgram prog);
     typedef HUniformLocation (* GetUniformLocationFn)(HProgram prog, const char* name);
-    typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
-    typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    typedef void (*SetConstantFn)(HContext context, Type type, const uint8_t* data, int count, HUniformLocation base_location);
+    // typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+    // typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     typedef void (*SetSamplerFn)(HContext context, HUniformLocation location, int32_t unit);
     typedef void (*SetViewportFn)(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
     typedef void (*EnableStateFn)(HContext context, State state);
@@ -212,8 +213,9 @@ namespace dmGraphics
         GetUniformNameFn m_GetUniformName;
         GetUniformCountFn m_GetUniformCount;
         GetUniformLocationFn m_GetUniformLocation;
-        SetConstantV4Fn m_SetConstantV4;
-        SetConstantM4Fn m_SetConstantM4;
+        SetConstantFn m_SetConstant;
+        //SetConstantV4Fn m_SetConstantV4;
+        //SetConstantM4Fn m_SetConstantM4;
         SetSamplerFn m_SetSampler;
         SetViewportFn m_SetViewport;
         EnableStateFn m_EnableState;
@@ -329,8 +331,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformName); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformCount); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformLocation); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetConstantV4); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetConstantM4); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetConstant); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetSampler); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetViewport); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableState); \

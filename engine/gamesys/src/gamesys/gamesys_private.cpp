@@ -227,7 +227,9 @@ namespace dmGameSystem
             {
                 if (constant_id == name_hash)
                 {
-                    if (var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4 &&
+                    if (var.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER &&
+                        var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3 &&
+                        var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4 &&
                         var.m_Type != dmGameObject::PROPERTY_TYPE_QUAT &&
                         var.m_Type != dmGameObject::PROPERTY_TYPE_MATRIX4)
                     {

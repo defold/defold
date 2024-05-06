@@ -20,6 +20,31 @@
 
 namespace dmRender
 {
+    static bool IsGraphicsTypeMatrix(dmGraphics::Type type)
+    {
+        return type == dmGraphics::TYPE_FLOAT_MAT2 ||
+               type == dmGraphics::TYPE_FLOAT_MAT3 ||
+               type == dmGraphics::TYPE_FLOAT_MAT4;
+    }
+
+    static bool IsConstantTypeSupported(dmGraphics::Type type)
+    {
+        return type == dmGraphics::TYPE_FLOAT      ||
+               type == dmGraphics::TYPE_FLOAT_VEC4 ||
+               type == dmGraphics::TYPE_FLOAT_MAT4 ||
+               type == dmGraphics::TYPE_FLOAT_VEC2 ||
+               type == dmGraphics::TYPE_FLOAT_VEC3 ||
+               type == dmGraphics::TYPE_FLOAT_MAT2 ||
+               type == dmGraphics::TYPE_FLOAT_MAT3;
+    }
+
+    static bool IsSamplerTypeSupported(dmGraphics::Type type)
+    {
+        return type == dmGraphics::TYPE_SAMPLER_2D ||
+               type == dmGraphics::TYPE_SAMPLER_CUBE ||
+               type == dmGraphics::TYPE_SAMPLER_2D_ARRAY;
+    }
+
     void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out)
     {
         uint32_t constants_count = 0;
@@ -35,17 +60,17 @@ namespace dmRender
             type = (dmGraphics::Type) -1;
             dmGraphics::GetUniformName(program, i, buffer, buffer_size, &type, &value_count);
 
-            if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
+            if (IsConstantTypeSupported(type))
             {
                 constants_count++;
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
+            else if (IsSamplerTypeSupported(type))
             {
                 samplers_count++;
             }
             else
             {
-                dmLogWarning("Type for uniform %s is not supported (%d)", buffer, type);
+                dmLogWarning("Type for uniform %s is not supported (%d) as a shader constant type.", buffer, type);
             }
         }
 
@@ -108,7 +133,8 @@ namespace dmRender
             // that wasn't used, but after the upgrade these unused uniforms will return -1
             // as location instead. The fix here is to avoid asserting on such values, but
             // not saving them in the m_Constants and m_NameHashToLocation structs.
-            if (location == dmGraphics::INVALID_UNIFORM_LOCATION) {
+            if (location == dmGraphics::INVALID_UNIFORM_LOCATION)
+            {
                 continue;
             }
 
@@ -144,17 +170,25 @@ namespace dmRender
                 continue;
             }
 
-            if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
+            if (IsConstantTypeSupported(type))
             {
                 name_hash_to_location.Put(name_hash, location);
 
                 HConstant render_constant = dmRender::NewConstant(name_hash);
                 dmRender::SetConstantLocation(render_constant, location);
+                render_constant->m_GraphicsType = type;
 
-                if (type == dmGraphics::TYPE_FLOAT_MAT4)
+                RenderConstant constant = {};
+                constant.m_Constant = render_constant;
+
+                if (IsGraphicsTypeMatrix(type))
                 {
                     num_values *= 4;
                     dmRender::SetConstantType(render_constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
+                }
+                else
+                {
+                    FillElementIds(buffer, buffer_size, constant.m_ElementIds);
                 }
 
                 // Set correct size of the constant (Until the shader builder provides all the default values)
@@ -166,24 +200,9 @@ namespace dmRender
                     memset(default_values, 0, default_values_capacity * sizeof(dmVMath::Vector4));
                 }
                 dmRender::SetConstantValues(render_constant, default_values, num_values);
-
-                RenderConstant constant;
-                constant.m_Constant = render_constant;
-
-                if (type == dmGraphics::TYPE_FLOAT_VEC4)
-                {
-                    FillElementIds(buffer, buffer_size, constant.m_ElementIds);
-                } else {
-                    // Clear element ids, otherwise we will compare against
-                    // uninitialized values in GetMaterialProgramConstantInfo.
-                    constant.m_ElementIds[0] = 0;
-                    constant.m_ElementIds[1] = 0;
-                    constant.m_ElementIds[2] = 0;
-                    constant.m_ElementIds[3] = 0;
-                }
                 constants.Push(constant);
             }
-            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE || type == dmGraphics::TYPE_SAMPLER_2D_ARRAY)
+            else if (IsSamplerTypeSupported(type))
             {
                 name_hash_to_location.Put(name_hash, location);
                 Sampler& s           = samplers[sampler_index];

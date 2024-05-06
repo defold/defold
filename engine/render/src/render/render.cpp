@@ -1052,6 +1052,38 @@ namespace dmRender
         return RESULT_OK;
     }
 
+    const float* PutFloatsIntoScratchBuffer(HRenderContext render_context,
+        const float* src_values,
+        uint32_t     src_values_x,
+        uint32_t     src_values_y,
+        uint32_t     dst_values_x,
+        uint32_t     dst_values_y,
+        uint32_t     array_length)
+    {
+        uint32_t num_values_scratch = dst_values_x * dst_values_y * array_length;
+
+        if (render_context->m_SetConstantScratchBuffer.Capacity() < num_values_scratch)
+        {
+            render_context->m_SetConstantScratchBuffer.SetCapacity(num_values_scratch);
+            render_context->m_SetConstantScratchBuffer.SetSize(num_values_scratch);
+        }
+
+        float* scratch_begin = render_context->m_SetConstantScratchBuffer.Begin();
+        float* dst_write = scratch_begin;
+        float* src_read = (float*) src_values;
+
+        for (int v = 0; v < array_length; ++v)
+        {
+            for (int y = 0; y < dst_values_y; ++y)
+            {
+                float* src_row = src_read + y * src_values_x + v * src_values_x * src_values_y;
+                memcpy(dst_write, src_row, dst_values_x * sizeof(float));
+                dst_write += dst_values_x;
+            }
+        }
+        return scratch_begin;
+    }
+
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options)
     {
         if (!context->m_DebugRenderer.m_RenderContext) {

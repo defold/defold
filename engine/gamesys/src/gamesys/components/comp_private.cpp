@@ -410,12 +410,15 @@ static dmRender::HConstant FindOrCreateConstant(HComponentRenderConstants consta
     uint32_t num_values;
     dmVMath::Vector4* values = dmRender::GetConstantValues(material_constant, &num_values);
     dmRenderDDF::MaterialDesc::ConstantType constant_type = dmRender::GetConstantType(material_constant);
+    dmRender::SetConstantGraphicsType(constant, dmRender::GetConstantGraphicsType(material_constant));
 
     if (values)
     {
         dmRender::SetConstantValues(constant, values, num_values);
         dmRender::SetConstantType(constant, constant_type);
-    } else {
+    }
+    else
+    {
         if (constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
         {
             dmVMath::Matrix4 zero(0.0f);
@@ -480,9 +483,32 @@ void SetRenderConstant(HComponentRenderConstants constants, dmRender::HMaterial 
     else
     {
         if (element_index == 0x0)
-            *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+        {
+            dmGraphics::Type type = dmRender::GetConstantGraphicsType(constant);
+
+            switch(type)
+            {
+            case dmGraphics::TYPE_FLOAT:
+                v->setElem(0, (float)var.m_Number);
+                break;
+            case dmGraphics::TYPE_FLOAT_VEC2:
+                *v = Vector4(var.m_V4[0], var.m_V4[1], 0, 0);
+                break;
+            case dmGraphics::TYPE_FLOAT_VEC3:
+                *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], 0);
+                break;
+            case dmGraphics::TYPE_FLOAT_VEC4:
+                *v = Vector4(var.m_V4[0], var.m_V4[1], var.m_V4[2], var.m_V4[3]);
+                break;
+            default:
+                dmLogError("Setting a constant with type %s is not supported.", dmGraphics::GetGraphicsTypeLiteral(type));
+                break;
+            }
+        }
         else
+        {
             v->setElem(*element_index, (float)var.m_Number);
+        }
     }
 
     UpdateChecksums(constants, name_hash, values, num_values);

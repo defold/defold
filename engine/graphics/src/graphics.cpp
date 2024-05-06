@@ -367,11 +367,11 @@ namespace dmGraphics
         }
         else if (type == dmGraphics::TYPE_FLOAT_MAT2)
         {
-            return 2 * 4 * 4;
+            return 2 * 2 * 4;
         }
         else if (type == dmGraphics::TYPE_FLOAT_MAT3)
         {
-            return 3 * 4 * 4;
+            return 3 * 3 * 4;
         }
         else if (type == dmGraphics::TYPE_FLOAT_MAT4)
         {
@@ -1386,6 +1386,11 @@ namespace dmGraphics
     {
         return g_functions.m_GetUniformLocation(prog, name);
     }
+    void SetConstant(HContext context, Type type, const uint8_t* data, int count, HUniformLocation base_location)
+    {
+        g_functions.m_SetConstant(context, type, data, count, base_location);
+    }
+    /*
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {
         g_functions.m_SetConstantV4(context, data, count, base_location);
@@ -1394,6 +1399,7 @@ namespace dmGraphics
     {
         g_functions.m_SetConstantM4(context, data, count, base_location);
     }
+    */
     void SetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
         g_functions.m_SetSampler(context, location, unit);
