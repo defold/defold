@@ -259,11 +259,6 @@ namespace dmGameSystem
         return result;
     }
 
-    void CreateOverrides(SpriteComponent* component)
-    {
-        component->m_Overrides = new SpriteResourceOverrides;
-    }
-
     void DeleteOverrides(dmResource::HFactory factory, SpriteComponent* component)
     {
         SpriteResourceOverrides* overrides = component->m_Overrides;
@@ -417,7 +412,7 @@ namespace dmGameSystem
     static inline TextureSetResource* GetTextureSet(const SpriteComponent* component, uint32_t index) {
         const SpriteResourceOverrides* overrides = component->m_Overrides;
         const SpriteTexture* texture = 0;
-        if (overrides && !overrides->m_Textures.Empty())
+        if (overrides && index < overrides->m_Textures.Size())
             texture = &overrides->m_Textures[index];
         if (!texture || !texture->m_TextureSet)
             texture = &component->m_Resource->m_Textures[index];
@@ -435,7 +430,7 @@ namespace dmGameSystem
             return 0;
 
         const SpriteResourceOverrides* overrides = component->m_Overrides;
-        if (overrides)
+        if (overrides && texture_unit < overrides->m_Textures.Size())
         {
             if (overrides->m_Textures[texture_unit].m_TextureSet)
                 return overrides->m_Textures[texture_unit].m_TextureSet->m_Texture;
