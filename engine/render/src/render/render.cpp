@@ -109,6 +109,7 @@ namespace dmRender
         context->m_SystemFontMap = params.m_SystemFontMap;
 
         context->m_Material = 0;
+        context->m_CurrentRenderCamera = 0;
 
         context->m_View = Matrix4::identity();
         context->m_Projection = Matrix4::identity();
@@ -804,11 +805,21 @@ namespace dmRender
         // The sort order is also one below the Texts flush which is only also debug stuff.
         FlushDebug(context, 0xfffffe);
 
+        // Q: Do we want to store the old matrices here before overwriting them?
+        if (context->m_CurrentRenderCamera)
+        {
+            context->m_View       = context->m_CurrentRenderCamera->m_View;
+            context->m_Projection = context->m_CurrentRenderCamera->m_Projection;
+            context->m_ViewProj   = context->m_CurrentRenderCamera->m_ViewProjection;
+        }
+
         // Cleared once per frame
         if (context->m_RenderListRanges.Empty())
         {
             SortRenderList(context);
         }
+
+        // TODO: There is no connection between render cameras and frustum currently
 
         dmhash_t frustum_hash = frustum_hash = frustum_options ? dmHashBuffer64((const void*)&frustum_options->m_Matrix, 16*sizeof(float)) : 0;
         if (context->m_FrustumHash != frustum_hash)
@@ -926,14 +937,6 @@ namespace dmRender
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
-
-        // Do we want to store the old matrices here before overwriting them?
-        if (render_context->m_CurrentRenderCamera)
-        {
-            render_context->m_View       = render_context->m_CurrentRenderCamera->m_View;
-            render_context->m_Projection = render_context->m_CurrentRenderCamera->m_Projection;
-            render_context->m_ViewProj   = render_context->m_CurrentRenderCamera->m_ViewProjection;
-        }
 
         HMaterial material         = render_context->m_Material;
         HMaterial context_material = render_context->m_Material;

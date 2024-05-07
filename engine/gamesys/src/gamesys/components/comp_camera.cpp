@@ -269,7 +269,7 @@ namespace dmGameSystem
         uint32_t num_cameras = camera_world->m_CameraStack.Size();
         for (int i = 0; i < num_cameras; ++i)
         {
-            CameraComponent* camera = camera_world->m_CameraStack[i];
+            CameraComponent* camera = camera_world->m_CameraStack[num_cameras - i - 1];
             if (!camera->m_AddedToUpdate)
                 continue;
 
