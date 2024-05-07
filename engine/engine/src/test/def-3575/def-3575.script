@@ -56,7 +56,7 @@ function update(self, dt)
     local function test_label_bitmap()
         local metrics_valid = {
             max_ascent  = 13,
-            width       = 768,
+            width       = 774,
             height      = 17,
             max_descent = 4
         }
@@ -67,7 +67,7 @@ function update(self, dt)
     local function test_label_df()
         local metrics_valid ={
               max_ascent = 13,
-              width = 768,
+              width = 775,
               height = 17,
               max_descent = 4,
         }

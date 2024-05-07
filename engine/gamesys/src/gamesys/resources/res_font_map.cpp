@@ -110,7 +110,7 @@ namespace dmGameSystem
         params.m_GlyphChannels      = glyph_bank->m_GlyphChannels;
         params.m_GlyphData          = glyph_bank->m_GlyphData.m_Data;
         params.m_IsMonospaced       = glyph_bank->m_IsMonospaced;
-        params.m_AApadding          = glyph_bank->m_AaPadding;
+        params.m_Padding          = glyph_bank->m_Padding;
 
         if (font_map == 0)
         {
