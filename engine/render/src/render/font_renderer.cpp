@@ -751,7 +751,7 @@ namespace dmRender
         float x_offset = OffsetX(te.m_Align, te.m_Width);
         if (font_map->m_IsMonospaced)
         {
-            x_offset -= font_map->m_Padding;
+            x_offset -= font_map->m_Padding * 0.5f;
         }
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
