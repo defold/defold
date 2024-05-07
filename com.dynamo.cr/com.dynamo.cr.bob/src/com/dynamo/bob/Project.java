@@ -1446,6 +1446,10 @@ public class Project {
                             .map(this::getResource)
                             .collect(Collectors.toList());
                     if (!sources.isEmpty()) {
+                        // We transpile to lua from the project dir only if all the source code files exist on disc. Since
+                        // some source file may come as dependencies in zip archives, the transpiler will not be able to
+                        // transpile them. In this situation, we extract all source files to a temporary folder. Similar
+                        // logic is implemented in editor in editor.code.transpilers/produce-build-output function
                         boolean useProjectDir = buildFileResource instanceof DefaultResource && sources.stream().allMatch(s -> s instanceof DefaultResource);
                         File sourceDir;
                         if (useProjectDir) {

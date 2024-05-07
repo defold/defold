@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty?])
+  (:refer-clojure :exclude [bounded-count empty? some])
   (:import [clojure.lang IEditableCollection MapEntry]
            [java.util ArrayList]))
 
@@ -260,3 +260,12 @@
        (nil? input) result
        (sequential? input) (reduce (preserving-reduced xf) result input)
        :else (rf result input)))))
+
+(defn some
+  "Like clojure.core/some, but uses reduce instead of lazy sequences"
+  [pred coll]
+  (reduce (fn [_ v]
+            (when-let [ret (pred v)]
+              (reduced ret)))
+          nil
+          coll))

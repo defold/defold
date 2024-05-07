@@ -299,3 +299,11 @@
               [[]]
               [[:stop
                 (repeatedly #(throw (Exception. "Should not be reduced!")))]]])))))
+
+(deftest some-test
+  (testing "some behavior"
+    (are [pred coll ret] (= ret (some pred coll) (coll/some pred coll))
+      #{100} (range 1000) 100
+      #(= % 100) (range 1000) true
+      #(= % 100) (range 50) nil
+      #(= % 100) [] nil)))

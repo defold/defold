@@ -25,8 +25,8 @@ import java.util.Objects;
 public interface ILuaTranspiler {
 
     /**
-     * @return A resource path to a build file, a project-relative path starting with slash,
-     * e.g. {@code "/tlconfig.lua"}
+     * @return A resource path to a build file, i.e. a file that configures the transpiler;
+     * a project-relative path starting with slash, e.g. {@code "/tlconfig.lua"}
      */
     String getBuildFileResourcePath();
 
@@ -39,8 +39,14 @@ public interface ILuaTranspiler {
     /**
      * Build the project from the source dir to output dir
      *
-     * @param pluginDir a dir inside the project root that contains unpacked plugins that may be
-     *                  used for compilation (i.e. transpiler binaries)
+     * @param pluginDir a build plugins dir inside the project root that contains unpacked plugins
+     *                  from all project extensions, useful for distributing and using transpiler
+     *                  binaries. When directory is a native extension (i.e. has {@code "ext.manifest"}
+     *                  file), even if it comes from a dependency, files from
+     *                  {@code "${ext-dir}/plugins/bin/${platform}/"} (or {@code "${ext-dir}/plugins/bin/${platform}.zip"})
+     *                  will be extracted to the plugin dir, and then may be subsequently accessed (and
+     *                  executed) using this path, e.g. with {@code new File(pluginDir, "my-transpiler-lib/plugins/bin/"
+     *                  + Platform.getHostPlatform().getPair() + "/my-transpiler.exe")}
      * @param sourceDir a dir that is guaranteed to have all the source code files as reported
      *                  by {@link #getSourceExt()}, and a build file, as reported by
      *                  {@link #getBuildFileResourcePath()}. This might be a real project dir,
@@ -49,8 +55,9 @@ public interface ILuaTranspiler {
      * @param outputDir a dir to put the transpiled lua files to. All lua files from the
      *                  directory will be compiled as a part of the project compilation. The
      *                  directory is preserved over editor/bob transpiler runs and editor restarts,
-     *                  so it's a responsibility of the transpiler to clear it from the old files
-     * @return a possibly empty or nullable list of build issues
+     *                  so it's a responsibility of the transpiler to clear out unneeded files from
+     *                  previous runs
+     * @return a possibly empty (but not nullable!) list of build issues
      */
     List<Issue> transpile(File pluginDir, File sourceDir, File outputDir) throws Exception;
 

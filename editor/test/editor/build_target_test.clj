@@ -184,12 +184,10 @@
   (build/resolve-dependencies
     (->> (g/node-value project :nodes-by-resource-path)
          (sort-by key)
-         (->Eduction
-           (comp
-             (map val)
-             (map build-targets-or-error)
-             (remove g/error?)
-             (remove empty?))))
+         (map val)
+         (map build-targets-or-error)
+         (remove g/error?)
+         (remove empty?))
     project))
 
 (defn- build-target-content-hashes-by-path [project]

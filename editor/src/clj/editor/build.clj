@@ -86,7 +86,7 @@
                         (if-let [resolved (.get seen content-hash)]
                           resolved
                           (let [result
-                                (if (reduce #(if (identical? %2 build-target) (reduced true) %1) false stack)
+                                (if (coll/some #(identical? build-target %) stack)
                                   (let [cycle (into []
                                                     (comp
                                                       (drop-while #(not (identical? % build-target)))
@@ -177,5 +177,5 @@
         build-targets (resolve-dependencies [node-build-targets extra-build-targets] project evaluation-context)]
     (if (g/error? build-targets)
       {:error build-targets}
-      (let [build-dir (workspace/build-path (project/workspace project))]
+      (let [build-dir (workspace/build-path (project/workspace project evaluation-context))]
         (pipeline/build! build-targets build-dir old-artifact-map (progress/nest-render-progress render-progress! (progress/make "" 10 5) 5))))))

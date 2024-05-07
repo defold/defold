@@ -114,6 +114,7 @@
                    :language "lua"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
@@ -122,6 +123,7 @@
                    :language "lua"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}
@@ -129,6 +131,7 @@
                    :language "lua"
                    :label "Gui Script"
                    :icon "icons/32/Icons_12-Script-type.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}
@@ -136,6 +139,7 @@
                    :language "lua"
                    :label "Lua Module"
                    :icon "icons/32/Icons_11-Script-general.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}])

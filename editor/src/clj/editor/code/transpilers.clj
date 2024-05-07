@@ -77,6 +77,11 @@
           use-project-dir (every? (fn [{:keys [resource dirty?]}]
                                     (and (not dirty?) (resource/file-resource? resource)))
                                   all-sources)
+          ;; We transpile to lua from the project dir only if all the source code files exist on disc. Since
+          ;; some source file may come as dependencies in zip archives or modified in memory without saving
+          ;; to disc, the transpiler will not be able to transpile them. In this situation, we extract all
+          ;; source files to a temporary folder. Similar logic is implemented in bob in
+          ;; com.dynamo.bob.Project::transpileLua method
           source-dir (if use-project-dir
                        (io/file root)
                        (make-temporary-compile-directory! instance all-sources))
@@ -91,7 +96,10 @@
               (into {}
                     (keep
                       (fn [^File file]
-                        (when (= "lua" (FilenameUtils/getExtension (.getName file)))
+                        (when (= "lua" (string/lower-case (FilenameUtils/getExtension (.getName file))))
+                          ;; If transpiler emits invalid lua file, the build process will return
+                          ;; a build error that points to a lua file that does not exist in the
+                          ;; resource tree
                           (let [resource (resource/make-file-resource workspace (str output-dir) file [] (constantly false))
                                 build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) lua-preprocessors [] [] proj-path->node-id)]
                             (pair (resource/proj-path resource) build-targets)))))
@@ -130,7 +138,7 @@
               (pair-map-by :build-file-proj-path :_node-id transpiler-infos))))
   (output build-output g/Any :cached
           (g/fnk [build-outputs]
-            (persistent! (reduce conj! (transient {}) build-outputs)))))
+            (into {} build-outputs))))
 
 (g/defnode SourceNode
   (inherits r/CodeEditorResourceNode))
@@ -220,6 +228,7 @@
                   workspace
                   :ext source-ext
                   :icon "icons/32/Icons_12-Script-type.png"
+                  :icon-class :script
                   :node-type SourceNode
                   :view-types [:code :default]
                   :additional-load-fn (fn [_ self _]

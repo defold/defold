@@ -89,9 +89,7 @@
 
 (defn error-aggregate
   ([es]
-   (let [max-severity (->> es
-                           (->Eduction (keep :severity))
-                           (reduce #(max-key severity-levels %1 %2) :info))]
+   (let [max-severity (transduce (keep :severity) (completing #(max-key severity-levels %1 %2)) :info es)]
      (map->ErrorValue {:severity max-severity :causes (vec es)})))
   ([es & kvs]
    (apply assoc (error-aggregate es) kvs)))

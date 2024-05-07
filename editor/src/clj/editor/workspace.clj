@@ -235,6 +235,8 @@ ordinary paths."
                         (a save value) to string
     :icon               classpath path to an icon image or project resource path
                         string; default \"icons/32/Icons_29-AT-Unknown.png\"
+    :icon-class         either :design, :script or :property, controls the
+                        resource icon color in UI
     :view-types         vector of alternative views that can be used for
                         resources of the resource type, e.g. :code, :scene,
                         :cljfx-form-view, :text, :html or :default.
@@ -261,7 +263,8 @@ ordinary paths."
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template test-info label stateless? auto-connect-save-data?]}]
+  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon icon-class view-types view-opts tags tag-opts template test-info label stateless? auto-connect-save-data?]}]
+  {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
   (let [editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)
         resource-type {:textual? textual
@@ -277,6 +280,7 @@ ordinary paths."
                        :read-raw-fn (or read-raw-fn read-fn)
                        :sanitize-fn sanitize-fn
                        :icon icon
+                       :icon-class icon-class
                        :view-types (mapv (partial get-view-type workspace) view-types)
                        :view-opts view-opts
                        :tags tags
