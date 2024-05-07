@@ -59,7 +59,7 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmGamesysDDF::AcquireCameraFocus msg;
-        dmMessage::Post(&sender, &receiver, dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, 
+        dmMessage::Post(&sender, &receiver, dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor->m_NameHash, (uintptr_t)instance,
             0, (uintptr_t)dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
@@ -83,7 +83,7 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
         dmGamesysDDF::ReleaseCameraFocus msg;
-        dmMessage::Post(&sender, &receiver, dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, 
+        dmMessage::Post(&sender, &receiver, dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor->m_NameHash, (uintptr_t)instance,
             0, (uintptr_t)dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }

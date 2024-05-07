@@ -3028,7 +3028,7 @@ namespace dmRender
 
         RenderCamera* camera = 0x0;
 
-        if (!lua_isnil(L, 1))
+        if (lua_gettop(L) > 0 && !lua_isnil(L, 1))
         {
             camera = CheckRenderCamera(L, 1, i->m_RenderContext);
         }

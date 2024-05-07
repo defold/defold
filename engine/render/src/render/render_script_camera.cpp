@@ -18,6 +18,15 @@
 
 namespace dmRender
 {
+    /*# Camera API documentation
+     *
+     * Camera functions, messages and constants.
+     *
+     * @document
+     * @name Camera
+     * @namespace camera
+     */
+    #define RENDER_SCRIPT_CAMERA_MAIN
     #define RENDER_SCRIPT_CAMERA_LIB_NAME           "camera"
     #define RENDER_SCRIPT_CAMERA_MAIN_NAME          "CameraMain"
     #define RENDER_SCRIPT_CAMERA_MAIN_PROPERTY_NAME "MAIN"
@@ -66,6 +75,22 @@ namespace dmRender
         return camera;
     }
 
+    /*# get all camera URLs
+    * This function returns a table with all the camera URLs that have been
+    * registered in the render context.
+    *
+    * @name camera.get_cameras
+    * @return cameras [type:table] a table with all camera URLs
+    *
+    * @examples
+    * ```lua
+    * for k,v in pairs(camera.get_cameras()) do
+    *     render.set_camera(v)
+    *     render.draw(...)
+    *     render.set_camera()
+    * end
+    * ```
+    */
     static int RenderScriptCamera_GetCameras(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -90,6 +115,54 @@ namespace dmRender
         return 1;
     }
 
+    /*# get camera info
+    * Get the info for a specific camera by URL. The result is a table with the following fields:
+    *
+    * `url`
+    * : [type:url] the URL of the camera.
+    *
+    * `projection`
+    * : [type:vmath.matrix4] the projection matrix.
+    *
+    * `view`
+    * : [type:vmath.matrix4] the view matrix.
+    *
+    * `viewport`
+    * : [type:vmath.vector4] the viewport.
+    *
+    * `handle`
+    * : [type:number] the handle of the camera.
+    *
+    * `main_camera`
+    * : [type:boolean] true if this is the main camera.
+    *
+    * `fov`
+    * : [type:number] the field of view.
+    *
+    * `aspect_ratio`
+    * : [type:number] the aspect ratio.
+    *
+    * `near_z`
+    * : [type:number] the near z.
+    *
+    * `far_z`
+    * : [type:number] the far z.
+    *
+    * `orthographic_projection`
+    * : [type:boolean] true if the camera is using an orthographic projection.
+    *
+    * `auto_aspect_ratio`
+    * : [type:boolean] true if the camera is using an automatic aspect ratio.
+    *
+    * @name camera.get_cameras
+    * @return cameras [type:table] a table with all camera URLs
+    *
+    * @examples
+    * ```lua
+    * local info = camera.get_info("main:/my_go#camera")
+    * render.set_camera(info.handle)
+    * ```
+    */
     static int RenderScriptCamera_GetInfo(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -143,6 +216,9 @@ namespace dmRender
         return 1;
     }
 
+    // This is called when getting a property on the camera module.
+    // If the 'MAIN' property is called, we return the URL to the current main camera.
+    // Otherwise, we just return the tble entry.
     static int RenderScriptCamera_index(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -158,6 +234,10 @@ namespace dmRender
         return 1;
     }
 
+    // This is called when setting a property on the camera module.
+    // A user can change the main camera property by setting the MAIN property
+    // to a different camera URL. In that case we check that the URL is an actual
+    // valid camera.
     static int RenderScriptCamera_newindex(lua_State* L)
     {
         // Stack:
@@ -169,7 +249,7 @@ namespace dmRender
         if (strcmp(key, RENDER_SCRIPT_CAMERA_MAIN_PROPERTY_NAME) == 0)
         {
             RenderCamera* camera = CheckRenderCamera(L, 3, g_RenderScriptCameraModule.m_RenderContext);
-            g_RenderScriptCameraModule.m_MainCameraURL = camera->m_URL;
+            RenderScriptCameraSetMainCamera(camera->m_URL);
         }
         lua_rawset(L, -3); // -2 (set table[key] = value)
         lua_pop(L, 1);     // -1 (pop table)
@@ -199,6 +279,13 @@ namespace dmRender
     {
         g_RenderScriptCameraModule.m_MainCameraURL = camera_url;
     }
+
+    /*# Main camera URL
+     * The URL of the main camera. If set, this changes what is considered the current main camera.
+     *
+     * @name camera.MAIN
+     * @variable
+     */
 
     void InitializeRenderScriptCameraContext(HRenderContext render_context, dmScript::HContext script_context)
     {
