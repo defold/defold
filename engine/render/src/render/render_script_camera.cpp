@@ -127,9 +127,6 @@ namespace dmRender
     * `view`
     * : [type:vmath.matrix4] the view matrix.
     *
-    * `viewport`
-    * : [type:vmath.vector4] the viewport.
-    *
     * `handle`
     * : [type:number] the handle of the camera.
     *
@@ -185,9 +182,14 @@ namespace dmRender
         lua_pushnumber(L, camera->m_Handle);
         lua_settable(L, -3);
 
+        // TODO: Since we don't have any way of changing this (yet), we don't expose it.
+        //       The idea is to use a normalized viewport vector that can be set though the API
+        //       and via the editor, but it is the next part of this feature.
+        /*
         lua_pushstring(L, "viewport");
         dmScript::PushVector4(L, camera->m_Data.m_Viewport);
         lua_settable(L, -3);
+        */
 
         lua_pushstring(L, "main_camera");
         lua_pushboolean(L, camera->m_IsMainCamera);
