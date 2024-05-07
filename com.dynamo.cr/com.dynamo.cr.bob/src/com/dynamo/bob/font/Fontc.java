@@ -752,6 +752,7 @@ public class Fontc {
             }
         }
         glyphBankBuilder.setIsMonospaced(is_monospaced);
+        glyphBankBuilder.setAaPadding(padding);
         return previewImage;
 
     }

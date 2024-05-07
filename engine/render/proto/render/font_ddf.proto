@@ -77,7 +77,8 @@ message GlyphBank
     optional uint32            cache_cell_height     = 15;
     optional uint32            cache_cell_max_ascent = 16;
 
-    optional bool              is_monospaced         = 17 [default = false];
+    optional uint32            aa_padding            = 17 [default = 0];
+    optional bool              is_monospaced         = 18 [default = false];
 }
 
 message FontMap

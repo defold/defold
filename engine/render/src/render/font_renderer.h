@@ -112,7 +112,8 @@ namespace dmRender
         uint8_t m_CacheCellPadding;
         uint8_t m_LayerMask;
         uint8_t m_IsMonospaced:1;
-        uint8_t :7;
+        uint8_t m_AApadding:4;
+        uint8_t :3;
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
     };

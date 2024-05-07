@@ -84,6 +84,7 @@ namespace dmRender
     , m_LayerMask(FACE)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
     , m_IsMonospaced(false)
+    , m_AApadding(0)
     {
 
     }
@@ -113,6 +114,7 @@ namespace dmRender
         , m_CacheCellPadding(0)
         , m_LayerMask(FACE)
         , m_IsMonospaced(false)
+        , m_AApadding(0)
         {
 
         }
@@ -165,7 +167,8 @@ namespace dmRender
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
         uint8_t                 m_IsMonospaced:1;
-        uint8_t                 :7;
+        uint8_t                 m_AApadding:4;
+        uint8_t                 :3;
     };
 
     static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space);
@@ -240,6 +243,7 @@ namespace dmRender
 
         font_map->m_CellTempData = (uint8_t*)malloc(font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4);
         font_map->m_IsMonospaced = params.m_IsMonospaced;
+        font_map->m_AApadding = params.m_AApadding;
 
         switch (params.m_GlyphChannels)
         {
@@ -331,6 +335,7 @@ namespace dmRender
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
         font_map->m_LayerMask = params.m_LayerMask;
         font_map->m_IsMonospaced = params.m_IsMonospaced;
+        font_map->m_AApadding = params.m_AApadding;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -745,6 +750,10 @@ namespace dmRender
         float layout_width;
         int line_count = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
         float x_offset = OffsetX(te.m_Align, te.m_Width);
+        if (font_map->m_IsMonospaced)
+        {
+            x_offset -= font_map->m_AApadding;
+        }
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
         const Vector4 face_color    = dmGraphics::UnpackRGBA(te.m_FaceColor);
