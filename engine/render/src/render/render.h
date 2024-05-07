@@ -136,8 +136,19 @@ namespace dmRender
         uint32_t                        m_MaxDebugVertexCount;
     };
 
+    struct RenderCameraData
+    {
+        dmVMath::Vector4 m_Viewport;
+        float            m_AspectRatio;
+        float            m_Fov;
+        float            m_NearZ;
+        float            m_FarZ;
+        float            m_OrthographicZoom;
+        uint8_t          m_AutoAspectRatio        : 1;
+        uint8_t          m_OrthographicProjection : 1;
+    };
+
     static const uint8_t RENDERLIST_INVALID_DISPATCH    = 0xff;
-    static const uint16_t INVALID_RENDER_CAMERA         = 0xffff;
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0ULL;
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
@@ -329,20 +340,11 @@ namespace dmRender
     void                            TrimBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     void                            RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
 
-    struct RenderCameraData
-    {
-        dmVMath::Vector4 m_Viewport;
-        float            m_AspectRatio;
-        float            m_Fov;
-        float            m_NearZ;
-        float            m_FarZ;
-        float            m_OrthographicZoom;
-        uint8_t          m_AutoAspectRatio        : 1;
-        uint8_t          m_OrthographicProjection : 1;
-    };
-
     /** Render cameras
-     * TODO: Description
+     * A render camera is a wrapper around common camera properties such as fov, near and far planes, viewport and aspect ratio.
+     * Within the engine, the render cameras are "owned" by the renderer, but they can be manipulated elsewhere.
+     * The render script can set current camera used for rendering by using render.set_camera(...), which will automatically
+     * take precedence over the view and projection matrices set by render.set_view() and render.set_projection().
      */
     HRenderCamera                   NewRenderCamera(HRenderContext context);
     void                            DeleteRenderCamera(HRenderContext context, HRenderCamera camera);

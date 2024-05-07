@@ -229,6 +229,8 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    // Deprecated: All camera components are already available in the render script, so there's no need to post this.
+    //             But we currently do so anyway for backwards compatibility.
     static bool PostRenderScriptSetViewProjectionMsg(CameraComponent* camera, const dmMessage::URL& camera_url)
     {
         dmGameSystemDDF::SetViewProjection set_view_projection;
@@ -263,7 +265,7 @@ namespace dmGameSystem
 
         dmRender::RenderContext* render_context = (dmRender::RenderContext*) params.m_Context;
 
-        // Update the cameras in order of first created - last created
+        // Update the cameras based on stack ordering. This is usually the order of which the components were created.
         uint32_t num_cameras = camera_world->m_CameraStack.Size();
         for (int i = 0; i < num_cameras; ++i)
         {

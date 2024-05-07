@@ -32,20 +32,36 @@ namespace dmRender
 
     RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context)
     {
-        dmMessage::URL url;
-        if (dmScript::ResolveURL(L, index, &url, 0) != dmMessage::RESULT_OK)
-        {
-            luaL_error(L, "Could not resolve URL.");
-            return 0;
-        }
+        RenderCamera* camera = 0x0;
 
-        RenderCamera* camera = GetRenderCameraByUrl(g_RenderScriptCameraModule.m_RenderContext, url);
-        if (camera == 0x0)
+        if(lua_isnumber(L, index))
         {
-            char buffer[256];
-            dmScript::UrlToString(&url, buffer, sizeof(buffer));
-            luaL_error(L, "Camera '%s' not found.", buffer);
-            return 0;
+            HRenderCamera h_camera = (HRenderCamera) lua_tonumber(L, index);
+            camera = render_context->m_RenderCameras.Get(h_camera);
+
+            if (!camera)
+            {
+                luaL_error(L, "Invalid handle.");
+                return 0;
+            }
+        }
+        else
+        {
+            dmMessage::URL url;
+            if (dmScript::ResolveURL(L, index, &url, 0) != dmMessage::RESULT_OK)
+            {
+                luaL_error(L, "Could not resolve URL.");
+                return 0;
+            }
+
+            camera = GetRenderCameraByUrl(g_RenderScriptCameraModule.m_RenderContext, url);
+            if (camera == 0x0)
+            {
+                char buffer[256];
+                dmScript::UrlToString(&url, buffer, sizeof(buffer));
+                luaL_error(L, "Camera '%s' not found.", buffer);
+                return 0;
+            }
         }
         return camera;
     }
@@ -90,6 +106,10 @@ namespace dmRender
 
         lua_pushstring(L, "view");
         dmScript::PushMatrix4(L, camera->m_View);
+        lua_settable(L, -3);
+
+        lua_pushstring(L, "handle");
+        lua_pushnumber(L, camera->m_Handle);
         lua_settable(L, -3);
 
         lua_pushstring(L, "viewport");

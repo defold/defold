@@ -274,20 +274,15 @@ namespace dmRender
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
         dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
-        RenderCamera*                         m_CurrentRenderCamera;
+        RenderCamera*                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
         HFontMap                    m_SystemFontMap;
-
         Matrix4                     m_View;
         Matrix4                     m_Projection;
         Matrix4                     m_ViewProj;
-
         dmGraphics::HContext        m_GraphicsContext;
-
         HMaterial                   m_Material;
-
         dmMessage::HSocket          m_Socket;
-
         uint32_t                    m_OutOfResources         : 1;
         uint32_t                    m_StencilBufferCleared   : 1;
         uint32_t                    m_MultiBufferingRequired : 1;

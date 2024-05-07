@@ -3002,6 +3002,25 @@ namespace dmRender
             return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*# sets the current render camera to be used for rendering
+     * Sets the current render camera to be used for rendering. If a render camera
+     * has been set by the render script, the renderer will be using its projection and view matrix
+     * during rendering. If a projection and/or view matrix has been set by the render script, 
+     * they will not be used until the current render camera has been reset by calling `render.set_camera(nil)`
+     *
+     * @name render.set_camera
+     * @param camera_id [type:url|handle|nil] camera id to use, or nil to reset
+     *
+     * @examples
+     *
+     * Set the current camera to be used for rendering
+     *
+     * ```lua
+     * render.set_camera("main:/my_go#camera")
+     * render.draw(self.my_pred)
+     * render.set_camera(nil)
+     * ```
+     */
     static int RenderScript_SetCamera(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
