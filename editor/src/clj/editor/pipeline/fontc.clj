@@ -233,7 +233,8 @@
        :cache-cell-max-ascent max-ascent
        :glyph-channels channel-count
        :glyph-data (ByteString/copyFrom glyph-data-bank)
-       :is-monospaced is-monospaced})))
+       :is-monospaced is-monospaced
+       :padding padding})))
 
 (defn- do-blend-rasters [^Raster src ^Raster dst-in ^WritableRaster dst-out]
   (let [width (min (.getWidth src) (.getWidth dst-in) (.getWidth dst-out))
@@ -504,7 +505,8 @@
      :alpha (:alpha font-desc)
      :outline-alpha (:outline-alpha font-desc)
      :shadow-alpha (:shadow-alpha font-desc)
-     :is-monospaced is-monospaced}))
+     :is-monospaced is-monospaced
+     :padding padding}))
 
 (defn- calculate-ttf-distance-field-edge-limit [^double width ^double spread ^double edge]
   (let [sdf-limit-value (- (/ width spread))]
@@ -697,7 +699,8 @@
      :alpha (:alpha font-desc)
      :outline-alpha (:outline-alpha font-desc)
      :shadow-alpha (:shadow-alpha font-desc)
-     :is-monospaced is-monospaced}))
+     :is-monospaced is-monospaced
+     :padding padding}))
 
 (defn compile-font [font-desc font-resource resolver]
   (let [font-ext (resource/type-ext font-resource)]
