@@ -1386,10 +1386,7 @@ public class Project {
 
                     if (yamlPlatformContext != null) {
                         boolean vulkanSymbolFound = false;
-                        boolean vulkanLibraryFound = false;
-
                         List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
-                        List<String> libs = (List<String>) yamlPlatformContext.getOrDefault("libs", new ArrayList<String>());
 
                         for (String symbol : symbols) {
                             if (symbol.equals("GraphicsAdapterVulkan")) {
@@ -1398,14 +1395,7 @@ public class Project {
                             }
                         }
 
-                        for (String lib : libs) {
-                            if (lib.equals("graphics_vulkan")) {
-                                vulkanLibraryFound = true;
-                                break;
-                            }
-                        }
-
-                        return vulkanLibraryFound && vulkanSymbolFound;
+                        return vulkanSymbolFound;
                     }
                 }
             }
