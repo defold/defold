@@ -23,6 +23,8 @@
 
 #include <render/render.h>
 
+#include <gameobject/gameobject_ddf.h>
+
 #include "../resources/res_camera.h"
 #include <gamesys/gamesys_ddf.h>
 #include "../gamesys_private.h"
@@ -261,6 +263,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompCameraOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         CameraComponent* camera = (CameraComponent*)*params.m_UserData;
+
         if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::SetCamera::m_DDFDescriptor)
         {
             dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
@@ -277,11 +280,13 @@ namespace dmGameSystem
 
             dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
         }
-        else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor)
+        else if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash ||
+            (dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor)
         {
             CameraStackPush(camera->m_World, camera);
         }
-        else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor)
+        else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash ||
+            (dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor)
         {
             CameraStackRemove(camera->m_World, camera);
         }
