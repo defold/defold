@@ -45,69 +45,93 @@ namespace dmRender
         }
     }
 
-    void SetRenderCameraURL(HRenderContext render_context, HRenderCamera camera, const dmMessage::URL& camera_url)
+    void SetRenderCameraURL(HRenderContext render_context, HRenderCamera camera, const dmMessage::URL* camera_url)
     {
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);
         if (c)
         {
-            c->m_URL = camera_url;
+            c->m_URL = *camera_url;
         }
     }
 
-    void SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData data)
+    void SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const RenderCameraData* data)
     {
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);
         if (c)
         {
-            c->m_Data = data;
+            c->m_Data = *data;
         }
     }
 
-    void SetRenderCameraMatrices(HRenderContext render_context, HRenderCamera camera, const dmVMath::Matrix4 view, const dmVMath::Matrix4 projection)
+    void GetRenderCameraView(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx)
     {
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);
         if (c)
         {
-            c->m_View           = view;
-            c->m_Projection     = projection;
-            c->m_ViewProjection = projection * view;
+            *mtx = c->m_View;
         }
     }
 
-    void SetRenderCameraMainCamera(HRenderContext render_context, HRenderCamera camera)
+    void GetRenderCameraProjection(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx)
     {
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);
         if (c)
         {
-            for (int i = 0; i < render_context->m_RenderCameras.Capacity(); ++i)
-            {
-                RenderCamera* c_other = render_context->m_RenderCameras.GetByIndex(i);
-                if (c_other == NULL)
-                {
-                    continue;
-                }
-                if (c_other == c)
-                {
-                    c_other->m_IsMainCamera = 1;
-                    RenderScriptCameraSetMainCamera(c_other->m_URL);
-                }
-                else
-                {
-                    c_other->m_IsMainCamera = 0;
-                }
-            }
+            *mtx = c->m_Projection;
         }
     }
 
-    RenderCameraData GetRenderCameraData(HRenderContext render_context, HRenderCamera camera)
+    void UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation)
+    {
+        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        if (!c)
+        {
+            return;
+        }
+
+        dmGraphics::HContext graphics_context = GetGraphicsContext(render_context);
+        float width        = (float) dmGraphics::GetWindowWidth(graphics_context);
+        float height       = (float) dmGraphics::GetWindowHeight(graphics_context);
+        float aspect_ratio = c->m_Data.m_AspectRatio;
+
+        if (c->m_Data.m_AutoAspectRatio)
+        {
+            aspect_ratio = width / height;
+        }
+
+        if (c->m_Data.m_OrthographicProjection)
+        {
+            float display_scale = dmGraphics::GetDisplayScaleFactor(graphics_context);
+            float zoom = c->m_Data.m_OrthographicZoom;
+            float zoomed_width = width / display_scale / zoom;
+            float zoomed_height = height / display_scale / zoom;
+
+            float left = -zoomed_width / 2;
+            float right = zoomed_width / 2;
+            float bottom = -zoomed_height / 2;
+            float top = zoomed_height / 2;
+            c->m_Projection = Matrix4::orthographic(left, right, bottom, top, c->m_Data.m_NearZ, c->m_Data.m_FarZ);
+        }
+        else
+        {
+            c->m_Projection = Matrix4::perspective(c->m_Data.m_Fov, aspect_ratio, c->m_Data.m_NearZ, c->m_Data.m_FarZ);
+        }
+
+        const Point3 pos    = *position;
+        const Quat q        = *rotation;
+        Point3 look_at      = pos + dmVMath::Rotate(q, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
+        Vector3 up          = dmVMath::Rotate(q, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
+        c->m_View           = Matrix4::lookAt(pos, look_at, up);
+        c->m_ViewProjection = c->m_Projection * c->m_View;
+    }
+
+    void GetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData* data)
     {
         RenderCamera* c = render_context->m_RenderCameras.Get(camera);
         if (c)
         {
-            return c->m_Data;
+            *data = c->m_Data;
         }
-
-        return {};
     }
 
     // render_private.h

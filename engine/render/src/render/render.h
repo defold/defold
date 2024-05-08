@@ -348,11 +348,12 @@ namespace dmRender
      */
     HRenderCamera                   NewRenderCamera(HRenderContext context);
     void                            DeleteRenderCamera(HRenderContext context, HRenderCamera camera);
-    void                            SetRenderCameraURL(HRenderContext render_context, HRenderCamera camera, const dmMessage::URL& camera_url);
-    void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData data);
-    void                            SetRenderCameraMatrices(HRenderContext render_context, HRenderCamera camera, const dmVMath::Matrix4 view, const dmVMath::Matrix4 projection);
-    RenderCameraData                GetRenderCameraData(HRenderContext render_context, HRenderCamera camera);
-    void                            SetRenderCameraMainCamera(HRenderContext render_context, HRenderCamera camera);
+    void                            SetRenderCameraURL(HRenderContext render_context, HRenderCamera camera, const dmMessage::URL* camera_url);
+    void                            GetRenderCameraView(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx);
+    void                            GetRenderCameraProjection(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx);
+    void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const RenderCameraData* data);
+    void                            GetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData* data);
+    void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
 }
 
 #endif /* DM_RENDER_H */

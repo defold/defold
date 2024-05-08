@@ -250,7 +250,7 @@ namespace dmRender
         dmVMath::Matrix4 m_Projection;
         dmVMath::Matrix4 m_ViewProjection;
         RenderCameraData m_Data;
-        uint8_t          m_IsMainCamera : 1;
+        uint8_t          m_UseFrustum : 1;
     };
 
     struct RenderContext
@@ -274,7 +274,7 @@ namespace dmRender
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
         dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
-        RenderCamera*                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
+        HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
         HFontMap                    m_SystemFontMap;
         Matrix4                     m_View;
@@ -283,9 +283,10 @@ namespace dmRender
         dmGraphics::HContext        m_GraphicsContext;
         HMaterial                   m_Material;
         dmMessage::HSocket          m_Socket;
-        uint32_t                    m_OutOfResources         : 1;
-        uint32_t                    m_StencilBufferCleared   : 1;
-        uint32_t                    m_MultiBufferingRequired : 1;
+        uint32_t                    m_OutOfResources                : 1;
+        uint32_t                    m_StencilBufferCleared          : 1;
+        uint32_t                    m_MultiBufferingRequired        : 1;
+        uint32_t                    m_CurrentRenderCameraUseFrustum : 1;
     };
 
     struct BufferedRenderBuffer
@@ -323,7 +324,6 @@ namespace dmRender
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
     RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
-    void          RenderScriptCameraSetMainCamera(const dmMessage::URL& camera_url);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

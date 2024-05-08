@@ -67,40 +67,13 @@ namespace dmGameSystem
 
     static void CompCameraUpdateViewProjection(CameraComponent* camera, dmRender::RenderContext* render_context)
     {
-        dmRender::RenderCameraData camera_data = dmRender::GetRenderCameraData(render_context, camera->m_RenderCamera);
-        float width = (float)dmGraphics::GetWindowWidth(dmRender::GetGraphicsContext(render_context));
-        float height = (float)dmGraphics::GetWindowHeight(dmRender::GetGraphicsContext(render_context));
-
-        float aspect_ratio = camera_data.m_AspectRatio;
-        if (camera_data.m_AutoAspectRatio)
-        {
-            aspect_ratio = width / height;
-        }
-
         dmVMath::Point3 pos = dmGameObject::GetWorldPosition(camera->m_Instance);
-        if (camera_data.m_OrthographicProjection)
-        {
-            float display_scale = dmGraphics::GetDisplayScaleFactor(dmRender::GetGraphicsContext(render_context));
-            float zoom = camera_data.m_OrthographicZoom;
-            float zoomed_width = width / display_scale / zoom;
-            float zoomed_height = height / display_scale / zoom;
-
-            float left = -zoomed_width / 2;
-            float right = zoomed_width / 2;
-            float bottom = -zoomed_height / 2;
-            float top = zoomed_height / 2;
-            camera->m_Projection = Matrix4::orthographic(left, right, bottom, top, camera_data.m_NearZ, camera_data.m_FarZ);
-        }
-        else
-        {
-            camera->m_Projection = Matrix4::perspective(camera_data.m_Fov, aspect_ratio, camera_data.m_NearZ, camera_data.m_FarZ);
-        }
-
         dmVMath::Quat rot = dmGameObject::GetWorldRotation(camera->m_Instance);
-        Point3 look_at    = pos + dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 0.0f, -1.0f));
-        Vector3 up        = dmVMath::Rotate(rot, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
-        camera->m_View    = Matrix4::lookAt(pos, look_at, up);
-        SetRenderCameraMatrices(render_context, camera->m_RenderCamera, camera->m_View, camera->m_Projection);
+
+        UpdateRenderCamera(render_context, camera->m_RenderCamera, &pos, &rot);
+
+        dmRender::GetRenderCameraView(render_context, camera->m_RenderCamera, &camera->m_View);
+        dmRender::GetRenderCameraProjection(render_context, camera->m_RenderCamera, &camera->m_Projection);
     }
 
     dmGameObject::CreateResult CompCameraNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -127,7 +100,7 @@ namespace dmGameSystem
         return camera_url;
     }
 
-    static void CameraStackPop(CameraWorld* world, CameraComponent* camera)
+    static void CameraStackRemove(CameraWorld* world, CameraComponent* camera)
     {
         bool found = false;
         uint32_t num_cameras_in_stack = world->m_CameraStack.Size();
@@ -153,7 +126,7 @@ namespace dmGameSystem
     static void CameraStackPush(CameraWorld* world, CameraComponent* camera)
     {
         // Remove from stack in case the camera is already in the stack
-        CameraStackPop(world, camera);
+        CameraStackRemove(world, camera);
 
         if (world->m_CameraStack.Full())
         {
@@ -189,9 +162,9 @@ namespace dmGameSystem
         camera_data.m_OrthographicProjection   = cam_resource->m_DDF->m_OrthographicProjection != 0;
         camera_data.m_OrthographicZoom         = cam_resource->m_DDF->m_OrthographicZoom;
 
-        SetRenderCameraURL(render_context, camera.m_RenderCamera, CameraToURL(&camera));
-        SetRenderCameraData(render_context, camera.m_RenderCamera, camera_data);
-        SetRenderCameraMainCamera(render_context, camera.m_RenderCamera);
+        dmMessage::URL camera_url = CameraToURL(&camera);
+        SetRenderCameraURL(render_context, camera.m_RenderCamera, &camera_url);
+        SetRenderCameraData(render_context, camera.m_RenderCamera, &camera_data);
         CompCameraUpdateViewProjection(&camera, render_context);
 
         w->m_Cameras.Push(camera);
@@ -213,7 +186,7 @@ namespace dmGameSystem
         {
             if (w->m_Cameras[i].m_Instance == params.m_Instance)
             {
-                CameraStackPop(w, &w->m_Cameras[i]);
+                CameraStackRemove(w, &w->m_Cameras[i]);
                 dmRender::DeleteRenderCamera(render_context, w->m_Cameras[i].m_RenderCamera);
                 w->m_Cameras.EraseSwap(i);
                 return dmGameObject::CREATE_RESULT_OK;
@@ -291,7 +264,8 @@ namespace dmGameSystem
         if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::SetCamera::m_DDFDescriptor)
         {
             dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
-            dmRender::RenderCameraData camera_data = dmRender::GetRenderCameraData(render_context, camera->m_RenderCamera);
+            dmRender::RenderCameraData camera_data = {};
+            dmRender::GetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
 
             dmGamesysDDF::SetCamera* ddf         = (dmGamesysDDF::SetCamera*)params.m_Message->m_Data;
             camera_data.m_AspectRatio            = ddf->m_AspectRatio;
@@ -301,7 +275,7 @@ namespace dmGameSystem
             camera_data.m_OrthographicProjection = ddf->m_OrthographicProjection;
             camera_data.m_OrthographicZoom       = ddf->m_OrthographicZoom;
 
-            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, camera_data);
+            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor)
         {
@@ -309,7 +283,7 @@ namespace dmGameSystem
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor)
         {
-            CameraStackPop(camera->m_World, camera);
+            CameraStackRemove(camera->m_World, camera);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
@@ -321,7 +295,8 @@ namespace dmGameSystem
         CameraComponent* camera = (CameraComponent*)*params.m_UserData;
         dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
 
-        dmRender::RenderCameraData camera_data = dmRender::GetRenderCameraData(render_context, camera->m_RenderCamera);
+        dmRender::RenderCameraData camera_data = {};
+        dmRender::GetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
         camera_data.m_AspectRatio              = cam_resource->m_DDF->m_AspectRatio;
         camera_data.m_Fov                      = cam_resource->m_DDF->m_Fov;
         camera_data.m_NearZ                    = cam_resource->m_DDF->m_NearZ;
@@ -330,7 +305,7 @@ namespace dmGameSystem
         camera_data.m_OrthographicProjection   = cam_resource->m_DDF->m_OrthographicProjection != 0;
         camera_data.m_OrthographicZoom         = cam_resource->m_DDF->m_OrthographicZoom;
 
-        dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, camera_data);
+        dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
         CompCameraUpdateViewProjection(camera, render_context);
     }
 
@@ -338,7 +313,8 @@ namespace dmGameSystem
     {
         CameraComponent* camera                 = (CameraComponent*)*params.m_UserData;
         dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
-        dmRender::RenderCameraData camera_data  = dmRender::GetRenderCameraData(render_context, camera->m_RenderCamera);
+        dmRender::RenderCameraData camera_data  = {};
+        dmRender::GetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
 
         dmhash_t get_property = params.m_PropertyId;
         if (CAMERA_PROP_FOV == get_property)
@@ -383,37 +359,38 @@ namespace dmGameSystem
     {
         CameraComponent* camera                 = (CameraComponent*)*params.m_UserData;
         dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
-        dmRender::RenderCameraData camera_data  = dmRender::GetRenderCameraData(render_context, camera->m_RenderCamera);
+        dmRender::RenderCameraData camera_data  = {};
+        dmRender::GetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
 
         dmhash_t set_property = params.m_PropertyId;
         if (CAMERA_PROP_FOV == set_property)
         {
             camera_data.m_Fov = params.m_Value.m_Number;
-            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, camera_data);
+            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (CAMERA_PROP_NEAR_Z == set_property)
         {
             camera_data.m_NearZ = params.m_Value.m_Number;
-            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, camera_data);
+            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (CAMERA_PROP_FAR_Z == set_property)
         {
             camera_data.m_FarZ = params.m_Value.m_Number;
-            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, camera_data);
+            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (CAMERA_PROP_ORTHOGRAPHIC_ZOOM == set_property)
         {
             camera_data.m_OrthographicZoom = params.m_Value.m_Number;
-            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, camera_data);
+            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (CAMERA_PROP_ASPECT_RATIO == set_property)
         {
             camera_data.m_AspectRatio = params.m_Value.m_Number;
-            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, camera_data);
+            dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (CAMERA_PROP_PROJECTION   == set_property ||

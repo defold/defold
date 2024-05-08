@@ -3006,10 +3006,19 @@ namespace dmRender
      * Sets the current render camera to be used for rendering. If a render camera
      * has been set by the render script, the renderer will be using its projection and view matrix
      * during rendering. If a projection and/or view matrix has been set by the render script, 
-     * they will not be used until the current render camera has been reset by calling `render.set_camera(nil)`
+     * they will not be used until the current render camera has been reset by calling `render.set_camera()`.
+     * 
+     * If the 'use_frustum' flag in the options table has been set to true, the renderer will automatically use the
+     * camera frustum for frustum culling regardless of what frustum is being passed into the render.draw() function.
+     * Note that the frustum plane option in render.draw can still be used together with the camera.
      *
      * @name render.set_camera
      * @param camera_id [type:url|handle|nil] camera id to use, or nil to reset
+     * @param [options] [type:table] optional table with properties:
+     *
+     * `use_frustum`
+     * : [type:boolean] If true, the renderer will use the cameras view-projection matrix for frustum culling (default: false)
+     *
      *
      * @examples
      *
@@ -3020,20 +3029,45 @@ namespace dmRender
      * render.draw(self.my_pred)
      * render.set_camera(nil)
      * ```
+     *
+     * Use the camera frustum for frustum culling together with a specific frustum plane option for the draw command
+     *
+     * ```lua
+     * -- The camera frustum will take precedence over the frustum plane option in render.draw
+     * render.set_camera("main:/my_go#camera", { use_frustum = true })
+     * -- However, we can still customize the frustum planes regardless of the camera option!
+     * render.draw(self.my_pred, { frustum_planes = render.FRUSTUM_PLANES_ALL })
+     * render.set_camera()
+     * ```
      */
     static int RenderScript_SetCamera(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
-        RenderCamera* camera = 0x0;
+        HRenderCamera camera = INVALID_OPAQUE_HANDLE;
+        bool use_frustum = false;
 
         if (lua_gettop(L) > 0 && !lua_isnil(L, 1))
         {
-            camera = CheckRenderCamera(L, 1, i->m_RenderContext);
+            RenderCamera* c = CheckRenderCamera(L, 1, i->m_RenderContext);
+            camera = c->m_Handle;
+
+            // Parse options table
+            if (lua_istable(L, 2))
+            {
+                luaL_checktype(L, 2, LUA_TTABLE);
+                lua_pushvalue(L, 2);
+
+                lua_getfield(L, -1, "use_frustum");
+                use_frustum = lua_toboolean(L, -1);
+                lua_pop(L, 1);
+
+                lua_pop(L, 1);
+            }
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_CAMERA, (uint64_t) camera)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_CAMERA, (uint64_t) camera, use_frustum)))
             return 0;
         return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }

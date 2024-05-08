@@ -26,15 +26,11 @@ namespace dmRender
      * @name Camera
      * @namespace camera
      */
-    #define RENDER_SCRIPT_CAMERA_MAIN
-    #define RENDER_SCRIPT_CAMERA_LIB_NAME           "camera"
-    #define RENDER_SCRIPT_CAMERA_MAIN_NAME          "CameraMain"
-    #define RENDER_SCRIPT_CAMERA_MAIN_PROPERTY_NAME "MAIN"
+    #define RENDER_SCRIPT_CAMERA_LIB_NAME "camera"
 
     struct RenderScriptCameraModule
     {
         dmRender::HRenderContext m_RenderContext;
-        dmMessage::URL           m_MainCameraURL;
     };
 
     static RenderScriptCameraModule g_RenderScriptCameraModule = { 0 };
@@ -50,8 +46,7 @@ namespace dmRender
 
             if (!camera)
             {
-                luaL_error(L, "Invalid handle.");
-                return 0;
+                return (RenderCamera*) (uintptr_t) luaL_error(L, "Invalid handle.");
             }
         }
         else
@@ -59,8 +54,7 @@ namespace dmRender
             dmMessage::URL url;
             if (dmScript::ResolveURL(L, index, &url, 0) != dmMessage::RESULT_OK)
             {
-                luaL_error(L, "Could not resolve URL.");
-                return 0;
+                return (RenderCamera*) (uintptr_t) luaL_error(L, "Could not resolve URL.");
             }
 
             camera = GetRenderCameraByUrl(g_RenderScriptCameraModule.m_RenderContext, url);
@@ -68,8 +62,7 @@ namespace dmRender
             {
                 char buffer[256];
                 dmScript::UrlToString(&url, buffer, sizeof(buffer));
-                luaL_error(L, "Camera '%s' not found.", buffer);
-                return 0;
+                return (RenderCamera*) (uintptr_t) luaL_error(L, "Camera '%s' not found.", buffer);
             }
         }
         return camera;
@@ -130,9 +123,6 @@ namespace dmRender
     * `handle`
     * : [type:number] the handle of the camera.
     *
-    * `main_camera`
-    * : [type:boolean] true if this is the main camera.
-    *
     * `fov`
     * : [type:number] the field of view.
     *
@@ -166,39 +156,29 @@ namespace dmRender
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
 
         lua_newtable(L);
-        lua_pushstring(L, "url");
         dmScript::PushURL(L, camera->m_URL);
-        lua_settable(L, -3);
+        lua_setfield(L, -2, "url");
 
-        lua_pushstring(L, "projection");
         dmScript::PushMatrix4(L, camera->m_Projection);
-        lua_settable(L, -3);
+        lua_setfield(L, -2, "projection");
 
-        lua_pushstring(L, "view");
         dmScript::PushMatrix4(L, camera->m_View);
-        lua_settable(L, -3);
+        lua_setfield(L, -2, "view");
 
-        lua_pushstring(L, "handle");
         lua_pushnumber(L, camera->m_Handle);
-        lua_settable(L, -3);
+        lua_setfield(L, -2, "handle");
 
         // TODO: Since we don't have any way of changing this (yet), we don't expose it.
         //       The idea is to use a normalized viewport vector that can be set though the API
         //       and via the editor, but it is the next part of this feature.
         /*
-        lua_pushstring(L, "viewport");
         dmScript::PushVector4(L, camera->m_Data.m_Viewport);
-        lua_settable(L, -3);
+        lua_setfield(L, -2, "viewport");
         */
 
-        lua_pushstring(L, "main_camera");
-        lua_pushboolean(L, camera->m_IsMainCamera);
-        lua_settable(L, -3);
-
     #define PUSH_NUMBER(name, param) \
-        lua_pushstring(L, name); \
         lua_pushnumber(L, camera->m_Data.param); \
-        lua_settable(L, -3);
+        lua_setfield(L, -2, name);
 
         PUSH_NUMBER("fov",          m_Fov);
         PUSH_NUMBER("aspect_ratio", m_AspectRatio);
@@ -207,9 +187,8 @@ namespace dmRender
     #undef PUSH_NUMBER
 
     #define PUSH_BOOL(name, param) \
-        lua_pushstring(L, name); \
         lua_pushboolean(L, camera->m_Data.param); \
-        lua_settable(L, -3);
+        lua_setfield(L, -2, name);
 
         PUSH_BOOL("orthographic_projection", m_OrthographicProjection);
         PUSH_BOOL("auto_aspect_ratio",       m_AutoAspectRatio);
@@ -218,58 +197,6 @@ namespace dmRender
         return 1;
     }
 
-    // This is called when getting a property on the camera module.
-    // If the 'MAIN' property is called, we return the URL to the current main camera.
-    // Otherwise, we just return the tble entry.
-    static int RenderScriptCamera_index(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-        const char* key = luaL_checkstring(L, 2);
-        if (strcmp(key, RENDER_SCRIPT_CAMERA_MAIN_PROPERTY_NAME) == 0)
-        {
-            dmScript::PushURL(L, g_RenderScriptCameraModule.m_MainCameraURL);
-        }
-        else
-        {
-            lua_gettable(L, -2);
-        }
-        return 1;
-    }
-
-    // This is called when setting a property on the camera module.
-    // A user can change the main camera property by setting the MAIN property
-    // to a different camera URL. In that case we check that the URL is an actual
-    // valid camera.
-    static int RenderScriptCamera_newindex(lua_State* L)
-    {
-        // Stack:
-        // 1: table
-        // 2: key
-        // 3: value
-        DM_LUA_STACK_CHECK(L, -3); // must return 0, so we need to pop all three items
-        const char* key = luaL_checkstring(L, 2);
-        if (strcmp(key, RENDER_SCRIPT_CAMERA_MAIN_PROPERTY_NAME) == 0)
-        {
-            RenderCamera* camera = CheckRenderCamera(L, 3, g_RenderScriptCameraModule.m_RenderContext);
-            RenderScriptCameraSetMainCamera(camera->m_URL);
-        }
-        lua_rawset(L, -3); // -2 (set table[key] = value)
-        lua_pop(L, 1);     // -1 (pop table)
-        return 0;
-    }
-
-    static const luaL_reg RenderScriptCameraMain_Methods[] =
-    {
-        {0, 0}
-    };
-
-    static const luaL_reg RenderScriptCameraMain_Meta[] =
-    {
-        {"__newindex",  RenderScriptCamera_newindex},
-        {"__index", RenderScriptCamera_index},
-        {0, 0}
-    };
-
     static const luaL_reg RenderScriptCamera_Methods[] =
     {
         {"get_cameras", RenderScriptCamera_GetCameras},
@@ -277,29 +204,12 @@ namespace dmRender
         {0, 0}
     };
 
-    void RenderScriptCameraSetMainCamera(const dmMessage::URL& camera_url)
-    {
-        g_RenderScriptCameraModule.m_MainCameraURL = camera_url;
-    }
-
-    /*# Main camera URL
-     * The URL of the main camera. If set, this changes what is considered the current main camera.
-     *
-     * @name camera.MAIN
-     * @variable
-     */
-
     void InitializeRenderScriptCameraContext(HRenderContext render_context, dmScript::HContext script_context)
     {
         lua_State* L = dmScript::GetLuaState(script_context);
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmScript::RegisterUserType(L, RENDER_SCRIPT_CAMERA_MAIN_NAME, RenderScriptCameraMain_Methods, RenderScriptCameraMain_Meta);
-
         luaL_register(L, RENDER_SCRIPT_CAMERA_LIB_NAME, RenderScriptCamera_Methods);
-
-        luaL_getmetatable(L, RENDER_SCRIPT_CAMERA_MAIN_NAME);
-        lua_setmetatable(L, -2);
 
         lua_pop(L, 1);
 
