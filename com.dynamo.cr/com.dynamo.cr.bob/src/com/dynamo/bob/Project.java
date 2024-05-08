@@ -1399,7 +1399,7 @@ public class Project {
                         }
 
                         for (String lib : libs) {
-                            if (lib.equals("graphics_vulkan")) {
+                            if (lib.equals("graphics_vulkan") || lib.equals("libgraphics_vulkan.lib")) {
                                 vulkanLibraryFound = true;
                                 break;
                             }
