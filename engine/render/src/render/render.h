@@ -178,6 +178,10 @@ namespace dmRender
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options);
     Result DrawDebug2d(HRenderContext context);
 
+    void PauseRender(void* context);
+    void ResumeRender(void* context);
+    bool IsRenderPaused(void* context);
+
     /**
      * Render debug square. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).
      * @param context Render context handle

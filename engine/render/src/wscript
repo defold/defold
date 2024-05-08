@@ -10,11 +10,17 @@ def configure(cont):
     pass
 
 def build(bld):
+    sources = bld.path.ant_glob('render/*.cpp') + bld.path.parent.ant_glob('proto/render/*.proto')
+    if 'web' in bld.env.PLATFORM:
+        sources += ['platform/renderer_web.cpp']
+    else:
+        sources += ['platform/renderer_common.cpp']
+
     obj = bld.stlib(features        = 'cxx ddf',
                     includes        = ['.', '../build/proto'],
                     proto_gen_py    = True,
                     protoc_includes = '../proto',
-                    source          = bld.path.ant_glob('render/*.cpp') + bld.path.parent.ant_glob('proto/render/*.proto'),
+                    source          = sources,
                     target          = 'render')
 
     bld.recurse('test')
@@ -29,6 +35,9 @@ def build(bld):
     bld.install_files('${PREFIX}/share/proto/render', '../proto/render/material_ddf.proto')
     bld.install_files('${PREFIX}/share/proto/render', '../proto/render/render_ddf.proto')
     bld.install_files('${PREFIX}/share/proto/render', '../proto/render/font_ddf.proto')
+
+    if 'web' in bld.env.PLATFORM:
+        bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'js/library_render.js', postpone = False)
 
     apidoc_extract_task(bld, [
       '../proto/render/material_ddf.proto',

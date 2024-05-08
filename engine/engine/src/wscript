@@ -119,7 +119,7 @@ def build(bld):
 
     glfw_js = '../../../ext/lib/%s/js/library_glfw.js' % bld.env.PLATFORM
 
-    web_libs = [glfw_js, 'library_sys.js', 'library_script.js', 'library_sound.js']
+    web_libs = [glfw_js, 'library_sys.js', 'library_script.js', 'library_sound.js', 'library_render.js']
 
     main_cpp = 'common/main.cpp'
 
