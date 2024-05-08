@@ -3045,7 +3045,7 @@ namespace dmRender
         DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
 
-        HRenderCamera camera = INVALID_OPAQUE_HANDLE;
+        HRenderCamera camera = 0;
         bool use_frustum = false;
 
         if (lua_gettop(L) > 0 && !lua_isnil(L, 1))

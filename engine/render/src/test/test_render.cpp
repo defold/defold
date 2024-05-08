@@ -183,7 +183,7 @@ TEST_F(dmRenderTest, TestRenderCamera)
     camera_url.m_Path     = dmHashString64("my_go");
     camera_url.m_Fragment = dmHashString64("camera");
 
-    dmRender::SetRenderCameraURL(m_Context, camera, camera_url);
+    dmRender::SetRenderCameraURL(m_Context, camera, &camera_url);
 
     dmRender::RenderCameraData data = {};
     data.m_Viewport               = dmVMath::Vector4(0.0f, 0.0f, WIDTH, HEIGHT);
@@ -195,9 +195,10 @@ TEST_F(dmRenderTest, TestRenderCamera)
     data.m_AutoAspectRatio        = true;
     data.m_OrthographicProjection = true;
 
-    dmRender::SetRenderCameraData(m_Context, camera, data);
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
 
-    dmRender::RenderCameraData data_other = dmRender::GetRenderCameraData(m_Context, camera);
+    dmRender::RenderCameraData data_other = {};
+    dmRender::GetRenderCameraData(m_Context, camera, &data_other);
 
     ASSERT_VEC4(data.m_Viewport, data_other.m_Viewport);
     ASSERT_NEAR(data.m_AspectRatio, data_other.m_AspectRatio, EPSILON);

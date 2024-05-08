@@ -118,7 +118,7 @@ namespace dmRender
     */
     static int RenderScriptCamera_GetProjection(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 0);
+        DM_LUA_STACK_CHECK(L, 1);
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
         dmScript::PushMatrix4(L, camera->m_Projection);
         return 1;
@@ -132,7 +132,7 @@ namespace dmRender
     */
     static int RenderScriptCamera_GetView(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 0);
+        DM_LUA_STACK_CHECK(L, 1);
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
         dmScript::PushMatrix4(L, camera->m_View);
         return 1;
@@ -162,7 +162,7 @@ namespace dmRender
     * @param camera [type:url|handle|nil] camera id
     * @return aspect_ratio [type:number] the aspect ratio.
     */
-    GET_CAMERA_DATA_PROPERTY_FN(AspectRatio, lua_tonumber);
+    GET_CAMERA_DATA_PROPERTY_FN(AspectRatio, lua_pushnumber);
 
     /*# get far z
     *
@@ -170,7 +170,7 @@ namespace dmRender
     * @param camera [type:url|handle|nil] camera id
     * @return far_z [type:number] the far z.
     */
-    GET_CAMERA_DATA_PROPERTY_FN(FarZ, lua_tonumber);
+    GET_CAMERA_DATA_PROPERTY_FN(FarZ, lua_pushnumber);
 
     /*# get field of view
     *
@@ -178,7 +178,7 @@ namespace dmRender
     * @param camera [type:url|handle|nil] camera id
     * @return fov [type:number] the field of view.
     */
-    GET_CAMERA_DATA_PROPERTY_FN(Fov, lua_tonumber);
+    GET_CAMERA_DATA_PROPERTY_FN(Fov, lua_pushnumber);
 
     /*# get near z
     *
@@ -186,7 +186,7 @@ namespace dmRender
     * @param camera [type:url|handle|nil] camera id
     * @return near_z [type:number] the near z.
     */
-    GET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_tonumber);
+    GET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_pushnumber);
 
     /*# get orthographic zoom
     *
@@ -194,7 +194,7 @@ namespace dmRender
     * @param camera [type:url|handle|nil] camera id
     * @return orthographic_zoom [type:boolean] true if the camera is using an orthographic projection.
     */
-    GET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_toboolean);
+    GET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_pushnumber);
 
     /*# set aspect ratio
     *

@@ -21,13 +21,8 @@ end
 function init(self)
 	local cams = camera.get_cameras()
 	assert(#cams == 2)
-	local cam_info_1 = camera.get_info(cams[1])
-	local cam_info_2 = camera.get_info(cams[2])
 
 	-- test camera paths
-	assert_url(cam_info_1.url, msg.url("collection:/go#camera_1"))
-	assert_url(cam_info_2.url, msg.url("collection:/go#camera_2"))
-	-- test MAIN property
-	assert_url(camera.MAIN, cam_info_2.url)
-	assert(cam_info_2.main_camera)
+	assert_url(cams[1], msg.url("collection:/go#camera_1"))
+	assert_url(cams[2], msg.url("collection:/go#camera_2"))
 end

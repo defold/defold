@@ -1335,7 +1335,7 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetInfo)
     camera_url.m_Path     = dmHashString64("test_go");
     camera_url.m_Fragment = dmHashString64("camera");
 
-    dmRender::SetRenderCameraURL(m_Context, camera, camera_url);
+    dmRender::SetRenderCameraURL(m_Context, camera, &camera_url);
 
     dmRender::RenderCameraData data = {};
     data.m_Viewport = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
@@ -1343,8 +1343,7 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetInfo)
     data.m_NearZ    = 0.1f;
     data.m_FarZ     = 100.0f;
 
-    dmRender::SetRenderCameraData(m_Context, camera, data);
-    dmRender::SetRenderCameraMainCamera(m_Context, camera);
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
 
     dmRender::RenderCamera* camera_ptr = dmRender::GetRenderCameraByUrl(m_Context, camera_url);
     ASSERT_NE((void*)0, camera_ptr);
@@ -1359,18 +1358,11 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetInfo)
         "    assert(cams[1].socket == hash('main'))\n"
         "    assert(cams[1].path == hash('test_go'))\n"
         "    assert(cams[1].fragment == hash('camera'))\n"
-        "    local cam_info = camera.get_info(cams[1])\n"
-        "    assert_near(cam_info.fov, 90)\n"
-        "    assert_near(cam_info.near_z, 0.1)\n"
-        "    assert_near(cam_info.far_z, 100)\n"
-        // Test main camera
-        "    assert(camera.MAIN.socket == hash('main'))\n"
-        "    assert(camera.MAIN.path == hash('test_go'))\n"
-        "    assert(camera.MAIN.fragment == hash('camera'))\n"
-        // Test drawing
-        "    local pred = render.predicate({\"test\"})\n"
+        "    assert_near(camera.get_near_z(cams[1]), 0.1)\n"
+        "    assert_near(camera.get_far_z(cams[1]), 100)\n"
+        "    assert_near(camera.get_fov(cams[1]), 90)\n"
+        // Test set_camera()
         "    render.set_camera(cams[1])\n"
-        "    render.set_camera(camera.MAIN)\n"
         "    render.set_camera()\n"
         "end\n";
 
@@ -1379,19 +1371,15 @@ TEST_F(dmRenderScriptTest, TestRenderCameraGetInfo)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
-    ASSERT_EQ(3u, commands.Size());
+    ASSERT_EQ(2u, commands.Size());
 
     // set_camera(camera)
     ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA, commands[0].m_Type);
-    ASSERT_EQ((void*) camera_ptr, (void*) commands[0].m_Operands[0]);
+    ASSERT_EQ(camera, (dmRender::HRenderCamera) commands[0].m_Operands[0]);
 
     // draw
     ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA, commands[1].m_Type);
-    ASSERT_EQ((void*) camera_ptr, (void*) commands[1].m_Operands[0]);
-
-    // set_camera(nil)
-    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA, commands[2].m_Type);
-    ASSERT_EQ(0, commands[2].m_Operands[0]);
+    ASSERT_EQ(0, commands[1].m_Operands[0]);
 
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 

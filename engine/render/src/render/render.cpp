@@ -109,7 +109,7 @@ namespace dmRender
         context->m_SystemFontMap = params.m_SystemFontMap;
 
         context->m_Material = 0;
-        context->m_CurrentRenderCamera = INVALID_OPAQUE_HANDLE;
+        context->m_CurrentRenderCamera = 0;
 
         context->m_View = Matrix4::identity();
         context->m_Projection = Matrix4::identity();
@@ -814,7 +814,7 @@ namespace dmRender
             frustum_matrix     = &frustum_options->m_Matrix;
         }
 
-        if (context->m_CurrentRenderCamera != INVALID_OPAQUE_HANDLE)
+        if (context->m_CurrentRenderCamera != 0)
         {
             RenderCamera* camera = context->m_RenderCameras.Get(context->m_CurrentRenderCamera);
             if (camera)
