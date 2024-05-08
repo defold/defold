@@ -407,8 +407,8 @@
                     [1 0 0]
                     [1 1 1])
         shadow-offset {:x (if (:is-monospaced font-map)
-                                               (- (:shadow-x font-map) (* (:padding font-map) 0.5))
-                                               (:shadow-x font-map))
+                            (- (:shadow-x font-map) (* (:padding font-map) 0.5))
+                            (:shadow-x font-map))
                        :y (:shadow-y font-map)}
         alpha (:alpha font-map)
         outline-alpha (:outline-alpha font-map)
