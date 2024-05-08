@@ -834,9 +834,9 @@ namespace dmGameSystem
  */
 
 /*# Get the world velocity of a local point.
- * @name b2d.body.get_linear_velocity_from_world_point
+ * @name b2d.body.get_linear_velocity_from_local_point
  * @param body [type: b2Body] body
- * @param world_point [type: vmath.vector3] a point in local coordinates.
+ * @param local_point [type: vmath.vector3] a point in local coordinates.
  * @return velocity [type: vmath.vector3] the world velocity of a point.
  */
 
