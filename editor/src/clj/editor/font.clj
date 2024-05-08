@@ -414,8 +414,8 @@
         outline-alpha (:outline-alpha font-map)
         shadow-alpha (:shadow-alpha font-map)
         font-offset {:x (if (:is-monospaced font-map)
-                           (- 0 (* (:padding font-map) 0.5))
-                           0)
+                          (- 0 (* (:padding font-map) 0.5))
+                          0)
                      :y 0}]
     (when (and layer-mask-enabled shadow-enabled) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 0 1] shadow-offset alpha outline-alpha shadow-alpha))
     (when (and layer-mask-enabled outline-enabled) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 1 0] font-offset alpha outline-alpha shadow-alpha))
