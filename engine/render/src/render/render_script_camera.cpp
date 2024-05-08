@@ -153,6 +153,7 @@ namespace dmRender
         DM_LUA_STACK_CHECK(L, 0); \
         RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext); \
         camera->m_Data.m_##param = lua_fn(L, 2); \
+        camera->m_Dirty = 1; \
         return 0; \
     }
 

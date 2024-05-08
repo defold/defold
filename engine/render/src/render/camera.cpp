@@ -123,6 +123,9 @@ namespace dmRender
         Vector3 up          = dmVMath::Rotate(q, dmVMath::Vector3(0.0f, 1.0f, 0.0f));
         c->m_View           = Matrix4::lookAt(pos, look_at, up);
         c->m_ViewProjection = c->m_Projection * c->m_View;
+        c->m_LastPosition   = pos;
+        c->m_LastRotation   = q;
+        c->m_Dirty          = 0;
     }
 
     void GetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData* data)

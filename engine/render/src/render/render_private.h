@@ -249,8 +249,16 @@ namespace dmRender
         dmVMath::Matrix4 m_View;
         dmVMath::Matrix4 m_Projection;
         dmVMath::Matrix4 m_ViewProjection;
+
+        // These are cached each update in case
+        // the camera data has changed and we need to update
+        // based on the new parameters
+        dmVMath::Point3  m_LastPosition;
+        dmVMath::Quat    m_LastRotation;
+
         RenderCameraData m_Data;
         uint8_t          m_UseFrustum : 1;
+        uint8_t          m_Dirty : 1;
     };
 
     struct RenderContext

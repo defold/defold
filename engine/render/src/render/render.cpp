@@ -819,6 +819,12 @@ namespace dmRender
             RenderCamera* camera = context->m_RenderCameras.Get(context->m_CurrentRenderCamera);
             if (camera)
             {
+                // In case the camera has changed since last update
+                if (camera->m_Dirty)
+                {
+                    UpdateRenderCamera(context, context->m_CurrentRenderCamera, &camera->m_LastPosition, &camera->m_LastRotation);
+                }
+
                 context->m_View       = camera->m_View;
                 context->m_Projection = camera->m_Projection;
                 context->m_ViewProj   = camera->m_ViewProjection;
