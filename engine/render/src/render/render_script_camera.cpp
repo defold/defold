@@ -26,6 +26,7 @@ namespace dmRender
      * @name Camera
      * @namespace camera
      */
+
     #define RENDER_SCRIPT_CAMERA_LIB_NAME "camera"
 
     struct RenderScriptCameraModule
@@ -105,96 +106,6 @@ namespace dmRender
                 camera_index++;
             }
         }
-
-        return 1;
-    }
-
-    /*# get camera info
-    * Get the info for a specific camera by URL. The result is a table with the following fields:
-    *
-    * `url`
-    * : [type:url] the URL of the camera.
-    *
-    * `projection`
-    * : [type:vmath.matrix4] the projection matrix.
-    *
-    * `view`
-    * : [type:vmath.matrix4] the view matrix.
-    *
-    * `handle`
-    * : [type:number] the handle of the camera.
-    *
-    * `fov`
-    * : [type:number] the field of view.
-    *
-    * `aspect_ratio`
-    * : [type:number] the aspect ratio.
-    *
-    * `near_z`
-    * : [type:number] the near z.
-    *
-    * `far_z`
-    * : [type:number] the far z.
-    *
-    * `orthographic_projection`
-    * : [type:boolean] true if the camera is using an orthographic projection.
-    *
-    * `auto_aspect_ratio`
-    * : [type:boolean] true if the camera is using an automatic aspect ratio.
-    *
-    * @name camera.get_cameras
-    * @param camera [type:url|handle|nil] camera id
-    * @return cameras [type:table] a table with all camera URLs
-    *
-    * @examples
-    * ```lua
-    * local info = camera.get_info("main:/my_go#camera")
-    * render.set_camera(info.handle)
-    * ```
-    */
-    static int RenderScriptCamera_GetInfo(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 1);
-        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
-
-        lua_newtable(L);
-        dmScript::PushURL(L, camera->m_URL);
-        lua_setfield(L, -2, "url");
-
-        dmScript::PushMatrix4(L, camera->m_Projection);
-        lua_setfield(L, -2, "projection");
-
-        dmScript::PushMatrix4(L, camera->m_View);
-        lua_setfield(L, -2, "view");
-
-        lua_pushnumber(L, camera->m_Handle);
-        lua_setfield(L, -2, "handle");
-
-        // TODO: Since we don't have any way of changing this (yet), we don't expose it.
-        //       The idea is to use a normalized viewport vector that can be set though the API
-        //       and via the editor, but it is the next part of this feature.
-        /*
-        dmScript::PushVector4(L, camera->m_Data.m_Viewport);
-        lua_setfield(L, -2, "viewport");
-        */
-
-    #define PUSH_NUMBER(name, param) \
-        lua_pushnumber(L, camera->m_Data.param); \
-        lua_setfield(L, -2, name);
-
-        PUSH_NUMBER("fov",          m_Fov);
-        PUSH_NUMBER("aspect_ratio", m_AspectRatio);
-        PUSH_NUMBER("near_z",       m_NearZ);
-        PUSH_NUMBER("far_z",        m_FarZ);
-    #undef PUSH_NUMBER
-
-    #define PUSH_BOOL(name, param) \
-        lua_pushboolean(L, camera->m_Data.param); \
-        lua_setfield(L, -2, name);
-
-        PUSH_BOOL("orthographic_projection", m_OrthographicProjection);
-        PUSH_BOOL("auto_aspect_ratio",       m_AutoAspectRatio);
-    #undef PUSH_BOOL
 
         return 1;
     }
@@ -331,7 +242,6 @@ namespace dmRender
     static const luaL_reg RenderScriptCamera_Methods[] =
     {
         {"get_cameras",             RenderScriptCamera_GetCameras},
-        {"get_info",                RenderScriptCamera_GetInfo},
 
         // READ-ONLY
         {"get_projection",          RenderScriptCamera_GetProjection},
