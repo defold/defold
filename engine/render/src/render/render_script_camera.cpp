@@ -73,6 +73,7 @@ namespace dmRender
     * registered in the render context.
     *
     * @name camera.get_cameras
+    * @param camera [type:url|handle|nil] camera id
     * @return cameras [type:table] a table with all camera URLs
     *
     * @examples
@@ -142,6 +143,7 @@ namespace dmRender
     * : [type:boolean] true if the camera is using an automatic aspect ratio.
     *
     * @name camera.get_cameras
+    * @param camera [type:url|handle|nil] camera id
     * @return cameras [type:table] a table with all camera URLs
     *
     * @examples
@@ -197,10 +199,155 @@ namespace dmRender
         return 1;
     }
 
+    /*# get projection matrix
+    *
+    * @name camera.get_projection
+    * @param camera [type:url|handle|nil] camera id
+    * @return projection [type:vmath.matrix4] the projection matrix.
+    */
+    static int RenderScriptCamera_GetProjection(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        dmScript::PushMatrix4(L, camera->m_Projection);
+        return 1;
+    }
+
+    /*# get view matrix
+    *
+    * @name camera.get_view
+    * @param camera [type:url|handle|nil] camera id
+    * @return view [type:vmath.matrix4] the view matrix.
+    */
+    static int RenderScriptCamera_GetView(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        dmScript::PushMatrix4(L, camera->m_View);
+        return 1;
+    }
+
+#define GET_CAMERA_DATA_PROPERTY_FN(param, lua_fn) \
+    static int RenderScriptCamera_Get##param(lua_State* L) \
+    { \
+        DM_LUA_STACK_CHECK(L, 1); \
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext); \
+        lua_fn(L, camera->m_Data.m_##param); \
+        return 1; \
+    }
+
+#define SET_CAMERA_DATA_PROPERTY_FN(param, lua_fn) \
+    static int RenderScriptCamera_Set##param(lua_State* L) \
+    { \
+        DM_LUA_STACK_CHECK(L, 0); \
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext); \
+        camera->m_Data.m_##param = lua_fn(L, 2); \
+        return 0; \
+    }
+
+    /*# get aspect ratio
+    *
+    * @name camera.get_aspect_ratio
+    * @param camera [type:url|handle|nil] camera id
+    * @return aspect_ratio [type:number] the aspect ratio.
+    */
+    GET_CAMERA_DATA_PROPERTY_FN(AspectRatio, lua_tonumber);
+
+    /*# get far z
+    *
+    * @name camera.get_far_z
+    * @param camera [type:url|handle|nil] camera id
+    * @return far_z [type:number] the far z.
+    */
+    GET_CAMERA_DATA_PROPERTY_FN(FarZ, lua_tonumber);
+
+    /*# get field of view
+    *
+    * @name camera.get_fov
+    * @param camera [type:url|handle|nil] camera id
+    * @return fov [type:number] the field of view.
+    */
+    GET_CAMERA_DATA_PROPERTY_FN(Fov, lua_tonumber);
+
+    /*# get near z
+    *
+    * @name camera.get_near_z
+    * @param camera [type:url|handle|nil] camera id
+    * @return near_z [type:number] the near z.
+    */
+    GET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_tonumber);
+
+    /*# get orthographic zoom
+    *
+    * @name camera.get_orthographic_zoom
+    * @param camera [type:url|handle|nil] camera id
+    * @return orthographic_zoom [type:boolean] true if the camera is using an orthographic projection.
+    */
+    GET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_toboolean);
+
+    /*# set aspect ratio
+    *
+    * @name camera.set_aspect_ratio
+    * @param camera [type:url|handle|nil] camera id
+    * @param aspect_ratio [type:number] the aspect ratio.
+    */
+    SET_CAMERA_DATA_PROPERTY_FN(AspectRatio, lua_tonumber);
+
+    /*# set far z
+    *
+    * @name camera.set_far_z
+    * @param camera [type:url|handle|nil] camera id
+    * @param far_z [type:number] the far z.
+    */
+    SET_CAMERA_DATA_PROPERTY_FN(FarZ, lua_tonumber);
+
+    /*# set field of view
+    *
+    * @name camera.set_fov
+    * @param camera [type:url|handle|nil] camera id
+    * @param fov [type:number] the field of view.
+    */
+    SET_CAMERA_DATA_PROPERTY_FN(Fov, lua_tonumber);
+
+    /*# set near z
+    *
+    * @name camera.set_near_z
+    * @param camera [type:url|handle|nil] camera id
+    * @param near_z [type:number] the near z.
+    */
+    SET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_tonumber);
+
+    /*# set orthographic zoom
+    *
+    * @name camera.set_orthographic_zoom
+    * @param camera [type:url|handle|nil] camera id
+    * @param orthographic_zoom [type:boolean] true if the camera is using an orthographic projection.
+    */
+    SET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_toboolean);
+
+#undef GET_CAMERA_DATA_PROPERTY_FN
+#undef SET_CAMERA_DATA_PROPERTY_FN
+
     static const luaL_reg RenderScriptCamera_Methods[] =
     {
-        {"get_cameras", RenderScriptCamera_GetCameras},
-        {"get_info",    RenderScriptCamera_GetInfo},
+        {"get_cameras",             RenderScriptCamera_GetCameras},
+        {"get_info",                RenderScriptCamera_GetInfo},
+
+        // READ-ONLY
+        {"get_projection",          RenderScriptCamera_GetProjection},
+        {"get_view",                RenderScriptCamera_GetView},
+
+        // READ-WRITE
+        {"get_aspect_ratio",        RenderScriptCamera_GetAspectRatio},
+        {"set_aspect_ratio",        RenderScriptCamera_SetAspectRatio},
+        {"get_fov",                 RenderScriptCamera_GetFov},
+        {"set_fov",                 RenderScriptCamera_SetFov},
+        {"get_near_z",              RenderScriptCamera_GetNearZ},
+        {"set_near_z",              RenderScriptCamera_SetNearZ},
+        {"get_far_z",               RenderScriptCamera_GetFarZ},
+        {"set_far_z",               RenderScriptCamera_SetFarZ},
+        {"get_orthographic_zoom",   RenderScriptCamera_GetOrthographicZoom},
+        {"set_orthographic_zoom",   RenderScriptCamera_SetOrthographicZoom},
         {0, 0}
     };
 

@@ -40,7 +40,7 @@ namespace dmGameSystem
 
     #define LIB_NAME "camera"
 
-    /*# makes camera active
+    /** DEPRECATED! makes camera active
     *
     * @name camera.acquire_focus
     * @param url [type:string|hash|url] url of camera component
@@ -49,7 +49,7 @@ namespace dmGameSystem
     * camera.acquire_focus("/observer#main_camera")
     * ```
     */
-    int Camera_AcquireFocus(lua_State* L)
+    static int Camera_AcquireFocus(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         dmGameObject::HInstance instance = CheckGoInstance(L);
@@ -64,7 +64,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    /*# deactivate camera
+    /** DEPRECATED! deactivate camera
     *
     * @name camera.release_focus
     * @param url [type:string|hash|url] url of camera component

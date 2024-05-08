@@ -3013,7 +3013,7 @@ namespace dmRender
      * Note that the frustum plane option in render.draw can still be used together with the camera.
      *
      * @name render.set_camera
-     * @param camera_id [type:url|handle|nil] camera id to use, or nil to reset
+     * @param camera [type:url|handle|nil] camera id to use, or nil to reset
      * @param [options] [type:table] optional table with properties:
      *
      * `use_frustum`
