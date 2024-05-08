@@ -80,6 +80,16 @@
                (:auto-connect-save-data? resource-type))
       (g/connect node-id :save-data project :save-data))))
 
+(def ^:private ^:dynamic *transpiler-txs-fn*
+  (fn transpiler-txs [project node-id resource]
+    (code.transpilers/load-build-file-transaction-step (code-transpilers project) node-id resource)))
+
+(defmacro with-transpiler-txs-fn [project & body]
+  `(let [f# (code.transpilers/load-build-file-transaction-step (code-transpilers ~project))]
+     (binding [*transpiler-txs-fn* (fn [~'_ node-id# resource#]
+                                     (f# node-id# resource#))]
+       ~@body)))
+
 (defn load-node [project node-id node-type resource]
   ;; Note that node-id here may be temporary (a make-node not
   ;; g/transact'ed) here, so we can't use (node-value node-id :...)
@@ -97,10 +107,7 @@
             (let [load-tx-steps (if (nil? resource-type)
                                   (placeholder-resource/load-node project node-id resource)
                                   (load-registered-resource-node resource-type project node-id resource))
-                  transpiler-tx-steps (code.transpilers/load-build-file-transaction-step
-                                        (code-transpilers project)
-                                        node-id
-                                        (resource/proj-path resource))]
+                  transpiler-tx-steps (*transpiler-txs-fn* project node-id resource)]
               (cond-> load-tx-steps transpiler-tx-steps (concat transpiler-tx-steps)))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
@@ -216,8 +223,9 @@
     load-txs))
 
 (defn- load-nodes! [project node-ids render-progress! resource-node-dependencies resource-metrics transaction-metrics]
-  (let [tx-result (g/transact (du/when-metrics {:metrics transaction-metrics})
-                    (load-resource-nodes project node-ids render-progress! resource-node-dependencies resource-metrics))]
+  (let [tx-result (with-transpiler-txs-fn project
+                    (g/transact (du/when-metrics {:metrics transaction-metrics})
+                      (load-resource-nodes project node-ids render-progress! resource-node-dependencies resource-metrics)))]
     (render-progress! progress/done)
     tx-result))
 
