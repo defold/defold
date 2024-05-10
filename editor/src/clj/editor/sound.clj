@@ -236,6 +236,7 @@
       :ddf-type Sound$SoundDesc
       :load-fn load-sound
       :icon sound-icon
+      :icon-class :property
       :view-types [:cljfx-form-view :text]
       :view-opts {}
       :tags #{:component}
