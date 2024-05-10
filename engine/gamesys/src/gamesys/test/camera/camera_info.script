@@ -12,22 +12,17 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
+local function assert_url(a, b)
+	assert(a.socket == b.socket)
+	assert(a.path == b.path)
+	assert(a.fragment == b.fragment)
+end
+
 function init(self)
-    self.cameras = {}
-end
+	local cams = camera.get_cameras()
+	assert(#cams == 2)
 
-function update(self)
-    -- cameras are added by the order of camera_1, camera_2 and camera_3,
-    -- meaning that camera_3 will be on top of the camera focus stack, then camera_2 and lastly camera_1
-    assert(self.cameras[1] == hash("/camera_3"))
-    assert(self.cameras[2] == hash("/camera_2"))
-    assert(self.cameras[3] == hash("/camera_1"))
-
-    msg.post("@system:", "exit", { code = 0 })
-end
-
-function on_message(self, message_id, message, sender)
-    if message_id == hash("set_view_projection") then
-        table.insert(self.cameras, sender.path)
-    end
+	-- test camera paths
+	assert_url(cams[1], msg.url("collection:/go#camera_1"))
+	assert_url(cams[2], msg.url("collection:/go#camera_2"))
 end
