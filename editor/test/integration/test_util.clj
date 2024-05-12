@@ -1126,25 +1126,37 @@
           (is (= (dissoc (get-in scene-data (conj gpu-texture-path :params)) :default-tex-params)
                  (dissoc (material/sampler->tex-params (first (g/node-value material-node :samplers))) :default-tex-params))))))))
 
-(defn- build-node! [resource-node]
+(defn- build-node-result! [resource-node]
   (let [project (project/get-project resource-node)
         workspace (project/workspace project)
-        old-artifact-map (workspace/artifact-map workspace)
-        build-path (workspace/build-path workspace)
-        build-result (g/with-auto-evaluation-context evaluation-context
-                       (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!))]
-    [build-path build-result]))
+        old-artifact-map (workspace/artifact-map workspace)]
+    (g/with-auto-evaluation-context evaluation-context
+      (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!))))
+
+(defn build-node! [resource-node]
+  (let [build-result (build-node-result! resource-node)]
+    (when-some [error (:error build-result)]
+      (throw (ex-info "Build produced an ErrorValue."
+                      {:resource resource
+                       :node-type-kw (g/node-type-kw resource-node)
+                       :error error})))
+    build-result))
 
 (defn build!
   ^java.lang.AutoCloseable [resource-node]
-  (let [[build-path] (build-node! resource-node)]
-    (make-directory-deleter build-path)))
+  (let [resource (resource-node/resource resource-node)
+        workspace (resource/workspace resource)
+        build-directory (workspace/build-path workspace)]
+    (build-node! resource-node)
+    (make-directory-deleter build-directory)))
 
 (defn build-error! [resource-node]
-  (let [[build-path build-result] (build-node! resource-node)
-        error (:error build-result)]
-    (fs/delete-directory! (io/file build-path) {:fail :silently})
-    error))
+  (let [resource (resource-node/resource resource-node)
+        workspace (resource/workspace resource)
+        build-directory (workspace/build-path workspace)
+        build-result (build-node-result! resource-node)]
+    (fs/delete-directory! build-directory {:fail :silently})
+    (:error build-result)))
 
 (defn node-build-resource [node-id]
   (:resource (first (g/node-value node-id :build-targets))))

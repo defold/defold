@@ -29,7 +29,9 @@
             [editor.gl.vertex2 :as vtx]
             [editor.math :as math]
             [editor.outline-view :as outline-view]
+            [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
+            [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -59,10 +61,13 @@
            [editor.types AABB]
            [internal.graph.types Arc Endpoint]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
+           [java.io ByteArrayOutputStream]
            [java.lang.reflect Modifier]
            [java.nio ByteBuffer]
+           [java.nio.file Files]
            [javafx.stage Window]
-           [javax.vecmath Matrix3d Matrix4d Point2d Point3d Point4d Quat4d Vector2d Vector3d Vector4d]))
+           [javax.vecmath Matrix3d Matrix4d Point2d Point3d Point4d Quat4d Vector2d Vector3d Vector4d]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -1187,6 +1192,80 @@
       (or (some->> (diff/make-diff-output-lines expected-string actual-string 3)
                    (code.util/join-lines))
           "Strings are identical."))))
+
+(defn- make-build-output-infos-by-path [workspace ^String build-output-path]
+  (let [build-ext (FilenameUtils/getExtension build-output-path)
+        resource-type (some (fn [[_ resource-type]]
+                              (when (= build-ext (:build-ext resource-type))
+                                resource-type))
+                            (workspace/get-resource-type-map workspace))
+        pb-class (-> resource-type :test-info :ddf-type)
+        built-file (workspace/build-path workspace build-output-path)
+        built-bytes (Files/readAllBytes (.toPath built-file))
+        build-output-info {:path build-output-path
+                           :resource-type resource-type
+                           :bytes built-bytes}]
+    (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
+    (if (nil? pb-class)
+      (sorted-map build-output-path build-output-info)
+      (let [dependencies-fn (resource-node/make-ddf-dependencies-fn pb-class)
+            pb (protobuf/bytes->pb pb-class built-bytes)
+            pb-map (protobuf/pb->map-without-defaults pb)
+            dep-build-resource-paths (into (sorted-set)
+                                           (dependencies-fn pb-map))]
+        (into (sorted-map
+                build-output-path
+                (assoc build-output-info
+                  :pb-class pb-class
+                  :pb pb
+                  :pb-map pb-map
+                  :dep-paths dep-build-resource-paths))
+              (mapcat #(make-build-output-infos-by-path workspace %))
+              dep-build-resource-paths)))))
+
+(defn build-output-infos [project proj-path]
+  (let [resource-node (project/get-resource-node project proj-path)]
+    (assert (some? resource-node) (format "Resource node not found for: '%s'" proj-path))
+    (test-util/build-node! resource-node)
+    (let [build-resource (test-util/node-build-resource resource-node)
+          build-output-path (resource/proj-path build-resource)
+          workspace (resource/workspace build-resource)]
+      (make-build-output-infos-by-path workspace build-output-path))))
+
+(defn bob-build-output-infos [project proj-path]
+  (test-util/save-project! project)
+  (let [bob-commands ["build"]
+        bob-args {"" ""}
+        build-server-headers ""
+        log-output-stream (ByteArrayOutputStream.)
+        task-cancelled? (constantly false)
+        result (g/with-auto-evaluation-context evaluation-context
+                 (bob/bob-build! project evaluation-context bob-commands bob-args build-server-headers progress/null-render-progress! log-output-stream task-cancelled?))]
+    (when-let [exception (:exception result)]
+      (throw exception))
+    (if-let [error (:error result)]
+      error
+      (let [build-resource (test-util/build-resource project proj-path)
+            build-output-path (resource/proj-path build-resource)
+            workspace (resource/workspace build-resource)]
+        (make-build-output-infos-by-path workspace build-output-path)))))
+
+(defn- build-output-infos->diff-data [build-output-infos]
+  (into (sorted-map)
+        (map (fn [[build-output-path build-output-info]]
+               (pair build-output-path
+                     (select-keys build-output-info [:pb-map :dep-paths]))))
+        build-output-infos))
+
+(defn diff-editor-and-bob-build-output!
+  ([project proj-path]
+   (diff-editor-and-bob-build-output! project proj-path nil))
+  ([project proj-path opts]
+   (let [editor-build-output-infos (build-output-infos project proj-path)
+         bob-build-output-infos (bob-build-output-infos project proj-path)]
+     (diff-values! (build-output-infos->diff-data editor-build-output-infos)
+                   (build-output-infos->diff-data bob-build-output-infos)
+                   opts))))
 
 (defn pb-class-info
   ([^Class pb-class]

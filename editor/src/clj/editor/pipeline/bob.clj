@@ -27,6 +27,8 @@
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [service.log :as log]
+            [util.coll :refer [pair]]
             [util.fn :as fn]
             [util.http-util :as http-util])
   (:import [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
@@ -176,6 +178,34 @@
       (WriterOutputStream. StandardCharsets/UTF_8 1024 true)
       (PrintStream. true StandardCharsets/UTF_8)))
 
+(defn- quote-arg-if-needed
+  ^String [^String arg-value]
+  (if (string/includes? arg-value " ")
+    (str "\"" arg-value "\"")
+    arg-value))
+
+(defn- bob-command-line
+  ^String [bob-commands bob-args build-server-headers]
+  {:pre [(vector? bob-commands)
+         (every? string? bob-commands)
+         (every? (fn [[key val]] (and (string? key) (string? val))) bob-args)
+         (string? build-server-headers)]}
+  (->> (concat
+         ["java" "-jar" "bob.jar"]
+         (keep (fn [[key value]]
+                 (case value
+                   "" nil
+                   (format "--%s %s" key (quote-arg-if-needed value))))
+               (concat
+                 bob-args
+                 (eduction
+                   (filter not-empty)
+                   (map #(pair "build-server-header" %))
+                   (string/split-lines build-server-headers))))
+         bob-commands)
+       (filter not-empty)
+       (string/join " ")))
+
 (defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! log-output-stream task-cancelled?]
   {:pre [(vector? bob-commands)
          (every? string? bob-commands)
@@ -196,6 +226,7 @@
                 build-err (PrintStream-on
                             #(doseq [line (util/split-lines %)]
                                (.println log-stream-writer line)))]
+      (log/info :bob-command (bob-command-line bob-commands bob-args build-server-headers))
       (try
         (System/setOut build-out)
         (System/setErr build-err)
