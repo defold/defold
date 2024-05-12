@@ -300,8 +300,8 @@
 (defmacro translation-v3 [pose-expr]
   `(.-translation ~(with-meta pose-expr {:tag `Pose})))
 
-(defmacro translation-v4 [pose-expr]
-  `(conj (translation-v3 ~pose-expr) 0.0))
+(defmacro translation-v4 [pose-expr w-expr]
+  `(conj (translation-v3 ~pose-expr) (float ~w-expr)))
 
 (defmacro rotation-q4 [pose-expr]
   `(.-rotation ~(with-meta pose-expr {:tag `Pose})))

@@ -277,7 +277,8 @@
 
 (deftest accessors-test
   (is (= [1.0 2.0 3.0] (pose/translation-v3 (pose/translation-pose 1.0 2.0 3.0))))
-  (is (= [1.0 2.0 3.0 0.0] (pose/translation-v4 (pose/translation-pose 1.0 2.0 3.0))))
+  (is (= [1.0 2.0 3.0 0.0] (pose/translation-v4 (pose/translation-pose 1.0 2.0 3.0) 0.0)))
+  (is (= [1.0 2.0 3.0 1.0] (pose/translation-v4 (pose/translation-pose 1.0 2.0 3.0) 1.0)))
   (is (= [1.0 2.0 3.0 4.0] (pose/rotation-q4 (pose/rotation-pose 1.0 2.0 3.0 4.0))))
   (is (= [0.0 180.0 90.0] (pose/euler-rotation-v3 (pose/euler-rotation-pose 0.0 180.0 90.0))))
   (is (= [0.0 180.0 90.0 0.0] (pose/euler-rotation-v4 (pose/euler-rotation-pose 0.0 180.0 90.0))))

@@ -2364,7 +2364,7 @@
       clipping/setup-states
       sort-scene)))
 
-(defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
+(g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
   (protobuf/make-map-without-defaults Gui$SceneDesc
     :script (resource/resource->proj-path script-resource)
     :material (resource/resource->proj-path material-resource)
@@ -2379,9 +2379,6 @@
     :layouts layout-msgs
     :particlefxs particlefx-resource-msgs
     :resources resource-msgs))
-
-(g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
-  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs))
 
 (g/defnk produce-save-value [pb-msg]
   (-> pb-msg
@@ -2438,55 +2435,61 @@
   (let [pose (pose/pre-multiply (node-desc->pose child-node-desc)
                                 (node-desc->pose parent-node-desc))]
     (assoc child-node-desc
-      :position (pose/translation-v4 pose)
+      :position (pose/translation-v4 pose 1.0)
       :rotation (pose/euler-rotation-v4 pose)
       :scale (pose/scale-v4 pose))))
 
-(defn- nodes->rt-nodes [nodes]
-  (into []
-        (keep (fn [node]
-                (cond
-                  (= :type-template (:type node))
-                  nil
+(defn- node-desc->rt-node-desc [node-desc]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  (cond
+    (= :type-template (:type node-desc))
+    nil
 
-                  (:template-node-child node)
-                  (reduce
-                    (fn [node template]
-                      (cond-> (assoc node :template-node-child false)
+    (:template-node-child node-desc)
+    (reduce
+      (fn [node template]
+        (cond-> (assoc node :template-node-child false)
 
-                              (and (coll/empty? (:layer node))
-                                   (not (coll/empty? (:layer template))))
-                              (assoc :layer (:layer template))
+                (and (coll/empty? (:layer node))
+                     (not (coll/empty? (:layer template))))
+                (assoc :layer (:layer template))
 
-                              (:inherit-alpha node)
-                              (->
-                                (assoc :alpha (* (:alpha node 1.0) (:alpha template 1.0)))
-                                (assoc :inherit-alpha (:inherit-alpha template false)))
+                (:inherit-alpha node)
+                (->
+                  (assoc :alpha (* (:alpha node 1.0) (:alpha template 1.0)))
+                  (assoc :inherit-alpha (:inherit-alpha template false)))
 
-                              (or (= (:id template) (:parent node))
-                                  (coll/empty? (:parent node)))
-                              (->
-                                (assoc :parent (:parent template ""))
-                                (assoc :enabled (and (:enabled node true) (:enabled template true)))
-                                ;; In fact incorrect, but only possibility to retain rotation/scale separation.
-                                (pre-multiply-pb-pose template))))
-                    node
-                    (:templates (meta node)))
+                (or (= (:id template) (:parent node))
+                    (coll/empty? (:parent node)))
+                (->
+                  (assoc :parent (:parent template ""))
+                  (assoc :enabled (and (:enabled node true) (:enabled template true)))
+                  ;; In fact incorrect, but only possibility to retain rotation/scale separation.
+                  (pre-multiply-pb-pose template))))
+      node-desc
+      (:templates (meta node-desc)))
 
-                  :else
-                  node)))
-        nodes))
+    :else
+    node-desc))
 
-(defn- pb-msg->pb-rt-msg [msg]
-  (-> msg
-      (update :nodes nodes->rt-nodes)
-      (update :layouts (fn [layouts] (mapv #(update % :nodes nodes->rt-nodes) layouts)))))
+(defn- layout-desc->rt-layout-desc [layout-desc]
+  {:pre [(map? layout-desc)]} ; Gui$SceneDesc$LayoutDesc in map format.
+  (-> layout-desc
+      (protobuf/sanitize-repeated
+        :nodes (comp #(dissoc % :overridden-fields)
+                     node-desc->rt-node-desc))))
+
+(defn- scene-desc->rt-scene-desc [scene-desc]
+  {:pre [(map? scene-desc)]} ; Gui$SceneDesc in map format.
+  (-> scene-desc
+      (protobuf/sanitize-repeated :nodes node-desc->rt-node-desc)
+      (protobuf/sanitize-repeated :layouts layout-desc->rt-layout-desc)))
 
 (g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets]
   (g/precluding-errors build-errors
     (let [def pb-def
           template-build-targets (flatten template-build-targets)
-          rt-pb-msg (pb-msg->pb-rt-msg pb-msg)
+          rt-pb-msg (scene-desc->rt-scene-desc pb-msg)
           rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
           dep-build-targets (concat (flatten dep-build-targets) (mapcat :deps (flatten template-build-targets)))
           deps-by-source (into {} (map #(let [res (:resource %)] [(resource/resource->proj-path (:resource res)) res]) dep-build-targets))
