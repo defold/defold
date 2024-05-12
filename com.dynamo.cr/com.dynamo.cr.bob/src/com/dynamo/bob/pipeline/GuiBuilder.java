@@ -17,11 +17,9 @@ package com.dynamo.bob.pipeline;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
@@ -52,6 +50,7 @@ import com.dynamo.gamesys.proto.Gui.SceneDesc.LayoutDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.TextureDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.MaterialDesc;
 import com.dynamo.gamesys.proto.Gui.SceneDesc.ResourceDesc;
+import com.google.protobuf.Descriptors;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.TextFormat;
 
@@ -201,7 +200,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         eulerToQuat(rot, rQ);
         rQ.mul(pRQ, rQ);
         quatToEuler(rQ, rot);
-        b.setRotation(Vector4.newBuilder().setX((float) rot.getX()).setY((float) rot.getY()).setZ((float) rot.getZ()).setW(1.0f).build());
+        b.setRotation(Vector4.newBuilder().setX((float) rot.getX()).setY((float) rot.getY()).setZ((float) rot.getZ()).setW(0.0f).build());
 
         // resolve parent and do recursive transform
         b.setParent(parentNode.getParent());
@@ -315,19 +314,25 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         return map;
     }
 
+    private static NodeDesc.Builder ApplyOverriddenFieldValues(NodeDesc.Builder targetBuilder, NodeDesc overrideNode) {
+        Descriptors.Descriptor typeDesc = NodeDesc.getDescriptor();
+
+        for (int fieldNumber : overrideNode.getOverriddenFieldsList()) {
+            FieldDescriptor fieldDesc = typeDesc.findFieldByNumber(fieldNumber);
+            assert fieldDesc != null;
+            targetBuilder.setField(fieldDesc, overrideNode.getField(fieldDesc));
+        }
+
+        return targetBuilder;
+    }
+
     private static void ApplyLayoutOverrides(NodeDesc.Builder builder, HashMap<String, NodeDesc> nodeMapDefault, HashMap<String, NodeDesc> nodeMap) {
         NodeDesc parentSceneNode = (nodeMap == null) ? null : nodeMap.get(builder.getId());
         if((parentSceneNode == null) && (nodeMapDefault != null)) {
             parentSceneNode = nodeMapDefault.get(builder.getId());
         }
         if(parentSceneNode != null && parentSceneNode.getOverriddenFieldsCount() != 0) {
-            List<Integer> overriddenFields = parentSceneNode.getOverriddenFieldsList();
-            for(int fieldNumber : overriddenFields) {
-                FieldDescriptor fieldDesc = parentSceneNode.getDescriptorForType().findFieldByNumber(fieldNumber);
-                if(fieldDesc != null) {
-                   builder.setField(fieldDesc, parentSceneNode.getField(fieldDesc));
-                }
-            }
+            ApplyOverriddenFieldValues(builder, parentSceneNode);
         }
         // opt fields ignored by run-time
         builder.clearOverriddenFields();
@@ -676,6 +681,29 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         return sceneBuilder;
     }
 
+    private static void MergeOriginalValuesIntoLayouts(SceneDesc.Builder sceneBuilder) {
+        // Layout nodes will only have valid values for overridden properties.
+        // Copy the non-overridden property values from the original scene nodes
+        // into the layout nodes.
+        if(sceneBuilder.getLayoutsCount() > 0) {
+            Map<String, NodeDesc> sceneNodesById = sceneBuilder.getNodesList().stream().collect(Collectors.toMap(NodeDesc::getId, Function.identity()));
+
+            for(LayoutDesc.Builder layoutBuilder : sceneBuilder.getLayoutsBuilderList()) {
+                for(int i = 0, len = layoutBuilder.getNodesCount(); i < len; ++i) {
+                    NodeDesc layoutNode = layoutBuilder.getNodes(i);
+
+                    // Copy the original property values into our layout node,
+                    // but only if it is overriding a node owned by this scene.
+                    if (!layoutNode.getTemplateNodeChild()) {
+                        NodeDesc sceneNode = sceneNodesById.get(layoutNode.getId());
+                        NodeDesc fullyFormedLayoutNode = ApplyOverriddenFieldValues(sceneNode.toBuilder(), layoutNode).build();
+                        layoutBuilder.setNodes(i, fullyFormedLayoutNode);
+                    }
+                }
+            }
+        }
+    }
+
     private class SceneBuilderIO implements ISceneBuilderIO {
         com.dynamo.bob.Project project;
         SceneBuilderIO(com.dynamo.bob.Project project) {
@@ -689,6 +717,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 InputStreamReader reader = new InputStreamReader(new ByteArrayInputStream(templateSceneResource.getContent()), "ASCII");
                 sceneBuilder = SceneDesc.newBuilder();
                 TextFormat.merge(reader, sceneBuilder);
+                MergeOriginalValuesIntoLayouts(sceneBuilder);
                 resourceCache.put(resourcePath, sceneBuilder);
             }
             return sceneBuilder.clone();
@@ -698,9 +727,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     @Override()
     protected SceneDesc.Builder transform(Task<Void> task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
         HashMap<String, SceneDesc.Builder> sceneResourceCache = new HashMap<String, SceneDesc.Builder>(32);
-        SceneDesc.Builder builder = null;
-        builder = transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(this.project), sceneResourceCache, true);
-        return builder;
+        MergeOriginalValuesIntoLayouts(messageBuilder);
+        return transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(this.project), sceneResourceCache, true);
     }
 
 }
