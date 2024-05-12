@@ -311,4 +311,5 @@
     :ddf-type Graphics$Cubemap
     :load-fn load-cubemap
     :icon cubemap-icon
+    :icon-class :design
     :view-types [:scene :text]))

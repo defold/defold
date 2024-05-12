@@ -49,6 +49,11 @@ public class MeshBuilder extends Builder<Void> {
         taskBuilder.addInput(res);
 
         for (String t : meshDescBuilder.getTexturesList()) {
+            // Same as models
+            // This check is based on the material samplers only, but should we check if the material actually needs textures?
+            if (t.isEmpty())
+                continue;
+
             res = BuilderUtil.checkResource(this.project, input, "texture", t);
             taskBuilder.addInput(res);
             Task<?> embedTask = this.project.createTask(res);
@@ -78,6 +83,8 @@ public class MeshBuilder extends Builder<Void> {
 
         List<String> newTextureList = new ArrayList<String>();
         for (String t : meshDescBuilder.getTexturesList()) {
+            if (t.isEmpty())
+                continue;
             BuilderUtil.checkResource(this.project, resource, "texture", t);
             newTextureList.add(ProtoBuilders.replaceTextureName(t));
         }

@@ -628,6 +628,14 @@ TEST_P(ComponentTest, TestReloadFail)
     dmDDF::FreeMessage(go_ddf);
 }
 
+TEST_F(ComponentTest, CameraTest)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/camera/camera_info.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}   
+
 // Test that tries to reload shaders with errors in them.
 TEST_F(ComponentTest, ReloadInvalidMaterial)
 {

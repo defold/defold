@@ -72,7 +72,7 @@
             (testing "Without the extension, resources with embedded Spine data report build errors due to invalid content."
               (letfn [(invalid-content-error? [error-resource-path error-value]
                         (is (g/error? error-value))
-                        (is (= :invalid-content (-> error-value :user-data :type)))
+                        (is (= :invalid-content (-> error-value :causes first :user-data :type)))
                         (let [error-tree (build-errors-view/build-resource-tree error-value)
                               error-item-of-parent-resource (first (:children error-tree))
                               error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
