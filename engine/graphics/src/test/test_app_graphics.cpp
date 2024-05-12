@@ -133,8 +133,9 @@ struct EngineCtx;
 
 struct ITest
 {
-    virtual void Initialize(EngineCtx*) = 0;
-    virtual void Execute(EngineCtx*) = 0;
+    virtual void Initialize(EngineCtx*) {};
+    virtual void Execute(EngineCtx*) {};
+    virtual void PostFlip(EngineCtx*) {};
 };
 
 struct EngineCtx
@@ -150,6 +151,8 @@ struct EngineCtx
     dmGraphics::HContext m_GraphicsContext;
 
     ITest* m_Test;
+    bool m_WindowClosed;
+
 } g_EngineCtx;
 
 struct CopyToBufferTest : ITest
@@ -202,11 +205,14 @@ struct CopyToBufferTest : ITest
 
 struct ReadPixelsTest : ITest
 {
-    char* m_Buffer;
+    uint8_t* m_Buffer;
+    bool m_DidRead;
 
     void Initialize(EngineCtx* engine) override
     {
-        m_Buffer = new char[512 * 512 * 4];
+        m_DidRead = false;
+        m_Buffer = new uint8_t[512 * 512 * 4];
+        memset(m_Buffer, 0, sizeof(m_Buffer));
     }
 
     void Execute(EngineCtx* engine) override
@@ -217,14 +223,19 @@ struct ReadPixelsTest : ITest
         static uint8_t color_a = 255;
 
         dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
-                                    (float)color_r,
-                                    (float)color_g,
-                                    (float)color_b,
-                                    (float)color_a,
+                                    (float) color_r,
+                                    (float) color_g,
+                                    (float) color_b,
+                                    (float) color_a,
                                     1.0f, 0);
 
         dmGraphics::ReadPixels(engine->m_GraphicsContext, m_Buffer, 512 * 512 * 4);
+        dmLogInfo("%d, %d, %d, %d", m_Buffer[0], m_Buffer[1], m_Buffer[2], m_Buffer[3]);
     }
+
+    void PostFlip(EngineCtx* engine) override
+    {
+    };
 };
 
 struct SubPassTest : ITest
@@ -507,17 +518,25 @@ struct StorageBufferTest : ITest
     }
 };
 
+static bool OnWindowClose(void* user_data)
+{
+    EngineCtx* engine = (EngineCtx*) user_data;
+    engine->m_WindowClosed = 1;
+    return true;
+}
+
 static void* EngineCreate(int argc, char** argv)
 {
     EngineCtx* engine = &g_EngineCtx;
-
     engine->m_Window = dmPlatform::NewWindow();
 
     dmPlatform::WindowParams window_params = {};
-    window_params.m_Width       = 512;
-    window_params.m_Height      = 512;
-    window_params.m_Title       = "Vulkan Test App";
-    window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_Width                 = 512;
+    window_params.m_Height                = 512;
+    window_params.m_Title                 = "Vulkan Test App";
+    window_params.m_GraphicsApi           = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_CloseCallback         = OnWindowClose;
+    window_params.m_CloseCallbackUserData = (void*) engine;
 
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
@@ -569,6 +588,11 @@ static UpdateResult EngineUpdate(void* _engine)
     */
 
     dmPlatform::PollEvents(engine->m_Window);
+
+    if (engine->m_WindowClosed)
+    {
+        return RESULT_EXIT;
+    }
 
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 

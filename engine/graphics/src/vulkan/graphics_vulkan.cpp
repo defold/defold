@@ -3952,16 +3952,44 @@ bail:
 
     static void VulkanReadPixels(HContext _context, void* buffer, uint32_t buffer_size)
     {
-        uint32_t w = dmGraphics::GetWidth(_context);
-        uint32_t h = dmGraphics::GetHeight(_context);
-        assert (buffer_size >= w * h * 4);
-
         VulkanContext* context = (VulkanContext*) _context;
 
-        DeviceBuffer stage_buffer(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+        uint32_t w = context->m_WindowWidth;
+        uint32_t h = context->m_WindowHeight;
+        assert (buffer_size >= w * h * 4);
+            
+        HRenderTarget currentt_rt_h = context->m_CurrentRenderTarget;
+        RenderTarget* current_rt    = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, currentt_rt_h);
+        bool in_render_pass         = current_rt->m_IsBound;
 
+        // We can't copy an image if we are inside a render pass.
+        // This is considered an expensive operation, but unless we have user facing functionality to begin/end render passes,
+        // this is as good as it gets currently.
+        if (in_render_pass)
+        {
+            EndRenderPass(context);
+        }
+
+        // Create a temporary stage buffer that we can map to
+        DeviceBuffer stage_buffer(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device, buffer_size,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+        CHECK_VK_ERROR(res);
+
+        // input image must be in VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL or VK_IMAGE_LAYOUT_GENERAL, so we pick the optimal layout
+        // otherwise, the validation layers will complain that this is a performance issue and spam errors..
+
+        OneTimeCommandBuffer cmd_buffer(context);
+        res = cmd_buffer.Begin();
+        CHECK_VK_ERROR(res);
+
+        res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                context->m_SwapChain->Image(),
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_UNDEFINED,
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         CHECK_VK_ERROR(res);
 
         VkBufferImageCopy vk_copy_region = {};
@@ -3972,11 +4000,14 @@ bail:
         vk_copy_region.imageSubresource.layerCount = 1;
 
         vkCmdCopyImageToBuffer(
-            context->m_MainCommandBuffers[context->m_SwapChain->m_ImageIndex],
+            cmd_buffer.m_CmdBuffer,
             context->m_SwapChain->Image(),
-            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             stage_buffer.m_Handle.m_Buffer,
             1, &vk_copy_region);
+
+        res = cmd_buffer.End();
+        CHECK_VK_ERROR(res);
 
         res = stage_buffer.MapMemory(context->m_LogicalDevice.m_Device);
         CHECK_VK_ERROR(res);
@@ -3987,7 +4018,10 @@ bail:
 
         DestroyResourceDeferred(context->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], &stage_buffer);
 
-        // DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
+        if (in_render_pass)
+        {
+            BeginRenderPass(context, currentt_rt_h);
+        }
     }
 
     static void VulkanRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
@@ -4164,54 +4198,6 @@ bail:
         return g_VulkanContext;
     }
 
-    struct OneTimeCommandBuffer
-    {
-        OneTimeCommandBuffer(VulkanContext* context)
-        : m_Context(context) {}
-
-        VkCommandBuffer Begin()
-        {
-            assert(m_Context != 0);
-
-            VkCommandBuffer vk_command_buffer;
-            CreateCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-            memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-            vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            VkResult res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-            CHECK_VK_ERROR(res);
-
-            m_CmdBuffer = vk_command_buffer;
-
-            return vk_command_buffer;
-        }
-
-        void End()
-        {
-            vkEndCommandBuffer(m_CmdBuffer);
-
-            VkSubmitInfo vk_submit_info = {};
-            vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            vk_submit_info.commandBufferCount = 1;
-            vk_submit_info.pCommandBuffers    = &m_CmdBuffer;
-
-            VkResult res = vkQueueSubmit(m_Context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
-            CHECK_VK_ERROR(res);
-
-            vkQueueWaitIdle(m_Context->m_LogicalDevice.m_GraphicsQueue); // TODO: Proper syncronization
-
-            vkFreeCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &m_CmdBuffer);
-
-            m_Context   = 0;
-            m_CmdBuffer = VK_NULL_HANDLE;
-        }
-
-        VulkanContext*  m_Context;
-        VkCommandBuffer m_CmdBuffer;
-    };
-
     void VulkanCopyBufferToTexture(HContext _context, HVertexBuffer _buffer, HTexture _texture, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -4219,9 +4205,10 @@ bail:
         VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, _texture);
 
         OneTimeCommandBuffer cmd_buffer(context);
-        VkCommandBuffer vk_command_buffer = cmd_buffer.Begin();
+        VkResult res = cmd_buffer.Begin();
+        CHECK_VK_ERROR(res);
 
-        VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
+        res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
                 context->m_LogicalDevice.m_CommandPool,
                 context->m_LogicalDevice.m_GraphicsQueue,
                 texture->m_Handle.m_Image,
@@ -4252,11 +4239,12 @@ bail:
             vk_copy_region.imageSubresource.layerCount     = 1;
         }
 
-        vkCmdCopyBufferToImage(vk_command_buffer, buffer->m_Handle.m_Buffer,
+        vkCmdCopyBufferToImage(cmd_buffer.m_CmdBuffer, buffer->m_Handle.m_Buffer,
             texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             layer_count, vk_copy_regions);
 
-        cmd_buffer.End();
+        res = cmd_buffer.End();
+        CHECK_VK_ERROR(res);
 
         res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_CommandPool,
@@ -4642,7 +4630,8 @@ bail:
         CHECK_VK_ERROR(res);
 
         OneTimeCommandBuffer cmd_buffer(context);
-        VkCommandBuffer vk_command_buffer = cmd_buffer.Begin();
+        res  = cmd_buffer.Begin();
+        CHECK_VK_ERROR(res);
 
         VkImageSubresourceRange range = {};
         range.aspectMask              = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -4650,13 +4639,14 @@ bail:
         range.layerCount              = 1;
 
         vkCmdClearColorImage(
-            vk_command_buffer,
+            cmd_buffer.m_CmdBuffer,
             texture->m_Handle.m_Image,
             VK_IMAGE_LAYOUT_GENERAL,
             &clear_value,
             1, &range);
 
-        cmd_buffer.End();
+        res = cmd_buffer.End();
+        CHECK_VK_ERROR(res);
     }
 
     static inline VkPipelineStageFlags GetPipelineStageFlags(uint32_t bits)
