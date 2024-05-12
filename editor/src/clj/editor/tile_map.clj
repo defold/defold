@@ -1258,6 +1258,7 @@
     :ddf-type Tile$TileGrid
     :load-fn load-tile-map
     :icon tile-map-icon
+    :icon-class :design
     :view-types [:scene :text]
     :view-opts {:scene {:grid tile-map-grid/TileMapGrid
                         :tool-controller TileMapController}}

@@ -37,7 +37,8 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.fn :as fn])
   (:import [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
@@ -411,6 +412,12 @@
     (g/connect texture-binding :texture-binding-info sprite :texture-binding-infos)
     (g/connect texture-binding :scene-info sprite :scene-infos)))
 
+(defn- clear-texture-binding-node-id [texture-binding-node-id _]
+  (g/delete-node texture-binding-node-id))
+
+(defn- set-texture-binding-id [sampler-name _ node-id _ new]
+  (create-texture-binding-tx node-id sampler-name new))
+
 (g/defnk produce-properties [_declared-properties _node-id default-animation material-attribute-infos material-max-page-count material-samplers material-shader texture-binding-infos vertex-attribute-overrides]
   (let [extension (workspace/resource-kind-extensions (project/workspace (project/get-project _node-id)) :atlas)
         is-paged-material (shader/is-using-array-samplers? material-shader)
@@ -455,7 +462,7 @@
 
                            :edit-type {:type resource/Resource
                                        :ext extension
-                                       :clear-fn (fn [_ _] (g/delete-node texture-binding-node-id))}}
+                                       :clear-fn clear-texture-binding-node-id}}
                           should-be-deleted
                           (assoc :original-value fake-resource))])
                      ;; needed texture binding does not exist
@@ -467,8 +474,7 @@
                        :error (validation/prop-error :info _node-id :texture validation/prop-nil? nil label)
                        :edit-type {:type resource/Resource
                                    :ext extension
-                                   :set-fn (fn [_ _ _ new]
-                                             (create-texture-binding-tx _node-id sampler-name new))}}])))))
+                                   :set-fn (fn/partial set-texture-binding-id sampler-name)}}])))))
         attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
     (-> _declared-properties
         (update :properties (fn [props]
@@ -688,6 +694,7 @@
     :load-fn load-sprite
     :sanitize-fn sanitize-sprite
     :icon sprite-icon
+    :icon-class :design
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation :scale}}}

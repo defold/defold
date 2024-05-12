@@ -460,6 +460,7 @@ var LibraryGLFW = {
         for (var i = 0; i < GLFW.keys.length; i++) {
           GLFW.keys[i] = 0;
         }
+        GLFW.buttons = 0;
       }
       if (GLFW.focusFunc) {
         {{{ makeDynCall('vi', 'GLFW.focusFunc') }}}(focus);
@@ -765,6 +766,7 @@ var LibraryGLFW = {
     // we get information about the current pixel ratio from browser
     if (target == 0x00020019) { //GLFW_WINDOW_HIGH_DPI
       if (hint != 0) {
+        // the same logic is in dmloader.js -> using display.high_dpi
         GLFW.dpi = window.devicePixelRatio || 1;
       }
     }
@@ -810,9 +812,6 @@ var LibraryGLFW = {
       if (GLFW.isFullscreen) {
         width = Math.floor(window.innerWidth * GLFW.dpi);
         height = Math.floor(window.innerHeight * GLFW.dpi);
-      } else {
-        width = Math.floor(width * GLFW.dpi);
-        height = Math.floor(height * GLFW.dpi);
       }
       GLFW.prevWidth = width;
       GLFW.prevHeight = height;

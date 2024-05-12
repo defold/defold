@@ -217,6 +217,11 @@ namespace dmRender
                         (dmRender::HNamedConstantBuffer) c->m_Operands[3]);
                     break;
                 }
+                case COMMAND_TYPE_SET_RENDER_CAMERA:
+                {
+                    render_context->m_CurrentRenderCamera           = (HRenderCamera) c->m_Operands[0];
+                    render_context->m_CurrentRenderCameraUseFrustum = c->m_Operands[1];
+                } break;
                 default:
                 {
                     dmLogError("No such render command (%d).", c->m_Type);

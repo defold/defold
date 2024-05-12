@@ -22,9 +22,11 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types :as t]
-            [editor.util :as util]
+            [editor.util :as eutil]
             [editor.workspace :as workspace]
+            [internal.util :as util]
             [schema.core :as s]
+            [util.coll :refer [pair]]
             [util.id-vec :as iv]
             [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
@@ -406,36 +408,50 @@
   (let [node-ids (mapv :node-id properties)
         properties (mapv flatten-properties properties)
         display-orders (mapv :display-order properties)
-        properties (mapv :properties properties)
         node-count (count properties)
-        ; Filter out invisible properties
-        visible-props (mapcat (fn [p] (filter (fn [[k v]] (visible? v)) p)) properties)
-        ; Filter out properties not common to *all* property sets
-        ; Heuristic is to compare count and also type
-        common-props (filter (fn [[k v]] (and (= node-count (count v)) (apply = (map property-edit-type v))))
-                             (map (fn [[k v]] [k (mapv second v)]) (group-by first visible-props)))
-        ; Coalesce into properties consumable by e.g. the properties view
-        coalesced (into {} (map (fn [[k v]]
-                                  (let [prop {:key k
-                                              :node-ids (mapv :node-id v)
-                                              :prop-kws (mapv (fn [{:keys [prop-kw]}]
-                                                                (cond (some? prop-kw) prop-kw
-                                                                      (vector? k) (first k)
-                                                                      :else k)) v)
-                                              :tooltip (some :tooltip v)
-                                              :values (mapv (fn [{:keys [value]}]
+        ;; Filter out invisible properties
+        visible-prop-colls (->> properties
+                                (eduction
+                                  (mapcat :properties)
+                                  (filter #(visible? (val %))))
+                                (util/group-into {} [] key val))
+        coalesced (into {}
+                        (comp
+                          ;; Filter out properties not common to *all* property sets
+                          ;; Heuristic is to compare count and also type
+                          (filter
+                            (fn [e]
+                              (let [v (val e)]
+                                (and (= node-count (count v))
+                                     (apply = (map property-edit-type v))))))
+                          ;; Coalesce into properties consumable by e.g. the properties view
+                          (map (fn [[k v]]
+                                 (let [prop {:key k
+                                             :node-ids (mapv :node-id v)
+                                             :prop-kws (mapv (fn [{:keys [prop-kw]}]
+                                                               (cond (some? prop-kw) prop-kw
+                                                                     (vector? k) (first k)
+                                                                     :else k)) v)
+                                             :tooltip (some :tooltip v)
+                                             :values (mapv (fn [{:keys [value]}]
                                                              (when-not (g/error? value)
                                                                value)) v)
-                                              :errors  (mapv (fn [{:keys [value error]}]
-                                                               (or error
-                                                                   (when (g/error? value) value))) v)
-                                              :edit-type (property-edit-type (first v))
-                                              :label (:label (first v))
-                                              :read-only? (reduce (fn [res read-only] (or res read-only)) false (map #(get % :read-only? false) v))}
-                                        default-vals (mapv :original-value (filter #(contains? % :original-value) v))
-                                        prop (if (empty? default-vals) prop (assoc prop :original-values default-vals))]
-                                    [k prop]))
-                                common-props))]
+                                             :errors (mapv (fn [{:keys [value error]}]
+                                                             (or error
+                                                                 (when (g/error? value) value))) v)
+                                             :edit-type (property-edit-type (first v))
+                                             :label (:label (first v))
+                                             :read-only? (reduce
+                                                           (fn [acc prop]
+                                                             (if (:read-only? prop false)
+                                                               (reduced true)
+                                                               acc))
+                                                           false
+                                                           v)}
+                                       default-vals (mapv :original-value (filter #(contains? % :original-value) v))
+                                       prop (if (empty? default-vals) prop (assoc prop :original-values default-vals))]
+                                   (pair k prop)))))
+                        visible-prop-colls)]
     {:properties coalesced
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))
      :original-node-ids node-ids}))
@@ -585,7 +601,7 @@
 
 (defn ->choicebox [vals]
   {:type :choicebox
-   :options (mapv (juxt identity identity) (sort util/natural-order vals))})
+   :options (mapv (juxt identity identity) (sort eutil/natural-order vals))})
 
 (defn ->pb-choicebox-raw [cls]
   (let [values (protobuf/enum-values cls)]

@@ -1335,13 +1335,13 @@ If you do not specifically require different script states, consider changing th
 
 (defn- updated-build-resources [evaluation-context project old-etags new-etags proj-path-or-resource]
   (let [resource-node (project/get-resource-node project proj-path-or-resource evaluation-context)
-        build-targets (g/node-value resource-node :build-targets evaluation-context)
+        flat-build-targets (build/resolve-node-dependencies resource-node project evaluation-context)
         updated-build-resource-proj-paths (updated-build-resource-proj-paths old-etags new-etags)]
     (into []
           (keep (fn [{build-resource :resource :as _build-target}]
                   (when (contains? updated-build-resource-proj-paths (resource/proj-path build-resource))
                     build-resource)))
-          (rseq (pipeline/flatten-build-targets build-targets)))))
+          (rseq flat-build-targets))))
 
 (defn- can-hot-reload? [debug-view prefs evaluation-context]
   (when-some [target (targets/selected-target prefs)]

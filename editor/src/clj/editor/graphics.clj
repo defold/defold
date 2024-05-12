@@ -570,8 +570,7 @@
             (fn mesh-data-exists? [semantic-type ^long channel]
               (case semantic-type
                 :semantic-type-position
-                (and (zero? channel)
-                     (some? (:position-data renderable-data)))
+                (some? (:position-data renderable-data))
 
                 :semantic-type-texcoord
                 (some? (get-in texcoord-datas [channel :uv-data]))
@@ -584,8 +583,7 @@
                      (some? (:color-data renderable-data)))
 
                 :semantic-type-normal
-                (and (zero? channel)
-                     (some? (:normal-data renderable-data)))
+                (some? (:normal-data renderable-data))
 
                 :semantic-type-tangent
                 (and (zero? channel)

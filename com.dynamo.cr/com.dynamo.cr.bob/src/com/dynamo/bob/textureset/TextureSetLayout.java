@@ -95,7 +95,7 @@ public class TextureSetLayout {
         private int index; // for easier keeping the original order
         private int page;
         private Rectanglei rect; // The final placement in the texture. May lay outside of the texture image.
-        private boolean rotated; // True if rotated 90 deg (CCW)
+        private boolean rotated; // True if rotated 90 deg (CW)
 
         // Texel coordinates within the original image.
         // Origin is top left corner of original image.
@@ -509,6 +509,28 @@ public class TextureSetLayout {
         }
         public void setIndices(List<Integer> indices) {
             this.indices = indices;
+        }
+
+        public void debugPrint() {
+            System.out.printf("SourceImage {\n");
+            System.out.printf("    name: %s\n", name);
+            System.out.printf("    rotated: %s\n", rotated?"true":"false");
+            //System.out.printf("    originalSize: %f, %f\n", originalSize.width, originalSize.height);
+            System.out.printf("    rect: %f, %f\n", rect.width, rect.height);
+            System.out.printf("    vertices:  {\n");
+            for (Point p : vertices)
+            {
+                System.out.printf("        %f, %f\n", p.x, p.y);
+            }
+            System.out.printf("    }\n");
+            System.out.printf("    indices:  {\n");
+            for (int i : indices)
+            {
+                System.out.printf("        %d", i);
+            }
+            System.out.printf("\n");
+            System.out.printf("    }\n");
+            System.out.printf("}\n");
         }
     }
 

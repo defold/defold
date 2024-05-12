@@ -1058,7 +1058,8 @@ static int CreateTexture(lua_State* L)
  *
  * @param buffer [type:buffer] optional buffer of precreated pixel data
  *
- * @return path, request_id [type:hash, type:handle] The path to the resource and the request id for the async request.
+ * @return path [type:hash] The path to the resource.
+ * @return request_id [type:handle] The request id for the async request.
  *
  * @examples
  * Create a texture resource asyncronously with a buffer and a callback
