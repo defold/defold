@@ -12,7 +12,7 @@ height = 640
 input_method = HiddenInputField
 
 [project]
-title = transpilers_project
+title = transpile_teal_project
 dependencies#0 = https://github.com/defold/extension-teal/archive/main.zip
 
 [input]

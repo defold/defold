@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns integration.extension-transpilers-test
+(ns integration.extension-teal-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build :as build]
