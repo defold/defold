@@ -4,28 +4,28 @@
     -fx-border-width: 1px 1px 1px 2px;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 12, 0, 0, 8);
     &:warning {
-      -fx-border-color: -df-component -df-component -df-component -df-error-severity-warning;
+      -fx-border-color: -df-component-lighter -df-component-lighter -df-component-lighter -df-error-severity-warning;
     }
     &:error {
-      -fx-border-color: -df-component -df-component -df-component -df-error-severity-fatal;
+      -fx-border-color: -df-component-lighter -df-component-lighter -df-component-lighter -df-error-severity-fatal;
     }
     &:info {
-      -fx-border-color: -df-component -df-component -df-component -df-error-severity-info;
+      -fx-border-color: -df-component-lighter -df-component-lighter -df-component-lighter -df-error-severity-info;
     }
   }
   &-close-button {
     -fx-shape: "M 0,0 H1 L 4,3 7,0 H8 V1 L 5,4 8,7 V8 H7 L 4,5 1,8 H0 V7 L 3,4 0,1 Z";
-    -fx-background-color: -df-text-darker;
+    -fx-background-color: -df-text;
     -fx-effect: none;
     &:hover {
       -fx-background-color: -df-text-selected;
     }
   }
   &-button {
-    -fx-background-color: -df-component-light;
+    -fx-background-color: -df-component-dark;
     -fx-border-color: -df-component-darker;
     &:hover {
-      -fx-background-color: -df-component-lighter;
+      -fx-background-color: -df-component-light;
     }
   }
 }

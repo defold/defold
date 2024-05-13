@@ -85,12 +85,12 @@ Links:
 }
 
 .about-value {
-  -fx-text-fill: -df-component;
+  -fx-text-fill: -df-component-lighter;
 }
 
 #progress-hbox {
   .label {
-    -fx-text-fill: -df-component;
+    -fx-text-fill: -df-component-lighter;
   }
   -fx-alignment: center-left;
   -fx-spacing: 10px;
@@ -98,7 +98,7 @@ Links:
 
 /* Status bar */
 #status-label {
-  -fx-text-fill: -df-component;
+  -fx-text-fill: -df-component-lighter;
   -fx-padding: 7 0 7 15;
 }
 
@@ -121,7 +121,7 @@ Links:
 }
 
 #status-pane #progress-hbox #progress-cancel-button {
-    -fx-background-color: -df-background-lighter;
+    -fx-background-color: -df-background-dark;
     -cross-color: -df-text;
     -fx-background-radius: 50%;
     -fx-border-width: 0;
@@ -132,7 +132,7 @@ Links:
     -fx-max-height: 16px;
     -fx-content-display: center;
     &:hover {
-        -fx-background-color: -df-component-darker;
+        -fx-background-color: -df-component-lighter;
         -cross-color: -df-text-selected;
     }
     &:armed {
