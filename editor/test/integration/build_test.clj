@@ -611,7 +611,7 @@
         (is (= 0.5 (:alpha sub)))
         (is (= [1.0 1.0 1.0 1.0] (:scale sub)))
         (is (= [0.0 0.0 0.0 0.0] (:rotation sub)))
-        (is (= [1100.0 640.0 0.0 0.0] (:position sub))))
+        (is (= [1100.0 640.0 0.0 1.0] (:position sub))))
       (is (contains? content-by-source "/graphics/atlas.atlas"))
       (is (contains? content-by-source "/fonts/big_score.font"))
       (let [textures (zipmap (map :name (:textures desc)) (map :texture (:textures desc)))]
