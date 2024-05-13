@@ -49,7 +49,7 @@
 
     &.inactive .tab {
         &:selected {
-            -fx-border-color: -df-component;
+            -fx-border-color: -df-component-lighter;
         }
     }
 }
