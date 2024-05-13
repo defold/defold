@@ -30,9 +30,9 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private docs
-  ["base" "bit" "buffer" "builtins" "camera" "collectionfactory"
+  ["base" "bit" "buffer" "b2d" "b2d.body" "builtins" "camera" "collectionfactory"
    "collectionproxy" "coroutine" "crash" "debug" "factory" "go" "gui"
-   "html5" "http" "image" "io" "json" "label" "math" "model" "msg"
+   "html5" "http" "image" "io" "json" "label" "liveupdate" "math" "model" "msg"
    "os" "package" "particlefx" "physics" "profiler" "render" "resource"
    "socket" "sound" "sprite" "string" "sys" "table" "tilemap" "timer" "vmath"
    "window" "zlib"])

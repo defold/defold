@@ -28,6 +28,7 @@
 
 (def pb-defs [{:ext "input_binding"
                :icon "icons/32/Icons_35-Inputbinding.png"
+               :icon-class :property
                :pb-class Input$InputBinding
                :label "Input Binding"
                :view-types [:cljfx-form-view :text]}
@@ -40,6 +41,7 @@
               {:ext "gamepads"
                :label "Gamepads"
                :icon "icons/32/Icons_34-Gamepad.png"
+               :icon-class :property
                :pb-class Input$GamepadMaps
                :view-types [:cljfx-form-view :text]}
               {:ext "convexshape"
@@ -51,6 +53,7 @@
                :label "Texture Profiles"
                :view-types [:cljfx-form-view :text]
                :icon "icons/32/Icons_37-Texture-profile.png"
+               :icon-class :property
                :pb-class Graphics$TextureProfiles}])
 
 (defn- build-pb [resource dep-resources user-data]
@@ -103,6 +106,7 @@
         :read-defaults false
         :load-fn (partial load-pb def)
         :icon (:icon def)
+        :icon-class (:icon-class def)
         :view-types (:view-types def)
         :view-opts (:view-opts def)
         :tags (:tags def)

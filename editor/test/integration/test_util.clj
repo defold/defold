@@ -690,7 +690,7 @@
     (if-let [set-fn (-> prop :edit-type :set-fn)]
       (g/transact
         (g/with-auto-evaluation-context evaluation-context
-          (set-fn evaluation-context node-id (:value prop) val)))
+          (set-fn evaluation-context (:node-id prop) (:value prop) val)))
       (let [[node-id label] (resolve-prop node-id label)]
         (g/set-property! node-id label val)))))
 
@@ -1193,8 +1193,7 @@
   [node-id]
   (into #{}
         (map :resource)
-        (pipeline/flatten-build-targets
-          (g/node-value node-id :build-targets))))
+        (build/resolve-node-dependencies node-id (project/get-project node-id))))
 
 (defn node-built-source-paths
   "Returns the set of all source resource proj-paths that will be built when
@@ -1202,8 +1201,7 @@
   [node-id]
   (into #{}
         (keep (comp resource/proj-path :resource :resource))
-        (pipeline/flatten-build-targets
-          (g/node-value node-id :build-targets))))
+        (build/resolve-node-dependencies node-id (project/get-project node-id))))
 
 (defmacro saved-pb [node-id pb-class]
   (with-meta `(protobuf/str->pb ~pb-class (resource-node/save-data-content (g/node-value ~node-id :save-data)))

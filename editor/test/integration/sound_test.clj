@@ -13,16 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.sound-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.collection :as collection]
-            [editor.sound :as sound]
-            [editor.handler :as handler]
-            [editor.defold-project :as project]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.types :as types]
-            [editor.properties :as properties]
             [integration.test-util :as test-util]))
 
 (deftest new-sound-object
@@ -55,4 +50,11 @@
           (is (g/error? (test-util/prop-error node-id :sound)))))
       (is (nil? (test-util/prop-error node-id :gain)))
       (test-util/with-prop [node-id :gain -0.5]
-          (is (g/error? (test-util/prop-error node-id :gain)))))))
+          (is (g/error? (test-util/prop-error node-id :gain))))))
+  (test-util/with-loaded-project "test/resources/sound_validation_project"
+    (let [valid-id (test-util/resource-node project "/main/valid.sound")
+          invalid-id (test-util/resource-node project "/main/invalid.sound")]
+      (is (not (g/error? (g/node-value valid-id :build-targets))))
+      (let [error (first (keep :message (tree-seq :causes :causes (g/node-value invalid-id :build-targets))))]
+        (is (some? error))
+        (is (string/includes? error "Invalid ogg file"))))))

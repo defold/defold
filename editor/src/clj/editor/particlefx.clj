@@ -1270,6 +1270,7 @@
     :load-fn load-particle-fx
     :sanitize-fn sanitize-particle-fx
     :icon particle-fx-icon
+    :icon-class :design
     :tags #{:component :non-embeddable}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}
     :view-types [:scene :text]

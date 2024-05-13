@@ -615,6 +615,7 @@
     :load-fn load-collision-object
     :sanitize-fn sanitize-collision-object
     :icon collision-object-icon
+    :icon-class :design
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}
     :tags #{:component}

@@ -822,5 +822,6 @@
     :sanitize-fn (partial sanitize-collection workspace)
     :string-encode-fn (partial string-encode-collection workspace)
     :icon collection-common/collection-icon
+    :icon-class :design
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

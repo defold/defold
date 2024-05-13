@@ -184,7 +184,7 @@
         page-offset-x (get-rect-page-offset layout-width (:page rect))]
     (doseq [p vertex-line-points]
       (let [x (+ (:x rect) (* 0.5 width) (* width (first p)) page-offset-x)
-            y (+ (:y rect) (* 0.5 height) (* height (second p)))  ]
+            y (+ (:y rect) (* 0.5 height) (* height (second p)))]
         (vtx/buf-push-floats! buf (gen-outline-vertex wt pt x y cr cg cb))))))
 
 (defn- gen-outline-vertex-buffer [renderables count]
@@ -968,6 +968,7 @@
     :read-defaults false
     :load-fn load-atlas
     :icon atlas-icon
+    :icon-class :design
     :view-types [:scene :text]
     :view-opts {:scene {:grid false}}))
 

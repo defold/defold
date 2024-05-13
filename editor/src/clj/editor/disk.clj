@@ -254,7 +254,7 @@
               (future
                 (try
                   (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
-                  (workspace/reload-plugins! workspace written-resources)
+                  (project/reload-plugins! project written-resources)
                   (lsp/touch-resources! (lsp/get-node-lsp project) written-resources)
                   (cond
                     reload-required

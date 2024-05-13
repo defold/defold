@@ -608,5 +608,6 @@
     :sanitize-fn (partial sanitize-game-object workspace)
     :string-encode-fn (partial string-encode-game-object workspace)
     :icon game-object-common/game-object-icon
+    :icon-class :design
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

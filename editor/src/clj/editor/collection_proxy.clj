@@ -126,6 +126,7 @@
     :read-defaults false
     :load-fn load-collection-proxy
     :icon collection-proxy-icon
+    :icon-class :property
     :view-types [:cljfx-form-view :text]
     :view-opts {}
     :tags #{:component}

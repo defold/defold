@@ -796,6 +796,7 @@
       :read-defaults false
       :load-fn load-font
       :icon font-icon
+      :icon-class :design
       :view-types [:scene :text])
     (workspace/register-resource-type workspace
       :ext "glyph_bank")

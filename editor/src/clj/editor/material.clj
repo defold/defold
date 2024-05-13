@@ -626,4 +626,5 @@
     :load-fn load-material
     :sanitize-fn sanitize-material
     :icon "icons/32/Icons_31-Material.png"
+    :icon-class :property
     :view-types [:cljfx-form-view :text]))

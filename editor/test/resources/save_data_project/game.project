@@ -244,6 +244,7 @@ include_dirs = library
 
 [liveupdate]
 settings = /liveupdate.settings
+mount_on_start = 0
 
 [native_extension]
 app_manifest = /checked.appmanifest

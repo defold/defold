@@ -78,17 +78,20 @@
                    :language "glsl"
                    :label "Vertex Program"
                    :icon "icons/32/Icons_32-Vertex-shader.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "fp"
                    :language "glsl"
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "glsl"
                    :label "Shader Include"
                    :icon "icons/64/Icons_29-AT-Unknown.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 

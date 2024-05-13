@@ -182,6 +182,7 @@
     :read-defaults false
     :load-fn load-render-target
     :icon texture-icon
+    :icon-class :design
     :view-types [:cljfx-form-view :text]
     :view-opts {}
     :label "Render Target"))

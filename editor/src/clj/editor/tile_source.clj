@@ -1034,5 +1034,6 @@
     :read-defaults false
     :load-fn load-tile-source
     :icon tile-source-icon
+    :icon-class :design
     :view-types [:scene :text]
     :view-opts {:scene {:tool-controller ToolController}}))

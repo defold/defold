@@ -25,6 +25,7 @@ import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 
+import com.dynamo.gameobject.proto.GameObject;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.junit.Assert;
 import org.junit.Test;
@@ -913,5 +914,49 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
                 Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
             }
         }
+    }
+
+    /**
+     * Test that the objects in the collection sorted according to its transform hierarhy
+     * Structure:
+     * - go "0"
+     *   - go "1"
+     *      - go "2"
+     *          - go "3"
+     * @throws Exception
+     */
+    @Test
+    public void testEmbeddedInstancesOrder() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"Example\"\n");
+        src.append("scale_along_z: 0\n");
+        src.append("embedded_instances {\n");
+        src.append("  id: \"3\"\n"); // Create the last object in hierarhy the first in the source file
+        src.append("  data: \"\"\n");
+        src.append("}\n");
+        src.append("embedded_instances {\n");
+        src.append("  id: \"0\"\n");
+        src.append("  children: \"1\"\n");
+        src.append("  data: \"\"\n");
+        src.append("}\n");
+        src.append("embedded_instances {\n");
+        src.append("  id: \"1\"\n");
+        src.append("  children: \"2\"\n");
+        src.append("  data: \"\"\n");
+        src.append("}\n");
+        src.append("embedded_instances {\n");
+        src.append("  id: \"2\"\n");
+        src.append("  children: \"3\"\n");
+        src.append("  data: \"\"\n");
+        src.append("}\n");
+
+        CollectionDesc collection = (CollectionDesc) build("/test.collection", src.toString()).get(0);
+        List<GameObject.InstanceDesc> instances = collection.getInstancesList();
+
+        Assert.assertEquals("Order of instances should be 0, 1, 2, 3", 4, instances.size());
+        Assert.assertEquals("First instance ID should be '0'", "/0", instances.get(0).getId());
+        Assert.assertEquals("Second instance ID should be '1'", "/1", instances.get(1).getId());
+        Assert.assertEquals("Third instance ID should be '2'", "/2", instances.get(2).getId());
+        Assert.assertEquals("Fourth instance ID should be '3'", "/3", instances.get(3).getId());
     }
 }

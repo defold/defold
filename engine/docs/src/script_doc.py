@@ -499,7 +499,7 @@ def add_group_to_doc_dict(doc_dict):
         refdocgroups = [
             {
                 "group": "SYSTEM",
-                "namespaces": ["crash", "gui", "go", "profiler", "render", "resource", "sys", "window", "engine", "physics"]
+                "namespaces": ["crash", "gui", "go", "profiler", "render", "resource", "sys", "window", "engine", "physics", "b2d", "b2d.body"]
             },
             {
                 "group": "COMPONENTS",

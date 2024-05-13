@@ -29,6 +29,7 @@
              :label "Display Profiles"
              :view-types [:cljfx-form-view :text]
              :icon "icons/32/Icons_50-Display-profiles.png"
+             :icon-class :property
              :pb-class Render$DisplayProfiles})
 
 (def ^:private comma-separated-string->non-empty-vector
@@ -153,4 +154,5 @@
     :read-defaults false
     :load-fn load-display-profiles
     :icon (:icon pb-def)
+    :icon-class (:icon-class pb-def)
     :view-types (:view-types pb-def)))

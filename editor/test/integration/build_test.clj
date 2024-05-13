@@ -513,7 +513,7 @@
   (with-build-results "/script/props.collection"
     (doseq [[res-path pb decl-path] [["/script/props.script" Lua$LuaModule [:properties]]
                                      ["/script/props.go" GameObject$PrototypeDesc [:components 0 :property-decls]]
-                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
+                                     ["/script/props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
             desc (protobuf/bytes->map-with-defaults pb content)
             decl (get-in desc decl-path)]
@@ -545,7 +545,7 @@
       (is (not-empty (:hash-values decl)))
       (is (not-empty (:string-values decl)))))
   (with-build-results "/script/sub_props.collection"
-    (doseq [[res-path pb decl-path] [["/script/sub_props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
+    (doseq [[res-path pb decl-path] [["/script/sub_props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
             desc (protobuf/bytes->map-with-defaults pb content)
             decl (get-in desc decl-path)]
@@ -562,7 +562,7 @@
     ;; Sub-collections should not be built separately
     (is (not (contains? content-by-source "/script/props.collection"))))
   (with-build-results "/script/sub_sub_props.collection"
-    (doseq [[res-path pb decl-path] [["/script/sub_sub_props.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls]]]]
+    (doseq [[res-path pb decl-path] [["/script/sub_sub_props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
             desc (protobuf/bytes->map-with-defaults pb content)
             decl (get-in desc decl-path)]
@@ -593,7 +593,7 @@
                                                  desc (protobuf/bytes->map-with-defaults pb-class content)
                                                  float-values (get-in desc val-path)]
                                              (= [expected] float-values))
-      "/script/override_parent.collection" GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls :float-values] 4.0)))
+      "/script/override_parent.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls :float-values] 4.0)))
 
 (deftest build-gui-templates
   ;; Reads from test_project rather than build_project
@@ -837,3 +837,18 @@
             error-message (some :message (tree-seq :causes :causes build-error))]
         (is (g/error? build-error))
         (is (= (str "The file '" uppercase-image-path "' could not be found.") error-message))))))
+
+(deftest build-process-detects-cyclic-lua-dependencies
+  (with-loaded-project "test/resources/build_cyclic_lua_project"
+    (g/with-auto-evaluation-context evaluation-context
+      (is (= "Dependency cycle detected: /main/1.lua -> /main/2.lua -> /main/1.lua"
+             (->> (build/build-project! project
+                                        (test-util/resource-node project "/game.project")
+                                        evaluation-context
+                                        nil
+                                        (workspace/artifact-map workspace)
+                                        progress/null-render-progress!)
+                  :error
+                  (tree-seq :causes :causes)
+                  (keep :message)
+                  first))))))

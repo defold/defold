@@ -190,6 +190,7 @@
   (resource-node/register-ddf-resource-type workspace
     :ext "animationset"
     :icon animation-set-icon
+    :icon-class :property
     :label "Animation Set"
     :load-fn load-animation-set
     :sanitize-fn sanitize-animation-set

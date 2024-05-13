@@ -315,6 +315,7 @@
     :read-defaults false
     :load-fn load-camera
     :icon camera-icon
+    :icon-class :property
     :view-types [:cljfx-form-view :text]
     :view-opts {}
     :tags #{:component}
