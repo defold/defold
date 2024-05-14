@@ -1703,7 +1703,10 @@ bail:
                 dmGameObject::PostUpdate(engine->m_MainCollection);
                 dmGameObject::PostUpdate(engine->m_Register);
 
-                dmRender::ClearRenderObjects(engine->m_RenderContext);
+                if (!dmRender::IsRenderPaused(engine->m_RenderContext))
+                {
+                    dmRender::ClearRenderObjects(engine->m_RenderContext);
+                }
 
 
                 dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
@@ -1725,46 +1728,49 @@ bail:
                 dmEngineService::Update(engine->m_EngineService, profile);
             }
 
+            if (!dmRender::IsRenderPaused(engine->m_RenderContext))
+            {
 #if !defined(DM_RELEASE)
-            dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
+                dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
 #endif
-            // Call post render functions for extensions, if available.
-            // We do it here at the end of the frame (before swap buffers/flip)
-            // in case any extension wants to render just before the Flip().
-            // Don't do this while iconified
-            if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
-            {
-                dmExtension::Params ext_params;
-                ext_params.m_ConfigFile = engine->m_Config;
-                ext_params.m_ResourceFactory = engine->m_Factory;
-                if (engine->m_SharedScriptContext) {
-                    ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                } else {
-                    ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
-                }
-                dmExtension::PostRender(&ext_params);
-            }
-
-            dmGraphics::Flip(engine->m_GraphicsContext);
-
-            RecordData* record_data = &engine->m_RecordData;
-            if (record_data->m_Recorder)
-            {
-                if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
+                // Call post render functions for extensions, if available.
+                // We do it here at the end of the frame (before swap buffers/flip)
+                // in case any extension wants to render just before the Flip().
+                // Don't do this while iconified
+                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
                 {
-                    uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
-                    uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
-                    uint32_t buffer_size = width * height * 4;
-
-                    dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
-
-                    dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
-                    if (r != dmRecord::RESULT_OK)
-                    {
-                        dmLogError("Error while recoding frame (%d)", r);
+                    dmExtension::Params ext_params;
+                    ext_params.m_ConfigFile = engine->m_Config;
+                    ext_params.m_ResourceFactory = engine->m_Factory;
+                    if (engine->m_SharedScriptContext) {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                    } else {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
                     }
+                    dmExtension::PostRender(&ext_params);
                 }
-                record_data->m_FrameCount++;
+
+                dmGraphics::Flip(engine->m_GraphicsContext);
+
+                RecordData* record_data = &engine->m_RecordData;
+                if (record_data->m_Recorder)
+                {
+                    if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
+                    {
+                        uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
+                        uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
+                        uint32_t buffer_size = width * height * 4;
+
+                        dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
+
+                        dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
+                        if (r != dmRecord::RESULT_OK)
+                        {
+                            dmLogError("Error while recoding frame (%d)", r);
+                        }
+                    }
+                    record_data->m_FrameCount++;
+                }
             }
         }
         dmProfile::EndFrame(profile);
