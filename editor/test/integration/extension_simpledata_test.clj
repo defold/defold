@@ -102,12 +102,10 @@
 (defn- built-pb-map [project proj-path]
   (let [workspace (project/workspace project)
         resource (workspace/find-resource workspace proj-path)
-        node-id (test-util/resource-node project resource)
         pb-class (-> resource resource/resource-type :test-info :ddf-type)]
-    (with-open [_ (test-util/build! node-id)]
-      (->> resource
-           (test-util/build-output project)
-           (protobuf/bytes->map-without-defaults pb-class)))))
+    (->> resource
+         (test-util/build-output project)
+         (protobuf/bytes->map-without-defaults pb-class))))
 
 (deftest build-test
   (test-util/with-scratch-project project-path

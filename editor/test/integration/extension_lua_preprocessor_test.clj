@@ -16,6 +16,7 @@
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.settings-core :as settings-core]
             [integration.test-util :as tu]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
@@ -23,7 +24,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:private extension-lua-preprocessor-url "https://github.com/defold/extension-lua-preprocessor/archive/main.zip")
+(defonce ^:private extension-lua-preprocessor-url (settings-core/inject-jvm-properties "{{defold.extension.lua-preprocessor.url}}"))
 
 (deftest extension-lua-preprocessor-test
   (with-clean-system
