@@ -85,6 +85,7 @@ def configure(conf):
             glfw_lib = "glfw3-vulkan"
             platform_lib = "platform_vulkan"
 
+            # JG: for now, we only support validation layers on macos for x86_64 archs. I'll fix this later when/if needed.
             if architecture == 'x86_64':
                 conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
 

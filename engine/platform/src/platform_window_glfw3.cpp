@@ -124,7 +124,10 @@ namespace dmPlatform
 
     HWindow NewWindow()
     {
+    #ifdef __MACH__
         glfwInitHint(GLFW_COCOA_CHDIR_RESOURCES, GLFW_FALSE);
+    #endif
+
         if (glfwInit() == GL_FALSE)
         {
             dmLogError("Could not initialize glfw.");
@@ -152,7 +155,7 @@ namespace dmPlatform
         return 0;
     }
 
-    PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
         // TODO: This is the setup required for OSX, when we implement the other desktop
         //       platforms we might want to do this according to platform.
@@ -183,7 +186,7 @@ namespace dmPlatform
         return PLATFORM_RESULT_OK;
     }
 
-    PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
     {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
@@ -204,8 +207,6 @@ namespace dmPlatform
         {
             return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
-
-        glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
 
         PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
 

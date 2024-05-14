@@ -153,7 +153,7 @@ namespace dmPlatform
         return 0;
     }
 
-    PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
         if (params.m_HighDPI)
         {
@@ -232,7 +232,7 @@ namespace dmPlatform
         return PLATFORM_RESULT_OK;
     }
 
-    PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
     {
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params.m_Samples);

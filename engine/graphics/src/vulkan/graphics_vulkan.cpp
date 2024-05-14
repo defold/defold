@@ -1083,7 +1083,7 @@ namespace dmGraphics
 
         delete[] device_list;
 
-        // GLFW3 handles window size changes differenrly, so we need to cater for that.
+        // GLFW3 handles window size changes differently, so we need to cater for that.
     #ifndef __MACH__
         if (created_width != context->m_Width || created_height != context->m_Height)
         {

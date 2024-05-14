@@ -11,7 +11,6 @@ def build(bld):
                     use = 'TESTMAIN DDF DLIB SOCKET PROFILE_NULL PLATFORM_NULL graphics_null graphics_transcoder_null',
                     target = name)
 
-    """
     if not bld.env.PLATFORM in ('x86_64-linux','x86_64-ios'):
 
         extra_libs = []
@@ -37,4 +36,3 @@ def build(bld):
                     source = 'test_app_graphics.cpp',
                     use = 'TESTMAIN APP DDF DLIB PROFILE GRAPHICS GRAPHICS_VULKAN graphics_transcoder_basisu'.split() + platform_lib + glfw_lib + extra_libs,
                     target = 'test_app_graphics')
-    """
