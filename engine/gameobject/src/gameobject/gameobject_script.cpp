@@ -492,7 +492,7 @@ namespace dmGameObject
 
             if (component_ext != 0x0)
             {
-                dmResource::ResourceType resource_type;
+                HResourceType resource_type;
                 dmResource::Result resource_res = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(instance->m_Collection->m_HCollection), component_ext, &resource_type);
                 if (resource_res != dmResource::RESULT_OK)
                 {

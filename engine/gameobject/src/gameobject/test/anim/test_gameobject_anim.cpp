@@ -28,7 +28,7 @@ class AnimTest : public jc_test_base_class
 protected:
     virtual void SetUp()
     {
-        m_UpdateContext.m_DT = 1.0f / 60.0f;
+        m_UpdateContext.m_DT = 1.0f / 60.0f ;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
@@ -64,6 +64,7 @@ protected:
         dmGameObject::PostUpdate(m_Register);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+        dmResource::DeregisterTypes(m_Factory, &m_Contexts);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
     }

@@ -13,33 +13,34 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_glyph_bank.h"
+#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResGlyphBankPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResGlyphBankPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmRenderDDF::GlyphBank* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::GlyphBank>(params.m_Buffer, params.m_BufferSize, &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::GlyphBank>(params->m_Buffer, params->m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        *params.m_PreloadData = ddf;
+        *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResGlyphBankCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResGlyphBankCreate(const dmResource::ResourceCreateParams* params)
     {
         GlyphBankResource* resource   = new GlyphBankResource();
-        resource->m_DDF               = (dmRenderDDF::GlyphBank*) params.m_PreloadData;
-        params.m_Resource->m_Resource = (void*) resource;
+        resource->m_DDF               = (dmRenderDDF::GlyphBank*) params->m_PreloadData;
+        dmResource::SetResource(params->m_Resource, resource);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResGlyphBankDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResGlyphBankDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        GlyphBankResource* resource = (GlyphBankResource*) params.m_Resource->m_Resource;
+        GlyphBankResource* resource = (GlyphBankResource*) dmResource::GetResource(params->m_Resource);
         if (resource->m_DDF != 0x0)
         {
             dmDDF::FreeMessage(resource->m_DDF);
@@ -48,12 +49,12 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResGlyphBankRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResGlyphBankRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        GlyphBankResource* glyph_bank = (GlyphBankResource*)params.m_Resource->m_Resource;
+        GlyphBankResource* glyph_bank = (GlyphBankResource*)dmResource::GetResource(params->m_Resource);
 
         dmRenderDDF::GlyphBank* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::GlyphBank>(params.m_Buffer, params.m_BufferSize, &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::GlyphBank>(params->m_Buffer, params->m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;

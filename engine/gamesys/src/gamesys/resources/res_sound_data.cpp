@@ -15,6 +15,7 @@
 #include <string.h>
 #include <sound/sound.h>
 #include "res_sound_data.h"
+#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {
@@ -41,19 +42,19 @@ namespace dmGameSystem
         return type;
     }
 
-    dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams* params)
     {
         dmSound::HSoundData sound_data;
 
         dmSound::SoundDataType type = dmSound::SOUND_DATA_TYPE_WAV;
 
-        size_t filename_len = strlen(params.m_Filename);
-        if (filename_len > 5 && strcmp(params.m_Filename + filename_len - 5, ".oggc") == 0)
+        size_t filename_len = strlen(params->m_Filename);
+        if (filename_len > 5 && strcmp(params->m_Filename + filename_len - 5, ".oggc") == 0)
         {
             type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
         }
 
-        dmSound::Result r = dmSound::NewSoundData(params.m_Buffer, params.m_BufferSize, type, &sound_data, params.m_Resource->m_NameHash);
+        dmSound::Result r = dmSound::NewSoundData(params->m_Buffer, params->m_BufferSize, type, &sound_data, dmResource::GetNameHash(params->m_Resource));
         if (r != dmSound::RESULT_OK)
         {
             return dmResource::RESULT_OUT_OF_RESOURCES;
@@ -64,14 +65,14 @@ namespace dmGameSystem
         sound_data_res->m_SoundData = sound_data;
         sound_data_res->m_Type = type;
 
-        params.m_Resource->m_Resource = (void*) sound_data_res;
-        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
+        dmResource::SetResource(params->m_Resource, sound_data_res);
+        dmResource::SetResourceSize(params->m_Resource, dmSound::GetSoundResourceSize(sound_data));
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        SoundDataResource* sound_data_res = (SoundDataResource*) params.m_Resource->m_Resource;
+        SoundDataResource* sound_data_res = (SoundDataResource*) dmResource::GetResource(params->m_Resource);
         dmSound::Result r = dmSound::DeleteSoundData(sound_data_res->m_SoundData);
         delete sound_data_res;
         
@@ -82,13 +83,13 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResSoundDataRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResSoundDataRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        SoundDataResource* sound_data_res = (SoundDataResource*) params.m_Resource->m_Resource;
+        SoundDataResource* sound_data_res = (SoundDataResource*) dmResource::GetResource(params->m_Resource);
 
         dmSound::HSoundData sound_data;
-        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params.m_Buffer, (dmSound::SoundDataType)sound_data_res->m_Type, params.m_BufferSize);
-        dmSound::Result r = dmSound::NewSoundData(params.m_Buffer, params.m_BufferSize, type, &sound_data, params.m_Resource->m_NameHash);
+        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params->m_Buffer, (dmSound::SoundDataType)sound_data_res->m_Type, params->m_BufferSize);
+        dmSound::Result r = dmSound::NewSoundData(params->m_Buffer, params->m_BufferSize, type, &sound_data, dmResource::GetNameHash(params->m_Resource));
 
         if (r != dmSound::RESULT_OK)
         {
@@ -100,8 +101,8 @@ namespace dmGameSystem
 
         sound_data_res->m_SoundData = sound_data;
 
-        params.m_Resource->m_Resource = (void*)sound_data_res;
-        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
+        dmResource::SetResource(params->m_Resource, sound_data_res);
+        dmResource::SetResourceSize(params->m_Resource, dmSound::GetSoundResourceSize(sound_data));
         return dmResource::RESULT_OK;
     }
 }

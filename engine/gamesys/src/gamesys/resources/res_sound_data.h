@@ -15,7 +15,8 @@
 #ifndef DM_GAMESYS_SOUND_DATA_H
 #define DM_GAMESYS_SOUND_DATA_H
 
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource_params.hpp>
 #include <dmsdk/gamesys/resources/res_sound.h>
 
 namespace dmSound
@@ -30,11 +31,11 @@ namespace dmGameSystem
         int m_Type;
     };
 
-    dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResSoundDataRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResSoundDataRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif

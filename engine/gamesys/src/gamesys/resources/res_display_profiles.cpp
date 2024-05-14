@@ -18,6 +18,8 @@
 #include <render/render_ddf.h>
 #include <render/display_profiles.h>
 
+#include <dmsdk/resource/resource_desc.hpp>
+
 namespace dmGameSystem
 {
     dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, dmRender::HDisplayProfiles profiles, const char* filename)
@@ -36,13 +38,13 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResDisplayProfilesCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResDisplayProfilesCreate(const dmResource::ResourceCreateParams* params)
     {
         dmRender::HDisplayProfiles profiles = dmRender::NewDisplayProfiles();
-        dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, profiles, params.m_Filename);
+        dmResource::Result r = AcquireResources(params->m_Factory, params->m_Buffer, params->m_BufferSize, profiles, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*) profiles;
+            dmResource::SetResource(params->m_Resource, profiles);
         }
         else
         {
@@ -51,22 +53,22 @@ namespace dmGameSystem
         return r;
     }
 
-    dmResource::Result ResDisplayProfilesDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResDisplayProfilesDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        dmRender::DeleteDisplayProfiles((dmRender::HDisplayProfiles)params.m_Resource->m_Resource);
+        dmRender::DeleteDisplayProfiles((dmRender::HDisplayProfiles)dmResource::GetResource(params->m_Resource));
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResDisplayProfilesRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResDisplayProfilesRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        dmRender::HDisplayProfiles old_profiles = (dmRender::HDisplayProfiles)params.m_Resource->m_Resource;
+        dmRender::HDisplayProfiles old_profiles = (dmRender::HDisplayProfiles)dmResource::GetResource(params->m_Resource);
         dmRender::HDisplayProfiles profiles = dmRender::NewDisplayProfiles();
-        dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, profiles, params.m_Filename);
+        dmResource::Result r = AcquireResources(params->m_Factory, params->m_Buffer, params->m_BufferSize, profiles, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
             if (old_profiles != 0x0)
                 dmRender::DeleteDisplayProfiles(old_profiles);
-            params.m_Resource->m_Resource = profiles;
+            dmResource::SetResource(params->m_Resource, profiles);
         }
         return r;
     }

@@ -26,7 +26,6 @@
 #include <dlib/math.h>
 #include <dlib/vmath.h>
 #include <dlib/mutex.h>
-#include <dmsdk/dlib/vmath.h>
 #include <ddf/ddf.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
@@ -35,6 +34,10 @@
 #include "gameobject_props_ddf.h"
 
 #include "../proto/gameobject/gameobject_ddf.h"
+
+#include <dmsdk/dlib/vmath.h>
+#include <dmsdk/resource/resource_desc.hpp>
+#include <dmsdk/resource/resource_params.hpp>
 
 DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects");
 
@@ -74,7 +77,7 @@ namespace dmGameObject
     PROP_VECTOR3(EULER, euler);
     PROP_VECTOR3(SCALE, scale);
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
+    static void ResourceReloadedCallback(const ResourceReloadedParams* params);
     static void DoDeleteInstance(Collection* collection, HInstance instance);
     static bool InitInstance(Collection* collection, HInstance instance);
     static bool FinalInstance(Collection* collection, HInstance instance);
@@ -294,7 +297,7 @@ namespace dmGameObject
         dmMutex::Lock(collection->m_Mutex);
         for (int i = 0; i < collection->m_DynamicResources.Size(); ++i)
         {
-            dmResource::SResourceDescriptor* rd = dmResource::FindByHash(collection->m_Factory, collection->m_DynamicResources[i]);
+            HResourceDescriptor rd = dmResource::FindByHash(collection->m_Factory, collection->m_DynamicResources[i]);
             assert(rd);
             void* resource = dmResource::GetResource(rd);
             dmResource::Release(collection->m_Factory, resource);
@@ -578,7 +581,7 @@ namespace dmGameObject
         }
     }
 
-    ComponentType* FindComponentType(Register* regist, dmResource::ResourceType resource_type, uint32_t* index)
+    ComponentType* FindComponentType(Register* regist, HResourceType resource_type, uint32_t* index)
     {
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
@@ -634,7 +637,7 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    Result SetUpdateOrderPrio(HRegister regist, dmResource::ResourceType resource_type, uint16_t prio)
+    Result SetUpdateOrderPrio(HRegister regist, HResourceType resource_type, uint16_t prio)
     {
         bool found = false;
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
@@ -3679,9 +3682,9 @@ namespace dmGameObject
         DoAddToUpdate(collection, new_instance);
     }
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
+    static void ResourceReloadedCallback(const ResourceReloadedParams* params)
     {
-        Collection* collection = (Collection*) params.m_UserData;
+        Collection* collection = (Collection*) params->m_UserData;
         for (uint32_t level_i = 0; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
         {
             dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
@@ -3690,15 +3693,17 @@ namespace dmGameObject
             {
                 uint16_t index = level[i];
                 Instance* instance = collection->m_Instances[index];
-                if (instance->m_Prototype == params.m_Resource->m_Resource) {
-                    RecreateInstance(collection, index, (Prototype*)params.m_Resource->m_PrevResource, (Prototype*)params.m_Resource->m_Resource, params.m_Name);
+                Prototype* prototype = (Prototype*)ResourceDescriptorGetResource(params->m_Resource);
+                if (instance->m_Prototype == prototype) {
+                    Prototype* prev_prototype = (Prototype*)ResourceDescriptorGetPrevResource(params->m_Resource);
+                    RecreateInstance(collection, index, prev_prototype, prototype, params->m_Name);
                 } else {
                     uint32_t next_component_instance_data = 0;
                     for (uint32_t j = 0; j < instance->m_Prototype->m_ComponentCount; ++j)
                     {
                         Prototype::Component& component = instance->m_Prototype->m_Components[j];
                         ComponentType* type = component.m_Type;
-                        if (component.m_ResourceId == params.m_Resource->m_NameHash)
+                        if (component.m_ResourceId == ResourceDescriptorGetNameHash(params->m_Resource))
                         {
                             if (type->m_OnReloadFunction)
                             {
@@ -3709,7 +3714,7 @@ namespace dmGameObject
                                 }
                                 ComponentOnReloadParams on_reload_params;
                                 on_reload_params.m_Instance = instance;
-                                on_reload_params.m_Resource = params.m_Resource->m_Resource;
+                                on_reload_params.m_Resource = prototype;
                                 on_reload_params.m_World = collection->m_ComponentWorlds[component.m_TypeIndex];
                                 on_reload_params.m_Context = type->m_Context;
                                 on_reload_params.m_UserData = user_data;

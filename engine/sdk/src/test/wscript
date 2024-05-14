@@ -104,7 +104,13 @@ def build(bld):
     with open('src/test/test_include.c', 'rt', encoding='utf-8') as f:
         template_c = f.read()
 
-    c_includes = ['extension.h', 'configfile.h']
+    # Make sure that our C api holds up using only C compiler
+    c_includes = ['extension.h',
+                  'configfile.h',
+                  'resource.h',
+                  'resource_params.h',
+                  'resource_desc.h',
+                  'resource_type.h']
 
     for index, include in enumerate(includes):
         suffix_cpp = '_%d.cpp' % index
@@ -125,7 +131,7 @@ def build(bld):
         bld.stlib(features = 'cxx sdk_include_filter',
               includes = ['.','../'] + [extra_node],
               source   = source_cpp,
-              target   = 'test_sdk_include_%s_%d' % (basename_cpp, index),
+              target   = 'test_include_cpp_%s_%d' % (basename_cpp, index),
               always   = True)
 
         if os.path.basename(include) in c_includes:
@@ -136,5 +142,5 @@ def build(bld):
             bld.stlib(features = 'c sdk_include_filter',
                   includes = ['.','../'] + [extra_node],
                   source   = source_c,
-                  target   = 'test_sdk_include_%s_%d' % (basename_c, index),
+                  target   = 'test_include_c_%s_%d' % (basename_c, index),
                   always   = True)

@@ -23,7 +23,8 @@
 #include <graphics/graphics.h>
 #include <input/input.h>
 #include <render/render.h>
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.h>
+#include <dmsdk/resource/resource_type.hpp>
 
 #include "resources/res_collection_proxy.h"
 #include "resources/res_collision_object.h"
@@ -152,7 +153,7 @@ namespace dmGameSystem
                                                 TilemapContext* tilemap_context,
                                                 SoundContext* sound_context)
     {
-        dmResource::ResourceType type;
+        HResourceType type;
         dmGameObject::ComponentType component_type;
         dmResource::Result factory_result;
         dmGameObject::Result go_result;

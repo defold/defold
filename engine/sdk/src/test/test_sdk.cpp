@@ -18,11 +18,6 @@
 #include <jc_test/jc_test.h>
 #include <extension/extension.h>
 
-extern "C"
-{
-#include "lua/lua.h"
-#include "lua/lauxlib.h"
-}
 
 // Extension in a separate library. See comment in test_sdk_lib.cpp
 extern int g_TestAppInitCount;

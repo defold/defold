@@ -18,7 +18,10 @@
 #include "res_animationset.h"
 
 #include <dlib/log.h>
+#include <resource/resource.h>
 #include <dmsdk/dlib/vmath.h>
+
+#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {
@@ -115,72 +118,72 @@ namespace dmGameSystem
         return size;
     }
 
-    dmResource::Result ResRigScenePreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResRigScenePreload(const dmResource::ResourcePreloadParams* params)
     {
         dmRigDDF::RigScene* rig_scene;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_RigScene_DESCRIPTOR, (void**) &rig_scene);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_RigScene_DESCRIPTOR, (void**) &rig_scene);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
         if(rig_scene->m_TextureSet[0])
-            dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_TextureSet);
+            dmResource::PreloadHint(params->m_HintInfo, rig_scene->m_TextureSet);
         if(rig_scene->m_Skeleton[0])
-            dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_Skeleton);
+            dmResource::PreloadHint(params->m_HintInfo, rig_scene->m_Skeleton);
         if(rig_scene->m_AnimationSet[0])
-            dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_AnimationSet);
+            dmResource::PreloadHint(params->m_HintInfo, rig_scene->m_AnimationSet);
         if(rig_scene->m_MeshSet[0])
-            dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_MeshSet);
+            dmResource::PreloadHint(params->m_HintInfo, rig_scene->m_MeshSet);
 
-        *params.m_PreloadData = rig_scene;
+        *params->m_PreloadData = rig_scene;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResRigSceneCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResRigSceneCreate(const dmResource::ResourceCreateParams* params)
     {
         RigSceneResource* ss_resource = new RigSceneResource();
-        ss_resource->m_RigScene = (dmRigDDF::RigScene*) params.m_PreloadData;
-        dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename, false);
+        ss_resource->m_RigScene = (dmRigDDF::RigScene*) params->m_PreloadData;
+        dmResource::Result r = AcquireResources(params->m_Factory, ss_resource, params->m_Filename, false);
         if (r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*) ss_resource;
-            params.m_Resource->m_ResourceSize = GetResourceSize(ss_resource, params.m_BufferSize);
+            dmResource::SetResource(params->m_Resource, ss_resource);
+            dmResource::SetResourceSize(params->m_Resource, GetResourceSize(ss_resource, params->m_BufferSize));
         }
         else
         {
-            ReleaseResources(params.m_Factory, ss_resource);
+            ReleaseResources(params->m_Factory, ss_resource);
             delete ss_resource;
         }
         return r;
     }
 
-    dmResource::Result ResRigSceneDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResRigSceneDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        RigSceneResource* ss_resource = (RigSceneResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, ss_resource);
+        RigSceneResource* ss_resource = (RigSceneResource*)dmResource::GetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, ss_resource);
         delete ss_resource;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResRigSceneRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResRigSceneRecreate(const dmResource::ResourceRecreateParams* params)
     {
         dmRigDDF::RigScene* rig_scene;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRigDDF_RigScene_DESCRIPTOR, (void**) &rig_scene);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_RigScene_DESCRIPTOR, (void**) &rig_scene);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        RigSceneResource* ss_resource = (RigSceneResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, ss_resource);
+        RigSceneResource* ss_resource = (RigSceneResource*)dmResource::GetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, ss_resource);
         ss_resource->m_RigScene = rig_scene;
-        dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename, true);
+        dmResource::Result r = AcquireResources(params->m_Factory, ss_resource, params->m_Filename, true);
         if(r != dmResource::RESULT_OK)
         {
             return r;
         }
-        params.m_Resource->m_ResourceSize = GetResourceSize(ss_resource, params.m_BufferSize);
+        dmResource::SetResourceSize(params->m_Resource, GetResourceSize(ss_resource, params->m_BufferSize));
         return dmResource::RESULT_OK;
     }
 }

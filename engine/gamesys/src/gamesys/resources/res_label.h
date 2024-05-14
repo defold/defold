@@ -15,18 +15,19 @@
 #ifndef DM_GAMESYS_RES_LABEL_H
 #define DM_GAMESYS_RES_LABEL_H
 
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource_params.hpp>
 #include <dmsdk/gamesys/resources/res_label.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResLabelPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResLabelPreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResLabelCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResLabelCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResLabelDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResLabelDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResLabelRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResLabelRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_RES_LABEL_H

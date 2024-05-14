@@ -16,17 +16,18 @@
 #define DM_RES_TEXTURESET_H
 
 #include <dmsdk/gamesys/resources/res_textureset.h>
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource_params.hpp>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResTextureSetPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResTextureSetPreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResTextureSetCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResTextureSetCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResTextureSetDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResTextureSetDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResTextureSetRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResTextureSetRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_RES_TEXTURESET_H

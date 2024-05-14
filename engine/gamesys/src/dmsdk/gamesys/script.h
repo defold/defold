@@ -19,7 +19,7 @@
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/script/script.h>
 #include <dmsdk/gameobject/gameobject.h>
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 
 extern "C"
 {

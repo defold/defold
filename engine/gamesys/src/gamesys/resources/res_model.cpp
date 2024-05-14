@@ -32,6 +32,8 @@
 #include <rig/rig.h>
 #include <algorithm> // std::sort
 
+#include <dmsdk/resource/resource_desc.hpp>
+
 namespace dmGameSystem
 {
     static void ReleaseResources(dmResource::HFactory factory, ModelResource* resource);
@@ -374,10 +376,10 @@ namespace dmGameSystem
         resource->m_Materials.SetSize(0);
     }
 
-    dmResource::Result ResModelPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResModelPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmModelDDF::Model* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmModelDDF_Model_DESCRIPTOR, (void**) &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmModelDDF_Model_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
@@ -385,57 +387,57 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < ddf->m_Materials.m_Count; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, ddf->m_Materials[i].m_Material);
+            dmResource::PreloadHint(params->m_HintInfo, ddf->m_Materials[i].m_Material);
 
             for (uint32_t j = 0; j < ddf->m_Materials[i].m_Textures.m_Count && j < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++j)
             {
-                dmResource::PreloadHint(params.m_HintInfo, ddf->m_Materials[i].m_Textures[j].m_Texture);
+                dmResource::PreloadHint(params->m_HintInfo, ddf->m_Materials[i].m_Textures[j].m_Texture);
             }
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_RigScene);
+        dmResource::PreloadHint(params->m_HintInfo, ddf->m_RigScene);
 
-        *params.m_PreloadData = ddf;
+        *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResModelCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResModelCreate(const dmResource::ResourceCreateParams* params)
     {
         ModelResource* model_resource = new ModelResource();
         memset(model_resource, 0, sizeof(ModelResource));
-        model_resource->m_Model = (dmModelDDF::Model*) params.m_PreloadData;
-        dmResource::Result r = AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, model_resource, params.m_Filename);
+        model_resource->m_Model = (dmModelDDF::Model*) params->m_PreloadData;
+        dmResource::Result r = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, model_resource, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*) model_resource;
+            dmResource::SetResource(params->m_Resource, model_resource);
         }
         else
         {
-            ReleaseResources(params.m_Factory, model_resource);
+            ReleaseResources(params->m_Factory, model_resource);
             delete model_resource;
         }
         return r;
     }
 
-    dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        ModelResource* model_resource = (ModelResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, model_resource);
+        ModelResource* model_resource = (ModelResource*)dmResource::GetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, model_resource);
         delete model_resource;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResModelRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResModelRecreate(const dmResource::ResourceRecreateParams* params)
     {
         dmModelDDF::Model* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmModelDDF_Model_DESCRIPTOR, (void**) &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmModelDDF_Model_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
-        ModelResource* model_resource = (ModelResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, model_resource);
+        ModelResource* model_resource = (ModelResource*)dmResource::GetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, model_resource);
         model_resource->m_Model = ddf;
-        return AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, model_resource, params.m_Filename);
+        return AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, model_resource, params->m_Filename);
     }
 }

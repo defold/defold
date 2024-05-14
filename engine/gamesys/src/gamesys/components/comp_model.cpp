@@ -46,6 +46,7 @@
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/model_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/resource/resource_desc.hpp>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_Model, 0, FrameReset, "# components", &rmtp_Components);
@@ -133,7 +134,7 @@ namespace dmGameSystem
 
     static const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
     static void DestroyComponent(ModelWorld* world, uint32_t index);
 
     dmGameObject::CreateResult CompModelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -1492,9 +1493,9 @@ namespace dmGameSystem
         return SetMaterialConstant(GetMaterial(component, component->m_Resource, 0), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompModelSetConstantCallback, component);
     }
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
     {
-        ModelWorld* world = (ModelWorld*) params.m_UserData;
+        ModelWorld* world = (ModelWorld*) params->m_UserData;
         const dmArray<ModelComponent*>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
         for (uint32_t i = 0; i < n; ++i)
@@ -1502,14 +1503,14 @@ namespace dmGameSystem
             ModelComponent* component = components[i];
             if (component->m_Resource)
             {
-                if(component->m_Resource == params.m_Resource->m_Resource)
+                if(component->m_Resource == dmResource::GetResource(params->m_Resource))
                 {
                     // Model resource reload
                     OnResourceReloaded(world, component, i);
                     continue;
                 }
                 RigSceneResource *rig_scene_res = component->m_Resource->m_RigScene;
-                if((rig_scene_res) && (rig_scene_res->m_AnimationSetRes == params.m_Resource->m_Resource))
+                if((rig_scene_res) && (rig_scene_res->m_AnimationSetRes == dmResource::GetResource(params->m_Resource)))
                 {
                     // Model resource reload because animset used in rig was reloaded
                     OnResourceReloaded(world, component, i);

@@ -16,7 +16,7 @@
 #define DMSDK_GAMESYS_RES_FACTORY_H
 
 #include <dmsdk/gameobject/gameobject.h>
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 #include <gamesys/gamesys_ddf.h>
 
 namespace dmGameSystem

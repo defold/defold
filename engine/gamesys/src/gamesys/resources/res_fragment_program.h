@@ -15,18 +15,19 @@
 #ifndef DM_GAMESYS_RES_FRAGMENT_PROGRAM_H
 #define DM_GAMESYS_RES_FRAGMENT_PROGRAM_H
 
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource_params.hpp>
 #include <dmsdk/gamesys/resources/res_fragment_program.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResFragmentProgramPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResFragmentProgramPreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResFragmentProgramCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResFragmentProgramCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResFragmentProgramDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResFragmentProgramDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResFragmentProgramRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResFragmentProgramRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_RES_FRAGMENT_PROGRAM_H

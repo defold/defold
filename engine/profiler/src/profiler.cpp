@@ -29,7 +29,7 @@
 #include <algorithm> // std::sort
 
 #include <dmsdk/dlib/vmath.h>
-#include <dmsdk/extension/extension.h>
+#include <dmsdk/extension/extension_gen.hpp>
 
 DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler");
 DM_PROPERTY_U32(rmtp_CpuUsage, 0, FrameReset, "%% Cpu Usage", &rmtp_Profiler);

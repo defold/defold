@@ -15,14 +15,15 @@
 #ifndef DM_GAMESYS_RES_COMPUTE_SHADER_H
 #define DM_GAMESYS_RES_COMPUTE_SHADER_H
 
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource_params.hpp>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResComputeShaderPreload(const dmResource::ResourcePreloadParams& params);
-    dmResource::Result ResComputeShaderCreate(const dmResource::ResourceCreateParams& params);
-    dmResource::Result ResComputeShaderDestroy(const dmResource::ResourceDestroyParams& params);
-    dmResource::Result ResComputeShaderRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResComputeShaderPreload(const dmResource::ResourcePreloadParams* params);
+    dmResource::Result ResComputeShaderCreate(const dmResource::ResourceCreateParams* params);
+    dmResource::Result ResComputeShaderDestroy(const dmResource::ResourceDestroyParams* params);
+    dmResource::Result ResComputeShaderRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_RES_COMPUTE_SHADER_H

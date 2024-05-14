@@ -18,11 +18,13 @@
 #include <map>
 #include <vector>
 
-#include <resource/resource.h>
-
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "gameobject/test/delete/test_gameobject_delete_ddf.h"
+
+#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource_params.hpp>
+#include <dmsdk/resource/resource_type.hpp>
 
 class DeleteTest : public jc_test_base_class
 {
@@ -60,7 +62,7 @@ protected:
         e = dmResource::RegisterType(m_Factory, "deleteself", this, 0, ResDeleteSelfCreate, 0, ResDeleteSelfDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "deleteself", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType ds_type;
@@ -83,8 +85,8 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResDeleteSelfCreate(const dmResource::ResourceCreateParams& params);
-    static dmResource::Result ResDeleteSelfDestroy(const dmResource::ResourceDestroyParams& params);
+    static dmResource::Result ResDeleteSelfCreate(const dmResource::ResourceCreateParams* params);
+    static dmResource::Result ResDeleteSelfDestroy(const dmResource::ResourceDestroyParams* params);
 
     static dmGameObject::CreateResult     DeleteSelfComponentAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
     static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
@@ -109,16 +111,16 @@ public:
     dmHashTable64<void*> m_Contexts;
 };
 
-dmResource::Result DeleteTest::ResDeleteSelfCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result DeleteTest::ResDeleteSelfCreate(const dmResource::ResourceCreateParams* params)
 {
-    DeleteTest* game_object_test = (DeleteTest*) params.m_Context;
+    DeleteTest* game_object_test = (DeleteTest*) params->m_Context;
     game_object_test->m_CreateCountMap[TestGameObjectDDF::DeleteSelfResource::m_DDFHash]++;
 
     TestGameObjectDDF::DeleteSelfResource* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::DeleteSelfResource>(params.m_Buffer, params.m_BufferSize, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::DeleteSelfResource>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) obj;
+        ResourceDescriptorSetResource(params->m_Resource, obj);
         return dmResource::RESULT_OK;
     }
     else
@@ -127,12 +129,12 @@ dmResource::Result DeleteTest::ResDeleteSelfCreate(const dmResource::ResourceCre
     }
 }
 
-dmResource::Result DeleteTest::ResDeleteSelfDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result DeleteTest::ResDeleteSelfDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    DeleteTest* game_object_test = (DeleteTest*) params.m_Context;
+    DeleteTest* game_object_test = (DeleteTest*) params->m_Context;
     game_object_test->m_DestroyCountMap[TestGameObjectDDF::DeleteSelfResource::m_DDFHash]++;
 
-    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
+    dmDDF::FreeMessage((void*) ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 

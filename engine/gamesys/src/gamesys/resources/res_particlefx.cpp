@@ -20,6 +20,7 @@
 #include <particle/particle_ddf.h>
 #include <render/render.h>
 #include "res_material.h"
+#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {
@@ -85,10 +86,10 @@ namespace dmGameSystem
     }
 
 
-    dmResource::Result ResParticleFXPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResParticleFXPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmParticleDDF::ParticleFX* particle_fx;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmParticleDDF_ParticleFX_DESCRIPTOR, (void**) &particle_fx);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmParticleDDF_ParticleFX_DESCRIPTOR, (void**) &particle_fx);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
@@ -96,52 +97,52 @@ namespace dmGameSystem
 
         for(uint32_t i = 0; i < particle_fx->m_Emitters.m_Count; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, particle_fx->m_Emitters.m_Data[i].m_TileSource);
+            dmResource::PreloadHint(params->m_HintInfo, particle_fx->m_Emitters.m_Data[i].m_TileSource);
             if (particle_fx->m_Emitters.m_Data[i].m_Material[0] != 0)
-                dmResource::PreloadHint(params.m_HintInfo, particle_fx->m_Emitters.m_Data[i].m_Material);
+                dmResource::PreloadHint(params->m_HintInfo, particle_fx->m_Emitters.m_Data[i].m_Material);
         }
-        *params.m_PreloadData = particle_fx;
+        *params->m_PreloadData = particle_fx;
         return dmResource::RESULT_OK;
     }
 
 
-    dmResource::Result ResParticleFXCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResParticleFXCreate(const dmResource::ResourceCreateParams* params)
     {
-        if(params.m_PreloadData == 0)
+        if(params->m_PreloadData == 0)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
-        dmParticle::HPrototype prototype = dmParticle::NewPrototypeFromDDF((dmParticleDDF::ParticleFX *) params.m_PreloadData);
-        dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, prototype, params.m_Filename);
+        dmParticle::HPrototype prototype = dmParticle::NewPrototypeFromDDF((dmParticleDDF::ParticleFX *) params->m_PreloadData);
+        dmResource::Result r = AcquireResources(params->m_Factory, params->m_Buffer, params->m_BufferSize, prototype, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*) prototype;
+            dmResource::SetResource(params->m_Resource, prototype);
         }
         else
         {
-            ReleasePrototypeResources(params.m_Factory, prototype);
+            ReleasePrototypeResources(params->m_Factory, prototype);
             dmParticle::DeletePrototype(prototype);
         }
         return r;
     }
 
-    dmResource::Result ResParticleFXDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResParticleFXDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        dmParticle::HPrototype prototype = (dmParticle::HPrototype)params.m_Resource->m_Resource;
+        dmParticle::HPrototype prototype = (dmParticle::HPrototype)dmResource::GetResource(params->m_Resource);
         assert(prototype != dmParticle::INVALID_PROTOTYPE);
-        ReleasePrototypeResources(params.m_Factory, prototype);
+        ReleasePrototypeResources(params->m_Factory, prototype);
         dmParticle::DeletePrototype(prototype);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResParticleFXRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResParticleFXRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        dmParticle::HPrototype prototype = (dmParticle::HPrototype)params.m_Resource->m_Resource;
-        ReleasePrototypeResources(params.m_Factory, prototype);
-        if (!dmParticle::ReloadPrototype(prototype, params.m_Buffer, params.m_BufferSize))
+        dmParticle::HPrototype prototype = (dmParticle::HPrototype)dmResource::GetResource(params->m_Resource);
+        ReleasePrototypeResources(params->m_Factory, prototype);
+        if (!dmParticle::ReloadPrototype(prototype, params->m_Buffer, params->m_BufferSize))
         {
             return dmResource::RESULT_INVALID_DATA;
         }
-        return AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, prototype, params.m_Filename);
+        return AcquireResources(params->m_Factory, params->m_Buffer, params->m_BufferSize, prototype, params->m_Filename);
     }
 }

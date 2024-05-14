@@ -31,7 +31,7 @@
 #include <dlib/job_thread.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/profile.h>
-#include <dmsdk/extension/extension.h>
+#include <dmsdk/extension/extension_gen.hpp>
 
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
@@ -911,7 +911,7 @@ namespace dmLiveUpdate
 
     static dmExtension::Result Initialize(dmExtension::Params* params)
     {
-        int32_t liveupdate_enabled = dmConfigFile::GetInt(params->m_ConfigFile, "liveupdate.enabled", 1);
+        int32_t liveupdate_enabled = ConfigFileGetInt(params->m_ConfigFile, "liveupdate.enabled", 1);
         if (!liveupdate_enabled)
         {
             dmLogError("Liveupdate disabled due to project setting %s=%d", "liveupdate.enabled", liveupdate_enabled);

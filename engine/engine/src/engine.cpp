@@ -1356,7 +1356,7 @@ namespace dmEngine
             uint16_t prio = 0;
             while (s)
             {
-                dmResource::ResourceType type;
+                HResourceType type;
                 fact_result = dmResource::GetTypeFromExtension(engine->m_Factory, s, &type);
                 if (fact_result == dmResource::RESULT_OK)
                 {
