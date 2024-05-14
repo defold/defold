@@ -435,3 +435,10 @@
                   (is (= :internal.graph.graph-test/PassthroughNode (:node-type-kw ex-data)))
                   (is (= :str-out (:label ex-data)))
                   (is (= error-value (:error ex-data))))))))))))
+
+(deftest defective?-test
+  (with-clean-system
+    (let [error-node (g/make-node! world TestNode :val "initial")]
+      (is (false? (g/defective? error-node)))
+      (g/mark-defective! error-node (g/error-fatal "bad"))
+      (is (true? (g/defective? error-node))))))

@@ -55,6 +55,9 @@ Macros currently mean no foreseeable performance gain however."
       (.getBytes StandardCharsets/UTF_8)
       (TextFormat/escapeBytes)))
 
+(defn pb-class? [value]
+  (isa? value Message))
+
 (defn- new-builder
   ^GeneratedMessage$Builder [class]
   (j/invoke-no-arg-class-method class "newBuilder"))
