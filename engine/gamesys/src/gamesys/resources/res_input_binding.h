@@ -16,7 +16,6 @@
 #define DM_GAMESYS_INPUT_BINDING_H
 
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
 #include <dmsdk/gamesys/resources/res_input_binding.h>
 
 namespace dmGameSystem

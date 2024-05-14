@@ -16,7 +16,6 @@
 #define DMGAMESYSTEM_RES_RENDERSCRIPT_H
 
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
 
 namespace dmGameSystem
 {

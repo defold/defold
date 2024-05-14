@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/resource and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/resource/sdk_gen.json
+// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/resource and cmd=../../scripts/dmsdk/gen_sdk.py -i ./sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
@@ -24,37 +24,11 @@
 
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
-#include <dmsdk/resource/resource_desc.h>
 
 #include <dmsdk/resource/resource.h>
 
 namespace dmResource {
-    /*Result
-     * @enum
-     * @name Result
-     * @member RESULT_OK
-     * @member RESULT_INVALID_DATA
-     * @member RESULT_DDF_ERROR
-     * @member RESULT_RESOURCE_NOT_FOUND
-     * @member RESULT_MISSING_FILE_EXTENSION
-     * @member RESULT_ALREADY_REGISTERED
-     * @member RESULT_INVAL
-     * @member RESULT_UNKNOWN_RESOURCE_TYPE
-     * @member RESULT_OUT_OF_MEMORY
-     * @member RESULT_IO_ERROR
-     * @member RESULT_NOT_LOADED
-     * @member RESULT_OUT_OF_RESOURCES
-     * @member RESULT_STREAMBUFFER_TOO_SMALL
-     * @member RESULT_FORMAT_ERROR
-     * @member RESULT_CONSTANT_ERROR
-     * @member RESULT_NOT_SUPPORTED
-     * @member RESULT_RESOURCE_LOOP_ERROR
-     * @member RESULT_PENDING
-     * @member RESULT_INVALID_FILE_EXTENSION
-     * @member RESULT_VERSION_MISMATCH
-     * @member RESULT_SIGNATURE_MISMATCH
-     * @member RESULT_UNKNOWN_ERRO
-     */
+    // no documentation found
     enum Result {
         RESULT_OK = 0,
         RESULT_INVALID_DATA = -1,
@@ -85,6 +59,14 @@ namespace dmResource {
 
     // no documentation found
     typedef HResourcePreloadHintInfo HPreloadHintInfo;
+
+    // no documentation found
+    typedef HResourceDescriptor HDescriptor;
+
+    /*#
+     * Parameters to ResourceReloaded callback
+     */
+    typedef ResourceReloadedParams ResourceReloadedParams;
 
     /*#
      * Function called when a resource has been reloaded.
@@ -165,6 +147,32 @@ namespace dmResource {
      * @return result [type: Result] RESULT_OK on succes
      */
     Result RemoveFile(HFactory factory,const char * path);
+
+    /*/////////////////////////////////////////////////////////////////////////////////////////////////////
+     // Descriptor function
+     */
+    dmhash_t GetNameHash(HDescriptor rd);
+
+    // no documentation found
+    void SetResource(HDescriptor rd,void * resource);
+
+    // no documentation found
+    void * GetResource(HDescriptor rd);
+
+    // no documentation found
+    void SetPrevResource(HDescriptor rd,void * resource);
+
+    // no documentation found
+    void * GetPrevResource(HDescriptor rd);
+
+    // no documentation found
+    void SetResourceSize(HDescriptor rd,uint32_t size);
+
+    // no documentation found
+    uint32_t GetResourceSize(HDescriptor rd);
+
+    // no documentation found
+    HResourceType GetType(HDescriptor rd);
 
 
 } // namespace dmResource

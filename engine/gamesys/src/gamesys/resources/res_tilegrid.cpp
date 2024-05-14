@@ -23,7 +23,6 @@
 
 #include <dmsdk/gamesys/resources/res_material.h>
 #include <dmsdk/gamesys/resources/res_textureset.h>
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

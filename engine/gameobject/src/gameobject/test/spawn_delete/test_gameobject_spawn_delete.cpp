@@ -28,8 +28,6 @@
 #include "../proto/gameobject/gameobject_ddf.h"
 #include "../proto/gameobject/lua_ddf.h"
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
-#include <dmsdk/resource/resource_type.hpp>
 
 using namespace dmVMath;
 

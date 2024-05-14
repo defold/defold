@@ -23,7 +23,6 @@
 
 #include "gamesys.h"
 #include "gamesys_private.h"
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

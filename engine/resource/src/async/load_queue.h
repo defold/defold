@@ -17,7 +17,7 @@
 
 #include "../resource.h"
 #include "../resource_private.h"
-#include <dmsdk/resource/resource_type.hpp>
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmLoadQueue
 {

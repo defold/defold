@@ -40,7 +40,7 @@
 #include <gamesys/mesh_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
 #include <dmsdk/gamesys/resources/res_material.h>
-#include <dmsdk/resource/resource_desc.hpp>
+#include <dmsdk/resource/resource.hpp>
 
 #include "../resources/res_mesh.h"
 

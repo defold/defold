@@ -13,8 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
-#include <dmsdk/resource/resource_type.hpp>
 
 namespace dmGameObject
 {

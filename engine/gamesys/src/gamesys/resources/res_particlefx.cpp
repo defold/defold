@@ -20,7 +20,6 @@
 #include <particle/particle_ddf.h>
 #include <render/render.h>
 #include "res_material.h"
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

@@ -18,8 +18,6 @@
 #include <render/render_ddf.h>
 #include <render/display_profiles.h>
 
-#include <dmsdk/resource/resource_desc.hpp>
-
 namespace dmGameSystem
 {
     dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size, dmRender::HDisplayProfiles profiles, const char* filename)

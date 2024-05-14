@@ -18,7 +18,6 @@
 #include <dlib/log.h>
 #include <gamesys/label_ddf.h>
 #include <dmsdk/gamesys/resources/res_material.h>
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

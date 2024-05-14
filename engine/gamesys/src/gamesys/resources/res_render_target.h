@@ -17,7 +17,6 @@
 
 #include "res_texture.h"
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
 
 namespace dmGameSystem
 {

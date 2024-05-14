@@ -23,8 +23,6 @@
 #include "gameobject/test/delete/test_gameobject_delete_ddf.h"
 
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
-#include <dmsdk/resource/resource_type.hpp>
 
 class DeleteTest : public jc_test_base_class
 {

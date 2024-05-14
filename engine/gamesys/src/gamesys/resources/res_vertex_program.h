@@ -16,7 +16,6 @@
 #define DM_GAMESYS_RES_VERTEX_PROGRAM_H
 
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
 #include <dmsdk/gamesys/resources/res_vertex_program.h>
 
 namespace dmGameSystem

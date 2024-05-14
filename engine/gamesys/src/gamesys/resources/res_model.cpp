@@ -32,8 +32,6 @@
 #include <rig/rig.h>
 #include <algorithm> // std::sort
 
-#include <dmsdk/resource/resource_desc.hpp>
-
 namespace dmGameSystem
 {
     static void ReleaseResources(dmResource::HFactory factory, ModelResource* resource);

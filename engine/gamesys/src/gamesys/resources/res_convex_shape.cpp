@@ -19,8 +19,6 @@
 #include "gamesys.h"
 #include <gamesys/physics_ddf.h>
 
-#include <dmsdk/resource/resource_desc.hpp>
-
 /*
  * NOTE: Convex-shape is obsolete and the code below is not currently in use
  * We currently embed external convex shape resources into the collisionshape at compile-time

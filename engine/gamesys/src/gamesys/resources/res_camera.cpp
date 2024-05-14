@@ -14,8 +14,6 @@
 
 #include "res_camera.h"
 
-#include <dmsdk/resource/resource_desc.hpp>
-
 namespace dmGameSystem
 {
     dmResource::Result ResCameraCreate(const dmResource::ResourceCreateParams* params)

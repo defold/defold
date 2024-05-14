@@ -25,10 +25,7 @@
 #include "res_texture.h"
 #include "res_textureset.h"
 
-#include <dmsdk/resource/resource.h>
-#include <dmsdk/resource/resource_params.h>
-#include <dmsdk/resource/resource_type.hpp>
-#include <dmsdk/resource/resource_desc.hpp>
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmGameSystem
 {

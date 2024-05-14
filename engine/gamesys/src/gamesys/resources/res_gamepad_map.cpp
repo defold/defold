@@ -15,7 +15,6 @@
 #include "res_gamepad_map.h"
 
 #include <input/input_ddf.h>
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

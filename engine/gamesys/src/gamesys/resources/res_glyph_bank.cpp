@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_glyph_bank.h"
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

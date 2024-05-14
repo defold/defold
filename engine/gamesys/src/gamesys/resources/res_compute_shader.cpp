@@ -15,8 +15,6 @@
 #include "res_compute_shader.h"
 #include <graphics/graphics.h>
 
-#include <dmsdk/resource/resource_desc.hpp>
-
 namespace dmGameSystem
 {
     static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HComputeProgram* program)

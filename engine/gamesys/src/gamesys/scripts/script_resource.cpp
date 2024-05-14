@@ -37,7 +37,7 @@
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
-#include <dmsdk/resource/resource_type.hpp>
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmGameSystem
 {

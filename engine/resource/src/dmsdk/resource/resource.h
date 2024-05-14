@@ -28,42 +28,21 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
-
-#include <dmsdk/resource/resource_desc.h>
+#include <dmsdk/dlib/align.h> // DM_ALIGNED
 
 typedef struct ResourceFactory* HResourceFactory;
 typedef struct ResourcePreloadHintInfo* HResourcePreloadHintInfo;
+typedef struct ResourceDescriptor* HResourceDescriptor;
+typedef struct ResourceTypeContext* HResourceTypeContext;
 typedef struct ResourceType* HResourceType;
 
 struct ResourceReloadedParams;
+struct ResourcePreloadParams;
+struct ResourceCreateParams;
+struct ResourcePostCreateParams;
+struct ResourceDestroyParams;
+struct ResourceRecreateParams;
 
-/**
- * ResourceResult
- * @enum
- * @name ResourceResult
- * @member RESOURCE_RESULT_OK
- * @member RESOURCE_RESULT_INVALID_DATA
- * @member RESOURCE_RESULT_DDF_ERROR
- * @member RESOURCE_RESULT_RESOURCE_NOT_FOUND
- * @member RESOURCE_RESULT_MISSING_FILE_EXTENSION
- * @member RESOURCE_RESULT_ALREADY_REGISTERED
- * @member RESOURCE_RESULT_INVAL
- * @member RESOURCE_RESULT_UNKNOWN_RESOURCE_TYPE
- * @member RESOURCE_RESULT_OUT_OF_MEMORY
- * @member RESOURCE_RESULT_IO_ERROR
- * @member RESOURCE_RESULT_NOT_LOADED
- * @member RESOURCE_RESULT_OUT_OF_RESOURCES
- * @member RESOURCE_RESULT_STREAMBUFFER_TOO_SMALL
- * @member RESOURCE_RESULT_FORMAT_ERROR
- * @member RESOURCE_RESULT_CONSTANT_ERROR
- * @member RESOURCE_RESULT_NOT_SUPPORTED
- * @member RESOURCE_RESULT_RESOURCE_LOOP_ERROR
- * @member RESOURCE_RESULT_PENDING
- * @member RESOURCE_RESULT_INVALID_FILE_EXTENSION
- * @member RESOURCE_RESULT_VERSION_MISMATCH
- * @member RESOURCE_RESULT_SIGNATURE_MISMATCH
- * @member RESOURCE_RESULT_UNKNOWN_ERROR
- */
 typedef enum ResourceResult
 {
     RESOURCE_RESULT_OK                        = 0,
@@ -89,8 +68,6 @@ typedef enum ResourceResult
     RESOURCE_RESULT_SIGNATURE_MISMATCH        = -20,
     RESOURCE_RESULT_UNKNOWN_ERROR             = -21,
 } ResourceResult;
-
-// Resource type functions
 
 
 /*#
@@ -216,5 +193,208 @@ ResourceResult ResourceAddFile(HResourceFactory factory, const char* path, uint3
  * @return result [type: ResourceResult] RESULT_OK on success
  */
 ResourceResult ResourceRemoveFile(HResourceFactory factory, const char* path);
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Descriptor functions
+
+dmhash_t        ResourceDescriptorGetNameHash(HResourceDescriptor rd);
+void            ResourceDescriptorSetResource(HResourceDescriptor rd, void* resource);
+void*           ResourceDescriptorGetResource(HResourceDescriptor rd);
+void            ResourceDescriptorSetPrevResource(HResourceDescriptor rd, void* resource);
+void*           ResourceDescriptorGetPrevResource(HResourceDescriptor rd);
+void            ResourceDescriptorSetResourceSize(HResourceDescriptor rd, uint32_t size);
+uint32_t        ResourceDescriptorGetResourceSize(HResourceDescriptor rd);
+HResourceType   ResourceDescriptorGetType(HResourceDescriptor rd);
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Type functions
+
+void*  ResourceTypeContextGetContextByHash(HResourceTypeContext, dmhash_t extension_hash);
+
+typedef ResourceResult (*FResourceTypeRegister)(HResourceTypeContext ctx, HResourceType type);
+typedef ResourceResult (*FResourceTypeDeregister)(HResourceTypeContext ctx, HResourceType type);
+typedef ResourceResult (*FResourcePreload)(const struct ResourcePreloadParams* params);
+typedef ResourceResult (*FResourceCreate)(const struct ResourceCreateParams* params);
+typedef ResourceResult (*FResourcePostCreate)(const struct ResourcePostCreateParams* params);
+typedef ResourceResult (*FResourceDestroy)(const struct ResourceDestroyParams* params);
+typedef ResourceResult (*FResourceRecreate)(const struct ResourceRecreateParams* params);
+
+void* ResourceTypeGetContext(HResourceType type);
+void ResourceTypeSetContext(HResourceType type, void* context);
+const char* ResourceTypeGetName(HResourceType type);
+dmhash_t ResourceTypeGetNameHash(HResourceType type);
+void ResourceTypeSetPreloadFn(HResourceType type, FResourcePreload fn);
+void ResourceTypeSetCreateFn(HResourceType type, FResourceCreate fn);
+void ResourceTypeSetPostCreateFn(HResourceType type, FResourcePostCreate fn);
+void ResourceTypeSetDestroyFn(HResourceType type, FResourceDestroy fn);
+void ResourceTypeSetRecreateFn(HResourceType type, FResourceRecreate fn);
+
+// internal
+ResourceResult ResourceRegisterType(HResourceFactory factory,
+                                   const char* extension,
+                                   void* context,
+                                   HResourceType* type);
+// .end internal
+
+
+/*#
+ * Parameters to ResourcePreload callback.
+ */
+struct ResourcePreloadParams
+{
+    /// Factory handle
+    HResourceFactory m_Factory;
+    /// Resource context
+    void* m_Context;
+    /// File name of the loaded file
+    const char* m_Filename;
+    /// Buffer containing the loaded file
+    const void* m_Buffer;
+    /// Size of data buffer
+    uint32_t m_BufferSize;
+    /// Hinter info. Use this when calling PreloadHint
+    HResourcePreloadHintInfo m_HintInfo;
+    /// User data from the preload step, that will be passed on to ResourceCreate function
+    void** m_PreloadData;
+    /// the resource type
+    HResourceType m_Type;
+};
+
+/*#
+ * Parameters to ResourceCreate callback.
+ */
+struct ResourceCreateParams
+{
+    /// Factory handle
+    HResourceFactory m_Factory;
+    /// Resource context
+    void* m_Context;
+    /// File name of the loaded file
+    const char* m_Filename;
+    /// Buffer containing the loaded file
+    const void* m_Buffer;
+    /// Size of the data buffer
+    uint32_t m_BufferSize;
+    /// Preloaded data from Preload phase
+    void* m_PreloadData;
+    /// Resource descriptor to fill in
+    HResourceDescriptor m_Resource;
+    /// the resource type
+    HResourceType m_Type;
+};
+
+
+/*#
+ * Parameters to ResourcePostCreate callback.
+ */
+struct ResourcePostCreateParams
+{
+    /// Factory handle
+    HResourceFactory m_Factory;
+    /// Resource context
+    void* m_Context;
+    /// Preloaded data from Preload phase
+    void* m_PreloadData;
+    /// Resource descriptor passed from create function
+    HResourceDescriptor m_Resource;
+    /// the resource type
+    HResourceType m_Type;
+    /// File name of the loaded file
+    const char* m_Filename;
+};
+
+/*#
+ * Parameters to ResourceRecreate callback.
+ */
+struct ResourceRecreateParams
+{
+    /// Factory handle
+    HResourceFactory m_Factory;
+    /// Resource context
+    void* m_Context;
+    /// File name hash of the data
+    uint64_t m_NameHash;
+    /// File name of the loaded file
+    const char* m_Filename;
+    /// Data buffer containing the loaded file
+    const void* m_Buffer;
+    /// Size of data buffer
+    uint32_t m_BufferSize;
+    /// Pointer holding a precreated message
+    const void* m_Message;
+    /// Resource descriptor to write into
+    HResourceDescriptor m_Resource;
+    /// the resource type
+    HResourceType m_Type;
+};
+
+/*#
+ * Parameters to ResourceDestroy callback.
+ */
+struct ResourceDestroyParams
+{
+    /// Factory handle
+    HResourceFactory m_Factory;
+    /// Resource context
+    void* m_Context;
+    /// Resource descriptor for resource to destroy
+    HResourceDescriptor m_Resource;
+    /// the resource type
+    HResourceType m_Type;
+};
+
+/*#
+ * Parameters to ResourceReloaded callback.
+ */
+typedef struct ResourceReloadedParams
+{
+    /// User data supplied when the callback was registered
+    void* m_UserData;
+    /// Descriptor of the reloaded resource
+    HResourceDescriptor m_Resource;
+    /// Name of the resource, same as provided to Get() when the resource was obtained
+    const char* m_Name;
+    /// Hashed name of the resource
+    uint64_t m_NameHash;
+    /// the resource type
+    HResourceType m_Type;
+} ResourceReloadedParams;
+
+
+// TYPE REGISTERING MACROS
+
+
+// Internal. Resource type creator desc bytesize declaration.
+const uint32_t ResourceTypeCreatorDescBufferSize = 128;
+
+/** Internal
+* Resource type creator desc bytesize declaration.
+* @name ResourceRegisterTypeCreatorDesc
+* @param desc [type: void*] Pointer to allocated area.
+*                           Must be valid throughout the application life cycle.
+* @param size [type: uint32_t] Size of desc. Must be at least ResourceTypeCreatorDescBufferSize bytes
+* @param name [type: const char*] Name of resoruce type (e.g. "collectionc")
+* @param register_fn [type: FResourceTypeRegister] Type register function. Called at each reboot
+* @param deregister_fn [type: FResourceTypeDeregister] Type deregister function. Called at each reboot
+*/
+void ResourceRegisterTypeCreatorDesc(void* desc, uint32_t size, const char *name, FResourceTypeRegister register_fn, FResourceTypeDeregister deregister_fn);
+
+// Internal
+#define DM_RESOURCE_PASTE_SYMREG(x, y) x ## y
+// Internal
+#define DM_RESOURCE_PASTE_SYMREG2(x, y) DM_RESOURCE_PASTE_SYMREG(x, y)
+
+// Internal. Resource type declaration helper.
+#define DM_REGISTER_RESOURCE_TYPE(symbol, desc, desc_size, suffix, register_fn, deregister_fn) extern "C" void symbol () { \
+    ResourceRegisterTypeCreatorDesc((void*) &desc, desc_size, suffix, register_fn, deregister_fn); \
+}
+
+// public
+#define DM_DECLARE_RESOURCE_TYPE(symbol, suffix, register_fn, deregister_fn) \
+    uint8_t DM_ALIGNED(16) DM_RESOURCE_PASTE_SYMREG2(symbol, __LINE__)[ResourceTypeCreatorDescBufferSize]; \
+    DM_REGISTER_RESOURCE_TYPE(symbol, DM_RESOURCE_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_RESOURCE_PASTE_SYMREG2(symbol, __LINE__)), suffix, register_fn, deregister_fn);
+
 
 #endif // DMSDK_RESOURCE_H

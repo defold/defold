@@ -17,8 +17,6 @@
 #include <render/render.h>
 #include <render/compute_program_ddf.h>
 
-#include <dmsdk/resource/resource_desc.hpp>
-
 namespace dmGameSystem
 {
     dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::ComputeProgramDesc* ddf, void** program)

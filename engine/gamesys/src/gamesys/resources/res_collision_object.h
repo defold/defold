@@ -16,7 +16,6 @@
 #define DM_GAMESYS_RES_COLLISION_OBJECT_H
 
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
 #include <dmsdk/gamesys/resources/res_collision_object.h>
 
 namespace dmGameSystem

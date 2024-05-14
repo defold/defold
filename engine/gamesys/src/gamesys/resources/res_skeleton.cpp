@@ -16,7 +16,6 @@
 
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/math.h>
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

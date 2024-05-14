@@ -50,7 +50,7 @@
 #include <gui/gui_script.h>
 
 #include <dmsdk/gamesys/gui.h>
-#include <dmsdk/resource/resource_desc.hpp>
+#include <dmsdk/resource/resource.hpp>
 
 DM_PROPERTY_EXTERN(rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, FrameReset, "#", &rmtp_Gui);

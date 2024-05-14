@@ -28,8 +28,6 @@
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
 
-#include <dmsdk/resource/resource_params.h>
-#include <dmsdk/resource/resource_desc.h>
 #include <dmsdk/resource/resource_gen.hpp>
 
 namespace dmResource
@@ -37,7 +35,16 @@ namespace dmResource
 // Legacy
 // We keep these structs in the public api until we've updated our extensions in the wild
 
+
+    typedef ::ResourceCreateParams ResourceCreateParams;
+    typedef ::ResourceDestroyParams ResourceDestroyParams;
+    typedef ::ResourcePreloadParams ResourcePreloadParams;
+    typedef ::ResourcePostCreateParams ResourcePostCreateParams;
+    typedef ::ResourceRecreateParams ResourceRecreateParams;
+    typedef ::ResourceReloadedParams ResourceReloadedParams;
+
     typedef HResourceFactory HFactory;
+    typedef HResourceType HResourceType;
 
     /*#
      * Get a resource from factory
@@ -146,6 +153,76 @@ namespace dmResource
      * @return RESULT_OK on success.
      */
     Result RemoveFile(HFactory factory, const char* path);
+
+        static const uint32_t s_ResourceTypeCreatorDescBufferSize = ResourceTypeCreatorDescBufferSize;
+
+    /*#
+     * @note Deprecated in favor of ResourceTypeSetPreloadFn
+     */
+    typedef dmResource::Result (*FResourcePreload)(const dmResource::ResourcePreloadParams* params);
+
+    /*#
+     * @note Deprecated in favor of ResourceTypeSetCreateFn
+     */
+    typedef dmResource::Result (*FResourceCreate)(const dmResource::ResourceCreateParams* params);
+
+    /*#
+     * @note Deprecated in favor of ResourceTypeSetPostCreateFn
+     */
+    typedef dmResource::Result (*FResourcePostCreate)(const dmResource::ResourcePostCreateParams* params);
+
+    /*#
+     * @note Deprecated in favor of ResourceTypeSetDestroyFn
+     */
+    typedef dmResource::Result (*FResourceDestroy)(const dmResource::ResourceDestroyParams* params);
+
+    /*#
+     * @note Deprecated in favor of ResourceTypeSetRecreateFn
+     */
+    typedef dmResource::Result (*FResourceRecreate)(const dmResource::ResourceRecreateParams* params);
+
+    /*#
+     * @note Deprecated in favor of ResourceRegisterTypeCreatorDesc
+     * @name RegisterType
+     */
+    Result RegisterType(HFactory factory,
+                           const char* extension,
+                           void* context,
+                           dmResource::FResourcePreload preload_function,
+                           dmResource::FResourceCreate create_function,
+                           dmResource::FResourcePostCreate post_create_function,
+                           dmResource::FResourceDestroy destroy_function,
+                           dmResource::FResourceRecreate recreate_function);
+
+    /*#
+     * Setup function pointers and context for a resource type
+     * @note C++ Helper function. Deprecated in favor of ResourceRegisterTypeCreatorDesc et al
+     * @name SetupType
+     */
+    Result SetupType(HResourceTypeContext ctx,
+                     HResourceType type,
+                     void* context,
+                     FResourcePreload preload_function,
+                     FResourceCreate create_function,
+                     FResourcePostCreate post_create_function,
+                     FResourceDestroy destroy_function,
+                     FResourceRecreate recreate_function);
+
+    // Internal (do not use!)
+    HResourceType AllocateResourceType(HFactory factory, const char* extension);
+    void          FreeResourceType(HFactory factory, HResourceType type);
+    Result        ValidateResourceType(HResourceType type);
+
+    void * GetContext(HResourceType type);
+
+    // no documentation found
+    void SetContext(HResourceType type,void * context);
+
+    // no documentation found
+    const char * GetName(HResourceType type);
+
+    // no documentation found
+    dmhash_t GetNameHash(HResourceType type);
 }
 
 #endif // DMSDK_RESOURCE_HPP

@@ -28,8 +28,6 @@
 #include <dmsdk/gameobject/script.h>
 
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
-#include <dmsdk/resource/resource_type.hpp>
 
 class ComponentTest : public jc_test_base_class
 {

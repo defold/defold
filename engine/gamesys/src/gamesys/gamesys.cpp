@@ -23,8 +23,7 @@
 #include <graphics/graphics.h>
 #include <input/input.h>
 #include <render/render.h>
-#include <dmsdk/resource/resource.h>
-#include <dmsdk/resource/resource_type.hpp>
+#include <dmsdk/resource/resource.hpp>
 
 #include "resources/res_collection_proxy.h"
 #include "resources/res_collision_object.h"

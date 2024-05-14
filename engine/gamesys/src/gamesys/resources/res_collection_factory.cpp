@@ -20,8 +20,6 @@
 #include <gameobject/gameobject_ddf.h>
 #include <gamesys/gamesys_ddf.h>
 
-#include <dmsdk/resource/resource_desc.hpp>
-
 namespace dmGameSystem
 {
     CollectionFactoryResource& CollectionFactoryResource::operator=(CollectionFactoryResource& other)

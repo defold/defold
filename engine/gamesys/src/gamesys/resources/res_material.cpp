@@ -29,7 +29,6 @@
 #include "res_vertex_program.h"
 
 #include <dmsdk/dlib/hashtable.h>
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

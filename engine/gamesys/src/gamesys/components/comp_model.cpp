@@ -46,7 +46,7 @@
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/model_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
-#include <dmsdk/resource/resource_desc.hpp>
+#include <dmsdk/resource/resource.hpp>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_Model, 0, FrameReset, "# components", &rmtp_Components);

@@ -16,7 +16,6 @@
 #define DMGAMESYSTEM_RES_RENDER_PROTOTYPE_H
 
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
 
 #include <render/render.h>
 

@@ -16,7 +16,6 @@
 #define DM_GAMESYS_RES_GLYPH_BANK_H
 
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
 #include <render/font_ddf.h>
 
 namespace dmGameSystem

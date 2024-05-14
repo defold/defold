@@ -21,9 +21,6 @@
 #include "../gamesys.h"
 #include "../resources/res_tilegrid.h"
 
-#include <dmsdk/resource/resource_type.h>
-#include <dmsdk/resource/resource_desc.hpp>
-
 namespace dmGameSystem
 {
     CollisionObjectResource::CollisionObjectResource()

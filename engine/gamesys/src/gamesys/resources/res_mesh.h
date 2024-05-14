@@ -16,7 +16,6 @@
 #define DM_GAMESYS_RES_MESH_H
 
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
 #include <dmsdk/gamesys/resources/res_buffer.h>
 #include <dmsdk/gamesys/resources/res_mesh.h>
 #include <dmsdk/graphics/graphics.h>

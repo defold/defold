@@ -15,7 +15,6 @@
 #include <string.h>
 #include <sound/sound.h>
 #include "res_sound_data.h"
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

@@ -16,7 +16,6 @@
 #include <dlib/dstrings.h>
 
 #include <gameobject/gameobject.h>
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

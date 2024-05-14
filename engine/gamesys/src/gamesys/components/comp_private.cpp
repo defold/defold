@@ -18,7 +18,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <render/render.h>
 #include <dmsdk/gamesys/render_constants.h>
-#include <dmsdk/resource/resource_desc.hpp>
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmGameSystem
 {

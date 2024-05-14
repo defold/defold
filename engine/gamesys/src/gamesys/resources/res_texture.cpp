@@ -16,7 +16,6 @@
 #include "gamesys_private.h"
 
 #include <dmsdk/gamesys/resources/res_texture.h>
-#include <dmsdk/resource/resource_desc.hpp>
 
 #include <dlib/log.h>
 #include <dlib/profile.h>

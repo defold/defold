@@ -21,7 +21,6 @@
 #include <dlib/memory.h>
 
 #include <render/render.h>
-#include <dmsdk/resource/resource_desc.h>
 
 namespace dmGameSystem
 {

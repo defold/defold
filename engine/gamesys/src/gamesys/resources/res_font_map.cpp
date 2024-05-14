@@ -23,7 +23,6 @@
 #include <render/font_renderer.h>
 #include <render/render_ddf.h>
 
-#include <dmsdk/resource/resource_desc.hpp>
 #include <dmsdk/gamesys/resources/res_material.h>
 
 namespace dmGameSystem

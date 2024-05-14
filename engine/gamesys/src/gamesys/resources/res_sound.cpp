@@ -18,7 +18,6 @@
 #include <dlib/log.h>
 #include <sound/sound.h>
 #include <gamesys/sound_ddf.h>
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

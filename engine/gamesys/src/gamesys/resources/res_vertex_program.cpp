@@ -14,7 +14,6 @@
 
 #include "res_vertex_program.h"
 #include <graphics/graphics.h>
-#include <dmsdk/resource/resource_desc.hpp>
 
 namespace dmGameSystem
 {

@@ -11,7 +11,6 @@
 			"cpp": {
 				"namespace": "dmResource",
 				"ignore": [
-					"HResourceDescriptor",
 					"HResourceType",
 					"ResourcePreloadGetFactory",
 					"ResourcePreloadGetType",
@@ -45,30 +44,6 @@
 					"FResourceDecryption",
 					"ResourceRegisterDecryptionFunction",
 
-					""
-				],
-				"rename": {
-					"FResourceDecryption": "FDecryptResource",
-					"HResource": "H",
-					"FResource": "F",
-					"ResourceResult": "Result",
-					"RESOURCE_RESULT_": "RESULT_",
-					"ResourceRegister": "Register",
-					"ResourceGet": "Get",
-					"ResourceGetByHash": "Get",
-					"ResourceRelease": "Release",
-					"ResourcePreloadHint": "PreloadHint",
-					"ResourceGetPath": "GetPath",
-					"ResourceAddFile": "AddFile",
-					"ResourceRemoveFile": "RemoveFile"
-				}
-
-			}
-		}},
-		{"file": "src/dmsdk/resource/resource_type.h", "languages": {
-			"cpp": {
-				"namespace": "dmResource",
-				"ignore": [
 					"HResourceTypeContext",
 					"ResourceRegisterType",
 					"ResourceTypeSetPreloadFn",
@@ -84,34 +59,47 @@
 					"ResourceTypeContextGetContextByHash",
 					"FResourceTypeRegister",
 					"FResourceTypeDeregister",
+
+					"ResourceTypeRegisterGetFactory",
+					"ResourceTypeRegisterGetContextByHash",
+					"ResourceTypeRegisterSetContextByHash",
+					"ResourceTypeGetContext",
+					"ResourceTypeSetContext",
+					"ResourceTypeGetName",
+					"ResourceTypeGetNameHash",
+
 					"FResourcePreload",
 					"FResourceCreate",
 					"FResourcePostCreate",
 					"FResourceDestroy",
 					"FResourceRecreate",
+
 					""
 				],
 				"rename": {
+					"FResourceDecryption": "FDecryptResource",
+					"HResource": "H",
+					"HType": "HResourceType",
+					"FResource": "F",
+					"ResourceResult": "Result",
+					"RESOURCE_RESULT_": "RESULT_",
+					"ResourceRegister": "Register",
+					"ResourceGet": "Get",
+					"ResourceGetByHash": "Get",
+					"ResourceRelease": "Release",
+					"ResourcePreloadHint": "PreloadHint",
+					"ResourceGetPath": "GetPath",
+					"ResourceAddFile": "AddFile",
+					"ResourceRemoveFile": "RemoveFile",
+
 					"ResourceTypeRegisterGetFactory": "GetFactory",
 					"ResourceTypeRegisterGetContextByHash": "GetContextByHash",
 					"ResourceTypeRegisterSetContextByHash": "SetContextByHash",
 					"ResourceTypeGetContext": "GetContext",
 					"ResourceTypeSetContext": "SetContext",
 					"ResourceTypeGetName": "GetName",
-					"ResourceTypeGetNameHash": "GetNameHash"
-				}
+					"ResourceTypeGetNameHash": "GetNameHash",
 
-			}
-		}},
-		{"file": "src/dmsdk/resource/resource_desc.h", "languages": {
-			"cpp": {
-				"namespace": "dmResource",
-				"ignore": [
-					"HResourceDescriptor",
-					"HResourceType",
-					""
-				],
-				"rename": {
 					"ResourceDescriptorGetNameHash": "GetNameHash",
 					"ResourceDescriptorSetResource": "SetResource",
 					"ResourceDescriptorGetResource": "GetResource",
@@ -124,6 +112,5 @@
 
 			}
 		}}
-
 	]
 }

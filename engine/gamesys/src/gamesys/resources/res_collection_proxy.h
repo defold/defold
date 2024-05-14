@@ -16,7 +16,6 @@
 #define DM_GAMESYS_RES_COLLECTION_PROXY_H
 
 #include <dmsdk/resource/resource.hpp>
-#include <dmsdk/resource/resource_params.hpp>
 #include <dmsdk/gamesys/resources/res_collection_proxy.h>
 
 namespace dmGameSystem

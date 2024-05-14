@@ -21,8 +21,6 @@
 #include <resource/resource.h>
 #include <dmsdk/dlib/vmath.h>
 
-#include <dmsdk/resource/resource_desc.hpp>
-
 namespace dmGameSystem
 {
     using namespace dmVMath;

@@ -46,8 +46,7 @@
 #include "resource_private.h"
 #include "resource_util.h"
 #include <resource/resource_ddf.h>
-#include <dmsdk/resource/resource_type.h>
-#include <dmsdk/resource/resource_desc.h>
+#include <dmsdk/resource/resource.hpp>
 
 #include "providers/provider.h"         // dmResourceProviderArchive::Result
 #include "providers/provider_archive.h" // dmResourceProviderArchive::LoadManifest

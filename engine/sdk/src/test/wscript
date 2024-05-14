@@ -107,10 +107,7 @@ def build(bld):
     # Make sure that our C api holds up using only C compiler
     c_includes = ['extension.h',
                   'configfile.h',
-                  'resource.h',
-                  'resource_params.h',
-                  'resource_desc.h',
-                  'resource_type.h']
+                  'resource.h']
 
     for index, include in enumerate(includes):
         suffix_cpp = '_%d.cpp' % index
