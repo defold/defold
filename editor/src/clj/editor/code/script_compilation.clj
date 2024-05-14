@@ -35,6 +35,8 @@
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [com.google.protobuf ByteString]))
 
+(def ^Class built-pb-class Lua$LuaModule)
+
 (defn script-property-type->go-prop-type
   "Controls how script property values are represented in the file formats."
   [script-property-type]

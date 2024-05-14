@@ -64,10 +64,8 @@
            [java.io ByteArrayOutputStream]
            [java.lang.reflect Modifier]
            [java.nio ByteBuffer]
-           [java.nio.file Files]
            [javafx.stage Window]
-           [javax.vecmath Matrix3d Matrix4d Point2d Point3d Point4d Quat4d Vector2d Vector3d Vector4d]
-           [org.apache.commons.io FilenameUtils]))
+           [javax.vecmath Matrix3d Matrix4d Point2d Point3d Point4d Quat4d Vector2d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -1193,36 +1191,6 @@
                    (code.util/join-lines))
           "Strings are identical."))))
 
-(defn- make-build-output-infos-by-path [workspace ^String build-output-path]
-  (let [build-ext (FilenameUtils/getExtension build-output-path)
-        resource-type (some (fn [[_ resource-type]]
-                              (when (= build-ext (:build-ext resource-type))
-                                resource-type))
-                            (workspace/get-resource-type-map workspace))
-        pb-class (-> resource-type :test-info :ddf-type)
-        built-file (workspace/build-path workspace build-output-path)
-        built-bytes (Files/readAllBytes (.toPath built-file))
-        build-output-info {:path build-output-path
-                           :resource-type resource-type
-                           :bytes built-bytes}]
-    (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
-    (if (nil? pb-class)
-      (sorted-map build-output-path build-output-info)
-      (let [dependencies-fn (resource-node/make-ddf-dependencies-fn pb-class)
-            pb (protobuf/bytes->pb pb-class built-bytes)
-            pb-map (protobuf/pb->map-without-defaults pb)
-            dep-build-resource-paths (into (sorted-set)
-                                           (dependencies-fn pb-map))]
-        (into (sorted-map
-                build-output-path
-                (assoc build-output-info
-                  :pb-class pb-class
-                  :pb pb
-                  :pb-map pb-map
-                  :dep-paths dep-build-resource-paths))
-              (mapcat #(make-build-output-infos-by-path workspace %))
-              dep-build-resource-paths)))))
-
 (defn build-output-infos [project proj-path]
   (let [resource-node (project/get-resource-node project proj-path)]
     (assert (some? resource-node) (format "Resource node not found for: '%s'" proj-path))
@@ -1230,7 +1198,7 @@
     (let [build-resource (test-util/node-build-resource resource-node)
           build-output-path (resource/proj-path build-resource)
           workspace (resource/workspace build-resource)]
-      (make-build-output-infos-by-path workspace build-output-path))))
+      (test-util/make-build-output-infos-by-path workspace build-output-path))))
 
 (defn bob-build-output-infos [project proj-path]
   (test-util/save-project! project)
@@ -1248,7 +1216,7 @@
       (let [build-resource (test-util/build-resource project proj-path)
             build-output-path (resource/proj-path build-resource)
             workspace (resource/workspace build-resource)]
-        (make-build-output-infos-by-path workspace build-output-path)))))
+        (test-util/make-build-output-infos-by-path workspace build-output-path)))))
 
 (defn- build-output-infos->diff-data [build-output-infos]
   (into (sorted-map)

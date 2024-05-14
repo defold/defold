@@ -33,7 +33,6 @@
             [editor.material :as material]
             [editor.math :as math]
             [editor.particlefx :as particlefx]
-            [editor.pipeline :as pipeline]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.properties :as properties]
@@ -61,10 +60,12 @@
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [clojure.core Vec]
+           [com.google.protobuf ByteString]
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream File FileInputStream FilenameFilter]
            [java.net URI URL]
+           [java.nio.file Files]
            [java.util UUID]
            [java.util.concurrent LinkedBlockingQueue]
            [java.util.zip ZipEntry ZipOutputStream]
@@ -215,6 +216,18 @@
 
 (defn set-code-editor-source! [script-id source]
   (g/transact (set-code-editor-source script-id source)))
+
+(defn lua-module-text
+  ^String [lua-module]
+  {:pre [(map? lua-module)]} ; Lua$LuaModule in map format.
+  (let [^ByteString lua-source-byte-string (-> lua-module :source :script)]
+    (.toStringUtf8 lua-source-byte-string)))
+
+(defn lua-module-lines [lua-module]
+  {:pre [(map? lua-module)]} ; Lua$LuaModule in map format.
+  (-> lua-module
+      lua-module-text
+      code.data/string->lines))
 
 (defn set-non-editable-directories! [project-path non-editable-directory-proj-paths]
   {:pre [(seqable? non-editable-directory-proj-paths)
@@ -1210,6 +1223,60 @@
 (defmacro built-pb [node-id pb-class]
   (with-meta `(protobuf/bytes->pb ~pb-class (node-build-output ~node-id))
              {:tag pb-class}))
+
+(defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext ^String build-output-path]
+  (let [build-ext (FilenameUtils/getExtension build-output-path)
+        resource-type (some (fn [[_ resource-type]]
+                              (when (= build-ext (:build-ext resource-type))
+                                resource-type))
+                            (workspace/get-resource-type-map workspace))
+        test-info (:test-info resource-type)
+        pb-class (case (:type test-info)
+                   (:code :ddf) (:built-pb-class test-info)
+                   nil)
+        built-file (workspace/build-path workspace build-output-path)
+        built-bytes (Files/readAllBytes (.toPath built-file))
+        build-output-info {:path build-output-path
+                           :file built-file
+                           :resource-type resource-type
+                           :bytes built-bytes}]
+    (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
+    (if (nil? pb-class)
+      (sorted-map build-output-path build-output-info)
+      (let [dependencies-fn (resource-node/make-ddf-dependencies-fn pb-class)
+            pb (protobuf/bytes->pb pb-class built-bytes)
+            pb-map (protobuf/pb->map-without-defaults pb)
+            dep-build-resource-paths (into (sorted-set)
+                                           (dependencies-fn pb-map))]
+        (into (sorted-map
+                build-output-path
+                (assoc build-output-info
+                  :pb-class pb-class
+                  :pb pb
+                  :pb-map pb-map
+                  :dep-paths dep-build-resource-paths))
+              (mapcat #(make-build-output-infos-by-path-impl workspace resource-types-by-build-ext %))
+              dep-build-resource-paths)))))
+
+(defn make-build-output-infos-by-path
+  "After a project has been built (i.e. the build directory has been populated),
+  get info from the built binaries and the built binaries it depends on. Returns
+  a map of build output proj-paths to a build-output-info map regarding that
+  build output. The build-output-info map will always contain at least
+  information about the output file, its resource-type, and its bytes on disk.
+  For protobuf resources, the build-output-info map will also contain the
+  decoded protobuf data, the build-output-paths it depends on, and the resulting
+  map will include build-output-info entries for all the dependencies."
+  [workspace ^String build-output-path]
+  {:pre [(string? build-output-path)
+         (string/starts-with? build-output-path "/")]}
+  (let [resource-types-by-build-ext
+        (into {}
+              (map (fn [[_ {:keys [build-ext] :as resource-type}]]
+                     (assert (string? build-ext))
+                     (pair build-ext resource-type)))
+              (workspace/get-resource-type-map workspace))]
+    (make-build-output-infos-by-path-impl workspace resource-types-by-build-ext build-output-path)))
 
 (defn unpack-property-declarations [property-declarations]
   {:pre [(or (nil? property-declarations) (map? property-declarations))]}

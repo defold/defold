@@ -257,6 +257,7 @@
                                 :jvm-opts          ["-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/heads/editor-save-value.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/heads/editor-save-value.zip"
                                                     "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/heads/editor-save-value.zip"
+                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/main.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/heads/editor-save-value.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"

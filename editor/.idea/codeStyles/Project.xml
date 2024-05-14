@@ -66,6 +66,8 @@
           <entry key="editor.workspace/register-resource-type" value="-1" />
           <entry key="editor.yaml/with-error-translation" value="-1" />
           <entry key="integration.build-test/with-build-results" value="-1" />
+          <entry key="integration.test-util/set-code-editor-lines" value="-1" />
+          <entry key="integration.test-util/set-code-editor-lines!" value="-1" />
           <entry key="integration.test-util/with-loaded-project" value="-1" />
           <entry key="integration.test-util/with-logged-calls" value="-1" />
           <entry key="integration.test-util/with-prop" value="-1" />

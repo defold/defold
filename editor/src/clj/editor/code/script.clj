@@ -427,6 +427,7 @@
   (for [def script-defs
         :let [args (assoc def
                      :node-type ScriptNode
+                     :built-pb-class script-compilation/built-pb-class
                      :language "lua"
                      :lazy-loaded false
                      :additional-load-fn additional-load-fn

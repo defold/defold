@@ -218,7 +218,7 @@
                              (or modified-lines
                                  (loaded-unmodified-lines _node-id)))))
 
-(defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label lazy-loaded additional-load-fn] :as args}]
+(defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label lazy-loaded additional-load-fn built-pb-class] :as args}]
   (let [connect-breakpoints (contains? tags :debuggable)
         load-fn (partial load-fn additional-load-fn lazy-loaded connect-breakpoints)
         args (-> args
@@ -230,5 +230,6 @@
                         :search-value-fn search-value-fn
                         :source-value-fn source-value-fn
                         :textual? true
-                        :test-info {:type :code}))]
+                        :test-info (cond-> {:type :code}
+                                           built-pb-class (assoc :built-pb-class built-pb-class))))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

@@ -115,10 +115,11 @@
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
-                                 :ext "buffer"
-                                 :label "Buffer"
-                                 :icon buffer-icon
-                                 :view-types [:code :default]
-                                 :view-opts {:code {:grammar json/grammar}}
-                                 :node-type BufferNode
-                                 :lazy-loaded true))
+    :ext "buffer"
+    :label "Buffer"
+    :icon buffer-icon
+    :view-types [:code :default]
+    :view-opts {:code {:grammar json/grammar}}
+    :node-type BufferNode
+    :built-pb-class BufferProto$BufferDesc
+    :lazy-loaded true))

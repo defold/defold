@@ -265,7 +265,9 @@
               :path (path-fn pb-map path)})
            (coll/search-with-path pb-map init-path match-fn)))))
 
-(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn string-encode-fn icon view-types tags tag-opts label] :as args}]
+(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn string-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
+  {:pre [(protobuf/pb-class? ddf-type)
+         (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))]}
   (let [read-defaults (if (nil? read-defaults) true read-defaults)
         read-raw-fn (if read-defaults
                       (partial protobuf/read-map-with-defaults ddf-type)
@@ -283,7 +285,8 @@
                         :write-fn write-fn
                         :search-fn search-fn
                         :test-info {:type :ddf
-                                    :ddf-type ddf-type}))]
+                                    :ddf-type ddf-type
+                                    :built-pb-class (or built-pb-class ddf-type)}))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
 (defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn meta-settings icon view-types tags tag-opts label] :as args}]
