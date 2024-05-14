@@ -52,6 +52,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
 
 import javax.imageio.ImageIO;
 
@@ -74,6 +76,7 @@ import com.dynamo.render.proto.Font.FontTextureFormat;
 import com.dynamo.render.proto.Font.FontRenderMode;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
+import org.apache.commons.lang3.StringUtils;
 
 class OrderComparator implements Comparator<Fontc.Glyph> {
     @Override
@@ -117,6 +120,16 @@ class BlendComposite implements Composite {
 }
 
 public class Fontc {
+
+    public static final char[] ASCII_7BIT;
+    static {
+        int start = 32;
+        int end = 126;
+        ASCII_7BIT = new char[end - start + 1];
+        for (int i = start; i <= end; i++) {
+            ASCII_7BIT[i - start] = (char) i;
+        }
+    }
 
     public enum InputFontFormat {
         FORMAT_TRUETYPE,
@@ -231,17 +244,27 @@ public class Fontc {
 
         if (!fontDesc.getAllChars()) {
 
-            // 7-bit ASCII. Note inclusive range [32,126]
-            for (int i = 32; i <= 126; ++i) {
-                characters.add(i);
+            String chars = fontDesc.getCharacters();
+            if (!StringUtils.isEmpty(chars)) {
+                for (int i = 0; i < chars.length(); i++) {
+                    char c = chars.charAt(i);
+                    characters.add((int) c);
+                }
             }
-
-            String extraCharacters = fontDesc.getExtraCharacters();
-            for (int i = 0; i < extraCharacters.length(); i++) {
-                char c = extraCharacters.charAt(i);
-                characters.add((int)c);
+            else {
+                for (char c : ASCII_7BIT) {
+                    characters.add((int) c);
+                }
+                String extraCharacters = fontDesc.getExtraCharacters();
+                for (int i = 0; i < extraCharacters.length(); i++) {
+                    char c = extraCharacters.charAt(i);
+                    characters.add((int) c);
+                }
             }
         }
+        System.out.print("\ncharacters: "+characters+"\n");
+        Set<Integer> deDup = new HashSet<Integer>(characters);
+        characters = new ArrayList<Integer>(deDup);
 
         if (fontDesc.getOutlineWidth() > 0.0f) {
             outlineStroke = new BasicStroke(fontDesc.getOutlineWidth() * 2.0f);
