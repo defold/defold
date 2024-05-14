@@ -837,3 +837,18 @@
             error-message (some :message (tree-seq :causes :causes build-error))]
         (is (g/error? build-error))
         (is (= (str "The file '" uppercase-image-path "' could not be found.") error-message))))))
+
+(deftest build-process-detects-cyclic-lua-dependencies
+  (with-loaded-project "test/resources/build_cyclic_lua_project"
+    (g/with-auto-evaluation-context evaluation-context
+      (is (= "Dependency cycle detected: /main/1.lua -> /main/2.lua -> /main/1.lua"
+             (->> (build/build-project! project
+                                        (test-util/resource-node project "/game.project")
+                                        evaluation-context
+                                        nil
+                                        (workspace/artifact-map workspace)
+                                        progress/null-render-progress!)
+                  :error
+                  (tree-seq :causes :causes)
+                  (keep :message)
+                  first))))))

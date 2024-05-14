@@ -95,7 +95,7 @@ $spacing-largest: 40px;
   -fx-text-fill: -df-text;
   -fx-background-radius: 2px;
   -fx-border-radius: 2px;
-  -fx-background-color: -df-background-lighter;
+  -fx-background-color: -df-component-dark;
   -fx-padding: 0;
   -fx-min-width: 28px;
   -fx-max-width: 28px;
@@ -106,7 +106,7 @@ $spacing-largest: 40px;
   -fx-focus-traversable: false;
   -fx-border-width: 0;
   &:hover {
-    -fx-background-color: -df-component;
+    -fx-background-color: -df-component-lighter;
   }
   &:armed {
     -fx-background-color: -df-background-light !important;
@@ -161,8 +161,8 @@ $spacing-largest: 40px;
   @include font-size-default();
   -fx-highlight-fill: -df-component-light;
   -fx-text-fill: -df-text-selected;
-  -fx-prompt-text-fill: -df-component;
-  -fx-background-color: -df-background-darker;
+  -fx-prompt-text-fill: -df-component-light;
+  -fx-background-color: -df-background-input;
   -fx-border-width: 1px;
 
   &:readonly {
@@ -240,10 +240,10 @@ $spacing-largest: 40px;
     -fx-background-radius: 5px;
     -fx-background-insets: 1px;
     &:hover {
-      -fx-background-color: -df-component;
+      -fx-background-color: -df-component-light;
     }
     &:pressed {
-      -fx-background-color: -df-component-lighter;
+      -fx-background-color: -df-component-light;
     }
   }
   &:vertical {
@@ -349,12 +349,12 @@ Text {
   }
 
   .track {
-    -fx-background-color: -df-component;
+    -fx-background-color: -df-component-light;
   }
 }
 
 .context-menu {
-  -fx-background-color: -df-component;
+  -fx-background-color: -df-component-light;
   -fx-background-radius: 2px;
   -fx-padding: 5px;
   .menu-item {

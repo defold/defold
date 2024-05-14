@@ -590,17 +590,18 @@
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
-                                    :ext "collisionobject"
-                                    :node-type CollisionObjectNode
-                                    :ddf-type Physics$CollisionObjectDesc
-                                    :load-fn load-collision-object
-                                    :sanitize-fn sanitize-collision-object
-                                    :icon collision-object-icon
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:grid true}}
-                                    :tags #{:component}
-                                    :tag-opts {:component {:transform-properties #{}}}
-                                    :label "Collision Object"))
+    :ext "collisionobject"
+    :node-type CollisionObjectNode
+    :ddf-type Physics$CollisionObjectDesc
+    :load-fn load-collision-object
+    :sanitize-fn sanitize-collision-object
+    :icon collision-object-icon
+    :icon-class :design
+    :view-types [:scene :text]
+    :view-opts {:scene {:grid true}}
+    :tags #{:component}
+    :tag-opts {:component {:transform-properties #{}}}
+    :label "Collision Object"))
 
 ;; outline context menu
 

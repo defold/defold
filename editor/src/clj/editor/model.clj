@@ -601,6 +601,7 @@
     :load-fn load-model
     :sanitize-fn sanitize-model
     :icon model-icon
+    :icon-class :design
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}))

@@ -235,6 +235,8 @@ ordinary paths."
                         (a save value) to string
     :icon               classpath path to an icon image or project resource path
                         string; default \"icons/32/Icons_29-AT-Unknown.png\"
+    :icon-class         either :design, :script or :property, controls the
+                        resource icon color in UI
     :view-types         vector of alternative views that can be used for
                         resources of the resource type, e.g. :code, :scene,
                         :cljfx-form-view, :text, :html or :default.
@@ -261,7 +263,8 @@ ordinary paths."
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon view-types view-opts tags tag-opts template test-info label stateless? auto-connect-save-data?]}]
+  [workspace & {:keys [textual? language editable ext build-ext node-type load-fn dependencies-fn read-raw-fn sanitize-fn read-fn write-fn icon icon-class view-types view-opts tags tag-opts template test-info label stateless? auto-connect-save-data?]}]
+  {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
   (let [editable (if (nil? editable) true (boolean editable))
         textual (true? textual?)
         resource-type {:textual? textual
@@ -277,6 +280,7 @@ ordinary paths."
                        :read-raw-fn (or read-raw-fn read-fn)
                        :sanitize-fn sanitize-fn
                        :icon icon
+                       :icon-class icon-class
                        :view-types (mapv (partial get-view-type workspace) view-types)
                        :view-opts view-opts
                        :tags tags
@@ -489,17 +493,13 @@ ordinary paths."
            :header (format "The editor plugin '%s' is not compatible with this version of the editor. Please edit your project dependencies to refer to a suitable version." (resource/proj-path resource))}))
       false)))
 
-(defn- load-clojure-editor-plugins! [workspace added]
+(defn load-clojure-editor-plugins! [workspace added]
   (->> added
        (filterv is-plugin-clojure-file?)
        ;; FIXME: hack for extension-spine: spineguiext.clj requires spineext.clj
        ;;        that needs to be loaded first
        (sort-by resource/proj-path util/natural-order)
        (run! #(load-clojure-plugin! workspace %))))
-
-(defn- load-java-editor-plugins! [workspace]
-  (let [code-preprocessors (code-preprocessors workspace)]
-    (code.preprocessors/reload-lua-preprocessors! code-preprocessors class-loader)))
 
 ; Determine if the extension has plugins, if so, it needs to be extracted
 
@@ -521,6 +521,7 @@ ordinary paths."
 
 (defn- is-plugin-file? [resource]
   (and
+    (= :file (resource/source-type resource))
     (string/includes? (resource/proj-path resource) "/plugins/")
     (is-extension-file? resource)))
 
@@ -614,7 +615,7 @@ ordinary paths."
             (filter #(= :file (resource/source-type %)))
             (:tree (resource/load-zip-resources workspace plugin-file))))))
 
-(defn- unpack-editor-plugins! [workspace changed]
+(defn unpack-editor-plugins! [workspace changed]
   ; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll) to disc
   ; TODO: Handle removed plugins (e.g. a dependency was removed)
   (let [{plugin-zips true resources false} (->> changed
@@ -630,11 +631,6 @@ ordinary paths."
          (sort-by plugin-zip-priority)
          (run! #(unpack-plugin-zip! workspace %)))
     (run! #(unpack-resource! workspace %) resources)))
-
-(defn reload-plugins! [workspace touched-resources]
-  (unpack-editor-plugins! workspace touched-resources)
-  (load-java-editor-plugins! workspace)
-  (load-clojure-editor-plugins! workspace touched-resources))
 
 (defn- sync-snapshot-errors-notifications! [workspace old-errors new-errors]
   (when (or old-errors new-errors)
@@ -736,11 +732,7 @@ ordinary paths."
                                            (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
          (try
            (let [listeners @(g/node-value workspace :resource-listeners)
-                 total-progress-size (transduce (map first) + 0 listeners)
-                 added (:added changes)
-                 changed (:changed changes)
-                 all-changed (set/union added changed)]
-             (reload-plugins! workspace all-changed)
+                 total-progress-size (transduce (map first) + 0 listeners)]
              (loop [listeners listeners
                     parent-progress (progress/make "" total-progress-size)]
                (when-some [[progress-span listener] (first listeners)]

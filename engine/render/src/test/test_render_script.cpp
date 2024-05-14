@@ -1326,6 +1326,69 @@ TEST_F(dmRenderScriptTest, TestRenderTargetResource)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestRenderCameraGetInfo)
+{
+    dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
+
+    dmMessage::URL camera_url = {};
+    camera_url.m_Socket   = dmHashString64("main");
+    camera_url.m_Path     = dmHashString64("test_go");
+    camera_url.m_Fragment = dmHashString64("camera");
+
+    dmRender::SetRenderCameraURL(m_Context, camera, &camera_url);
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_Fov      = 90.0f;
+    data.m_NearZ    = 0.1f;
+    data.m_FarZ     = 100.0f;
+
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+
+    dmRender::RenderCamera* camera_ptr = dmRender::GetRenderCameraByUrl(m_Context, camera_url);
+    ASSERT_NE((void*)0, camera_ptr);
+
+    const char* script =
+        "function assert_near(a,b)\n"
+        "    assert(math.abs(a-b) < 0.00001)\n"
+        "end\n"
+        "function init(self)\n"
+        "    local cams = camera.get_cameras()\n"
+        "    assert(#cams == 1)\n"
+        "    assert(cams[1].socket == hash('main'))\n"
+        "    assert(cams[1].path == hash('test_go'))\n"
+        "    assert(cams[1].fragment == hash('camera'))\n"
+        "    assert_near(camera.get_near_z(cams[1]), 0.1)\n"
+        "    assert_near(camera.get_far_z(cams[1]), 100)\n"
+        "    assert_near(camera.get_fov(cams[1]), 90)\n"
+        // Test set_camera()
+        "    render.set_camera(cams[1])\n"
+        "    render.set_camera()\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(2u, commands.Size());
+
+    // set_camera(camera)
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA, commands[0].m_Type);
+    ASSERT_EQ(camera, (dmRender::HRenderCamera) commands[0].m_Operands[0]);
+
+    // draw
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA, commands[1].m_Type);
+    ASSERT_EQ(0, commands[1].m_Operands[0]);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    ClearRenderScriptInstanceRenderResources(render_script_instance);
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestRenderResourceTable)
 {
     const char* script =

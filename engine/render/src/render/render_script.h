@@ -70,6 +70,9 @@ namespace dmRender
 
     void InitializeRenderScriptContext(RenderScriptContext& context, dmGraphics::HContext graphics_context, dmScript::HContext script_context, uint32_t command_buffer_size);
     void FinalizeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context);
+
+    void InitializeRenderScriptCameraContext(HRenderContext render_context, dmScript::HContext script_context);
+    void FinalizeRenderScriptCameraContext(HRenderContext render_context);
 }
 
 #endif // DMRENDER_RENDER_SCRIPT_H
