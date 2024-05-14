@@ -30,6 +30,11 @@
 *.tilemap linguist-language=text-proto
 *.tilesource linguist-language=text-proto
 
+# Defold YAML Files
+*.appmanifest linguist-language=YAML
+*.manifest linguist-language=YAML
+*.script_api linguist-language=YAML
+
 # Defold JSON Files
 *.buffer linguist-language=JSON
 
