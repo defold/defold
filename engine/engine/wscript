@@ -82,7 +82,6 @@ def configure(conf):
         # For Vulkan/MoltenVK
         if waflib.Options.options.with_vulkan:
 
-            glfw_lib = "glfw3-vulkan"
             platform_lib = "platform_vulkan"
 
             # JG: for now, we only support validation layers on macos for x86_64 archs. I'll fix this later when/if needed.

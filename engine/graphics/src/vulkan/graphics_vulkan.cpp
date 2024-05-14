@@ -26,6 +26,8 @@
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
+#include <platform/platform_window_vulkan.h>
+
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 
 namespace dmGraphics
@@ -1119,6 +1121,10 @@ bail:
             dmLogError("Could not load Vulkan functions.");
             return 0x0;
         }
+    #endif
+
+    #if defined(__MACH__)
+        dmPlatform::VulkanSetLoader();
     #endif
 
         uint16_t extensionNameCount = 0;

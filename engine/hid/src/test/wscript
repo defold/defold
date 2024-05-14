@@ -21,6 +21,7 @@ def build(bld):
                       target   = 'test_hid',
                       source   = 'test_hid.cpp')
 
+    platform_lib = ['PLATFORM']
     graphics_lib = ['GRAPHICS', 'DMGLFW']
     graphics_lib_symbols = []
 
@@ -31,6 +32,7 @@ def build(bld):
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and Options.options.with_vulkan:
         graphics_lib_symbols += ['GraphicsAdapterVulkan']
         graphics_lib += ['GRAPHICS_VULKAN', 'VULKAN']
+        platform_lib = ['PLATFORM_VULKAN']
 
     if len(graphics_lib_symbols) == 0:
         graphics_lib = ['GRAPHICS_NULL']
@@ -45,7 +47,7 @@ def build(bld):
 
     bld.program(features = 'cxx test skip_test',
         includes = ['../%s' % build_util.get_target_os(), '..', '.', platform_folder],
-        use = 'TESTMAIN APP DLIB DINPUT PROFILE_NULL PLATFORM SOCKET HID hid'.split() + graphics_lib,
+        use = 'TESTMAIN APP DLIB DINPUT PROFILE_NULL SOCKET HID hid'.split() + platform_lib + graphics_lib,
         web_libs = web_libs,
         exported_symbols = graphics_lib_symbols,
         target = 'test_app_hid',

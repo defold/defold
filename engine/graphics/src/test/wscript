@@ -16,23 +16,22 @@ def build(bld):
         extra_libs = []
         extra_symbols = []
 
+        graphics_libs = ['GRAPHICS', 'graphics_transcoder_basisu']
         glfw_lib = ['DMGLFW']
         platform_lib = ['PLATFORM']
 
         if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
             extra_libs += ['OPENGL']
 
-        if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):
+        if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and waflib.Options.options.with_vulkan:
             extra_libs += ['VULKAN']
             extra_symbols += ['GraphicsAdapterVulkan']
-
-            if platform_glfw_version(bld.env.PLATFORM) == 3:
-                glfw_lib = ['DMGLFW_VULKAN']
-                platform_lib = ['PLATFORM_VULKAN']
+            graphics_libs += ['GRAPHICS_VULKAN']
+            platform_lib = ['PLATFORM_VULKAN']
 
         bld.program(features = 'cxx cprogram test skip_test',
                     includes = ['../../src', '../../proto'],
                     exported_symbols = ['GraphicsAdapterOpenGL'] + extra_symbols,
                     source = 'test_app_graphics.cpp',
-                    use = 'TESTMAIN APP DDF DLIB PROFILE GRAPHICS GRAPHICS_VULKAN graphics_transcoder_basisu'.split() + platform_lib + glfw_lib + extra_libs,
+                    use = 'TESTMAIN APP DDF DLIB PROFILE'.split() + graphics_libs + platform_lib + glfw_lib + extra_libs,
                     target = 'test_app_graphics')

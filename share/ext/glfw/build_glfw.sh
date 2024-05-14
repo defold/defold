@@ -4,10 +4,10 @@
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
 # this file except in compliance with the License.
-# 
+#
 # You may obtain a copy of the License, together with FAQs at
 # https://www.defold.com/license
-# 
+#
 # Unless required by applicable law or agreed to in writing, software distributed
 # under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -17,7 +17,7 @@
 # Compilation guide:
 # https://www.glfw.org/docs/latest/compile.html
 
-readonly VERSION=3.3.9
+readonly VERSION=3.4
 readonly BASE_URL=https://github.com/glfw/glfw/releases/download/${VERSION}/
 readonly FILE_URL=glfw-${VERSION}.zip
 readonly PRODUCT=glfw
@@ -38,12 +38,6 @@ CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_EXAMPLES=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_TESTS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DGLFW_VULKAN_STATIC=OFF ${CMAKE_FLAGS}"
-
-CMAKE_FLAGS_VULKAN="-DGLFW_VULKAN_STATIC=ON"
-
-# TODO: Investigate if we want this or our own loader.
-# CMAKE_FLAGS="-DGLFW_VULKAN_STATIC=OFF ${CMAKE_FLAGS}"
 
 case $PLATFORM in
     arm64-macos)
@@ -78,13 +72,6 @@ rm -rf ./lib/
 mkdir -p $TARGET_LIB
 
 cp -v ${SRC_LIB} ${TARGET_LIB}
-
-## BUILD with vulkan support
-echo "CMAKE_FLAGS: '${CMAKE_FLAGS} ${CMAKE_FLAGS_VULKAN}"
-cmake ${CMAKE_FLAGS} ${CMAKE_FLAGS_VULKAN} ${SOURCE_DIR}
-cmake --build . --config Release
-
-cp -v ${SRC_LIB} ${TARGET_LIB}/libglfw3-vulkan.a
 
 PACKAGE=glfw-${VERSION}-${PLATFORM}.tar.gz
 
