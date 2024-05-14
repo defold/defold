@@ -15,7 +15,7 @@
 #ifndef DM_CONFIGFILE_H
 #define DM_CONFIGFILE_H
 
-#include <dmsdk/dlib/configfile.hpp>
+#include <dmsdk/dlib/configfile_gen.hpp>
 
 namespace dmConfigFile
 {

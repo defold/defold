@@ -15,7 +15,7 @@
 #ifndef DM_EXTENSION_H
 #define DM_EXTENSION_H
 
-#include <dmsdk/extension/extension.h>
+#include <dmsdk/extension/extension_gen.hpp>
 
 struct ExtensionDesc;
 

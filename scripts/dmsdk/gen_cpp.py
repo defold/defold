@@ -104,6 +104,8 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
     l('')
 
     for include in includes:
+        if os.path.normpath(out_path).endswith(os.path.normpath(include)):
+            continue # skip self includes
         l('#include <%s>' % include)
 
     l('')

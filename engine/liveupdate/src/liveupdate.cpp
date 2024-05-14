@@ -923,7 +923,7 @@ namespace dmLiveUpdate
 
         g_LiveUpdate.m_ResourceFactory = factory;
         g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
-        g_LiveUpdate.m_ResourceBaseArchive = GetBaseArchive(factory);
+        g_LiveUpdate.m_ResourceBaseArchive = dmResource::GetBaseArchive(factory);
 
         if (!g_LiveUpdate.m_ResourceBaseArchive)
         {

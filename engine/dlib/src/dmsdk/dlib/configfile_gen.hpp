@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/dlib and cmd=../../scripts/dmsdk/gen_sdk.py -i ./sdk_gen.json
+// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/dlib and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/dlib/sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
@@ -15,15 +15,14 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_CONFIGFILE_HPP
-#define DMSDK_CONFIGFILE_HPP
+#ifndef DMSDK_CONFIGFILE_GEN_HPP
+#define DMSDK_CONFIGFILE_GEN_HPP
 
 #if !defined(__cplusplus)
    #error "This file is supported in C++ only!"
 #endif
 
 #include <stdint.h>
-#include <stdbool.h>
 
 #include <dmsdk/dlib/configfile.h>
 
@@ -122,5 +121,5 @@ namespace dmConfigFile {
 
 } // namespace dmConfigFile
 
-#endif // #define DMSDK_CONFIGFILE_HPP
+#endif // #define DMSDK_CONFIGFILE_GEN_HPP
 

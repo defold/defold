@@ -8,7 +8,7 @@
 #-------------------------------------------------------------------------------
 
 import argparse
-import os, sys, json, pprint, re
+import os, sys, json, pprint, re, collections
 #sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'external'))
 
 import gen_ir
@@ -206,6 +206,9 @@ def cleanup_files(ast, source_path):
             return None
     return ast
 
+def filter_types(str):
+    return str.replace('_Bool', 'bool')
+
 def cleanup_ast(ast, source_path):
     ast = cleanup_implicit(ast)
     if not ast:
@@ -213,6 +216,9 @@ def cleanup_ast(ast, source_path):
     ast = cleanup_files(ast, source_path)
     if not ast:
         return None
+
+    if 'type' in ast:
+        ast['type']['qualType'] = filter_types(ast['type']['qualType'])
 
     inner = []
     for sub in ast.get('inner', []):
@@ -241,6 +247,16 @@ def parse_c_includes(path):
     includes = [i for i in includes if not i == hppname]
     return includes
 
+def prune_includes(includes):
+    out = []
+    for x in includes:
+        # Let's remove C includes for now
+        if x in ['dmsdk/lua/lua.h',
+                 'dmsdk/lua/lauxlib.h',
+                 'stdbool.h']:
+                 continue
+        out.append(x)
+    return out
 
 def generate(gen_info, includes, basepath, outdir):
     for file_info in gen_info['files']:
@@ -268,7 +284,10 @@ def generate(gen_info, includes, basepath, outdir):
             info['license'] = apply_license.LICENSE
 
             if lang_key == "cpp":
-                out = os.path.join(outdir, os.path.splitext(path)[0] + ".hpp")
+                out = os.path.join(outdir, os.path.splitext(path)[0] + "_gen.hpp")
+
+                parsed_includes = prune_includes(parsed_includes)
+
                 out_data = gen_cpp.gen_cpp_header(relative_path, out, info, ast, state, parsed_includes)
 
                 with open(out, 'w', encoding='utf-8') as f:
@@ -293,7 +312,8 @@ if __name__ == "__main__":
 
     info = None
     with open(args.input) as f:
-        info = json.loads(f.read())
+        #info = json.loads(f.read())
+        info = json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(f.read())
 
     cwd = os.getcwd()
 

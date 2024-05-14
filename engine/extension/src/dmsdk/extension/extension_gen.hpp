@@ -15,18 +15,16 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_EXTENSION_HPP
-#define DMSDK_EXTENSION_HPP
+#ifndef DMSDK_EXTENSION_GEN_HPP
+#define DMSDK_EXTENSION_GEN_HPP
 
 #if !defined(__cplusplus)
    #error "This file is supported in C++ only!"
 #endif
 
-#include <stdbool.h>
 #include <dmsdk/resource/resource.h>
+#include <dmsdk/dlib/align.h>
 #include <dmsdk/dlib/configfile.h>
-#include <dmsdk/lua/lua.h>
-#include <dmsdk/lua/lauxlib.h>
 
 #include <dmsdk/extension/extension.h>
 
@@ -169,5 +167,5 @@ namespace dmExtension {
 
 } // namespace dmExtension
 
-#endif // #define DMSDK_EXTENSION_HPP
+#endif // #define DMSDK_EXTENSION_GEN_HPP
 

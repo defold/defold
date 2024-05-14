@@ -51,13 +51,13 @@ void* dmMemAlloc(dmAllocator* allocator, size_t size);
 void dmMemFree(dmAllocator* allocator, void* mem);
 
 // Intentionally undocumented!
-struct dmFixedMemAllocator
+typedef struct dmFixedMemAllocator
 {
     dmAllocator m_Allocator;
     uint8_t* m_Memory;
     size_t m_Used;
     size_t m_Capacity;
-};
+} dmFixedMemAllocator;
 
 void dmFixedMemAllocatorInit(dmFixedMemAllocator* allocator, size_t size, void* mem);
 

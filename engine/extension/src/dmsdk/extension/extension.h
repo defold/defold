@@ -18,11 +18,12 @@
 #include <stdbool.h>
 #include <dmsdk/resource/resource.h>
 
+#include <dmsdk/dlib/align.h> // DM_ALIGNED
+#include <dmsdk/dlib/configfile.h>
+
 #if defined(__cplusplus)
 extern "C" {
 #endif
-
-#include <dmsdk/dlib/configfile.h>
 
 // TODO: Try to forward declare
 // TODO: Try to design away the contents of the context
@@ -102,7 +103,7 @@ typedef struct ExtensionAppParams
 typedef struct ExtensionParams
 {
     HConfigFile         m_ConfigFile;
-    dmResourceHFactory  m_ResourceFactory;
+    HResourceFactory    m_ResourceFactory;
     lua_State*          m_L;
 } ExtensionParams;
 
@@ -347,11 +348,7 @@ void ExtensionUnregisteriOSUIApplicationDelegate(void* delegate);
  *
  */
 
-
 #if defined(__cplusplus)
-    } // extern "C"
-
-    #include "extension.hpp"
+} // extern "C"
 #endif
-
 #endif // #ifndef DMSDK_EXTENSION_H
