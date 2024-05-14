@@ -34,6 +34,17 @@ namespace dmGraphics
     #define UNIFORM_LOCATION_GET_FS(loc)        ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
     #define UNIFORM_LOCATION_GET_FS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
 
+    const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 16;
+    const static uint8_t MAX_SET_COUNT              = 4;
+    const static uint8_t MAX_STORAGE_BUFFERS        = 4;
+
+    enum ShaderStageFlag
+    {
+        SHADER_STAGE_FLAG_VERTEX   = 0x1,
+        SHADER_STAGE_FLAG_FRAGMENT = 0x2,
+        SHADER_STAGE_FLAG_COMPUTE  = 0x4,
+    };
+
     struct VertexStream
     {
         dmhash_t m_NameHash;
@@ -126,8 +137,10 @@ namespace dmGraphics
 
     struct SetTextureAsyncParams
     {
-        HTexture      m_Texture;
-        TextureParams m_Params;
+        HTexture                m_Texture;
+        TextureParams           m_Params;
+        SetTextureAsyncCallback m_Callback;
+        void*                   m_UserData;
     };
 
     struct SetTextureAsyncState
@@ -136,6 +149,34 @@ namespace dmGraphics
         dmArray<SetTextureAsyncParams> m_Params;
         dmIndexPool16                  m_Indices;
         dmArray<HTexture>              m_PostDeleteTextures;
+    };
+
+    struct ProgramResourceBindingsInfo
+    {
+        uint32_t m_UniformBufferCount;
+        uint32_t m_StorageBufferCount;
+        uint32_t m_TextureCount;
+        uint32_t m_TotalUniformCount;
+        uint32_t m_UniformDataSize;
+        uint32_t m_UniformDataSizeAligned;
+        uint32_t m_MaxSet;
+        uint32_t m_MaxBinding;
+    };
+
+    struct ProgramResourceBinding
+    {
+        ShaderResourceBinding*           m_Res;
+        dmArray<ShaderResourceTypeInfo>* m_TypeInfos;
+        uint32_t                         m_DataOffset;
+
+        union
+        {
+            uint16_t m_DynamicOffsetIndex;
+            uint16_t m_TextureUnit;
+            uint16_t m_StorageBufferUnit;
+        };
+
+        uint8_t m_StageFlags;
     };
 
     uint32_t             GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
@@ -162,7 +203,7 @@ namespace dmGraphics
     void                  InitializeSetTextureAsyncState(SetTextureAsyncState& state);
     void                  ResetSetTextureAsyncState(SetTextureAsyncState& state);
     SetTextureAsyncParams GetSetTextureAsyncParams(SetTextureAsyncState& state, uint16_t index);
-    uint16_t              PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params);
+    uint16_t              PushSetTextureAsyncState(SetTextureAsyncState& state, HTexture texture, TextureParams params, SetTextureAsyncCallback callback, void* user_data);
     void                  ReturnSetTextureAsyncIndex(SetTextureAsyncState& state, uint16_t index);
     void                  PushSetTextureAsyncDeleteTexture(SetTextureAsyncState& state, HTexture texture);
 

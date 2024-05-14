@@ -54,6 +54,17 @@ namespace dmExtension
 
         desc->PreRender = 0x0;
         desc->PostRender = 0x0;
+
+        const Desc* first = g_FirstExtension;
+        while(first) {
+            if (strcmp(name, first->m_Name) == 0)
+            {
+                dmLogError("Extension %s is already registered!", name);
+                return;
+            }
+            first = first->m_Next;
+        }
+
         g_FirstExtension = desc;
     }
 
@@ -65,7 +76,6 @@ namespace dmExtension
     Result AppInitialize(AppParams* params)
     {
         dmExtension::Desc* ed = (dmExtension::Desc*) dmExtension::GetFirstExtension();
-        uint32_t i = 0;
         Result ret = RESULT_OK;
         while (ed) {
             if (ed->AppInitialize) {
@@ -79,7 +89,6 @@ namespace dmExtension
                     ed->m_AppInitialized = true;
                 }
             }
-            ++i;
             ed = (dmExtension::Desc*) ed->m_Next;
         }
 
@@ -178,4 +187,3 @@ namespace dmExtension
     }
 
 }
-

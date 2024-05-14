@@ -392,7 +392,7 @@ namespace dmGameSystem
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param options [type:table] a lua table containing options for the raycast.
+     * @param [options] [type:table] a lua table containing options for the raycast.
      *
      * `all`
      * : [type:boolean] Set to `true` to return all ray cast hits. If `false`, it will only return the closest hit.
@@ -1305,6 +1305,26 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*#
+     * @name physics.SHAPE_TYPE_SPHERE
+     * @variable
+     */
+
+    /*#
+     * @name physics.SHAPE_TYPE_BOX
+     * @variable
+     */
+
+    /*#
+     * @name physics.SHAPE_TYPE_CAPSULE
+     * @variable
+     */
+
+    /*#
+     * @name physics.SHAPE_TYPE_HULL
+     * @variable
+     */
+
     /*# get collision shape info
      * Gets collision shape data from a collision object
      *
@@ -1417,17 +1437,20 @@ namespace dmGameSystem
      * local function set_shape_data()
      *     -- set capsule shape data
      *     local data = {}
+     *     data.type = physics.SHAPE_TYPE_CAPSULE
      *     data.diameter = 10
      *     data.height = 20
      *     physics.set_shape("#collisionobject", "my_capsule_shape", data)
      *
      *     -- set sphere shape data
      *     data = {}
+     *     data.type = physics.SHAPE_TYPE_SPHERE
      *     data.diameter = 10
      *     physics.set_shape("#collisionobject", "my_sphere_shape", data)
      *
      *     -- set box shape data
      *     data = {}
+     *     data.type = physics.SHAPE_TYPE_BOX
      *     data.dimensions = vmath.vector3(10, 10, 5)
      *     physics.set_shape("#collisionobject", "my_box_shape", data)
      * end
@@ -1610,7 +1633,6 @@ namespace dmGameSystem
     static int Physics_SetListener(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        int top = lua_gettop(L);
 
         dmScript::GetGlobal(L, PHYSICS_CONTEXT_HASH);
         PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);

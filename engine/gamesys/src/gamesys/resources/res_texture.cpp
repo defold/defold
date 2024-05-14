@@ -105,7 +105,7 @@ namespace dmGameSystem
         params.m_Data = blank;
         params.m_DataSize = 4;
         params.m_MipMap = 0;
-        dmGraphics::SetTextureAsync(texture, params);
+        dmGraphics::SetTextureAsync(texture, params, 0, (void*) 0);
     }
 
     static dmResource::Result AcquireResources(const char* path, dmResource::SResourceDescriptor* resource_desc, dmGraphics::HContext context, ImageDesc* image_desc,
@@ -224,7 +224,7 @@ namespace dmGameSystem
                     params.m_Data     = image_desc->m_DecompressedData[0];
                     params.m_DataSize = image_desc->m_DecompressedDataSize[0];
                 }
-                dmGraphics::SetTextureAsync(texture, params);
+                dmGraphics::SetTextureAsync(texture, params, 0, 0);
             }
             else
             {
@@ -242,7 +242,7 @@ namespace dmGameSystem
                     }
 
                     params.m_MipMap   = i;
-                    dmGraphics::SetTextureAsync(texture, params);
+                    dmGraphics::SetTextureAsync(texture, params, 0, 0);
 
                     params.m_Width >>= 1;
                     params.m_Height >>= 1;

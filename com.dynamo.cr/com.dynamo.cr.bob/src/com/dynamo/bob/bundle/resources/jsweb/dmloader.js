@@ -22,8 +22,12 @@
 *
 *     'can_not_download_file_callback':
 *         Function that is called if you can't download file after 'retry_count' attempts.
+*
 *     'exe_name':
 *         Executable name which used for find right binary to load
+*
+*     'resize_window_callback':
+*         Function that is called when resize/orientationchanges/focus events happened
 */
 var CUSTOM_PARAMETERS = {
     archive_location_filter: function( path ) {
@@ -38,6 +42,95 @@ var CUSTOM_PARAMETERS = {
     unsupported_webgl_callback: function() {
         var e = document.getElementById("webgl-not-supported");
         e.style.display = "block";
+    },
+    resize_window_callback: function() {
+        var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        var buttonHeight = 0;
+        var prevInnerWidth = -1;
+        var prevInnerHeight = -1;
+        {{#html5.show_made_with_defold}}
+        buttonHeight = 42;
+        {{/html5.show_made_with_defold}}
+        {{#html5.show_fullscreen_button}}
+        buttonHeight = 42;
+        {{/html5.show_fullscreen_button}}
+        // Hack for iOS when exit from Fullscreen mode
+        if (is_iOS) {
+            window.scrollTo(0, 0);
+        }
+    
+        var app_container = document.getElementById('app-container');
+        var game_canvas = document.getElementById('canvas');
+        var innerWidth = window.innerWidth;
+        var innerHeight = window.innerHeight - buttonHeight;
+        if (prevInnerWidth == innerWidth && prevInnerHeight == innerHeight)
+        {
+            return;
+        }
+        prevInnerWidth = innerWidth;
+        prevInnerHeight = innerHeight;
+        var width = {{display.width}};
+        var height = {{display.height}};
+        var targetRatio = width / height;
+        var actualRatio = innerWidth / innerHeight;
+    {{#DEFOLD_SCALE_MODE_IS_DOWNSCALE_FIT}}
+        //Downscale fit
+        if (innerWidth < width || innerHeight < height) {
+            if (actualRatio > targetRatio) {
+                width = innerHeight * targetRatio;
+                height = innerHeight;
+                app_container.style.marginLeft = ((innerWidth - width) / 2) + "px";
+                app_container.style.marginTop = "0px";
+            }
+            else {
+                width = innerWidth;
+                height = innerWidth / targetRatio;
+                app_container.style.marginLeft = "0px";
+                app_container.style.marginTop = ((innerHeight - height) / 2) + "px";
+            }
+        }
+        else {
+            app_container.style.marginLeft = ((innerWidth - width) / 2) + "px";
+            app_container.style.marginTop = ((innerHeight - height) / 2) + "px";
+        }
+    {{/DEFOLD_SCALE_MODE_IS_DOWNSCALE_FIT}}
+    {{#DEFOLD_SCALE_MODE_IS_STRETCH}}
+        //Stretch
+        width = innerWidth;
+        height = innerHeight;
+    {{/DEFOLD_SCALE_MODE_IS_STRETCH}}
+    {{#DEFOLD_SCALE_MODE_IS_FIT}}
+        //Fit
+        if (actualRatio > targetRatio) {
+            width = innerHeight * targetRatio;
+            height = innerHeight;
+            app_container.style.marginLeft = ((innerWidth - width) / 2) + "px";
+            app_container.style.marginTop = "0px";
+        }
+        else {
+            width = innerWidth;
+            height = innerWidth / targetRatio;
+            app_container.style.marginLeft = "0px";
+            app_container.style.marginTop = ((innerHeight - height) / 2) + "px";
+        }
+    {{/DEFOLD_SCALE_MODE_IS_FIT}}
+    {{#DEFOLD_SCALE_MODE_IS_NO_SCALE}}
+        //No scale
+        var margin_left = ((innerWidth - width) / 2);
+        margin_left = margin_left > 0 ? margin_left : 0;
+        var margin_top = ((innerHeight - height) / 2);
+        margin_top = margin_top > 0 ? margin_top : 0;
+        app_container.style.marginLeft = margin_left + "px";
+        app_container.style.marginTop = margin_top + "px";
+    {{/DEFOLD_SCALE_MODE_IS_NO_SCALE}}
+        var dpi = 1;
+    {{#display.high_dpi}}
+        dpi = window.devicePixelRatio || 1;
+    {{/display.high_dpi}}
+        app_container.style.width = width + "px";
+        app_container.style.height = height + buttonHeight + "px";
+        game_canvas.width = Math.floor(width * dpi);
+        game_canvas.height = Math.floor(height * dpi);
     }
 }
 
@@ -261,6 +354,16 @@ var EngineLoader = {
         GameArchiveLoader.addArchiveLoadedListener(Module.onArchiveLoaded);
         GameArchiveLoader.setFileLocationFilter(CUSTOM_PARAMETERS["archive_location_filter"]);
         GameArchiveLoader.loadArchiveDescription('/archive_files.json');
+
+        // move resize callback setup here to make possible to override callback
+        // from outside of dmlodaer.js
+        if (typeof CUSTOM_PARAMETERS["resize_window_callback"] === "function") {
+            var callback = CUSTOM_PARAMETERS["resize_window_callback"]
+            callback();
+            window.addEventListener('resize', callback, false);
+            window.addEventListener('orientationchange', callback, false);
+            window.addEventListener('focus', callback, false);
+        }        
     }
 }
 
@@ -630,7 +733,6 @@ var Module = {
     _filesToPreload: [],
     _archiveLoaded: false,
     _preLoadDone: false,
-    _waitingForArchive: false,
     _isEngineLoaded: false,
 
     // Persistent storage
@@ -744,11 +846,7 @@ var Module = {
                     e.preventDefault();
                 };
             }
-            if (Module._archiveLoaded) {
-                // "Starting...."
-                ProgressUpdater.complete();
-                Module._callMain();
-            }
+            Module._preloadAndCallMain();
         } else {
             // "Unable to start game, WebGL not supported"
             ProgressUpdater.complete();
@@ -769,9 +867,7 @@ var Module = {
     onArchiveLoaded: function() {
         GameArchiveLoader.cleanUp();
         Module._archiveLoaded = true;
-        if (Module._waitingForArchive) {
-            Module._preloadAndCallMain();
-        }
+        Module._preloadAndCallMain();
     },
 
     toggleFullscreen: function(element) {
@@ -784,7 +880,6 @@ var Module = {
 
     preSync: function(done) {
         if (Module.persistentStorage != true) {
-            Module._syncInitial = true;
             done();
             return;
         }
@@ -889,16 +984,16 @@ var Module = {
     }],
 
     _preloadAndCallMain: function() {
-        // If the archive isn't loaded,
-        // we will have to wait with calling main.
-        if (!Module._archiveLoaded) {
-            Module._waitingForArchive = true;
-        } else {
-            Module.preloadAll();
-            if (Module._isEngineLoaded) {
-                // "Starting...."
-                ProgressUpdater.complete();
-                Module._callMain();
+        if (Module._syncInitial || Module.persistentStorage != true) {
+            // If the archive isn't loaded,
+            // we will have to wait with calling main.
+            if (Module._archiveLoaded) {
+                Module.preloadAll();
+                if (Module._isEngineLoaded) {
+                    // "Starting...."
+                    ProgressUpdater.complete();
+                    Module._callMain();
+                }
             }
         }
     },
@@ -957,96 +1052,6 @@ Module["locateFile"] = function(path, scriptDirectory)
 {{^DEFOLD_HAS_WASM_ENGINE}}
 Module["isWASMSupported"] = false; 
 {{/DEFOLD_HAS_WASM_ENGINE}}
-
-var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-var buttonHeight = 0;
-var prevInnerWidth = -1;
-var prevInnerHeight = -1;
-{{#html5.show_made_with_defold}}
-buttonHeight = 42;
-{{/html5.show_made_with_defold}}
-{{#html5.show_fullscreen_button}}
-buttonHeight = 42;
-{{/html5.show_fullscreen_button}}
-function resize_game_canvas() {
-    // Hack for iOS when exit from Fullscreen mode
-    if (is_iOS) {
-        window.scrollTo(0, 0);
-    }
-
-    var app_container = document.getElementById('app-container');
-    var game_canvas = document.getElementById('canvas');
-    var innerWidth = window.innerWidth;
-    var innerHeight = window.innerHeight - buttonHeight;
-    if (prevInnerWidth == innerWidth && prevInnerHeight == innerHeight)
-    {
-        return;
-    }
-    prevInnerWidth = innerWidth;
-    prevInnerHeight = innerHeight;
-    var width = {{display.width}};
-    var height = {{display.height}};
-    var targetRatio = width / height;
-    var actualRatio = innerWidth / innerHeight;
-{{#DEFOLD_SCALE_MODE_IS_DOWNSCALE_FIT}}
-    //Downscale fit
-    if (innerWidth < width || innerHeight < height) {
-        if (actualRatio > targetRatio) {
-            width = innerHeight * targetRatio;
-            height = innerHeight;
-            app_container.style.marginLeft = ((innerWidth - width) / 2) + "px";
-            app_container.style.marginTop = "0px";
-        }
-        else {
-            width = innerWidth;
-            height = innerWidth / targetRatio;
-            app_container.style.marginLeft = "0px";
-            app_container.style.marginTop = ((innerHeight - height) / 2) + "px";
-        }
-    }
-    else {
-        app_container.style.marginLeft = ((innerWidth - width) / 2) + "px";
-        app_container.style.marginTop = ((innerHeight - height) / 2) + "px";
-    }
-{{/DEFOLD_SCALE_MODE_IS_DOWNSCALE_FIT}}
-{{#DEFOLD_SCALE_MODE_IS_STRETCH}}
-    //Stretch
-    width = innerWidth;
-    height = innerHeight;
-{{/DEFOLD_SCALE_MODE_IS_STRETCH}}
-{{#DEFOLD_SCALE_MODE_IS_FIT}}
-    //Fit
-    if (actualRatio > targetRatio) {
-        width = innerHeight * targetRatio;
-        height = innerHeight;
-        app_container.style.marginLeft = ((innerWidth - width) / 2) + "px";
-        app_container.style.marginTop = "0px";
-    }
-    else {
-        width = innerWidth;
-        height = innerWidth / targetRatio;
-        app_container.style.marginLeft = "0px";
-        app_container.style.marginTop = ((innerHeight - height) / 2) + "px";
-    }
-{{/DEFOLD_SCALE_MODE_IS_FIT}}
-{{#DEFOLD_SCALE_MODE_IS_NO_SCALE}}
-    //No scale
-    var margin_left = ((innerWidth - width) / 2);
-    margin_left = margin_left > 0 ? margin_left : 0;
-    var margin_top = ((innerHeight - height) / 2);
-    margin_top = margin_top > 0 ? margin_top : 0;
-    app_container.style.marginLeft = margin_left + "px";
-    app_container.style.marginTop = margin_top + "px";
-{{/DEFOLD_SCALE_MODE_IS_NO_SCALE}}
-    app_container.style.width = width + "px";
-    app_container.style.height = height + buttonHeight + "px";
-    game_canvas.width = width;
-    game_canvas.height = height;
-}
-resize_game_canvas();
-window.addEventListener('resize', resize_game_canvas, false);
-window.addEventListener('orientationchange', resize_game_canvas, false);
-window.addEventListener('focus', resize_game_canvas, false);
 
 window.onerror = function(err, url, line, column, errObj) {
     if (typeof Module.ccall !== 'undefined') {

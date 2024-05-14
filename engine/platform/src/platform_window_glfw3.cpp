@@ -128,6 +128,7 @@ namespace dmPlatform
 
     HWindow NewWindow()
     {
+        glfwInitHint(GLFW_COCOA_CHDIR_RESOURCES, GLFW_FALSE);
         if (glfwInit() == GL_FALSE)
         {
             dmLogError("Could not initialize glfw.");

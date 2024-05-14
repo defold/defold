@@ -116,8 +116,11 @@ TEST_F(ScriptCrashTest, TestCrash)
 }
 #endif
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     jc_test_init(&argc, argv);
 
     int ret = jc_test_run_all();

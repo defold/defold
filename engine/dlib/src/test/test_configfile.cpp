@@ -29,6 +29,16 @@
 const char* DEFAULT_ARGV[] = { "test_engine" };
 int g_HttpPort = -1;
 
+extern "C" void TestConfigfileExtension();
+
+struct ExtensionInitializer
+{
+    ExtensionInitializer()
+    {
+        TestConfigfileExtension();
+    }
+} g_Initializer;
+
 struct TestParam
 {
     TestParam(const char* url, bool from_buffer = false)

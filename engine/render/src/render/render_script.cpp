@@ -1005,6 +1005,9 @@ namespace dmRender
                 uint32_t color_index = dmGraphics::GetBufferTypeIndex(buffer_type);
                 p  = &params.m_ColorBufferParams[color_index];
                 cp = &params.m_ColorBufferCreationParams[color_index];
+
+                params.m_ColorBufferLoadOps[color_index]  = dmGraphics::ATTACHMENT_OP_DONT_CARE;
+                params.m_ColorBufferStoreOps[color_index] = dmGraphics::ATTACHMENT_OP_STORE;
             }
             else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
             {
