@@ -3,14 +3,15 @@ context:
     symbols: ["DefaultSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "ProfilerExt", "GraphicsAdapterOpenGL","LiveUpdateExt",
                 "ResourceTypeGameObject", "ResourceTypeCollection", "ResourceTypeScript", "ResourceTypeLua", "ResourceTypeAnim", "ResourceTypeAnimationSet", "ResourceTypeGui", "ResourceTypeGuiScript",
                 "ResourceProviderFile", "ResourceProviderArchive", "ResourceProviderArchiveMutable", "ResourceProviderZip", "ResourceProviderHttp",
-                "ComponentTypeScript", "ComponentTypeAnim", "ComponentTypeGui", "ComponentTypeMesh"]
+                "ComponentTypeScript", "ComponentTypeAnim", "ComponentTypeGui", "ComponentTypeMesh", "ScriptBox2DExt"]
     allowedLibs: ["engine","engine_release","profile","profile_null","remotery","remotery_null","profilerext","profilerext_null","crashext","crashext_null","record","record_null","gameobject","ddf","resource","gamesys","graphics","graphics_null","graphics_transcoder_null","graphics_transcoder_basisu","basis_transcoder","physics_2d","physics_3d","physics_null", "platform", "platform_null", "BulletDynamics","BulletCollision","LinearMath","Box2D","render","script","luajit-5.1","extension","hid","hid_null","input","particle","rig","dlib","dmglfw","gui","crashext","sound","sound_null","tremolo","vpx","liveupdate",
                   "libengine.lib","libengine_release.lib","libprofile.lib","libprofile_null.lib","libremotery.lib","libremotery_null.lib","libprofilerext.lib","libprofilerext_null.lib","libcrashext","libcrashext_null","librecord.lib","librecord_null.lib","libgameobject.lib","libddf.lib","libresource.lib","libgamesys.lib","libgraphics.lib","libgraphics_null.lib","libgraphics_transcoder_null.lib","libgraphics_transcoder_basisu.lib","libbasis_transcoder.lib","libphysics_2d.lib","libphysics_3d.lib","libphysics_null.lib","libBulletDynamics.lib","libBulletCollision.lib","libplatform.lib","libplatform_null.lib","libLinearMath.lib","libBox2D.lib","librender.lib",
                   "libscript.lib","libluajit.lib-5.1","libextension.lib","libhid.lib","libhid_null.lib","libinput.lib","libparticle.lib","librig.lib","libdlib.lib","libdmglfw.lib","libgui.lib","libcrashext.lib","libsound.lib","libsound_null.lib","libtremolo.lib","libvpx.lib","libliveupdate.lib",
-                  "engine_service","engine_service_null","libengine_service.lib","libengine_service_null.lib"]
+                  "engine_service","engine_service_null","libengine_service.lib","libengine_service_null.lib",
+                  "script_box2d", "script_box2d_null", "libscript_box2d.lib", "libscript_box2d_null.lib"]
     allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis",
                     "ProfilerExt", "GraphicsAdapterOpenGL", "GraphicsAdapterVulkan", "GraphicsAdapterNull",
-                    "LiveUpdateExt"]
+                    "LiveUpdateExt", "ScriptBox2DExt"]
     defines: ['DLIB_LOG_DOMAIN="{{extension_name_upper}}"']
 
 main: |
@@ -128,11 +129,11 @@ platforms:
         SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_14_VERSION}}.sdk"
     context:
         frameworks:     ["Foundation", "AppKit", "Cocoa", "OpenGL", "OpenAL", "AGL", "IOKit", "Carbon", "CoreVideo", "QuartzCore"]
-        engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
+        engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record", "gameobject", "ddf", "resource", "gamesys", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
         libPaths:       ["{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/macosx", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
         defines:        ["DM_PLATFORM_MACOS", "DM_PLATFORM_OSX", "GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED"]
         systemIncludes: ["{{env.SYSROOT}}/usr/include/c++/v1"]
-        flags:          ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-nostdinc++", "-fno-exceptions", "-fvisibility=hidden", "-Werror=format"]
+        flags:          ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-nostdinc++", "-fno-exceptions", "-fvisibility=hidden", "-Werror=format"]
         linkFlags:      ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
         cxxLinkShFlags: ["-O2", "-g", "-stdlib=libc++", "-mmacosx-version-min={{osMinVersion}}", "-isysroot", "{{env.SYSROOT}}", "-Wl,-rpath,@loader_path/.", "-Wl,-U,_objc_loadClassref"]
         libs:           ['clang_rt.osx']
@@ -156,7 +157,7 @@ platforms:
     zipContentPattern: 'dmengine'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
     allowedFlags: ["-ObjC","-ObjC\\+\\+","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-f(no-)?objc-arc(-exceptions)?","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-f\\w[\\w-=]+","-x","c"]
-    compileCmd: 'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} -isysroot {{env.SYSROOT}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
+    compileCmd: 'clang++ -c {{#systemIncludes}}-isystem {{{.}}} {{/systemIncludes}} {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o{{tgt}}'
     linkCmd: 'clang++ -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} {{#ext.frameworkPaths}}-F{{{.}}} {{/ext.frameworkPaths}} {{#ext.frameworks}}-framework {{{.}}} {{/ext.frameworks}} {{#frameworks}}-framework {{{.}}} {{/frameworks}} {{#src}}{{{.}}} {{/src}}'
     libCmd: 'ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     symbolCmd: 'dsymutil -o {{src}}.dSYM {{src}}'
@@ -216,7 +217,7 @@ platforms:
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation"]
         weakFrameworks: ["Foundation"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys",  "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv"]
         libPaths:   ["{{dynamo_home}}/lib/arm64-ios", "{{dynamo_home}}/ext/lib/arm64-ios", "{{env.SYSROOT}}/usr/lib", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphoneos", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
         defines:    ["DM_PLATFORM_IOS"]
         systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
@@ -254,13 +255,13 @@ platforms:
     context:
         frameworks: ["OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "AVFoundation"]
         weakFrameworks: ["Foundation"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "resolv"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-ios", "{{dynamo_home}}/ext/lib/x86_64-ios", "{{env.SYSROOT}}/usr/lib", "{{env.SYSROOT}}/usr/lib/swift", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift-{{env.SWIFT_VERSION}}/iphonesimulator", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/swift/iphonesimulator", "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_VERSION}}.xctoolchain/usr/lib/clang/{{env.XCODE_CLANG_VERSION}}/lib/darwin"]
         defines:    ["IOS_SIMULATOR", "DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE_32"]
         systemIncludes:    ["{{env.SYSROOT}}/usr/include/c++/v1"]
         flags:      ["-fno-exceptions", "-fvisibility=hidden"]
         linkFlags:  ['-fobjc-link-runtime', '-dead_strip', '-pagezero_size', '10000', '-image_base', '100000000', '-Wl,-U,_objc_loadClassref']
-        libs:       ['clang_rt.ios']
+        libs:       ['clang_rt.iossim']
         dynamicLibs: []
         symbols:    ["AudioDecoderTremolo"]
         osMinVersion:   "{{env.IOS_VERSION_MIN}}"
@@ -301,7 +302,7 @@ platforms:
         ANDROID_SDK_VERSION:    "{{env.ANDROID_SDK_VERSION_33}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind"]
         libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android"]
         defines:    ["DM_PLATFORM_ANDROID", "LUA_BYTECODE_ENABLE_32", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
@@ -349,7 +350,7 @@ platforms:
         ANDROID_SDK_VERSION:    "{{env.ANDROID_SDK_VERSION_33}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind"]
         libPaths:   ["{{dynamo_home}}/lib/arm64-android", "{{dynamo_home}}/ext/lib/arm64-android"]
         defines:    ["DM_PLATFORM_ANDROID", "__aarch64__"]
         platformIncludes:   ["{{env.NDK_PATH}}/sources/android/native_app_glue", "{{env.NDK_PATH}}/sources/android/cpufeatures"]
@@ -386,80 +387,55 @@ platforms:
 
   web:
     # It's here to whitelist this as a platform, currently used for general settings
+    env:
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_3_1_55}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_3_1_55}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_3_1_55}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_3_1_55}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_3_1_55}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_3_1_55}}"
+        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
+    context:
+        engineJsLibs:   ["sys", "script", "sound"]
+        externalJsLibs: ["glfw"]
+        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_null", "remotery_null", "profilerext_null", "record_null", "gameobject", "ddf", "resource", "gamesys", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
+        defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
+        linkFlags:  ["--emit-symbol-map", "-lidbfs.js"]
+        emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
+        emscriptenLinkFlags: ["INITIAL_MEMORY=33554432", "DISABLE_EXCEPTION_CATCHING=1", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\",\"stringToNewUTF8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE=5MB", "MIN_FIREFOX_VERSION=34", "MIN_SAFARI_VERSION=90000", "MIN_CHROME_VERSION=32"]
+        libs:       []
+    exePrefix:      ''
+    exeExt:         '.js'
+    shlibRe:        'lib(.+).so'
+    stlibRe:        'lib(.+).a'
+    sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
+    writeLibPattern: 'lib%s.a'
+    writeExePattern: 'dmengine.js'
+    symbolsPattern:  'dmengine.js.symbols'
+    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
+    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-f\\w[\\w-=]+","-x","c","-l\\w+.js"]
+    compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
+    libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
+    manifestName:     'engine_template.html'
+    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   js-web:
-    env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_2_0_11}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_2_0_11}}"
-        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_2_0_11}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_2_0_11}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_2_0_11}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_2_0_11}}"
-        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-    context:
-        engineJsLibs:   ["sys", "script", "sound"]
-        externalJsLibs: ["glfw"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_null", "remotery_null", "profilerext_null", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
+    context:        
         libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
-        defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
-        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
-        linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "INITIAL_MEMORY=33554432", "DISABLE_EXCEPTION_CATCHING=1", "LEGACY_VM_SUPPORT=1", "WASM=0", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1","MAX_WEBGL_VERSION=2"]
-        libs:       []
+        emscriptenLinkFlags: ["WASM=0", "LEGACY_VM_SUPPORT=1"]
 
-    exePrefix:      ''
-    exeExt:         '.js'
-    shlibRe:        'lib(.+).so'
-    stlibRe:        'lib(.+).a'
-    sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
-    writeLibPattern: 'lib%s.a'
-    writeExePattern: 'dmengine.js'
-    symbolsPattern:  'dmengine.js.symbols'
     zipContentPattern: 'dmengine.js'
-    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
-    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-f\\w[\\w-=]+","-x","c"]
-    compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
-    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
-    libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
-    manifestName:     'engine_template.html'
-    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
+    
 
   wasm-web:
-    env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_2_0_11}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_2_0_11}}"
-        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_2_0_11}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_2_0_11}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_2_0_11}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_2_0_11}}"
-        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
-        engineJsLibs:   ["sys", "script", "sound"]
-        externalJsLibs: ["glfw"]
-        engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_null", "remotery_null", "profilerext_null", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
         libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
-        defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
-        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
-        linkFlags:  ["--emit-symbol-map", "--memory-init-file", "0", "-lidbfs.js"]
-        emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "INITIAL_MEMORY=33554432", "IMPORTED_MEMORY=1", "ALLOW_MEMORY_GROWTH=1", "DISABLE_EXCEPTION_CATCHING=1", "WASM=1", "EXTRA_EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"writeStringToMemory\",\"writeArrayToMemory\",\"stringToUTF8\",\"ccall\",\"callMain\",\"UTF8ToString\"]", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\",\"_dmExportedSymbols\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1","MAX_WEBGL_VERSION=2"]
-        libs:       []
+        emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1"]
 
-    exePrefix:      ''
-    exeExt:         '.js'
-    shlibRe:        'lib(.+).so'
-    stlibRe:        'lib(.+).a'
-    sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
-    writeLibPattern: 'lib%s.a'
-    writeExePattern: 'dmengine.js'
-    symbolsPattern:  'dmengine.js.symbols'
     zipContentPattern: 'dmengine.(wasm|js)'
-    allowedLibs:    ["(\\w[\\w\\.+-]+)"]
-    allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-f\\w[\\w-=]+","-x","c"]
-    compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O3 -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -o {{tgt}}'
-    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
-    libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
-    manifestName:     'engine_template.html'
-    manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
+    linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
 
   win32:
     # It's here to whitelist this as a platform, currently used for general settings
@@ -475,7 +451,7 @@ platforms:
         SDK10_VERSION:      "{{env.WINDOWS_SDK_10_20348_VERSION}}"
         CLANG_HOME:         "{{env.CLANG_17_RESOURCE_DIR}}"
     context:
-        engineLibs: ["libengine","libengine_service","libmbedtls","libzip","libprofile","libremotery","libprofilerext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libplatform","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx"]
+        engineLibs: ["libengine","libengine_service","libmbedtls","libzip","libprofile","libremotery","libprofilerext","librecord","libgameobject","libddf","libresource","libgamesys", "libscript_box2d","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libplatform","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "{{env.MSVC_DIR}}/lib/x64", "{{env.MSVC_DIR}}/atlmfc/lib/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x64", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x64"]
         systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
         defines:        ["DM_PLATFORM_WINDOWS", "_CRT_SECURE_NO_WARNINGS", "_CRT_USE_BUILTIN_OFFSETOF", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32", "NOMINMAX"]
@@ -514,7 +490,7 @@ platforms:
         SDK10_VERSION:      "{{env.WINDOWS_SDK_10_20348_VERSION}}"
         CLANG_HOME:         "{{env.CLANG_17_RESOURCE_DIR}}"
     context:
-        engineLibs: ["libengine","libengine_service","libmbedtls","libzip","libprofile","libremotery","libprofilerext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libplatform","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx"]
+        engineLibs: ["libengine","libengine_service","libmbedtls","libzip","libprofile","libremotery","libprofilerext","librecord","libgameobject","libddf","libresource","libgamesys","libscript_box2d","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libplatform","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libcrashext","libliveupdate","libsound","vpx"]
         libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/ucrt/x86", "{{env.SDK10_DIR}}/Lib/{{env.SDK10_VERSION}}/um/x86"]
         systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
         defines:        ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_CRT_USE_BUILTIN_OFFSETOF", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32", "NOMINMAX"]
@@ -545,7 +521,7 @@ platforms:
       LD_LIBRARY_PATH:  '{{dynamo_home}}/lib/x86_64-linux:{{env.LD_LIBRARY_PATH}}'
 
     context:
-        engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx"]
+        engineLibs:     ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record", "gameobject", "ddf", "resource", "gamesys", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "crashext", "liveupdate", "sound", "tremolo", "vpx"]
         libPaths:       ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
         includes:       ["{{dynamo_home}}/include/x86_64-linux"]
         defines:        ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS"]

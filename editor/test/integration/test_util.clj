@@ -533,7 +533,7 @@
     (if-let [set-fn (-> prop :edit-type :set-fn)]
       (g/transact
         (g/with-auto-evaluation-context evaluation-context
-          (set-fn evaluation-context node-id (:value prop) val)))
+          (set-fn evaluation-context (:node-id prop) (:value prop) val)))
       (let [[node-id label] (resolve-prop node-id label)]
         (g/set-property! node-id label val)))))
 

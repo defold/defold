@@ -32,6 +32,8 @@
 #include <hid/hid.h>
 #include <input/input_ddf.h>
 
+extern "C" void dmExportedSymbols();
+
 enum State
 {
     STATE_WAITING,
@@ -79,6 +81,7 @@ static void sig_handler(int _)
 
 int main(int argc, char *argv[])
 {
+    dmExportedSymbols();
 
     int result = 0;
     dmHID::HGamepad gamepad = dmHID::INVALID_GAMEPAD_HANDLE;

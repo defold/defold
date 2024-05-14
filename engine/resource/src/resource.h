@@ -75,7 +75,7 @@ namespace dmResource
     /**
      * Enable Live update
      */
-    #define RESOURCE_FACTORY_FLAGS_LIVE_UPDATE    (1 << 3)
+    #define RESOURCE_FACTORY_FLAGS_LIVE_UPDATE_MOUNTS_ON_START    (1 << 3)
 
     typedef dmArray<char> LoadBufferType;
     typedef HResourcePreloader HPreloader;

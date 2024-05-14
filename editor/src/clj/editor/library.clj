@@ -28,6 +28,7 @@
 (set! *warn-on-reflection* true)
 
 (def ^:const connect-timeout 2000)
+(def ^:const read-timeout 15000)
 
 (defn parse-library-uris [uri-string]
   (settings-core/parse-setting-value {:type :list :element {:type :url}} uri-string))
@@ -98,17 +99,25 @@
     (io/copy is f)
     f))
 
+(defn- replace-user-info-env-variable [^String user-info-token]
+  (if (and (some? user-info-token)
+           (str/starts-with? user-info-token "__")
+           (str/ends-with? user-info-token "__"))
+    (let [env-key (subs user-info-token 2 (- (count user-info-token) 2))
+          env-value (System/getenv env-key)]
+      (or env-value user-info-token))
+    user-info-token))
+
 (defn- make-basic-auth-headers
   [^String user-info]
-  (let [user-info-parts (str/split user-info #":")
-        username (get user-info-parts 0)
-        password (or (get user-info-parts 1) "")]
-    (if (and (str/starts-with? password "__") (str/ends-with? password "__"))
-      (let [password-env-key (subs password 2 (- (count password) 2))
-            password-env-value (or (System/getenv password-env-key) password)]
-         {"Authorization" (format "Basic %s" (str->b64 (str username ":" password-env-value)))})
-      {"Authorization" (format "Basic %s" (str->b64 user-info))})))
-  
+  (let [[username password] (str/split user-info #":")
+        username (replace-user-info-env-variable username)
+        password (replace-user-info-env-variable password)
+        user-info (cond-> username
+                          password (str ":" password))
+        user-info-b64 (str->b64 user-info)
+        authorization (format "Basic %s" user-info-b64)]
+    {"Authorization" authorization}))
 
 (defn- headers-for-uri [^URI lib-uri]
   (let [user-info (.getUserInfo lib-uri)]
@@ -127,6 +136,7 @@
         (.setRequestProperty http-connection "If-None-Match" tag))
       (.setRequestProperty http-connection "Accept" "application/zip"))
     (.setConnectTimeout connection connect-timeout)
+    (.setReadTimeout connection read-timeout)
     (.connect connection)
     (let [status (parse-status http-connection)
           headers (.getHeaderFields connection)

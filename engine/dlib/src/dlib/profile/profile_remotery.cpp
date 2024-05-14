@@ -220,16 +220,36 @@ namespace dmProfile
 
     void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback)
     {
-        DM_SPINLOCK_SCOPED_LOCK(g_ProfilerLock);
+        // This function is called both before the profiler is initialized, and during
+        if (IsInitialized())
+        {
+            dmSpinlock::Lock(&g_ProfilerLock);
+        }
+
         g_SampleTreeCallback = callback;
         g_SampleTreeCallbackCtx = ctx;
+
+        if (IsInitialized())
+        {
+            dmSpinlock::Unlock(&g_ProfilerLock);
+        }
     }
 
     void SetPropertyTreeCallback(void* ctx, FPropertyTreeCallback callback)
     {
-        DM_SPINLOCK_SCOPED_LOCK(g_ProfilerLock);
+        // This function is called both before the profiler is initialized, and during
+        if (IsInitialized())
+        {
+            dmSpinlock::Lock(&g_ProfilerLock);
+        }
+
         g_PropertyTreeCallback = callback;
         g_PropertyTreeCallbackCtx = ctx;
+
+        if (IsInitialized())
+        {
+            dmSpinlock::Unlock(&g_ProfilerLock);
+        }
     }
 
     void ProfileScope::StartScope(const char* name, uint64_t* name_hash)

@@ -31,9 +31,13 @@
 
 using namespace dmVMath;
 
-class dmGraphicsTest : public jc_test_base_class
+
+template<bool ASYNCHRONOUS>
+class dmGraphicsTestT : public jc_test_base_class
 {
-protected:
+public:
+    static const bool s_Asynchronous = ASYNCHRONOUS;
+
     struct ResizeData
     {
         uint32_t m_Width;
@@ -86,7 +90,11 @@ protected:
         dmJobThread::JobThreadCreationParams job_thread_create_param;
         job_thread_create_param.m_ThreadNames[0] = "test_jobs";
         job_thread_create_param.m_ThreadCount    = 1;
-        m_JobThread = dmJobThread::Create(job_thread_create_param);
+
+        if (dmGraphicsTestT::s_Asynchronous)
+            m_JobThread = dmJobThread::Create(job_thread_create_param);
+        else
+            m_JobThread = 0;
 
         dmGraphics::ContextParams context_params = dmGraphics::ContextParams();
         context_params.m_Window                  = m_Window;
@@ -102,10 +110,19 @@ protected:
 
     virtual void TearDown()
     {
+        if (m_JobThread)
+            dmJobThread::Destroy(m_JobThread);
         dmGraphics::CloseWindow(m_Context);
         dmGraphics::DeleteContext(m_Context);
-        dmJobThread::Destroy(m_JobThread);
     }
+};
+
+class dmGraphicsTest : public dmGraphicsTestT<true>
+{
+};
+
+class dmGraphicsSynchronousTest : public dmGraphicsTestT<false>
+{
 };
 
 TEST_F(dmGraphicsTest, NewDeleteContext)
@@ -770,7 +787,12 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         }
 
         // Trigger a flush of the post deletion textures by issuing a flip
-        dmGraphics::Flip(m_Context);
+        int wait_count = 10;
+        while (wait_count-- > 0 && !m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Empty())
+        {
+            dmGraphics::Flip(m_Context);
+            dmTime::Sleep(1000); // The sync/deletion is asynchronous, so we have to wait a little bit
+        }
 
         ASSERT_EQ(0, m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Size());
 
@@ -812,8 +834,12 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
     m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
 }
 
-TEST_F(dmGraphicsTest, TestSetTextureBounds)
+TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
 {
+    // We want to test the assert inside the graphics system.
+    // However, the ASSERT_DEATH uses longjmp, which simply skips any desrtuctors,
+    // and will leave mutexes locked
+    ASSERT_FALSE(s_Asynchronous);
     dmGraphics::TextureCreationParams creation_params;
     dmGraphics::TextureParams params;
 

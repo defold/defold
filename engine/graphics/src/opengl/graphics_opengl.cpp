@@ -2816,7 +2816,14 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDeleteTextureAsync(HTexture texture)
     {
-        dmJobThread::PushJob(g_Context->m_JobThread, AsyncDeleteTextureProcess, 0, (void*) g_Context, (void*) texture);
+        if (g_Context->m_AsyncProcessingSupport)
+        {
+            dmJobThread::PushJob(g_Context->m_JobThread, AsyncDeleteTextureProcess, 0, (void*) g_Context, (void*) texture);
+        }
+        else
+        {
+            DoDeleteTexture(g_Context, texture);
+        }
     }
 
     static void PostDeleteTextures(OpenGLContext* context, bool force_delete)
