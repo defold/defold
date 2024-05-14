@@ -28,13 +28,11 @@ namespace dmPlatform
 {
     // Gamepad callbacks are shared across all windows, so we need a
     // shared struct to store 'global' data
-    struct Context
+    static struct PlatformContext
     {
         WindowGamepadEventCallback m_GamepadEventCallback;
         void*                      m_GamepadEventCallbackUserData;
-    };
-
-    static Context* g_Context = 0x0;
+    } g_GLFW3Context;
 
     static void OnError(int error, const char* description)
     {
@@ -63,8 +61,6 @@ namespace dmPlatform
 
     static void OnWindowFocus(GLFWwindow* glfw_window, int focus)
     {
-        dmLogWarning("Focus changes: %d", focus);
-
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
         if (window->m_FocusCallback != 0x0)
         {
@@ -108,7 +104,7 @@ namespace dmPlatform
 
     static void OnJoystick(int id, int event)
     {
-        if (g_Context->m_GamepadEventCallback)
+        if (g_GLFW3Context.m_GamepadEventCallback)
         {
             GamepadEvent gp_evt = GAMEPAD_EVENT_UNSUPPORTED;
             switch(event)
@@ -122,7 +118,7 @@ namespace dmPlatform
                 default:break;
             }
 
-            g_Context->m_GamepadEventCallback(g_Context->m_GamepadEventCallbackUserData, id, gp_evt);
+            g_GLFW3Context.m_GamepadEventCallback(g_GLFW3Context.m_GamepadEventCallbackUserData, id, gp_evt);
         }
     }
 
@@ -140,11 +136,8 @@ namespace dmPlatform
 
         glfwSetErrorCallback(OnError);
 
-        if (g_Context == 0x0)
-        {
-            g_Context = new Context;
-            memset(g_Context, 0, sizeof(Context));
-        }
+        // Reset context
+        memset(&g_GLFW3Context, 0, sizeof(PlatformContext));
 
         return wnd;
     }
@@ -162,7 +155,7 @@ namespace dmPlatform
     PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
         // TODO: This is the setup required for OSX, when we implement the other desktop
-        //       platforms we might want to do this differently.
+        //       platforms we might want to do this according to platform.
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
 
@@ -243,12 +236,7 @@ namespace dmPlatform
 
             SetSwapInterval(window, 1);
 
-            // glfwRequestWindowAttention(window->m_Window);
-
-            int focused = glfwGetWindowAttrib(window->m_Window, GLFW_FOCUSED);
-            dmLogWarning("focused? %d\n", focused);
-
-            // This is not supported in the same way by GLFW3, but we could
+            // glfwSetWindowBackgroundColor does not exist in GLFW3, but we could potentially
             // set glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE); to get a transparent framebuffer
             // glfwSetWindowBackgroundColor(params.m_BackgroundColor);
 
@@ -400,7 +388,6 @@ namespace dmPlatform
 
     int32_t GetMouseWheel(HWindow window)
     {
-        // Eh, not sure about this..
         return (int32_t) window->m_MouseScrollY;
     }
 
@@ -508,8 +495,8 @@ namespace dmPlatform
 
     void SetGamepadEventCallback(HWindow window, WindowGamepadEventCallback cb, void* user_data)
     {
-        g_Context->m_GamepadEventCallback         = cb;
-        g_Context->m_GamepadEventCallbackUserData = user_data;
+        g_GLFW3Context.m_GamepadEventCallback         = cb;
+        g_GLFW3Context.m_GamepadEventCallbackUserData = user_data;
     }
 
     const int PLATFORM_JOYSTICK_LAST       = GLFW_JOYSTICK_LAST;
@@ -569,7 +556,7 @@ namespace dmPlatform
     const int PLATFORM_KEY_LSUPER          = GLFW_KEY_LEFT_SUPER;
     const int PLATFORM_KEY_RSUPER          = GLFW_KEY_RIGHT_SUPER;
     const int PLATFORM_KEY_MENU            = GLFW_KEY_MENU;
-    const int PLATFORM_KEY_BACK            = -1; // What is this used for?
+    const int PLATFORM_KEY_BACK            = -1; // Android only - back button support
     const int PLATFORM_MOUSE_BUTTON_LEFT   = GLFW_MOUSE_BUTTON_LEFT;
     const int PLATFORM_MOUSE_BUTTON_MIDDLE = GLFW_MOUSE_BUTTON_MIDDLE;
     const int PLATFORM_MOUSE_BUTTON_RIGHT  = GLFW_MOUSE_BUTTON_RIGHT;

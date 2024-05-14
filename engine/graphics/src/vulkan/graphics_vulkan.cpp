@@ -1083,10 +1083,13 @@ namespace dmGraphics
 
         delete[] device_list;
 
+        // GLFW3 handles window size changes differenrly, so we need to cater for that.
+    #ifndef __MACH__
         if (created_width != context->m_Width || created_height != context->m_Height)
         {
             dmPlatform::SetWindowSize(context->m_Window, created_width, created_height);
         }
+    #endif
 
         context->m_PipelineCache.SetCapacity(32,64);
         context->m_TextureSamplers.SetCapacity(4);

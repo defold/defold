@@ -6,25 +6,23 @@ def configure(conf):
     pass
 
 def build(bld):
-
-    extra_source = ['platform_window_vulkan_stub.cpp']
     glfw_source = ['platform_window_glfw.cpp']
-    glfw3_vulkan = None
+    glfw3_source_vulkan = None
 
     if platform_glfw_version(bld.env.PLATFORM) == 3:
         glfw_source = ['platform_window_glfw3.cpp']
-        glfw3_vulkan = ['platform_window_glfw3_vulkan.cpp']
+        glfw3_source_vulkan = ['platform_window_glfw3_vulkan.cpp']
 
     lib = bld.stlib(features = 'cxx c ddf',
                     includes = '.',
                     target   = 'platform',
                     source   = bld.path.ant_glob(glfw_source))
 
-    if glfw3_vulkan != None:
+    if glfw3_source_vulkan != None:
         lib = bld.stlib(features = 'cxx c ddf',
-                    includes = '.',
-                    target   = 'platform_vulkan',
-                    source   = lib.source + glfw3_vulkan)
+                        includes = '.',
+                        target   = 'platform_vulkan',
+                        source   = lib.source + glfw3_source_vulkan)
 
     lib = bld.stlib(features = 'cxx c ddf',
                     includes = '.',
