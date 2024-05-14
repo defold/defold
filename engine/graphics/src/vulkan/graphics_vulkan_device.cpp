@@ -272,14 +272,8 @@ namespace dmGraphics
         vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         VkResult res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-
-        if (res != VK_SUCCESS)
-        {
-            return res;
-        }
-
         m_CmdBuffer = vk_command_buffer;
-        return VK_SUCCESS;
+        return res;
     }
 
     VkResult OneTimeCommandBuffer::End()
@@ -292,18 +286,12 @@ namespace dmGraphics
         vk_submit_info.pCommandBuffers    = &m_CmdBuffer;
 
         VkResult res = vkQueueSubmit(m_Context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
-        if (res != VK_SUCCESS)
-        {
-            return res;
-        }
-
         vkQueueWaitIdle(m_Context->m_LogicalDevice.m_GraphicsQueue);
-
         vkFreeCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &m_CmdBuffer);
 
         m_Context   = 0;
         m_CmdBuffer = VK_NULL_HANDLE;
-        return VK_SUCCESS;
+        return res;
     }
 
     VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)

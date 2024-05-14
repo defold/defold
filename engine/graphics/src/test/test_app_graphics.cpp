@@ -135,7 +135,6 @@ struct ITest
 {
     virtual void Initialize(EngineCtx*) {};
     virtual void Execute(EngineCtx*) {};
-    virtual void PostFlip(EngineCtx*) {};
 };
 
 struct EngineCtx
@@ -232,10 +231,6 @@ struct ReadPixelsTest : ITest
         dmGraphics::ReadPixels(engine->m_GraphicsContext, m_Buffer, 512 * 512 * 4);
         dmLogInfo("%d, %d, %d, %d", m_Buffer[0], m_Buffer[1], m_Buffer[2], m_Buffer[3]);
     }
-
-    void PostFlip(EngineCtx* engine) override
-    {
-    };
 };
 
 struct SubPassTest : ITest
@@ -599,9 +594,6 @@ static UpdateResult EngineUpdate(void* _engine)
     engine->m_Test->Execute(engine);
 
     dmGraphics::Flip(engine->m_GraphicsContext);
-
-    // color_b += 2;
-    // color_g += 1;
 
     return RESULT_OK;
 }
