@@ -12,7 +12,7 @@ platforms:
 
     x86_64-osx:
         context:
-            excludeLibs: [platform"]
+            excludeLibs: ["platform"]
             excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan", "platform_vulkan", "MoltenVK","glfw3"]
