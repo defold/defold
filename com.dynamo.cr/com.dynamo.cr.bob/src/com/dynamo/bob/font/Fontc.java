@@ -262,7 +262,6 @@ public class Fontc {
                 }
             }
         }
-        System.out.print("\ncharacters: "+characters+"\n");
         Set<Integer> deDup = new HashSet<Integer>(characters);
         characters = new ArrayList<Integer>(deDup);
 
