@@ -133,8 +133,8 @@ struct EngineCtx;
 
 struct ITest
 {
-    virtual void Initialize(EngineCtx*) = 0;
-    virtual void Execute(EngineCtx*) = 0;
+    virtual void Initialize(EngineCtx*) {};
+    virtual void Execute(EngineCtx*) {};
 };
 
 struct EngineCtx
@@ -150,6 +150,8 @@ struct EngineCtx
     dmGraphics::HContext m_GraphicsContext;
 
     ITest* m_Test;
+    bool m_WindowClosed;
+
 } g_EngineCtx;
 
 struct CopyToBufferTest : ITest
@@ -197,6 +199,37 @@ struct CopyToBufferTest : ITest
     void Execute(EngineCtx* engine) override
     {
         dmGraphics::VulkanCopyBufferToTexture(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, m_CopyBufferToTextureTexture, dmGraphics::GetTextureWidth(m_CopyBufferToTextureTexture), dmGraphics::GetTextureHeight(m_CopyBufferToTextureTexture));
+    }
+};
+
+struct ReadPixelsTest : ITest
+{
+    uint8_t* m_Buffer;
+    bool m_DidRead;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        m_DidRead = false;
+        m_Buffer = new uint8_t[512 * 512 * 4];
+        memset(m_Buffer, 0, sizeof(m_Buffer));
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        static uint8_t color_r = 0;
+        static uint8_t color_g = 80;
+        static uint8_t color_b = 140;
+        static uint8_t color_a = 255;
+
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+                                    (float) color_r,
+                                    (float) color_g,
+                                    (float) color_b,
+                                    (float) color_a,
+                                    1.0f, 0);
+
+        dmGraphics::ReadPixels(engine->m_GraphicsContext, m_Buffer, 512 * 512 * 4);
+        dmLogInfo("%d, %d, %d, %d", m_Buffer[0], m_Buffer[1], m_Buffer[2], m_Buffer[3]);
     }
 };
 
@@ -480,17 +513,25 @@ struct StorageBufferTest : ITest
     }
 };
 
+static bool OnWindowClose(void* user_data)
+{
+    EngineCtx* engine = (EngineCtx*) user_data;
+    engine->m_WindowClosed = 1;
+    return true;
+}
+
 static void* EngineCreate(int argc, char** argv)
 {
     EngineCtx* engine = &g_EngineCtx;
-
     engine->m_Window = dmPlatform::NewWindow();
 
     dmPlatform::WindowParams window_params = {};
-    window_params.m_Width       = 512;
-    window_params.m_Height      = 512;
-    window_params.m_Title       = "Vulkan Test App";
-    window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_Width                 = 512;
+    window_params.m_Height                = 512;
+    window_params.m_Title                 = "Vulkan Test App";
+    window_params.m_GraphicsApi           = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_CloseCallback         = OnWindowClose;
+    window_params.m_CloseCallbackUserData = (void*) engine;
 
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
@@ -505,11 +546,14 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_VerifyGraphicsCalls     = 1;
     graphics_context_params.m_UseValidationLayers     = 1;
     graphics_context_params.m_Window                  = engine->m_Window;
+    graphics_context_params.m_Width                   = 512;
+    graphics_context_params.m_Height                  = 512;
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
     //engine->m_Test = new ComputeTest();
-    engine->m_Test = new StorageBufferTest();
+    //engine->m_Test = new StorageBufferTest();
+    engine->m_Test = new ReadPixelsTest();
 
     engine->m_Test->Initialize(engine);
 
@@ -540,14 +584,16 @@ static UpdateResult EngineUpdate(void* _engine)
 
     dmPlatform::PollEvents(engine->m_Window);
 
+    if (engine->m_WindowClosed)
+    {
+        return RESULT_EXIT;
+    }
+
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
     engine->m_Test->Execute(engine);
 
     dmGraphics::Flip(engine->m_GraphicsContext);
-
-    // color_b += 2;
-    // color_g += 1;
 
     return RESULT_OK;
 }
@@ -604,9 +650,11 @@ TEST(App, Run)
     ASSERT_EQ(1, g_EngineCtx.m_WasResultCalled);
 }
 
+extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     InstallAdapter(argc, argv);
     jc_test_init(&argc, argv);
     return jc_test_run_all();
