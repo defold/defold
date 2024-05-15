@@ -17,7 +17,8 @@
             [clojure.test :refer :all]
             [editor.code.data :as data]
             [editor.code.data-test :refer [c cr layout-info]]
-            [editor.code.script :as script]))
+            [editor.code.script :as script]
+            [editor.code.script-compilation :as script-compilation]))
 
 (def ^:private indent-string "    ")
 (def ^:private indent-level-pattern (data/indent-level-pattern (count indent-string)))
@@ -234,7 +235,7 @@
     ["    s = 'will end something'"
      "    |"]))
 
-(def strip-go-prop-declarations #'script/strip-go-property-declarations)
+(def strip-go-prop-declarations #'script-compilation/strip-go-property-declarations)
 
 (deftest strip-go-prop-declarations-test
   (are [code expected]

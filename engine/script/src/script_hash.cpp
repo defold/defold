@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,10 +18,11 @@
 #include <string.h>
 
 #include <dlib/dstrings.h>
-#include <dlib/hash.h>
 #include <dlib/math.h>
 #include <dlib/crypt.h>
 #include "script_private.h"
+
+#include <dmsdk/dlib/hash.h>
 
 extern "C"
 {
@@ -232,25 +233,19 @@ namespace dmScript
         {
             size_t len = 0;
             const char* s = lua_tolstring(L, index, &len);
-            memcpy(buffer, (void*)s, dmMath::Min<uint32_t>(len, bufferlength));
-            buffer[len < bufferlength ? len : bufferlength-1 ] = 0;
+            dmStrlCpy(buffer, s, bufferlength);
         }
         else if (IsHash(L, index))
         {
             dmhash_t* hash = (dmhash_t*)lua_touserdata(L, index);
-            const char* s = (const char*)dmHashReverse64(*hash, 0);
-            if (s)
-            {
-                dmSnPrintf(buffer, bufferlength, "%s", s);
-            }
-            else
-            {
-                dmSnPrintf(buffer, bufferlength, "%llu", (unsigned long long)*hash);
-            }
+
+            DM_HASH_REVERSE_MEM(hash_ctx, 128);
+            const char* reverse = (const char*) dmHashReverseSafe64Alloc(&hash_ctx, *hash);
+            dmStrlCpy(buffer, reverse, bufferlength);
         }
         else
         {
-            dmSnPrintf(buffer, bufferlength, "%s", "<unknown>");
+            dmStrlCpy(buffer, "<unknown type>", bufferlength);
         }
         return buffer;
     }
@@ -269,43 +264,22 @@ namespace dmScript
     static int Script_tostring(lua_State* L)
     {
         dmhash_t hash = CheckHash(L, 1);
+        DM_HASH_REVERSE_MEM(hash_ctx, 64);
+        const char* reverse = (const char*) dmHashReverseSafe64Alloc(&hash_ctx, hash);
         char buffer[64];
-        const char* reverse = (const char*) dmHashReverse64(hash, 0);
-        if (reverse != 0x0)
-        {
-            dmSnPrintf(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, reverse);
-        }
-        else
-        {
-            dmSnPrintf(buffer, sizeof(buffer), "%s: [%llu (unknown)]", SCRIPT_TYPE_NAME_HASH, (unsigned long long)hash);
-        }
+        dmSnPrintf(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, reverse);
+
         lua_pushstring(L, buffer);
         return 1;
     }
 
-    static const char* GetStringHelper(lua_State *L, int index, bool& allocated)
+    static const char* GetStringHelper(dmAllocator* allocator, lua_State* L, int index)
     {
         if (dmScript::IsHash(L, index))
         {
             dmhash_t hash = *(dmhash_t*)lua_touserdata(L, index);
-            const char* reverse = (const char*) dmHashReverse64(hash, 0);
-
-            allocated = true;
-            char* s = 0;
-            if (reverse)
-            {
-                size_t size = strlen(reverse) + 3;
-                s = (char*)malloc(size);
-                dmSnPrintf(s, size, "[%s]", reverse);
-            }
-            else
-            {
-                s = (char*)malloc(64);
-                dmSnPrintf(s, 64, "[%llu (unknown)]", (unsigned long long)hash);
-            }
-            return s;
+            return dmHashReverseSafe64Alloc(allocator, hash);
         }
-        allocated = false;
         return luaL_checkstring(L, index);
     }
 
@@ -314,29 +288,15 @@ namespace dmScript
         // string .. hash
         // hash .. string
         // hash .. hash
-        bool allocated1 = false;
-        const char* s1 = GetStringHelper(L, 1, allocated1);
+        DM_HASH_REVERSE_MEM(hash_ctx1, 256);
+        const char* s1 = GetStringHelper(&hash_ctx1, L, 1);
 
-        bool allocated2 = false;
-        const char* s2 = GetStringHelper(L, 2, allocated2);
+        DM_HASH_REVERSE_MEM(hash_ctx2, 256);
+        const char* s2 = GetStringHelper(&hash_ctx2, L, 2);
 
-        size_t size1 = strlen(s1);
-        size_t size2 = strlen(s2);
-        size_t size = size1 + size2 + 1;
-
-        char* buffer = (char*)malloc(size);
-        buffer[0] = 0;
-
-        dmStrlCpy(buffer, s1, size);
-        dmStrlCat(buffer, s2, size);
-
-        if (allocated1)
-            free((void*)s1);
-        if (allocated2)
-            free((void*)s2);
-
-        lua_pushstring(L, buffer);
-        free((void*)buffer);
+        lua_pushstring(L, s1);
+        lua_pushstring(L, s2);
+        lua_concat(L, 2);
         return 1;
     }
 

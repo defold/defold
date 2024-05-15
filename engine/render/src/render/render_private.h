@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -18,6 +18,7 @@
 #include <string.h> // For memset
 
 #include <dmsdk/dlib/vmath.h>
+#include <dlib/opaque_handle_container.h>
 
 #include <dlib/array.h>
 #include <dlib/message.h>
@@ -241,6 +242,25 @@ namespace dmRender
         dmGraphics::HTexture m_Texture;
     };
 
+    struct RenderCamera
+    {
+        dmMessage::URL   m_URL;
+        HOpaqueHandle    m_Handle;
+        dmVMath::Matrix4 m_View;
+        dmVMath::Matrix4 m_Projection;
+        dmVMath::Matrix4 m_ViewProjection;
+
+        // These are cached each update in case
+        // the camera data has changed and we need to update
+        // based on the new parameters
+        dmVMath::Point3  m_LastPosition;
+        dmVMath::Quat    m_LastRotation;
+
+        RenderCameraData m_Data;
+        uint8_t          m_UseFrustum : 1;
+        uint8_t          m_Dirty : 1;
+    };
+
     struct RenderContext
     {
         DebugRenderer               m_DebugRenderer;
@@ -261,21 +281,20 @@ namespace dmRender
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
-        HFontMap                    m_SystemFontMap;
+        dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
+        HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
+        HFontMap                    m_SystemFontMap;
         Matrix4                     m_View;
         Matrix4                     m_Projection;
         Matrix4                     m_ViewProj;
-
         dmGraphics::HContext        m_GraphicsContext;
-
         HMaterial                   m_Material;
-
         dmMessage::HSocket          m_Socket;
-
-        uint32_t                    m_OutOfResources         : 1;
-        uint32_t                    m_StencilBufferCleared   : 1;
-        uint32_t                    m_MultiBufferingRequired : 1;
+        uint32_t                    m_OutOfResources                : 1;
+        uint32_t                    m_StencilBufferCleared          : 1;
+        uint32_t                    m_MultiBufferingRequired        : 1;
+        uint32_t                    m_CurrentRenderCameraUseFrustum : 1;
     };
 
     struct BufferedRenderBuffer
@@ -309,6 +328,10 @@ namespace dmRender
     void    SetTextureBindingByUnit(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture);
     bool    GetCanBindTexture(dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
     int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
+
+    // Render camera
+    RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
+    RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter

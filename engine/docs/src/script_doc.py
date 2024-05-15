@@ -212,7 +212,7 @@ def _parse_comment(text):
             document_comment = True
 
     if not name_found:
-        logging.warn('Missing tag @name in "%s"' % text)
+        logging.warning('Missing tag @name in "%s"' % text)
         return None
 
     desc_start = min(len(text), text.find('\n'))
@@ -311,7 +311,7 @@ def _parse_comment(text):
             namespace_found = True
 
     if document_comment and not namespace_found:
-        logging.warn('Missing tag @namespace in "%s"' % str)
+        logging.warning('Missing tag @namespace in "%s"' % str)
         return None
 
     return element
@@ -372,7 +372,7 @@ def _parse_comment_yaml(str):
             element_type = "document"
 
     if not name_found:
-        logging.warn('Missing tag @name in "%s"' % str)
+        logging.warning('Missing tag @name in "%s"' % str)
         return None
 
     desc_start = min(len(str), str.find('\n'))
@@ -448,7 +448,7 @@ def _parse_comment_yaml(str):
             namespace_found = True
 
     if element_type == 'document' and not namespace_found:
-        logging.warn('Missing tag @namespace in "%s"' % str)
+        logging.warning('Missing tag @namespace in "%s"' % str)
         return None
 
     return element
@@ -499,7 +499,7 @@ def add_group_to_doc_dict(doc_dict):
         refdocgroups = [
             {
                 "group": "SYSTEM",
-                "namespaces": ["crash", "gui", "go", "profiler", "render", "resource", "sys", "window", "engine", "physics"]
+                "namespaces": ["crash", "gui", "go", "profiler", "render", "resource", "sys", "window", "engine", "physics", "b2d", "b2d.body"]
             },
             {
                 "group": "COMPONENTS",

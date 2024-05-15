@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -1005,6 +1005,9 @@ namespace dmRender
                 uint32_t color_index = dmGraphics::GetBufferTypeIndex(buffer_type);
                 p  = &params.m_ColorBufferParams[color_index];
                 cp = &params.m_ColorBufferCreationParams[color_index];
+
+                params.m_ColorBufferLoadOps[color_index]  = dmGraphics::ATTACHMENT_OP_DONT_CARE;
+                params.m_ColorBufferStoreOps[color_index] = dmGraphics::ATTACHMENT_OP_STORE;
             }
             else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
             {
@@ -1180,9 +1183,36 @@ namespace dmRender
         return asset_handle;
     }
 
+    static dmGraphics::HRenderTarget CheckRenderTarget(lua_State* L, int index, RenderScriptInstance* i)
+    {
+        if(lua_isnumber(L, index))
+        {
+            return (dmGraphics::HRenderTarget) CheckAssetHandle(L, index, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        }
+        else if (dmScript::IsHash(L, index) || lua_isstring(L, index))
+        {
+            dmhash_t rt_id                  = dmScript::CheckHashOrString(L, index);
+            RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
+
+            if (render_resource == 0x0)
+            {
+                return luaL_error(L, "Could not find render target '%s'", dmHashReverseSafe64(rt_id));
+            }
+
+            if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
+            {
+                return luaL_error(L, "Render resource is not a render target");
+            }
+
+            return render_resource->m_Resource;
+        }
+        return luaL_error(L, "Invalid render target.");;
+    }
+
     /*# deletes a render target
      *
-     * Deletes a previously created render target.
+     * Deletes a render target created by a render script.
+     * You cannot delete a render target resource.
      *
      * @name render.delete_render_target
      * @param render_target [type:render_target] render target to delete
@@ -1216,6 +1246,7 @@ namespace dmRender
      *
      * Sets a render target. Subsequent draw operations will be to the
      * render target until it is replaced by a subsequent call to set_render_target.
+     * This function supports render targets created by a render script, or a render target resource.
      *
      * @name render.set_render_target
      * @param render_target [type:render_target] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
@@ -1249,47 +1280,31 @@ namespace dmRender
      *
      * end
      * ```
+     *
+     * ```lua
+     * function update(self, dt)
+     *     -- set render target by a render target resource identifier
+     *     render.set_render_target('my_rt_resource')
+     *
+     *     -- draw a predicate to the render target
+     *     render.draw(self.my_pred)
+     *
+     *     -- reset the render target to the default backbuffer
+     *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
+     *
+     * end
+     * ```
     */
     int RenderScript_SetRenderTarget(lua_State* L)
     {
-        RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmGraphics::HRenderTarget render_target = 0x0;
         DM_LUA_STACK_CHECK(L, 0);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        dmGraphics::HRenderTarget render_target = 0;
 
         if (lua_gettop(L) > 0)
         {
-            if(lua_isnumber(L, 1))
-            {
-                render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
-            }
-            else if (dmScript::IsHash(L, 1) || lua_isstring(L, 1))
-            {
-                dmhash_t rt_id                  = dmScript::CheckHashOrString(L, 1);
-                RenderResource* render_resource = i->m_RenderResources.Get(rt_id);
-
-                if (render_resource == 0x0)
-                {
-                    char str[128];
-                    char buffer[256];
-                    dmSnPrintf(buffer, sizeof(buffer), "Could not find render target '%s' %llu",
-                        dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long) rt_id); // since lua doesn't support proper format arguments
-                    return DM_LUA_ERROR("%s", buffer);
-                }
-
-                if (render_resource->m_Type != RENDER_RESOURCE_TYPE_RENDER_TARGET)
-                {
-                    return DM_LUA_ERROR("Render resource is not a render target");
-                }
-
-                render_target = (dmGraphics::HRenderTarget) render_resource->m_Resource;
-            }
-            else
-            {
-                if(!lua_isnil(L, 1) && luaL_checkint(L, 1) != 0)
-                {
-                    return DM_LUA_ERROR("Invalid render target supplied to %s.set_render_target.", RENDER_SCRIPT_LIB_NAME);
-                }
-            }
+            if (!lua_isnil(L, 1))
+                render_target = CheckRenderTarget(L, 1, i);
         }
 
         uint32_t transient_buffer_types = 0;
@@ -1412,27 +1427,26 @@ namespace dmRender
 
     /*# sets the render target size
      *
+     * Sets the render target size for a render target created from
+     * either a render script, or from a render target resource.
+     *
      * @name render.set_render_target_size
      * @param render_target [type:render_target] render target to set size for
      * @param width [type:number] new render target width
      * @param height [type:number] new render target height
      * @examples
      *
-     * Set the render target size to the window size:
+     * Resize render targets to the current window size:
      *
      * ```lua
      * render.set_render_target_size(self.my_render_target, render.get_window_width(), render.get_window_height())
+     * render.set_render_target_size('my_rt_resource', render.get_window_width(), render.get_window_height())
      * ```
      */
     int RenderScript_SetRenderTargetSize(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        if (!lua_isnumber(L, 1))
-        {
-            return luaL_error(L, "Expected render target as the second argument to %s.set_render_target_size.", RENDER_SCRIPT_LIB_NAME);
-        }
-
-        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
         uint32_t width = luaL_checkinteger(L, 2);
         uint32_t height = luaL_checkinteger(L, 3);
         dmGraphics::SetRenderTargetSize(render_target, width, height);
@@ -1450,7 +1464,7 @@ namespace dmRender
      * When mixing binding using both units and sampler names, you might end up in situations
      * where two different textures will be applied to the same bind location in the shader.
      * In this case, the texture set to the named sampler will take precedence over the unit.
-     * 
+     *
      * Note that you can bind multiple sampler names to the same texture, in case you want to reuse
      * the same texture for differnt use-cases. It is however recommended that you use the same name
      * everywhere for the textures that should be shared across different materials.
@@ -1489,6 +1503,20 @@ namespace dmRender
      *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
      *
      *     render.enable_texture(0, self.my_render_target, render.BUFFER_COLOR_BIT)
+     *     -- draw a predicate with the render target available as texture 0 in the predicate
+     *     -- material shader.
+     *     render.draw(self.my_pred)
+     * end
+     * ```
+     *
+     * ```lua
+     * function update(self, dt)
+     *     -- enable render target by resource id
+     *     render.set_render_target('my_rt_resource')
+     *     render.draw(self.my_pred)
+     *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
+     *
+     *     render.enable_texture(0, 'my_rt_resource', render.BUFFER_COLOR_BIT)
      *     -- draw a predicate with the render target available as texture 0 in the predicate
      *     -- material shader.
      *     render.draw(self.my_pred)
@@ -1653,6 +1681,8 @@ namespace dmRender
      * ```lua
      * -- get the width of the render target color buffer
      * local w = render.get_render_target_width(self.target_right, render.BUFFER_COLOR_BIT)
+     * -- get the width of a render target resource
+     * local w = render.get_render_target_width('my_rt_resource', render.BUFFER_COLOR_BIT)
      * ```
      */
     int RenderScript_GetRenderTargetWidth(lua_State* L)
@@ -1661,14 +1691,8 @@ namespace dmRender
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        (void)i;
 
-        if (!lua_isnumber(L, 1))
-        {
-            return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_width.", RENDER_SCRIPT_LIB_NAME);
-        }
-
-        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
         dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
 
         uint32_t width, height;
@@ -1696,6 +1720,8 @@ namespace dmRender
      * ```lua
      * -- get the height of the render target color buffer
      * local h = render.get_render_target_height(self.target_right, render.BUFFER_COLOR_BIT)
+     * -- get the height of a render target resource
+     * local w = render.get_render_target_height('my_rt_resource', render.BUFFER_COLOR_BIT)
      * ```
      */
     int RenderScript_GetRenderTargetHeight(lua_State* L)
@@ -1704,14 +1730,7 @@ namespace dmRender
         (void) top;
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        (void)i;
-
-        if (!lua_isnumber(L, 1))
-        {
-            return luaL_error(L, "Expected render target as the first argument to %s.get_render_target_height.", RENDER_SCRIPT_LIB_NAME);
-        }
-
-        dmGraphics::HRenderTarget render_target = (dmGraphics::HRenderTarget) CheckAssetHandle(L, 1, i->m_RenderContext->m_GraphicsContext, dmGraphics::ASSET_TYPE_RENDER_TARGET);
+        dmGraphics::HRenderTarget render_target = CheckRenderTarget(L, 1, i);
         dmGraphics::BufferType buffer_type = CheckBufferType(L, 2);
         uint32_t width, height;
         dmGraphics::GetRenderTargetSize(render_target, buffer_type, width, height);
@@ -2923,8 +2942,7 @@ namespace dmRender
      */
     int RenderScript_EnableMaterial(lua_State* L)
     {
-        int top = lua_gettop(L);
-        (void)top;
+        DM_LUA_STACK_CHECK(L, 0);
 
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (!lua_isnil(L, 1))
@@ -2934,33 +2952,26 @@ namespace dmRender
 
             if (render_resource == 0x0)
             {
-                assert(top == lua_gettop(L));
-                char str[128];
-                char buffer[256];
-                dmSnPrintf(buffer, sizeof(buffer), "Could not find material '%s' %llu", dmScript::GetStringFromHashOrString(L, 1, str, sizeof(str)), (unsigned long long)material_id); // since lua doesn't support proper format arguments
-                return luaL_error(L, "%s", buffer);
+                return DM_LUA_ERROR("Could not find material '%s'", dmHashReverseSafe64(material_id));
             }
             else if (render_resource->m_Type != RENDER_RESOURCE_TYPE_MATERIAL)
             {
-                return luaL_error(L, "Render resource is not a material.");
+                return DM_LUA_ERROR("Render resource is not a material.");
             }
 
             HMaterial material = (HMaterial) render_resource->m_Resource;
             if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_MATERIAL, (uint64_t)material)))
             {
-                assert(top == lua_gettop(L));
                 return 0;
             }
             else
             {
-                assert(top == lua_gettop(L));
-                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
             }
         }
         else
         {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "%s.enable_material was supplied nil as material.", RENDER_SCRIPT_LIB_NAME);
+            return DM_LUA_ERROR("%s.enable_material was supplied nil as material.", RENDER_SCRIPT_LIB_NAME);
         }
     }
 
@@ -2981,13 +2992,84 @@ namespace dmRender
      * render.disable_material()
      * ```
      */
-    int RenderScript_DisableMaterial(lua_State* L)
+    static int RenderScript_DisableMaterial(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_MATERIAL)))
             return 0;
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    /*# sets the current render camera to be used for rendering
+     * Sets the current render camera to be used for rendering. If a render camera
+     * has been set by the render script, the renderer will be using its projection and view matrix
+     * during rendering. If a projection and/or view matrix has been set by the render script, 
+     * they will not be used until the current render camera has been reset by calling `render.set_camera()`.
+     * 
+     * If the 'use_frustum' flag in the options table has been set to true, the renderer will automatically use the
+     * camera frustum for frustum culling regardless of what frustum is being passed into the render.draw() function.
+     * Note that the frustum plane option in render.draw can still be used together with the camera.
+     *
+     * @name render.set_camera
+     * @param camera [type:url|handle|nil] camera id to use, or nil to reset
+     * @param [options] [type:table] optional table with properties:
+     *
+     * `use_frustum`
+     * : [type:boolean] If true, the renderer will use the cameras view-projection matrix for frustum culling (default: false)
+     *
+     *
+     * @examples
+     *
+     * Set the current camera to be used for rendering
+     *
+     * ```lua
+     * render.set_camera("main:/my_go#camera")
+     * render.draw(self.my_pred)
+     * render.set_camera(nil)
+     * ```
+     *
+     * Use the camera frustum for frustum culling together with a specific frustum plane option for the draw command
+     *
+     * ```lua
+     * -- The camera frustum will take precedence over the frustum plane option in render.draw
+     * render.set_camera("main:/my_go#camera", { use_frustum = true })
+     * -- However, we can still customize the frustum planes regardless of the camera option!
+     * render.draw(self.my_pred, { frustum_planes = render.FRUSTUM_PLANES_ALL })
+     * render.set_camera()
+     * ```
+     */
+    static int RenderScript_SetCamera(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+
+        HRenderCamera camera = 0;
+        bool use_frustum = false;
+
+        if (lua_gettop(L) > 0 && !lua_isnil(L, 1))
+        {
+            RenderCamera* c = CheckRenderCamera(L, 1, i->m_RenderContext);
+            camera = c->m_Handle;
+
+            // Parse options table
+            if (lua_istable(L, 2))
+            {
+                luaL_checktype(L, 2, LUA_TTABLE);
+                lua_pushvalue(L, 2);
+
+                lua_getfield(L, -1, "use_frustum");
+                use_frustum = lua_toboolean(L, -1);
+                lua_pop(L, 1);
+
+                lua_pop(L, 1);
+            }
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_CAMERA, (uint64_t) camera, use_frustum)))
+            return 0;
+        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     static const luaL_reg Render_methods[] =
@@ -3028,6 +3110,7 @@ namespace dmRender
         {"constant_buffer",                 RenderScript_ConstantBuffer},
         {"enable_material",                 RenderScript_EnableMaterial},
         {"disable_material",                RenderScript_DisableMaterial},
+        {"set_camera",                      RenderScript_SetCamera},
         {0, 0}
     };
 
@@ -3425,7 +3508,7 @@ bail:
 
     void ClearRenderScriptInstanceRenderResources(HRenderScriptInstance render_script_instance)
     {
-        render_script_instance->m_RenderResources.Clear();   
+        render_script_instance->m_RenderResources.Clear();
     }
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)

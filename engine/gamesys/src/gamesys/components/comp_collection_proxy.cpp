@@ -971,16 +971,18 @@ namespace dmGameSystem
 
     /*# return an indexed table of all the resources of a collection proxy
      *
-     * return an indexed table of resources for a collection proxy. Each
-     * entry is a hexadecimal string that represents the data of the specific
-     * resource. This representation corresponds with the filename for each
-     * individual resource that is exported when you bundle an application with
-     * LiveUpdate functionality.
+     * return an indexed table of resources for a collection proxy where the
+     * referenced collection has been excluded using LiveUpdate. Each entry is a
+     * hexadecimal string that represents the data of the specific resource.
+     * This representation corresponds with the filename for each individual
+     * resource that is exported when you bundle an application with LiveUpdate
+     * functionality.
      *
      * @namespace collectionproxy
      * @name collectionproxy.get_resources
      * @param collectionproxy [type:url] the collectionproxy to check for resources.
-     * @return resources [type:table] the resources
+     * @return resources [type:table] the resources, or an empty list if the
+     * collection was not excluded.
      *
      * @examples
      *

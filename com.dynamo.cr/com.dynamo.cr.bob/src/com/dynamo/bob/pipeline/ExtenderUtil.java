@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -64,6 +64,7 @@ public class ExtenderUtil {
 
     public static final String appManifestPath = "_app/" + ExtenderClient.appManifestFilename;
     public static final String proguardPath = "_app/app.pro";
+    public static final String privacyManifestPath = "_app/PrivacyInfo.xcprivacy";
     public static final String JAR_RE = "(.+\\.jar)";
 
     private static class FSExtenderResource implements ExtenderResource {
@@ -530,6 +531,20 @@ public class ExtenderUtil {
             IResource resource = getProjectResource(project, "android", "proguard");
             if (resource != null) {
                 sources.add(new FSAliasResource(resource, project.getRootDirectory(), proguardPath));
+            }
+        }
+
+        // For iOS and macOS only: Add the project privacy manifest 
+        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+            IResource resource = getProjectResource(project, "ios", "privacymanifest");
+            if (resource != null) {
+                sources.add(new FSAliasResource(resource, project.getRootDirectory(), privacyManifestPath));
+            }
+        }
+        else if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {
+            IResource resource = getProjectResource(project, "osx", "privacymanifest");
+            if (resource != null) {
+                sources.add(new FSAliasResource(resource, project.getRootDirectory(), privacyManifestPath));
             }
         }
 

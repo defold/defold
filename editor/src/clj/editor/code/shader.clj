@@ -23,8 +23,8 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import (com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType ShaderUtil$SPIRVReflector$Resource)
-           (com.dynamo.graphics.proto Graphics$ShaderDesc$Language)))
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType]
+           [com.dynamo.graphics.proto Graphics$ShaderDesc$Language]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -78,36 +78,22 @@
                    :language "glsl"
                    :label "Vertex Program"
                    :icon "icons/32/Icons_32-Vertex-shader.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "fp"
                    :language "glsl"
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "glsl"
                    :label "Shader Include"
                    :icon "icons/64/Icons_29-AT-Unknown.png"
+                   :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
-
-(defn- shader-type-from-str [^String shader-type-in]
-  (case shader-type-in
-    "int" :shader-type-int
-    "uint" :shader-type-uint
-    "float" :shader-type-float
-    "vec2" :shader-type-vec2
-    "vec3" :shader-type-vec3
-    "vec4" :shader-type-vec4
-    "mat2" :shader-type-mat2
-    "mat3" :shader-type-mat3
-    "mat4" :shader-type-mat4
-    "sampler2D" :shader-type-sampler2d
-    "sampler3D" :shader-type-sampler3d
-    "samplerCube" :shader-type-sampler-cube
-    "sampler2DArray" :shader-type-sampler2d-array
-    :shader-type-unknown))
 
 (defn shader-stage-from-ext
   ^ShaderUtil$ES2ToES3Converter$ShaderType [^String resource-ext]
@@ -126,13 +112,6 @@
 
 (defn- error-string->error-value [^String error-string]
   (g/error-fatal (string/trim error-string)))
-
-(defn- shader-resource->map [^ShaderUtil$SPIRVReflector$Resource shader-resource]
-  {:name (.name shader-resource)
-   :type (shader-type-from-str (.type shader-resource))
-   :element-count (.elementCount shader-resource)
-   :set (.set shader-resource)
-   :binding (.binding shader-resource)})
 
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-without-spirv
   (into-array Graphics$ShaderDesc$Language
@@ -238,7 +217,6 @@
 
   (input included-proj-paths+full-lines ProjPath+Lines :array)
 
-  (output build-targets g/Any :cached produce-build-targets)
   (output proj-path->full-lines g/Any (g/fnk [included-proj-paths+full-lines]
                                                 (into {} included-proj-paths+full-lines)))
   (output proj-path+full-lines ProjPath+Lines :cached produce-proj-path+full-lines)

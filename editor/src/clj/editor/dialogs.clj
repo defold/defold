@@ -787,20 +787,36 @@
 
 (defn- sanitize-common [name]
   (-> name
-      string/trim
       (string/replace #"[/\\]" "") ; strip path separators
       (string/replace #"[\"']" "") ; strip quotes
-      (string/replace #"[<>:|?*]" ""))) ; Additional Windows forbidden characters
+      (string/replace #"[<>:|?*]" "") ; Additional Windows forbidden characters
+      string/trim))
 
 (defn sanitize-file-name [extension name]
   (let [name (sanitize-common name)]
     (cond-> name
-            ; disallow dots when extension is expected
-            (seq extension) (string/replace #"\." "")
             ; disallow "." and ".." names (only necessary when there is no extension)
             (not (seq extension)) (string/replace #"^\.{1,2}$" "")
             ; append extension if there was one
             (and (seq extension) (seq name)) (str "." extension))))
+
+(defn- apply-extension [name extension]
+  (cond-> name (seq extension) (str "." extension)))
+
+(defn- sanitize-against-extensions
+  "Sanitizes the file/folder name against a coll of possible extensions
+
+  Returns a valid (and possibly empty!), file/folder name, or nil"
+  [name extensions]
+  {:pre [(string? name) (seq extensions)]}
+  (let [name (sanitize-common name)]
+    (when (every? (fn [extension]
+                    (let [full-name (apply-extension name extension)]
+                      (and (pos? (count full-name))
+                           (not= "." full-name)
+                           (not= ".." full-name))))
+                  extensions)
+      name)))
 
 (defn sanitize-folder-name [name]
   (sanitize-common name))
@@ -813,10 +829,11 @@
                        (map sanitize-folder-name))
                      (string/split path #"[\\\/]"))))
 
-(defn- rename-dialog [{:keys [initial-name name title label validate sanitize] :as props}]
-  (let [sanitized (some-> (not-empty name) sanitize)
-        validation-msg (some-> sanitized validate)
-        invalid (or (empty? sanitized) (some? validation-msg))]
+(defn- rename-dialog [{:keys [initial-name name title label extensions validate] :as props}]
+  (let [sanitized (sanitize-against-extensions name extensions)
+        validation-msg (when sanitized
+                         (some #(validate (apply-extension sanitized %)) extensions))
+        invalid (or (not sanitized) (some? validation-msg))]
     {:fx/type dialog-stage
      :showing (fxui/dialog-showing? props)
      :on-close-request {:event-type :cancel}
@@ -837,7 +854,10 @@
                            :text "Preview"}
                           {:fx/type fxui/text-field
                            :editable false
-                           :text (or validation-msg sanitized)}]}
+                           :text (or validation-msg
+                                     (->> extensions
+                                          (map #(apply-extension sanitized %))
+                                          (string/join ", ")))}]}
      :footer {:fx/type dialog-buttons
               :children [{:fx/type fxui/button
                           :text "Cancel"
@@ -853,25 +873,29 @@
 (defn make-rename-dialog
   "Shows rename dialog
 
-  Options expect keys:
-  - `:title`
-  - `:label`
-  - `:validate`
-  - `:sanitize`"
-  ^String [name options]
-  (let [sanitize (:sanitize options)]
-    (fxui/show-dialog-and-await-result!
-      :initial-state {:name name}
-      :event-handler (fn [state event]
-                       (case (:event-type event)
-                         :set-name (assoc state :name (:fx/event event))
-                         :cancel (assoc state ::fxui/result nil)
-                         :confirm (assoc state ::fxui/result (-> state
-                                                                 :name
-                                                                 sanitize
-                                                                 not-empty))))
-      :description (assoc options :fx/type rename-dialog
-                                  :initial-name (sanitize name)))))
+  Returns either file name that fits all extensions (might be empty!) or nil
+
+  Options expect kv-args:
+    :title         dialog title, a string
+    :label         name input label, a string
+    :extensions    non-empty coll of used extension for renamed file(s), where
+                   empty string or nil item means the renamed file will be used
+                   without any extensions
+    :validate      1-arg fn from a sanitized file name to either nil (if valid)
+                   or string (error message)"
+  ^String [name & {:as options}]
+  (fxui/show-dialog-and-await-result!
+    :initial-state {:name name}
+    :event-handler (fn [state event]
+                     (case (:event-type event)
+                       :set-name (assoc state :name (:fx/event event))
+                       :cancel (assoc state ::fxui/result nil)
+                       :confirm (assoc state ::fxui/result
+                                             (sanitize-against-extensions
+                                               (:name state)
+                                               (:extensions options)))))
+    :description (assoc options :fx/type rename-dialog
+                                :initial-name name)))
 
 (defn- relativize [^File base ^File path]
   (let [[^Path base ^Path path] (map #(Paths/get (.toURI ^File %)) [base path])]

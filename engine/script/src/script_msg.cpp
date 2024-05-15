@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -58,7 +58,7 @@ namespace dmScript
 
     const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)
     {
-        char tmp[32];
+        DM_HASH_REVERSE_MEM(hash_ctx, 512);
         *buffer = '\0';
 
         const char* unknown = "<unknown>";
@@ -72,21 +72,20 @@ namespace dmScript
 
         if( !socketname )
         {
-            dmSnPrintf(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Socket));
-            socketname = tmp;
+            socketname = dmHashReverseSafe64Alloc(&hash_ctx, url->m_Socket);
         }
 
         dmStrlCpy(buffer, socketname ? socketname : unknown, buffer_size);
         dmStrlCat(buffer, ":", buffer_size);
         if (url->m_Path != 0)
         {
-            dmSnPrintf(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Path));
+            const char* tmp = dmHashReverseSafe64Alloc(&hash_ctx, url->m_Path);
             dmStrlCat(buffer, tmp, buffer_size);
         }
         if (url->m_Fragment != 0)
         {
+            const char* tmp = dmHashReverseSafe64Alloc(&hash_ctx, url->m_Fragment);
             dmStrlCat(buffer, "#", buffer_size);
-            dmSnPrintf(tmp, sizeof(tmp), "%s", dmHashReverseSafe64(url->m_Fragment));
             dmStrlCat(buffer, tmp, buffer_size);
         }
         return buffer;
@@ -95,7 +94,7 @@ namespace dmScript
     static int URL_tostring(lua_State *L)
     {
         dmMessage::URL* url = (dmMessage::URL*)lua_touserdata(L, 1);
-        char buffer[64];
+        char buffer[512];
         UrlToString(url, buffer, sizeof(buffer));
         lua_pushfstring(L, "%s: [%s]", SCRIPT_TYPE_NAME_URL, buffer);
         return 1;
@@ -105,7 +104,7 @@ namespace dmScript
     {
         const char* s = luaL_checkstring(L, 1);
         dmMessage::URL* url = CheckURL(L, 2);
-        char buffer[64];
+        char buffer[512];
         UrlToString(url, buffer, sizeof(buffer));
         lua_pushfstring(L, "%s[%s]", s, buffer);
         return 1;
@@ -536,9 +535,9 @@ namespace dmScript
         dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, (uintptr_t) desc, data, data_size, 0);
         if (result == dmMessage::RESULT_SOCKET_NOT_FOUND)
         {
-            char receiver_buffer[64];
+            char receiver_buffer[512];
             UrlToString(&receiver, receiver_buffer, sizeof(receiver_buffer));
-            char sender_buffer[64];
+            char sender_buffer[512];
             UrlToString(&sender, sender_buffer, sizeof(sender_buffer));
             return luaL_error(L, "Could not send message '%s' from '%s' to '%s'.", dmHashReverseSafe64(message_id), sender_buffer, receiver_buffer);
         }

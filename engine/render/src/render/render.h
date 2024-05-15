@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -49,6 +49,7 @@ namespace dmRender
     typedef struct ComputeProgram*          HComputeProgram;
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
+    typedef HOpaqueHandle                   HRenderCamera;
 
     /**
      * Display profiles handle
@@ -128,14 +129,26 @@ namespace dmRender
         uint32_t                        m_VertexShaderDescSize;
         uint32_t                        m_FragmentShaderDescSize;
         uint32_t                        m_MaxCharacters;
+        uint32_t                        m_MaxBatches;
         uint32_t                        m_CommandBufferSize;
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum
         uint32_t                        m_MaxDebugVertexCount;
     };
 
-    static const uint8_t RENDERLIST_INVALID_DISPATCH = 0xff;
+    struct RenderCameraData
+    {
+        dmVMath::Vector4 m_Viewport;
+        float            m_AspectRatio;
+        float            m_Fov;
+        float            m_NearZ;
+        float            m_FarZ;
+        float            m_OrthographicZoom;
+        uint8_t          m_AutoAspectRatio        : 1;
+        uint8_t          m_OrthographicProjection : 1;
+    };
 
+    static const uint8_t RENDERLIST_INVALID_DISPATCH    = 0xff;
     static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0ULL;
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
@@ -327,6 +340,20 @@ namespace dmRender
     void                            TrimBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     void                            RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
 
+    /** Render cameras
+     * A render camera is a wrapper around common camera properties such as fov, near and far planes, viewport and aspect ratio.
+     * Within the engine, the render cameras are "owned" by the renderer, but they can be manipulated elsewhere.
+     * The render script can set current camera used for rendering by using render.set_camera(...), which will automatically
+     * take precedence over the view and projection matrices set by render.set_view() and render.set_projection().
+     */
+    HRenderCamera                   NewRenderCamera(HRenderContext context);
+    void                            DeleteRenderCamera(HRenderContext context, HRenderCamera camera);
+    void                            SetRenderCameraURL(HRenderContext render_context, HRenderCamera camera, const dmMessage::URL* camera_url);
+    void                            GetRenderCameraView(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx);
+    void                            GetRenderCameraProjection(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx);
+    void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const RenderCameraData* data);
+    void                            GetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData* data);
+    void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
 }
 
 #endif /* DM_RENDER_H */

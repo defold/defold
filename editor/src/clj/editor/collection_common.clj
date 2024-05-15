@@ -26,7 +26,8 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :refer [pair]])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [java.io StringReader]
            [javax.vecmath Matrix4d]))
@@ -225,6 +226,33 @@
 (defn- pose->transform-properties [pose]
   (pose/to-map pose :position :rotation :scale3))
 
+(defn- sort-instance-descs-for-build-output [instance-descs]
+  (let [instance-id->parent-id
+        (into {}
+              (mapcat (fn [instance-desc]
+                        (let [instance-id (:id instance-desc)
+                              child-ids (:children instance-desc)]
+                          (map (fn [child-id]
+                                 (pair child-id instance-id))
+                               child-ids))))
+              instance-descs)
+
+        instance-id->hierarchy-depth
+        (fn instance-id->hierarchy-depth [instance-id]
+          (->> instance-id
+               (iterate instance-id->parent-id)
+               (take-while some?)
+               (count)))
+
+        instance-desc->order-key
+        (fn instance-desc->order-key [instance-desc]
+          (let [instance-id (:id instance-desc)
+                hierarchy-depth (instance-id->hierarchy-depth instance-id)]
+            (pair hierarchy-depth instance-id)))]
+
+    (sort-by instance-desc->order-key
+             instance-descs)))
+
 (defn- build-collection [build-resource dep-resources user-data]
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
   ;; when reading this. It will clear up how the output binaries are structured.
@@ -270,7 +298,7 @@
                                       (comp cat cat (keep properties/try-get-go-prop-proj-path))
                                       go-instance-component-go-props)
         collection-desc {:name name
-                         :instances instance-descs
+                         :instances (sort-instance-descs-for-build-output instance-descs)
                          :scale-along-z (if scale-along-z 1 0)
                          :property-resources property-resource-paths}]
     {:resource build-resource

@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -83,7 +83,7 @@ union SaveLoadBuffer
         if (required_size > MAX_BUFFER_SIZE)
         {
             char* buffer = 0;
-            dmMemory::Result r = dmMemory::AlignedMalloc((void**)&buffer, 16, required_size);
+            dmMemory::AlignedMalloc((void**)&buffer, 16, required_size);
             return buffer;
         }
         else
@@ -161,13 +161,14 @@ union SaveLoadBuffer
         if (!file)
         {
             Sys_FreeTableSerializationBuffer(buffer);
-            #if !defined(DM_NO_ERRNO)
-                char errmsg[128] = {};
-                dmStrError(errmsg, sizeof(errmsg), errno);
-                return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
-            #else
-                return luaL_error(L, "Could not open the file %s", tmp_filename);
-            #endif
+
+        #if defined(DM_NO_ERRNO)
+            return luaL_error(L, "Could not open the file %s", tmp_filename);
+        #else
+            char errmsg[128] = {};
+            dmStrError(errmsg, sizeof(errmsg), errno);
+            return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
+        #endif
         }
 
         bool result = fwrite(buffer, 1, n_used, file) == n_used;
@@ -177,7 +178,14 @@ union SaveLoadBuffer
         if (!result)
         {
             dmSys::Unlink(tmp_filename);
+
+        #if defined(DM_NO_ERRNO)
             return luaL_error(L, "Could not write to the file %s.", filename);
+        #else
+            char errmsg[128] = {};
+            dmStrError(errmsg, sizeof(errmsg), errno);
+            return luaL_error(L, "Could not write to the file %s, reason: %s.", filename, errmsg);
+        #endif
         }
 
         if (dmSys::Rename(filename, tmp_filename) != dmSys::RESULT_OK)
@@ -1415,7 +1423,7 @@ union SaveLoadBuffer
             g_DebuggerLightweightHook = 0;
         }
         g_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        
+
         lua_sethook(L1, Sys_DebuggerLightweightHook, LUA_MASKCALL, 0);
         return 0;
     }

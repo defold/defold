@@ -73,27 +73,35 @@
   (let [{:keys [resource] :as resource-node} (and node-id (g/node-by-id node-id))]
     (and resource (resource/resource-name resource))))
 
-(defn- root-causes
-  [error]
-  (->> (tree-seq :causes :causes error)
-       (filter :message)
-       (remove :causes)))
-
 (defn- render-error
   [gl render-args renderables nrenderables]
   (when (= pass/overlay (:pass render-args))
-    (let [errors (->> renderables
-                      (map (comp :error :user-data))
-                      (mapcat root-causes)
-                      (map #(select-keys % [:_node-id :message]))
-                      set)]
+    (let [rendered-errors 15
+          errors (into []
+                       (comp
+                         (map (comp :error :user-data))
+                         (mapcat #(tree-seq :causes :causes %))
+                         (filter :message)
+                         (remove :causes)
+                         (map #(select-keys % [:_node-id :message]))
+                         (distinct)
+                         ;; don't go through all errors since traversing deep trees is too slow
+                         (take (inc rendered-errors)))
+                       renderables)]
       (scene-text/overlay gl "Render error:" 24.0 -22.0)
-      (doseq [[n error] (partition 2 (interleave (range) errors))]
-        (let [message (format "- %s: %s"
-                              (or (get-resource-name (:_node-id error))
-                                  "unknown")
-                              (:message error))]
-          (scene-text/overlay gl message 24.0 (- -22.0 (* 14 (inc n)))))))))
+      (->> errors
+           (eduction
+             (take rendered-errors)
+             (map-indexed vector))
+           (run!
+             (fn [[n error]]
+               (let [message (format "- %s: %s"
+                                     (or (get-resource-name (:_node-id error))
+                                         "unknown")
+                                     (:message error))]
+                 (scene-text/overlay gl message 24.0 (- -22.0 (* 14 (inc n))))))))
+      (when (< rendered-errors (count errors))
+        (scene-text/overlay gl "...and more" 24.0 (- -22.0 (* 14 (inc rendered-errors))))))))
 
 (defn substitute-render-data
   [error]
@@ -870,6 +878,7 @@
       (.destroy drawable))
     (when-let [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable)]
       (gl/with-drawable-as-current picking-drawable
+        (scene-cache/drop-context! gl)
         (.glFinish gl))
       (.destroy picking-drawable))
     (g/transact

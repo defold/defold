@@ -526,7 +526,10 @@ namespace dmGameSystem
                     &attribute_infos);
 
         uint8_t* scratch_attribute_vertex = (uint8_t*) malloc(dmGraphics::GetVertexDeclarationStride(material_vx_decl));
-        uint32_t custom_vertex_size       = 0;
+
+        dmGraphics::VertexAttributeInfos non_default_attribute;
+        non_default_attribute.m_VertexStride = 0;
+        non_default_attribute.m_NumInfos     = 0;
 
         for (int i = 0; i < material_infos.m_NumInfos; ++i)
         {
@@ -542,21 +545,31 @@ namespace dmGameSystem
                     dmGraphics::GetGraphicsType(attr_model.m_DataType),
                     attr_model.m_Normalize);
 
-                uint8_t* data_write_ptr = scratch_attribute_vertex + custom_vertex_size;
-                memcpy(data_write_ptr, attr_model.m_ValuePtr, attr_model.m_ValueByteSize);
-                custom_vertex_size += attr_model.m_ValueByteSize;
+                uint32_t attribute_index = non_default_attribute.m_NumInfos++;
+                non_default_attribute.m_Infos[attribute_index]                 = attr_model;
+                non_default_attribute.m_Infos[attribute_index].m_ElementCount  = attr_material.m_ElementCount;
+                non_default_attribute.m_VertexStride                          += attr_model.m_ValueByteSize;
             }
         }
 
         uint32_t vertex_count     = render_item->m_Buffers->m_VertexCount;
-        uint32_t vertex_data_size = custom_vertex_size * vertex_count;
+        uint32_t vertex_data_size = non_default_attribute.m_VertexStride * vertex_count;
         void* attribute_data      = malloc(vertex_data_size);
+        memset(attribute_data, 0, vertex_data_size);
         uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
+
+        const dmRigDDF::Mesh* mesh = render_item->m_Mesh;
+        const float* positions     = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
+        const float* normals       = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
+        const float* tangents      = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
+        const float* colors        = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
+        const float* uv0           = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
+        const float* uv1           = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
 
         for (int i = 0; i < vertex_count; ++i)
         {
-            memcpy(vertex_write_ptr, scratch_attribute_vertex, custom_vertex_size);
-            vertex_write_ptr += custom_vertex_size;
+            vertex_write_ptr = dmRig::WriteSingleVertexDataByAttributes(vertex_write_ptr, i, &non_default_attribute,
+                positions, normals, tangents, uv0, uv1, colors);
         }
 
         rd->m_VertexBuffer      = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);

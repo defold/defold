@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -119,6 +119,8 @@ Test2D::Test2D()
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape2D)
 , m_IsBulletFunc(dmPhysics::IsBullet2D)
 , m_SetBulletFunc(dmPhysics::SetBullet2D)
+, m_GetWorldContextFunc(dmPhysics::GetWorldContext2D)
+, m_GetCollisionObjectContextFunc(dmPhysics::GetCollisionObjectContext2D)
 , m_Vertices(new float[3*2])
 , m_VertexCount(3)
 , m_PolygonRadius(b2_polygonRadius)
@@ -1817,6 +1819,27 @@ TYPED_TEST(PhysicsTest, SetGridShapeEnable)
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     dmPhysics::DeleteHullSet2D(hull_set);
+}
+
+TYPED_TEST(PhysicsTest, ScriptApiBox2D)
+{
+    ASSERT_NE((void*)0, (*TestFixture::m_Test.m_GetWorldContextFunc)(TestFixture::m_World));
+
+    dmPhysics::CollisionObjectData data;
+    VisualObject vo_b;
+    // the sphere is in the upper right quadrant
+    vo_b.m_Position = dmVMath::Point3(9.0f, 9.0f, 0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_b;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 8.0f);
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    ASSERT_NE((void*)0, (*TestFixture::m_Test.m_GetCollisionObjectContextFunc)(dynamic_co));
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
 }
 
 int main(int argc, char **argv)

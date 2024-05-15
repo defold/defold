@@ -2,7 +2,7 @@
     .menu-item {
         -fx-border-width: 0;
         -fx-background-radius: 0;
-        -fx-background-color: -df-component-darker;
+        -fx-background-color: -df-component-dark;
         > .label {
             -fx-text-fill: -df-text;
         }
@@ -12,7 +12,7 @@
 
         &:disabled {
             -fx-opacity: 0.4;
-            -fx-background-color: -df-component-darker !important;
+            -fx-background-color: -df-component-dark !important;
             > .label {
                 -fx-opacity: 1.0;
                 -fx-text-fill: -df-text !important;
@@ -23,7 +23,7 @@
         }
 
         &:focused {
-            -fx-background-color: -df-component-dark;
+            -fx-background-color: -df-component-lighter;
             > .label {
                 -fx-text-fill: -df-text-selected;
             }
@@ -42,7 +42,7 @@
             -fx-min-height: 0;
             -fx-background-color: transparent;
             .line {
-                -fx-border-color: -df-component-dark;
+                -fx-border-color: -df-background-light;
                 -fx-border-insets: 0;
                 -fx-border-width: 1 0 0 0;
             }

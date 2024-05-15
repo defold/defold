@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -583,6 +583,7 @@ namespace dmGraphics
             {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, max_descriptors},
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, max_descriptors},
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          max_descriptors},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         max_descriptors},
         };
 
         VkDescriptorPoolCreateInfo vk_pool_create_info;
@@ -634,7 +635,7 @@ namespace dmGraphics
         return vkAllocateCommandBuffers(vk_device, &vk_buffers_allocate_info, vk_command_buffers_out);
     }
 
-    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, ShaderModule* shaderModuleOut)
+    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut)
     {
         assert(shaderModuleOut);
 
@@ -650,7 +651,21 @@ namespace dmGraphics
         dmHashUpdateBuffer64(&shader_hash_state, source, (uint32_t) sourceSize);
         shaderModuleOut->m_Hash = dmHashFinal64(&shader_hash_state);
 
-        return vkCreateShaderModule( vk_device, &vk_create_info_shader, 0, &shaderModuleOut->m_Module);
+        VkResult res = vkCreateShaderModule( vk_device, &vk_create_info_shader, 0, &shaderModuleOut->m_Module);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        VkPipelineShaderStageCreateInfo shader_create_info = {};
+        shader_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shader_create_info.stage  = stage_flag;
+        shader_create_info.module = shaderModuleOut->m_Module;
+        shader_create_info.pName  = "main";
+
+        shaderModuleOut->m_PipelineStageInfo = shader_create_info;
+
+        return VK_SUCCESS;
     }
 
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
@@ -1257,12 +1272,27 @@ bail:
         vk_dynamic_state_create_info.dynamicStateCount = sizeof(vk_dynamic_state) / sizeof(VkDynamicState);
         vk_dynamic_state_create_info.pDynamicStates    = vk_dynamic_state;
 
+        VkPipelineShaderStageCreateInfo vk_stage_create_infos[2] = {};
+        uint32_t stage_count = 0;
+        if (program->m_ComputeModule)
+        {
+            vk_stage_create_infos[stage_count++] = program->m_ComputeModule->m_PipelineStageInfo;
+        }
+        if (program->m_VertexModule)
+        {
+            vk_stage_create_infos[stage_count++] = program->m_VertexModule->m_PipelineStageInfo;
+        }
+        if (program->m_FragmentModule)
+        {
+            vk_stage_create_infos[stage_count++] = program->m_FragmentModule->m_PipelineStageInfo;
+        }
+
         VkGraphicsPipelineCreateInfo vk_pipeline_info;
         memset(&vk_pipeline_info, 0, sizeof(vk_pipeline_info));
 
         vk_pipeline_info.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        vk_pipeline_info.stageCount          = sizeof(program->m_PipelineStageInfo) / sizeof(VkPipelineShaderStageCreateInfo);
-        vk_pipeline_info.pStages             = program->m_PipelineStageInfo;
+        vk_pipeline_info.stageCount          = stage_count;
+        vk_pipeline_info.pStages             = vk_stage_create_infos;
         vk_pipeline_info.pVertexInputState   = &vk_vertex_input_info;
         vk_pipeline_info.pInputAssemblyState = &vk_input_assembly;
         vk_pipeline_info.pViewportState      = &vk_viewport_state;

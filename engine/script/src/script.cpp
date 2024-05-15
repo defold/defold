@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,7 +27,6 @@
 #include "script_sys.h"
 #include "script_module.h"
 #include "script_json.h"
-#include "script_http.h"
 #include "script_zlib.h"
 #include "script_html5.h"
 #include "script_luasocket.h"
@@ -205,7 +204,6 @@ namespace dmScript
         lua_newtable(L);
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
-        InitializeHttp(context);
         InitializeTimer(context);
         if (context->m_EnableExtensions)
         {
@@ -699,6 +697,23 @@ namespace dmScript
 
         return type_hash;
     }
+
+
+    uint32_t RegisterUserTypeLocal(lua_State* L, const char* name, const luaL_reg meta[])
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        luaL_newmetatable(L, name);
+        uint32_t type_hash = SetUserType(L, -1, name);
+
+        luaL_register (L, 0, meta);
+        lua_pushvalue(L, -1);
+        lua_setfield(L, -1, "__index");
+        lua_pop(L, 1);
+
+        return type_hash;
+    }
+
 
     uint32_t RegisterUserType(lua_State* L, const char* name, const luaL_reg methods[], const luaL_reg meta[]) {
         DM_LUA_STACK_CHECK(L, 0);

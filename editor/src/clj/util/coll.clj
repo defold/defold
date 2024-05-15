@@ -13,8 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty?])
-  (:import [clojure.lang IEditableCollection MapEntry]))
+  (:refer-clojure :exclude [bounded-count empty? some])
+  (:import [clojure.lang IEditableCollection MapEntry]
+           [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -132,6 +133,39 @@
          (map (pair-fn key-fn value-fn))
          coll)))
 
+(defn partition-all-primitives
+  "Returns a lazy sequence of primitive vectors. Like core.partition-all, but
+  creates a new vector of a single primitive-type for each partition. The
+  primitive-type must be one of :int :long :float :double :byte :short :char, or
+  :boolean. Returns a stateful transducer when no collection is provided."
+  ([primitive-type ^long partition-length]
+   (fn [rf]
+     (let [in-progress (ArrayList. partition-length)]
+       (fn
+         ([] (rf))
+         ([result]
+          (let [result
+                (if (.isEmpty in-progress)
+                  result
+                  (let [finished (apply vector-of primitive-type (.toArray in-progress))]
+                    (.clear in-progress)
+                    (unreduced (rf result finished))))]
+            (rf result)))
+         ([result input]
+          (.add in-progress input)
+          (if (= partition-length (.size in-progress))
+            (let [finished (apply vector-of primitive-type (.toArray in-progress))]
+              (.clear in-progress)
+              (rf result finished))
+            result))))))
+  ([primitive-type ^long partition-length coll]
+   (partition-all-primitives primitive-type partition-length partition-length coll))
+  ([primitive-type ^long partition-length ^long step coll]
+   (lazy-seq
+     (when-let [in-progress (seq coll)]
+       (let [finished (apply vector-of primitive-type (take partition-length in-progress))]
+         (cons finished (partition-all-primitives primitive-type partition-length step (nthrest in-progress step))))))))
+
 (defn separate-by
   "Separates items in the supplied collection into two based on a predicate.
   Returns a pair of [true-items, false-items]. The resulting collections will
@@ -210,3 +244,28 @@
               (assoc-in nested-map path value)))
           (empty path-map)
           path-map))
+
+(defn- preserving-reduced [rf]
+  #(let [result (rf %1 %2)]
+     (cond-> result (reduced? result) reduced)))
+
+(defn flatten-xf
+  "Like clojure.core/flatten, but transducer and treats nils as empty sequences"
+  [rf]
+  (fn xf
+    ([] (rf))
+    ([result] (rf result))
+    ([result input]
+     (cond
+       (nil? input) result
+       (sequential? input) (reduce (preserving-reduced xf) result input)
+       :else (rf result input)))))
+
+(defn some
+  "Like clojure.core/some, but uses reduce instead of lazy sequences"
+  [pred coll]
+  (reduce (fn [_ v]
+            (when-let [ret (pred v)]
+              (reduced ret)))
+          nil
+          coll))

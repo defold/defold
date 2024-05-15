@@ -25,6 +25,7 @@ platforms:
             excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan","X11-xcb"]
+            dynamicLibs: ["vulkan"]
             linkFlags: []
 
     js-web:

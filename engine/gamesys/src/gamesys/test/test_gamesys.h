@@ -12,6 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#ifndef DM_TEST_GAMESYS_H
+#define DM_TEST_GAMESYS_H
+
 #include <resource/resource.h>
 
 #include <dlib/buffer.h>
@@ -34,8 +37,25 @@
 
 #include <testmain/testmain.h>
 
-#define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+
+static inline dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties,
+                                            const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
+{
+    dmGameObject::HPrototype prototype = 0x0;
+    if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
+        dmResource::Release(factory, prototype);
+        return result;
+    }
+    return 0x0;
+}
+
+static inline dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id)
+{
+    return Spawn(factory, collection, prototype_name, id, 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+}
 
 struct Params
 {
@@ -99,6 +119,7 @@ protected:
     dmPlatform::HWindow m_Window;
     dmScript::HContext m_ScriptContext;
     dmGraphics::HContext m_GraphicsContext;
+    dmJobThread::HContext m_JobThread;
     dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContext m_PhysicsContext;
     dmGameSystem::ParticleFXContext m_ParticleFXContext;
@@ -117,6 +138,22 @@ protected:
     dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
     dmHashTable64<void*> m_Contexts;
+};
+
+class ScriptBaseTest : public GamesysTest<const char*>
+{
+public:
+    void SetUp()
+    {
+        GamesysTest::SetUp();
+        m_Scriptlibcontext.m_Factory         = m_Factory;
+        m_Scriptlibcontext.m_Register        = m_Register;
+        m_Scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+        m_Scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+        m_Scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    }
+    virtual ~ScriptBaseTest() {}
+    dmGameSystem::ScriptLibContext m_Scriptlibcontext;
 };
 
 // sets up test context for various 2D physics/collision-object tests
@@ -206,7 +243,7 @@ public:
     virtual ~InvalidVertexSpaceTest() {}
 };
 
-class ComponentTest : public GamesysTest<const char*>
+class ComponentTest : public ScriptBaseTest
 {
 public:
     virtual ~ComponentTest() {}
@@ -251,7 +288,7 @@ public:
     virtual ~CollectionFactoryTest() {}
 };
 
-class SpriteTest : public GamesysTest<const char*>
+class SpriteTest : public ScriptBaseTest
 {
 public:
     virtual ~SpriteTest() {}
@@ -374,7 +411,7 @@ public:
     virtual ~RenderConstantsTest() {}
 };
 
-class MaterialTest : public GamesysTest<const char*>
+class MaterialTest : public ScriptBaseTest
 {
 public:
     virtual ~MaterialTest() {}
@@ -459,8 +496,14 @@ void GamesysTest<T>::SetUp()
     dmGraphics::InstallAdapter();
     dmGraphics::ResetDrawCount(); // for the unit test
 
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
+    job_thread_create_param.m_ThreadCount    = 1;
+    m_JobThread = dmJobThread::Create(job_thread_create_param);
+
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_Window = m_Window;
+    graphics_context_params.m_JobThread = m_JobThread;
 
     m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
     dmRender::RenderContextParams render_params;
@@ -469,6 +512,7 @@ void GamesysTest<T>::SetUp()
     render_params.m_MaxRenderTargets = 10;
     render_params.m_ScriptContext = m_ScriptContext;
     render_params.m_MaxCharacters = 256;
+    render_params.m_MaxBatches = 128;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
 
     dmInput::NewContextParams input_params;
@@ -568,6 +612,7 @@ void GamesysTest<T>::TearDown()
 
     dmGui::DeleteContext(m_GuiContext, m_ScriptContext);
     dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
+    dmJobThread::Destroy(m_JobThread);
     dmGraphics::DeleteContext(m_GraphicsContext);
     dmPlatform::CloseWindow(m_Window);
     dmPlatform::DeleteWindow(m_Window);
@@ -643,6 +688,7 @@ protected:
         m_ScriptLibContext.m_Register        = m_Register;
         m_ScriptLibContext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
         m_ScriptLibContext.m_GraphicsContext = m_GraphicsContext;
+        m_ScriptLibContext.m_ScriptContext   = m_ScriptContext;
         dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
 
         L = dmScript::GetLuaState(m_ScriptContext);
@@ -670,6 +716,7 @@ protected:
         m_ScriptLibContext.m_Factory = 0x0;
         m_ScriptLibContext.m_Register = 0x0;
         m_ScriptLibContext.m_LuaState = dmScript::GetLuaState(m_Context);
+        m_ScriptLibContext.m_ScriptContext = m_Context;
         dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
 
         L = dmScript::GetLuaState(m_Context);
@@ -722,6 +769,7 @@ protected:
         m_ScriptLibContext.m_Factory = 0x0;
         m_ScriptLibContext.m_Register = 0x0;
         m_ScriptLibContext.m_LuaState = dmScript::GetLuaState(m_Context);
+        m_ScriptLibContext.m_ScriptContext = m_Context;
         dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
 
         dmScript::Initialize(m_Context);
@@ -782,3 +830,6 @@ protected:
     dmVMath::Vector3 m_Size;
     dmVMath::Vector3 m_Scale;
 };
+
+#endif // DM_TEST_GAMESYS_H
+

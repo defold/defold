@@ -28,7 +28,8 @@
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :refer [pair]])
   (:import [com.defold.control TreeCell]
            [editor.resource FileResource]
            [java.io File]
@@ -357,32 +358,55 @@
               [f dest-file]))
           files)))
 
-(defn rename [resource ^String new-name]
-  (assert (and new-name (not (string/blank? new-name))))
-  (let [workspace (resource/workspace resource)
-        src-file (io/file resource)
-        dest-file (File. (.getParent src-file) new-name)
-        project-directory-file (workspace/project-path workspace)
-        dest-proj-path (resource/file->proj-path project-directory-file dest-file)]
-    (when-not (resource-watch/reserved-proj-path? project-directory-file dest-proj-path)
-      (let [[[^File src-file ^File dest-file]]
-            ;; plain case change causes irrelevant conflict on case insensitive fs
-            ;; fs/move handles this, no need to resolve
-            (if (fs/same-file? src-file dest-file)
-              [[src-file dest-file]]
-              (resolve-any-conflicts [[src-file dest-file]]))]
-        (when dest-file
-          (let [src-files (doall (file-seq src-file))]
-            (fs/move! src-file dest-file)
-            (workspace/resource-sync! workspace (moved-files src-file dest-file src-files))))))))
-
 (defn rename? [resources]
   (and (disk-availability/available?)
-       (= 1 (count resources))
-       (let [resource (first resources)]
-         (and (resource/editable? resource)
-              (not (resource/read-only? resource))
-              (not (fixed-resource-paths (resource/resource->proj-path resource)))))))
+       (pos? (count resources))
+       (every? (fn [resource]
+                 (and (resource/editable? resource)
+                      (not (resource/read-only? resource))
+                      (not (fixed-resource-paths (resource/resource->proj-path resource)))))
+               resources)
+       (case (into #{} (map resource/source-type) resources)
+         #{:folder} (= 1 (count resources))
+         #{:file} (and
+                    (= 1 (count (into #{} (map resource/base-name) resources)))
+                    (= (count resources) (count (into #{} (map resource/ext) resources))))
+         false)))
+
+(defn rename [resources new-base-name]
+  {:pre [(string? new-base-name) (rename? resources)]}
+  (let [workspace (resource/workspace (first resources))
+        project-directory-file (workspace/project-path workspace)
+        dir (= :folder (resource/source-type (first resources)))
+        rename-pairs (mapv
+                       (fn [resource]
+                         (let [resource-file (io/file resource)
+                               parent (.getParent resource-file)
+                               ext (resource/ext resource)]
+                           (pair resource-file
+                                 (io/file parent (cond-> new-base-name
+                                                         (and (not dir) (seq ext))
+                                                         (str "." ext))))))
+                       resources)]
+    (when-not (some #(resource-watch/reserved-proj-path?
+                       project-directory-file
+                       (resource/file->proj-path project-directory-file (val %)))
+                    rename-pairs)
+      ;; plain case change causes irrelevant conflict on case-insensitive file systems
+      ;; fs/move! handles this, no need to resolve
+      (let [{case-changes true possible-conflicts false}
+            (group-by #(fs/same-file? (key %) (val %)) rename-pairs)]
+        (when-let [resolved-conflicts (resolve-any-conflicts possible-conflicts)]
+          (let [resolved-rename-pairs (into resolved-conflicts case-changes)]
+            (when (seq resolved-rename-pairs)
+              (workspace/resource-sync!
+                workspace
+                (into []
+                      (mapcat (fn [[src-file dst-file]]
+                                (let [src-files (vec (file-seq src-file))]
+                                  (fs/move! src-file dst-file)
+                                  (moved-files src-file dst-file src-files))))
+                      resolved-rename-pairs)))))))))
 
 (defn validate-new-resource-name [^File project-directory-file parent-path new-name]
   (let [prospect-path (str parent-path "/" new-name)]
@@ -392,25 +416,25 @@
 (handler/defhandler :rename :asset-browser
   (enabled? [selection] (rename? selection))
   (run [selection workspace]
-    (let [resource (first selection)
-          dir? (= :folder (resource/source-type resource))
-          extension (resource/ext resource)
-          name (if dir?
-                 (resource/resource-name resource)
-                 (if (seq extension)
-                   (string/replace (resource/resource-name resource)
-                                   (re-pattern (str "\\." extension "$"))
-                                   "")
-                   (resource/resource-name resource)))
-          parent-path (resource/parent-proj-path (resource/proj-path resource))
-          project-directory-file (workspace/project-path workspace)
-          options {:title (if dir? "Rename Folder" "Rename File")
-                   :label (if dir? "New Folder Name" "New File Name")
-                   :sanitize (if dir? dialogs/sanitize-folder-name (partial dialogs/sanitize-file-name extension))
-                   :validate (partial validate-new-resource-name project-directory-file parent-path)}
-          new-name (dialogs/make-rename-dialog name options)]
-      (when-let [sane-new-name (some-> new-name not-empty)]
-        (rename resource sane-new-name)))))
+    (let [first-resource (first selection)
+          dir (= :folder (resource/source-type first-resource))
+          name (if dir
+                 (resource/resource-name first-resource)
+                 (resource/base-name first-resource))
+          extensions (if dir [""] (mapv resource/ext selection))
+          parent-paths (mapv (comp resource/parent-proj-path resource/proj-path) selection)
+          project-directory-file (workspace/project-path workspace)]
+      (when-let [new-name (dialogs/make-rename-dialog
+                            name
+                            :title (cond
+                                     dir "Rename Folder"
+                                     (= 1 (count selection)) "Rename File"
+                                     :else "Rename Files")
+                            :label (if dir "New Folder Name" "New File Name")
+                            :extensions extensions
+                            :validate (fn [file-name]
+                                        (some #(validate-new-resource-name project-directory-file % file-name) parent-paths)))]
+        (rename selection new-name)))))
 
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (delete? selection))
@@ -509,7 +533,7 @@
                              (when (workspace/has-template? workspace resource-type)
                                {:label (or (:label resource-type) (:ext resource-type))
                                 :icon (:icon resource-type)
-                                :style (resource/ext-style-classes (:ext resource-type))
+                                :style (resource/type-style-classes resource-type)
                                 :command :new-file
                                 :user-data {:resource-type resource-type}})))
                      (workspace/get-resource-type-map workspace))))))

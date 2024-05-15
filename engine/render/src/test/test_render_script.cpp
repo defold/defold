@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -101,6 +101,7 @@ protected:
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 64;
         params.m_MaxCharacters = 32;
+        params.m_MaxBatches = 128;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
 
         dmGraphics::ShaderDesc::Shader shader_ddf;
@@ -1256,6 +1257,138 @@ static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uin
     return ddf;
 }
 
+TEST_F(dmRenderScriptTest, TestRenderTargetResource)
+{
+    const char* script =
+        "function assert_rt_buffer_size(rt, buffer, exp_w, exp_h)\n"
+        "   assert(exp_w == render.get_render_target_width(rt, buffer))\n"
+        "   assert(exp_h == render.get_render_target_height(rt, buffer))\n"
+        "end\n"
+        "function assert_rt_size(rt, ds, ss, c0s, c1s, c2s, c3s)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_DEPTH_BIT, ds, ds)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_STENCIL_BIT, ss, ss)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_COLOR0_BIT, c0s, c0s)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_COLOR1_BIT, c1s, c1s)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_COLOR2_BIT, c2s, c2s)\n"
+        "   assert_rt_buffer_size(rt, render.BUFFER_COLOR3_BIT, c3s, c3s)\n"
+        "end\n"
+        "function init(self)\n"
+        "   assert_rt_size('valid_rt', 8, 16, 32, 64, 96, 128)\n"
+        "   render.set_render_target_size('valid_rt', 512, 512)\n"
+        "   assert_rt_size('valid_rt', 512, 512, 512, 512, 512, 512)\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    dmGraphics::RenderTargetCreationParams params          = {};
+
+    params.m_DepthBufferCreationParams.m_Width          = 8;
+    params.m_DepthBufferCreationParams.m_Height         = 8;
+    params.m_DepthBufferCreationParams.m_OriginalWidth  = 8;
+    params.m_DepthBufferCreationParams.m_OriginalHeight = 8;
+
+    params.m_DepthBufferParams.m_Width  = params.m_DepthBufferCreationParams.m_Width;
+    params.m_DepthBufferParams.m_Height = params.m_DepthBufferCreationParams.m_Height;
+    params.m_DepthBufferParams.m_Format = dmGraphics::TEXTURE_FORMAT_DEPTH;
+
+    params.m_StencilBufferCreationParams.m_Width          = 16;
+    params.m_StencilBufferCreationParams.m_Height         = 16;
+    params.m_StencilBufferCreationParams.m_OriginalWidth  = 16;
+    params.m_StencilBufferCreationParams.m_OriginalHeight = 16;
+
+    params.m_StencilBufferParams.m_Width  = params.m_StencilBufferCreationParams.m_Width;
+    params.m_StencilBufferParams.m_Height = params.m_StencilBufferCreationParams.m_Height;
+    params.m_StencilBufferParams.m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+
+    for (int i = 0; i < DM_ARRAY_SIZE(params.m_ColorBufferCreationParams); ++i)
+    {
+        params.m_ColorBufferCreationParams[i].m_Width          = 32 + 32 * i;
+        params.m_ColorBufferCreationParams[i].m_Height         = 32 + 32 * i;
+        params.m_ColorBufferCreationParams[i].m_OriginalWidth  = 32 + 32 * i;
+        params.m_ColorBufferCreationParams[i].m_OriginalHeight = 32 + 32 * i;
+
+        params.m_ColorBufferParams[i].m_Width  = params.m_ColorBufferCreationParams[i].m_Width;
+        params.m_ColorBufferParams[i].m_Height = params.m_ColorBufferCreationParams[i].m_Height;
+        params.m_ColorBufferParams[i].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    }
+
+    uint32_t rt_flags = 0xffff;
+
+    dmGraphics::HRenderTarget rt = dmGraphics::NewRenderTarget(m_GraphicsContext, rt_flags, params);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "valid_rt", rt, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    ClearRenderScriptInstanceRenderResources(render_script_instance);
+
+    dmGraphics::DeleteRenderTarget(rt);
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestRenderCameraGetInfo)
+{
+    dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
+
+    dmMessage::URL camera_url = {};
+    camera_url.m_Socket   = dmHashString64("main");
+    camera_url.m_Path     = dmHashString64("test_go");
+    camera_url.m_Fragment = dmHashString64("camera");
+
+    dmRender::SetRenderCameraURL(m_Context, camera, &camera_url);
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    data.m_Fov      = 90.0f;
+    data.m_NearZ    = 0.1f;
+    data.m_FarZ     = 100.0f;
+
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+
+    dmRender::RenderCamera* camera_ptr = dmRender::GetRenderCameraByUrl(m_Context, camera_url);
+    ASSERT_NE((void*)0, camera_ptr);
+
+    const char* script =
+        "function assert_near(a,b)\n"
+        "    assert(math.abs(a-b) < 0.00001)\n"
+        "end\n"
+        "function init(self)\n"
+        "    local cams = camera.get_cameras()\n"
+        "    assert(#cams == 1)\n"
+        "    assert(cams[1].socket == hash('main'))\n"
+        "    assert(cams[1].path == hash('test_go'))\n"
+        "    assert(cams[1].fragment == hash('camera'))\n"
+        "    assert_near(camera.get_near_z(cams[1]), 0.1)\n"
+        "    assert_near(camera.get_far_z(cams[1]), 100)\n"
+        "    assert_near(camera.get_fov(cams[1]), 90)\n"
+        // Test set_camera()
+        "    render.set_camera(cams[1])\n"
+        "    render.set_camera()\n"
+        "end\n";
+
+    dmRender::HRenderScript render_script                  = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    ASSERT_EQ(2u, commands.Size());
+
+    // set_camera(camera)
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA, commands[0].m_Type);
+    ASSERT_EQ(camera, (dmRender::HRenderCamera) commands[0].m_Operands[0]);
+
+    // draw
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_RENDER_CAMERA, commands[1].m_Type);
+    ASSERT_EQ(0, commands[1].m_Operands[0]);
+
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    ClearRenderScriptInstanceRenderResources(render_script_instance);
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
 TEST_F(dmRenderScriptTest, TestRenderResourceTable)
 {
     const char* script =
@@ -1389,8 +1522,11 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+extern "C" void dmExportedSymbols();
+
 int main(int argc, char **argv)
 {
+    dmExportedSymbols();
     TestMainPlatformInit();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);

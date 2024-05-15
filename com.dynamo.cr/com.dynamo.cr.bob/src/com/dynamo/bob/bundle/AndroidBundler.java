@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -683,7 +683,7 @@ public class AndroidBundler implements IBundler {
         logger.info("Creating Android Application Bundle");
         try {
             File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
-            File baseAab = new File(outDir, getProjectTitle(project) + ".aab");
+            File baseAab = new File(outDir, getBinaryNameFromProject(project) + ".aab");
 
             File aabDir = new File(outDir, "aab");
             File baseConfig = new File(aabDir, "BundleConfig.json");
@@ -743,7 +743,7 @@ public class AndroidBundler implements IBundler {
         if (!has_symbols) {
             return;
         }
-        File symbolsDir = new File(outDir, getProjectTitle(project) + ".apk.symbols");
+        File symbolsDir = new File(outDir, getBinaryNameFromProject(project) + ".apk.symbols");
         symbolsDir.mkdirs();
         final String exeName = getBinaryNameFromProject(project);
         final String extenderExeDir = project.getBinaryOutputDirectory();
@@ -974,9 +974,9 @@ public class AndroidBundler implements IBundler {
         TimeProfiler.stop();
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant, this);
 
-        File outDir = new File(bundleDir, getProjectTitle(project));
+        File outDir = new File(bundleDir, getBinaryNameFromProject(project));
         FileUtils.deleteDirectory(outDir);
         outDir.mkdirs();
 

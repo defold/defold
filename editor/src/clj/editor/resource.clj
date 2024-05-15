@@ -20,7 +20,7 @@
             [editor.core :as core]
             [editor.fs :as fs]
             [schema.core :as s]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.digest :as digest])
   (:import [clojure.lang PersistentHashMap]
            [java.io File FilterInputStream IOException InputStream]
@@ -108,10 +108,10 @@
   (atom {}))
 
 ;; The same logic implemented in Project.java.
-;; If you change something here, plese change it there as well
+;; If you change something here, please change it there as well
 ;; Search for excluedFilesAndFoldersEntries.
 ;; root -> pred if project path (string starting with /) is ignored
-(defn- defignore-pred [^File root]
+(defn defignore-pred [^File root]
   (let [defignore-file (io/file root ".defignore")
         defignore-path (.getCanonicalPath defignore-file)
         latest-mtime (.lastModified defignore-file)
@@ -119,18 +119,25 @@
     (if (= mtime latest-mtime)
       pred
       (let [pred (if (.isFile defignore-file)
-                   (let [prefixes (into
-                                    #{}
-                                    (filter #(string/starts-with? % "/"))
-                                    (string/split-lines (slurp defignore-file)))]
+                   (let [prefixes (into []
+                                        (comp
+                                          (filter #(string/starts-with? % "/"))
+                                          (distinct))
+                                        (string/split-lines (slurp defignore-file)))]
                      (fn ignored-path? [path]
                        (boolean (some #(string/starts-with? path %) prefixes))))
                    (constantly false))]
         (swap! defignore-cache assoc defignore-path {:mtime latest-mtime :pred pred})
         pred))))
 
+(def ^:dynamic *defignore-pred* nil)
+
+(defmacro with-defignore-pred [root-expr & body]
+  `(binding [*defignore-pred* (defignore-pred ~root-expr)]
+     ~@body))
+
 (defn ignored-project-path? [^File root proj-path]
-  ((defignore-pred root) proj-path))
+  ((or *defignore-pred* (defignore-pred root)) proj-path))
 
 ;; Note! Used to keep a file here instead of path parts, but on
 ;; Windows (File. "test") equals (File. "Test") which broke
@@ -438,16 +445,8 @@
       (.getAbsolutePath f))))
 
 (def ^:private ext->style-class
-  (let [config {"script" ["fp" "gui_script" "lua" "render_script" "script" "vp"
-                          "glsl"]
-                "design" ["atlas" "collection" "collisionobject" "cubemap" "dae"
-                          "font" "go" "gui" "label" "model" "particlefx"
-                          "spinemodel" "spinescene" "sprite" "tilemap"
-                          "tilesource" "render_target"]
-                "property" ["animationset" "camera" "collectionfactory"
-                            "collectionproxy" "display_profiles" "factory"
-                            "gamepads" "input_binding" "material" "project"
-                            "render" "sound" "texture_profiles"]}]
+  ;; TODO: make extension-spine use :icon-class
+  (let [config {"design" ["spinemodel" "spinescene"]}]
    (->> (for [[kind extensions] config
               :let [style-class (str "resource-kind-" kind)]
               ext extensions
@@ -456,17 +455,20 @@
         seq
         PersistentHashMap/createWithCheck)))
 
-(defn style-classes [resource]
-  (let [resource-kind-class (case (source-type resource)
-                              :file (some->> resource ext ext->style-class)
-                              :folder "resource-folder"
-                              nil)]
-    (cond-> #{"resource"} resource-kind-class (conj resource-kind-class))))
+(def icon-class->style-class
+  (coll/pair-map-by identity #(str "resource-kind-" (name %)) [:design :property :script]))
 
-(defn ext-style-classes [resource-ext]
-  (assert (or (nil? resource-ext) (string? resource-ext)))
-  (if-some [style-class (ext->style-class resource-ext)]
-    #{"resource" style-class}
+(defn type-style-classes [resource-type]
+  (if-let [explicit-class (or (some-> (:icon-class resource-type) icon-class->style-class)
+                              (some-> (:ext resource-type) ext->style-class))]
+    #{"resource" explicit-class}
+    #{"resource"}))
+
+(defn style-classes [resource]
+  (case (source-type resource)
+    :file (or (some-> (resource-type resource) type-style-classes)
+              #{"resource"})
+    :folder #{"resource" "resource-folder"}
     #{"resource"}))
 
 (defn filter-resources [resources query]

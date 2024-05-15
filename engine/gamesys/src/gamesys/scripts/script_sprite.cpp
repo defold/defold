@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -65,6 +65,39 @@ namespace dmGameSystem
      *   local sx = go.get("#sprite", "size.x")
      *   -- do something useful
      *   assert(size.x == sx)
+     * end
+     * ```
+     */
+
+    /*# [type:vector3] sprite slice
+     *
+     * The slice values of the sprite. The type of the property is a vector4 that corresponds to
+     * the left, top, right, bottom values of the sprite in the editor.
+     * It is not possible to set the slice property if the size mode of the sprite is set to auto.
+     *
+     * @name slice
+     * @property
+     *
+     * @examples
+     *
+     * How to query a sprite's slice values, either as a vector or selecting a specific dimension:
+     *
+     * ```lua
+     * function init(self)
+     *   local slice = go.get("#sprite", "slice")
+     *   local slicex = go.get("#sprite", "slice.x")
+     *   assert(slice.x == slicex)
+     * end
+     * ```
+     *
+     * Animate the slice property with go.animate:
+     *
+     * ```lua
+     * function init(self)
+     *   -- animate the entire slice vector at once
+     *   go.animate("#sprite", "slice", go.PLAYBACK_LOOP_PINGPONG, vmath.vector4(96, 96, 96, 96), go.EASING_INCUBIC, 2)
+     *   -- or animate a single component
+     *   go.animate("#sprite", "slice.y", go.PLAYBACK_LOOP_PINGPONG, 32, go.EASING_INCUBIC, 8)
      * end
      * ```
      */

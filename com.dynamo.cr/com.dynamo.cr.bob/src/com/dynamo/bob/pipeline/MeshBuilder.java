@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -49,6 +49,11 @@ public class MeshBuilder extends Builder<Void> {
         taskBuilder.addInput(res);
 
         for (String t : meshDescBuilder.getTexturesList()) {
+            // Same as models
+            // This check is based on the material samplers only, but should we check if the material actually needs textures?
+            if (t.isEmpty())
+                continue;
+
             res = BuilderUtil.checkResource(this.project, input, "texture", t);
             taskBuilder.addInput(res);
             Task<?> embedTask = this.project.createTask(res);
@@ -78,6 +83,8 @@ public class MeshBuilder extends Builder<Void> {
 
         List<String> newTextureList = new ArrayList<String>();
         for (String t : meshDescBuilder.getTexturesList()) {
+            if (t.isEmpty())
+                continue;
             BuilderUtil.checkResource(this.project, resource, "texture", t);
             newTextureList.add(ProtoBuilders.replaceTextureName(t));
         }

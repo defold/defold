@@ -139,7 +139,8 @@
                       "prerelease" ["do" "clean," "protobuf," "sass" "once," "javac," "with-profile" "dev,sidecar,release" "run" "-m" "aot"]}
 
   ;; used by `pack` task
-  :packing           {:pack-path "resources/_unpack"}
+  :packing           {:pack-path "resources/_unpack"
+                      :lua-language-server-version "v0.0.6"}
 
   :codox             {:sources                   ["src/clj"]
                       :output-dir                "target/doc/api"
@@ -166,6 +167,10 @@
   :uberjar-exclusions [#"^natives/"]
 
   :javac-options ["-Xlint:unchecked" "-Xlint:deprecation"]
+
+  ;; Skip native extensions tests:
+  ;; lein test :no-native-extensions
+  :test-selectors {:no-native-extensions (complement :native-extensions)}
 
   :profiles          {:test    {:injections [(com.defold.libs.ResourceUnpacker/unpackResources)]
                                 :resource-paths ["test/resources"]

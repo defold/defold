@@ -17,12 +17,15 @@ from log import log
 import os
 import re
 import sys
-import urllib
 from urllib.parse import urlparse
 from datetime import datetime
 from configparser import ConfigParser
 
 s3buckets = {}
+
+def init_boto_data_path():
+    data_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto3_data'))
+    os.environ['AWS_DATA_PATH'] = data_path
 
 def get_archive_prefix(archive_path, sha1):
     u = urlparse(archive_path)
@@ -63,15 +66,11 @@ def get_bucket(bucket_name):
         log('S3 key and/or secret not found in ~/.s3cfg, ~/.aws/credentials or environment variables')
         sys.exit(5)
 
-    from boto.s3.connection import S3Connection
-    from boto.s3.connection import OrdinaryCallingFormat
-    from boto.s3.key import Key
+    import boto3.session
 
-    # NOTE: We hard-code host (region) here and it should not be required.
-    # but we had problems with certain buckets with period characters in the name.
-    # Probably related to the following issue https://github.com/boto/boto/issues/621
-    conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com', calling_format=OrdinaryCallingFormat())
-    bucket = conn.get_bucket(bucket_name)
+    session = boto3.session.Session(aws_access_key_id=key, aws_secret_access_key=secret, region_name="eu-west-1")
+    s3_client = session.resource('s3')    
+    bucket = s3_client.Bucket(bucket_name)
     s3buckets[bucket_name] = bucket
     return bucket
 
@@ -81,26 +80,26 @@ def find_files_in_bucket(archive_path, bucket, sha1, path, pattern):
     base_prefix = os.path.join(root, sha1)
     prefix = os.path.join(base_prefix, path)
     files = []
-    for x in bucket.list(prefix = prefix):
-        if x.name[-1] != '/':
+    for x in bucket.objects.filter(Prefix=prefix):
+        if x.key[-1] != '/':
             # Skip directory "keys". When creating empty directories
             # a psudeo-key is created. Directories isn't a first-class object on s3
-            if re.match(pattern, x.name):
-                name = os.path.relpath(x.name, base_prefix)
-                files.append({'name': name, 'path': '/' + x.name})
+            if re.match(pattern, x.key):
+                name = os.path.relpath(x.key, base_prefix)
+                files.append({'name': name, 'path': '/' + x.key})
     return files
 
 # Get archive files for a single release/sha1
 def get_files(archive_path, bucket, sha1):
     files = []
-    files = files + find_files_in_bucket(archive_path, bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|gdc.*|defoldsdk.*|ref-doc.zip)$')
-    files = files + find_files_in_bucket(archive_path, bucket, sha1, "bob", '.*(/bob.jar)$')
-    files = files + find_files_in_bucket(archive_path, bucket, sha1, "editor", '.*(/Defold-.*)$')
-    files = files + find_files_in_bucket(archive_path, bucket, sha1, "dev", '.*(/Defold-.*)$')
-    files = files + find_files_in_bucket(archive_path, bucket, sha1, "alpha", '.*(/Defold-.*)$')
-    files = files + find_files_in_bucket(archive_path, bucket, sha1, "beta", '.*(/Defold-.*)$')
-    files = files + find_files_in_bucket(archive_path, bucket, sha1, "stable", '.*(/Defold-.*)$')
-    files = files + find_files_in_bucket(archive_path, bucket, sha1, "editor-alpha", '.*(/Defold-.*)$')
+    files.extend(find_files_in_bucket(archive_path, bucket, sha1, "engine", '.*(/dmengine.*|builtins.zip|classes.dex|android-resources.zip|android.jar|gdc.*|defoldsdk.*|ref-doc.zip)$'))
+    files.extend(find_files_in_bucket(archive_path, bucket, sha1, "bob", '.*(/bob.jar)$'))
+    files.extend(find_files_in_bucket(archive_path, bucket, sha1, "editor", '.*(/Defold-.*)$'))
+    files.extend(find_files_in_bucket(archive_path, bucket, sha1, "dev", '.*(/Defold-.*)$'))
+    files.extend(find_files_in_bucket(archive_path, bucket, sha1, "alpha", '.*(/Defold-.*)$'))
+    files.extend(find_files_in_bucket(archive_path, bucket, sha1, "beta", '.*(/Defold-.*)$'))
+    files.extend(find_files_in_bucket(archive_path, bucket, sha1, "stable", '.*(/Defold-.*)$'))
+    files.extend(find_files_in_bucket(archive_path, bucket, sha1, "editor-alpha", '.*(/Defold-.*)$'))
     return files
 
 def get_tagged_releases(archive_path, pattern=None, num_releases=10):
@@ -164,11 +163,11 @@ def move_release(archive_path, sha1, channel):
     # the search prefix we use when listing keys
     # we only want the keys associated with specifed sha1
     prefix = "%s/%s/" % (archive_root, sha1)
-    keys = bucket.get_all_keys(prefix = prefix)
-    for key in keys:
+    objects = bucket.objects.filter(Prefix=prefix)
+    for obj in objects:
         # get the name of the file this key points to
         # archive/sha1/engine/arm64-android/android.jar -> engine/arm64-android/android.jar
-        name = key.name.replace(prefix, "")
+        name = obj.key.replace(prefix, "")
         # destination
         new_key = "archive/%s/%s/%s" % (channel, sha1, name)
 
@@ -176,7 +175,7 @@ def move_release(archive_path, sha1, channel):
 
         # the keys in archive/sha1/* are all redirects to files in archive/channel/sha1/*
         # get the actual file from the redirect
-        redirect_path = key.get_redirect()
+        redirect_path = bucket.Object(obj.key).website_redirect_location
         if not redirect_path:
             # the key is an actual file and not a redirect
             # it shouldn't really happen but it's better to check
@@ -185,21 +184,24 @@ def move_release(archive_path, sha1, channel):
 
         # resolve the redirect and get a key to the file
         redirect_name = urlparse(redirect_path).path[1:]
-        redirect_key = bucket.get_key(redirect_name)
-        if not redirect_key:
-            print("Invalid redirect for %s. The file will not be moved" % redirect_path)
-            continue
-        if redirect_key.name == new_key:
+        if redirect_name == new_key:
             print("Skip key `%s` because it's already exist\n" % new_key)
             continue
 
         # copy the file to the new location
-        print("Copying %s to %s\n" % (redirect_key.name, new_key))
-        bucket.copy_key(new_key, bucket_name, redirect_key.name)
-
-        # update the redirect
+        print("Copy object: %s -> %s" % (obj.key, new_key))
+        print("Create redirection %s to %s\n" % (obj.key, new_redirect))
+        new_object = bucket.Object(new_key)
         new_redirect = "http://%s/%s" % (bucket_name, new_key)
-        key.set_redirect(new_redirect)
+        new_object.copy_from(
+            CopySource={'Bucket': bucket_name, 'Key': obj.key}
+        )
+        # set redirect for old object to new object
+        obj.copy_from(
+            CopySource={'Bucket': bucket_name, 'Key': obj.key},
+            WebsiteRedirectLocation=new_redirect
+        )
+
 
 def redirect_release(archive_path, sha1, channel):
     u = urlparse(archive_path)
@@ -222,41 +224,48 @@ def redirect_release(archive_path, sha1, channel):
 
     redirects = []
 
-    for key in bucket.get_all_keys(prefix = prefix):
-        if not any(key.name.startswith(x) for x in redirected_prefixes):
+    for obj in bucket.objects.filter(Prefix=prefix):
+        obj_key = obj.key
+        if not any(obj_key.startswith(x) for x in redirected_prefixes):
             continue
 
-        old_target_url = key.get_redirect()
+        old_target_url = bucket.Object(obj_key).website_redirect_location
 
         if not old_target_url:
             continue
 
-        name = key.name.replace(prefix, "")
+        name = obj_key.replace(prefix, "")
         new_target_path = "archive/%s/%s/%s" % (channel, sha1, name)
         new_target_url = "http://%s/%s" % (bucket_name, new_target_path)
 
         if new_target_url == old_target_url:
             continue
 
-        print("Preparing %s" % key.name)
+        print("Preparing %s" % obj_key)
         print("     From %s" % old_target_url)
         print("       To %s" % new_target_url)
 
         # ensure we're redirecting to an existing file
-        new_target_key = bucket.get_key(new_target_path)
-        assert(new_target_key)
-        assert(not new_target_key.get_redirect())
+        new_target_obj = bucket.Object(new_target_path)
+        try:
+            new_target_obj.load()
+            assert(not new_target_obj.website_redirect_location)
+        except:
+            raise FileNotFoundError("%s not exist" % new_target_path)
 
-        redirect_url = "http://%s/%s" % (bucket_name, new_target_path)
-        redirects.append((key, new_target_url))
+        redirects.append((obj_key, new_target_url))
 
-    if redirects:
+    if len(redirects) > 0:
         print()
 
-        for (key, new_target_url) in redirects:
-            print("Setting %s" % key.name)
+        for (obj_key, new_target_url) in redirects:
+            print("Setting %s" % obj_key)
             print("     To %s" % new_target_url)
-            key.set_redirect(new_target_url)
+            obj = bucket.Object(obj_key)
+            obj.copy_from(
+                CopySource={'Bucket': bucket_name, 'Key': obj_key},
+                WebsiteRedirectLocation=new_target_url
+            )
     
         # output a list of Objects that should be invalidated in CloudFront.
         # TODO: Use the boto.cloudfront API to do this automatically.
@@ -265,7 +274,7 @@ def redirect_release(archive_path, sha1, channel):
         print("https://console.aws.amazon.com/cloudfront/v3/home")
         print()
 
-        for (key, _) in redirects:
-            print("/%s" % key.name)
+        for (obj_key, _) in redirects:
+            print("/%s" % obj_key)
 
         print()

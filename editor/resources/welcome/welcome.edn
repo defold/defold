@@ -163,6 +163,14 @@
                              :zip-url "https://github.com/defold/sample-rpgmap/archive/master.zip"
                              :skip-root? true}
 
+                            {:name "Shadertoy sample"
+                             :description "This sample contains a GLSL shader that was taken from Shadertoy and converted to Defold. It showcases how to work with materials and shaders in Defold."
+                             :image "shadertoy.png"
+                             :duration "Short"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/defold/sample-shadertoy/archive/master.zip"
+                             :skip-root? true}
+
                             {:name "3d treasure scene"
                              :description "This sample shows a stylized 3d scene with animation."
                              :image "treasurescene.png"
@@ -170,7 +178,6 @@
                              :user-level "Advanced"
                              :zip-url "https://github.com/FlexYourBrain/Basic3d_TreasureScene/archive/master.zip"
                              :skip-root? true}
-
 
                             {:name "Perspective Parallax"
                              :description "This sample shows a perspective camera parallax effect"
@@ -180,10 +187,10 @@
                              :zip-url "https://github.com/FlexYourBrain/sample-perspective_parallax/archive/master.zip"
                              :skip-root? true}
 
-                             {:name "Shadertoy sample"
-                             :description "This sample contains a GLSL shader that was taken from Shadertoy and converted to Defold. It showcases how to work with materials and shaders in Defold."
-                             :image "shadertoy.png"
-                             :duration "Short"
+                            {:name "Lightning VFX"
+                             :description "Sample shows a lightning effect in a 2d scrolling shooter and how the mesh component is setup to be manipulated during gameplay."
+                             :image "sample_lightningvfx.png"
+                             :duration "Long"
                              :user-level "Advanced"
-                             :zip-url "https://github.com/defold/sample-shadertoy/archive/master.zip"
+                             :zip-url "https://github.com/FlexYourBrain/sample_LightningVFX/archive/master.zip"
                              :skip-root? true}]}]}}

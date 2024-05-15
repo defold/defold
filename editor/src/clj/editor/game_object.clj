@@ -591,5 +591,6 @@
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
     :sanitize-fn (partial sanitize-game-object workspace)
     :icon game-object-common/game-object-icon
+    :icon-class :design
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

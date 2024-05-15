@@ -3,10 +3,10 @@
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -348,4 +348,15 @@ namespace dmPhysics
     void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
     {
     }
+
+    void* GetWorldContext2D(HWorld2D world)
+    {
+        return 0;
+    }
+
+    void* GetCollisionObjectContext2D(HCollisionObject2D collision_object)
+    {
+        return 0;
+    }
+
 }

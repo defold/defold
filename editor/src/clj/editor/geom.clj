@@ -13,10 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.geom
-  (:require [schema.core :as s]
+  (:require [editor.math :as math]
             [editor.types :as types]
-            [editor.math :as math]
-            [internal.util :as util])
+            [internal.util :as util]
+            [schema.core :as s])
   (:import [com.defold.util Geometry]
            [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
            [editor.types AABB Frustum Rect]
@@ -536,6 +536,26 @@
                       [(.x p) (.y p) (.z p) 1.0])
                     ps)]
       res)))
+
+(defn transf-n
+  [^Matrix4d m4d normals]
+  (let [n (Vector3d.)]
+    (mapv (fn [[^double x ^double y ^double z]]
+            (.set n x y z)
+            (.transform m4d n)
+            (.normalize n) ; Need to normalize since the matrix may be scaled.
+            [(.x n) (.y n) (.z n)])
+          normals)))
+
+(defn transf-n4
+  [^Matrix4d m4d normals]
+  (let [n (Vector3d.)]
+    (mapv (fn [[^double x ^double y ^double z]]
+            (.set n x y z)
+            (.transform m4d n)
+            (.normalize n) ; Need to normalize since the matrix may be scaled.
+            [(.x n) (.y n) (.z n) 0.0])
+          normals)))
 
 (defn chain [n f ps]
   (loop [i n
