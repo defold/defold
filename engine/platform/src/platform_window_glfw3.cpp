@@ -208,6 +208,8 @@ namespace dmPlatform
             return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
+        glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
+
         PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
 
         switch(params.m_GraphicsApi)
