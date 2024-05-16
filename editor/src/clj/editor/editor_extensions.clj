@@ -791,6 +791,13 @@
             :when dynamic-handler]
         dynamic-handler))))
 
+(defn- built-in-language-servers []
+  (let [lua-lsp-root (str (system/defold-unpack-path) "/" (.getPair (Platform/getHostPlatform)) "/bin/lsp/lua")]
+    #{{:languages #{"lua"}
+       :watched-files [{:pattern "**/.luacheckrc"}]
+       :launcher {:command [(str lua-lsp-root "/bin/lua-language-server" (when (util/is-win32?) ".exe"))
+                            (str "--configpath=" lua-lsp-root "/config.json")]}}}))
+
 (defn- reload-language-servers! [project]
   (let [lsp (lsp/get-node-lsp project)
         state (ext-state project)
@@ -798,7 +805,7 @@
     (lsp/set-servers!
       lsp
       (into
-        #{}
+        (built-in-language-servers)
         (comp
           (mapcat
             (fn [[path language-servers]]
