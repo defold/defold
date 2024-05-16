@@ -194,10 +194,11 @@
 
       (fn use-local-extension-dir! [^URI library-uri]
         (when-some [^File local-extension-dir (local-extension-dirs-by-library-uris library-uri)]
-          {:status :stale
-           :tag "tag"
-           :new-file (doto (fs/create-temp-file! (str "local-" (.getName local-extension-dir)) ".zip")
-                       (write-local-library-zip! local-extension-dir))})))))
+          (let [name (str "local-" (.getName local-extension-dir))]
+            {:status :stale
+             :tag name
+             :new-file (doto (fs/create-temp-file! name ".zip")
+                         (write-local-library-zip! local-extension-dir))}))))))
 
 (defn- fetch-library! [resolver ^URI uri tag]
   (try
