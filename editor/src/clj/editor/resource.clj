@@ -78,7 +78,8 @@
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))
 
-(defn relative-path [^File f1 ^File f2]
+(defn relative-path
+  ^String [^File f1 ^File f2]
   ;; The strange comparison below is done due to the fact that we support case
   ;; insensitive file systems. For example NTFS and HFS. We want to compare the
   ;; paths without case but preserve the casing as supplied by the caller in the
