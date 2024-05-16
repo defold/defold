@@ -34,6 +34,12 @@ namespace dmPlatform
         void*                      m_GamepadEventCallbackUserData;
     } g_GLFW3Context;
 
+    static void UpdateWindowSize(HWindow window)
+    {
+        glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
+        glfwGetWindowSize(window->m_Window, &window->m_WidthScreen, &window->m_HeightScreen);
+    }
+
     static void OnError(int error, const char* description)
     {
         dmLogError("GLFW Error: %s\n", description);
@@ -42,7 +48,7 @@ namespace dmPlatform
     static void OnWindowResize(GLFWwindow* glfw_window, int width, int height)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
+        UpdateWindowSize(window);
 
         if (window->m_ResizeCallback != 0x0)
         {
@@ -234,8 +240,9 @@ namespace dmPlatform
             glfwSetCharCallback(window->m_Window, OnAddCharacterCallback);
             glfwSetMarkedTextCallback(window->m_Window, OnMarkedTextCallback);
 
-            glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
             glfwSetJoystickCallback(OnJoystick);
+
+            UpdateWindowSize(window);
 
             SetSwapInterval(window, 1);
 
@@ -306,15 +313,12 @@ namespace dmPlatform
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
         glfwSetWindowSize(window->m_Window, (int) width, (int) height);
-        int window_width, window_height;
-        glfwGetFramebufferSize(window->m_Window, &window_width, &window_height);
-        window->m_Width  = window_width;
-        window->m_Height = window_height;
+        UpdateWindowSize(window);
 
         // The callback is not called from glfw when the size is set manually
         if (window->m_ResizeCallback)
         {
-            window->m_ResizeCallback(window->m_ResizeCallbackUserData, window_width, window_height);
+            window->m_ResizeCallback(window->m_ResizeCallbackUserData, window->m_Width, window->m_Height);
         }
     }
 
@@ -403,8 +407,12 @@ namespace dmPlatform
     {
         double xpos, ypos;
         glfwGetCursorPos(window->m_Window, &xpos, &ypos);
-        *x = (int32_t) xpos;
-        *y = (int32_t) ypos;
+
+        float w_scale = (float) window->m_Width / (float) window->m_WidthScreen;
+        float h_scale = (float) window->m_Height / (float) window->m_HeightScreen;
+
+        *x = (int32_t) (xpos * w_scale);
+        *y = (int32_t) (ypos * h_scale);
     }
 
     bool GetDeviceState(HWindow window, DeviceState state, int32_t op1)
