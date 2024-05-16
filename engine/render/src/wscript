@@ -34,4 +34,5 @@ def build(bld):
       '../proto/render/material_ddf.proto',
       '../proto/render/render_ddf.proto',
       '../proto/render/font_ddf.proto',
-      'render/render_script.cpp'])
+      'render/render_script.cpp',
+      'render/render_script_camera.cpp'])
