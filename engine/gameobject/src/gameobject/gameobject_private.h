@@ -73,7 +73,6 @@ namespace dmGameObject
             ComponentType*  m_Type;
             uint32_t        m_TypeIndex;
             void*           m_Resource;
-            //uint32_t        m_ResourceType;
             Point3          m_Position;
             Quat            m_Rotation;
             Vector3         m_Scale;

@@ -81,8 +81,6 @@ struct ResourceType
 struct ResourceTypeContext
 {
     HResourceFactory        m_Factory;
-    // const char*             m_Name; // the name/suffix of the resource type
-    // uint64_t                m_NameHash;
     dmHashTable64<void*>*   m_Contexts;
 };
 

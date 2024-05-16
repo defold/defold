@@ -139,7 +139,7 @@ typedef ExtensionResult (*FExtensionAppFinalize)(ExtensionAppParams*);
  * @param params [type:ExtensionParams]
  * @return result [type:ExtensionResult] EXTENSION_RESULT_OK if all went ok
  */
-typedef ExtensionResult (*FExtensionInitialize)(ExtensionParams*)
+typedef ExtensionResult (*FExtensionInitialize)(ExtensionParams*);
 
 /*#
  * Calls for the finalization of an extension
