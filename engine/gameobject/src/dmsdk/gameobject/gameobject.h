@@ -285,9 +285,7 @@ namespace dmGameObject
 
         uint8_t m_HasKey : 1;
 
-        PropertyOptions()
-        : m_Index(0)
-        , m_HasKey(0) {};
+        PropertyOptions();
     };
 
     /*# property variant
