@@ -1381,6 +1381,11 @@
         (map (comp resource/proj-path :resource))
         (project/dirty-save-data project)))
 
+(defn dirty-proj-paths [project]
+  (into (sorted-set)
+        (map (comp resource/proj-path :resource))
+        (project/dirty-save-data project)))
+
 (defn type-preserving-add [a b]
   (condp instance? a
     Double (double (+ a b))

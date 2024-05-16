@@ -35,6 +35,8 @@
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [com.google.protobuf ByteString]))
 
+(set! *warn-on-reflection* true)
+
 (def ^Class built-pb-class Lua$LuaModule)
 
 (defn script-property-type->go-prop-type

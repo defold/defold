@@ -36,10 +36,10 @@
   -fx-focus-traversable: false;
   -fx-border-width: 0;
   &:hover {
-    -fx-background-color: -df-component !important;
+    -fx-background-color: -df-component-lighter !important;
   }
   &:armed {
-    -fx-background-color: -df-component !important;
+    -fx-background-color: -df-component-light !important;
   }
 }
 
@@ -47,8 +47,8 @@
   -fx-border-radius: 2px;
   -fx-padding: 0 0 1px 0;
   -fx-border-color: -df-component-dark;
-  -fx-background-color: -df-background-light;
-  -fx-background-radius: 20px;
+  -fx-background-color: -df-background-input;
+  -fx-background-radius: 0px;
   .list-cell {
     .text-field {
       -fx-border-width: 0;
@@ -151,9 +151,9 @@
     -fx-text-fill: -df-text;
     &:active {
       -fx-text-fill: -df-text-selected;
-      -fx-background-color: -df-component;
+      -fx-background-color: -df-component-dark;
       &:hover {
-        -fx-background-color: -df-component;
+        -fx-background-color: -df-component-lighter;
       }
     }
     &:hover {

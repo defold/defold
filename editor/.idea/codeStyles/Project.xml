@@ -52,6 +52,9 @@
           <entry key="editor.resource-node/register-ddf-resource-type" value="-1" />
           <entry key="editor.resource-node/register-settings-resource-type" value="-1" />
           <entry key="editor.settings/register-simple-settings-resource-type" value="-1" />
+          <entry key="editor.resource-node/register-ddf-resource-type" value="-1" />
+          <entry key="editor.resource-node/register-settings-resource-type" value="-1" />
+          <entry key="editor.settings/register-simple-settings-resource-type" value="-1" />
           <entry key="editor.ui.bindings/-if" value="-1" />
           <entry key="editor.ui.bindings/when" value="-1" />
           <entry key="editor.ui.bindings/when-not" value="-1" />
