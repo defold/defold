@@ -22,100 +22,41 @@
    #error "This file is supported in C++ only!"
 #endif
 
+
+/*# Configfile_gen
+ *
+ * description
+ *
+ * @document
+ * @name Configfile_gen
+ * @namespace dmConfigFile
+ * @path dmsdk/dlib/configfile_gen.hpp
+ */
+
 #include <stdint.h>
 
 #include <dmsdk/dlib/configfile.h>
 
-namespace dmConfigFile {
-    /*# HConfig type definition
-     *
-     * @typedef
-     * @name HConfig
-     */
+namespace dmConfigFile
+{
+    /*#
+    * Generated from [ref:HConfigFile]
+    */
     typedef HConfigFile HConfig;
 
-    /*# get config value as string
-     *
-     * Get config value as string, returns default if the key isn't found
-     *
-     * @name GetString
-     * @param config [type:HConfig] Config file handle
-     * @param key [type:const char*] Key in format section.key (.key for no section)
-     * @param default_value [type:const char*] Default value to return if key isn't found
-     * @return value [type:const char*] found value or default value
-     *
-     * @examples
-     * ```c
-     * static ExtensionResult AppInitialize(ExtensionAppParams* params)
-     * {
-     *     const char* projectTitle = GetString(params->m_ConfigFile, "project.title", "Untitled");
-     * }
-     * ```
-     * @examples
-     *
-     * ```cpp
-     * static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
-     * {
-     *     const char* projectTitle = dmConfigFile::GetString(params->m_ConfigFile, "project.title", "Untitled");
-     * }
-     *
-     */
+    /*#
+    * Generated from [ref:ConfigFileGetString]
+    */
     const char * GetString(HConfig config,const char * key,const char * default_value);
 
-    /*# get config value as integer
-     *
-     * Get config value as integer, returns default if the key isn't found
-     *
-     * @name GetInt
-     * @param config [type:HConfig] Config file handle
-     * @param key [type:const char*] Key in format section.key (.key for no section)
-     * @param default_value [type:int32_t] Default value to return if key isn't found
-     * @return value [type:int32_t] found value or default value
-     *
-     * @examples
-     * ```c
-     * static ExtensionResult AppInitialize(ExtensionAppParams* params)
-     * {
-     *     int32_t displayWidth = GetInt(params->m_ConfigFile, "display.width", 640);
-     * }
-     * ```
-     * @examples
-     *
-     * ```cpp
-     * static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
-     * {
-     *     int32_t displayWidth = dmConfigFile::GetInt(params->m_ConfigFile, "display.width", 640);
-     * }
-     *
-     */
+    /*#
+    * Generated from [ref:ConfigFileGetInt]
+    */
     int32_t GetInt(HConfig config,const char * key,int32_t default_value);
 
-    /*# get config value as float
-     *
-     * Get config value as float, returns default if the key isn't found
-     *
-     * @name GetFloat
-     * @param config [type:HConfig] Config file handle
-     * @param key [type:const char*] Key in format section.key (.key for no section)
-     * @param default_value [type:int32_t] Default value to return if key isn't found
-     * @return value [type:int32_t] found value or default value
-     *
-     * @examples
-     * ```c
-     * static ExtensionResult AppInitialize(ExtensionAppParams* params)
-     * {
-     *     float gravity = GetFloat(params->m_ConfigFile, "physics.gravity_y", -9.8f);
-     * }
-     * ```
-     * @examples
-     *
-     * ```cpp
-     * static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
-     * {
-     *     float gravity = dmConfigFile::GetFloat(params->m_ConfigFile, "physics.gravity_y", -9.8f);
-     * }
-     *
-     */
+    /*#
+    * Generated from [ref:ConfigFileGetFloat]
+    */
     float GetFloat(HConfig config,const char * key,float default_value);
 
 

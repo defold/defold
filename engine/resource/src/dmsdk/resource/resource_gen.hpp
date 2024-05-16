@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/resource and cmd=../../scripts/dmsdk/gen_sdk.py -i ./sdk_gen.json
+// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/resource and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/resource/sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
@@ -22,13 +22,28 @@
    #error "This file is supported in C++ only!"
 #endif
 
+
+/*# Resource_gen
+ *
+ * description
+ *
+ * @document
+ * @name Resource_gen
+ * @namespace dmResource
+ * @path dmsdk/resource/resource_gen.hpp
+ */
+
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/align.h>
 
 #include <dmsdk/resource/resource.h>
 
-namespace dmResource {
-    // no documentation found
+namespace dmResource
+{
+    /*#
+    * Generated from [ref:ResourceResult]
+    */
     enum Result {
         RESULT_OK = 0,
         RESULT_INVALID_DATA = -1,
@@ -54,124 +69,104 @@ namespace dmResource {
         RESULT_UNKNOWN_ERROR = -21,
     };
 
-    // no documentation found
+    /*#
+    * Generated from [ref:HResourceFactory]
+    */
     typedef HResourceFactory HFactory;
 
-    // no documentation found
+    /*#
+    * Generated from [ref:HResourcePreloadHintInfo]
+    */
     typedef HResourcePreloadHintInfo HPreloadHintInfo;
 
-    // no documentation found
+    /*#
+    * Generated from [ref:HResourceDescriptor]
+    */
     typedef HResourceDescriptor HDescriptor;
 
     /*#
-     * Parameters to ResourceReloaded callback
-     */
+    * Generated from [ref:ResourceReloadedParams]
+    */
     typedef ResourceReloadedParams ResourceReloadedParams;
 
     /*#
-     * Function called when a resource has been reloaded.
-     * @param params Parameters
-     * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT
-     * @see RegisterReloadedCallbac
-     */
+    * Generated from [ref:FResourceReloadedCallback]
+    */
     typedef FResourceReloadedCallback FReloadedCallback;
 
     /*#
-     * Get a resource from factory
-     * @name Get
-     * @param factory [type: HFactory] Factory handle
-     * @param name [type: const char*] Resource name
-     * @param resource [type: void**] Created resource
-     * @return result [type: Result]  RESULT_OK on succes
-     */
+    * Generated from [ref:ResourceGet]
+    */
     Result Get(HFactory factory,const char * name,void ** resource);
 
     /*#
-     * Get a resource from factory
-     * @name Get
-     * @param factory [type: HFactory] Factory handle
-     * @param name [type: dmhash_t] Resource name
-     * @param resource [type: void**] Created resource
-     * @return result [type: Result]  RESULT_OK on succes
-     */
+    * Generated from [ref:ResourceGetByHash]
+    */
     Result GetByHash(HFactory factory,dmhash_t name,void ** resource);
 
     /*#
-     * Release resource
-     * @name Release
-     * @param factory [type: HFactory] Factory handle
-     * @param resource [type: void*] Resource pointe
-     */
+    * Generated from [ref:ResourceRelease]
+    */
     void Release(HFactory factory,void * resource);
 
     /*#
-     * Hint the preloader what to load before Create is called on the resource.
-     * The resources are not guaranteed to be loaded before Create is called.
-     * This function can be called from a worker thread.
-     * @name PreloadHint
-     * @param factory [type: dmResource::HPreloadHintInfo] Preloader handle
-     * @param path [type: const char*] Resource path
-     * @return result [type: bool] if successfully invoking preloader
-     */
+    * Generated from [ref:ResourcePreloadHint]
+    */
     bool PreloadHint(HPreloadHintInfo preloader,const char * path);
 
     /*#
-     * Returns the canonical path hash of a resource
-     * @param factory [type: HFactory] Factory handle
-     * @param resource [type: void*] The resource pointer
-     * @param hash [type: dmhash_t] The path hash of the resource
-     * @return result [type: Result] RESULT_OK on succes
-     */
+    * Generated from [ref:ResourceGetPath]
+    */
     Result GetPath(HFactory factory,const void * resource,dmhash_t * hash);
 
     /*#
-     * Adds a file to the resource system
-     * Any request for this path will go through any existing mounts first.
-     * If you wish to provide file overrides, please use the LiveUpdate feature for that.
-     * The file isn't persisted between sessions.
-     *
-     * @name AddFile
-     * @param factory [type: HFactory] Factory handle
-     * @param path [type: const char*] The path of the resource
-     * @param size [type: uint32_t] The size of the resource (in bytes)
-     * @param resource [type: const void*] The resource payload
-     * @return result [type: Result] RESULT_OK on succes
-     */
+    * Generated from [ref:ResourceAddFile]
+    */
     Result AddFile(HFactory factory,const char * path,uint32_t size,const void * resource);
 
     /*#
-     * Removes a previously registered file from the resource system
-     * @name RemoveFile
-     * @param factory [type: HFactory] Factory handle
-     * @param path [type: const char*] The path of the resource
-     * @return result [type: Result] RESULT_OK on succes
-     */
+    * Generated from [ref:ResourceRemoveFile]
+    */
     Result RemoveFile(HFactory factory,const char * path);
 
-    /*/////////////////////////////////////////////////////////////////////////////////////////////////////
-     // Descriptor function
-     */
+    /*#
+    * Generated from [ref:ResourceDescriptorGetNameHash]
+    */
     dmhash_t GetNameHash(HDescriptor rd);
 
-    // no documentation found
+    /*#
+    * Generated from [ref:ResourceDescriptorSetResource]
+    */
     void SetResource(HDescriptor rd,void * resource);
 
-    // no documentation found
+    /*#
+    * Generated from [ref:ResourceDescriptorGetResource]
+    */
     void * GetResource(HDescriptor rd);
 
-    // no documentation found
+    /*#
+    * Generated from [ref:ResourceDescriptorSetPrevResource]
+    */
     void SetPrevResource(HDescriptor rd,void * resource);
 
-    // no documentation found
+    /*#
+    * Generated from [ref:ResourceDescriptorGetPrevResource]
+    */
     void * GetPrevResource(HDescriptor rd);
 
-    // no documentation found
+    /*#
+    * Generated from [ref:ResourceDescriptorSetResourceSize]
+    */
     void SetResourceSize(HDescriptor rd,uint32_t size);
 
-    // no documentation found
+    /*#
+    * Generated from [ref:ResourceDescriptorGetResourceSize]
+    */
     uint32_t GetResourceSize(HDescriptor rd);
 
-    // no documentation found
+    /*#
+    * Generated from [ref:ResourceDescriptorGetType]
+    */
     HResourceType GetType(HDescriptor rd);
 
 

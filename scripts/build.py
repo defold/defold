@@ -1078,7 +1078,7 @@ class Configuration(object):
 
     def gen_sdk_source(self):
         print("Generating source!")
-        cmd = [self.get_python(), os.path.normpath(join(self.defold_root, './scripts/dmsdk/gen_sdk.py'))]
+        cmd = self.get_python() + [os.path.normpath(join(self.defold_root, './scripts/dmsdk/gen_sdk.py'))]
         for lib in ENGINE_LIBS:
             cwd = 'engine/%s' % lib
             info = join(self.defold_root, 'engine/%s/sdk_gen.json' % lib)

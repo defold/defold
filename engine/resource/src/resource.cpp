@@ -1047,7 +1047,9 @@ static Result DoReloadResource(HFactory factory, const char* name, HResourceDesc
                 ResourceReloadedParams reload_params;
                 reload_params.m_UserData = pair.m_UserData;
                 reload_params.m_Resource = rd;
-                reload_params.m_Name = name;
+                reload_params.m_Filename = name;
+                reload_params.m_FilenameHash = canonical_path_hash;
+                reload_params.m_Type     = resource_type;
                 pair.m_Callback(&reload_params);
             }
         }
@@ -1132,7 +1134,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
     params.m_BufferSize = datasize;
     params.m_Resource = rd;
     params.m_Filename = 0;
-    params.m_NameHash = hashed_name;
+    params.m_FilenameHash = hashed_name;
     Result create_result = (Result)resource_type->m_RecreateFunction(&params);
     if (create_result == RESULT_OK)
     {
@@ -1144,8 +1146,9 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
                 ResourceReloadedParams params;
                 params.m_UserData = pair.m_UserData;
                 params.m_Resource = rd;
-                params.m_Name = 0;
-                params.m_NameHash = hashed_name;
+                params.m_Type     = resource_type;
+                params.m_Filename = 0;
+                params.m_FilenameHash = hashed_name;
                 pair.m_Callback(&params);
             }
         }
@@ -1185,7 +1188,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
     params.m_BufferSize = 0;
     params.m_Resource = rd;
     params.m_Filename = 0;
-    params.m_NameHash = hashed_name;
+    params.m_FilenameHash = hashed_name;
     Result create_result = (Result)resource_type->m_RecreateFunction(&params);
     if (create_result == RESULT_OK)
     {
@@ -1197,8 +1200,8 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
                 ResourceReloadedParams params;
                 params.m_UserData = pair.m_UserData;
                 params.m_Resource = rd;
-                params.m_Name = 0;
-                params.m_NameHash = hashed_name;
+                params.m_Filename = 0;
+                params.m_FilenameHash = hashed_name;
                 pair.m_Callback(&params);
             }
         }

@@ -157,7 +157,7 @@ namespace dmGameSystem
         uint64_t vertex_name_hash = dmRender::GetMaterialUserData1(material);
         uint64_t fragment_name_hash = dmRender::GetMaterialUserData2(material);
 
-        if (params->m_NameHash == vertex_name_hash || params->m_NameHash == fragment_name_hash)
+        if (params->m_FilenameHash == vertex_name_hash || params->m_FilenameHash == fragment_name_hash)
         {
             dmRender::HRenderContext render_context = dmRender::GetMaterialRenderContext(material);
             dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);

@@ -3695,7 +3695,7 @@ namespace dmGameObject
                 Prototype* prototype = (Prototype*)ResourceDescriptorGetResource(params->m_Resource);
                 if (instance->m_Prototype == prototype) {
                     Prototype* prev_prototype = (Prototype*)ResourceDescriptorGetPrevResource(params->m_Resource);
-                    RecreateInstance(collection, index, prev_prototype, prototype, params->m_Name);
+                    RecreateInstance(collection, index, prev_prototype, prototype, params->m_Filename);
                 } else {
                     uint32_t next_component_instance_data = 0;
                     for (uint32_t j = 0; j < instance->m_Prototype->m_ComponentCount; ++j)

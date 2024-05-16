@@ -288,7 +288,7 @@ def generate(gen_info, includes, basepath, outdir):
 
                 parsed_includes = prune_includes(parsed_includes)
 
-                out_data = gen_cpp.gen_cpp_header(relative_path, out, info, ast, state, parsed_includes)
+                out_data = gen_cpp.gen_cpp_header(basepath, relative_path, out, info, ast, state, parsed_includes)
 
                 with open(out, 'w', encoding='utf-8') as f:
                     f.write(out_data)
@@ -312,7 +312,6 @@ if __name__ == "__main__":
 
     info = None
     with open(args.input) as f:
-        #info = json.loads(f.read())
         info = json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(f.read())
 
     cwd = os.getcwd()

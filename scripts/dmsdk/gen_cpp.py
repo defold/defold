@@ -30,8 +30,6 @@ def l(s):
     global out_lines
     out_lines += s + '\n'
 
-
-
 ###########################################
 
 def rename_symbols(renames, line):
@@ -39,9 +37,25 @@ def rename_symbols(renames, line):
         line = line.replace(k, v)
     return line
 
-def gen_cpp_doc(renames, doc):
+def gen_doc_header(name, description, namespace, source):
+    return f"""
+/*# {name}
+ *
+ * {description}
+ *
+ * @document
+ * @name {name}
+ * @namespace {namespace}
+ * @path {source}
+ */
+"""
+
+def get_cpp_doc(renames, doc):
     if doc is None or not (doc.desc or doc.params or doc.examples):
-        return '    // no documentation found'
+        return None
+    # if not beginning.startswith('/*#'):
+    #     return None
+
     lines = []
     lines.extend(doc.desc.strip().split('\n'))
     for param in doc.params:
@@ -67,6 +81,11 @@ def gen_cpp_doc(renames, doc):
     lines = [lines[0]] + ['     ' + l for l in lines[1:]]
     return '    /*%s\n' % lines[0] + '\n'.join(lines[1:]) + '\n     */'
 
+def gen_doc_link(name):
+    return f"""    /*#
+    * Generated from [ref:{name}]
+    */"""
+
 def get_cpp_func(decl):
     ret_type = decl['type']['qualType']
     index = ret_type.find('(')
@@ -81,7 +100,7 @@ def get_cpp_func(decl):
 
     return '%s %s(%s)' % (ret_type, decl['name'], ','.join(args))
 
-def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
+def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes):
     _reset_globals()
 
     l('// Generated, do not edit!')
@@ -103,6 +122,11 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
     l('#endif')
     l('')
 
+    namespace = info.get('namespace', None)
+    source_path = os.path.relpath(out_path, basepath)
+    doc_header = gen_doc_header(os.path.splitext(os.path.basename(out_path))[0].capitalize(), "description", namespace, source_path)
+    l(doc_header)
+
     for include in includes:
         if os.path.normpath(out_path).endswith(os.path.normpath(include)):
             continue # skip self includes
@@ -112,11 +136,11 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
     l('#include <%s>' % c_header_path)
     l('')
 
-    namespace = info.get('namespace', None)
     if not namespace:
         raise Exception("C++ header has no 'namespace' defined!")
 
-    l('namespace %s {' % info['namespace'])
+    l('namespace %s' % info['namespace'])
+    l('{')
 
     ignores = info.get('ignore', [])
     prefixes = info.get('rename', {})
@@ -126,7 +150,11 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
         if n in ignores:
             continue
         renamed = rename_symbols(prefixes, n)
-        l('%s' % gen_cpp_doc(prefixes, doc))
+
+        # out_doc = get_cpp_doc(prefixes, doc)
+        # if out_doc is None:
+        out_doc = gen_doc_link(enum_type.name)
+        l(out_doc)
         l('    enum %s {' % renamed)
         for enum_value in enum_type.values:
             n = enum_value['name']
@@ -143,7 +171,11 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
         if n in ignores:
             continue
         renamed = rename_symbols(prefixes, n)
-        l('%s' % gen_cpp_doc(prefixes, doc))
+
+        # out_doc = get_cpp_doc(prefixes, doc)
+        # if out_doc is None:
+        out_doc = gen_doc_link(decl['name'])
+        l(out_doc)
         l('    typedef %s %s;' % (n, renamed))
         l('')
 
@@ -152,7 +184,11 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
         if n in ignores:
             continue
         renamed = rename_symbols(prefixes, n)
-        l('%s' % gen_cpp_doc(prefixes, doc))
+
+        # out_doc = get_cpp_doc(prefixes, doc)
+        # if out_doc is None:
+        out_doc = gen_doc_link(decl['name'])
+        l(out_doc)
         l('    typedef %s %s;' % (n, renamed))
         l('')
 
@@ -163,7 +199,11 @@ def gen_cpp_header(c_header_path, out_path, info, ast, state, includes):
         renamed = rename_symbols(prefixes, n)
         cpp_func = get_cpp_func(decl)
         cpp_func = rename_symbols(prefixes, cpp_func)
-        l('%s' % gen_cpp_doc(prefixes, doc))
+
+        # out_doc = get_cpp_doc(prefixes, doc)
+        # if out_doc is None:
+        out_doc = gen_doc_link(decl['name'])
+        l(out_doc)
         l('    %s;' % cpp_func)
         l('')
 

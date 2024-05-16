@@ -1,3 +1,14 @@
+/*# Resource
+ *
+ * Functions for managing resource types.
+ *
+ * @document
+ * @name Resource
+ * @path engine/resource/src/dmsdk/resource/resource.h
+ */
+
+/////////////////////////////////////////////////////////////
+// Resource type life registering and callbacks
 
 /*# declare a new resource type
  *
@@ -125,6 +136,9 @@
  * @return result [type: ResourceResult] RESOURCE_RESULT_OK on success
  */
 
+/////////////////////////////////////////////////////////////
+// Resource type
+
 /** (Internal for now)
  * Register a resource type
  * @name ResourceRegisterType
@@ -189,32 +203,58 @@
  * @param fn [type: FResourceRecreate] Function to be called when recreating the resource
  */
 
+/////////////////////////////////////////////////////////////
+// Resource descriptors
 
-/**
- * ResourceResult
- * @enum
- * @name ResourceResult
- * @member RESOURCE_RESULT_OK
- * @member RESOURCE_RESULT_INVALID_DATA
- * @member RESOURCE_RESULT_DDF_ERROR
- * @member RESOURCE_RESULT_RESOURCE_NOT_FOUND
- * @member RESOURCE_RESULT_MISSING_FILE_EXTENSION
- * @member RESOURCE_RESULT_ALREADY_REGISTERED
- * @member RESOURCE_RESULT_INVAL
- * @member RESOURCE_RESULT_UNKNOWN_RESOURCE_TYPE
- * @member RESOURCE_RESULT_OUT_OF_MEMORY
- * @member RESOURCE_RESULT_IO_ERROR
- * @member RESOURCE_RESULT_NOT_LOADED
- * @member RESOURCE_RESULT_OUT_OF_RESOURCES
- * @member RESOURCE_RESULT_STREAMBUFFER_TOO_SMALL
- * @member RESOURCE_RESULT_FORMAT_ERROR
- * @member RESOURCE_RESULT_CONSTANT_ERROR
- * @member RESOURCE_RESULT_NOT_SUPPORTED
- * @member RESOURCE_RESULT_RESOURCE_LOOP_ERROR
- * @member RESOURCE_RESULT_PENDING
- * @member RESOURCE_RESULT_INVALID_FILE_EXTENSION
- * @member RESOURCE_RESULT_VERSION_MISMATCH
- * @member RESOURCE_RESULT_SIGNATURE_MISMATCH
- * @member RESOURCE_RESULT_UNKNOWN_ERROR
+/*# get path hash of resource
+ * @name ResourceDescriptorGetNameHash
+ * @param rd [type: HResourceDescriptor] The resource
+ * @return hash [type: dmhash_t] The path hash
  */
 
+/*# set the resource data
+ * @name ResourceDescriptorSetResource
+ * @param rd [type: HResourceDescriptor] The resource handle
+ * @param resource [type: void*] The resource data
+ */
+
+/*# get the resource data
+ * @name ResourceDescriptorGetResource
+ * @param rd [type: HResourceDescriptor] The resource handle
+ * @return resource [type: void*] The resource data
+ */
+
+/*# set the resource data size
+ * @name ResourceDescriptorSetResourceSize
+ * @param rd [type: HResourceDescriptor] The resource handle
+ * @param size [type: uint32_t] The resource data size (in bytes)
+ */
+
+/*# get the resource data size
+ * @name ResourceDescriptorGetResourceSize
+ * @param rd [type: HResourceDescriptor] The resource handle
+ * @return size [type: uint32_t] The resource data size (in bytes)
+ */
+
+/*# set the previous resource data
+ * @note only used when recreating a resource
+ * @name ResourceDescriptorSetPrevResource
+ * @param rd [type: HResourceDescriptor] The resource handle
+ * @param resource [type: void*] The resource data
+ */
+
+/*# get the previous resource data
+ * @note only used when recreating a resource
+ * @name ResourceDescriptorGetPrevResource
+ * @param rd [type: HResourceDescriptor] The resource handle
+ * @return resource [type: void*] The resource data
+ */
+
+/*# get the resource type
+ * @name ResourceDescriptorGetType
+ * @param rd [type: HResourceDescriptor] The resource handle
+ * @return resource [type: HResourceType] The resource type
+ */
+
+
+/////////////////////////////////////////////////////////////

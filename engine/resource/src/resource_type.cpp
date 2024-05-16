@@ -133,8 +133,6 @@ Result RegisterTypes(HFactory factory, dmHashTable64<void*>* contexts)
         ResourceTypeContext ctx;
         ctx.m_Factory = factory;
         ctx.m_Contexts = contexts;
-        // ctx.m_Name = desc->m_Name;
-        // ctx.m_NameHash = dmHashString64(desc->m_Name);
 
         HResourceType type = dmResource::AllocateResourceType(factory, desc->m_Name);
         type->m_Extension = desc->m_Name;

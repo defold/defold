@@ -28,7 +28,7 @@ namespace dmGameSystem
     void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
     {
         RenderScriptPrototype* prototype = (RenderScriptPrototype*) params->m_UserData;
-        if (params->m_NameHash == prototype->m_NameHash)
+        if (params->m_FilenameHash == prototype->m_NameHash)
         {
             dmRender::OnReloadRenderScriptInstance(prototype->m_Instance);
         }
@@ -119,6 +119,9 @@ namespace dmGameSystem
                             dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) render_resource;
                             render_resource_val = (uint64_t) material_res->m_Material;
                         } break;
+                    case dmRender::RENDER_RESOURCE_TYPE_INVALID:
+                    default:
+                        break;
                     }
 
                     dmRender::AddRenderScriptInstanceRenderResource(

@@ -36,7 +36,6 @@ extern "C" {
  *
  * @document
  * @name Extension
- * @namespace dmExtension
  * @path engine/dlib/src/dmsdk/extension/extension.h
  */
 
@@ -78,9 +77,9 @@ typedef enum ExtensionEventID
     EXTENSION_EVENT_ID_DEICONIFYAPP,
 } ExtensionEventID;
 
-/*# extra callback enumeration
+/*# extra callback type
  *
- * Extra callback enumeration for RegisterCallback function.
+ * Extra callback type for RegisterCallback function.
  *
  * @enum
  * @name ExtensionCallbackType
@@ -112,12 +111,63 @@ typedef struct ExtensionEvent
     enum ExtensionEventID m_Event;
 } ExtensionEvent;
 
+
+/*#
+ * Callback when the app is being initialized. Called before [ref:FExtensionInitialize]
+ * @note There is no guarantuee of initialization order. If an extension requires another extension to be initialized,
+ *       that should be handled in [ref:FExtensionInitialize].
+ * @typedef
+ * @name FExtensionAppInitialize
+ * @param params [type:ExtensionAppParams]
+ * @return result [type:ExtensionResult] EXTENSION_RESULT_OK if all went ok
+ */
 typedef ExtensionResult (*FExtensionAppInitialize)(ExtensionAppParams*);
+
+/*#
+ * Callback when the app is being finalized
+ * @typedef
+ * @name FExtensionInitialize
+ * @param params [type:ExtensionAppParams]
+ * @return result [type:ExtensionResult] EXTENSION_RESULT_OK if all went ok
+ */
 typedef ExtensionResult (*FExtensionAppFinalize)(ExtensionAppParams*);
-typedef ExtensionResult (*FExtensionInitialize)(ExtensionParams*);
+
+/*#
+ * Callback after all extensions have been called with [ref:FExtensionAppInitialize]
+ * @typedef
+ * @name FExtensionInitialize
+ * @param params [type:ExtensionParams]
+ * @return result [type:ExtensionResult] EXTENSION_RESULT_OK if all went ok
+ */
+typedef ExtensionResult (*FExtensionInitialize)(ExtensionParams*)
+
+/*#
+ * Calls for the finalization of an extension
+ * @note All extensions will be called with `FExtensionFinalize` before moving on to the next step, the [ref:FExtensionAppFinalize]
+ * @typedef
+ * @name FExtensionFinalize
+ * @param params [type:ExtensionParams]
+ * @return result [type:ExtensionResult] EXTENSION_RESULT_OK if all went ok
+ */
 typedef ExtensionResult (*FExtensionFinalize)(ExtensionParams*);
+
+/*#
+ * Updates an extension. Called for each game frame.
+ * @typedef
+ * @name FExtensionUpdate
+ * @param params [type:ExtensionParams]
+ * @return result [type:ExtensionResult] EXTENSION_RESULT_OK if all went ok
+ */
 typedef ExtensionResult (*FExtensionUpdate)(ExtensionParams*);
-typedef void            (*FExtensionOnEvent)(ExtensionParams*, const ExtensionEvent*);
+
+/*#
+ * Receives an event from the engine
+ * @typedef
+ * @name FExtensionOnEvent
+ * @param params [type:ExtensionParams]
+ * @param event [type:ExtensionEvent] The current event
+ */
+typedef void (*FExtensionOnEvent)(ExtensionParams*, const ExtensionEvent*);
 
 /*# Extra extension callback typedef
  *
@@ -159,6 +209,9 @@ void ExtensionRegister(void* desc,
     FExtensionUpdate        update,
     FExtensionOnEvent       on_event);
 
+/** currently internal
+ * Used for registing a pre or post render callback
+ */
 bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCallback func);
 
 /*# Register application delegate

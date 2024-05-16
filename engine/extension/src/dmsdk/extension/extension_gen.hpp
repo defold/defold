@@ -22,41 +22,36 @@
    #error "This file is supported in C++ only!"
 #endif
 
+
+/*# Extension_gen
+ *
+ * description
+ *
+ * @document
+ * @name Extension_gen
+ * @namespace dmExtension
+ * @path dmsdk/extension/extension_gen.hpp
+ */
+
 #include <dmsdk/resource/resource.h>
 #include <dmsdk/dlib/align.h>
 #include <dmsdk/dlib/configfile.h>
 
 #include <dmsdk/extension/extension.h>
 
-namespace dmExtension {
-    /*# result enumeration
-     *
-     * Result enumeration.
-     *
-     * @enum
-     * @name Result
-     * @member RESULT_OK
-     * @member RESULT_INIT_ERRO
-     */
+namespace dmExtension
+{
+    /*#
+    * Generated from [ref:ExtensionResult]
+    */
     enum Result {
         RESULT_OK = 0,
         RESULT_INIT_ERROR = -1,
     };
 
-    /*# event id enumeration
-     *
-     * Event id enumeration.
-     *
-     * EVENT_ID_ICONIFYAPP and EVENT_ID_DEICONIFYAPP only available on [icon:osx] [icon:windows] [icon:linux]
-     *
-     * @enum
-     * @name EventID
-     * @member EVENT_ID_ACTIVATEAPP
-     * @member EVENT_ID_DEACTIVATEAPP
-     * @member EVENT_ID_ICONIFYAPP
-     * @member EVENT_ID_DEICONIFYAPP
-     *
-     */
+    /*#
+    * Generated from [ref:ExtensionEventID]
+    */
     enum EventID {
         EVENT_ID_ACTIVATEAPP,
         EVENT_ID_DEACTIVATEAPP,
@@ -64,104 +59,47 @@ namespace dmExtension {
         EVENT_ID_DEICONIFYAPP,
     };
 
-    /*# extra callback enumeration
-     *
-     * Extra callback enumeration for RegisterCallback function.
-     *
-     * @enum
-     * @name CallbackType
-     * @member CALLBACK_PRE_RENDER
-     * @member CALLBACK_POST_RENDER
-     *
-     */
+    /*#
+    * Generated from [ref:ExtensionCallbackType]
+    */
     enum CallbackType {
         CALLBACK_PRE_RENDER,
         CALLBACK_POST_RENDER,
     };
 
-    // no documentation found
+    /*#
+    * Generated from [ref:ExtensionAppParams]
+    */
     typedef ExtensionAppParams AppParams;
 
-    // no documentation found
+    /*#
+    * Generated from [ref:ExtensionParams]
+    */
     typedef ExtensionParams Params;
 
-    // no documentation found
+    /*#
+    * Generated from [ref:ExtensionEvent]
+    */
     typedef ExtensionEvent Event;
 
-    /*# Extra extension callback typedef
-     *
-     * Callback typedef for functions passed to RegisterCallback().
-     *
-     * @typedef
-     * @name FCallback
-     * @param params [type:Params]
-     * @return [type:Result
-     */
+    /*#
+    * Generated from [ref:FExtensionCallback]
+    */
     typedef FExtensionCallback FCallback;
 
-    // no documentation found
+    /*#
+    * Generated from [ref:ExtensionRegisterCallback]
+    */
     bool RegisterCallback(CallbackType callback_type,FCallback func);
 
-    /*# Register application delegate
-     *
-     * Register an iOS application delegate to the engine. Multiple delegates are supported (Max 32)
-     *
-     * @note Note that the delegate needs to be registered before the UIApplicationMain in order to
-     * handle any earlier callbacks.
-     *
-     * This function is only available on iOS. [icon:ios]
-     *
-     * @name RegisteriOSUIApplicationDelegate
-     * @param delegate [type:id<UIApplicationDelegate>] An UIApplicationDelegate, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
-     *
-     * @examples
-     * ```objective-c
-     *
-     * // myextension_ios.mm
-     *
-     * id<UIApplicationDelegate> g_MyApplicationDelegate;
-     *
-     * @interface MyApplicationDelegate : NSObject <UIApplicationDelegate>
-     *
-     * - (void) applicationDidBecomeActive:(UIApplication *) application;
-     *
-     * @end
-     *
-     * @implementation MyApplicationDelegate
-     *
-     * - (void) applicationDidBecomeActive:(UIApplication *) application {
-     *     dmLogWarning("applicationDidBecomeActive - MyAppDelegate");
-     * }
-     *
-     * @end
-     *
-     * struct MyAppDelegateRegister
-     * {
-     *     MyApplicationDelegate* m_Delegate;
-     *     MyAppDelegateRegister() {
-     *         m_Delegate = [[FacebookAppDelegate alloc] init];
-     *         Extension::RegisteriOSUIApplicationDelegate(m_Delegate);
-     *     }
-     *     ~MyAppDelegateRegister() {
-     *         Extension::UnregisteriOSUIApplicationDelegate(m_Delegate);
-     *         [m_Delegate release];
-     *     }
-     * };
-     *
-     * MyAppDelegateRegister g_FacebookDelegateRegister;
-     * ``
-     */
+    /*#
+    * Generated from [ref:ExtensionRegisteriOSUIApplicationDelegate]
+    */
     void RegisteriOSUIApplicationDelegate(void * delegate);
 
-    /*# Unregister an application delegate
-     *
-     * Deregister a previously registered iOS application delegate
-     *
-     * This function is only available on iOS. [icon:ios]
-     *
-     * @name UnregisteriOSUIApplicationDelegate
-     * @param delegate an id<UIApplicationDelegate
-     */
+    /*#
+    * Generated from [ref:ExtensionUnregisteriOSUIApplicationDelegate]
+    */
     void UnregisteriOSUIApplicationDelegate(void * delegate);
 
 

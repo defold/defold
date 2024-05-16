@@ -25,7 +25,6 @@
  *
  * @document
  * @name ConfigFile
- * @namespace dmConfigFile
  * @path engine/dlib/src/dmsdk/dlib/configfile.h
  */
 
@@ -90,7 +89,7 @@ const char* ConfigFileGetString(HConfigFile config, const char* key, const char*
  * }
  *
  */
-int32_t     ConfigFileGetInt(HConfigFile config, const char* key, int32_t default_value);
+int32_t ConfigFileGetInt(HConfigFile config, const char* key, int32_t default_value);
 
 /*# get config value as float
  *
