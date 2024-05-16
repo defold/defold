@@ -139,7 +139,8 @@
                       "prerelease" ["do" "clean," "protobuf," "sass" "once," "javac," "with-profile" "dev,sidecar,release" "run" "-m" "aot"]}
 
   ;; used by `pack` task
-  :packing           {:pack-path "resources/_unpack"}
+  :packing           {:pack-path "resources/_unpack"
+                      :lua-language-server-version "v1.7793"}
 
   :codox             {:sources                   ["src/clj"]
                       :output-dir                "target/doc/api"

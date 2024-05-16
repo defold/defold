@@ -125,13 +125,14 @@
 (defn register-resource-types
   [workspace]
   (resource-node/register-ddf-resource-type workspace
-                                    :ext "collectionproxy"
-                                    :node-type CollectionProxyNode
-                                    :ddf-type GameSystem$CollectionProxyDesc
-                                    :load-fn load-collection-proxy
-                                    :icon collection-proxy-icon
-                                    :view-types [:cljfx-form-view :text]
-                                    :view-opts {}
-                                    :tags #{:component}
-                                    :tag-opts {:component {:transform-properties #{}}}
-                                    :label "Collection Proxy"))
+    :ext "collectionproxy"
+    :node-type CollectionProxyNode
+    :ddf-type GameSystem$CollectionProxyDesc
+    :load-fn load-collection-proxy
+    :icon collection-proxy-icon
+    :icon-class :property
+    :view-types [:cljfx-form-view :text]
+    :view-opts {}
+    :tags #{:component}
+    :tag-opts {:component {:transform-properties #{}}}
+    :label "Collection Proxy"))

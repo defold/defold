@@ -454,11 +454,12 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
-                                    :ext model-file-types
-                                    :label "Model Scene"
-                                    :node-type ModelSceneNode
-                                    :icon mesh-icon
-                                    :view-types [:scene :text]))
+    :ext model-file-types
+    :label "Model Scene"
+    :node-type ModelSceneNode
+    :icon mesh-icon
+    :icon-class :design
+    :view-types [:scene :text]))
 
 (defn- update-vb [^GL2 _gl ^VertexBuffer vb data]
   (let [{:keys [mesh-renderable-data ^Matrix4d world-transform ^Matrix4d normal-transform vertex-attribute-bytes]} data]

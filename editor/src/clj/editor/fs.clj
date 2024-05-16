@@ -15,9 +15,10 @@
 (ns editor.fs
   (:require [clojure.java.io :as io]
             [clojure.string :as string])
-  (:import [java.io File FileNotFoundException IOException RandomAccessFile]
+  (:import [clojure.lang IReduceInit]
+           [java.io File FileNotFoundException IOException RandomAccessFile]
            [java.nio.channels OverlappingFileLockException]
-           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileVisitResult Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
+           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileVisitResult FileVisitor Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
            [java.nio.file.attribute BasicFileAttributes FileAttribute]
            [java.util UUID]))
 
@@ -599,3 +600,20 @@
   "Read all the bytes from a file and return a byte array."
   ^bytes [^File src]
   (Files/readAllBytes (.toPath src)))
+
+(defn file-walker
+  "Given a directory, returns a reducible that walks over all files in the dir"
+  [^File file]
+  (reify IReduceInit
+    (reduce [_ f init]
+      (let [acc-vol (volatile! init)]
+        (Files/walkFileTree
+          (.toPath file)
+          (reify FileVisitor
+            (preVisitDirectory [_ _ _] FileVisitResult/CONTINUE)
+            (visitFile [_ path _]
+              (let [file (.toFile ^Path path)
+                    acc (vswap! acc-vol f file)]
+                (if (reduced? acc) FileVisitResult/TERMINATE FileVisitResult/CONTINUE)))
+            (postVisitDirectory [_ _ _] FileVisitResult/CONTINUE)))
+        (unreduced @acc-vol)))))

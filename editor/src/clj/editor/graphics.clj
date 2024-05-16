@@ -170,6 +170,7 @@
 
 (defn resize-doubles [double-values semantic-type new-shader-type]
   {:pre [(vector? double-values)
+         (or (nil? semantic-type) (keyword? semantic-type))
          (keyword? new-shader-type)]}
   (let [old-element-count (count double-values)
         new-element-count (attribute-shader-type->component-count new-shader-type)]
