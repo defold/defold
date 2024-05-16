@@ -408,6 +408,10 @@ namespace dmPlatform
         double xpos, ypos;
         glfwGetCursorPos(window->m_Window, &xpos, &ypos);
 
+        // We have to account for a window scaling factor here because
+        // when we output input actions we do a similar scaling (see engine.cpp -> GOActionCallback)
+        // And it seems like GLFW3 has changed the coordinate system into "screen coordinates"
+        // instead of pixel coordinates.
         float w_scale = (float) window->m_Width / (float) window->m_WidthScreen;
         float h_scale = (float) window->m_Height / (float) window->m_HeightScreen;
 

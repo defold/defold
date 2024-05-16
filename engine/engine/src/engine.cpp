@@ -2039,9 +2039,7 @@ bail:
             dmInputDDF::GamepadMaps* gamepad_maps_ddf;
             fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
             if (fact_error != dmResource::RESULT_OK)
-            {
                 return false;
-            }
             dmInput::RegisterGamepads(engine->m_InputContext, gamepad_maps_ddf);
             dmResource::Release(engine->m_Factory, gamepad_maps_ddf);
         }
@@ -2049,23 +2047,17 @@ bail:
         const char* game_input_binding = dmConfigFile::GetString(config, "input.game_binding", "/input/game.input_bindingc");
         fact_error = dmResource::Get(engine->m_Factory, game_input_binding, (void**)&engine->m_GameInputBinding);
         if (fact_error != dmResource::RESULT_OK)
-        {
             return false;
-        }
 
         const char* render_path = dmConfigFile::GetString(config, "bootstrap.render", "/builtins/render/default.renderc");
         fact_error = dmResource::Get(engine->m_Factory, render_path, (void**)&engine->m_RenderScriptPrototype);
         if (fact_error != dmResource::RESULT_OK)
-        {
             return false;
-        }
 
         const char* display_profiles_path = dmConfigFile::GetString(config, "display.display_profiles", "/builtins/render/default.display_profilesc");
         fact_error = dmResource::Get(engine->m_Factory, display_profiles_path, (void**)&engine->m_DisplayProfiles);
         if (fact_error != dmResource::RESULT_OK)
-        {
             return false;
-        }
 
         return true;
     }

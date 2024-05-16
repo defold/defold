@@ -36,26 +36,8 @@ index e75a551..b05b18b 100644
  @end // GLFWApplicationDelegate
  
  
-diff --git a/src/cocoa_platform.h b/src/cocoa_platform.h
-index 3991455..9a82c26 100644
---- a/src/cocoa_platform.h
-+++ b/src/cocoa_platform.h
-@@ -182,6 +182,13 @@ typedef struct _GLFWlibraryNS
-     // The window whose disabled cursor mode is active
-     _GLFWwindow*        disabledCursorWindow;
- 
-+    // DEFOLD CHANGE BEGIN
-+
-+    int unbundled;
-+    int firstUpdate;
-+
-+    // DEFOLD CHANGE END
-+
-     struct {
-         CFBundleRef     bundle;
-         PFN_TISCopyCurrentKeyboardLayoutInputSource CopyCurrentKeyboardLayoutInputSource;
 diff --git a/src/cocoa_window.m b/src/cocoa_window.m
-index 0dcf0a3..a2a9cc3 100644
+index 0dcf0a3..0a9ed4d 100644
 --- a/src/cocoa_window.m
 +++ b/src/cocoa_window.m
 @@ -676,11 +676,18 @@ - (void)setMarkedText:(id)string
@@ -77,17 +59,6 @@ index 0dcf0a3..a2a9cc3 100644
  }
  
  - (NSArray*)validAttributesForMarkedText
-@@ -981,6 +988,10 @@ GLFWbool _glfwCreateWindowCocoa(_GLFWwindow* window,
-         }
-     }
- 
-+    // DEFOLD CHANGE BEGIN
-+    _glfw.ns.firstUpdate = GLFW_TRUE;
-+    // DEFOLD CHANGE END
-+
-     return GLFW_TRUE;
- 
-     } // autoreleasepool
 diff --git a/src/internal.h b/src/internal.h
 index 8873359..7fd47bc 100644
 --- a/src/internal.h

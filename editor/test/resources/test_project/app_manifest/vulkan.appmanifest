@@ -6,7 +6,7 @@ platforms:
             excludeLibs: ["graphics", "platform"]
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan", "platform_vulkan", "MoltenVK", "glfw3"]
+            libs: ["graphics_vulkan", "platform_vulkan", "MoltenVK"]
             frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 
@@ -15,7 +15,7 @@ platforms:
             excludeLibs: ["graphics", "platform"]
             excludeSymbols: ["GraphicsAdapterOpenGL"]
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan", "platform_vulkan", "MoltenVK", "glfw3"]
+            libs: ["graphics_vulkan", "platform_vulkan", "MoltenVK"]
             frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 
