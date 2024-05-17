@@ -68,8 +68,6 @@
 
 (set! *warn-on-reflection* true)
 
-;; TODO(save-value): Can we use (vector-of :float ...) for these?
-
 (def default-position protobuf/vector3-zero)
 
 (def default-rotation protobuf/quat-identity)

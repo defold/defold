@@ -322,7 +322,7 @@
     nil))
 
 (defn- prop-info-default [prop-info]
-  ;; TODO(save-value): Figure out why we have so much wrapping from (default ...) declarations.
+  ;; TODO(save-value-cleanup): Figure out why we have so much wrapping from (default ...) declarations.
   (some-> prop-info :default :fn util/var-get-recursive (util/apply-if-fn {}) util/var-get-recursive))
 
 (defn- defaults-raw [node-type-deref]

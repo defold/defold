@@ -624,8 +624,6 @@
   ;; node-msg outputs of concrete nodes may be cached. In that case caching is
   ;; fine since such an output will have explicit dependencies on all the
   ;; property values it requires.
-
-  ;; TODO(save-value): Only include overridden fields in pb-maps for override nodes so that changes to the template scene do not bleed into referencing scenes.
   (-> (protobuf/make-map-without-defaults Gui$NodeDesc
         :custom-type custom-type
         :template-node-child false
@@ -2947,7 +2945,7 @@
                              result)
         resolve-resource #(workspace/resolve-resource resource %)]
     (concat
-      ;; TODO(save-value): Shouldn't set-properties-from-pb-map be used for sub-nodes as well?
+      ;; TODO(save-value-cleanup): We could use set-properties-from-pb-map when setting Gui$NodeDesc properties as well.
       (gu/set-properties-from-pb-map self Gui$SceneDesc scene
         script (resolve-resource :script)
         material (resolve-resource (:material :or default-material-proj-path))

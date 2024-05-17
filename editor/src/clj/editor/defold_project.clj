@@ -99,37 +99,32 @@
 
 (defn- load-resource-node [project resource-node-id resource source-value]
   (try
-    (if (or (= :folder (resource/source-type resource))
-            (not (resource/exists? resource)))
-      (do
-        ;; TODO(save-value): This shouldn't be able to happen anymore, right?
-        (assert (and (not= :folder (resource/source-type resource))
-                     (resource/exists? resource)))
-        (mark-node-file-not-found resource-node-id resource))
-      (try
-        (let [{:keys [read-fn load-fn] :as resource-type} (resource/resource-type resource)
-              transpiler-tx-steps (*transpiler-txs-fn* project resource-node-id resource)]
-          (cond-> []
+    ;; TODO(save-value-cleanup): This shouldn't be able to happen anymore. Remove this check after some time in the wild.
+    (assert (and (not= :folder (resource/source-type resource))
+                 (resource/exists? resource)))
+    (let [{:keys [read-fn load-fn] :as resource-type} (resource/resource-type resource)
+          transpiler-tx-steps (*transpiler-txs-fn* project resource-node-id resource)]
+      (cond-> []
 
-                  load-fn
-                  (into (flatten
-                          (if (nil? read-fn)
-                            (load-fn project resource-node-id resource)
-                            (load-fn project resource-node-id resource source-value))))
+              load-fn
+              (into (flatten
+                      (if (nil? read-fn)
+                        (load-fn project resource-node-id resource)
+                        (load-fn project resource-node-id resource source-value))))
 
-                  (and (resource/file-resource? resource)
-                       (resource/editable? resource)
-                       (:auto-connect-save-data? resource-type))
-                  (into (g/connect resource-node-id :save-data project :save-data))
+              (and (resource/file-resource? resource)
+                   (resource/editable? resource)
+                   (:auto-connect-save-data? resource-type))
+              (into (g/connect resource-node-id :save-data project :save-data))
 
-                  transpiler-tx-steps
-                  (into transpiler-tx-steps)
+              transpiler-tx-steps
+              (into transpiler-tx-steps)
 
-                  :always
-                  not-empty))
-        (catch Exception exception
-          (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
-          (mark-node-invalid-content resource-node-id resource exception))))
+              :always
+              not-empty))
+    (catch Exception exception
+      (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
+      (mark-node-invalid-content resource-node-id resource exception))
     (catch Throwable throwable
       (let [proj-path (resource/proj-path resource)]
         (throw (ex-info (format "Error when loading resource '%s'" proj-path)
@@ -168,19 +163,14 @@
         (when (and read-fn
                    (not lazy-loaded))
           (try
-            (if (or (= :folder (resource/source-type resource))
-                    (not (resource/exists? resource)))
-              (do
-                ;; TODO(save-value): This shouldn't be able to happen anymore, right?
-                (assert (and (not= :folder (resource/source-type resource))
-                             (resource/exists? resource)))
-                (resource-io/file-not-found-error node-id nil :fatal resource))
-              (try
-                (du/measuring resource-metrics (resource/proj-path resource) :read-source-value
-                  (resource/read-source-value+sha256-hex resource read-fn))
-                (catch Exception exception
-                  (log/warn :msg (format "Unable to read resource '%s'" (resource/proj-path resource)) :exception exception)
-                  (resource-io/invalid-content-error node-id nil :fatal resource exception))))
+            ;; TODO(save-value-cleanup): This shouldn't be able to happen anymore. Remove this check after some time in the wild.
+            (assert (and (not= :folder (resource/source-type resource))
+                         (resource/exists? resource)))
+            (du/measuring resource-metrics (resource/proj-path resource) :read-source-value
+              (resource/read-source-value+sha256-hex resource read-fn))
+            (catch Exception exception
+              (log/warn :msg (format "Unable to read resource '%s'" (resource/proj-path resource)) :exception exception)
+              (resource-io/invalid-content-error node-id nil :fatal resource exception))
             (catch Throwable throwable
               (let [proj-path (resource/proj-path resource)]
                 (throw (ex-info (format "Error when reading resource '%s'" proj-path)
@@ -235,23 +225,19 @@
                   node-id->dependency-node-ids)))))))
 
 (defn- node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} project]
-  ;; TODO(save-value): This should no longer be true - we should always have a committed resource-node-id.
-  ;; Note that resource-node-id here may be temporary (a make-node not
-  ;; g/transact'ed) here, so we can't use (node-value resource-node-id :...)
-  ;; to inspect it. That's why we pass in node-type, resource.
+  ;; TODO(save-value-cleanup): This is only used for the sanity check below. Remove this after some time in the wild.
   (assert (some? *load-cache*))
 
-  ;; TODO(save-value): We shouldn't have duplicate calls anymore, right?
+  ;; TODO(save-value-cleanup): Check that we don't emit load tx-data multiple times for the same node. This shouldn't be able to happen anymore. Remove this check after some time in the wild.
   (assert (not (contains? @*load-cache* node-id)))
+  (swap! *load-cache* conj node-id)
 
-  ;; Don't generate duplicate tx-data for nodes that have already been loaded.
-  (when-not (contains? @*load-cache* node-id)
-    (swap! *load-cache* conj node-id)
-    (if read-error
-      (let [node-type (resource-node-type resource)]
-        (g/mark-defective node-id node-type read-error))
-      (let [source-value (:source-value node-load-info)]
-        (load-resource-node project node-id resource source-value)))))
+  ;; At this point, the node-id refers to a created node in the graph.
+  (if read-error
+    (let [node-type (resource-node-type resource)]
+      (g/mark-defective node-id node-type read-error))
+    (let [source-value (:source-value node-load-info)]
+      (load-resource-node project node-id resource source-value))))
 
 (defn- sort-node-load-infos-for-loading [node-load-infos old-resource-node-ids-by-proj-path old-resource-node-dependencies]
   {:pre [(map? old-resource-node-ids-by-proj-path)
