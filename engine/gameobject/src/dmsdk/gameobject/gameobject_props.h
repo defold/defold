@@ -39,6 +39,12 @@ namespace dmGameObject
      * @name HPropertyContainer
      */
     typedef struct PropertyContainer* HPropertyContainer;
+
+     /*#
+     * Opaque handle to a property container builder
+     * @typedef
+     * @name HPropertyContainerBuilder
+     */
     typedef struct PropertyContainerBuilder* HPropertyContainerBuilder;
 
     /*# PropertyContainerBuilderParams

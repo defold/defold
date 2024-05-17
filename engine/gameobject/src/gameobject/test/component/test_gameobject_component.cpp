@@ -639,7 +639,7 @@ static dmResource::Result ResourceTypeTestResourceDestroy(const dmResource::Reso
     return dmResource::RESULT_OK;
 }
 
-static dmGameObject::Result ComponentTypeTest_Create(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+static dmGameObject::Result ComponentTypeTest_Create(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
 {
     g_ComponentApiTestContext.m_Created = 1;
     g_ComponentApiTestContext.m_CreateContext = malloc(1);
@@ -648,7 +648,7 @@ static dmGameObject::Result ComponentTypeTest_Create(const dmGameObject::Compone
     return dmGameObject::RESULT_OK;
 }
 
-static dmGameObject::Result ComponentTypeTest_Destroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+static dmGameObject::Result ComponentTypeTest_Destroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
 {
     g_ComponentApiTestContext.m_Destroyed = 1;
     g_ComponentApiTestContext.m_DestroyContext = ComponentTypeGetContext(type);

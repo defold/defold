@@ -110,6 +110,8 @@ namespace dmExtension
      * @member dmExtension::EVENT_ID_DEACTIVATEAPP
      * @member dmExtension::EVENT_ID_ICONIFYAPP
      * @member dmExtension::EVENT_ID_DEICONIFYAPP
+     * @member dmExtension::EVENT_ID_ENGINE_INITIALIZED After Init() has been run, before first Step()
+     * @member dmExtension::EVENT_ID_ENGINE_DELETE At the top of the Delete() of the engine
      *
      */
     enum EventID
@@ -119,8 +121,8 @@ namespace dmExtension
         EVENT_ID_ICONIFYAPP,
         EVENT_ID_DEICONIFYAPP,
 
-        EVENT_ID_ENGINE_INITIALIZED,// After Init() has been run, before first Step()
-        EVENT_ID_ENGINE_DELETE,     // At the top of the Delete() of the engine
+        EVENT_ID_ENGINE_INITIALIZED,
+        EVENT_ID_ENGINE_DELETE,
     };
 
     /*# extra callback enumeration

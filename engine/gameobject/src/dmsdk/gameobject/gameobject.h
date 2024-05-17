@@ -599,12 +599,20 @@ namespace dmGameObject
      * @name GetComponentId
      * @param instance [type: dmGameObject::HInstance] Instance
      * @param component_index [type: uint16_t] Component index
-     * @param component_id [type: dmhash_t* Component id as out-argument
+     * @param component_id [type: dmhash_t*] Component id as out-argument
      * @return result [type: dmGameObject::Result] RESULT_OK if the component was found
      */
     Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
 
-    // Get the component, component type and its world
+    /*#
+     * Get the component, component type and its world
+     * @param instance [type: dmGameObject::HInstance] Instance
+     * @param component_id [type: dmhash_t] Component id
+     * @param component_type [type: uint32_t*] (out) Component type. Used for validation.
+     * @param component [type: HComponent*] (out) The component.
+     * @param world [type: HComponentWorld*] (out) The component world. May be 0.
+     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found
+     */
     Result GetComponent(HInstance instance, dmhash_t component_id, uint32_t* component_type, HComponent* component, HComponentWorld* out_world);
 
     /*# set position
