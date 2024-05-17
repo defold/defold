@@ -242,7 +242,6 @@ namespace dmGameSystem
                                             const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
     {
         uint8_t DM_ALIGNED(16) buffer[512];
-        const uint32_t buffer_size = sizeof(buffer);
 
         dmGameSystemDDF::Create* create_msg = (dmGameSystemDDF::Create*)buffer;
         create_msg->m_Id = id;
@@ -253,11 +252,15 @@ namespace dmGameSystem
 
         uint8_t* prop_buffer = buffer + sizeof(dmGameSystemDDF::Create);
         uint32_t prop_buffer_size = DM_ARRAY_SIZE(buffer) - sizeof(dmGameSystemDDF::Create);
-        uint32_t properties_size = dmGameObject::PropertyContainerGetMemorySize(properties);
-        if (properties_size > prop_buffer_size)
-            return luaL_error(L, "Properties of size %u bytes won't fit in the buffer of size %u", properties_size, prop_buffer_size);
+        uint32_t properties_size = 0;
+        if (properties)
+        {
+            properties_size = dmGameObject::PropertyContainerGetMemorySize(properties);
+            if (properties_size > prop_buffer_size)
+                return luaL_error(L, "Properties of size %u bytes won't fit in the buffer of size %u", properties_size, prop_buffer_size);
 
-        dmGameObject::PropertyContainerSerialize(properties, prop_buffer, prop_buffer_size);
+            dmGameObject::PropertyContainerSerialize(properties, prop_buffer, prop_buffer_size);
+        }
 
         dmMessage::URL sender;
         if (!dmScript::GetURL(L, &sender)) {
@@ -303,16 +306,9 @@ namespace dmGameSystem
         }
 
         dmGameObject::HPropertyContainer properties = 0;
-        if (top >= 4 && !lua_isnil(L, 4))
+        if (top >= 4 && lua_istable(L, 4))
         {
-            uint8_t DM_ALIGNED(16) buffer[512];
-            const uint32_t buffer_size = sizeof(buffer);
-
-            uint32_t actual_prop_buffer_size = dmScript::CheckTable(L, (char*)buffer, buffer_size, 4);
-            if (actual_prop_buffer_size > buffer_size)
-                return luaL_error(L, "the properties supplied to factory.create are too many.");
-            properties = dmGameObject::PropertyContainerAllocateWithSize(actual_prop_buffer_size);
-            dmGameObject::PropertyContainerDeserialize(buffer, actual_prop_buffer_size, properties);
+            properties = dmGameObject::PropertyContainerCreateFromLua(L, 4);
         }
 
         dmVMath::Vector3 scale;

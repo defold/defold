@@ -217,11 +217,8 @@ TEST_F(FactoryTest, FactoryProperties)
     lua_pushboolean(L, 1);
     lua_setfield(L, -2, "bool");
 
-    char DM_ALIGNED(16) buffer[256];
-    uint32_t buffer_size = dmScript::CheckTable(L, buffer, sizeof(buffer), -1);
+    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
     lua_pop(L, 1);
-
-    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, (uint8_t*)buffer, buffer_size);
 
     dmGameObject::PropertyContainerPrint(properties);
 
@@ -245,11 +242,9 @@ TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
     lua_pushliteral(L, "number");
     lua_pushliteral(L, "fail");
     lua_rawset(L, -3);
-    char DM_ALIGNED(16) buffer[256];
-    uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
-    lua_pop(L, 1);
 
-    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, (uint8_t*)buffer, buffer_size);
+    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
+    lua_pop(L, 1);
 
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
@@ -266,11 +261,9 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
     lua_pushliteral(L, "number");
     dmScript::PushHash(L, (dmhash_t)0);
     lua_rawset(L, -3);
-    char DM_ALIGNED(16) buffer[256];
-    uint32_t buffer_size = dmScript::CheckTable(L, buffer, 256, -1);
-    lua_pop(L, 1);
 
-    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, (uint8_t*)buffer, buffer_size);
+    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
+    lua_pop(L, 1);
 
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);

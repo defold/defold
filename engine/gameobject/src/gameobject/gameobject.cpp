@@ -1499,22 +1499,12 @@ namespace dmGameObject
                         }
 
                         HPropertyContainer lua_properties = 0x0;
-                        InstancePropertyBuffer *instance_properties = property_buffers->Get(dmHashString64(instance_desc.m_Id));
+                        HPropertyContainer* instance_properties = property_buffers->Get(dmHashString64(instance_desc.m_Id));
                         if (instance_properties != 0x0)
                         {
                             if (strcmp(type->m_Name, "scriptc") == 0)
                             {
-                                if (instance_properties->property_buffer_size)
-                                {
-                                    lua_properties = dmGameObject::PropertyContainerAllocateWithSize(instance_properties->property_buffer_size);
-                                    PropertyContainerDeserialize(instance_properties->property_buffer, instance_properties->property_buffer_size, lua_properties);
-                                }
-
-                                if (lua_properties == 0x0)
-                                {
-                                    dmLogError("Could not read script properties parameters for the component '%s' in game object '%s' in collection '%s'", dmHashReverseSafe64(component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
-                                    success = false;
-                                }
+                                lua_properties = *instance_properties;
                             }
                         }
 
@@ -2113,7 +2103,7 @@ namespace dmGameObject
                     world = GetWorld(GetCollection(instance), component->m_TypeIndex);
                 }
 
-                if (type->m_GetFunction && user_data != 0)
+                if (type->m_GetFunction)
                 {
                     ComponentGetParams params = {world, user_data};
                     *out_component = (dmGameObject::HComponent)type->m_GetFunction(params);

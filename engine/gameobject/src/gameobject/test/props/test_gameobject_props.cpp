@@ -248,16 +248,11 @@ TEST_F(PropsTest, PropsSpawn)
     dmScript::PushQuat(L, Quat(1, 2, 3, 4));
     lua_setfield(L, -2, "quat");
 
-    uint8_t DM_ALIGNED(16) buffer[1024];
-    uint32_t buffer_size = 1024;
-    uint32_t size_used = dmScript::CheckTable(L, (char*)buffer, buffer_size, -1);
+    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
     lua_pop(L, 1);
 
-    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, buffer, size_used);
-
     ASSERT_EQ(top, lua_gettop(L));
-    ASSERT_LT(0u, size_used);
-    ASSERT_LT(size_used, buffer_size);
+    ASSERT_NE((dmGameObject::HPropertyContainer)0, properties);
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_spawn.goc", dmHashString64("test_id"), properties, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);

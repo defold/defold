@@ -447,7 +447,7 @@ namespace dmGameObject
             dmGameObject::HComponentWorld world;
             uint32_t component_type_index;
             dmGameObject::Result result = dmGameObject::GetComponent(instance, receiver.m_Fragment, &component_type_index, out_component, &world);
-            if ((component_ext != 0x0 || out_component != 0x0) && result != dmGameObject::RESULT_OK)
+            if ((component_ext != 0x0 || *out_component != 0x0) && result != dmGameObject::RESULT_OK)
             {
                 char buffer[128];
                 luaL_error(L, "The component could not be found: '%s'", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));

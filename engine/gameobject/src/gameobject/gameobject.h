@@ -121,12 +121,6 @@ namespace dmGameObject
      */
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
 
-    struct InstancePropertyBuffer
-    {
-        uint8_t *property_buffer;
-        uint32_t property_buffer_size;
-    };
-
     /**
      * Used for mapping instance ids from a collection definition to newly spawned instances
      */
@@ -135,7 +129,7 @@ namespace dmGameObject
     /**
      * Contains property buffers for game objects to be spawned
      */
-    typedef dmHashTable<dmhash_t, InstancePropertyBuffer> InstancePropertyBuffers;
+    typedef dmHashTable<dmhash_t, HPropertyContainer> InstancePropertyBuffers;
 
     /**
      * Spawns a collection into an existing one, from a collection definition resource. Script properties

@@ -168,18 +168,14 @@ namespace dmGameObject
         }
     }
 
-    HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, uint8_t* buffer, uint32_t buffer_size)
+    HPropertyContainer PropertyContainerCreateFromLua(lua_State* L, int index)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
         PropertyContainerBuilderParams params;
-        if (buffer_size == 0)
-        {
-            HPropertyContainerBuilder builder = PropertyContainerCreateBuilder(params);
-            return builder == 0x0 ? 0x0 : PropertyContainerCreate(builder);
-        }
 
-        dmScript::PushTable(L, (const char*)buffer, buffer_size);
+        luaL_checktype(L, index, LUA_TTABLE);
+        lua_pushvalue(L, index);
 
         lua_pushnil(L);
         while (lua_next(L, -2) != 0)
