@@ -657,6 +657,7 @@ namespace dmGameSystem
     {
         proxy->m_TimeStepFactor = factor < 0.0f ? 0.0f : factor;
         proxy->m_TimeStepMode = mode == 0 ? dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS : dmGameSystemDDF::TIME_STEP_MODE_DISCRETE;
+        return dmGameObject::RESULT_OK;
     }
 
     dmGameObject::UpdateResult CompCollectionProxyOnMessage(const dmGameObject::ComponentOnMessageParams& params)
