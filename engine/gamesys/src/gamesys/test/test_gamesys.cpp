@@ -239,9 +239,9 @@ static bool UpdateAndWaitUntilDone(
     const dmGameObject::UpdateContext* update_context,
     bool                               ignore_script_update_fail,
     const char*                        tests_done_key,
-    float                              timeout_seconds = 1.0f)
+    uint32_t                           timeout_seconds = 1)
 {
-    uint64_t timeout = ((uint64_t) timeout_seconds) * 1000000; // microseconds
+    uint64_t timeout = timeout_seconds * 1000000; // microseconds
     uint64_t stop_time = dmTime::GetTime() + timeout;
     bool tests_done = false;
     while (!tests_done)
@@ -4970,7 +4970,7 @@ static bool RunTestLoadBufferASync(int test_n,
     if (!RunString(scriptlibcontext.m_LuaState, buffer))
         return false;
 
-    return UpdateAndWaitUntilDone(scriptlibcontext, collection, update_context, ignore_script_update_fail, "tests_done", 3.0f);
+    return UpdateAndWaitUntilDone(scriptlibcontext, collection, update_context, ignore_script_update_fail, "tests_done", 3);
 }
 
 TEST_F(SysTest, LoadBufferASync)
