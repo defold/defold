@@ -48,10 +48,6 @@ namespace dmGameObject
      *
      * @struct
      * @name PropertyContainerBuilderParams
-     * @member m_Index [type:int32_t] The index of the property to set, only applicable if property is array.
-     * @member m_Key [type:dmhash_t] The key of the property to set, only applicable if property is hashtable.
-     * @member m_HasKey [type:uint8_t] A flag if structure contain m_Key value (it can't contain both)
-     *
      * @name m_NumberCount [type:int32_t] Number of items of type float
      * @name m_HashCount [type:int32_t] Number of items of type dmhash_t
      * @name m_URLStringCount [type:int32_t] Number of items of type const char*
