@@ -94,6 +94,10 @@ namespace dmGameObject
         memset(this, 0, sizeof(InputAction));
     }
 
+    PropertyOptions::PropertyOptions()
+    : m_Index(0)
+    , m_HasKey(0) {}
+
     PropertyVar::PropertyVar()
     {
         DM_STATIC_ASSERT(sizeof(PropertyVar::m_URL) == sizeof(dmMessage::URL), Invalid_Struct_Alias_Size);
