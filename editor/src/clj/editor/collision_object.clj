@@ -496,6 +496,7 @@
        (when (and (empty? (:collision-shape pb-msg))
                   (empty? (:embedded-collision-shape pb-msg)))
          (g/->error _node-id :collision-shape :fatal collision-shape "Collision Object has no shapes"))
+       (validation/prop-error :fatal _node-id :collision-shape validation/prop-collision-shape-conflict? shapes collision-shape)
        (sequence (comp (map :shape-type)
                        (distinct)
                        (remove #(contains? (shape-type-physics-types %) project-physics-type))
@@ -529,15 +530,15 @@
   (input project-settings g/Any)
 
   (property collision-shape resource/Resource
-            (value (gu/passthrough collision-shape-resource))
-            (set (fn [evaluation-context self old-value new-value]
-                   (project/resource-setter evaluation-context self old-value new-value
-                                            [:resource :collision-shape-resource]
-                                            [:build-targets :dep-build-targets])))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))
-            (dynamic error (g/fnk [_node-id collision-shape]
-                                  (when collision-shape
-                                    (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")))))
+           (value (gu/passthrough collision-shape-resource))
+           (set (fn [evaluation-context self old-value new-value]
+                  (project/resource-setter evaluation-context self old-value new-value
+                                           [:resource :collision-shape-resource]
+                                           [:build-targets :dep-build-targets])))
+           (dynamic edit-type (g/constantly {:type resource/Resource :ext #{"convexshape" "tilemap"}}))
+           (dynamic error (g/fnk [_node-id collision-shape shapes]
+                                 (or (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape "Collision Shape")
+                                     (validation/prop-error :fatal _node-id :collision-shape validation/prop-collision-shape-conflict? shapes collision-shape)))))
 
   (property type g/Any
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Physics$CollisionObjectType))))
