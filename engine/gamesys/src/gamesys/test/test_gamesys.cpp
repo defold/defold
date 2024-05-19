@@ -1284,6 +1284,97 @@ TEST_P(CursorTest, Cursor)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Tests the different types of textures (atlas, texture, dynamic)
+// This test makes sure that we can use the correct resource pointers.
+TEST_F(GuiTest, TextureResources)
+{
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t gui_comp_id = dmHashString64("gui");
+
+    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
+
+    dmGameSystem::TextureSetResource* valid_atlas = 0;
+    dmGameSystem::TextureResource* valid_texture = 0;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/atlas/valid.t.texturesetc", (void**) &valid_atlas));
+    ASSERT_TRUE(valid_atlas != 0x0);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/valid_png.texturec", (void**) &valid_texture));
+    ASSERT_TRUE(valid_atlas != 0x0);
+
+    dmGraphics::HTexture valid_atlas_th = valid_atlas->m_Texture->m_Texture;
+    dmGraphics::HTexture valid_texture_th = valid_texture->m_Texture;
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/texture_resources/texture_resources.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmResource::Release(m_Factory, valid_atlas);
+    dmResource::Release(m_Factory, valid_texture);
+
+    // Update + render the GO - this is needed to trigger the creation of the dynamic texture
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+
+    uint32_t component_type_index        = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
+    dmGameSystem::GuiWorld* gui_world    = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(m_Collection, component_type_index);
+    dmGameSystem::GuiComponent* gui_comp = gui_world->m_Components[0];
+
+    {
+        // Box1 is using the "texture" entry, which should equate to a texture resource
+        dmGui::HNode box1 = dmGui::GetNodeById(gui_comp->m_Scene, "box1");
+        ASSERT_NE(0, box1);
+
+        dmGui::NodeTextureType texture_type;
+        dmGui::HTextureSource texture_source = dmGui::GetNodeTexture(gui_comp->m_Scene, box1, &texture_type);
+        ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_TEXTURE, texture_type);
+
+        dmGameSystem::TextureResource* texture_res = (dmGameSystem::TextureResource*) texture_source;
+        ASSERT_EQ(texture_res, valid_texture);
+        ASSERT_EQ(valid_texture_th, texture_res->m_Texture); // same texture
+
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, texture_res->m_Texture));
+    }
+
+    {
+        // Box2 is using the "texture set" entry, which should equate to a texture set resource
+        dmGui::HNode box2 = dmGui::GetNodeById(gui_comp->m_Scene, "box2");
+        ASSERT_NE(0, box2);
+
+        dmGui::NodeTextureType texture_type;
+        dmGui::HTextureSource texture_source = dmGui::GetNodeTexture(gui_comp->m_Scene, box2, &texture_type);
+        ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, texture_type);
+
+        dmGameSystem::TextureSetResource* texture_set_res = (dmGameSystem::TextureSetResource*) texture_source;
+        ASSERT_EQ(valid_atlas, texture_set_res);
+        ASSERT_NE(valid_texture_th, texture_set_res->m_Texture->m_Texture); // NOT the same texture, we swap it out in the script
+
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, texture_set_res->m_Texture->m_Texture));
+        ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, valid_atlas_th)); // Old texture has been removed
+    }
+
+    {
+        // Box2 is using the "texture set" entry, which should equate to a texture set resource
+        dmGui::HNode box3 = dmGui::GetNodeById(gui_comp->m_Scene, "box3");
+        ASSERT_NE(0, box3);
+
+        dmGui::NodeTextureType texture_type;
+        dmGui::HTextureSource texture_source = dmGui::GetNodeTexture(gui_comp->m_Scene, box3, &texture_type);
+        ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_DYNAMIC, texture_type);
+
+        dmGraphics::HTexture texture_h = (dmGraphics::HTexture) texture_source;
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, texture_h));
+    }
+
+    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(FontTest, GlyphBankTest)
 {
     const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
