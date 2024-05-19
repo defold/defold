@@ -392,7 +392,7 @@ public:
     virtual ~FontTest() {}
 };
 
-class GuiTest : public GamesysTest<const char*>
+class GuiTest : public ScriptBaseTest
 {
 public:
     virtual ~GuiTest() {}

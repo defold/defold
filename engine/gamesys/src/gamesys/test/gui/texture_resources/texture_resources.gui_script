@@ -13,5 +13,16 @@
 -- specific language governing permissions and limitations under the License.
 
 function init(self)
-	print("YES")
+	local w = 32
+	local h = 32
+	local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
+    gui.new_texture("dynamic_texture", w, h, "rgb", string.rep(orange, w * h))
+
+    local n = gui.new_box_node(vmath.vector3(200, 200, 0), vmath.vector3(w, h, 0))
+	gui.set_texture(n, "dynamic_texture")
+	gui.set_id(n, "box3")
+end
+
+function final(self)
+	gui.delete_texture("dynamic_texture")
 end

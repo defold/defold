@@ -13,5 +13,22 @@
 -- specific language governing permissions and limitations under the License.
 
 function init(self)
-	print("from scrtipt")
+
+	local tbuffer = buffer.create(32 * 32, { {name=hash("rgba"), type=buffer.VALUE_TYPE_FLOAT32, count=4} } )
+    local tstream = buffer.get_stream(tbuffer, hash("rgba"))
+    local tparams = {
+	       width  = 32,
+	       height = 32,
+	       type   = resource.TEXTURE_TYPE_2D,
+	       format = resource.TEXTURE_FORMAT_RGBA,
+	   }
+
+	resource.set_texture("/atlas/valid.texturec", tparams, tbuffer)
+	resource.set_texture("/texture/valid_png.texturec", tparams, tbuffer)
+
+	-- create a new texture and assign the the atlas
+	local tnew = resource.create_texture("/texture/custom.texturec", tparams, tbuffer)
+	local atlas_info = resource.get_atlas("/atlas/valid.t.texturesetc")
+	atlas_info.texture = tnew
+	resource.set_atlas("/atlas/valid.t.texturesetc", atlas_info)
 end
