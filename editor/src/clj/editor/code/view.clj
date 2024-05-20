@@ -54,7 +54,7 @@
             [internal.util :as util]
             [schema.core :as s]
             [service.smoke-log :as slog]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [com.defold.control ListView]
            [com.sun.javafx.font FontResource FontStrike PGFont]
            [com.sun.javafx.geom.transform BaseTransform]
@@ -986,13 +986,24 @@
     display-string))
 
 (g/defnk produce-completions-combined [completions-built-in completions-lsp completion-context]
-  (->> [completions-built-in
-        (eduction
-          (map-indexed #(vary-meta %2 assoc ::index %1))
-          (:items completions-lsp))]
-       (into [] (comp cat (util/distinct-by completion-identifier)))
-       (popup/fuzzy-option-filter-fn :name :display-string (:query completion-context))
-       vec))
+  (let [all-completions (into []
+                              (comp cat (util/distinct-by completion-identifier))
+                              [completions-built-in
+                               (eduction
+                                 (map-indexed #(vary-meta %2 assoc ::index %1))
+                                 (:items completions-lsp))])
+        query (:query completion-context)
+        ;; We want to treat :text completions as "lower quality", only showing them
+        ;; when there are no other types of completions
+        qualified-completions (->> all-completions
+                                   (filterv #(not (identical? :text (:type %))))
+                                   (popup/fuzzy-option-filter-fn :name :display-string query))]
+    (if (pos? (coll/bounded-count 1 qualified-completions))
+      (vec qualified-completions)
+      (->> all-completions
+           (filterv #(identical? :text (:type %)))
+           (popup/fuzzy-option-filter-fn :name :display-string query)
+           vec))))
 
 (g/defnk produce-completions-combined-ids [completions-combined]
   (mapv completion-identifier completions-combined))
