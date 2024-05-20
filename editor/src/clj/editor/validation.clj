@@ -95,7 +95,7 @@
 
 (defn prop-collision-shape-conflict? [shapes collision-shape]
   (when (and collision-shape (not (empty? shapes)))
-    "Cannot use both 'Collision Shape' and 'Shapes'. Please remove one of them."))
+    "Cannot combine embedded shapes with a referenced 'Collision Shape'. Please remove either."))
 
 (def prop-0-1? (partial prop-outside-range? [0.0 1.0]))
 
