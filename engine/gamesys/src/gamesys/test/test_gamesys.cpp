@@ -1305,7 +1305,7 @@ TEST_F(GuiTest, TextureResources)
     dmGraphics::HTexture valid_atlas_th = valid_atlas->m_Texture->m_Texture;
     dmGraphics::HTexture valid_texture_th = valid_texture->m_Texture;
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/texture_resources/texture_resources.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/texture_resources/texture_resources.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0x0, go);
 
     dmResource::Release(m_Factory, valid_atlas);
