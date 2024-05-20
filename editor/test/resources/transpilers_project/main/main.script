@@ -1,5 +1,0 @@
-local tl = require("modules.main")
-
-function init(self)
-	print(tl)
-end
