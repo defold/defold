@@ -850,9 +850,9 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void* CompGuiGetComponent(const dmGameObject::ComponentGetParams& params)
+    static dmGameObject::HComponent CompGuiGetComponent(const dmGameObject::ComponentGetParams& params)
     {
-        return (GuiComponent*)*params.m_UserData;
+        return (dmGameObject::HComponent)params.m_UserData;
     }
 
     struct RenderGuiContext
@@ -2217,7 +2217,7 @@ namespace dmGameSystem
             gui_component->m_AddedToUpdate = 1;
             return dmGameObject::CREATE_RESULT_OK;
         }
-        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR; 
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
     static dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
