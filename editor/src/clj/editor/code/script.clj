@@ -59,6 +59,7 @@
                        :field #{"."}
                        :module #{"."}}
    :completion-trigger-characters #{"."}
+   :ignored-completion-trigger-characters #{"{" ","}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}
