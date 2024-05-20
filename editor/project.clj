@@ -254,7 +254,7 @@
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/main.zip"
-                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/heads/clean-output.zip"
+                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/main.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
