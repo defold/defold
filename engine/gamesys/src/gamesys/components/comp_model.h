@@ -52,7 +52,7 @@ namespace dmGameSystem
     struct ModelWorld;
     struct ModelResource;
 
-    ModelComponent*         CompModelGetComponent(ModelWorld* world, uintptr_t user_data);
+    ModelComponent*         CompModelGetComponent(ModelWorld* world, dmGameObject::HComponentInternal user_data);
     ModelResource*          CompModelGetModelResource(ModelComponent* component);
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);
     bool                    CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled);
