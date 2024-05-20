@@ -324,7 +324,7 @@ namespace dmPlatform
 
     float GetDisplayScaleFactor(HWindow window)
     {
-        return 1.0f;
+        return dmMath::Max(window->m_Width / window->m_WidthScreen, window->m_Height / window->m_HeightScreen);
     }
 
     void* AcquireAuxContext(HWindow window)
