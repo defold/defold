@@ -20,7 +20,7 @@
 
 namespace dmGameObject
 {
-    HPropertyContainer CreatePropertyContainerFromDDF(const dmPropertiesDDF::PropertyDeclarations* prop_descs);
+    HPropertyContainer PropertyContainerCreateFromDDF(const dmPropertiesDDF::PropertyDeclarations* prop_descs);
 }
 
 #endif // GAMEOBJECT_PROPS_DDF_H

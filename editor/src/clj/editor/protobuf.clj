@@ -65,7 +65,9 @@ Macros currently mean no foreseeable performance gain, however."
 (def ^:private default-instance (fn/memoize default-instance-raw))
 
 (defn pb-class? [value]
-  (isa? value Message))
+  (and (class? value)
+       (not= Message value)
+       (.isAssignableFrom Message value)))
 
 (defn- new-builder
   ^Message$Builder [^Class cls]

@@ -23,6 +23,8 @@
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 
+#include "gameobject/gameobject_ddf.h"
+
 using namespace dmVMath;
 
 class CollectionTest : public jc_test_base_class

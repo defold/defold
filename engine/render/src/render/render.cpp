@@ -771,6 +771,7 @@ namespace dmRender
             uint32_t sampler_index       = i;
             dmGraphics::HTexture texture = textures[i];
 
+            // If a texture has been bound by a sampler hash, the material must have a valid sampler for it
             if (render_context->m_TextureBindTable[i].m_Samplerhash)
             {
                 int32_t hash_sampler_index = GetMaterialSamplerIndex(material, render_context->m_TextureBindTable[i].m_Samplerhash);
@@ -779,6 +780,8 @@ namespace dmRender
                     sampler_index = hash_sampler_index;
                     texture       = render_context->m_TextureBindTable[i].m_Texture;
                 }
+                // The sampler doesn't exist in the material, so we ignore it.
+                else continue;
             }
             else if (texture == 0)
             {
@@ -992,6 +995,9 @@ namespace dmRender
                 {
                     material = ro->m_Material;
                     dmGraphics::EnableProgram(context, GetMaterialProgram(material));
+                    // Reset the override texture binding array. The new material may have a different
+                    // resource layout than the current material.
+                    memset(render_context_textures, 0, sizeof(render_context_textures));
                     GetRenderContextTextures(render_context, material, render_context_textures);
                 }
             }

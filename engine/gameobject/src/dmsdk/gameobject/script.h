@@ -39,9 +39,6 @@ namespace dmGameObject
      * @namespace dmGameObject
      */
 
-    // Deprecated: Use dmScript::GetComponentFromLua() instead
-    void GetComponentFromLua(lua_State* L, int index, const char* component_type, void** world, void** component, dmMessage::URL* url);
-
     Result PostScriptMessage(const dmDDF::Descriptor* descriptor, const uint8_t* payload, uint32_t payload_size, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call);
 
     /*# Sends a script message
