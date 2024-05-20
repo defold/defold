@@ -1039,7 +1039,12 @@
                        (g/set-property self :scroll-y new-scroll-y))))))
   (property completion-trigger-characters g/Any (default #{}) (dynamic visible (g/constantly false)))
   (output completion-trigger-characters g/Any :cached (g/fnk [completion-trigger-characters grammar]
-                                                        (into completion-trigger-characters (:completion-trigger-characters grammar))))
+                                                        (into #{}
+                                                              (comp
+                                                                cat
+                                                                (remove (:ignored-completion-trigger-characters grammar #{})))
+                                                              [completion-trigger-characters
+                                                               (:completion-trigger-characters grammar)])))
   (property diagnostics r/Regions (default []) (dynamic visible (g/constantly false)))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
