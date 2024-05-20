@@ -13,6 +13,10 @@ def build(bld):
     if bld.env['PLATFORM'] not in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']:
         decoders += 'decoders/decoder_tremolo.cpp'.split()
 
+    if bld.env.PLATFORM in ['x86_64-macos', 'arm64-macos']:
+        decoders = ['decoders/decoder_miniaudio.cpp']
+        source = ['miniaudio/miniaudio.cpp']
+
     source += decoders
 
     defines = ''
@@ -24,6 +28,8 @@ def build(bld):
         source += ['sound_ios.mm']
     elif bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5',):
         source += ['sound_ps4.cpp']
+    elif bld.env.PLATFORM in ['x86_64-macos', 'arm64-macos']:
+        source += ['sound_generic.cpp']
     else:
         source += ['sound_generic.cpp']
 
@@ -35,12 +41,18 @@ def build(bld):
         source += ['devices/device_nx64.cpp']
     elif bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5',):
         source += ['devices/device_ps4.cpp']
+    elif bld.env.PLATFORM in ['x86_64-macos', 'arm64-macos']:
+        source += ['devices/device_miniaudio.cpp']
     else:
         source += ['devices/device_openal.cpp']
 
+
+    if bld.env.PLATFORM in ['x86_64-macos', 'arm64-macos']:
+        source += ['sound_miniaudio.cpp']
+
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'js/library_sound.js', postpone = False)
-    elif re.match('arm.*?android', bld.env['PLATFORM']):
+    elif bld.env['PLATFORM'] in ['armv7-android', 'arm64-android']:
         classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
         classpath = os.pathsep.join(classpath)
         bld.env['JAVACFLAGS'] = '-g -source 1.7 -target 1.7'.split()

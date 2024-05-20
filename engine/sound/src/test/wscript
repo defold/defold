@@ -143,6 +143,10 @@ def build(bld):
         soundlibs.append('DMGLFW')
         soundlibs.append('OPENGL')
 
+    if bld.env.PLATFORM in ['x86_64-macos', 'arm64-macos']:
+        soundlibs = ['SOUND']
+        exported_symbols = ['DefaultSoundDevice']
+
     if 'TREMOLO' in soundlibs:
         bld.program(features = 'cxx embed test',
                     includes = '../../src .',

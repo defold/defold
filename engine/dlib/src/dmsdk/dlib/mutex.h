@@ -114,6 +114,22 @@ namespace dmMutex
     #define SCOPED_LOCK_PASTE2(x, y) SCOPED_LOCK_PASTE(x, y)
     #define DM_MUTEX_SCOPED_LOCK(mutex) dmMutex::ScopedLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
 
+    // Since using threads is optional, we want to make it easy to switch on/off the mutex behavior
+    struct OptionalScopedMutexLock
+    {
+        OptionalScopedMutexLock(dmMutex::HMutex mutex) : m_Mutex(mutex) {
+            if (m_Mutex)
+                dmMutex::Lock(m_Mutex);
+        }
+        ~OptionalScopedMutexLock() {
+            if (m_Mutex)
+                dmMutex::Unlock(m_Mutex);
+        }
+
+        dmMutex::HMutex m_Mutex;
+    };
+    #define DM_MUTEX_OPTIONAL_SCOPED_LOCK(mutex) dmMutex::OptionalScopedMutexLock SCOPED_LOCK_PASTE2(lock, __LINE__)(mutex);
+
 }  // namespace dmMutex
 
 #endif // #ifndef DMSDK_MUTEX_H

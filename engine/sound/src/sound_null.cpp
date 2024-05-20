@@ -21,8 +21,6 @@
 
 namespace dmSound
 {
-    using namespace dmVMath;
-
     dmArray<SoundInstance*>* g_Instances = 0x0;
 
     struct SoundData
@@ -38,7 +36,7 @@ namespace dmSound
 
     struct SoundInstance
     {
-        Vector4 m_Parameters[PARAMETER_MAX];
+        dmVMath::Vector4 m_Parameters[PARAMETER_MAX];
         uint32_t m_Playing : 1;
         uint32_t m_Looping : 1;
     };
@@ -222,13 +220,13 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const Vector4& value)
+    Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const dmVMath::Vector4& value)
     {
         sound_instance->m_Parameters[parameter] = value;
         return RESULT_OK;
     }
 
-    Result GetParameter(HSoundInstance sound_instance, Parameter parameter, Vector4& value)
+    Result GetParameter(HSoundInstance sound_instance, Parameter parameter, dmVMath::Vector4& value)
     {
         value = sound_instance->m_Parameters[parameter];
         return RESULT_OK;

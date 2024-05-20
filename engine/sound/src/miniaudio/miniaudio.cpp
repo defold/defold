@@ -12,20 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "sound.h"
-
-namespace dmSound
-{
-    void SetDefaultInitializeParams(InitializeParams* params)
-    {
-        memset(params, 0, sizeof(InitializeParams));
-        params->m_OutputDevice = "default";
-        params->m_MasterGain = 1.0f;
-        params->m_MaxSoundData = 128;
-        params->m_MaxSources = 16;
-        params->m_MaxBuffers = 32;
-        params->m_BufferSize = 12 * 4096;
-        params->m_FrameCount = 768;
-        params->m_MaxInstances = 256;
-    }
-}
+#define MA_NO_ENGINE
+#define MA_NO_RESOURCE_MANAGER
+#define MA_NO_FLAC // not supported yet
+#define MA_NO_MP3 // not supported yet
+#define MA_NO_ENCODING
+#define MINIAUDIO_IMPLEMENTATION
+#include "miniaudio.h"
