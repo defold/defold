@@ -192,5 +192,6 @@
     :load-fn load-render
     :sanitize-fn sanitize-render
     :icon "icons/32/Icons_30-Render.png"
+    :icon-class :property
     :view-types [:cljfx-form-view :text]
     :label "Render"))

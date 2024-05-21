@@ -2140,7 +2140,7 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompCollisionIterPropertiesGetNext;
     }
 
-    b2World* CompCollisionObjectGetBox2DWorld(void* _world)
+    b2World* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (world->m_3D)
@@ -2148,7 +2148,7 @@ namespace dmGameSystem
         return (b2World*)dmPhysics::GetWorldContext2D(world->m_World2D);
     }
 
-    b2Body* CompCollisionObjectGetBox2DBody(void* _component)
+    b2Body* CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component)
     {
         CollisionComponent* component = (CollisionComponent*)_component;
         if (component->m_3D)

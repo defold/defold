@@ -135,6 +135,7 @@ PFN_vkGetPhysicalDeviceSurfacePresentModesKHR vkGetPhysicalDeviceSurfacePresentM
 PFN_vkQueuePresentKHR vkQueuePresentKHR;
 PFN_vkResetCommandBuffer vkResetCommandBuffer;
 PFN_vkResetDescriptorPool vkResetDescriptorPool;
+PFN_vkCmdCopyImageToBuffer vkCmdCopyImageToBuffer;
 
 namespace dmGraphics
 {
@@ -284,6 +285,7 @@ namespace dmGraphics
         vkQueuePresentKHR = (PFN_vkQueuePresentKHR) vkGetInstanceProcAddr(vk_instance, "vkQueuePresentKHR");
         vkResetCommandBuffer = (PFN_vkResetCommandBuffer) vkGetInstanceProcAddr(vk_instance, "vkResetCommandBuffer");
         vkResetDescriptorPool = (PFN_vkResetDescriptorPool) vkGetInstanceProcAddr(vk_instance, "vkResetDescriptorPool");
+        vkCmdCopyImageToBuffer = (PFN_vkCmdCopyImageToBuffer) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyImageToBuffer");
         g_functions_loaded = 1;
     }
 }

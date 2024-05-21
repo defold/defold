@@ -533,7 +533,7 @@
                              (when (workspace/has-template? workspace resource-type)
                                {:label (or (:label resource-type) (:ext resource-type))
                                 :icon (:icon resource-type)
-                                :style (resource/ext-style-classes (:ext resource-type))
+                                :style (resource/type-style-classes resource-type)
                                 :command :new-file
                                 :user-data {:resource-type resource-type}})))
                      (workspace/get-resource-type-map workspace))))))

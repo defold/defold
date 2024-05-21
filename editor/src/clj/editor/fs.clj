@@ -14,10 +14,12 @@
 
 (ns editor.fs
   (:require [clojure.java.io :as io]
-            [clojure.string :as string])
-  (:import [java.io File FileNotFoundException IOException RandomAccessFile]
+            [clojure.string :as string]
+            [util.coll :as coll])
+  (:import [clojure.lang IReduceInit]
+           [java.io File FileNotFoundException IOException RandomAccessFile]
            [java.nio.channels OverlappingFileLockException]
-           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileVisitResult Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
+           [java.nio.file AccessDeniedException CopyOption FileAlreadyExistsException FileVisitResult FileVisitor Files LinkOption NoSuchFileException NotDirectoryException OpenOption Path SimpleFileVisitor StandardCopyOption StandardOpenOption]
            [java.nio.file.attribute BasicFileAttributes FileAttribute]
            [java.util UUID]))
 
@@ -599,3 +601,68 @@
   "Read all the bytes from a file and return a byte array."
   ^bytes [^File src]
   (Files/readAllBytes (.toPath src)))
+
+(defn path-walker
+  "Given a directory Path, returns a reducible that walks over all file Paths in
+  the dir, recursively. The optional dir-path-pred should take a directory Path,
+  and return true if the walk should recurse into the directory."
+  ([^Path dir-path]
+   (path-walker dir-path nil))
+  ([^Path dir-path dir-path-pred]
+   {:pre [(instance? Path dir-path)
+          (or (nil? dir-path-pred) (ifn? dir-path-pred))]}
+   (reify IReduceInit
+     (reduce [_ f init]
+       (let [acc-vol (volatile! init)]
+         (Files/walkFileTree
+           dir-path
+           (reify FileVisitor
+             (preVisitDirectory [_ path _]
+               (cond
+                 (nil? dir-path-pred)
+                 FileVisitResult/CONTINUE
+
+                 (dir-path-pred path)
+                 FileVisitResult/CONTINUE
+
+                 :else
+                 FileVisitResult/SKIP_SUBTREE))
+
+             (visitFile [_ path _]
+               (let [acc (vswap! acc-vol f path)]
+                 (if (reduced? acc)
+                   FileVisitResult/TERMINATE
+                   FileVisitResult/CONTINUE)))
+
+             (visitFileFailed [_ _ exception]
+               (throw exception))
+
+             (postVisitDirectory [_ _ exception]
+               (if exception
+                 (throw exception)
+                 FileVisitResult/CONTINUE))))
+
+         (unreduced @acc-vol))))))
+
+(defn file-walker
+  "Given a directory File, returns a reducible that walks over all Files in
+  the dir, recursively."
+  ([^File dir-file include-hidden]
+   (file-walker dir-file include-hidden nil))
+  ([^File dir-file include-hidden ignored-dirnames]
+   {:pre [(instance? File dir-file)
+          (every? string? ignored-dirnames)]}
+   (->Eduction
+     (cond->> (map #(.toFile ^Path %))
+              (not include-hidden)
+              (comp (remove #(Files/isHidden %))))
+     (if (and include-hidden
+              (coll/empty? ignored-dirnames))
+       (path-walker (.toPath dir-file))
+       (path-walker (.toPath dir-file)
+                    (fn dir-path-pred [^Path dir-path]
+                      (and (not-any? (fn [^String ignored-dirname]
+                                       (.endsWith dir-path ignored-dirname))
+                                     ignored-dirnames)
+                           (or include-hidden
+                               (not (Files/isHidden dir-path))))))))))

@@ -258,4 +258,5 @@
     :load-fn load-game-project
     :meta-settings (:settings gpcore/basic-meta-info)
     :icon game-project-icon
+    :icon-class :property
     :view-types [:cljfx-form-view :text]))

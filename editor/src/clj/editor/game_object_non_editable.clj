@@ -398,5 +398,6 @@
     :sanitize-fn (partial sanitize-non-editable-game-object workspace)
     :load-fn load-non-editable-game-object
     :icon game-object-common/game-object-icon
+    :icon-class :design
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

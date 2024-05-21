@@ -109,7 +109,8 @@
       (catch FileNotFoundException e
         {:code 404}))))
 
-(defn download [url]
+(defn download
+  ^File [url]
   (let [c (->cache "~/.dcache" (* 4 1000000000))
         hit (cache-get c url)
         headers (if hit

@@ -161,13 +161,14 @@ union SaveLoadBuffer
         if (!file)
         {
             Sys_FreeTableSerializationBuffer(buffer);
-            #if !defined(DM_NO_ERRNO)
-                char errmsg[128] = {};
-                dmStrError(errmsg, sizeof(errmsg), errno);
-                return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
-            #else
-                return luaL_error(L, "Could not open the file %s", tmp_filename);
-            #endif
+
+        #if defined(DM_NO_ERRNO)
+            return luaL_error(L, "Could not open the file %s", tmp_filename);
+        #else
+            char errmsg[128] = {};
+            dmStrError(errmsg, sizeof(errmsg), errno);
+            return luaL_error(L, "Could not open the file %s, reason: %s.", tmp_filename, errmsg);
+        #endif
         }
 
         bool result = fwrite(buffer, 1, n_used, file) == n_used;
@@ -177,7 +178,14 @@ union SaveLoadBuffer
         if (!result)
         {
             dmSys::Unlink(tmp_filename);
+
+        #if defined(DM_NO_ERRNO)
             return luaL_error(L, "Could not write to the file %s.", filename);
+        #else
+            char errmsg[128] = {};
+            dmStrError(errmsg, sizeof(errmsg), errno);
+            return luaL_error(L, "Could not write to the file %s, reason: %s.", filename, errmsg);
+        #endif
         }
 
         if (dmSys::Rename(filename, tmp_filename) != dmSys::RESULT_OK)

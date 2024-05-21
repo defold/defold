@@ -16,11 +16,10 @@
 #define DM_GAMESYS_COLLECTION_PROXY_H
 
 #include <gameobject/component.h>
+#include <dmsdk/gamesys/components/comp_collection_proxy.h>
 
 namespace dmGameSystem
 {
-    typedef struct CollectionProxyWorld* HCollectionProxyWorld;
-
     dmhash_t GetUrlHashFromComponent(const HCollectionProxyWorld world, dmhash_t instanceId, uint32_t index);
 
     dmGameObject::CreateResult CompCollectionProxyNewWorld(const dmGameObject::ComponentNewWorldParams& params);

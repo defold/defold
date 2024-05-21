@@ -9,7 +9,7 @@
   }
   &-background {
     -fx-background-color: -df-component-dark;
-    -fx-border-color: -df-component;
+    -fx-border-color: -df-component-lighter;
     -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 12, 0, 0, 8);
   }
   &-content {
@@ -19,10 +19,10 @@
   &-arrow {
     -fx-shape: "M 1,0 L 0,-1 L 0,0";
     -fx-background-color: -df-component-dark;
-    -fx-border-color: -df-component;
+    -fx-border-color: -df-component-lighter;
   }
   &-button {
-    -fx-background-color: -df-component-light;
+    -fx-background-color: -df-component-dark;
     -fx-border-color: -df-component-darker;
     &:hover {
       -fx-background-color: -df-component-lighter;
