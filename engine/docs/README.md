@@ -2,6 +2,10 @@
 
 Here we collect engine specific documentation for developers.
 
+## Reading the code
+
+* [The Defold code structure](./CODE_STRUCTURE.md) - Code structure and code conventions
+
 ## Systems
 
 * [The engine life cycles](./ENGINE_LIFECYCLE.md)
