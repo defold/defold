@@ -96,32 +96,3 @@ See the [readme](../../external/README.md) for more detailed info.
 We unpack these packages with `./build.py install_ext` and they're installed into the `DYNAMO_HOME` folder.
 
 
-## Code style
-
-### Code conventions
-
-This document isn't about the code style specifically, but it might be good to mention a few things.
-We have a detailed [blog post](https://defold.com/2020/05/31/The-Defold-engine-code-style/) about our code style, but here we list the key points.
-
-In our code we use C++ very sparingly.
-We mainly use it for namespaces, and our own container types.
-
-* No STL - We do not use STL in our engine code (with one single exception (`std::sort()`), and we should remove that!).
-* No `auto` - It does not make code easier to read.
-
-### API style
-
-We favor api's that create a context, given some parameters.
-This context can then be operated on, and eventually destroyed:
-
-```c
-typedef struct SystemContext; // opaque type to keep implementation private
-SystemContext* ctx = SystemCreate(...);
-SystemUpdate(ctx, ...);
-SystemDestroy(ctx);
-```
-
-We try to stay away from singletons, but you may still find them occasionally when the code flow hasn't been updated enough to support a context-based approach.
-
-
-
