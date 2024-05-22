@@ -135,6 +135,91 @@
 
 (def erase-brush (make-brush nil))
 
+(defn flip-brush-horizontally
+  [self]
+  (let [brush (g/node-value self :brush)
+        ;; Horizontal Flip Mappings
+        ;; | current-state 				| hflip | vflip | rotate90 |
+        ;; | 0 (000) - 0°  				| false | false | false    | -> 1 (001) - H
+        ;; | 1 (001) - H   				| true  | false | false    | -> 0 (000) - R_0
+        ;; | 2 (010) - V   				| false | true  | false    | -> 3 (011) - H + V
+        ;; | 3 (011) - H+V 				| true  | true  | false    | -> 2 (010) - V
+        ;; | 4 (100) - 90° 				| false | false | true     | -> 6 (110) - V + R_90
+        ;; | 5 (101) - H+90° 		| true 	| false | true     | -> 7 (111) - H + V + R_90
+        ;; | 6 (110) - V+90° 		| false | true 	| true     | -> 4 (100) - R_90
+        ;; | 7 (111) - H+V+90° | true 	| true 	| true    	| -> 5 (101) - H + R_90
+        flipped-tiles (map (fn [tile]
+                             (let [hflip (:h-flip tile)
+                                   vflip (:v-flip tile)
+                                   rotate90 (:rotate90 tile)
+                                   current-state (bit-or (if hflip 1 0)
+                                                         (if vflip 2 0)
+                                                         (if rotate90 4 0))
+                                   new-state (case current-state
+                                               0 1  ; R_0 -> H
+                                               1 0  ; H -> R_0
+                                               2 3  ; V -> H + V
+                                               3 2  ; H + V -> V
+                                               4 6  ; R_90 -> V + R_90
+                                               5 7  ; H + R_90 -> H + V + R_90
+                                               6 4  ; V + R_90 -> R_90
+                                               7 5) ; H + V + R_90 -> H + R_90
+                                   new-hflip (bit-test new-state 0)
+                                   new-vflip (bit-test new-state 1)
+                                   new-rotate90 (bit-test new-state 2)]
+                               {:x (:x tile)
+                                :y (:y tile)
+                                :tile (:tile tile)
+                                :h-flip new-hflip
+                                :v-flip new-vflip
+                                :rotate90 new-rotate90}))
+                           (:tiles brush))]
+    {:width (:width brush)
+     :height (:height brush)
+     :tiles flipped-tiles}))
+
+(defn rotate-brush-90-degrees
+  [self]
+  (let [brush (g/node-value self :brush)
+        ;; 90-degree Rotation Mappings
+        ;; | current-state 				| hflip | vflip | rotate90 |
+        ;; | 0 (000) - 0°  				| false | false | false    | -> 4 (100) - R_90
+        ;; | 1 (001) - H   				| true  | false | false    | -> 5 (101) - H + R_90
+        ;; | 2 (010) - V   				| false | true  | false    | -> 6 (110) - V + R_90
+        ;; | 3 (011) - H+V 				| true  | true  | false    | -> 7 (111) - H + V + R_90
+        ;; | 4 (100) - 90° 				| false | false | true     | -> 3 (011) - H + V (180-degree rotation)
+        ;; | 5 (101) - H+90° 		| true 	| false | true     | -> 2 (010) - V
+        ;; | 6 (110) - V+90° 		| false | true 	| true     | -> 1 (001) - H
+        ;; | 7 (111) - H+V+90° | true 	| true 	| true    	| -> 0 (000) - R_0
+        rotated-tiles (map (fn [tile]
+                             (let [hflip (:h-flip tile)
+                                   vflip (:v-flip tile)
+                                   rotate90 (:rotate90 tile)
+                                   current-state (bit-or (if hflip 1 0)
+                                                         (if vflip 2 0)
+                                                         (if rotate90 4 0))
+                                   new-state (case current-state
+                                               0 4  ; R_0 -> R_90
+                                               1 5  ; H -> H + R_90
+                                               2 6  ; V -> V + R_90
+                                               3 7  ; H + V -> H + V + R_90
+                                               4 3  ; R_90 -> H + V (180-degree rotation)
+                                               5 2  ; H + R_90 -> V
+                                               6 1  ; V + R_90 -> H
+                                               7 0) ; H + V + R_90 -> R_0
+                                   new-hflip (bit-test new-state 0)
+                                   new-vflip (bit-test new-state 1)
+                                   new-rotate90 (bit-test new-state 2)]
+                               {:x (:x tile)
+                                :y (:y tile)
+                                :tile (:tile tile)
+                                :h-flip new-hflip
+                                :v-flip new-vflip
+                                :rotate90 new-rotate90}))
+                           (:tiles brush))]
+    {:width (:width brush)
+     :height (:height brush)
+     :tiles rotated-tiles}))
 
 ;;--------------------------------------------------------------------
 ;; rendering
@@ -583,7 +668,7 @@
           (.glEnd gl))))))
 
 (defn conj-brush-quad!
-  [vbuf {:keys [tile h-flip v-flip]} uvs w h x y]
+  [vbuf {:keys [tile h-flip v-flip rotate90]} uvs w h x y]
   (if-not tile
     vbuf
     (let [uv (nth uvs tile (geom/identity-uv-trans))
@@ -596,11 +681,17 @@
           y0 y
           x1 (+ x0 w)
           y1 (+ y0 h)]
-      (-> vbuf
-          (pos-uv-vtx-put! x0 y0 0 u0 v1)
-          (pos-uv-vtx-put! x0 y1 0 u0 v0)
-          (pos-uv-vtx-put! x1 y1 0 u1 v0)
-          (pos-uv-vtx-put! x1 y0 0 u1 v1)))))
+      (if rotate90
+          (-> vbuf
+              (pos-uv-vtx-put! x0 y1 0 u0 v1)
+              (pos-uv-vtx-put! x1 y1 0 u0 v0)
+              (pos-uv-vtx-put! x1 y0 0 u1 v0)
+              (pos-uv-vtx-put! x0 y0 0 u1 v1))
+          (-> vbuf
+              (pos-uv-vtx-put! x0 y0 0 u0 v1)
+              (pos-uv-vtx-put! x0 y1 0 u0 v0)
+              (pos-uv-vtx-put! x1 y1 0 u1 v0)
+              (pos-uv-vtx-put! x1 y0 0 u1 v1))))))
 
 (defn gen-brush-vbuf
   [brush uvs tile-width tile-height]
@@ -1244,11 +1335,44 @@
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
+(defn flip-brush-handler [tool-controller]
+  (let [new-brush (flip-brush-horizontally tool-controller)]
+    (g/set-property! tool-controller :brush new-brush)))
+
+(handler/defhandler :flip-brush-horizontally :workbench
+  (active? [app-view evaluation-context]
+           (and (active-tile-map app-view evaluation-context)
+                (active-scene-view app-view evaluation-context)))
+  (enabled? [app-view selection evaluation-context]
+    (and (selection->layer selection)
+         (-> (active-tile-map app-view evaluation-context)
+             (g/node-value :tile-source-resource evaluation-context))))
+  (run [app-view] (flip-brush-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
+
+
+(defn rotate-brush-handler [tool-controller]
+  (let [new-brush (rotate-brush-90-degrees tool-controller)]
+    (g/set-property! tool-controller :brush new-brush)))
+
+(handler/defhandler :rotate-brush-90-degrees :workbench
+  (active? [app-view evaluation-context]
+           (and (active-tile-map app-view evaluation-context)
+                (active-scene-view app-view evaluation-context)))
+  (enabled? [app-view selection evaluation-context]
+    (and (selection->layer selection)
+         (-> (active-tile-map app-view evaluation-context)
+             (g/node-value :tile-source-resource evaluation-context))))
+  (run [app-view] (rotate-brush-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
+
 (handler/register-menu! ::menubar :editor.app-view/edit-end
   [{:label "Select Tile..."
     :command :show-palette}
    {:label "Select Eraser"
-    :command :erase-tool}])
+    :command :erase-tool}
+   {:label "Flip Brush Horizontally"
+    :command :flip-brush-horizontally}
+   {:label "Rotate Brush 90 Degrees"
+    :command :rotate-brush-90-degrees}])
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
