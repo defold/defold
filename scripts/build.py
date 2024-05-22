@@ -1529,7 +1529,7 @@ class Configuration(object):
 
 
     def shell(self):
-        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
+        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
         if "win32" in self.host:
             preexec_fn = None
         else:
@@ -2158,17 +2158,13 @@ class Configuration(object):
 
         env['DYNAMO_HOME'] = self.dynamo_home
 
-        env['ANDROID_HOME'] = os.path.join(self.dynamo_home, 'ext', 'SDKs', 'android-sdk')
-
         android_host = self.host
         if 'win32' in android_host:
             android_host = 'windows'
         paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
-                                      '%s/ext/bin/%s' % (self.dynamo_home, host),
-                                      '%s/platform-tools' % env['ANDROID_HOME'],
-                                      '%s/ext/SDKs/%s/toolchains/llvm/prebuilt/%s-x86_64/bin' % (self.dynamo_home,PACKAGES_ANDROID_NDK,android_host)])
+                                      '%s/ext/bin/%s' % (self.dynamo_home, host)])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
 
