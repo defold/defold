@@ -31,13 +31,13 @@ E.g. `render` may use `graphics`, but the reverse order is not allowed.
 * ddf - Our runtime data format. It's a slimmed down version of Protobuf.
 * platform - Handles some platform specific concepts, like a Window.
 * graphics - Graphics layer with e.g. vertex buffers and shader programs. Backends for OpenGL, Vulkan etc.
-* particle - A system for simulating particles. Use by comp_particle.cpp
+* particle - A system for simulating particles. Used by comp_particle.cpp
 * lua - The regular Lua 5.1 implementation.
 * hid - Human Interface Device library that handles gamepads, mouse, keyboards and touch input.
 * input - A higher level input system that maps HID events into input actions
-* physics - A single frontend for our two physics engines Box 2D and Bullet 3D. Includes the source of Box2D
+* physics - A single frontend for our two physics engines Box 2D and Bullet 3D. Includes the source of Box2D (Bullet 3D is in `defold/external`, see notes below)
 * resource - Resource system. Handles creation of resources, reference counting, and also mounting of resource archives.
-* extension - Api for registering native extensions (aka script extensions)
+* extension - API for registering native extensions (aka script extensions)
 * [script](../script/README.md) - A high level scripting interface that uses Lua as the backend.
 * render - High level rendering concepts like materials, constants, cameras and render command buffer.
 * rig - Our model+skeleton animation system.
@@ -48,7 +48,7 @@ E.g. `render` may use `graphics`, but the reverse order is not allowed.
 * crash - Callstack callbacks and writing functionality
 * gamesys - The main bulk of all resource types, component types and script modules.
 * tools - Utilities like the `gdc` and the editor `launcher`
-* record - Video (.avi) recording library
+* record - Video (.avi) recording library. Current video format is the open vp8 codec in the ivf container.
 * profiler - High level profiler api (using functionality from dlib's profile.h)
 * engine - The defold engine libraries and executable
 * [sdk](../sdk/README.md) - Extra tests for our `dmSDK` headers.
@@ -106,7 +106,7 @@ We have a detailed [blog post](https://defold.com/2020/05/31/The-Defold-engine-c
 In our code we use C++ very sparingly.
 We mainly use it for namespaces, and our own container types.
 
-* No STL - We do not use STL in our code (with one single exception, and we should remove that!).
+* No STL - We do not use STL in our engine code (with one single exception (`std::sort()`), and we should remove that!).
 * No `auto` - It does not make code easier to read.
 
 ### API style
