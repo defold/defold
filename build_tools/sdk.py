@@ -449,7 +449,7 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info['version'] = ANDROID_BUILD_TOOLS_VERSION
         info['sdk'] = os.path.join(sdkfolder, "android-sdk")
         info['ndk'] = os.path.join(sdkfolder, "android-ndk-r%s" % ANDROID_NDK_VERSION)
-        info['build_tools'] = os.path.join(info['sdk'], "build_tools" , ANDROID_BUILD_TOOLS_VERSION)
+        info['build_tools'] = os.path.join(info['sdk'], "build-tools" , ANDROID_BUILD_TOOLS_VERSION)
         if platform == 'arm64-android':
             info['api'] = ANDROID_64_NDK_API_VERSION
         else:
