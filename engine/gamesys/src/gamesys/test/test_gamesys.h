@@ -39,12 +39,13 @@
 
 #include <jc_test/jc_test.h>
 
-static inline dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
+
+static inline dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties,
+                                            const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
 {
     dmGameObject::HPrototype prototype = 0x0;
-    if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK)
-    {
-        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
+    if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
         dmResource::Release(factory, prototype);
         return result;
     }
@@ -53,7 +54,7 @@ static inline dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGame
 
 static inline dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id)
 {
-    return Spawn(factory, collection, prototype_name, id, 0, 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
+    return Spawn(factory, collection, prototype_name, id, 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
 }
 
 struct Params
@@ -392,7 +393,7 @@ public:
     virtual ~FontTest() {}
 };
 
-class GuiTest : public GamesysTest<const char*>
+class GuiTest : public ScriptBaseTest
 {
 public:
     virtual ~GuiTest() {}
@@ -548,6 +549,7 @@ void GamesysTest<T>::SetUp()
 
     m_FactoryContext.m_MaxFactoryCount = 128;
     m_FactoryContext.m_ScriptContext = m_ScriptContext;
+    m_FactoryContext.m_Factory = m_Factory;
     m_CollectionFactoryContext.m_MaxCollectionFactoryCount = 128;
     m_CollectionFactoryContext.m_ScriptContext = m_ScriptContext;
     m_CollectionFactoryContext.m_Factory = m_Factory;

@@ -162,7 +162,7 @@
       :defold)
     :distance-field))
 
-(defn- measure-line [glyphs text-tracking ^String line]
+(defn- measure-line [is-monospaced padding glyphs text-tracking ^String line]
   (let [w (transduce (comp
                        (map #(:advance (glyphs (int %)) 0.0))
                        (interpose text-tracking))
@@ -170,9 +170,11 @@
                      0.0
                      line)
         len (.length line)]
-    (if-let [last (get glyphs (and (pos? len) (int (.charAt line (dec len)))))]
-      (- (+ w (:left-bearing last) (:width last)) (:advance last))
-      w)))
+    (if is-monospaced
+      (+ w padding)
+      (if-let [last (get glyphs (and (pos? len) (int (.charAt line (dec len)))))]
+        (- (+ w (:left-bearing last) (:width last)) (:advance last))
+        w))))
 
 (defn- split-text [glyphs ^String text line-break? max-width text-tracking]
   (if line-break?
@@ -274,7 +276,7 @@
            line-height (+ (:max-descent font-map) (:max-ascent font-map))
            text-tracking (* line-height text-tracking)
            lines (split-text glyphs text line-break? max-width text-tracking)
-           line-widths (map (partial measure-line glyphs text-tracking) lines)
+           line-widths (map (partial measure-line (:is-monospaced font-map) (:padding font-map) glyphs text-tracking) lines)
            max-width (reduce max 0 line-widths)]
        [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
 
@@ -301,7 +303,7 @@
             line-height (+ (:max-descent font-map) (:max-ascent font-map))
             text-tracking (* line-height text-tracking)
             lines (split-text glyphs text line-break? max-width text-tracking)
-            line-widths (mapv (partial measure-line glyphs text-tracking) lines)
+            line-widths (mapv (partial measure-line (:is-monospaced font-map) (:padding font-map) glyphs text-tracking) lines)
             max-width (reduce max 0 line-widths)]
         (assoc text-layout
                :width max-width
@@ -404,14 +406,20 @@
         face-mask (if layer-mask-enabled
                     [1 0 0]
                     [1 1 1])
-        shadow-offset {:x (:shadow-x font-map), :y (:shadow-y font-map)}
+        shadow-offset {:x (if (:is-monospaced font-map)
+                            (- (:shadow-x font-map) (* (:padding font-map) 0.5))
+                            (:shadow-x font-map))
+                       :y (:shadow-y font-map)}
         alpha (:alpha font-map)
         outline-alpha (:outline-alpha font-map)
-        shadow-alpha (:shadow-alpha font-map)]
-    ;; Output glyphs per layer in back to front, if enabled but always output face layer.
+        shadow-alpha (:shadow-alpha font-map)
+        font-offset {:x (if (:is-monospaced font-map)
+                          (- 0 (* (:padding font-map) 0.5))
+                          0)
+                     :y 0}]
     (when (and layer-mask-enabled shadow-enabled) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 0 1] shadow-offset alpha outline-alpha shadow-alpha))
-    (when (and layer-mask-enabled outline-enabled) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 1 0] nil alpha outline-alpha shadow-alpha))
-    (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn face-mask nil alpha outline-alpha shadow-alpha)))
+    (when (and layer-mask-enabled outline-enabled) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 1 0] font-offset alpha outline-alpha shadow-alpha))
+    (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn face-mask font-offset alpha outline-alpha shadow-alpha)))
 
 (defn gen-vertex-buffer
   [^GL2 gl {:keys [type font-map] :as font-data} text-entries]

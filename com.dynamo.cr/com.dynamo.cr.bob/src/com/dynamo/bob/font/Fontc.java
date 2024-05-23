@@ -725,7 +725,8 @@ public class Fontc {
                 throw new FontFormatException("Could not generate font preview: " + e.getMessage());
             }
         }
-
+        boolean is_monospaced = true;
+        float base_advance = include_glyph_count > 0 ? glyphs.get(0).advance : 0;
         for (int i = 0; i < include_glyph_count; i++) {
             Glyph glyph = glyphs.get(i);
             GlyphBank.Glyph.Builder glyphBuilder = GlyphBank.Glyph.newBuilder()
@@ -745,8 +746,13 @@ public class Fontc {
             }
 
             glyphBankBuilder.addGlyphs(glyphBuilder);
+            if (base_advance != glyph.advance)
+            {
+                is_monospaced = false;
+            }
         }
-
+        glyphBankBuilder.setIsMonospaced(is_monospaced);
+        glyphBankBuilder.setPadding(padding);
         return previewImage;
 
     }

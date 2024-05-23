@@ -587,24 +587,36 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < scene_resource->m_GuiTextureSets.Size(); ++i)
         {
-            const char* name = scene_desc->m_Textures[i].m_Name;
+            const char* name             = scene_desc->m_Textures[i].m_Name;
+            dmGraphics::HTexture texture = 0;
+            TextureResource* texture_res = 0;
 
             dmGui::HTextureSource texture_source;
-            dmGraphics::HTexture texture = scene_resource->m_GuiTextureSets[i].m_Texture->m_Texture;
             dmGui::NodeTextureType texture_source_type;
 
-            if (scene_resource->m_GuiTextureSets[i].m_TextureSet)
+            if (scene_resource->m_GuiTextureSets[i].m_ResourceIsTextureSet)
             {
+                TextureSetResource* texture_set_res = (TextureSetResource*) scene_resource->m_GuiTextureSets[i].m_Resource;
+                texture_res                         = texture_set_res->m_Texture;
+
                 texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET;
-                texture_source      = (dmGui::HTextureSource) scene_resource->m_GuiTextureSets[i].m_TextureSet;
+                texture_source      = (dmGui::HTextureSource) texture_set_res;
             }
             else
             {
                 texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE;
-                texture_source      = (dmGui::HTextureSource) texture;
+                texture_source      = (dmGui::HTextureSource) scene_resource->m_GuiTextureSets[i].m_Resource;
+                texture_res         = (TextureResource*) scene_resource->m_GuiTextureSets[i].m_Resource;
             }
 
-            dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name), texture_source, texture_source_type, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
+            texture = texture_res->m_Texture;
+            assert(texture != 0);
+
+            dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name),
+                texture_source, texture_source_type,
+                dmGraphics::GetOriginalTextureWidth(texture),
+                dmGraphics::GetOriginalTextureHeight(texture));
+
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
                 return false;
@@ -847,9 +859,9 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void* CompGuiGetComponent(const dmGameObject::ComponentGetParams& params)
+    static dmGameObject::HComponent CompGuiGetComponent(const dmGameObject::ComponentGetParams& params)
     {
-        return (GuiComponent*)*params.m_UserData;
+        return (dmGameObject::HComponent)params.m_UserData;
     }
 
     struct RenderGuiContext
@@ -948,7 +960,7 @@ namespace dmGameSystem
         ApplyStencilClipping(gui_context, state, params.m_StencilTestParams);
     }
 
-    static dmGraphics::HTexture GetNodeTexture(dmGui::HScene scene, dmGui::HNode node)
+    static inline dmGraphics::HTexture GetNodeTexture(dmGui::HScene scene, dmGui::HNode node)
     {
         dmGui::NodeTextureType texture_type;
         dmGui::HTextureSource texture_source = dmGui::GetNodeTexture(scene, node, &texture_type);
@@ -956,11 +968,30 @@ namespace dmGameSystem
         if (texture_type == dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET)
         {
             TextureSetResource* texture_set_res = (TextureSetResource*) texture_source;
-            assert(texture_set_res);
+            assert(texture_set_res->m_Texture);
             return texture_set_res->m_Texture->m_Texture;
         }
+        else if (texture_type == dmGui::NODE_TEXTURE_TYPE_TEXTURE)
+        {
+            TextureResource* texture_res = (TextureResource*) texture_source;
+            return texture_res->m_Texture;
+        }
+        else if (texture_type == dmGui::NODE_TEXTURE_TYPE_DYNAMIC)
+        {
+            return (dmGraphics::HTexture) texture_source;
+        }
+        return 0;
+    }
 
-        return (dmGraphics::HTexture) texture_source;
+    static inline dmGameSystemDDF::TextureSet* GetNodeTextureSetDDF(dmGui::HScene scene, dmGui::HNode node)
+    {
+        dmGui::TextureSetAnimDesc* anim_desc = dmGui::GetNodeTextureSet(scene, node);
+        if (anim_desc)
+        {
+            TextureSetResource* texture_set_res = (TextureSetResource*) anim_desc->m_TextureSet;
+            return texture_set_res->m_TextureSet;
+        }
+        return 0;
     }
 
     static inline dmRender::HMaterial GetNodeMaterial(void* material_res)
@@ -1430,11 +1461,10 @@ namespace dmGameSystem
 
             uint32_t frame_index                         = 0;
             uint32_t page_index                          = 0;
-            dmGui::TextureSetAnimDesc* anim_desc         = dmGui::GetNodeTextureSet(scene, node);
-            dmGameSystemDDF::TextureSet* texture_set_ddf = 0;
-            if (anim_desc)
+
+            dmGameSystemDDF::TextureSet* texture_set_ddf = GetNodeTextureSetDDF(scene, node);
+            if (texture_set_ddf)
             {
-                texture_set_ddf        = (dmGameSystemDDF::TextureSet*) anim_desc->m_TextureSet;
                 frame_index            = dmGui::GetNodeAnimationFrame(scene, node);
                 frame_index            = texture_set_ddf->m_FrameIndices[frame_index];
                 uint32_t* page_indices = texture_set_ddf->m_PageIndices.m_Data;
@@ -1694,15 +1724,15 @@ namespace dmGameSystem
             if (dmMath::Abs(size.getX()) < 0.001f)
                 continue;
 
-            uint32_t page_index                  = 0;
-            dmGui::TextureSetAnimDesc* anim_desc = dmGui::GetNodeTextureSet(scene, node);
-            if (anim_desc)
+            uint32_t page_index = 0;
+            dmGameSystemDDF::TextureSet* texture_set_ddf = GetNodeTextureSetDDF(scene, node);
+
+            if (texture_set_ddf)
             {
-                dmGameSystemDDF::TextureSet* texture_set_ddf = (dmGameSystemDDF::TextureSet*) anim_desc->m_TextureSet;
-                uint32_t frame_index                         = dmGui::GetNodeAnimationFrame(scene, node);
-                frame_index                                  = texture_set_ddf->m_FrameIndices[frame_index];
-                uint32_t* page_indices                       = texture_set_ddf->m_PageIndices.m_Data;
-                page_index                                   = page_indices[frame_index];
+                uint32_t frame_index   = dmGui::GetNodeAnimationFrame(scene, node);
+                frame_index            = texture_set_ddf->m_FrameIndices[frame_index];
+                uint32_t* page_indices = texture_set_ddf->m_PageIndices.m_Data;
+                page_index             = page_indices[frame_index];
             }
 
             const Vector4& color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
@@ -2112,7 +2142,7 @@ namespace dmGameSystem
             out_data->m_State.m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
             out_data->m_FlipVertical = animation->m_FlipVertical;
-            out_data->m_TextureSet = (void*)texture_set;
+            out_data->m_TextureSet = (void*) texture_set_res;
             return dmGui::FETCH_ANIMATION_OK;
         }
         else
@@ -2196,7 +2226,7 @@ namespace dmGameSystem
             gui_component->m_AddedToUpdate = 1;
             return dmGameObject::CREATE_RESULT_OK;
         }
-        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR; 
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
 
     static dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)

@@ -19,8 +19,7 @@
 #include <render/render.h>
 #include <render/font_renderer.h>
 #include <script/script.h>
-#include <dmsdk/gameobject/script.h>
-
+#include <dmsdk/gamesys/script.h>
 
 #include "script_label.h"
 #include "../components/comp_label.h"
@@ -324,7 +323,8 @@ static int GetTextMetrics(lua_State* L)
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
     dmGameSystem::LabelComponent* component = 0;
-    dmGameObject::GetComponentFromLua(L, 1, LABEL_EXT, 0, (void**)&component, 0);
+    dmScript::GetComponentFromLua(L, 1, LABEL_EXT, 0, (dmGameObject::HComponent*)&component, 0);
+
     assert(component != 0);
 
     dmRender::TextMetrics metrics;
@@ -375,7 +375,7 @@ static int GetText(lua_State* L)
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
     dmGameSystem::LabelComponent* component = 0;
-    dmGameObject::GetComponentFromLua(L, 1, LABEL_EXT, 0, (void**)&component, 0);
+    dmScript::GetComponentFromLua(L, 1, LABEL_EXT, 0, (dmGameObject::HComponent*)&component, 0);
 
     const char* value = dmGameSystem::CompLabelGetText(component);
     lua_pushstring(L, value);

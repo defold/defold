@@ -103,7 +103,7 @@
                           (let [resource (resource/make-file-resource workspace (str output-dir) file [] (constantly false))
                                 build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) lua-preprocessors [] [] proj-path->node-id)]
                             (pair (resource/proj-path resource) build-targets)))))
-                    (fs/file-walker output-dir))))
+                    (fs/file-walker output-dir false))))
         (catch Exception e
           (g/->error build-file-node-id :modified-lines :fatal (:resource build-file-save-data)
                      (str "Compilation failed: " (ex-message e))))

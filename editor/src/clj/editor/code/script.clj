@@ -45,6 +45,7 @@
                        :field #{"."}
                        :module #{"."}}
    :completion-trigger-characters #{"."}
+   :ignored-completion-trigger-characters #{"{" ","}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}
@@ -436,6 +437,7 @@
   (for [def script-defs
         :let [args (assoc def
                      :node-type ScriptNode
+                     :built-pb-class script-compilation/built-pb-class
                      :eager-loading? true
                      :additional-load-fn additional-load-fn)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))
