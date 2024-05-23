@@ -587,26 +587,35 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < scene_resource->m_GuiTextureSets.Size(); ++i)
         {
-            const char* name                    = scene_desc->m_Textures[i].m_Name;
-            TextureResource* texture_res        = scene_resource->m_GuiTextureSets[i].m_Texture;
-            TextureSetResource* texture_set_res = scene_resource->m_GuiTextureSets[i].m_TextureSet;
-            dmGraphics::HTexture texture        = texture_res->m_Texture;
+            const char* name             = scene_desc->m_Textures[i].m_Name;
+            dmGraphics::HTexture texture = 0;
+            TextureResource* texture_res = 0;
 
             dmGui::HTextureSource texture_source;
             dmGui::NodeTextureType texture_source_type;
 
-            if (texture_set_res)
+            if (scene_resource->m_GuiTextureSets[i].m_ResourceIsTextureSet)
             {
+                TextureSetResource* texture_set_res = (TextureSetResource*) scene_resource->m_GuiTextureSets[i].m_Resource;
+                texture_res                         = texture_set_res->m_Texture;
+
                 texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET;
                 texture_source      = (dmGui::HTextureSource) texture_set_res;
             }
             else
             {
                 texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE;
-                texture_source      = (dmGui::HTextureSource) texture_res;
+                texture_source      = (dmGui::HTextureSource) scene_resource->m_GuiTextureSets[i].m_Resource;
+                texture_res         = (TextureResource*) scene_resource->m_GuiTextureSets[i].m_Resource;
             }
 
-            dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name), texture_source, texture_source_type, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
+            texture = texture_res->m_Texture;
+            assert(texture != 0);
+
+            dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name),
+                texture_source, texture_source_type,
+                dmGraphics::GetOriginalTextureWidth(texture),
+                dmGraphics::GetOriginalTextureHeight(texture));
 
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
