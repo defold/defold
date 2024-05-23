@@ -166,7 +166,6 @@ public class ResourceUnpacker {
                     FileUtils.deleteQuietly(outputFile);
                 }
 
-                logger.debug("unpacking file '{}' to '{}'", resourceFileName, outputPath);
                 File outputDirectory = outputFile.getParentFile();
 
                 if (outputDirectory != null) {
@@ -210,7 +209,6 @@ public class ResourceUnpacker {
                     if (destFile.exists() && destFile.isDirectory()) {
                         FileUtils.deleteQuietly(destFile);
                     }
-                    logger.debug("unpacking '{}' to '{}'", source, dest);
                     try {
                         Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
                     }

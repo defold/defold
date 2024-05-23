@@ -59,6 +59,9 @@ namespace dmGameSystem
     static const dmhash_t COLLECTION_PROXY_ASYNC_LOAD_HASH = dmHashString64("async_load");
     static const dmhash_t COLLECTION_PROXY_UNLOAD_HASH = dmHashString64("unload");
     static const dmhash_t COLLECTION_PROXY_INIT_HASH = dmHashString64("init");
+    static const dmhash_t COLLECTION_PROXY_FINAL_HASH = dmHashString64("final");
+    static const dmhash_t COLLECTION_PROXY_LOADED_HASH = dmHashString64("proxy_loaded");
+    static const dmhash_t COLLECTION_PROXY_UNLOADED_HASH = dmHashString64("proxy_unloaded");
 
     struct CollectionProxyComponent
     {
@@ -78,15 +81,19 @@ namespace dmGameSystem
 
         dmResource::HPreloader          m_Preloader;
         dmMessage::URL                  m_LoadSender, m_LoadReceiver;
+
+        ProxyLoadCallback               m_Callback;
+        void*                           m_CallbackCtx;
     };
 
     struct CollectionProxyWorld
     {
         dmArray<CollectionProxyComponent>   m_Components;
         dmIndexPool32                       m_IndexPool;
+        CollectionProxyContext*             m_Context;
     };
 
-    static dmGameObject::UpdateResult DoLoad(dmResource::HFactory factory, CollectionProxyComponent *proxy)
+    static dmGameObject::UpdateResult DoLoad(dmResource::HFactory factory, CollectionProxyComponent* proxy)
     {
         dmResource::Result result = dmResource::Get(factory, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
         if (result != dmResource::RESULT_OK)
@@ -97,18 +104,46 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void LoadComplete(CollectionProxyComponent* proxy)
+    void LoadComplete(CollectionProxyComponent* proxy, dmGameObject::Result result)
     {
-        if (dmMessage::IsSocketValid(proxy->m_LoadSender.m_Socket))
+        if (proxy->m_Callback)
         {
-            dmMessage::Result msg_result = dmMessage::Post(&proxy->m_LoadReceiver, &proxy->m_LoadSender, dmHashString64("proxy_loaded"), 0, 0, 0, 0, 0);
-            if (msg_result != dmMessage::RESULT_OK)
+            proxy->m_Callback(proxy->m_Resource->m_DDF->m_Collection, result, proxy->m_CallbackCtx);
+        }
+        else if(dmGameObject::RESULT_OK == result)
+        {
+            // We only post a "proxy_loaded" if the loading went ok
+            if (dmMessage::IsSocketValid(proxy->m_LoadSender.m_Socket))
             {
-                dmLogWarning("proxy_loaded could not be posted: %d", msg_result);
+                dmMessage::Result msg_result = dmMessage::Post(&proxy->m_LoadReceiver, &proxy->m_LoadSender, COLLECTION_PROXY_LOADED_HASH, 0, 0, 0, 0, 0);
+                if (msg_result != dmMessage::RESULT_OK)
+                {
+                    dmLogWarning("proxy_loaded could not be posted: %d", msg_result);
+                }
             }
         }
     }
 
+    void UnloadComplete(CollectionProxyComponent* proxy, dmGameObject::Result result)
+    {
+        proxy->m_Unloaded = 0;
+        if (proxy->m_Callback)
+        {
+            proxy->m_Callback(proxy->m_Resource->m_DDF->m_Collection, result, proxy->m_CallbackCtx);
+        }
+        else if (dmMessage::IsSocketValid(proxy->m_Unloader.m_Socket))
+        {
+            dmMessage::URL sender;
+            sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(proxy->m_Instance));
+            sender.m_Path = dmGameObject::GetIdentifier(proxy->m_Instance);
+            dmGameObject::GetComponentId(proxy->m_Instance, proxy->m_ComponentIndex, &sender.m_Fragment);
+            dmMessage::Result msg_result = dmMessage::Post(&sender, &proxy->m_Unloader, COLLECTION_PROXY_UNLOADED_HASH, 0, 0, 0, 0, 0);
+            if (msg_result != dmMessage::RESULT_OK)
+            {
+                dmLogWarning("proxy_unloaded could not be posted: %d", msg_result);
+            }
+        }
+    }
 
     static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams* params)
     {
@@ -143,6 +178,7 @@ namespace dmGameSystem
     {
         CollectionProxyWorld* proxy_world = new CollectionProxyWorld();
         CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
+        proxy_world->m_Context = context;
         uint32_t component_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxCollectionProxyCount);
         proxy_world->m_Components.SetCapacity(component_count);
         proxy_world->m_Components.SetSize(component_count);
@@ -251,10 +287,7 @@ namespace dmGameSystem
                 if (r != dmResource::RESULT_PENDING)
                 {
                     dmResource::DeletePreloader(proxy->m_Preloader);
-                    if(r == dmResource::RESULT_OK)
-                    {
-                        LoadComplete(proxy);
-                    }
+                    LoadComplete(proxy, dmResource::RESULT_OK == r ? dmGameObject::RESULT_OK : dmGameObject::RESULT_UNKNOWN_ERROR);
                     proxy->m_Preloader = 0;
                 }
             }
@@ -306,19 +339,7 @@ namespace dmGameSystem
             }
             if (proxy->m_Unloaded)
             {
-                proxy->m_Unloaded = 0;
-                if (dmMessage::IsSocketValid(proxy->m_Unloader.m_Socket))
-                {
-                    dmMessage::URL sender;
-                    sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(proxy->m_Instance));
-                    sender.m_Path = dmGameObject::GetIdentifier(proxy->m_Instance);
-                    dmGameObject::GetComponentId(proxy->m_Instance, proxy->m_ComponentIndex, &sender.m_Fragment);
-                    dmMessage::Result msg_result = dmMessage::Post(&sender, &proxy->m_Unloader, dmHashString64("proxy_unloaded"), 0, 0, 0, 0, 0);
-                    if (msg_result != dmMessage::RESULT_OK)
-                    {
-                        dmLogWarning("proxy_unloaded could not be posted: %d", msg_result);
-                    }
-                }
+                UnloadComplete(proxy, dmGameObject::RESULT_OK);
             }
         }
         return result;
@@ -399,6 +420,246 @@ namespace dmGameSystem
      * ```
      */
 
+
+    static dmGameObject::Result CompCollectionProxyLoadInternal(CollectionProxyContext* context, HCollectionProxyComponent proxy,
+                                                            ProxyLoadCallback cbk, void* cbk_ctx,
+                                                            dmMessage::URL* sender, dmMessage::URL* receiver,
+                                                            dmMessage::Message* message,
+                                                            bool load_async)
+    {
+        assert(context != 0);
+        assert(proxy != 0);
+
+        if (proxy->m_Collection != 0)
+        {
+            LogMessageError(message, "The collection %s could not be loaded since it was already.", proxy->m_Resource->m_DDF->m_Collection);
+            if (message)
+                return dmGameObject::RESULT_OK;
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+
+        const char* path = proxy->m_Resource->m_DDF->m_Collection;
+        if (proxy->m_Collection != 0)
+        {
+            LogMessageError(message, "Collection proxy %s: '%s'", "already loaded", path);
+            if (message)
+                return dmGameObject::RESULT_OK;
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+
+        if (proxy->m_Preloader != 0)
+        {
+            LogMessageError(message, "Collection proxy %s: '%s'", "already being loaded", path);
+            if (message)
+                return dmGameObject::RESULT_OK;
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+
+        proxy->m_Unloaded = 0;
+        if (sender)
+            proxy->m_LoadSender = *sender;
+        else
+            dmMessage::ResetURL(&proxy->m_LoadSender);
+
+        if (receiver)
+            proxy->m_LoadReceiver = *receiver;
+        else
+            dmMessage::ResetURL(&proxy->m_LoadReceiver);
+
+        proxy->m_Callback = cbk;
+        proxy->m_CallbackCtx = cbk_ctx;
+
+        if (load_async)
+        {
+            proxy->m_Preloader = dmResource::NewPreloader(context->m_Factory, path);
+            return dmGameObject::RESULT_OK;
+        }
+        else
+        {
+            dmGameObject::UpdateResult res = DoLoad(context->m_Factory, proxy);
+            bool loaded_ok = dmGameObject::UPDATE_RESULT_OK == res;
+            LoadComplete(proxy, loaded_ok ? dmGameObject::RESULT_OK : dmGameObject::RESULT_UNKNOWN_ERROR);
+            return loaded_ok ? dmGameObject::RESULT_OK : dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+    }
+
+    dmGameObject::Result CompCollectionProxyLoadAsync(HCollectionProxyWorld world, HCollectionProxyComponent proxy, ProxyLoadCallback cbk, void* cbk_ctx)
+    {
+        return CompCollectionProxyLoadInternal(world->m_Context, proxy, cbk, cbk_ctx, 0, 0, 0, true);
+    }
+
+    dmGameObject::Result CompCollectionProxyLoad(HCollectionProxyWorld world, HCollectionProxyComponent proxy, ProxyLoadCallback cbk, void* cbk_ctx)
+    {
+        return CompCollectionProxyLoadInternal(world->m_Context, proxy, cbk, cbk_ctx, 0, 0, 0, false);
+    }
+
+    static dmGameObject::Result CompCollectionProxyUnloadInternal(CollectionProxyContext* context, HCollectionProxyComponent proxy,
+                                                            ProxyLoadCallback cbk, void* cbk_ctx,
+                                                            dmMessage::URL* receiver, dmMessage::Message* message)
+    {
+        if (proxy->m_Preloader != 0)
+        {
+            dmResource::DeletePreloader(proxy->m_Preloader);
+            proxy->m_Preloader = 0;
+        }
+        if (proxy->m_Collection == 0)
+        {
+            LogMessageError(message, "The collection %s could not be unloaded since it was never loaded.", proxy->m_Resource->m_DDF->m_Collection);
+            if (message)
+                return dmGameObject::RESULT_OK;
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+
+        dmResource::Release(context->m_Factory, proxy->m_Collection);
+        proxy->m_Collection = 0;
+        proxy->m_Initialized = 0;
+        proxy->m_Enabled = 0;
+        proxy->m_DelayedEnable = 0;
+        proxy->m_Unloaded = 1;
+
+        if (cbk)
+        {
+            proxy->m_Callback = cbk;
+            proxy->m_CallbackCtx = cbk_ctx;
+            dmMessage::ResetURL(&proxy->m_Unloader);
+        }
+        else
+        {
+            proxy->m_Unloader = *receiver;
+        }
+
+        return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result CompCollectionProxyUnloadAsync(HCollectionProxyWorld world, HCollectionProxyComponent proxy, ProxyLoadCallback cbk, void* cbk_ctx)
+    {
+        return CompCollectionProxyUnloadInternal(world->m_Context, proxy, cbk, cbk_ctx, 0, 0);
+    }
+
+    static dmGameObject::Result CompCollectionProxyInitializeInternal(HCollectionProxyComponent proxy, dmMessage::Message* message)
+    {
+        if (proxy->m_Collection != 0)
+        {
+            if (proxy->m_Initialized == 0)
+            {
+                dmGameObject::Init(proxy->m_Collection);
+                proxy->m_Initialized = 1;
+            }
+            else
+            {
+                LogMessageError(message, "The collection %s could not be initialized since it has been already.", proxy->m_Resource->m_DDF->m_Collection);
+                if (message)
+                    return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
+                return dmGameObject::RESULT_UNKNOWN_ERROR;
+            }
+        }
+        else
+        {
+            LogMessageError(message, "The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
+            if (message)
+                return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+        return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result CompCollectionProxyInitialize(HCollectionProxyWorld world, HCollectionProxyComponent proxy)
+    {
+        (void)world;
+        return CompCollectionProxyInitializeInternal(proxy, 0);
+    }
+
+    static dmGameObject::Result CompCollectionProxyFinalizeInternal(HCollectionProxyComponent proxy, dmMessage::Message* message)
+    {
+        if (proxy->m_Initialized == 1 && proxy->m_Collection != 0x0)
+        {
+            dmGameObject::Final(proxy->m_Collection);
+            proxy->m_Initialized = 0;
+        }
+        else
+        {
+            LogMessageError(message, "The collection %s could not be finalized since it was never initialized.", proxy->m_Resource->m_DDF->m_Collection);
+            if (message)
+                return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+        return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result CompCollectionProxyFinalize(HCollectionProxyWorld world, HCollectionProxyComponent proxy)
+    {
+        (void)world;
+        return CompCollectionProxyFinalizeInternal(proxy, 0);
+    }
+
+    static dmGameObject::Result CompCollectionProxyEnableInternal(HCollectionProxyComponent proxy, dmMessage::Message* message)
+    {
+        if (proxy->m_Collection != 0)
+        {
+            if (proxy->m_Enabled == 0 && proxy->m_DelayedEnable == 0)
+            {
+                proxy->m_DelayedEnable = 1;
+
+                if (proxy->m_Initialized == 0)
+                {
+                    dmGameObject::Init(proxy->m_Collection);
+                    proxy->m_Initialized = 1;
+                }
+            }
+            else
+            {
+                LogMessageError(message, "The collection %s could not be enabled since it is already.", proxy->m_Resource->m_DDF->m_Collection);
+                if (message)
+                    return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
+                return dmGameObject::RESULT_UNKNOWN_ERROR;
+            }
+        }
+        else
+        {
+            LogMessageError(message, "The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
+            if (message)
+                return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+
+        return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result CompCollectionProxyEnable(HCollectionProxyWorld world, HCollectionProxyComponent proxy)
+    {
+        (void)world;
+        return CompCollectionProxyEnableInternal(proxy, 0);
+    }
+
+    static dmGameObject::Result CompCollectionProxyDisableInternal(HCollectionProxyComponent proxy, dmMessage::Message* message)
+    {
+        if (proxy->m_Enabled == 1 && proxy->m_DelayedEnable == 1)
+        {
+            proxy->m_DelayedEnable = 0;
+        }
+        else
+        {
+            LogMessageError(message, "The collection %s could not be disabled since it is not enabled.", proxy->m_Resource->m_DDF->m_Collection);
+            if (message)
+                return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
+            return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+        return dmGameObject::RESULT_OK;
+    }
+
+    dmGameObject::Result CompCollectionProxyDisable(HCollectionProxyWorld world, HCollectionProxyComponent proxy)
+    {
+        (void)world;
+        return CompCollectionProxyDisableInternal(proxy, 0);
+    }
+
+    dmGameObject::Result CompCollectionProxySetTimeStep(HCollectionProxyWorld world, HCollectionProxyComponent proxy, float factor, int mode)
+    {
+        proxy->m_TimeStepFactor = factor < 0.0f ? 0.0f : factor;
+        proxy->m_TimeStepMode = mode == 0 ? dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS : dmGameSystemDDF::TIME_STEP_MODE_DISCRETE;
+        return dmGameObject::RESULT_OK;
+    }
+
     dmGameObject::UpdateResult CompCollectionProxyOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
@@ -406,132 +667,44 @@ namespace dmGameSystem
 
         if (params.m_Message->m_Id == COLLECTION_PROXY_LOAD_HASH || params.m_Message->m_Id == COLLECTION_PROXY_ASYNC_LOAD_HASH)
         {
-            if (proxy->m_Collection == 0)
-            {
-                if (proxy->m_Preloader != 0)
-                {
-                    dmLogWarning("The collection %s is already being loaded.", proxy->m_Resource->m_DDF->m_Collection);
-                    return dmGameObject::UPDATE_RESULT_OK;
-                }
+            bool load_async = COLLECTION_PROXY_ASYNC_LOAD_HASH == params.m_Message->m_Id;
+            dmGameObject::Result r = CompCollectionProxyLoadInternal(context, proxy, 0, 0,
+                                            &params.m_Message->m_Sender, &params.m_Message->m_Receiver, params.m_Message, load_async);
 
-                proxy->m_Unloaded = 0;
-                proxy->m_LoadSender = params.m_Message->m_Sender;
-                proxy->m_LoadReceiver = params.m_Message->m_Receiver;
-
-                if (params.m_Message->m_Id == COLLECTION_PROXY_ASYNC_LOAD_HASH)
-                {
-                    proxy->m_Preloader = dmResource::NewPreloader(context->m_Factory, proxy->m_Resource->m_DDF->m_Collection);
-                }
-                else
-                {
-                    dmGameObject::UpdateResult res = DoLoad(context->m_Factory, proxy);
-                    if(res == dmGameObject::UPDATE_RESULT_OK)
-                    {
-                        LoadComplete(proxy);
-                    }
-                    return res;
-                }
-            }
-            else
-            {
-                LogMessageError(params.m_Message, "The collection %s could not be loaded since it was already.", proxy->m_Resource->m_DDF->m_Collection);
-            }
+            return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
         else if (params.m_Message->m_Id == COLLECTION_PROXY_UNLOAD_HASH)
         {
-            if (proxy->m_Preloader != 0)
-            {
-                dmResource::DeletePreloader(proxy->m_Preloader);
-                proxy->m_Preloader = 0;
-            }
-            if (proxy->m_Collection != 0)
-            {
-                dmResource::Release(context->m_Factory, proxy->m_Collection);
-                proxy->m_Collection = 0;
-                proxy->m_Initialized = 0;
-                proxy->m_Enabled = 0;
-                proxy->m_DelayedEnable = 0;
-                proxy->m_Unloaded = 1;
-                proxy->m_Unloader = params.m_Message->m_Sender;
-            }
-            else
-            {
-                LogMessageError(params.m_Message, "The collection %s could not be unloaded since it was never loaded.", proxy->m_Resource->m_DDF->m_Collection);
-            }
+            dmGameObject::Result r = CompCollectionProxyUnloadInternal(context, proxy, 0, 0, &params.m_Message->m_Sender, params.m_Message);
+            return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
         else if (params.m_Message->m_Id == COLLECTION_PROXY_INIT_HASH)
         {
-            if (proxy->m_Collection != 0)
-            {
-                if (proxy->m_Initialized == 0)
-                {
-                    dmGameObject::Init(proxy->m_Collection);
-                    proxy->m_Initialized = 1;
-                }
-                else
-                {
-                    LogMessageError(params.m_Message, "The collection %s could not be initialized since it has been already.", proxy->m_Resource->m_DDF->m_Collection);
-                }
-            }
-            else
-            {
-                LogMessageError(params.m_Message, "The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
-            }
+            dmGameObject::Result r = CompCollectionProxyInitializeInternal(proxy, params.m_Message);
+            return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
-        else if (params.m_Message->m_Id == dmHashString64("final"))
+        else if (params.m_Message->m_Id == COLLECTION_PROXY_FINAL_HASH)
         {
-            if (proxy->m_Initialized == 1 && proxy->m_Collection != 0x0)
-            {
-                dmGameObject::Final(proxy->m_Collection);
-                proxy->m_Initialized = 0;
-            }
-            else
-            {
-                LogMessageError(params.m_Message, "The collection %s could not be finalized since it was never initialized.", proxy->m_Resource->m_DDF->m_Collection);
-            }
+            dmGameObject::Result r = CompCollectionProxyFinalizeInternal(proxy, params.m_Message);
+            return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
-            if (proxy->m_Collection != 0)
-            {
-                if (proxy->m_Enabled == 0 && proxy->m_DelayedEnable == 0)
-                {
-                    proxy->m_DelayedEnable = 1;
-
-                    if (proxy->m_Initialized == 0)
-                    {
-                        dmGameObject::Init(proxy->m_Collection);
-                        proxy->m_Initialized = 1;
-                    }
-                }
-                else
-                {
-                    LogMessageError(params.m_Message, "The collection %s could not be enabled since it is already.", proxy->m_Resource->m_DDF->m_Collection);
-                }
-            }
-            else
-            {
-                LogMessageError(params.m_Message, "The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
-            }
+            dmGameObject::Result r = CompCollectionProxyEnableInternal(proxy, params.m_Message);
+            return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
-            if (proxy->m_Enabled == 1 && proxy->m_DelayedEnable == 1)
-            {
-                proxy->m_DelayedEnable = 0;
-            }
-            else
-            {
-                LogMessageError(params.m_Message, "The collection %s could not be disabled since it is not enabled.", proxy->m_Resource->m_DDF->m_Collection);
-            }
+            dmGameObject::Result r = CompCollectionProxyDisableInternal(proxy, params.m_Message);
+            return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
         else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGameSystemDDF::SetTimeStep::m_DDFDescriptor)
         {
             dmGameSystemDDF::SetTimeStep* ddf = (dmGameSystemDDF::SetTimeStep*)params.m_Message->m_Data;
-            proxy->m_TimeStepFactor = ddf->m_Factor;
-            proxy->m_TimeStepMode = ddf->m_Mode;
+            dmGameObject::Result r = CompCollectionProxySetTimeStep(0, proxy, ddf->m_Factor, (int)ddf->m_Mode);
+            return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
-        else if (params.m_Message->m_Id == dmHashString64("reset_time_step"))
+        else if (params.m_Message->m_Id == dmHashString64("reset_time_step")) // DEPRECATED!
         {
             proxy->m_TimeStepFactor = 1.0f;
             proxy->m_TimeStepMode = dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS;
@@ -799,16 +972,18 @@ namespace dmGameSystem
 
     /*# return an indexed table of all the resources of a collection proxy
      *
-     * return an indexed table of resources for a collection proxy. Each
-     * entry is a hexadecimal string that represents the data of the specific
-     * resource. This representation corresponds with the filename for each
-     * individual resource that is exported when you bundle an application with
-     * LiveUpdate functionality.
+     * return an indexed table of resources for a collection proxy where the
+     * referenced collection has been excluded using LiveUpdate. Each entry is a
+     * hexadecimal string that represents the data of the specific resource.
+     * This representation corresponds with the filename for each individual
+     * resource that is exported when you bundle an application with LiveUpdate
+     * functionality.
      *
      * @namespace collectionproxy
      * @name collectionproxy.get_resources
      * @param collectionproxy [type:url] the collectionproxy to check for resources.
-     * @return resources [type:table] the resources
+     * @return resources [type:table] the resources, or an empty list if the
+     * collection was not excluded.
      *
      * @examples
      *

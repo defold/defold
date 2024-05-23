@@ -20,6 +20,7 @@
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
             [editor.code.script :as script]
+            [editor.code.script-compilation :as script-compilation]
             [editor.collection :as collection]
             [editor.collection-common :as collection-common]
             [editor.defold-project :as project]
@@ -214,7 +215,7 @@
 (defn- resource-kind-property? [resource-kind property value]
   (and (is (resource/resource? value))
        (let [workspace (resource/workspace value)
-             ext (script/resource-kind-extensions workspace resource-kind)]
+             ext (script-compilation/resource-kind-extensions workspace resource-kind)]
          (and (is (resource/resource? value))
               (is (= :property-type-hash (:go-prop-type property)))
               (is (= value (:value property)))

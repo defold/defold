@@ -486,10 +486,10 @@ static int LuaTestCompType(lua_State* L)
     int top = lua_gettop(L);
 
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
-    uintptr_t user_data = 0;
+    dmGameObject::HComponent component = 0;
     dmMessage::URL receiver;
-    dmGameObject::GetComponentUserDataFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &user_data, &receiver, 0);
-    assert(user_data == 1);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &component, &receiver, 0);
+    assert(*(uintptr_t*)component == 1);
 
     assert(top == lua_gettop(L));
 
@@ -526,9 +526,10 @@ static int LuaTestGetComponentFromLua(lua_State* L)
     lua_pushnumber(L, expect_fail);
     lua_setglobal(L, "expected_error");
 
+    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     void* component = 0;
     dmMessage::URL receiver; // needed for error output
-    dmGameObject::GetComponentFromLua(L, 1, component_ext, 0, (void**)&component, &receiver);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(instance), component_ext, (void**)&component, &receiver, 0);
 
     // If it fails, it will not return here
 
@@ -539,11 +540,11 @@ static int LuaTestGetComponentFromLua(lua_State* L)
 
     if (expect_fail && !call_failed)
     {
-        return luaL_error(L, "GetComponentUserDataFromLua succeeded unexpectedly");
+        return luaL_error(L, "GetComponentFromLua succeeded unexpectedly");
     }
     else if(!expect_fail && call_failed)
     {
-        return luaL_error(L, "GetComponentUserDataFromLua failed unexpectedly");
+        return luaL_error(L, "GetComponentFromLua failed unexpectedly");
     }
 
     assert(top == lua_gettop(L));
@@ -638,7 +639,7 @@ static dmResource::Result ResourceTypeTestResourceDestroy(const dmResource::Reso
     return dmResource::RESULT_OK;
 }
 
-static dmGameObject::Result ComponentTypeTest_Create(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+static dmGameObject::Result ComponentTypeTest_Create(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
 {
     g_ComponentApiTestContext.m_Created = 1;
     g_ComponentApiTestContext.m_CreateContext = malloc(1);
@@ -647,7 +648,7 @@ static dmGameObject::Result ComponentTypeTest_Create(const dmGameObject::Compone
     return dmGameObject::RESULT_OK;
 }
 
-static dmGameObject::Result ComponentTypeTest_Destroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+static dmGameObject::Result ComponentTypeTest_Destroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
 {
     g_ComponentApiTestContext.m_Destroyed = 1;
     g_ComponentApiTestContext.m_DestroyContext = ComponentTypeGetContext(type);

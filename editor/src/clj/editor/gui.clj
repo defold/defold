@@ -79,6 +79,7 @@
 (def pb-def {:ext "gui"
              :label "Gui"
              :icon gui-icon
+             :icon-class :design
              :pb-class Gui$SceneDesc
              :resource-fields [:script :material [:fonts :font] [:textures :texture] [:materials :material] [:particlefxs :particlefx] [:resources :path]]
              :tags #{:component :non-embeddable}
@@ -3074,6 +3075,7 @@
         :load-fn load-gui-scene
         :sanitize-fn sanitize-scene
         :icon (:icon def)
+        :icon-class (:icon-class def)
         :tags (:tags def)
         :tag-opts (:tag-opts def)
         :template (:template def)
