@@ -151,9 +151,9 @@
            ["Shift+Up" :up-major]
            ["Space" :scene-play]
            ["Space" :show-palette]
-           ["H" :flip-brush-horizontally]
-           ["G" :rotate-brush-90-degrees]
-           ["V" :flip-brush-vertically]
+           ["Z" :rotate-brush-90-degrees]
+           ["X" :flip-brush-horizontally]
+           ["Y" :flip-brush-vertically]
            ["Tab" :tab]
            ["Up" :up]
            ["W" :move-tool]]
@@ -262,9 +262,9 @@
            ["Shift+Up" :up-major]
            ["Space" :scene-play]
            ["Space" :show-palette]
-           ["H" :flip-brush-horizontally]
-           ["G" :rotate-brush-90-degrees]
-           ["V" :flip-brush-vertically]
+           ["Z" :rotate-brush-90-degrees]
+           ["X" :flip-brush-horizontally]
+           ["Y" :flip-brush-vertically]
            ["Tab" :tab]
            ["Up" :up]
            ["W" :move-tool]]
@@ -373,9 +373,9 @@
            ["Shift+Up" :up-major]
            ["Space" :scene-play]
            ["Space" :show-palette]
-           ["H" :flip-brush-horizontally]
-           ["G" :rotate-brush-90-degrees]
-           ["V" :flip-brush-vertically]
+           ["Z" :rotate-brush-90-degrees]
+           ["X" :flip-brush-horizontally]
+           ["Y" :flip-brush-vertically]
            ["Tab" :tab]
            ["Up" :up]
            ["W" :move-tool]]})
@@ -404,9 +404,9 @@
     "F"         ; :frame-selection
     "R"         ; :scale-tool
     "W"         ; :move-tool
-    "G"         ; :rotate-brush-90-degrees
-    "H"         ; :flip-brush-horizontally
-    "V"         ; :flip-brush-vertically
+    "Z"         ; :rotate-brush-90-degrees
+    "X"         ; :flip-brush-horizontally
+    "Y"         ; :flip-brush-vertically
     "Shift+A"   ; :add-secondary
     "Shift+E"}) ; :erase-tool
 
