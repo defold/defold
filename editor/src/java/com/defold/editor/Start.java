@@ -33,12 +33,25 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
 import java.io.IOException;
 import java.lang.SecurityException;
 import java.awt.Desktop;
+import java.awt.Taskbar;
+import java.awt.PopupMenu;
+import java.awt.MenuItem;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+
 import java.io.File;
+import java.io.IOException;
+import java.lang.SecurityException;
 import java.lang.UnsupportedOperationException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+
+import clojure.java.api.Clojure;
+import clojure.lang.IFn;
 
 public class Start extends Application {
 
@@ -118,6 +131,12 @@ public class Start extends Application {
         }
     }
 
+    private static boolean isPathsAvailable() {
+        String resourcesPath = System.getProperty("defold.resourcespath");
+        String launcherPath = System.getProperty("defold.launcherpath");
+        return resourcesPath != null && launcherPath != null;
+    }
+
     @Override
     public void start(Stage primaryStage) throws Exception {
         try {
@@ -125,7 +144,7 @@ public class Start extends Application {
                 Desktop.getDesktop().setAboutHandler(null);
             }
         } catch (final UnsupportedOperationException e) {
-            logger.error("The os does not support: 'desktop.setAboutHandler'", e);
+            logger.error("The OS does not support: 'desktop.setAboutHandler'", e);
         } catch (final SecurityException e) {
             logger.error("There was a security exception for: 'desktop.setAboutHandler'", e);
         }
@@ -152,6 +171,32 @@ public class Start extends Application {
             t.printStackTrace();
             logger.error("failed start", t);
             throw t;
+        }
+
+        try {
+            if (Taskbar.isTaskbarSupported() && Taskbar.getTaskbar().isSupported(Taskbar.Feature.MENU) && isPathsAvailable()) {
+                Taskbar taskbar = Taskbar.getTaskbar();
+                PopupMenu dockMenu = new PopupMenu();
+                MenuItem dockMenuItem = new MenuItem("New Window");
+                dockMenuItem.addActionListener(new ActionListener() {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        try {
+                            Clojure.var("clojure.core", "require").invoke(Clojure.read("editor.app-view"));
+                            IFn handler = Clojure.var("editor.app-view", "open-project");
+                            handler.invoke();
+                        } catch (Throwable t) {
+                            logger.warn("Can't open new window", t);
+                        }
+                    }
+                });
+                dockMenu.add(dockMenuItem);
+                taskbar.setMenu(dockMenu);
+            }
+        } catch (final UnsupportedOperationException t) {
+            logger.warn("The OS does not support taskbar menu", t);
+        } catch (Throwable t) {
+            logger.warn("Failed to create taskbar menu", t);
         }
     }
 
