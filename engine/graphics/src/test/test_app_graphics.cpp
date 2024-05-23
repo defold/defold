@@ -211,7 +211,7 @@ struct ReadPixelsTest : ITest
     {
         m_DidRead = false;
         m_Buffer = new uint8_t[512 * 512 * 4];
-        memset(m_Buffer, 0, sizeof(m_Buffer));
+        memset(m_Buffer, 0, 512 * 512 * 4);
     }
 
     void Execute(EngineCtx* engine) override
@@ -404,19 +404,30 @@ struct ComputeTest : ITest
         }
 
         m_ColorMember = {};
-        m_ColorMember.m_Name         = "color";
-        m_ColorMember.m_Type         = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4;
-        m_ColorMember.m_ElementCount = 1;
+        m_ColorMember.m_Name = "color";
+        m_ColorMember.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4;
 
-        dmGraphics::ShaderDesc::ResourceBlock uniform_block = {};
-        uniform_block.m_Name             = "buf";
-        uniform_block.m_NameHash         = dmHashString64(uniform_block.m_Name);
-        uniform_block.m_Type             = dmGraphics::ShaderDesc::SHADER_TYPE_UNIFORM_BUFFER;
-        uniform_block.m_Bindings.m_Data  = &m_ColorMember;
-        uniform_block.m_Bindings.m_Count = 1;
 
-        compute_shader.m_Resources.m_Data  = &uniform_block;
-        compute_shader.m_Resources.m_Count = 1;
+        dmGraphics::ShaderDesc::ResourceMember color_member = {};
+        color_member.m_Name = "color";
+        color_member.m_NameHash = dmHashString64(color_member.m_Name);
+
+        dmGraphics::ShaderDesc::ResourceTypeInfo resource_type_info = {};
+        resource_type_info.m_Name = "buf";
+        resource_type_info.m_NameHash = dmHashString64(resource_type_info.m_Name);
+        resource_type_info.m_Members.m_Count = 1;
+        resource_type_info.m_Members.m_Data = &color_member;
+
+        dmGraphics::ShaderDesc::ResourceBinding uniform_block = {};
+        uniform_block.m_Name                     = "buf";
+        uniform_block.m_NameHash                 = dmHashString64(uniform_block.m_Name);
+        uniform_block.m_Type.m_Type.m_TypeIndex  = 0;
+        uniform_block.m_Type.m_UseTypeIndex      = 1;
+
+        compute_shader.m_UniformBuffers.m_Data  = &uniform_block;
+        compute_shader.m_UniformBuffers.m_Count = 1;
+        compute_shader.m_Types.m_Data           = &resource_type_info;
+        compute_shader.m_Types.m_Count          = 1;
 
         dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_shader);
 

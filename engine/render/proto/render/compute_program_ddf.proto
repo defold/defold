@@ -4,10 +4,14 @@ package dmRenderDDF;
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
+import "render/material_ddf.proto";
+
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "ComputeProgram";
 
 message ComputeProgramDesc
 {
-    required string program = 1 [(resource)=true];
+    required string program                 = 1 [(resource)=true];
+    repeated MaterialDesc.Constant constant = 2;
+    repeated MaterialDesc.Sampler samplers  = 3;
 }

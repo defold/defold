@@ -4161,12 +4161,13 @@ bail:
         res = cmd_buffer.Begin();
         CHECK_VK_ERROR(res);
 
+        VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+
         res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
                 context->m_LogicalDevice.m_CommandPool,
                 context->m_LogicalDevice.m_GraphicsQueue,
-                context->m_SwapChain->Image(),
+                tex_sc,
                 VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_UNDEFINED,
                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         CHECK_VK_ERROR(res);
 
