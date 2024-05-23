@@ -23,14 +23,11 @@
             [editor.defold-project :as project]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.util :as util]
-            [lambdaisland.deep-diff2 :as deep-diff]
             [util.coll :as coll :refer [pair]]
-            [util.diff :as diff]
             [util.fn :as fn]
             [util.text-util :as text-util])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Builder Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
@@ -1299,88 +1296,11 @@
                     project-path)
             non-template-overridden-gui-node-field-paths)))))
 
-(defn- diff->string
-  ^String [diff]
-  (let [printer (deep-diff/printer {:print-color false
-                                    :print-fallback :print})]
-    (string/trim-newline
-      (with-out-str
-        (deep-diff/pretty-print diff printer)))))
-
-(defn- value-diff-message
-  ^String [disk-value save-value]
-  (str "Summary of discrepancies between disk value and save value:\n"
-       (-> (deep-diff/diff disk-value save-value)
-           (deep-diff/minimize)
-           (diff->string))))
-
-(defn- text-diff-message
-  ^String [disk-text save-text]
-  (str "Summary of discrepancies between disk text and save text:\n"
-       (or (some->> (diff/make-diff-output-lines disk-text save-text 3)
-                    (string/join "\n"))
-           "Contents are identical.")))
-
-(defn- when-checking-resource-message
-  ^String [resource]
-  (format "When checking `editor/%s%s`."
-          project-path
-          (resource/proj-path resource)))
-
-(defn- save-data-diff-message
-  ^String [save-data]
-  (let [resource (:resource save-data)
-        resource-type (resource/resource-type resource)
-        read-fn (:read-fn resource-type)]
-    (if read-fn
-      ;; Compare data.
-      (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
-            save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
-        (value-diff-message disk-value save-value))
-
-      ;; Compare text.
-      (let [disk-text (slurp resource)
-            save-text (resource-node/save-data-content save-data)]
-        (text-diff-message disk-text save-text)))))
-
-(defn- check-value-equivalence! [expected-value actual-value message]
-  (if (= expected-value actual-value)
-    true
-    (let [message-with-diff (str message \newline (value-diff-message expected-value actual-value))]
-      (is (= expected-value actual-value) message-with-diff))))
-
-(defn- check-text-equivalence! [expected-text actual-text message]
-  (if (= expected-text actual-text)
-    true
-    (let [message-with-diff (str message \newline (text-diff-message expected-text actual-text))]
-      (is (= expected-text actual-text) message-with-diff))))
-
-(defn- check-save-data-disk-equivalence! [save-data]
-  (let [resource (:resource save-data)
-        resource-type (resource/resource-type resource)
-        read-fn (:read-fn resource-type)
-        message (when-checking-resource-message resource)
-
-        are-values-equivalent
-        (if-not read-fn
-          false
-          (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
-                save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
-            ;; We have a read-fn, compare data.
-            (check-value-equivalence! disk-value save-value message)))]
-
-    (when-not are-values-equivalent
-      ;; We either don't have a read-fn, or the values differ.
-      (let [disk-text (slurp resource)
-            save-text (resource-node/save-data-content save-data)]
-        ;; Compare text.
-        (check-text-equivalence! disk-text save-text message)))))
-
 (defn- check-project-save-data-disk-equivalence! [project->save-datas]
   (test-util/with-loaded-project project-path
     (test-util/clear-cached-save-data! project)
     (doseq [save-data (project->save-datas project)]
-      (check-save-data-disk-equivalence! save-data))))
+      (test-util/check-save-data-disk-equivalence! save-data))))
 
 (deftest save-value-is-equivalent-to-source-value-test
   ;; This test is intended to verify that the saved data contains all the same
@@ -1431,7 +1351,7 @@
                       (if (not (:dirty save-data))
                         true
                         (let [message (str "Unsaved changes detected before editing. This is likely due to an interdependency between resources. You might need to adjust the order resources are edited.\n"
-                                           (save-data-diff-message save-data))]
+                                           (test-util/save-data-diff-message save-data))]
                           (is (not (:dirty save-data)) message)))))
               (when (test-util/can-edit-resource-node? node-id)
                 (test-util/edit-resource-node! node-id)
@@ -1449,7 +1369,7 @@
                 (is (not (:dirty save-data))
                     "Unsaved changes detected after saving.")
                 (when (:dirty save-data)
-                  (check-save-data-disk-equivalence! save-data))))))))))
+                  (test-util/check-save-data-disk-equivalence! save-data))))))))))
 
 (deftest resource-save-data-retention-test
   ;; This test is intended to verify that the system cache is populated with the

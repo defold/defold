@@ -22,6 +22,7 @@ Macros currently mean no foreseeable performance gain, however."
   (:require [camel-snake-kebab :refer [->CamelCase ->kebab-case]]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [editor.system :as system]
             [editor.util :as util]
             [editor.workspace :as workspace]
             [internal.java :as j]
@@ -39,6 +40,11 @@ Macros currently mean no foreseeable performance gain, however."
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private decorate-protobuf-exceptions
+  (and *assert*
+       (system/defold-dev?)
+       (not (Boolean/getBoolean "defold.exception.decorate.disable"))))
 
 (defprotocol GenericDescriptor
   (proto ^Message [this])
@@ -683,10 +689,26 @@ Macros currently mean no foreseeable performance gain, however."
                                                    (let [^Method field-get-method (get methods (str "get" j-name))]
                                                      (pb-builder (.getReturnType field-get-method)))
                                                    (primitive-builder fd))
+                                   field-key (field->key fd)
                                    value-fn (if repeated
-                                              (partial mapv field-builder)
-                                              field-builder)]
-                               (pair (field->key fd)
+                                              #(mapv field-builder %)
+                                              field-builder)
+                                   value-fn (if decorate-protobuf-exceptions
+                                              (fn [clj-value]
+                                                (try
+                                                  (value-fn clj-value)
+                                                  (catch Exception cause
+                                                    (throw
+                                                      (ex-info
+                                                        (format "Failed to assign protobuf field %s ('%s') from value: %s"
+                                                                field-key
+                                                                (.getFullName fd)
+                                                                clj-value)
+                                                        {:pb-class class
+                                                         :pb-field field-key
+                                                         :clj-value clj-value}
+                                                        cause))))))]
+                               (pair field-key
                                      (fn [^Message$Builder b v]
                                        (let [value (value-fn v)]
                                          (.invoke field-set-method b (to-array [value]))))))))

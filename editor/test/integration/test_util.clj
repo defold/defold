@@ -52,9 +52,11 @@
             [editor.workspace :as workspace]
             [internal.system :as is]
             [internal.util :as util]
+            [lambdaisland.deep-diff2 :as deep-diff]
             [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :refer [pair]]
+            [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
             [util.text-util :as text-util]
@@ -1555,3 +1557,76 @@
               (filter #(:read-defaults % true))
               (keep :ext))
         [:editable :non-editable]))
+
+(defn- value-diff->string
+  ^String [diff]
+  (let [printer (deep-diff/printer {:print-color false
+                                    :print-fallback :print})]
+    (string/trim-newline
+      (with-out-str
+        (deep-diff/pretty-print diff printer)))))
+
+(defn value-diff-message
+  ^String [disk-value save-value]
+  (str "Summary of discrepancies between disk value and save value:\n"
+       (-> (deep-diff/diff disk-value save-value)
+           (deep-diff/minimize)
+           (value-diff->string))))
+
+(defn text-diff-message
+  ^String [disk-text save-text]
+  (str "Summary of discrepancies between disk text and save text:\n"
+       (or (some->> (diff/make-diff-output-lines disk-text save-text 3)
+                    (string/join "\n"))
+           "Contents are identical.")))
+
+(defn check-value-equivalence! [expected-value actual-value message]
+  (if (= expected-value actual-value)
+    true
+    (let [message-with-diff (str message \newline (value-diff-message expected-value actual-value))]
+      (is (= expected-value actual-value) message-with-diff))))
+
+(defn check-text-equivalence! [expected-text actual-text message]
+  (if (= expected-text actual-text)
+    true
+    (let [message-with-diff (str message \newline (text-diff-message expected-text actual-text))]
+      (is (= expected-text actual-text) message-with-diff))))
+
+(defn save-data-diff-message
+  ^String [save-data]
+  (let [resource (:resource save-data)
+        resource-type (resource/resource-type resource)
+        read-fn (:read-fn resource-type)]
+    (if read-fn
+      ;; Compare data.
+      (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
+            save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
+        (value-diff-message disk-value save-value))
+
+      ;; Compare text.
+      (let [disk-text (slurp resource)
+            save-text (resource-node/save-data-content save-data)]
+        (text-diff-message disk-text save-text)))))
+
+(defn check-save-data-disk-equivalence! [save-data]
+  (let [resource (:resource save-data)
+        resource-type (resource/resource-type resource)
+        read-fn (:read-fn resource-type)
+        message (format "When checking `editor/%s%s`."
+                        project-path
+                        (resource/proj-path resource))
+
+        are-values-equivalent
+        (if-not read-fn
+          false
+          (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
+                save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
+            ;; We have a read-fn, compare data.
+            (check-value-equivalence! disk-value save-value message)))]
+
+    (when-not are-values-equivalent
+      ;; We either don't have a read-fn, or the values differ.
+      (let [disk-text (slurp resource)
+            save-text (resource-node/save-data-content save-data)]
+        ;; Compare text.
+        (check-text-equivalence! disk-text save-text message)))))

@@ -203,6 +203,7 @@
                                            (.replace (System/getProperty "user.home") \\ \/)
                                            "/.m2/repository/com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")]}
                       :no-asserts {:global-vars {*assert* false}}
+                      :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
                       :x86_64-linux {:dependencies [[org.openjfx/javafx-base "23-ea+3" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-controls "23-ea+3" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
