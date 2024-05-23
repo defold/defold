@@ -136,9 +136,8 @@
 (def erase-brush (make-brush nil))
 
 (defn flip-brush-horizontally
-  [self]
-  (let [brush (g/node-value self :brush)
-        width (:width brush)
+  [brush]
+  (let [width (:width brush)
         height (:height brush)
         tiles (:tiles brush)
         ;; Horizontal Flip Mappings
@@ -186,9 +185,8 @@
      :tiles reordered-tiles}))
 
 (defn flip-brush-vertically
-  [self]
-  (let [brush (g/node-value self :brush)
-        width (:width brush)
+  [brush]
+  (let [width (:width brush)
         height (:height brush)
         tiles (:tiles brush)
         ;; Vertical Flip Mappings
@@ -235,9 +233,8 @@
      :tiles reordered-tiles}))
 
 (defn rotate-brush-90-degrees
-  [self]
-  (let [brush (g/node-value self :brush)
-        width (:width brush)
+  [brush]
+  (let [width (:width brush)
         height (:height brush)
         tiles (:tiles brush)
         ;; 90-degree Rotation Mappings
@@ -1401,7 +1398,8 @@
   (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (defn flip-brush-handler [tool-controller]
-  (let [new-brush (flip-brush-horizontally tool-controller)]
+  (let [brush (g/node-value tool-controller :brush)
+        new-brush (flip-brush-horizontally brush)]
     (g/set-property! tool-controller :brush new-brush)))
 
 (handler/defhandler :flip-brush-horizontally :workbench
@@ -1415,7 +1413,8 @@
   (run [app-view] (flip-brush-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (defn flip-brush-vertically-handler [tool-controller]
-  (let [new-brush (flip-brush-vertically tool-controller)]
+  (let [brush (g/node-value tool-controller :brush)
+        new-brush (flip-brush-vertically brush)]
     (g/set-property! tool-controller :brush new-brush)))
 
 (handler/defhandler :flip-brush-vertically :workbench
@@ -1429,7 +1428,8 @@
   (run [app-view] (flip-brush-vertically-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (defn rotate-brush-handler [tool-controller]
-  (let [new-brush (rotate-brush-90-degrees tool-controller)]
+  (let [brush (g/node-value tool-controller :brush)
+        new-brush (rotate-brush-90-degrees brush)]
     (g/set-property! tool-controller :brush new-brush)))
 
 (handler/defhandler :rotate-brush-90-degrees :workbench
