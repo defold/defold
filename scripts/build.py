@@ -558,7 +558,7 @@ class Configuration(object):
 
         self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, self.verbose)
 
-        if platform in ('js-web', 'wasm-web'): # smoe platforms are not yet supported using this sdk_info mechanic
+        if target_platform in ('js-web', 'wasm-web'): # smoe platforms are not yet supported using this sdk_info mechanic
             return
 
         if not self.sdk_info:
@@ -569,6 +569,21 @@ class Configuration(object):
         if self.verbose:
             print("SDK info:")
             pprint.pprint(self.sdk_info)
+
+    def verify_sdk(self):
+        was_verbose = self.verbose
+        self.verbose = True
+        self.check_sdk()
+
+        def _test_compiler_cmd(self, prefix, verbose):
+            return '%s %s/ext/bin/waf --prefix=%s distclean configure build --skip-tests --skip-build-tests %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, verbose and '-v' or '')
+
+        args = _test_compiler_cmd(self, self.dynamo_home, was_verbose)
+        args = args.split()
+        self._log('Testing compiler for platform %s' % (target_platform))
+        cwd = join(self.defold_root, 'engine/sdk/test/toolchain')
+        plf_args = ['--platform=%s' % target_platform]
+        run.env_command(self._form_env(), args + plf_args + self.waf_options, cwd = cwd)
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
