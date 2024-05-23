@@ -400,12 +400,10 @@
   (-> collection-instance-desc
       (protobuf/sanitize-repeated :instance-properties instance-property-desc-save-value)))
 
-(def ^:private scale-along-z-default (protobuf/default GameObject$CollectionDesc :scale-along-z))
-
 (defn collection-desc-save-value [collection-desc]
   ;; GameObject$CollectionDesc in map format.
   (-> collection-desc
-      (assoc :scale-along-z (:scale-along-z collection-desc scale-along-z-default)) ; Keep this field around even though it is optional - we may want to change its default.
+      (assoc :scale-along-z (:scale-along-z collection-desc collection-common/scale-along-z-default)) ; Keep this field around even though it is optional - we may want to change its default.
       (protobuf/sanitize-repeated :instances instance-desc-save-value)
       (protobuf/sanitize-repeated :embedded-instances embedded-instance-desc-save-value)
       (protobuf/sanitize-repeated :collection-instances collection-instance-desc-save-value)))

@@ -679,13 +679,6 @@
 (def ->pb-choicebox (memoize ->pb-choicebox-raw))
 
 ;; SDK api
-;; TODO(save-value): Add test case for this to float-properties-test.
-(defn vec3->vec2 [default-z]
-  {:type t/Vec2
-   :from-type (fn [[x y _]] [x y])
-   :to-type (fn [[x y]] [x y default-z])})
-
-;; SDK api
 (defn quat->euler []
   {:type t/Vec3
    :from-type (fn [euler]

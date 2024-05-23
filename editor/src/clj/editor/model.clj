@@ -70,7 +70,7 @@
     :materials (mapv
                  (fn [material]
                    (-> material
-                       (protobuf/sanitize :material resource/resource->proj-path)
+                       (update :material resource/resource->proj-path) ; Required protobuf field.
                        (protobuf/sanitize-repeated :textures #(update % :texture resource/resource->proj-path))))
                  materials)
     :skeleton (resource/resource->proj-path skeleton)
@@ -107,7 +107,7 @@
                   vertex-attribute-overrides (:vertex-attribute-overrides material-binding-info)
                   vertex-attribute-save-values (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)]
               (-> material
-                  (protobuf/sanitize :material resource/resource->proj-path)
+                  (update :material resource/resource->proj-path) ; Required protobuf field.
                   (protobuf/sanitize-repeated :textures #(update % :texture resource/resource->proj-path))
                   (protobuf/assign-repeated :attributes vertex-attribute-save-values))))
           materials

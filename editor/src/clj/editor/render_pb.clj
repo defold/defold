@@ -181,7 +181,7 @@
                                  (:materials render-ddf))]
     (-> render-ddf
         (dissoc :materials)
-        (assoc :render-resources (into migrated-materials (:render-resources render-ddf))))))
+        (protobuf/assign-repeated :render-resources (into migrated-materials (:render-resources render-ddf))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

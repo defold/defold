@@ -317,23 +317,19 @@
     (g/transact
       (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id))))
 
-(defn- save-data-tracked-resource? [resource]
-  ;; The source-value output will never be evaluated for non-editable or
-  ;; stateless resources, so there is no need to store their entries.
-  ;; TODO(save-value): PlaceholderResourceNodes connect to :save-data only if non-binary.
-  (and (resource/file-resource? resource)
-       (resource/editable? resource)
-       (resource/stateful? resource)))
-
 (defn- store-loaded-source-values! [node-load-infos]
   (let [node-id+source-value-pairs
         (into []
-              (keep (fn [{:keys [node-id read-error resource] :as node-load-info}]
-                      (when (save-data-tracked-resource? resource)
+              (keep (fn [{:keys [node-id read-error resource source-value] :as _node-load-info}]
+                      ;; The source-value output will never be evaluated for
+                      ;; non-editable or stateless resources, so there is no
+                      ;; need to store their entries.
+                      (when (and (some? source-value)
+                                 (resource/editable? resource)
+                                 (resource/stateful? resource))
                         (pair node-id
                               (or read-error
-                                  (let [{:keys [resource source-value]} node-load-info
-                                        resource-type (resource/resource-type resource)]
+                                  (let [resource-type (resource/resource-type resource)]
                                     ;; Note: Here, source-value is whatever was
                                     ;; returned by the read-fn, so it's
                                     ;; technically a save-value.

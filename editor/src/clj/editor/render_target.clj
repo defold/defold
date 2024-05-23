@@ -173,6 +173,13 @@
         depth-stencil-attachment-format :format
         depth-stencil-attachment-texture-storage :texture-storage))))
 
+(def ^:private default-pb-depth-stencil-attachment (protobuf/default-message RenderTarget$RenderTargetDesc$DepthStencilAttachment #{:required}))
+
+(defn- sanitize-render-target [render-target-desc]
+  {:pre [(map? render-target-desc)]} ; RenderTarget$RenderTargetDesc in map format.
+  (-> render-target-desc
+      (update :depth-stencil-attachment #(or % default-pb-depth-stencil-attachment))))
+
 (defn register-resource-types
   [workspace]
   (resource-node/register-ddf-resource-type workspace
@@ -181,6 +188,7 @@
     :ddf-type RenderTarget$RenderTargetDesc
     :read-defaults false
     :load-fn load-render-target
+    :sanitize-fn sanitize-render-target
     :icon texture-icon
     :icon-class :design
     :view-types [:cljfx-form-view :text]

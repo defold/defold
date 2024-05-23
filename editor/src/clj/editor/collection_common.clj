@@ -37,6 +37,8 @@
 
 (def path-sep "/")
 
+(def scale-along-z-default (protobuf/default GameObject$CollectionDesc :scale-along-z))
+
 (defn- read-scale3-or-scale [{:keys [scale3 scale] :as _any-instance-desc}]
   ;; scale is the legacy uniform scale
   ;; check if scale3 has default value and if so, use legacy uniform scale
@@ -104,7 +106,7 @@
          (ifn? ext->embedded-component-resource-type)]}
   ;; GameObject$CollectionDesc in map format.
   (-> collection-desc
-      (update :scale-along-z #(or % 0)) ; Keep this field around even though it is optional - we may want to change its default.
+      (assoc :scale-along-z (:scale-along-z collection-desc scale-along-z-default)) ; Keep this field around even though it is optional - we may want to change its default.
       (dissoc :component-types :property-resources)
       (protobuf/sanitize-repeated :instances sanitize-instance-desc)
       (protobuf/sanitize-repeated :embedded-instances #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type))
