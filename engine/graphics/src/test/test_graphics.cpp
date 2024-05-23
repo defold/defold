@@ -483,12 +483,12 @@ TEST_F(dmGraphicsTest, TestProgram)
 
     dmGraphics::EnableProgram(m_Context, program);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
-    dmGraphics::SetConstantV4(m_Context, &constant, 1, 0);
+    dmGraphics::SetConstant(m_Context, dmGraphics::TYPE_FLOAT_VEC4, (uint8_t*) &constant, 1, 0);
     Vector4 matrix[4] = {   Vector4(1.0f, 2.0f, 3.0f, 4.0f),
                             Vector4(5.0f, 6.0f, 7.0f, 8.0f),
                             Vector4(9.0f, 10.0f, 11.0f, 12.0f),
                             Vector4(13.0f, 14.0f, 15.0f, 16.0f) };
-    dmGraphics::SetConstantM4(m_Context, matrix, 1, 4);
+    dmGraphics::SetConstant(m_Context, dmGraphics::TYPE_FLOAT_MAT4, (uint8_t*) matrix, 1, 4);
     char* program_data = new char[1024];
     *program_data = 0;
     vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, program_data, 1024);

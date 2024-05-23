@@ -574,8 +574,6 @@ namespace dmGraphics
     HUniformLocation GetUniformLocation(HProgram prog, const char* name);
 
     void SetConstant(HContext context, Type type, const uint8_t* data, int count, HUniformLocation base_location);
-    //void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
-    //void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetSampler(HContext context, HUniformLocation location, int32_t unit);
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
