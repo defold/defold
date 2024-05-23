@@ -84,7 +84,7 @@ $ ./scripts/build.py install_ext --platform=...
 It is important that you provide the `--platform` option to let the `install_ext` command know which platform you intend to build for (the target platform). When the `install_ext` command has finished you will find the external packages and downloaded SDKs in `./tmp/dynamo_home/ext`.
 
 **IMPORTANT!**
-You need to rerun the `install_ext` command whenever you switch target platform, as different packages and SDKs are installed.
+You need to rerun the `install_ext` command for each target platform, as different packages and SDKs are installed.
 
 #### Installing packages
 The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet and Protocol Buffers (a.k.a. protobuf).

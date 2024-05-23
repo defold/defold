@@ -258,6 +258,11 @@ def get_windows_local_sdk_info(platform):
     if windows_info is not None:
         return windows_info
 
+    if sys.platform != 'win32':
+        # we cannot currently use vswhere.exe on this platform
+        # todo: check using `wine`
+        return None
+
     vswhere_path = '%s/../../scripts/windows/vswhere2/vswhere2.exe' % os.environ.get('DYNAMO_HOME', '.')
     if not os.path.exists(vswhere_path):
         vswhere_path = './scripts/windows/vswhere2/vswhere2.exe'
@@ -376,9 +381,10 @@ def _setup_info_from_windowsinfo(windowsinfo, platform):
 def _get_defold_path(sdkfolder, platform):
     return os.path.join(sdkfolder, defold_info[platform]['pattern'])
 
-def check_defold_sdk(sdkfolder, platform):
+def check_defold_sdk(sdkfolder, platform, verbose=False):
     folders = []
-    print ("check_defold_sdk", sdkfolder, platform)
+    if verbose:
+        log.log("check_defold_sdk: %s %s" % (sdkfolder, platform))
 
     if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
@@ -402,12 +408,23 @@ def check_defold_sdk(sdkfolder, platform):
     count = 0
     for f in folders:
         if not os.path.exists(f):
-            log.log("Missing SDK in %s" % f)
+            if verbose:
+                log.log("  Missing SDK in %s" % f)
         else:
             count = count + 1
-    return count == len(folders)
+    result = count == len(folders)
 
-def check_local_sdk(platform):
+    if verbose:
+        if not result:
+            log.log("  No prepackaged sdk found.")
+        else:
+            log.log("  Found prepackaged sdk folders:")
+            for f in folders:
+                log.log("    %s" % f)
+
+    return result
+
+def check_local_sdk(platform, verbose=False):
     if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         xcode_version = get_local_darwin_toolchain_version()
         if not xcode_version:
@@ -497,16 +514,16 @@ def _get_local_sdk_info(platform):
 # It's only cached for the duration of one build
 cached_platforms = defaultdict(defaultdict)
 
-def get_sdk_info(sdkfolder, platform):
+def get_sdk_info(sdkfolder, platform, verbose=False):
     if platform in cached_platforms:
         return cached_platforms[platform]
 
-    if check_defold_sdk(sdkfolder, platform):
+    if check_defold_sdk(sdkfolder, platform, verbose):
         result = _get_defold_sdk_info(sdkfolder, platform)
         cached_platforms[platform] = result
         return result
 
-    if check_local_sdk(platform):
+    if check_local_sdk(platform, verbose):
         result = _get_local_sdk_info(platform)
         cached_platforms[platform] = result
         return result
