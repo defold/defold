@@ -594,9 +594,9 @@ namespace dmGameSystem
             dmGui::HTextureSource texture_source;
             dmGui::NodeTextureType texture_source_type;
 
-            if (scene_resource->m_GuiTextureSets[i].m_TextureSet)
+            if (scene_resource->m_GuiTextureSets[i].m_ResourceIsTextureSet)
             {
-                TextureSetResource* texture_set_res = scene_resource->m_GuiTextureSets[i].m_TextureSet;
+                TextureSetResource* texture_set_res = (TextureSetResource*) scene_resource->m_GuiTextureSets[i].m_Resource;
                 texture_res                         = texture_set_res->m_Texture;
 
                 texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET;
@@ -605,8 +605,8 @@ namespace dmGameSystem
             else
             {
                 texture_source_type = dmGui::NODE_TEXTURE_TYPE_TEXTURE;
-                texture_source      = (dmGui::HTextureSource) scene_resource->m_GuiTextureSets[i].m_Texture;
-                texture_res         = scene_resource->m_GuiTextureSets[i].m_Texture;
+                texture_source      = (dmGui::HTextureSource) scene_resource->m_GuiTextureSets[i].m_Resource;
+                texture_res         = (TextureResource*) scene_resource->m_GuiTextureSets[i].m_Resource;
             }
 
             texture = texture_res->m_Texture;
