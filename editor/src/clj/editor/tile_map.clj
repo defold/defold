@@ -135,6 +135,153 @@
 
 (def erase-brush (make-brush nil))
 
+(defn flip-brush-horizontally
+  [brush]
+  (let [width (:width brush)
+        height (:height brush)
+        tiles (:tiles brush)
+        ;; Horizontal Flip Mappings
+        ;; | current-state      | hflip | vflip | rotate90 |
+        ;; | 0 (000) - 0°       | false | false | false    | -> 1 (001) - H
+        ;; | 1 (001) - H        | true  | false | false    | -> 0 (000) - R_0
+        ;; | 2 (010) - V        | false | true  | false    | -> 3 (011) - H + V
+        ;; | 3 (011) - H+V      | true  | true  | false    | -> 2 (010) - V
+        ;; | 4 (100) - 90°      | false | false | true     | -> 6 (110) - V + R_90
+        ;; | 5 (101) - H+90°    | true  | false | true     | -> 7 (111) - H + V + R_90
+        ;; | 6 (110) - V+90°    | false | true  | true     | -> 4 (100) - R_90
+        ;; | 7 (111) - H+V+90°  | true  | true  | true     | -> 5 (101) - H + R_90
+        flipped-tiles (vec (for [y (range height)
+                                 x (range width)]
+                             (let [index (+ (* y width) x)
+                                   tile (nth tiles index)
+                                   hflip (:h-flip tile)
+                                   vflip (:v-flip tile)
+                                   rotate90 (:rotate90 tile)
+                                   current-state (bit-or (if hflip 1 0)
+                                                         (if vflip 2 0)
+                                                         (if rotate90 4 0))
+                                   new-state (case current-state
+                                               0 1          ; R_0 -> H
+                                               1 0          ; H -> R_0
+                                               2 3          ; V -> H + V
+                                               3 2          ; H + V -> V
+                                               4 6          ; R_90 -> V + R_90
+                                               5 7          ; H + R_90 -> H + V + R_90
+                                               6 4          ; V + R_90 -> R_90
+                                               7 5)         ; H + V + R_90 -> H + R_90
+                                   new-hflip (bit-test new-state 0)
+                                   new-vflip (bit-test new-state 1)
+                                   new-rotate90 (bit-test new-state 2)]
+                               {:x (:x tile)
+                                :y (:y tile)
+                                :tile (:tile tile)
+                                :h-flip new-hflip
+                                :v-flip new-vflip
+                                :rotate90 new-rotate90})))
+        reordered-tiles (vec (flatten (for [y (range height)]
+                                        (rseq (subvec flipped-tiles (* y width) (* (inc y) width))))))]
+    {:width width
+     :height height
+     :tiles reordered-tiles}))
+
+(defn flip-brush-vertically
+  [brush]
+  (let [width (:width brush)
+        height (:height brush)
+        tiles (:tiles brush)
+        ;; Vertical Flip Mappings
+        ;; | current-state      | hflip | vflip | rotate90 |
+        ;; | 0 (000) - 0°       | false | false | false    | -> 2 (010) - V
+        ;; | 1 (001) - H        | true  | false | false    | -> 3 (011) - H + V
+        ;; | 2 (010) - V        | false | true  | false    | -> 0 (000) - R_0
+        ;; | 3 (011) - H+V      | true  | true  | false    | -> 1 (001) - H
+        ;; | 4 (100) - 90°      | false | false | true     | -> 5 (101) - H + R_90
+        ;; | 5 (101) - H+90°    | true  | false | true     | -> 4 (100) - R_90
+        ;; | 6 (110) - V+90°    | false | true  | true     | -> 7 (111) - H + V + R_90
+        ;; | 7 (111) - H+V+90°  | true  | true  | true     | -> 6 (110) - V + R_90
+        flipped-tiles (vec (for [y (range height)
+                                 x (range width)]
+                             (let [index (+ (* y width) x)
+                                   tile (nth tiles index)
+                                   hflip (:h-flip tile)
+                                   vflip (:v-flip tile)
+                                   rotate90 (:rotate90 tile)
+                                   current-state (bit-or (if hflip 1 0)
+                                                         (if vflip 2 0)
+                                                         (if rotate90 4 0))
+                                   new-state (case current-state
+                                               0 2          ; R_0 -> V
+                                               1 3          ; H -> H + V
+                                               2 0          ; V -> R_0
+                                               3 1          ; H + V -> H
+                                               4 5          ; R_90 -> H + R_90
+                                               5 4          ; H + R_90 -> R_90
+                                               6 7          ; V + R_90 -> H + V + R_90
+                                               7 6)         ; H + V + R_90 -> V + R_90
+                                   new-hflip (bit-test new-state 0)
+                                   new-vflip (bit-test new-state 1)
+                                   new-rotate90 (bit-test new-state 2)]
+                               {:x (:x tile)
+                                :y (:y tile)
+                                :tile (:tile tile)
+                                :h-flip new-hflip
+                                :v-flip new-vflip
+                                :rotate90 new-rotate90})))
+        reordered-tiles (vec (flatten (reverse (partition width flipped-tiles))))]
+    {:width width
+     :height height
+     :tiles reordered-tiles}))
+
+(defn rotate-brush-90-degrees
+  [brush]
+  (let [width (:width brush)
+        height (:height brush)
+        tiles (:tiles brush)
+        ;; 90-degree Rotation Mappings
+        ;; | current-state              | hflip | vflip | rotate90 |
+        ;; | 0 (000) - 0°               | false | false | false    | -> 4 (100) - R_90
+        ;; | 1 (001) - H                | true  | false | false    | -> 5 (101) - H + R_90
+        ;; | 2 (010) - V                | false | true  | false    | -> 6 (110) - V + R_90
+        ;; | 3 (011) - H+V              | true  | true  | false    | -> 7 (111) - H + V + R_90
+        ;; | 4 (100) - 90°              | false | false | true     | -> 3 (011) - H + V (180-degree rotation)
+        ;; | 5 (101) - H+90°            | true  | false | true     | -> 2 (010) - V
+        ;; | 6 (110) - V+90°            | false | true  | true     | -> 1 (001) - H
+        ;; | 7 (111) - H+V+90°          | true  | true  | true     | -> 0 (000) - R_0
+        rotated-tiles (mapv (fn [tile]
+                              (let [hflip (:h-flip tile)
+                                    vflip (:v-flip tile)
+                                    rotate90 (:rotate90 tile)
+                                    current-state (bit-or (if hflip 1 0)
+                                                          (if vflip 2 0)
+                                                          (if rotate90 4 0))
+                                    new-state (case current-state
+                                                0 4         ; R_0 -> R_90
+                                                1 5         ; H -> H + R_90
+                                                2 6         ; V -> V + R_90
+                                                3 7         ; H + V -> H + V + R_90
+                                                4 3         ; R_90 -> H + V (180-degree rotation)
+                                                5 2         ; H + R_90 -> V
+                                                6 1         ; V + R_90 -> H
+                                                7 0)        ; H + V + R_90 -> R_0
+                                    new-hflip (bit-test new-state 0)
+                                    new-vflip (bit-test new-state 1)
+                                    new-rotate90 (bit-test new-state 2)]
+                                {:x (:x tile)
+                                 :y (:y tile)
+                                 :tile (:tile tile)
+                                 :h-flip new-hflip
+                                 :v-flip new-vflip
+                                 :rotate90 new-rotate90}))
+                            tiles)]
+    (let [reordered-tiles (vec (for [y (range width)
+                                     x (range height)]
+                                 (let [new-x (- width 1 y)
+                                       new-y x
+                                       index (+ (* new-y width) new-x)]
+                                   (nth rotated-tiles index))))]
+      {:width height
+       :height width
+       :tiles reordered-tiles})))
 
 ;;--------------------------------------------------------------------
 ;; rendering
@@ -583,7 +730,7 @@
           (.glEnd gl))))))
 
 (defn conj-brush-quad!
-  [vbuf {:keys [tile h-flip v-flip]} uvs w h x y]
+  [vbuf {:keys [tile h-flip v-flip rotate90]} uvs w h x y]
   (if-not tile
     vbuf
     (let [uv (nth uvs tile (geom/identity-uv-trans))
@@ -596,11 +743,17 @@
           y0 y
           x1 (+ x0 w)
           y1 (+ y0 h)]
-      (-> vbuf
-          (pos-uv-vtx-put! x0 y0 0 u0 v1)
-          (pos-uv-vtx-put! x0 y1 0 u0 v0)
-          (pos-uv-vtx-put! x1 y1 0 u1 v0)
-          (pos-uv-vtx-put! x1 y0 0 u1 v1)))))
+      (if rotate90
+          (-> vbuf
+              (pos-uv-vtx-put! x0 y1 0 u0 v1)
+              (pos-uv-vtx-put! x1 y1 0 u0 v0)
+              (pos-uv-vtx-put! x1 y0 0 u1 v0)
+              (pos-uv-vtx-put! x0 y0 0 u1 v1))
+          (-> vbuf
+              (pos-uv-vtx-put! x0 y0 0 u0 v1)
+              (pos-uv-vtx-put! x0 y1 0 u0 v0)
+              (pos-uv-vtx-put! x1 y1 0 u1 v0)
+              (pos-uv-vtx-put! x1 y0 0 u1 v1))))))
 
 (defn gen-brush-vbuf
   [brush uvs tile-width tile-height]
@@ -1244,11 +1397,52 @@
              (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
+(defn- transform-brush! [app-view transform-brush-fn]
+  (let [scene-view (active-scene-view app-view)
+        tool-controller (scene-view->tool-controller scene-view)]
+    (g/update-property! tool-controller :brush transform-brush-fn)))
+
+(handler/defhandler :flip-brush-horizontally :workbench
+  (active? [app-view evaluation-context]
+           (and (active-tile-map app-view evaluation-context)
+                (active-scene-view app-view evaluation-context)))
+  (enabled? [app-view selection evaluation-context]
+    (and (selection->layer selection)
+         (-> (active-tile-map app-view evaluation-context)
+             (g/node-value :tile-source-resource evaluation-context))))
+  (run [app-view] (transform-brush! app-view flip-brush-horizontally)))
+
+(handler/defhandler :flip-brush-vertically :workbench
+  (active? [app-view evaluation-context]
+           (and (active-tile-map app-view evaluation-context)
+                (active-scene-view app-view evaluation-context)))
+  (enabled? [app-view selection evaluation-context]
+            (and (selection->layer selection)
+                 (-> (active-tile-map app-view evaluation-context)
+                     (g/node-value :tile-source-resource evaluation-context))))
+  (run [app-view] (transform-brush! app-view flip-brush-vertically)))
+
+(handler/defhandler :rotate-brush-90-degrees :workbench
+  (active? [app-view evaluation-context]
+           (and (active-tile-map app-view evaluation-context)
+                (active-scene-view app-view evaluation-context)))
+  (enabled? [app-view selection evaluation-context]
+    (and (selection->layer selection)
+         (-> (active-tile-map app-view evaluation-context)
+             (g/node-value :tile-source-resource evaluation-context))))
+  (run [app-view] (transform-brush! app-view rotate-brush-90-degrees)))
+
 (handler/register-menu! ::menubar :editor.app-view/edit-end
   [{:label "Select Tile..."
     :command :show-palette}
    {:label "Select Eraser"
-    :command :erase-tool}])
+    :command :erase-tool}
+   {:label "Flip Brush Horizontally"
+    :command :flip-brush-horizontally}
+   {:label "Flip Brush Vertically"
+    :command :flip-brush-vertically}
+   {:label "Rotate Brush 90 Degrees"
+    :command :rotate-brush-90-degrees}])
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
