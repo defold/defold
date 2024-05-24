@@ -183,9 +183,9 @@ namespace dmGraphics
         TEXTURE_USAGE_HINT_NONE       = 0,
         TEXTURE_USAGE_HINT_SAMPLE     = 1,
         TEXTURE_USAGE_HINT_MEMORYLESS = 2,
-        TEXTURE_USAGE_HINT_INPUT      = 4,
-        TEXTURE_USAGE_HINT_COLOR      = 8,
-        TEXTURE_USAGE_HINT_STORAGE    = 16,
+        TEXTURE_USAGE_HINT_STORAGE    = 4,
+        TEXTURE_USAGE_HINT_INPUT      = 8,
+        TEXTURE_USAGE_HINT_COLOR      = 16,
     };
 
     struct TextureCreationParams
@@ -646,6 +646,7 @@ namespace dmGraphics
     uint8_t     GetTextureMipmapCount(HTexture texture);
     TextureType GetTextureType(HTexture texture);
     uint8_t     GetNumTextureHandles(HTexture texture);
+    uint32_t    GetTextureUsageHintFlags(HTexture texture);
 
     const char* GetTextureTypeLiteral(TextureType texture_type);
     const char* GetTextureFormatLiteral(TextureFormat format);

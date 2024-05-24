@@ -2043,14 +2043,17 @@ static void LogFrameBufferError(GLenum status)
         glUseProgram(0);
     }
 
-    static bool TryLinkProgram(HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool TryLinkProgram(GLuint* ids, int num_ids)
     {
         GLuint tmp_program = glCreateProgram();
         CHECK_GL_ERROR;
-        glAttachShader(tmp_program, ((OpenGLShader*) vert_program)->m_Id);
-        CHECK_GL_ERROR;
-        glAttachShader(tmp_program, ((OpenGLShader*) frag_program)->m_Id);
-        CHECK_GL_ERROR;
+
+        for (int i = 0; i < num_ids; ++i)
+        {
+            glAttachShader(tmp_program, ids[i]);
+            CHECK_GL_ERROR;
+        }
+
         glLinkProgram(tmp_program);
 
         bool success = true;
@@ -2077,7 +2080,9 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
-        if (!TryLinkProgram(vert_program, frag_program))
+        GLuint ids[] = { ((OpenGLShader*) vert_program)->m_Id, ((OpenGLShader*) frag_program)->m_Id };
+
+        if (!TryLinkProgram(ids, 2))
         {
             return false;
         }
@@ -2093,14 +2098,38 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
     {
-        assert(0);
-        return false;
+        if (!TryLinkProgram(&((OpenGLShader*) compute_program)->m_Id, 1))
+        {
+            return false;
+        }
+
+        OpenGLProgram* program_ptr = (OpenGLProgram*) program;
+        glLinkProgram(program_ptr->m_Id);
+        CHECK_GL_ERROR;
+        
+        return true;
     }
 
     static bool OpenGLReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
     {
-        (void)prog;
-        return true;
+        assert(prog);
+        assert(ddf);
+
+        GLuint tmp_shader = glCreateShader(DMGRAPHICS_TYPE_COMPUTE_SHADER);
+        bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        glDeleteShader(tmp_shader);
+        CHECK_GL_ERROR;
+
+        if (success)
+        {
+            GLuint id = ((OpenGLShader*) prog)->m_Id;
+            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
+            CHECK_GL_ERROR;
+            glCompileShader(id);
+            CHECK_GL_ERROR;
+        }
+
+        return success;
     }
 
     static uint32_t OpenGLGetAttributeCount(HProgram prog)
@@ -2772,13 +2801,14 @@ static void LogFrameBufferError(GLenum status)
         glGenTextures(num_texture_ids, gl_texture_ids);
         CHECK_GL_ERROR;
 
-        OpenGLTexture* tex   = new OpenGLTexture();
-        tex->m_Type          = texture_type;
-        tex->m_TextureIds    = gl_texture_ids;
-        tex->m_Width         = params.m_Width;
-        tex->m_Height        = params.m_Height;
-        tex->m_Depth         = params.m_Depth;
-        tex->m_NumTextureIds = num_texture_ids;
+        OpenGLTexture* tex    = new OpenGLTexture();
+        tex->m_Type           = texture_type;
+        tex->m_TextureIds     = gl_texture_ids;
+        tex->m_Width          = params.m_Width;
+        tex->m_Height         = params.m_Height;
+        tex->m_Depth          = params.m_Depth;
+        tex->m_NumTextureIds  = num_texture_ids;
+        tex->m_UsageHintFlags = params.m_UsageHintBits;
 
         if (params.m_OriginalWidth == 0)
         {
@@ -2967,6 +2997,11 @@ static void LogFrameBufferError(GLenum status)
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         assert(tex);
         return tex->m_NumTextureIds;
+    }
+
+    static uint32_t OpenGLGetTextureUsageHintFlags(HTexture texture)
+    {
+        return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_UsageHintFlags;
     }
 
     static uint32_t OpenGLGetTextureStatusFlags(HTexture texture)

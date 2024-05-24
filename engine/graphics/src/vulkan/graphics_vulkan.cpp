@@ -2120,18 +2120,6 @@ bail:
 
         UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment);
 
-        /*
-        void vkCmdBindDescriptorSets(
-        VkCommandBuffer                             commandBuffer,
-        VkPipelineBindPoint                         pipelineBindPoint,
-        VkPipelineLayout                            layout,
-        uint32_t                                    firstSet,
-        uint32_t                                    descriptorSetCount,
-        const VkDescriptorSet*                      pDescriptorSets,
-        uint32_t                                    dynamicOffsetCount,
-        const uint32_t*                             pDynamicOffsets);
-        */
-
         vkCmdBindDescriptorSets(vk_command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             program_ptr->m_Handle.m_PipelineLayout,
@@ -3585,12 +3573,13 @@ bail:
         }
     #endif
 
-        tex->m_Type        = params.m_Type;
-        tex->m_Width       = params.m_Width;
-        tex->m_Height      = params.m_Height;
-        tex->m_Depth       = params.m_Depth;
-        tex->m_MipMapCount = params.m_MipMapCount;
-        tex->m_UsageFlags  = GetVulkanUsageFromHints(params.m_UsageHintBits);
+        tex->m_Type           = params.m_Type;
+        tex->m_Width          = params.m_Width;
+        tex->m_Height         = params.m_Height;
+        tex->m_Depth          = params.m_Depth;
+        tex->m_MipMapCount    = params.m_MipMapCount;
+        tex->m_UsageFlags     = GetVulkanUsageFromHints(params.m_UsageHintBits);
+        tex->m_UsageHintFlags = params.m_UsageHintBits;
 
         for (int i = 0; i < DM_ARRAY_SIZE(tex->m_ImageLayout); ++i)
         {
@@ -4093,6 +4082,11 @@ bail:
     static TextureType VulkanGetTextureType(HTexture texture)
     {
         return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Type;
+    }
+
+    static uint32_t VulkanGetTextureUsageHintFlags(HTexture texture)
+    {
+        return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_UsageHintFlags;
     }
 
     static HandleResult VulkanGetTextureHandle(HTexture texture, void** out_handle)

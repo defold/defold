@@ -84,13 +84,12 @@ enum DepthStencilFormat
     DEPTH_STENCIL_FORMAT_S8U      = 5;
 }
 
+// Engine only, values corresponds to TextureUsageHint in graphics.h
 enum TextureUsageFlag
 {
     TEXTURE_USAGE_FLAG_SAMPLE     = 1;
     TEXTURE_USAGE_FLAG_MEMORYLESS = 2;
-    TEXTURE_USAGE_FLAG_INPUT      = 4;
-    TEXTURE_USAGE_FLAG_COLOR      = 8;
-    TEXTURE_USAGE_FLAG_STORAGE    = 16;
+    TEXTURE_USAGE_FLAG_STORAGE    = 4;
 }
 
 message TextureImage

@@ -107,6 +107,7 @@ namespace dmGraphics
         uint16_t          m_MipMapCount         : 5;
         uint16_t          m_TextureSamplerIndex : 10;
         uint32_t          m_Destroyed           : 1;
+        uint32_t          m_UsageHintFlags      : 8;
 
         const VulkanResourceType GetType();
     };

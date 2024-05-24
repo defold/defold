@@ -983,10 +983,7 @@ namespace dmRender
                 uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
-                    // TODO paged-atlas: We can remove the HSampler concept now I think, unless we want to do validation in a debug runtime?
-                    //HSampler sampler = GetMaterialSampler(material, next_texture_unit);
                     dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
-                    //ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, texture);
                     next_texture_unit++;
                 }
             }

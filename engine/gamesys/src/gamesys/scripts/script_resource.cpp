@@ -836,6 +836,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *
  * - `resource.TEXTURE_TYPE_2D`
  * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ * - `resource.TEXTURE_TYPE_IMAGE_2D`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
@@ -872,6 +873,13 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * - `resource.TEXTURE_FORMAT_RG16F`
  * - `resource.TEXTURE_FORMAT_R32F`
  * - `resource.TEXTURE_FORMAT_RG32F`
+ *
+ * `flags`
+ * : [type:number] Texture creation flags that can be used to dictate how the texture is created. Supported values:
+ *
+ * - `resource.TEXTURE_USAGE_FLAG_SAMPLE`
+ * - `resource.TEXTURE_USAGE_FLAG_MEMORYLESS`
+ * - `resource.TEXTURE_USAGE_FLAG_STORAGE`
  *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *
@@ -1037,6 +1045,13 @@ static int CreateTexture(lua_State* L)
  * - `resource.TEXTURE_FORMAT_RG16F`
  * - `resource.TEXTURE_FORMAT_R32F`
  * - `resource.TEXTURE_FORMAT_RG32F`
+ *
+ * `flags`
+ * : [type:number] Texture creation flags that can be used to dictate how the texture is created. Supported values:
+ *
+ * - `resource.TEXTURE_USAGE_FLAG_SAMPLE`
+ * - `resource.TEXTURE_USAGE_FLAG_MEMORYLESS`
+ * - `resource.TEXTURE_USAGE_FLAG_STORAGE`
  *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *
@@ -1531,10 +1546,14 @@ static int SetTexture(lua_State* L)
  * `mipmaps`
  * : [type:integer] number of mipmaps of the texture
  *
+ * `flags`
+ * : [type:integer] usage hints of the texture
+ *
  * `type`
  * : [type:number] The texture type. Supported values:
  *
  * - `resource.TEXTURE_TYPE_2D`
+ * - `resource.TEXTURE_TYPE_IMAGE_2D`
  * - `resource.TEXTURE_TYPE_CUBE_MAP`
  * - `resource.TEXTURE_TYPE_2D_ARRAY`
  *
@@ -1561,7 +1580,8 @@ static int SetTexture(lua_State* L)
  *     --      height = 128,
  *     --      depth = 1
  *     --      mipmaps = 1,
- *     --      type = resource.TEXTURE_TYPE_2D
+ *     --      type = resource.TEXTURE_TYPE_2D,
+ *     --      flags = resource.TEXTURE_USAGE_FLAG_SAMPLE
  *     -- }
  * end
  * ```
@@ -1586,6 +1606,7 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
     uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
     uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
     dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
+    uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(texture_handle);
 
     lua_pushnumber(L, texture_handle);
     lua_setfield(L, -2, "handle");
@@ -1604,6 +1625,9 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
 
     lua_pushinteger(L, texture_type);
     lua_setfield(L, -2, "type");
+
+    lua_pushinteger(L, texture_flags);
+    lua_setfield(L, -2, "flags");
 }
 
 static int GetTextureInfo(lua_State* L)
@@ -3397,6 +3421,24 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
+/*# Usage hint for creating textures that can be sampled in a shader
+ *
+ * @name resource.TEXTURE_USAGE_FLAG_SAMPLE
+ * @variable
+ */
+
+/*# Usage hint for creating textures that uses temporary memory
+ *
+ * @name resource.TEXTURE_USAGE_FLAG_MEMORYLESS
+ * @variable
+ */
+
+/*# Usage hint for creating textures that can be used for writing in a shader
+ *
+ * @name resource.TEXTURE_USAGE_FLAG_STORAGE
+ * @variable
+ */
+
 /*# COMPRESSION_TYPE_DEFAULT compression type
  *
  * @name resource.COMPRESSION_TYPE_DEFAULT
@@ -3432,8 +3474,6 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
 
     SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_SAMPLE);
     SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_MEMORYLESS);
-    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_INPUT);
-    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_COLOR);
     SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_STORAGE);
 #undef SETGRAPHICS_ENUM
 
