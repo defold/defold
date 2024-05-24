@@ -133,6 +133,35 @@
                        x (range x0 x1)]
                    (get cell-map (cell-index x y))))}))
 
+(defn palette-x [n tiles-per-row]
+  (mod n tiles-per-row))
+
+(defn palette-y [n tiles-per-row]
+  (int (/ n tiles-per-row)))
+
+(defn make-brush-from-selection-in-palette
+  [start-tile end-tile tile-source-attributes]
+  (let [tiles-per-row (:tiles-per-row tile-source-attributes)
+        start-x (palette-x start-tile tiles-per-row)
+        start-y (palette-y start-tile tiles-per-row)
+        end-x (palette-x end-tile tiles-per-row)
+        end-y (palette-y end-tile tiles-per-row)
+        x0 (min-l start-x end-x)
+        y0 (min-l start-y end-y)
+        x1 (inc (max-l start-x end-x))
+        y1 (inc (max-l start-y end-y))
+        width (- x1 x0)
+        height (- y1 y0)
+        tiles (vec (for [y (range (dec y1) (dec y0) -1)
+                         x (range x0 x1)]
+                     {:tile (+ x (* y tiles-per-row))
+                      :h-flip false
+                      :v-flip false
+                      :rotate90 false}))]
+    {:width width
+     :height height
+     :tiles tiles}))
+
 (def erase-brush (make-brush nil))
 
 (defn flip-brush-horizontally
@@ -962,8 +991,8 @@
     (let [n palette-tile
           w (:width tile-source-attributes)
           h (:height tile-source-attributes)
-          x (mod n (:tiles-per-row tile-source-attributes))
-          y (int (/ n (:tiles-per-row tile-source-attributes)))
+          x (palette-x n (:tiles-per-row tile-source-attributes))
+          y (palette-y n (:tiles-per-row tile-source-attributes))
           x0 (* x (+ tile-border-size w))
           x1 (+ x0 w tile-border-size)
           y0 (* y (+ tile-border-size h))
@@ -1207,20 +1236,36 @@
   (let [^Point3d screen-pos (:screen-pos action)]
     (case (:type action)
       :mouse-pressed
-      true
+      (let [start-tile (g/node-value self :palette-tile evaluation-context)]
+        (g/transact
+          (g/set-property self :start-palette-tile start-tile))
+        true)
 
       :mouse-moved
-      (g/transact
-        (g/set-property self :cursor-screen-pos screen-pos))
+      (do
+        (g/transact
+          (g/set-property self :cursor-screen-pos screen-pos))
+        true)
 
       :mouse-released
-      (let [palette-tile (g/node-value self :palette-tile evaluation-context)]
-        (g/transact
-          (concat
-            (g/set-property self :brush (make-brush palette-tile))
-            (g/set-property self :mode :editor))))
-
-      action)))
+      (let [start-tile (g/node-value self :start-palette-tile evaluation-context)
+            end-tile (g/node-value self :palette-tile evaluation-context)]
+        (if (and start-tile end-tile) ; Ensure both start-tile and end-tile exist
+          (if (= start-tile end-tile)
+            (do
+              (g/transact
+                (concat
+                  (g/set-property self :brush (make-brush start-tile))
+                  (g/set-property self :mode :editor)))
+              true)
+            (do
+              (g/transact
+                (concat
+                  (g/set-property self :brush (make-brush-from-selection-in-palette start-tile end-tile (g/node-value self :tile-source-attributes evaluation-context)))
+                  (g/set-property self :mode :editor)))
+              true))
+          false))
+      false)))
 
 (defn handle-input
   [self action state]
@@ -1255,6 +1300,7 @@
   (property op-select-end g/Any)
 
   (property brush g/Any (default (make-brush 0)))
+  (property start-palette-tile g/Int)
 
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
