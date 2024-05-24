@@ -1418,7 +1418,7 @@
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
             (and (selection->layer selection)
-                 (-> (active-tile-map app-viyyyew evaluation-context)
+                 (-> (active-tile-map app-view evaluation-context)
                      (g/node-value :tile-source-resource evaluation-context))))
   (run [app-view] (transform-brush! app-view flip-brush-vertically)))
 
