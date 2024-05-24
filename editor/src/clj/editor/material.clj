@@ -65,9 +65,11 @@
 (defn- hack-upgrade-constant [constant]
   (update constant :value hack-upgrade-constant-value))
 
-(def ^:private hack-downgrade-constants (partial mapv hack-downgrade-constant))
+;; Used for both materials + compute programs
+(def hack-downgrade-constants (partial mapv hack-downgrade-constant))
 
-(def ^:private hack-upgrade-constants (partial mapv hack-upgrade-constant))
+;; Used for both materials + compute programs
+(def hack-upgrade-constants (partial mapv hack-upgrade-constant))
 
 (defn- attribute->editable-attribute [attribute]
   {:pre [(map? attribute)]} ; Graphics$VertexAttribute in map format.

@@ -116,7 +116,7 @@
                       "../engine/graphics/proto"
                       "../engine/input/proto"
                       "../engine/particle/proto/particle"
-                      "../engine/render/proto/render"
+                      "../engine/render/proto"
                       "../engine/resource/proto"
                       "../engine/rig/proto"
                       "../engine/script/src"]
