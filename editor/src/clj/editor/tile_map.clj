@@ -1039,14 +1039,18 @@
 (defn render-palette
   [^GL2 gl render-args renderables count]
   (let [user-data (:user-data (first renderables))
-        {:keys [viewport tile-source-attributes texture-set-data gpu-texture palette-transform start-tile end-tile]} user-data]
+        {:keys [viewport tile-source-attributes texture-set-data gpu-texture palette-transform start-tile end-tile]} user-data
+        [start-tile end-tile] (if (and start-tile end-tile (<= start-tile end-tile))
+                                [start-tile end-tile]
+                                [end-tile (or start-tile end-tile)])]
     (render-palette-background gl viewport)
     (.glMatrixMode gl GL2/GL_MODELVIEW)
     (gl/gl-push-matrix gl
       (gl/gl-mult-matrix-4d gl palette-transform)
       (render-palette-tiles gl render-args tile-source-attributes texture-set-data gpu-texture)
       (render-palette-grid gl render-args tile-source-attributes)
-      (render-palette-active gl render-args tile-source-attributes (or start-tile end-tile) end-tile))))
+      (render-palette-active gl render-args tile-source-attributes start-tile end-tile))))
+
 
 (defn render-editor-select-outline
   [^GL2 gl render-args renderables count]
