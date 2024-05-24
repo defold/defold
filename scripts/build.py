@@ -19,7 +19,7 @@ from os.path import join, dirname, basename, relpath, expanduser, normpath, absp
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
-import optparse, subprocess, urllib, urllib.parse, tempfile, time
+import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import run
 import s3
@@ -556,17 +556,34 @@ class Configuration(object):
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
-        self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform)
+        self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, self.verbose)
 
-        # We currently only support a subset of platforms using this mechanic
-        if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
-            if not self.sdk_info:
-                print("Couldn't find any sdks")
-                print("We recommend you follow the packaging steps found here: %s" % "https://github.com/defold/defold/blob/dev/scripts/package/README.md#packaging-the-sdks")
-                print("Then run './scripts/build.py --package-path=<local_folder_or_url> install_ext --platform=<platform>=%s'" % self.target_platform)
-                sys.exit(1)
+        if target_platform in ('js-web', 'wasm-web'): # smoe platforms are not yet supported using this sdk_info mechanic
+            return
 
-            print("Using SDKS:", self.sdk_info)
+        if not self.sdk_info:
+            print("Couldn't find any sdks for platform", target_platform)
+            print("We recommend you follow the setup guide found here: %s" % "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
+            sys.exit(1)
+
+        if self.verbose:
+            print("SDK info:")
+            pprint.pprint(self.sdk_info)
+
+    def verify_sdk(self):
+        was_verbose = self.verbose
+        self.verbose = True
+        self.check_sdk()
+
+        def _test_compiler_cmd(self, prefix, verbose):
+            return '%s %s/ext/bin/waf --prefix=%s distclean configure build --skip-tests --skip-build-tests %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, verbose and '-v' or '')
+
+        args = _test_compiler_cmd(self, self.dynamo_home, was_verbose)
+        args = args.split()
+        self._log('Testing compiler for platform %s' % (target_platform))
+        cwd = join(self.defold_root, 'engine/sdk/test/toolchain')
+        plf_args = ['--platform=%s' % target_platform]
+        run.env_command(self._form_env(), args + plf_args + self.waf_options, cwd = cwd)
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
@@ -1529,7 +1546,7 @@ class Configuration(object):
 
 
     def shell(self):
-        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
+        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
         if "win32" in self.host:
             preexec_fn = None
         else:
@@ -2158,17 +2175,13 @@ class Configuration(object):
 
         env['DYNAMO_HOME'] = self.dynamo_home
 
-        env['ANDROID_HOME'] = os.path.join(self.dynamo_home, 'ext', 'SDKs', 'android-sdk')
-
         android_host = self.host
         if 'win32' in android_host:
             android_host = 'windows'
         paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
-                                      '%s/ext/bin/%s' % (self.dynamo_home, host),
-                                      '%s/platform-tools' % env['ANDROID_HOME'],
-                                      '%s/ext/SDKs/%s/toolchains/llvm/prebuilt/%s-x86_64/bin' % (self.dynamo_home,PACKAGES_ANDROID_NDK,android_host)])
+                                      '%s/ext/bin/%s' % (self.dynamo_home, host)])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
 
