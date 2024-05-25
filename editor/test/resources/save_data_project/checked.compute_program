@@ -1,1 +1,41 @@
-program: ""
+program: "/checked.cp"
+constants {
+  name: "constant_1"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 2.0
+    z: 13.0
+    w: 99.0
+  }
+}
+constants {
+  name: "constant_2"
+  type: CONSTANT_TYPE_VIEWPROJ
+  value {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+}
+samplers {
+  name: "texture0"
+  wrap_u: WRAP_MODE_MIRRORED_REPEAT
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_LINEAR
+  filter_mag: FILTER_MODE_MAG_NEAREST
+  max_anisotropy: 0.0
+  texture: ""
+  name_hash: 0
+}
+samplers {
+  name: "texture1"
+  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_NEAREST
+  filter_mag: FILTER_MODE_MAG_LINEAR
+  max_anisotropy: 16.0
+  texture: ""
+  name_hash: 0
+}

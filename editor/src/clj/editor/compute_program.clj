@@ -80,11 +80,20 @@
                       :label "Max Anisotropy"
                       :type :number}])}]}]}))
 
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (g/set-property! node-id property value))
+
+(defn- clear-form-op [{:keys [node-id]} [property]]
+  (g/clear-property! node-id property))
+
 (g/defnk produce-form-data [_node-id name program constants samplers :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
-        (assoc :values form-values))))
+        (assoc :values form-values)
+        (assoc :form-ops {:user-data {:node-id _node-id}
+                          :set set-form-op
+                          :clear clear-form-op}))))
 
 ;; Load/Save/PB
 (g/defnk produce-base-pb-msg [program constants samplers :as base-pb-msg]
@@ -93,7 +102,6 @@
       (update :constants material/hack-upgrade-constants)))
 
 (defn- build-compute-program [resource build-resource->fused-build-resource user-data]
-  (println "poopt" resource build-resource->fused-build-resource user-data)
   (let [build-resource->fused-build-resource-path (comp resource/proj-path build-resource->fused-build-resource)
         compute-desc-with-fused-build-resource-paths
         (-> (:compute-program-desc-with-build-resources user-data)
