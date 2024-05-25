@@ -160,7 +160,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "compute_program"
-    :label "Compute Program"
+    :label "Compute"
     :node-type ComputeProgramNode
     :ddf-type ComputeProgram$ComputeProgramDesc
     :load-fn load-compute-program

@@ -1949,6 +1949,8 @@ bail:
             image_view      = VK_NULL_HANDLE;
         }
 
+        // If the image layout is in the wrong state, we need to transition it to the new layout,
+        // otherwise its memory might be getting wrriten to while we are reading from it.
         if (texture->m_ImageLayout[0] != VK_IMAGE_LAYOUT_GENERAL && image_layout != texture->m_ImageLayout[0])
         {
             VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
@@ -2066,42 +2068,9 @@ bail:
         vkUpdateDescriptorSets(vk_device, uniform_to_write_index, vk_write_descriptors, 0, 0);
     }
 
-    static VkResult CommitComputeUniforms(VulkanContext* context, VkCommandBuffer vk_command_buffer, VkDevice vk_device,
-        Program* program_ptr, ScratchBuffer* scratch_buffer,
-        uint32_t* dynamic_offsets, const uint32_t alignment)
-    {
-        const uint32_t num_descriptors     = program_ptr->m_TotalResourcesCount;
-        const uint32_t num_dynamic_offsets = program_ptr->m_UniformBufferCount;
-
-        if (num_descriptors == 0)
-        {
-            return VK_SUCCESS;
-        }
-
-        VkDescriptorSet* vk_descriptor_set_list = 0x0;
-        VkResult res = scratch_buffer->m_DescriptorAllocator->Allocate(vk_device, program_ptr->m_Handle.m_DescriptorSetLayouts, program_ptr->m_Handle.m_DescriptorSetLayoutsCount, num_descriptors, &vk_descriptor_set_list);
-        if (res != VK_SUCCESS)
-        {
-            return res;
-        }
-
-        UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment);
-
-        vkCmdBindDescriptorSets(vk_command_buffer,
-            VK_PIPELINE_BIND_POINT_COMPUTE,
-            program_ptr->m_Handle.m_PipelineLayout,
-            0,
-            1,
-            vk_descriptor_set_list,
-            num_dynamic_offsets,
-            dynamic_offsets);
-
-        return VK_SUCCESS;
-    }
-
     static VkResult CommitUniforms(VulkanContext* context, VkCommandBuffer vk_command_buffer, VkDevice vk_device,
-        Program* program_ptr, ScratchBuffer* scratch_buffer,
-        uint32_t* dynamic_offsets, const uint32_t alignment)
+        Program* program_ptr, VkPipelineBindPoint bind_point,
+        ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, const uint32_t alignment)
     {
         const uint32_t num_descriptors     = program_ptr->m_TotalResourcesCount;
         const uint32_t num_dynamic_offsets = program_ptr->m_UniformBufferCount;
@@ -2121,7 +2090,7 @@ bail:
         UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment);
 
         vkCmdBindDescriptorSets(vk_command_buffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            bind_point,
             program_ptr->m_Handle.m_PipelineLayout,
             0,
             program_ptr->m_Handle.m_DescriptorSetLayoutsCount,
@@ -2183,7 +2152,7 @@ bail:
 
         // Write the uniform data to the descriptors
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
-        VkResult res               = CommitComputeUniforms(context, vk_command_buffer, vk_device, program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
+        VkResult res               = CommitUniforms(context, vk_command_buffer, vk_device, program_ptr, VK_PIPELINE_BIND_POINT_COMPUTE, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
         Pipeline* pipeline = GetOrCreateComputePipeline(vk_device, context->m_PipelineCache, program_ptr);
@@ -2243,7 +2212,7 @@ bail:
 
         // Write the uniform data to the descriptors
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
-        VkResult res = CommitUniforms(context, vk_command_buffer, vk_device, program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
+        VkResult res = CommitUniforms(context, vk_command_buffer, vk_device, program_ptr, VK_PIPELINE_BIND_POINT_GRAPHICS, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
         PipelineState pipeline_state_draw = context->m_PipelineState;
