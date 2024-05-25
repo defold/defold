@@ -602,8 +602,8 @@
 (defn ->choicebox
   ([vals]
    (->choicebox vals true))
-  ([vals apply-natural-sorting]
-   (let [sorted-vals (if apply-natural-sorting
+  ([vals apply-natural-sorting?]
+   (let [sorted-vals (if apply-natural-sorting?
                        (sort eutil/natural-order vals)
                        vals)]
      {:type :choicebox
