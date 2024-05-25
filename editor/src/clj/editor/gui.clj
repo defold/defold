@@ -486,10 +486,13 @@
   (properties/->choicebox (sort (remove empty? coll))))
 
 ;; SDK api
-(defn optional-gui-resource-choicebox [coll]
+(defn optional-gui-resource-choicebox
   ;; The coll will contain a "" entry representing "No Selection". Remove this
   ;; before sorting the collection. We then provide the "" entry at the top.
-  (properties/->choicebox (cons "" (sort (remove empty? coll)))))
+  ([coll]
+   (optional-gui-resource-choicebox coll sort))
+  ([coll custom-sort-fn]
+   (properties/->choicebox (cons "" (custom-sort-fn (remove empty? coll))) false)))
 
 ;; SDK api
 (defn prop-unique-id-error [node-id prop-kw prop-value id-counts prop-name]
@@ -611,7 +614,8 @@
 
   (property layer g/Str
             (default "")
-            (dynamic edit-type (g/fnk [layer-names] (optional-gui-resource-choicebox layer-names)))
+            (dynamic edit-type (g/fnk [layer-names layer->index]
+                                 (optional-gui-resource-choicebox layer-names (partial sort-by layer->index))))
             (dynamic error (g/fnk [_node-id layer layer-names] (validate-layer true _node-id layer-names layer))))
   (output layer-index g/Any :cached
           (g/fnk [layer layer->index] (layer->index layer)))
