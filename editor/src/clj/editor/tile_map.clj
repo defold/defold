@@ -988,17 +988,17 @@
 (defn- render-palette-active
   [^GL2 gl render-args tile-source-attributes start-tile end-tile]
   (when (and start-tile end-tile)
-    (let [start-tile (min start-tile end-tile)
-          end-tile (max start-tile end-tile)
-          tiles-per-row (:tiles-per-row tile-source-attributes)
+    (let [tiles-per-row (:tiles-per-row tile-source-attributes)
           start-x (palette-x start-tile tiles-per-row)
           start-y (palette-y start-tile tiles-per-row)
           end-x (palette-x end-tile tiles-per-row)
           end-y (palette-y end-tile tiles-per-row)
-          x0 (* (min start-x end-x) (+ (:width tile-source-attributes) tile-border-size))
-          x1 (+ (* (inc (max start-x end-x)) (:width tile-source-attributes)) (* (max start-x end-x) tile-border-size))
-          y0 (* (min start-y end-y) (+ (:height tile-source-attributes) tile-border-size))
-          y1 (+ (* (inc (max start-y end-y)) (:height tile-source-attributes)) (* (max start-y end-y) tile-border-size))
+          width (:width tile-source-attributes)
+          height (:height tile-source-attributes)
+          x0 (* (min start-x end-x) (+ width tile-border-size))
+          x1 (+ (* (inc (max start-x end-x)) width) (* (max start-x end-x) tile-border-size))
+          y0 (* (min start-y end-y) (+ height tile-border-size))
+          y1 (+ (* (inc (max start-y end-y)) height) (* (max start-y end-y) tile-border-size))
           vbuf (-> (->color-vtx 16)
                    ;; left edge
                    (color-vtx-put! x0 y0 0 1.0 1.0 1.0 1.0)
@@ -1050,7 +1050,6 @@
       (render-palette-tiles gl render-args tile-source-attributes texture-set-data gpu-texture)
       (render-palette-grid gl render-args tile-source-attributes)
       (render-palette-active gl render-args tile-source-attributes start-tile end-tile))))
-
 
 (defn render-editor-select-outline
   [^GL2 gl render-args renderables count]
@@ -1257,18 +1256,14 @@
       :mouse-released
       (let [start-tile (g/node-value self :start-palette-tile evaluation-context)
             end-tile (g/node-value self :palette-tile evaluation-context)]
-        (if (and start-tile end-tile)
-          (do
-            (g/transact
-              (concat
-                (g/set-property self :brush
-                  (if (= start-tile end-tile)
-                    (make-brush start-tile)
-                    (make-brush-from-selection-in-palette start-tile end-tile (g/node-value self :tile-source-attributes evaluation-context))))
-                (g/set-property self :start-palette-tile nil)
-                (g/set-property self :mode :editor)))
-            true)
-          false))
+        (g/transact
+          (concat
+            (when (and start-tile end-tile)
+              [(g/set-property self :brush
+                 (make-brush-from-selection-in-palette start-tile end-tile (g/node-value self :tile-source-attributes evaluation-context)))])
+            [(g/set-property self :start-palette-tile nil)
+             (g/set-property self :mode :editor)]))
+        true)
       false)))
 
 (defn handle-input
