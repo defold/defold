@@ -481,8 +481,9 @@
                                          (contains? tags :embeddable))
                                  ext))
                              (workspace/get-resource-type-map workspace))]
-    (when-let [resource (first (resource-dialog/make workspace project {:ext component-exts :title "Select Component File"}))]
-      (add-referenced-component! go-id resource select-fn))))
+    (when-let [resources (resource-dialog/make workspace project {:ext component-exts :title "Select Component File" :selection :multiple})]
+      (doseq [resource (if (map? resources) (vals resources) resources)]
+        (add-referenced-component! go-id resource select-fn)))))
 
 (defn- selection->game-object [selection]
   (g/override-root (handler/adapt-single selection GameObjectNode)))
