@@ -269,6 +269,7 @@ namespace dmRender
         RenderScriptContext         m_RenderScriptContext;
         dmArray<RenderObject*>      m_RenderObjects;
         dmScript::ScriptWorld*      m_ScriptWorld;
+        dmScript::LuaCallbackInfo*  m_CallbackInfo;
 
         dmArray<RenderListEntry>    m_RenderList;
         dmArray<RenderListDispatch> m_RenderListDispatch;
@@ -295,6 +296,7 @@ namespace dmRender
         uint32_t                    m_StencilBufferCleared          : 1;
         uint32_t                    m_MultiBufferingRequired        : 1;
         uint32_t                    m_CurrentRenderCameraUseFrustum : 1;
+        uint32_t                    m_IsRenderPaused                : 1;
     };
 
     struct BufferedRenderBuffer
@@ -355,12 +357,20 @@ namespace dmRender
     };
 
     typedef void (*RangeCallback)(void* ctx, uint32_t val, size_t start, size_t count);
+    typedef void (*ContextEventCallback)(void* ctx, const char* event_name);
 
     // Invokes the callback for each range. Two ranges are not guaranteed to preceed/succeed one another.
     void FindRenderListRanges(uint32_t* first, size_t offset, size_t size, RenderListEntry* entries, FindRangeComparator& comp, void* ctx, RangeCallback callback );
 
     bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range);
 
+    /*
+    * Possible event_name values: "context_lost", "context_restored"
+    * See dmloader.js for event's name constants.
+    */
+    void OnContextEvent(void* context, const char* event_name);
+    void SetupContextEventCallback(void* context, ContextEventCallback callback);
+    void PlatformSetupContextEventCallback(void* context, ContextEventCallback callback);
 
     // ******************************************************************************************************
 

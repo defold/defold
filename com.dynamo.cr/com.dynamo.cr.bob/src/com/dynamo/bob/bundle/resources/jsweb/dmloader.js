@@ -842,6 +842,13 @@ var Module = {
         if (Module.hasWebGLSupport()) {
             Module.canvas.focus();
 
+            Module.canvas.addEventListener("webglcontextlost", function(event) {
+                event.preventDefault();
+                dmRenderer.rendererContextEvent("context_lost");
+            }, false);
+            Module.canvas.addEventListener("webglcontextrestored", function(event) {
+                dmRenderer.rendererContextEvent("context_restored");
+            }, false);
             // Add context menu hide-handler if requested
             if (CUSTOM_PARAMETERS["disable_context_menu"])
             {
