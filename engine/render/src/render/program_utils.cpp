@@ -20,15 +20,6 @@
 
 namespace dmRender
 {
-
-    static inline bool IsTypeTextureType(dmGraphics::Type type)
-    {
-        return type == dmGraphics::TYPE_SAMPLER_2D ||
-               type == dmGraphics::TYPE_SAMPLER_CUBE ||
-               type == dmGraphics::TYPE_SAMPLER_2D_ARRAY ||
-               type == dmGraphics::TYPE_IMAGE_2D;
-    }
-
     static inline dmGraphics::TextureType TypeToTextureType(dmGraphics::Type type)
     {
         switch(type)
@@ -71,7 +62,7 @@ namespace dmRender
             {
                 constants_count++;
             }
-            else if (IsTypeTextureType(type))
+            else if (dmGraphics::IsTypeTextureType(type))
             {
                 samplers_count++;
             }
@@ -202,6 +193,32 @@ namespace dmRender
         return INVALID_SAMPLER_UNIT;
     }
 
+    HSampler GetProgramSampler(const dmArray<Sampler>& samplers, uint32_t unit)
+    {
+        if (unit < samplers.Size())
+        {
+            return (HSampler) &samplers[unit];
+        }
+        return 0x0;
+    }
+
+    void ApplyProgramSampler(dmRender::HRenderContext render_context, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture)
+    {
+        if (!sampler)
+        {
+            return;
+        }
+
+        Sampler* s = (Sampler*) sampler;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+
+        if (s->m_Location != -1)
+        {
+            dmGraphics::SetSampler(graphics_context, s->m_Location, unit);
+            dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
+        }
+    }
+
     void SetProgramConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
     {
         dmGraphics::Type type;
@@ -309,7 +326,7 @@ namespace dmRender
                 }
                 constants.Push(constant);
             }
-            else if (IsTypeTextureType(type))
+            else if (dmGraphics::IsTypeTextureType(type))
             {
                 name_hash_to_location.Put(name_hash, location);
                 Sampler& s           = samplers[sampler_index];

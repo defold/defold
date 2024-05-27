@@ -37,11 +37,12 @@ namespace dmRender
         uint32_t constants_count = 0;
         uint32_t samplers_count  = 0;
         GetProgramUniformCount(program->m_Program, total_constants_count, &constants_count, &samplers_count);
+        uint32_t total_uniforms_count = constants_count + samplers_count;
 
-        if (constants_count > 0)
+        if (total_uniforms_count > 0)
         {
-            program->m_NameHashToLocation.SetCapacity(constants_count, constants_count * 2);
-            program->m_Constants.SetCapacity(constants_count);
+            program->m_NameHashToLocation.SetCapacity(total_uniforms_count, total_uniforms_count * 2);
+            program->m_Constants.SetCapacity(total_uniforms_count);
         }
 
         if (samplers_count > 0)

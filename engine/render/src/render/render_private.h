@@ -323,6 +323,8 @@ namespace dmRender
     bool     SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     uint32_t GetProgramSamplerUnit(const dmArray<Sampler>& samplers, dmhash_t name_hash);
     int32_t  GetProgramSamplerIndex(const dmArray<Sampler>& samplers, dmhash_t name_hash);
+    HSampler GetProgramSampler(const dmArray<Sampler>& samplers, uint32_t unit);
+    void     ApplyProgramSampler(dmRender::HRenderContext render_context, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture);
 
     void FillElementIds(char* buffer, uint32_t buffer_size, dmhash_t element_ids[4]);
 

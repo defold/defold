@@ -955,7 +955,9 @@ namespace dmRender
 
     void DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
     {
-        if (render_context->m_ComputeProgram == 0)
+        HComputeProgram compute_program = render_context->m_ComputeProgram;
+
+        if (compute_program == 0)
         {
             return;
         }
@@ -963,8 +965,8 @@ namespace dmRender
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
 
-        dmGraphics::EnableProgram(context, render_context->m_ComputeProgram->m_Program);
-        GetRenderContextTextures(render_context, render_context->m_ComputeProgram->m_Samplers, render_context_textures);
+        dmGraphics::EnableProgram(context, compute_program->m_Program);
+        GetRenderContextTextures(render_context, compute_program->m_Samplers, render_context_textures);
 
         uint8_t next_texture_unit = 0;
         for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
@@ -977,16 +979,20 @@ namespace dmRender
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
                     dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
+
+                    HSampler sampler = GetProgramSampler(compute_program->m_Samplers, next_texture_unit);
+                    ApplyProgramSampler(render_context, sampler, next_texture_unit, texture);
+
                     next_texture_unit++;
                 }
             }
         }
 
-        ApplyComputeProgramConstants(render_context, render_context->m_ComputeProgram);
+        ApplyComputeProgramConstants(render_context, compute_program);
 
         if (constant_buffer)
         {
-            ApplyNamedConstantBuffer(render_context, render_context->m_ComputeProgram, constant_buffer);
+            ApplyNamedConstantBuffer(render_context, compute_program, constant_buffer);
         }
 
         dmGraphics::DispatchCompute(context, group_count_x, group_count_y, group_count_z);
@@ -1084,11 +1090,9 @@ namespace dmRender
                     uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(texture);
                     for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                     {
-                        // TODO paged-atlas: We can remove the HSampler concept now I think, unless we want to do validation in a debug runtime?
-                        HSampler sampler = GetMaterialSampler(material, next_texture_unit);
-
+                        HSampler sampler = GetProgramSampler(material->m_Samplers, next_texture_unit);
                         dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
-                        ApplyMaterialSampler(render_context, material, sampler, next_texture_unit, texture);
+                        ApplyProgramSampler(render_context, sampler, next_texture_unit, texture);
 
                         next_texture_unit++;
                     }

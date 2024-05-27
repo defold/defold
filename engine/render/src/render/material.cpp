@@ -224,15 +224,6 @@ namespace dmRender
         }
     }
 
-    HSampler GetMaterialSampler(HMaterial material, uint32_t unit)
-    {
-        if (unit < material->m_Samplers.Size())
-        {
-            return (HSampler) &material->m_Samplers[unit];
-        }
-        return 0x0;
-    }
-
     dmhash_t GetMaterialSamplerNameHash(HMaterial material, uint32_t unit)
     {
         if (unit < material->m_Samplers.Size())
@@ -245,23 +236,6 @@ namespace dmRender
     uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash)
     {
         return GetProgramSamplerUnit(material->m_Samplers, name_hash);
-    }
-
-    void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture)
-    {
-        if (!sampler)
-        {
-            return;
-        }
-
-        Sampler* s = (Sampler*) sampler;
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-
-        if (s->m_Location != -1)
-        {
-            dmGraphics::SetSampler(graphics_context, s->m_Location, unit);
-            dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
-        }
     }
 
     dmGraphics::HProgram GetMaterialProgram(HMaterial material)

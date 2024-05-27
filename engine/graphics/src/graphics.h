@@ -701,6 +701,14 @@ namespace dmGraphics
         return false;
     }
 
+    static inline bool IsTypeTextureType(Type type)
+    {
+        return type == TYPE_SAMPLER_2D ||
+               type == TYPE_SAMPLER_CUBE ||
+               type == TYPE_SAMPLER_2D_ARRAY ||
+               type == TYPE_IMAGE_2D;
+    }
+
     /**
      * Get status of texture.
      *
