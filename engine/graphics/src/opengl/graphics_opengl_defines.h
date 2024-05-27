@@ -119,6 +119,20 @@
     #define DMGRAPHICS_READ_ONLY                (0x88B8)
 #endif
 
+// GL_MAJOR_VERSION
+#ifdef GL_MAJOR_VERSION
+    #define DMGRAPHICS_MAJOR_VERSION           (GL_MAJOR_VERSION)
+#else
+    #define DMGRAPHICS_MAJOR_VERSION           (0x821B)
+#endif
+
+// GL_MINOR_VERSION
+#ifdef GL_MINOR_VERSION
+    #define DMGRAPHICS_MINOR_VERSION           (GL_MINOR_VERSION)
+#else
+    #define DMGRAPHICS_MINOR_VERSION           (0x821C)
+#endif
+
 #ifdef GL_DEPTH_STENCIL_OES
 #define DMGRAPHICS_FORMAT_DEPTH_STENCIL (GL_DEPTH_STENCIL_OES)
 #else

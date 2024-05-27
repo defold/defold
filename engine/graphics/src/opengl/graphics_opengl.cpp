@@ -1263,8 +1263,8 @@ static void LogFrameBufferError(GLenum status)
 
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
         int32_t version_major = 0, version_minor = 0;
-        glGetIntegerv(GL_MAJOR_VERSION, &version_major);
-        glGetIntegerv(GL_MINOR_VERSION, &version_minor);
+        glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &version_major);
+        glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &version_minor);
 
         #define COMPUTE_VERSION_NEEDED(MAJOR, MINOR) (MAJOR > version_major || (version_major ==  MAJOR && version_minor >= MINOR))
 
