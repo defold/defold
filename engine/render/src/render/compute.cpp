@@ -53,7 +53,7 @@ namespace dmRender
             }
         }
 
-        SetMaterialConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, program->m_Samplers);
+        SetProgramConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, program->m_Samplers);
 
         return (HComputeProgram) program;
     }
@@ -78,16 +78,29 @@ namespace dmRender
         }
     }
 
-    int32_t GetComputeProgramSamplerIndex(HComputeProgram program, dmhash_t name_hash)
+    void SetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, Vector4* values, uint32_t count)
     {
-        for (int i = 0; i < program->m_Samplers.Size(); ++i)
-        {
-            if (program->m_Samplers[i].m_NameHash == name_hash)
-            {
-                return i;
-            }
-        }
-        return -1;
+        SetProgramRenderConstant(compute_program->m_Constants, name_hash, values, count);
+    }
+
+    void SetComputeProgramConstantType(HComputeProgram compute_program, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type)
+    {
+        SetProgramConstantType(compute_program->m_Constants, name_hash, type);
+    }
+
+    bool GetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, HConstant& out_value)
+    {
+        return GetProgramConstant(compute_program->m_Constants, name_hash, out_value);
+    }
+
+    bool SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    {
+        return SetProgramSampler(compute_program->m_Samplers, compute_program->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, min_filter, mag_filter, max_anisotropy);
+    }
+
+    uint32_t GetComputeProgramSamplerUnit(HComputeProgram compute_program, dmhash_t name_hash)
+    {
+        return GetProgramSamplerUnit(compute_program->m_Samplers, name_hash);
     }
 
     dmGraphics::HComputeProgram GetComputeProgramShader(HComputeProgram program)

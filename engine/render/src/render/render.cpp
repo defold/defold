@@ -763,7 +763,7 @@ namespace dmRender
         }
     }
 
-    static void GetRenderContextTextures(HRenderContext render_context, HMaterial material, HComputeProgram program, dmGraphics::HTexture* textures)
+    static void GetRenderContextTextures(HRenderContext render_context, const dmArray<Sampler>& samplers, dmGraphics::HTexture* textures)
     {
         uint32_t num_bindings = render_context->m_TextureBindTable.Size();
         for (uint32_t i = 0; i < num_bindings; ++i)
@@ -774,13 +774,7 @@ namespace dmRender
             // If a texture has been bound by a sampler hash, the material must have a valid sampler for it
             if (render_context->m_TextureBindTable[i].m_Samplerhash)
             {
-                int32_t hash_sampler_index = -1;
-
-                if (material)
-                    hash_sampler_index = GetMaterialSamplerIndex(material, render_context->m_TextureBindTable[i].m_Samplerhash);
-                else if (program)
-                    hash_sampler_index = GetComputeProgramSamplerIndex(program, render_context->m_TextureBindTable[i].m_Samplerhash);
-
+                int32_t hash_sampler_index = GetProgramSamplerIndex(samplers, render_context->m_TextureBindTable[i].m_Samplerhash);
                 if (hash_sampler_index >= 0)
                 {
                     sampler_index = hash_sampler_index;
@@ -970,7 +964,7 @@ namespace dmRender
         dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
 
         dmGraphics::EnableProgram(context, render_context->m_ComputeProgram->m_Program);
-        GetRenderContextTextures(render_context, 0, render_context->m_ComputeProgram, render_context_textures);
+        GetRenderContextTextures(render_context, render_context->m_ComputeProgram->m_Samplers, render_context_textures);
 
         uint8_t next_texture_unit = 0;
         for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
@@ -1032,7 +1026,7 @@ namespace dmRender
         if(context_material)
         {
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
-            GetRenderContextTextures(render_context, context_material, 0, render_context_textures);
+            GetRenderContextTextures(render_context, context_material->m_Samplers, render_context_textures);
         }
 
         dmGraphics::PipelineState ps_orig = dmGraphics::GetPipelineState(context);
@@ -1062,7 +1056,7 @@ namespace dmRender
                     // Reset the override texture binding array. The new material may have a different
                     // resource layout than the current material.
                     memset(render_context_textures, 0, sizeof(render_context_textures));
-                    GetRenderContextTextures(render_context, material, 0, render_context_textures);
+                    GetRenderContextTextures(render_context, material->m_Samplers, render_context_textures);
                 }
             }
 

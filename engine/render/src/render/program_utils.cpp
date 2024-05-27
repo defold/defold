@@ -102,7 +102,107 @@ namespace dmRender
         buffer[original_size] = 0;
     }
 
-    void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
+    int32_t GetProgramSamplerIndex(const dmArray<Sampler>& samplers, dmhash_t name_hash)
+    {
+        uint32_t num_samplers = samplers.Size();
+        for (int i = 0; i < num_samplers; ++i)
+        {
+            if (samplers[i].m_NameHash == name_hash)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    static inline const RenderConstant* GetRenderConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash)
+    {
+        uint32_t n = constants.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            if (GetConstantName(constants[i].m_Constant) == name_hash)
+            {
+                return &constants[i];
+            }
+        }
+        return 0;
+    }
+
+    void SetProgramRenderConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, const dmVMath::Vector4* values, uint32_t count)
+    {
+        const RenderConstant* rc = GetRenderConstant(constants, name_hash);
+        if (!rc)
+            return;
+
+        uint32_t num_default_values;
+        dmVMath::Vector4* constant_values = dmRender::GetConstantValues(rc->m_Constant, &num_default_values);
+
+        // we cannot set more values than are already registered with the program
+        if (num_default_values < count)
+        {
+            count = num_default_values;
+        }
+
+        // we musn't set less values than are already registered with the program
+        // so we write to the previous buffer
+        memcpy(constant_values, values, count * sizeof(dmVMath::Vector4));
+    }
+
+    void SetProgramConstantType(const dmArray<RenderConstant>& constants, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type)
+    {
+        const RenderConstant* rc = GetRenderConstant(constants, name_hash);
+        if (rc)
+        {
+            SetConstantType(rc->m_Constant, type);
+        }
+    }
+
+    bool GetProgramConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, HConstant& out_value)
+    {
+        const RenderConstant* rc = GetRenderConstant(constants, name_hash);
+        if (!rc)
+        {
+            return false;
+        }
+        out_value = rc->m_Constant;
+        return true;
+    }
+
+    bool SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    {
+        if (unit < samplers.Size() && name_hash != 0)
+        {
+            dmGraphics::HUniformLocation* location = name_hash_to_location.Get(name_hash);
+            if (location)
+            {
+                Sampler& s        = samplers[unit];
+                s.m_NameHash      = name_hash;
+                s.m_Location      = *location;
+                s.m_UWrap         = u_wrap;
+                s.m_VWrap         = v_wrap;
+                s.m_MinFilter     = min_filter;
+                s.m_MagFilter     = mag_filter;
+                s.m_MaxAnisotropy = max_anisotropy;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    uint32_t GetProgramSamplerUnit(const dmArray<Sampler>& samplers, dmhash_t name_hash)
+    {
+        uint32_t num_samplers = samplers.Size();
+        for (uint32_t i = 0; i < num_samplers; ++i)
+        {
+            if (samplers[i].m_NameHash == name_hash)
+            {
+                return i;
+            }
+        }
+        return INVALID_SAMPLER_UNIT;
+    }
+
+    void SetProgramConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
     {
         dmGraphics::Type type;
         const uint32_t buffer_size = 128;
@@ -131,7 +231,8 @@ namespace dmRender
             // that wasn't used, but after the upgrade these unused uniforms will return -1
             // as location instead. The fix here is to avoid asserting on such values, but
             // not saving them in the m_Constants and m_NameHashToLocation structs.
-            if (location == dmGraphics::INVALID_UNIFORM_LOCATION) {
+            if (location == dmGraphics::INVALID_UNIFORM_LOCATION)
+            {
                 continue;
             }
 
@@ -196,7 +297,9 @@ namespace dmRender
                 if (type == dmGraphics::TYPE_FLOAT_VEC4)
                 {
                     FillElementIds(buffer, buffer_size, constant.m_ElementIds);
-                } else {
+                }
+                else
+                {
                     // Clear element ids, otherwise we will compare against
                     // uninitialized values in GetMaterialProgramConstantInfo.
                     constant.m_ElementIds[0] = 0;

@@ -15,10 +15,21 @@
 #ifndef DM_GAMESYS_RES_COMPUTE_PROGRAM_H
 #define DM_GAMESYS_RES_COMPUTE_PROGRAM_H
 
+#include <render/render.h>
+
 #include <resource/resource.h>
 
 namespace dmGameSystem
 {
+    struct TextureResource;
+    struct ComputeProgramResource
+    {
+        dmRender::HComputeProgram m_Program;
+        TextureResource*          m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t                  m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        uint32_t                  m_NumTextures;
+    };
+
     dmResource::Result ResComputeProgramCreate(const dmResource::ResourceCreateParams& params);
     dmResource::Result ResComputeProgramDestroy(const dmResource::ResourceDestroyParams& params);
     dmResource::Result ResComputeProgramRecreate(const dmResource::ResourceRecreateParams& params);
