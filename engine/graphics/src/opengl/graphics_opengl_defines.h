@@ -91,6 +91,13 @@
 #define DMGRAPHICS_SAMPLER_2D_ARRAY                         (0x8DC1)
 #endif
 
+// Texture images
+#ifdef GL_IMAGE_2D
+    #define DMGRAPHICS_IMAGE_2D                         (GL_IMAGE_2D)
+#else
+    #define DMGRAPHICS_IMAGE_2D                         (0x904D)
+#endif
+
 #ifdef GL_DEPTH_STENCIL_OES
 #define DMGRAPHICS_FORMAT_DEPTH_STENCIL (GL_DEPTH_STENCIL_OES)
 #else

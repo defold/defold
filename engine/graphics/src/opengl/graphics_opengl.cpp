@@ -487,6 +487,7 @@ static void LogFrameBufferError(GLenum status)
             GL_SAMPLER_2D,
             GL_SAMPLER_CUBE,
             DMGRAPHICS_SAMPLER_2D_ARRAY,
+            DMGRAPHICS_IMAGE_2D,
         };
         return type_lut[type];
     }
@@ -511,7 +512,7 @@ static void LogFrameBufferError(GLenum status)
             case GL_SAMPLER_2D:               return TYPE_SAMPLER_2D;
             case DMGRAPHICS_SAMPLER_2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case GL_SAMPLER_CUBE:             return TYPE_SAMPLER_CUBE;
-            case GL_IMAGE_2D:                 return TYPE_IMAGE_2D;
+            case DMGRAPHICS_IMAGE_2D:         return TYPE_IMAGE_2D;
             default:break;
         }
 
@@ -1718,7 +1719,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
     {
-    #ifndef __EMSCRIPTEN__
+    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
 
@@ -3653,7 +3654,7 @@ static void LogFrameBufferError(GLenum status)
 
         bool bind_as_texture = true;
 
-    #ifndef __EMSCRIPTEN__
+    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
         if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D)
         {
             int32_t uniform_index;
