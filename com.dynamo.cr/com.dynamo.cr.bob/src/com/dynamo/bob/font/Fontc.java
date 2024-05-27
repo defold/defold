@@ -52,7 +52,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
+import java.util.TreeSet;
 import java.util.Set;
 
 import javax.imageio.ImageIO;
@@ -262,7 +262,7 @@ public class Fontc {
                 }
             }
         }
-        Set<Integer> deDup = new HashSet<Integer>(characters);
+        Set<Integer> deDup = new TreeSet<Integer>(characters);
         characters = new ArrayList<Integer>(deDup);
 
         if (fontDesc.getOutlineWidth() > 0.0f) {
