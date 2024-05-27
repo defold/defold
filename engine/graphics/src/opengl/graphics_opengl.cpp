@@ -2029,6 +2029,10 @@ static void LogFrameBufferError(GLenum status)
             }
             return ShaderDesc::LANGUAGE_GLES_SM100;
         }
+        else if (shader_class == ShaderDesc::SHADER_CLASS_COMPUTE)
+        {
+            return ShaderDesc::LANGUAGE_GLSL_SM430;
+        }
         return ShaderDesc::LANGUAGE_GLSL_SM140;
     }
 

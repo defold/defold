@@ -208,121 +208,19 @@ namespace dmRender
 
     void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro)
     {
-        const dmArray<RenderConstant>& constants = material->m_Constants;
         dmGraphics::HContext graphics_context    = dmRender::GetGraphicsContext(render_context);
+        const dmArray<RenderConstant>& constants = material->m_Constants;
+        dmGraphics::HProgram program             = material->m_Program;
 
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            const RenderConstant& material_constant = constants[i];
-            const HConstant constant = material_constant.m_Constant;
-            dmGraphics::HUniformLocation location = GetConstantLocation(constant);
+            const RenderConstant& material_constant      = constants[i];
+            const HConstant constant                     = material_constant.m_Constant;
+            dmGraphics::HUniformLocation location        = GetConstantLocation(constant);
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
-
-            switch (type)
-            {
-                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
-                {
-                    uint32_t num_values;
-                    dmVMath::Vector4* values = GetConstantValues(constant, &num_values);
-                    dmGraphics::SetConstantV4(graphics_context, values, num_values, location);
-                    break;
-                }
-                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4:
-                {
-                    uint32_t num_values;
-                    dmVMath::Vector4* values = GetConstantValues(constant, &num_values);
-                    dmGraphics::SetConstantM4(graphics_context, values, num_values / 4, location);
-                    break;
-                }
-                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
-                {
-                    if (dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material)) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
-                    {
-                        Matrix4 ndc_matrix = Matrix4::identity();
-                        ndc_matrix.setElem(2, 2, 0.5f );
-                        ndc_matrix.setElem(3, 2, 0.5f );
-                        const Matrix4 view_projection = ndc_matrix * render_context->m_ViewProj;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection, 1, location);
-                    }
-                    else
-                    {
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_ViewProj, 1, location);
-                    }
-                    break;
-                }
-                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD:
-                {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&ro->m_WorldTransform, 1, location);
-                    break;
-                }
-                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TEXTURE:
-                {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&ro->m_TextureTransform, 1, location);
-                    break;
-                }
-                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW:
-                {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_View, 1, location);
-                    break;
-                }
-                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION:
-                {
-                    // Vulkan NDC is [0..1] for z, so we must transform
-                    // the projection before setting the constant.
-                    if (dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material)) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
-                    {
-                        Matrix4 ndc_matrix = Matrix4::identity();
-                        ndc_matrix.setElem(2, 2, 0.5f );
-                        ndc_matrix.setElem(3, 2, 0.5f );
-                        const Matrix4 proj = ndc_matrix * render_context->m_Projection;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&proj, 1, location);
-                    }
-                    else
-                    {
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, 1, location);
-                    }
-                    break;
-                }
-                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL:
-                {
-                    {
-                        // normalT = transp(inv(view * world))
-                        Matrix4 normalT = render_context->m_View * ro->m_WorldTransform;
-                        // The world transform might include non-uniform scaling, which breaks the orthogonality of the combined model-view transform
-                        // It is always affine however
-                        normalT = affineInverse(normalT);
-                        normalT = transpose(normalT);
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&normalT, 1, location);
-                    }
-                    break;
-                }
-                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW:
-                {
-                    {
-                        Matrix4 world_view = render_context->m_View * ro->m_WorldTransform;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, 1, location);
-                    }
-                    break;
-                }
-                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
-                {
-                    if (dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material)) == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
-                    {
-                        Matrix4 ndc_matrix = Matrix4::identity();
-                        ndc_matrix.setElem(2, 2, 0.5f );
-                        ndc_matrix.setElem(3, 2, 0.5f );
-                        const Matrix4 world_view_projection = ndc_matrix * render_context->m_ViewProj * ro->m_WorldTransform;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
-                    }
-                    else
-                    {
-                        const Matrix4 world_view_projection = render_context->m_ViewProj * ro->m_WorldTransform;
-                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
-                    }
-                    break;
-                }
-            }
+            dmGraphics::ShaderDesc::Language language    = dmGraphics::GetProgramLanguage(dmRender::GetMaterialProgram(material));
+            SetProgramConstant(render_context, graphics_context, ro->m_WorldTransform, ro->m_TextureTransform, language, type, program, location, constant);
         }
     }
 

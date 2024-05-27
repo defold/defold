@@ -143,6 +143,12 @@ namespace dmGraphics
         return next_id++;
     }
 
+    static inline bool IsRenderTargetbound(VulkanContext* context, HRenderTarget rt)
+    {
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, rt);
+        return current_rt ? current_rt->m_IsBound : 0;
+    }
+
     static VkResult CreateMainFrameSyncObjects(VkDevice vk_device, uint8_t frame_resource_count, FrameResource* frame_resources_out)
     {
         VkSemaphoreCreateInfo vk_create_semaphore_info;
@@ -1295,8 +1301,6 @@ bail:
         tex_sc->m_OriginalHeight     = tex_sc->m_Height;
         tex_sc->m_Type               = TEXTURE_TYPE_2D;
         tex_sc->m_GraphicsFormat     = TEXTURE_FORMAT_BGRA8U;
-
-        // BeginRenderPass(context, context->m_CurrentRenderTarget);
     }
 
     static void VulkanFlip(HContext _context)
@@ -1521,8 +1525,7 @@ bail:
 
         if (!cached_pipeline)
         {
-            Pipeline new_pipeline;
-            memset(&new_pipeline, 0, sizeof(new_pipeline));
+            Pipeline new_pipeline = {};
 
             VkResult res = CreateComputePipeline(vk_device, program, &new_pipeline);
             CHECK_VK_ERROR(res);
@@ -2113,12 +2116,8 @@ bail:
         return res;
     }
 
-    static void DrawSetupCompute(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer)
+    static void PrepareScatchBuffer(VulkanContext* context, ScratchBuffer* scratchBuffer, Program* program_ptr)
     {
-        VkDevice vk_device   = context->m_LogicalDevice.m_Device;
-        Program* program_ptr = context->m_CurrentProgram;
-        assert(program_ptr->m_ComputeModule);
-
         // Ensure there is room in the descriptor allocator to support this dispatch call
         const uint32_t num_uniform_buffers = program_ptr->m_UniformBufferCount;
         const bool resize_scratch_buffer   = program_ptr->m_UniformDataSizeAligned > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
@@ -2149,6 +2148,15 @@ bail:
 
             context->m_DynamicOffsetBufferSize = num_uniform_buffers;
         }
+    }
+
+    static void DrawSetupCompute(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer)
+    {
+        VkDevice vk_device   = context->m_LogicalDevice.m_Device;
+        Program* program_ptr = context->m_CurrentProgram;
+        assert(program_ptr->m_ComputeModule);
+
+        PrepareScatchBuffer(context, scratchBuffer, program_ptr);
 
         // Write the uniform data to the descriptors
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
@@ -2179,36 +2187,7 @@ bail:
             }
         }
 
-        // Ensure there is room in the descriptor allocator to support this draw call
-        const uint32_t num_uniform_buffers = program_ptr->m_UniformBufferCount;
-        const bool resize_scratch_buffer   = program_ptr->m_UniformDataSizeAligned > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
-
-        if (resize_scratch_buffer)
-        {
-            const uint8_t descriptor_increase = 32;
-            const uint32_t bytes_increase = 256 * descriptor_increase;
-            VkResult res = ResizeScratchBuffer(context, scratchBuffer->m_DeviceBuffer.m_MemorySize + bytes_increase, scratchBuffer);
-            CHECK_VK_ERROR(res);
-        }
-
-        // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this draw call
-        if (context->m_DynamicOffsetBufferSize < num_uniform_buffers)
-        {
-            const size_t offset_buffer_size = sizeof(uint32_t) * num_uniform_buffers;
-
-            if (context->m_DynamicOffsetBuffer == 0x0)
-            {
-                context->m_DynamicOffsetBuffer = (uint32_t*) malloc(offset_buffer_size);
-            }
-            else
-            {
-                context->m_DynamicOffsetBuffer = (uint32_t*) realloc(context->m_DynamicOffsetBuffer, offset_buffer_size);
-            }
-
-            memset(context->m_DynamicOffsetBuffer, 0, offset_buffer_size);
-
-            context->m_DynamicOffsetBufferSize = num_uniform_buffers;
-        }
+        PrepareScatchBuffer(context, scratchBuffer, program_ptr);
 
         // Write the uniform data to the descriptors
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
@@ -2331,6 +2310,13 @@ bail:
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
         VulkanContext* context = (VulkanContext*) _context;
+
+        // We can't run compute if we have started a render pass
+        // Perhaps it would work if we could run it in a separate command buffer or a dedicated compute queue?
+        if (IsRenderTargetbound(context, context->m_CurrentRenderTarget))
+        {
+            EndRenderPass(context);
+        }
 
         const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
@@ -4100,8 +4086,7 @@ bail:
         assert (buffer_size >= w * h * 4);
             
         HRenderTarget currentt_rt_h = context->m_CurrentRenderTarget;
-        RenderTarget* current_rt    = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, currentt_rt_h);
-        bool in_render_pass         = current_rt->m_IsBound;
+        bool in_render_pass = IsRenderTargetbound(context, currentt_rt_h);
 
         // We can't copy an image if we are inside a render pass.
         // This is considered an expensive operation, but unless we have user facing functionality to begin/end render passes,
