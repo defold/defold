@@ -1989,6 +1989,12 @@ static void LogFrameBufferError(GLenum status)
         (void) context;
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
         glDeleteProgram(program_ptr->m_Id);
+
+        for (int i = 0; i < program_ptr->m_Uniforms.Size(); ++i)
+        {
+            free(program_ptr->m_Uniforms[i].m_Name);
+        }
+
         delete program_ptr;
     }
 
