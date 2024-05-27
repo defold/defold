@@ -133,6 +133,35 @@
                        x (range x0 x1)]
                    (get cell-map (cell-index x y))))}))
 
+(defn palette-x [n tiles-per-row]
+  (mod n tiles-per-row))
+
+(defn palette-y [n tiles-per-row]
+  (int (/ n tiles-per-row)))
+
+(defn make-brush-from-selection-in-palette
+  [start-tile end-tile tile-source-attributes]
+  (let [tiles-per-row (:tiles-per-row tile-source-attributes)
+        start-x (palette-x start-tile tiles-per-row)
+        start-y (palette-y start-tile tiles-per-row)
+        end-x (palette-x end-tile tiles-per-row)
+        end-y (palette-y end-tile tiles-per-row)
+        x0 (min-l start-x end-x)
+        y0 (min-l start-y end-y)
+        x1 (inc (max-l start-x end-x))
+        y1 (inc (max-l start-y end-y))
+        width (- x1 x0)
+        height (- y1 y0)
+        tiles (vec (for [y (range (dec y1) (dec y0) -1)
+                         x (range x0 x1)]
+                     {:tile (+ x (* y tiles-per-row))
+                      :h-flip false
+                      :v-flip false
+                      :rotate90 false}))]
+    {:width width
+     :height height
+     :tiles tiles}))
+
 (def erase-brush (make-brush nil))
 
 (defn flip-brush-horizontally
@@ -957,17 +986,19 @@
       (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
 
 (defn- render-palette-active
-  [^GL2 gl render-args tile-source-attributes palette-tile]
-  (when palette-tile
-    (let [n palette-tile
-          w (:width tile-source-attributes)
-          h (:height tile-source-attributes)
-          x (mod n (:tiles-per-row tile-source-attributes))
-          y (int (/ n (:tiles-per-row tile-source-attributes)))
-          x0 (* x (+ tile-border-size w))
-          x1 (+ x0 w tile-border-size)
-          y0 (* y (+ tile-border-size h))
-          y1 (+ y0 h tile-border-size)
+  [^GL2 gl render-args tile-source-attributes start-tile end-tile]
+  (when (and start-tile end-tile)
+    (let [tiles-per-row (:tiles-per-row tile-source-attributes)
+          start-x (palette-x start-tile tiles-per-row)
+          start-y (palette-y start-tile tiles-per-row)
+          end-x (palette-x end-tile tiles-per-row)
+          end-y (palette-y end-tile tiles-per-row)
+          width (:width tile-source-attributes)
+          height (:height tile-source-attributes)
+          x0 (* (min start-x end-x) (+ width tile-border-size))
+          x1 (+ (* (inc (max start-x end-x)) width) (* (max start-x end-x) tile-border-size))
+          y0 (* (min start-y end-y) (+ height tile-border-size))
+          y1 (+ (* (inc (max start-y end-y)) height) (* (max start-y end-y) tile-border-size))
           vbuf (-> (->color-vtx 16)
                    ;; left edge
                    (color-vtx-put! x0 y0 0 1.0 1.0 1.0 1.0)
@@ -1008,14 +1039,17 @@
 (defn render-palette
   [^GL2 gl render-args renderables count]
   (let [user-data (:user-data (first renderables))
-        {:keys [viewport tile-source-attributes texture-set-data gpu-texture palette-transform palette-tile]} user-data]
+        {:keys [viewport tile-source-attributes texture-set-data gpu-texture palette-transform start-tile end-tile]} user-data
+        [start-tile end-tile] (if (and start-tile end-tile (<= start-tile end-tile))
+                                [start-tile end-tile]
+                                [end-tile (or start-tile end-tile)])]
     (render-palette-background gl viewport)
     (.glMatrixMode gl GL2/GL_MODELVIEW)
     (gl/gl-push-matrix gl
       (gl/gl-mult-matrix-4d gl palette-transform)
       (render-palette-tiles gl render-args tile-source-attributes texture-set-data gpu-texture)
       (render-palette-grid gl render-args tile-source-attributes)
-      (render-palette-active gl render-args tile-source-attributes palette-tile))))
+      (render-palette-active gl render-args tile-source-attributes start-tile end-tile))))
 
 (defn render-editor-select-outline
   [^GL2 gl render-args renderables count]
@@ -1061,7 +1095,7 @@
       (render-brush-outline gl render-args renderables n))))
 
 (g/defnk produce-palette-renderables
-  [viewport tile-source-attributes texture-set-data gpu-texture palette-transform palette-tile]
+  [viewport tile-source-attributes texture-set-data gpu-texture palette-transform start-palette-tile palette-tile]
   {pass/overlay [{:world-transform (Matrix4d. geom/Identity4d)
                   :render-fn render-palette
                   :user-data {:viewport viewport
@@ -1069,7 +1103,8 @@
                               :texture-set-data texture-set-data
                               :gpu-texture gpu-texture
                               :palette-transform palette-transform
-                              :palette-tile palette-tile}}]})
+                              :start-tile start-palette-tile
+                              :end-tile palette-tile}}]})
 
 (g/defnk produce-editor-renderables
   [active-layer-renderable op op-select-start op-select-end current-tile tile-dimensions brush viewport texture-set-data gpu-texture]
@@ -1207,20 +1242,29 @@
   (let [^Point3d screen-pos (:screen-pos action)]
     (case (:type action)
       :mouse-pressed
-      true
+      (do
+        (g/transact
+          (g/set-property self :start-palette-tile (g/node-value self :palette-tile evaluation-context)))
+        true)
 
       :mouse-moved
-      (g/transact
-        (g/set-property self :cursor-screen-pos screen-pos))
+      (do
+        (g/transact
+          (g/set-property self :cursor-screen-pos screen-pos))
+        true)
 
       :mouse-released
-      (let [palette-tile (g/node-value self :palette-tile evaluation-context)]
+      (let [start-tile (g/node-value self :start-palette-tile evaluation-context)
+            end-tile (g/node-value self :palette-tile evaluation-context)]
         (g/transact
           (concat
-            (g/set-property self :brush (make-brush palette-tile))
-            (g/set-property self :mode :editor))))
-
-      action)))
+            (when (and start-tile end-tile)
+              [(g/set-property self :brush
+                 (make-brush-from-selection-in-palette start-tile end-tile (g/node-value self :tile-source-attributes evaluation-context)))])
+            [(g/set-property self :start-palette-tile nil)
+             (g/set-property self :mode :editor)]))
+        true)
+      false)))
 
 (defn handle-input
   [self action state]
@@ -1255,6 +1299,7 @@
   (property op-select-end g/Any)
 
   (property brush g/Any (default (make-brush 0)))
+  (property start-palette-tile g/Int)
 
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
