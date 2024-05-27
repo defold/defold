@@ -16,21 +16,23 @@
   (:require [clojure.java.io :as io]
             [editor.resource :as resource]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator]
+  (:import [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator Fontc]
            [com.google.protobuf ByteString]
-           [javax.imageio ImageIO]
-           [java.util Arrays]
-           [java.awt Canvas BasicStroke Font FontMetrics Graphics2D Color RenderingHints Composite CompositeContext Shape Transparency]
-           [java.awt.font FontRenderContext GlyphVector]
-           [java.awt.geom AffineTransform PathIterator FlatteningPathIterator]
-           [java.awt.image BufferedImage Kernel ConvolveOp Raster WritableRaster DataBuffer DataBufferByte ComponentColorModel]
+           [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics2D RenderingHints Shape Transparency]
            [java.awt.color ColorSpace]
-           [java.io InputStream FileNotFoundException IOException]
+           [java.awt.font FontRenderContext GlyphVector]
+           [java.awt.geom AffineTransform FlatteningPathIterator PathIterator]
+           [java.awt.image BufferedImage ComponentColorModel ConvolveOp DataBuffer DataBufferByte Kernel Raster WritableRaster]
+           [java.io FileNotFoundException IOException InputStream]
            [java.nio.file Paths]
+           [java.util Arrays]
+           [javax.imageio ImageIO]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(def ^String default-characters-string (String. Fontc/ASCII_7BIT))
 
 (defn- next-pow2 [n]
   (assert (>= ^int n 0))
@@ -392,7 +394,11 @@
 (defn- ttf-semi-glyphs [font-desc ^Font font antialias]
   (let [prospect-codepoints (if (:all-chars font-desc)
                               (range 0x10ffff)
-                              (concat (range 32 127) (map int (:extra-characters font-desc))))
+                              (sort
+                                (eduction
+                                  (map int)
+                                  (distinct)
+                                  (:characters font-desc))))
         displayable-codepoint? (fn [codepoint] (.canDisplay font ^int codepoint))
         semi-glyphs (into []
                           (comp
@@ -597,8 +603,8 @@
             (aset image out-shadow-offset (unchecked-byte df-outline-channel)))))
       (when (and (> shadow-alpha 0.0) (> shadow-blur 0) (> channel-count 1))
         (let [image-byte-length (* width height channel-count)
-              shadow-image' (byte-array image-byte-length)
-              shadow-image (do (System/arraycopy image 0 shadow-image' 0 image-byte-length) shadow-image')
+              shadow-image (byte-array image-byte-length)
+              _ (System/arraycopy image 0 shadow-image 0 image-byte-length)
               shadow-data-buffer (DataBufferByte. shadow-image image-byte-length)
               shadow-band-offsets (int-array [0 1 2])
               shadow-n-bits (int-array [8 8 8])
