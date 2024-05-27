@@ -2895,10 +2895,6 @@ bail:
         uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        // TODO: Compute shaders does not have samplers, but does support texture storage
-        //       which is not the same thing.
-        assert(program_ptr->m_ComputeModule == 0x0);
-
         assert(program_ptr->m_ResourceBindings[set][binding].m_Res);
         program_ptr->m_ResourceBindings[set][binding].m_TextureUnit = unit;
     }
