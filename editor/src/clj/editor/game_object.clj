@@ -482,7 +482,7 @@
                                  ext))
                              (workspace/get-resource-type-map workspace))]
     (when-let [resources (resource-dialog/make workspace project {:ext component-exts :title "Select Component File" :selection :multiple})]
-      (doseq [resource (if (map? resources) (vals resources) resources)]
+      (doseq [resource resources]
         (add-referenced-component! go-id resource select-fn)))))
 
 (defn- selection->game-object [selection]
