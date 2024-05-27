@@ -78,39 +78,6 @@ namespace dmRender
         }
     }
 
-    static inline int32_t FindConstantIndex(HComputeProgram program, dmhash_t name_hash)
-    {
-        dmArray<RenderConstant>& constants = program->m_Constants;
-        for (int32_t i = 0; i < (int32_t) constants.Size(); ++i)
-        {
-            if (GetConstantName(constants[i].m_Constant) == name_hash)
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    void SetComputeProgramConstant(HComputeProgram program, dmhash_t name_hash, Vector4* values, uint32_t count)
-    {
-        int32_t index = FindConstantIndex(program, name_hash);
-        if (index < 0)
-        {
-            return;
-        }
-
-        RenderConstant& mc = program->m_Constants[index];
-
-        uint32_t num_default_values;
-        dmVMath::Vector4* constant_values = dmRender::GetConstantValues(mc.m_Constant, &num_default_values);
-
-        count = dmMath::Min(count, num_default_values);
-
-        // we musn't set less values than are already registered with the program
-        // so we write to the previous buffer
-        memcpy(constant_values, values, count * sizeof(dmVMath::Vector4));
-    }
-
     int32_t GetComputeProgramSamplerIndex(HComputeProgram program, dmhash_t name_hash)
     {
         for (int i = 0; i < program->m_Samplers.Size(); ++i)

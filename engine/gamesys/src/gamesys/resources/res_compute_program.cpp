@@ -19,7 +19,7 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::ComputeProgramDesc* ddf, void** program)
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::ComputeProgramDesc* ddf, void** program)
     {
         dmResource::Result factory_e;
         factory_e = dmResource::Get(factory, ddf->m_Program, program);
@@ -29,6 +29,23 @@ namespace dmGameSystem
         }
 
         return dmResource::RESULT_OK;
+    }
+
+    static void SetProgram()
+    {
+        dmRenderDDF::MaterialDesc::Constant* constants = ddf->m_Constants.m_Data;
+        uint32_t constants_count = ddf->m_Constants.m_Count;
+
+        // Set program constants
+        for (uint32_t i = 0; i < constants_count; i++)
+        {
+            const char* name = constants[i].m_Name;
+            dmhash_t name_hash = dmHashString64(name);
+
+            dmRender::SetMaterialProgramConstantType(material, name_hash, constants[i].m_Type);
+            dmRender::SetMaterialProgramConstant(material, name_hash,
+                (dmVMath::Vector4*) constants[i].m_Value.m_Data, constants[i].m_Value.m_Count);
+        }
     }
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
@@ -63,6 +80,8 @@ namespace dmGameSystem
             dmRender::SetProgramUserData(program, desc.m_NameHash);
 
             dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, program);
+
+            SetProgram();
 
             params.m_Resource->m_Resource = (void*) program;
         }

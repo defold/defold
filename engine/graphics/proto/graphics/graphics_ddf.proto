@@ -96,11 +96,8 @@ message TextureImage
 {
     enum Type
     {
-        // Corresponds to GL_TEXTURE_2D
         TYPE_2D       = 1;
-        // Corresponds to GL_TEXTURE_CUBE_MAP
         TYPE_CUBEMAP  = 2;
-        // Corresponds to GL_TEXTURE_2D_ARRAY
         TYPE_2D_ARRAY = 3;
         TYPE_2D_IMAGE = 4;
     }

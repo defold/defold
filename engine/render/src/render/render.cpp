@@ -786,7 +786,7 @@ namespace dmRender
                     sampler_index = hash_sampler_index;
                     texture       = render_context->m_TextureBindTable[i].m_Texture;
                 }
-                // The sampler doesn't exist in the material, so we ignore it.
+                // The sampler doesn't exist, so we ignore it.
                 else continue;
             }
             else if (texture == 0)
@@ -967,8 +967,7 @@ namespace dmRender
         }
 
         dmGraphics::HContext context = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT];
-        memset(render_context_textures, 0, sizeof(render_context_textures));
+        dmGraphics::HTexture render_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
 
         dmGraphics::EnableProgram(context, render_context->m_ComputeProgram->m_Program);
         GetRenderContextTextures(render_context, 0, render_context->m_ComputeProgram, render_context_textures);
