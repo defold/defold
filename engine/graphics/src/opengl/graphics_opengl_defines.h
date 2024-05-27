@@ -98,6 +98,27 @@
     #define DMGRAPHICS_IMAGE_2D                         (0x904D)
 #endif
 
+// Barrier bits
+#ifdef GL_SHADER_IMAGE_ACCESS_BARRIER_BIT
+    #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+#else
+    #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (0x00000020)
+#endif
+
+// GL_READ_WRITE
+#ifdef GL_READ_WRITE
+    #define DMGRAPHICS_READ_WRITE               (GL_READ_WRITE)
+#else
+    #define DMGRAPHICS_READ_WRITE               (0x88BA)
+#endif
+
+// GL_READ_ONLY
+#ifdef GL_READ_ONLY
+    #define DMGRAPHICS_READ_ONLY                (GL_READ_ONLY)
+#else
+    #define DMGRAPHICS_READ_ONLY                (0x88B8)
+#endif
+
 #ifdef GL_DEPTH_STENCIL_OES
 #define DMGRAPHICS_FORMAT_DEPTH_STENCIL (GL_DEPTH_STENCIL_OES)
 #else

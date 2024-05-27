@@ -1726,7 +1726,7 @@ static void LogFrameBufferError(GLenum status)
         glDispatchCompute(group_count_x, group_count_y, group_count_z);
         CHECK_GL_ERROR;
 
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS);
         CHECK_GL_ERROR;
     #endif
     }
@@ -3667,7 +3667,7 @@ static void LogFrameBufferError(GLenum status)
                 // Binding a image texture to a image2d slot, otherwise we'll bind it as a combined sampler
                 if (!bind_as_texture)
                 {
-                    GLenum access            = tex->m_UsageHintFlags & TEXTURE_USAGE_HINT_STORAGE ? GL_READ_WRITE : GL_READ_ONLY;
+                    GLenum access            = tex->m_UsageHintFlags & TEXTURE_USAGE_HINT_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
                     GLenum type              = GetOpenGLTextureType(tex->m_Type);
                     GLenum gl_format         = 0;
                     GLenum gl_type           = GL_UNSIGNED_BYTE;
