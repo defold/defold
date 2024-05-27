@@ -24,6 +24,7 @@
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_textureset.h"
 #include "gamesys/resources/res_render_target.h"
+#include "gamesys/resources/res_compute_program.h"
 
 #include <stdio.h>
 
@@ -1289,8 +1290,6 @@ TEST_P(CursorTest, Cursor)
 TEST_F(GuiTest, TextureResources)
 {
     dmhash_t go_id = dmHashString64("/go");
-    dmhash_t gui_comp_id = dmHashString64("gui");
-
     dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
 
     dmGameSystem::TextureSetResource* valid_atlas = 0;
@@ -5158,16 +5157,18 @@ TEST_F(ShaderTest, ComputeResource)
 {
     dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
 
-    dmRender::HComputeProgram compute_program_res;
+    dmGameSystem::ComputeProgramResource* compute_program_res;
     dmResource::Result res = dmResource::Get(m_Factory, "/shader/valid.compute_programc", (void**) &compute_program_res);
 
     ASSERT_EQ(dmResource::RESULT_OK, res);
-    ASSERT_NE((dmRender::HComputeProgram) 0, compute_program_res);
+    ASSERT_NE((dmGameSystem::ComputeProgramResource*) 0, compute_program_res);
 
-    dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program_res);
+    dmRender::HComputeProgram compute_program = compute_program_res->m_Program;
+
+    dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program);
     ASSERT_NE((dmGraphics::HComputeProgram) 0, graphics_compute_shader);
 
-    dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program_res);
+    dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program);
     ASSERT_EQ(2, dmGraphics::GetUniformCount(graphics_compute_program));
 
     char buffer[128] = {};
