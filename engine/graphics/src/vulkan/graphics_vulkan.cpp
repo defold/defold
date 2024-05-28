@@ -26,6 +26,8 @@
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
+#include <platform/platform_window_vulkan.h>
+
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
@@ -934,7 +936,7 @@ namespace dmGraphics
     bool InitializeVulkan(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_HIGH_DPI));
+        VkResult res = CreateWindowSurface(context->m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_HIGH_DPI));
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
@@ -1093,10 +1095,13 @@ namespace dmGraphics
 
         delete[] device_list;
 
+        // GLFW3 handles window size changes differently, so we need to cater for that.
+    #ifndef __MACH__
         if (created_width != context->m_Width || created_height != context->m_Height)
         {
             dmPlatform::SetWindowSize(context->m_Window, created_width, created_height);
         }
+    #endif
 
         context->m_PipelineCache.SetCapacity(32,64);
         context->m_TextureSamplers.SetCapacity(4);
@@ -1126,6 +1131,13 @@ bail:
             dmLogError("Could not load Vulkan functions.");
             return 0x0;
         }
+    #endif
+
+        // GLFW 3.4 doesn't support static linking with vulkan,
+        // instead we need to pass in the function that loads symbol for any
+        // platform that is using GLFW.
+    #if defined(__MACH__)
+        dmPlatform::VulkanSetLoader();
     #endif
 
         uint16_t extensionNameCount = 0;

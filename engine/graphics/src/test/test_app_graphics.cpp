@@ -154,6 +154,27 @@ struct EngineCtx
 
 } g_EngineCtx;
 
+struct ClearBackbufferTest : ITest
+{
+    void Initialize(EngineCtx* engine) override
+    {}
+
+    void Execute(EngineCtx* engine) override
+    {
+        static uint8_t color_r = 0;
+        static uint8_t color_g = 80;
+        static uint8_t color_b = 140;
+        static uint8_t color_a = 255;
+
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+                                    (float)color_r,
+                                    (float)color_g,
+                                    (float)color_b,
+                                    (float)color_a,
+                                    1.0f, 0);
+    }
+};
+
 struct CopyToBufferTest : ITest
 {
     dmGraphics::HTexture      m_CopyBufferToTextureTexture;
@@ -592,11 +613,11 @@ static void* EngineCreate(int argc, char** argv)
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
-    engine->m_Test = new ComputeTest();
+    //engine->m_Test = new ComputeTest();
     //engine->m_Test = new ComputeTest();
     //engine->m_Test = new StorageBufferTest();
     //engine->m_Test = new ReadPixelsTest();
-
+    engine->m_Test = new ClearBackbufferTest();
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
