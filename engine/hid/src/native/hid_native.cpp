@@ -21,6 +21,7 @@
 #include <dlib/math.h>
 
 #include <platform/platform_window.h>
+#include <platform/platform_window_constants.h>
 
 #include "hid.h"
 #include "hid_private.h"
@@ -227,17 +228,18 @@ namespace dmHID
 
                 for (uint32_t i = 0; i < MAX_KEY_COUNT; ++i)
                 {
-                    uint32_t mask = 1;
-                    mask <<= i % 32;
+                    uint32_t i_key = i + dmPlatform::PLATFORM_KEY_START;
+                    uint32_t mask  = 1;
+                    mask <<= i_key % 32;
 
-                    Key key       = (Key) i;
+                    Key key       = (Key) i_key;
                     int key_value = GetKeyValue(key);
                     int state     = dmPlatform::GetKey(context->m_Window, key_value);
 
                     if (state)
-                        keyboard->m_Packet.m_Keys[i / 32] |= mask;
+                        keyboard->m_Packet.m_Keys[i_key / 32] |= mask;
                     else
-                        keyboard->m_Packet.m_Keys[i / 32] &= ~mask;
+                        keyboard->m_Packet.m_Keys[i_key / 32] &= ~mask;
                 }
             }
         }

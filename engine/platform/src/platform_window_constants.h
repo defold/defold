@@ -17,6 +17,7 @@
 
 namespace dmPlatform
 {
+    extern const int PLATFORM_KEY_START;
     extern const int PLATFORM_JOYSTICK_LAST;
     extern const int PLATFORM_KEY_ESC;
     extern const int PLATFORM_KEY_F1;
