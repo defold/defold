@@ -155,27 +155,29 @@
 (defn register-resource-types
   [workspace]
   (concat
-   (resource-node/register-ddf-resource-type workspace
-                                     :textual? true
-                                     :ext "factory"
-                                     :node-type FactoryNode
-                                     :ddf-type GameSystem$FactoryDesc
-                                     :load-fn (partial load-factory :game-object)
-                                     :icon (get-in factory-types [:game-object :icon])
-                                     :view-types [:cljfx-form-view :text]
-                                     :view-opts {}
-                                     :tags #{:component}
-                                     :tag-opts {:component {:transform-properties #{}}}
-                                     :label "Factory")
-   (resource-node/register-ddf-resource-type workspace
-                                     :textual? true
-                                     :ext "collectionfactory"
-                                     :node-type FactoryNode
-                                     :ddf-type GameSystem$CollectionFactoryDesc
-                                     :load-fn (partial load-factory :collection)
-                                     :icon (get-in factory-types [:collection :icon])
-                                     :view-types [:cljfx-form-view :text]
-                                     :view-opts {}
-                                     :tags #{:component}
-                                     :tag-opts {:component {:transform-properties #{}}}
-                                     :label "Collection Factory")))
+    (resource-node/register-ddf-resource-type workspace
+      :textual? true
+      :ext "factory"
+      :node-type FactoryNode
+      :ddf-type GameSystem$FactoryDesc
+      :load-fn (partial load-factory :game-object)
+      :icon (get-in factory-types [:game-object :icon])
+      :icon-class :property
+      :view-types [:cljfx-form-view :text]
+      :view-opts {}
+      :tags #{:component}
+      :tag-opts {:component {:transform-properties #{}}}
+      :label "Factory")
+    (resource-node/register-ddf-resource-type workspace
+      :textual? true
+      :ext "collectionfactory"
+      :node-type FactoryNode
+      :ddf-type GameSystem$CollectionFactoryDesc
+      :load-fn (partial load-factory :collection)
+      :icon (get-in factory-types [:collection :icon])
+      :icon-class :property
+      :view-types [:cljfx-form-view :text]
+      :view-opts {}
+      :tags #{:component}
+      :tag-opts {:component {:transform-properties #{}}}
+      :label "Collection Factory")))

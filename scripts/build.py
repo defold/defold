@@ -630,11 +630,7 @@ class Configuration(object):
             print("Emscripten is already installed:", emsDir)
         else:
             self._check_package_path()
-            platform_map = {'x86_64-linux':'linux',
-                            'x86_64-macos':'darwin',
-                            'arm64-macos':'darwin',
-                            'x86_64-win32':'win32'}
-            path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, platform_map.get(self.host, self.host)))
+            path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, self.host))
             path = self.get_local_or_remote_file(path)
             self._extract(path, join(self.ext, 'SDKs'))
 

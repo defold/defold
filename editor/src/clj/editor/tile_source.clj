@@ -1006,12 +1006,13 @@
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
-                                    :ext ["tilesource" "tileset"]
-                                    :label "Tile Source"
-                                    :build-ext "t.texturesetc"
-                                    :node-type TileSourceNode
-                                    :ddf-type Tile$TileSet
-                                    :load-fn load-tile-source
-                                    :icon tile-source-icon
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:tool-controller ToolController}}))
+    :ext ["tilesource" "tileset"]
+    :label "Tile Source"
+    :build-ext "t.texturesetc"
+    :node-type TileSourceNode
+    :ddf-type Tile$TileSet
+    :load-fn load-tile-source
+    :icon tile-source-icon
+    :icon-class :design
+    :view-types [:scene :text]
+    :view-opts {:scene {:tool-controller ToolController}}))

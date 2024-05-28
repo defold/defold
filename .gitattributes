@@ -1,34 +1,34 @@
 *.dae binary
 
-# Defold Protocol Buffer Text Files (https://github.com/github/linguist/issues/5091)
-*.animationset linguist-language=JSON5
-*.atlas linguist-language=JSON5
-*.camera linguist-language=JSON5
-*.collection linguist-language=JSON5
-*.collectionfactory linguist-language=JSON5
-*.collectionproxy linguist-language=JSON5
-*.collisionobject linguist-language=JSON5
-*.cubemap linguist-language=JSON5
-*.display_profiles linguist-language=JSON5
-*.factory linguist-language=JSON5
-*.font linguist-language=JSON5
-*.gamepads linguist-language=JSON5
-*.go linguist-language=JSON5
-*.gui linguist-language=JSON5
-*.input_binding linguist-language=JSON5
-*.label linguist-language=JSON5
-*.material linguist-language=JSON5
-*.mesh linguist-language=JSON5
-*.model linguist-language=JSON5
-*.particlefx linguist-language=JSON5
-*.render linguist-language=JSON5
-*.sound linguist-language=JSON5
-*.sprite linguist-language=JSON5
-*.spinemodel linguist-language=JSON5
-*.spinescene linguist-language=JSON5
-*.texture_profiles linguist-language=JSON5
-*.tilemap linguist-language=JSON5
-*.tilesource linguist-language=JSON5
+# Defold Protocol Buffer Text Files
+*.animationset linguist-language=text-proto
+*.atlas linguist-language=text-proto
+*.camera linguist-language=text-proto
+*.collection linguist-language=text-proto
+*.collectionfactory linguist-language=text-proto
+*.collectionproxy linguist-language=text-proto
+*.collisionobject linguist-language=text-proto
+*.cubemap linguist-language=text-proto
+*.display_profiles linguist-language=text-proto
+*.factory linguist-language=text-proto
+*.font linguist-language=text-proto
+*.gamepads linguist-language=text-proto
+*.go linguist-language=text-proto
+*.gui linguist-language=text-proto
+*.input_binding linguist-language=text-proto
+*.label linguist-language=text-proto
+*.material linguist-language=text-proto
+*.mesh linguist-language=text-proto
+*.model linguist-language=text-proto
+*.particlefx linguist-language=text-proto
+*.render linguist-language=text-proto
+*.sound linguist-language=text-proto
+*.sprite linguist-language=text-proto
+*.spinemodel linguist-language=text-proto
+*.spinescene linguist-language=text-proto
+*.texture_profiles linguist-language=text-proto
+*.tilemap linguist-language=text-proto
+*.tilesource linguist-language=text-proto
 
 # Defold JSON Files
 *.buffer linguist-language=JSON

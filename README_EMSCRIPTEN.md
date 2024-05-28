@@ -18,7 +18,7 @@ Note: This information is based on the latest update (2.0.11 -> 3.1.55), mileage
 * update the `EMSCRIPTEN_VERSION_STR` in `scripts/build.py`
 * package_emscripten:
   - update the `VERSION` to the new version
-  - run the script `./script/package/package_emscripten.sh` on both OSX and linux (tested on ubuntu 22.x)
+  - run the script `./script/package/package_emscripten.sh` on both OSX (x86_64 and arm64) and linux (x86_64) (tested on ubuntu 22.x)
   - copy the artifact(s) from the `local_sdk` folder to the s3-bucket `defold-packages`
 * run `./scripts/build.py install_ems` to get the latest sdk for your host platform
 * build protobuf for js-web and wasm-web (ubuntu/linux) and copy into the `defold/packages` folder

@@ -164,7 +164,7 @@
               (do
                 (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
                 (let [touched-resources (into #{} (map :resource) save-data)]
-                  (workspace/reload-plugins! workspace touched-resources)
+                  (project/reload-plugins! project touched-resources)
                   (lsp/touch-resources! (lsp/get-node-lsp project) touched-resources))
                 (let [post-save-actions (make-post-save-actions save-data)]
                   (render-save-progress! progress/done)

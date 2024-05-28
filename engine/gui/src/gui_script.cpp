@@ -1559,7 +1559,7 @@ namespace dmGui
      *
      * @name gui.set_text
      * @param node [type:node] node to set text for
-     * @param text [type:string] text to set
+     * @param text [type:string|number] text to set
      */
     static int LuaSetText(lua_State* L)
     {
@@ -3211,7 +3211,7 @@ namespace dmGui
      *
      * @name gui.is_enabled
      * @param node [type:node] node to query
-     * @param recursive [type:boolean] check hierarchy recursively
+     * @param [recursive] [type:boolean] check hierarchy recursively
      * @return enabled [type:boolean] whether the node is enabled or not
      */
     static int LuaIsEnabled(lua_State* L)
@@ -3469,8 +3469,8 @@ namespace dmGui
      *
      * @name gui.set_parent
      * @param node [type:node] node for which to set its parent
-     * @param parent [type:node] parent node to set
-     * @param keep_scene_transform [type:boolean] optional flag to make the scene position being perserved
+     * @param [parent] [type:node] parent node to set, pass `nil` to remove parent
+     * @param [keep_scene_transform] [type:boolean] optional flag to make the scene position being perserved
      */
     static int LuaSetParent(lua_State* L)
     {
@@ -4506,7 +4506,7 @@ namespace dmGui
      *
      * @name gui.stop_particlefx
      * @param node [type:node] node to stop particle fx for
-     * @param options [type:table] options when stopping the particle fx. Supported options:
+     * @param [options] [type:table] options when stopping the particle fx. Supported options:
      *
      * - [type:boolean] `clear`: instantly clear spawned particles
      */

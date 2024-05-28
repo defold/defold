@@ -185,7 +185,7 @@
         page-offset-x (get-rect-page-offset layout-width (:page rect))]
     (doseq [p vertex-line-points]
       (let [x (+ (:x rect) (* 0.5 width) (* width (first p)) page-offset-x)
-            y (+ (:y rect) (* 0.5 height) (* height (second p)))  ]
+            y (+ (:y rect) (* 0.5 height) (* height (second p)))]
         (vtx/buf-push-floats! buf (gen-outline-vertex wt pt x y cr cg cb))))))
 
 (defn- gen-outline-vertex-buffer [renderables count]
@@ -957,15 +957,16 @@
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
-                                    :ext "atlas"
-                                    :label "Atlas"
-                                    :build-ext "a.texturesetc"
-                                    :node-type AtlasNode
-                                    :ddf-type AtlasProto$Atlas
-                                    :load-fn load-atlas
-                                    :icon atlas-icon
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:grid false}}))
+    :ext "atlas"
+    :label "Atlas"
+    :build-ext "a.texturesetc"
+    :node-type AtlasNode
+    :ddf-type AtlasProto$Atlas
+    :load-fn load-atlas
+    :icon atlas-icon
+    :icon-class :design
+    :view-types [:scene :text]
+    :view-opts {:scene {:grid false}}))
 
 (defn- selection->atlas [selection] (handler/adapt-single selection AtlasNode))
 (defn- selection->animation [selection] (handler/adapt-single selection AtlasAnimation))

@@ -21,7 +21,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.digest :as digest])
   (:import [java.io File]))
 
@@ -103,43 +103,9 @@
 
 ;;--------------------------------------------------------------------
 
-(defn flatten-build-targets
-  "Breadth first traversal / collection of build-targets and their child :deps,
-  skipping seen targets identified by the :content-hash of each build-target."
-  ([build-targets]
-   (flatten-build-targets build-targets #{}))
-  ([build-targets seen-content-hashes]
-   (assert (set? seen-content-hashes))
-   (loop [targets build-targets
-          queue []
-          seen seen-content-hashes
-          result (transient [])]
-     (if-some [target (first targets)]
-       (let [content-hash (:content-hash target)]
-         (assert (bt/content-hash? content-hash)
-                 (str "Build target has invalid content-hash: "
-                      (resource/resource->proj-path (:resource target))))
-         (if (contains? seen content-hash)
-           (recur (rest targets)
-                  queue
-                  seen
-                  result)
-           (recur (rest targets)
-                  (conj queue (flatten (:deps target)))
-                  (conj seen content-hash)
-                  (conj! result target))))
-       (if-some [targets (first queue)]
-         (recur targets
-                (rest queue)
-                seen
-                result)
-         (persistent! result))))))
-
 (defn- make-build-targets-by-content-hash
-  [build-targets]
-  (into {}
-        (map (juxt :content-hash identity))
-        (flatten-build-targets build-targets)))
+  [flat-build-targets]
+  (coll/pair-map-by :content-hash flat-build-targets))
 
 (defn- make-dep-resources
   [deps build-targets-by-content-hash]
@@ -201,8 +167,8 @@
 (def ^:private expensive-batch-size 5)
 
 (defn build!
-  [build-targets build-dir old-artifact-map render-progress!]
-  (let [build-targets-by-content-hash (make-build-targets-by-content-hash build-targets)
+  [flat-build-targets build-dir old-artifact-map render-progress!]
+  (let [build-targets-by-content-hash (make-build-targets-by-content-hash flat-build-targets)
         pruned-old-artifact-map (prune-artifact-map old-artifact-map build-targets-by-content-hash)
         progress (atom (progress/make "" (count build-targets-by-content-hash)))]
     (prune-build-dir! build-dir build-targets-by-content-hash)
