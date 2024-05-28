@@ -72,7 +72,8 @@ namespace dmGraphics
 
         while(next)
         {
-            if (next->m_Priority < selected->m_Priority && next->m_IsSupportedCb())
+            bool is_supported = next->m_IsSupportedCb();
+            if (next->m_Priority < selected->m_Priority && is_supported)
             {
                 selected = next;
             }

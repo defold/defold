@@ -164,6 +164,7 @@ namespace dmPlatform
                 dmLogWarning("Unable to set device state (%d), unknown state.", (int) state);
                 break;
         }
+        return false;
     }
 
     int32_t TriggerCloseCallback(HWindow window)
@@ -245,4 +246,21 @@ namespace dmPlatform
     const int PLATFORM_MOUSE_BUTTON_6      = 8;
     const int PLATFORM_MOUSE_BUTTON_7      = 9;
     const int PLATFORM_MOUSE_BUTTON_8      = 10;
+
+    const int PLATFORM_JOYSTICK_1          = 0;
+    const int PLATFORM_JOYSTICK_2          = 1;
+    const int PLATFORM_JOYSTICK_3          = 2;
+    const int PLATFORM_JOYSTICK_4          = 3;
+    const int PLATFORM_JOYSTICK_5          = 4;
+    const int PLATFORM_JOYSTICK_6          = 5;
+    const int PLATFORM_JOYSTICK_7          = 6;
+    const int PLATFORM_JOYSTICK_8          = 7;
+    const int PLATFORM_JOYSTICK_9          = 8;
+    const int PLATFORM_JOYSTICK_10         = 9;
+    const int PLATFORM_JOYSTICK_11         = 10;
+    const int PLATFORM_JOYSTICK_12         = 11;
+    const int PLATFORM_JOYSTICK_13         = 12;
+    const int PLATFORM_JOYSTICK_14         = 13;
+    const int PLATFORM_JOYSTICK_15         = 14;
+    const int PLATFORM_JOYSTICK_16         = 15;
 }
