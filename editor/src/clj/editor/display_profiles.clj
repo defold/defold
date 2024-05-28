@@ -48,7 +48,7 @@
 
 (g/defnode ProfileNode
   (property name g/Str) ; Required protobuf field.
-  (property qualifiers g/Any) ; Vector assigned in load-fn.
+  (property qualifiers g/Any) ; Vector always assigned in load-fn.
 
   (output form-values g/Any (g/fnk [_node-id name qualifiers]
                               {:node-id _node-id

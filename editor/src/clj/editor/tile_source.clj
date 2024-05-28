@@ -276,7 +276,7 @@
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
   (property flip-horizontal g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-horizontal))))
   (property flip-vertical g/Bool (default (protobuf/int->boolean (protobuf/default Tile$Animation :flip-vertical))))
-  (property cues g/Any ; Vector assigned in load-fn.
+  (property cues g/Any ; Nil is valid default.
             (dynamic visible (g/constantly false)))
 
   (input tile-count g/Int)

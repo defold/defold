@@ -548,17 +548,17 @@
 
   (property max-page-count g/Int (default (protobuf/default Material$MaterialDesc :max-page-count))
             (dynamic visible (g/constantly false)))
-  (property attributes g/Any ; Vector assigned in load-fn.
+  (property attributes g/Any ; Nil is valid default.
             (dynamic visible (g/constantly false)))
-  (property vertex-constants g/Any ; Vector assigned in load-fn.
+  (property vertex-constants g/Any ; Nil is valid default.
             (dynamic visible (g/constantly false)))
-  (property fragment-constants g/Any ; Vector assigned in load-fn.
+  (property fragment-constants g/Any ; Nil is valid default.
             (dynamic visible (g/constantly false)))
-  (property samplers g/Any; Vector assigned in load-fn.
+  (property samplers g/Any ; Nil is valid default.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self old-value new-value]
                    (notify-sampler-names-targets-setter evaluation-context self :samplers old-value new-value))))
-  (property tags g/Any ; Vector assigned in load-fn.
+  (property tags g/Any ; Nil is valid default.
             (dynamic visible (g/constantly false)))
   (property vertex-space g/Keyword (default (protobuf/default Material$MaterialDesc :vertex-space))
             (dynamic visible (g/constantly false)))

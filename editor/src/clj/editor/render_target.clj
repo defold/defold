@@ -128,7 +128,7 @@
 (g/defnode RenderTargetNode
   (inherits resource-node/ResourceNode)
 
-  (property color-attachments g/Any ; Vector assigned in load-fn.
+  (property color-attachments g/Any ; Nil is valid default.
             (dynamic visible (g/constantly false)))
   (property depth-stencil-attachment-width g/Int ; Required protobuf field.
             (dynamic visible (g/constantly false)))

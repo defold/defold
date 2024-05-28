@@ -37,7 +37,8 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -375,7 +376,7 @@
 
 (defn- vset [v i value]
   (let [c (count v)
-        v (if (<= c i) (into v (repeat (- i c) nil)) v)]
+        v (if (<= c i) (coll/into-vector v (repeat (- i c) nil)) v)]
     (assoc v i value)))
 
 (g/defnode MeshNode
@@ -406,7 +407,7 @@
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "buffer"})))
 
-  (property textures resource/ResourceVec ; Vector assigned in load-fn.
+  (property textures resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough texture-resources))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)

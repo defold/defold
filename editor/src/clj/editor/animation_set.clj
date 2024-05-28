@@ -151,7 +151,7 @@
   (input animation-infos g/Any :array)
   (output animation-info g/Any :cached produce-animation-info)
 
-  (property animations resource/ResourceVec ; Vector assigned in load-fn.
+  (property animations resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough animation-resources))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
