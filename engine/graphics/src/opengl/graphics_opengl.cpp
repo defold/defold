@@ -1822,7 +1822,12 @@ static void LogFrameBufferError(GLenum status)
 
     static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
     {
+    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
         return (HVertexProgram) CreateShader(DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf);
+    #else
+        dmLogInfo("Compute Shaders are not supported for OpenGL on this platform.");
+        return 0;
+    #endif
     }
 
     static void BuildAttributes(OpenGLProgram* program_ptr)
@@ -1938,6 +1943,7 @@ static void LogFrameBufferError(GLenum status)
 
     static HProgram OpenGLNewProgramFromCompute(HContext context, HComputeProgram compute_program)
     {
+    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
         IncreaseModificationVersion((OpenGLContext*) context);
 
         OpenGLProgram* program = new OpenGLProgram();
@@ -1965,6 +1971,10 @@ static void LogFrameBufferError(GLenum status)
 
         BuildUniforms(program);
         return (HProgram) program;
+    #else
+        dmLogInfo("Compute Shaders are not supported for OpenGL on this platform.");
+        return 0;
+    #endif
     }
 
     // TODO: Rename to graphicsprogram instead of newprogram

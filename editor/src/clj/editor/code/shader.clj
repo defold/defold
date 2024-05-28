@@ -125,12 +125,12 @@
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-without-spirv
   (into-array Graphics$ShaderDesc$Language
               (map shader-language-to-java
-                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100])))
+                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430])))
 
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-with-spirv
   (into-array Graphics$ShaderDesc$Language
               (map shader-language-to-java
-                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100 :language-spirv])))
+                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
 
 (defn- build-shader [build-resource _dep-resources user-data]
   (let [{:keys [compile-spirv ^long max-page-count ^String shader-source resource-ext]} user-data
