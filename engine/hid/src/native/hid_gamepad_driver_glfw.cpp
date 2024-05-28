@@ -23,7 +23,8 @@
 #include <dlib/math.h>
 #include <dlib/static_assert.h>
 
-#include <glfw/glfw.h>
+#include <platform/platform_window.h>
+#include <platform/platform_window_constants.h>
 
 #include "hid_private.h"
 
@@ -33,22 +34,22 @@ namespace dmHID
 {
     static int GLFW_JOYSTICKS[MAX_GAMEPAD_COUNT] =
     {
-        GLFW_JOYSTICK_1,
-        GLFW_JOYSTICK_2,
-        GLFW_JOYSTICK_3,
-        GLFW_JOYSTICK_4,
-        GLFW_JOYSTICK_5,
-        GLFW_JOYSTICK_6,
-        GLFW_JOYSTICK_7,
-        GLFW_JOYSTICK_8,
-        GLFW_JOYSTICK_9,
-        GLFW_JOYSTICK_10,
-        GLFW_JOYSTICK_11,
-        GLFW_JOYSTICK_12,
-        GLFW_JOYSTICK_13,
-        GLFW_JOYSTICK_14,
-        GLFW_JOYSTICK_15,
-        GLFW_JOYSTICK_16
+        dmPlatform::PLATFORM_JOYSTICK_1,
+        dmPlatform::PLATFORM_JOYSTICK_2,
+        dmPlatform::PLATFORM_JOYSTICK_3,
+        dmPlatform::PLATFORM_JOYSTICK_4,
+        dmPlatform::PLATFORM_JOYSTICK_5,
+        dmPlatform::PLATFORM_JOYSTICK_6,
+        dmPlatform::PLATFORM_JOYSTICK_7,
+        dmPlatform::PLATFORM_JOYSTICK_8,
+        dmPlatform::PLATFORM_JOYSTICK_9,
+        dmPlatform::PLATFORM_JOYSTICK_10,
+        dmPlatform::PLATFORM_JOYSTICK_11,
+        dmPlatform::PLATFORM_JOYSTICK_12,
+        dmPlatform::PLATFORM_JOYSTICK_13,
+        dmPlatform::PLATFORM_JOYSTICK_14,
+        dmPlatform::PLATFORM_JOYSTICK_15,
+        dmPlatform::PLATFORM_JOYSTICK_16
     };
 
     struct GLFWGamepadDevice
@@ -119,6 +120,8 @@ namespace dmHID
 
         driver->m_Devices.Push(new_device);
 
+        SetGamepadConnectionStatus(driver->m_HidContext, gp, true);
+
         return gp;
     }
 
@@ -136,14 +139,17 @@ namespace dmHID
         }
     }
 
-    static void GLFWGamepadCallback(int gamepad_id, int connected)
+    static void GLFWGamepadCallback(void* user_Data, int gamepad_id, dmPlatform::GamepadEvent event)
     {
-        Gamepad* gp = GLFWEnsureAllocatedGamepad(g_GLFWGamepadDriver, gamepad_id);
-        if (gp == 0)
+        if (event == dmPlatform::GAMEPAD_EVENT_CONNECTED || event == dmPlatform::GAMEPAD_EVENT_DISCONNECTED)
         {
-            return;
+            Gamepad* gp = GLFWEnsureAllocatedGamepad(g_GLFWGamepadDriver, gamepad_id);
+            if (gp == 0)
+            {
+                return;
+            }
+            SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gp, event == dmPlatform::GAMEPAD_EVENT_CONNECTED ? 1 : 0);
         }
-        SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gp, connected);
     }
 
     static void GLFWGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
@@ -152,18 +158,14 @@ namespace dmHID
         int glfw_joystick     = GLFW_JOYSTICKS[id];
         GamepadPacket& packet = gamepad->m_Packet;
 
-        gamepad->m_AxisCount = glfwGetJoystickParam(glfw_joystick, GLFW_AXES);
-        glfwGetJoystickPos(glfw_joystick, packet.m_Axis, gamepad->m_AxisCount);
-
-        gamepad->m_HatCount = dmMath::Min(MAX_GAMEPAD_HAT_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_HATS));
-        glfwGetJoystickHats(glfw_joystick, packet.m_Hat, gamepad->m_HatCount);
-
-        gamepad->m_ButtonCount = dmMath::Min(MAX_GAMEPAD_BUTTON_COUNT, (uint32_t) glfwGetJoystickParam(glfw_joystick, GLFW_BUTTONS));
         unsigned char buttons[MAX_GAMEPAD_BUTTON_COUNT];
-        glfwGetJoystickButtons(glfw_joystick, buttons, gamepad->m_ButtonCount);
+        gamepad->m_AxisCount   = dmPlatform::GetJoystickAxes(context->m_Window, glfw_joystick, packet.m_Axis, MAX_GAMEPAD_AXIS_COUNT);
+        gamepad->m_HatCount    = dmPlatform::GetJoystickHats(context->m_Window, glfw_joystick, packet.m_Hat, MAX_GAMEPAD_HAT_COUNT);
+        gamepad->m_ButtonCount = dmPlatform::GetJoystickButtons(context->m_Window, glfw_joystick, buttons, MAX_GAMEPAD_BUTTON_COUNT);
+
         for (uint32_t j = 0; j < gamepad->m_ButtonCount; ++j)
         {
-            if (buttons[j] == GLFW_PRESS)
+            if (buttons[j])
             {
                 packet.m_Buttons[j / 32] |= 1 << (j % 32);
             }
@@ -180,7 +182,7 @@ namespace dmHID
 
         for (int i = 0; i < MAX_GAMEPAD_COUNT; ++i)
         {
-            if (glfwGetJoystickParam(i, GLFW_PRESENT) == GL_TRUE)
+            if (dmPlatform::GetDeviceState(context->m_Window, dmPlatform::DEVICE_STATE_JOYSTICK_PRESENT, i))
             {
                 GLFWEnsureAllocatedGamepad(glfw_driver, i);
             }
@@ -193,20 +195,20 @@ namespace dmHID
 
     static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char* buffer, uint32_t buffer_length)
     {
-        char* device_name;
         uint32_t gamepad_index = GLFWGetGamepadId((GLFWGamepadDriver*) driver, gamepad);
-        glfwGetJoystickDeviceId(gamepad_index, &device_name);
+        const char* device_name = dmPlatform::GetJoystickDeviceName(context->m_Window, gamepad_index);
 
         dmStrlCpy(buffer, device_name, buffer_length);
     }
 
     static bool GLFWGamepadDriverInitialize(HContext context, GamepadDriver* driver)
     {
-        if (glfwSetGamepadCallback(GLFWGamepadCallback) == 0)
+        if (!dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
         {
             return false;
         }
 
+        dmPlatform::SetGamepadEventCallback(context->m_Window, GLFWGamepadCallback, 0);
         return true;
     }
 

@@ -71,19 +71,28 @@ def configure(conf):
     architecture = build_util.get_target_architecture()
 
     sound_lib = 'sound'
+    glfw_lib = 'dmglfw'
+    platform_lib = 'platform'
 
     if operating_sys == 'macos':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 
+        glfw_lib = "glfw3"
+
         # For Vulkan/MoltenVK
-        if waflib.Options.options.with_vulkan and architecture == 'x86_64':
-            conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
+        if waflib.Options.options.with_vulkan:
 
-            # Link with vulkan.dylib if the flag has been set (see graphics/vulkan/README.md) for more information
-            conf.env.append_value('LINKFLAGS', ['-l', waflib.Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'])
+            platform_lib = "platform_vulkan"
 
-            # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std
-            conf.env.append_value('LINKFLAGS', ['-l', 'c++'])
+            # JG: for now, we only support validation layers on macos for x86_64 archs. I'll fix this later when/if needed.
+            if architecture == 'x86_64':
+                conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
+
+                # Link with vulkan.dylib if the flag has been set (see graphics/vulkan/README.md) for more information
+                conf.env.append_value('LINKFLAGS', ['-l', waflib.Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'])
+
+                # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std
+                conf.env.append_value('LINKFLAGS', ['-l', 'c++'])
 
     elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
@@ -113,10 +122,10 @@ def configure(conf):
     conf.env['STLIB_GAMESYS'] = 'gamesys script_box2d'.split()
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_SCRIPT'] = 'script'
-    conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_DMGLFW'] = glfw_lib
     conf.env['STLIB_GUI'] = 'gui'
     conf.env['STLIB_PARTICLE'] = 'particle'
-    conf.env['STLIB_PLATFORM'] = 'platform'
+    conf.env['STLIB_PLATFORM'] = platform_lib
     conf.env['STLIB_PLATFORM_NULL'] = 'platform_null'
     conf.env['STLIB_RIG'] = 'rig'
     conf.env['STLIB_SOUND'] = sound_lib
@@ -127,7 +136,6 @@ def configure(conf):
     conf.env['STLIB_HID_NULL'] = 'hid_null'
     conf.env['STLIB_INPUT'] = 'input'
     conf.env['STLIB_LIVEUPDATE'] = 'liveupdate'
-    conf.env['STLIB_PLATFORM_NULL'] = 'platform_null'
 
     if operating_sys != "macos":
         conf.env['STLIB_UNWIND'] = 'unwind'
