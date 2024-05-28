@@ -3085,7 +3085,7 @@ namespace dmRender
 
         CHECK_COMPUTE_SUPPORT(i);
 
-        if (!lua_isnil(L, 1))
+        if (lua_gettop(L) > 0 && !lua_isnil(L, 1))
         {
             dmhash_t program_id             = dmScript::CheckHashOrString(L, 1);
             RenderResource* render_resource = i->m_RenderResources.Get(program_id);

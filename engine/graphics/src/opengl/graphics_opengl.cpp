@@ -3671,7 +3671,40 @@ static void LogFrameBufferError(GLenum status)
                 return true;
             }
         }
-         
+        return false;
+    }
+
+    static bool BindImage2D(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
+    {
+    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+        int32_t uniform_index;
+        Type type;
+
+        if (GetTextureUniform(context, unit, &uniform_index, &type))
+        {
+            // Binding a image texture to a image2d slot, otherwise we'll bind it as a combined sampler
+            if (type == TYPE_IMAGE_2D)
+            {
+                GLenum access            = DMGRAPHICS_READ_ONLY;
+                GLenum gl_format         = 0;
+                GLenum gl_type           = GL_UNSIGNED_BYTE;
+                GLint gl_internal_format = 0;
+                GLuint id                = 0;
+                GetOpenGLSetTextureParams(context, tex->m_Params.m_Format, gl_internal_format, gl_format, gl_type);
+
+                // We need a valid texture regardless of bind/unbind
+                if (!do_unbind)
+                {
+                    id     = tex->m_TextureIds[id_index];
+                    access = tex->m_UsageHintFlags & TEXTURE_USAGE_HINT_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
+                }
+                glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
+                CHECK_GL_ERROR;
+
+                return true;
+            }
+        }
+    #endif
         return false;
     }
 
@@ -3687,64 +3720,47 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 #endif
 
-        GLenum texture_type = GetOpenGLTextureType(tex->m_Type);
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
 
         bool bind_as_texture = true;
-
-    #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
         if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D)
         {
-            int32_t uniform_index;
-            Type type;
-
-            if (GetTextureUniform(context, unit, &uniform_index, &type))
-            {
-                bind_as_texture = type != TYPE_IMAGE_2D;
-
-                // Binding a image texture to a image2d slot, otherwise we'll bind it as a combined sampler
-                if (!bind_as_texture)
-                {
-                    GLenum access            = tex->m_UsageHintFlags & TEXTURE_USAGE_HINT_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
-                    GLenum type              = GetOpenGLTextureType(tex->m_Type);
-                    GLenum gl_format         = 0;
-                    GLenum gl_type           = GL_UNSIGNED_BYTE;
-                    GLint gl_internal_format = -1;
-                    GetOpenGLSetTextureParams(context, tex->m_Params.m_Format, gl_internal_format, gl_format, gl_type);
-
-                    glBindImageTexture(unit, tex->m_TextureIds[id_index], 0, GL_FALSE, 0, access, gl_internal_format);
-                    CHECK_GL_ERROR;
-                }
-            }
+            bind_as_texture = !BindImage2D(context, tex, unit, id_index);
         }
-    #endif
 
         if (bind_as_texture)
         {
-            glBindTexture(texture_type, tex->m_TextureIds[id_index]);
+            glBindTexture(GetOpenGLTextureType(tex->m_Type), tex->m_TextureIds[id_index]);
             CHECK_GL_ERROR;
             OpenGLSetTextureParams(texture, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
         }
     }
 
-    static void OpenGLDisableTexture(HContext context, uint32_t unit, HTexture texture)
+    static void OpenGLDisableTexture(HContext _context, uint32_t unit, HTexture texture)
     {
-        assert(context);
-
 #if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR;
 #endif
 
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(((OpenGLContext*) context)->m_AssetHandleContainer, texture);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLTexture* tex     = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, texture);
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR;
-        glBindTexture(GetOpenGLTextureType(tex->m_Type), 0);
-        CHECK_GL_ERROR;
 
-        // TODO image textures
+        bool unbind_as_texture = true;
+        if (tex->m_Type == TEXTURE_TYPE_IMAGE_2D)
+        {
+            unbind_as_texture = !BindImage2D(context, tex, unit, 0, true);
+        }
+
+        if (unbind_as_texture)
+        {
+            glBindTexture(GetOpenGLTextureType(tex->m_Type), 0);
+            CHECK_GL_ERROR;
+        }
     }
 
     static void OpenGLReadPixels(HContext context, void* buffer, uint32_t buffer_size)
