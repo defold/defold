@@ -227,12 +227,10 @@ namespace dmHID
 
                 for (uint32_t i = 0; i < MAX_KEY_COUNT; ++i)
                 {
-                    uint32_t mask = 1;
-                    mask <<= i % 32;
-
-                    Key key       = (Key) i;
-                    int key_value = GetKeyValue(key);
-                    int state     = dmPlatform::GetKey(context->m_Window, key_value);
+                    Key key        = (Key) i;
+                    int key_value  = GetKeyValue(key);
+                    int state      = dmPlatform::GetKey(context->m_Window, key_value);
+                    uint32_t mask  = 1 << (i % 32);
 
                     if (state)
                         keyboard->m_Packet.m_Keys[i / 32] |= mask;
