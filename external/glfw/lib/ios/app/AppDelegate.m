@@ -84,6 +84,18 @@ char**              g_Argv = 0;
 
     window = [[UIWindow alloc] initWithFrame:bounds];
     window.rootViewController = [[[ViewController alloc] init] autorelease];
+
+    // Load the LaunchScreen storyboard
+    UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"LaunchScreen" bundle:nil];
+    UIViewController *launchScreenVC = [storyboard instantiateInitialViewController];
+    UIView *launchScreenView = launchScreenVC.view;
+
+    // Add the launch screen view as a placeholder
+    launchScreenView.frame = self.window.bounds;
+    launchScreenView.tag = 999;
+    [window addSubview:launchScreenView];
+    [window bringSubviewToFront:launchScreenView];
+    
     [window makeKeyAndVisible];
 
     g_ApplicationWindow = window;
@@ -182,6 +194,16 @@ static void ShutdownEngine(bool call_exit)
     {
         ShutdownEngine(true);
     }
+
+    // Cleanup the placeholder laucnh screen view once the engine is initialized
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIWindow *window = [UIApplication sharedApplication].keyWindow;
+            UIView *viewToRemove = [window viewWithTag:999];
+            [viewToRemove removeFromSuperview];
+        });
+    });
 }
 
 @end
