@@ -19,7 +19,7 @@ from os.path import join, dirname, basename, relpath, expanduser, normpath, absp
 sys.path.append(os.path.join(normpath(join(dirname(abspath(__file__)), '..')), "build_tools"))
 
 import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
-import optparse, subprocess, urllib, urllib.parse, tempfile, time
+import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import run
 import s3
@@ -98,8 +98,8 @@ PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1
 PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-b0cb4d1".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslc-31bddbb moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-2.7.1".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-40bced4 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-2.7.1".split() # sassc-5472db213ec223a67482df2226622be372921847
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslc-31bddbb moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-40bced4 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4".split() # sassc-5472db213ec223a67482df2226622be372921847
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-2.7.1".split()
 PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.3.261.1 lipo-9ffdea2 glfw-2.7.1".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1".split()
@@ -556,17 +556,34 @@ class Configuration(object):
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
-        self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform)
+        self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, self.verbose)
 
-        # We currently only support a subset of platforms using this mechanic
-        if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
-            if not self.sdk_info:
-                print("Couldn't find any sdks")
-                print("We recommend you follow the packaging steps found here: %s" % "https://github.com/defold/defold/blob/dev/scripts/package/README.md#packaging-the-sdks")
-                print("Then run './scripts/build.py --package-path=<local_folder_or_url> install_ext --platform=<platform>=%s'" % self.target_platform)
-                sys.exit(1)
+        if target_platform in ('js-web', 'wasm-web'): # smoe platforms are not yet supported using this sdk_info mechanic
+            return
 
-            print("Using SDKS:", self.sdk_info)
+        if not self.sdk_info:
+            print("Couldn't find any sdks for platform", target_platform)
+            print("We recommend you follow the setup guide found here: %s" % "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
+            sys.exit(1)
+
+        if self.verbose:
+            print("SDK info:")
+            pprint.pprint(self.sdk_info)
+
+    def verify_sdk(self):
+        was_verbose = self.verbose
+        self.verbose = True
+        self.check_sdk()
+
+        def _test_compiler_cmd(self, prefix, verbose):
+            return '%s %s/ext/bin/waf --prefix=%s distclean configure build --skip-tests --skip-build-tests %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, verbose and '-v' or '')
+
+        args = _test_compiler_cmd(self, self.dynamo_home, was_verbose)
+        args = args.split()
+        self._log('Testing compiler for platform %s' % (target_platform))
+        cwd = join(self.defold_root, 'engine/sdk/test/toolchain')
+        plf_args = ['--platform=%s' % target_platform]
+        run.env_command(self._form_env(), args + plf_args + self.waf_options, cwd = cwd)
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
@@ -1529,7 +1546,7 @@ class Configuration(object):
 
 
     def shell(self):
-        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, ANDROID_HOME and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
+        print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
         if "win32" in self.host:
             preexec_fn = None
         else:
@@ -2158,17 +2175,13 @@ class Configuration(object):
 
         env['DYNAMO_HOME'] = self.dynamo_home
 
-        env['ANDROID_HOME'] = os.path.join(self.dynamo_home, 'ext', 'SDKs', 'android-sdk')
-
         android_host = self.host
         if 'win32' in android_host:
             android_host = 'windows'
         paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
-                                      '%s/ext/bin/%s' % (self.dynamo_home, host),
-                                      '%s/platform-tools' % env['ANDROID_HOME'],
-                                      '%s/ext/SDKs/%s/toolchains/llvm/prebuilt/%s-x86_64/bin' % (self.dynamo_home,PACKAGES_ANDROID_NDK,android_host)])
+                                      '%s/ext/bin/%s' % (self.dynamo_home, host)])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
 

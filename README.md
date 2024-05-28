@@ -48,7 +48,7 @@ Follow the [instructions](editor/README.md) in the editor folder.
 
 ## Engine Overview
 
-An overview of the engine architecture and additional engine information can be [viewed here](README_ENGINE.md).
+An overview of the engine architecture and additional engine information can be [viewed here](./engine/docs/README.md).
 
 ### Platform Specifics
 

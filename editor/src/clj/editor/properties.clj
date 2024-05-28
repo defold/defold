@@ -666,9 +666,15 @@
   `(scale-and-round ~num (Math/abs (double ~scale))))
 
 ;; SDK api
-(defn ->choicebox [vals]
-  {:type :choicebox
-   :options (mapv (juxt identity identity) (sort eutil/natural-order vals))})
+(defn ->choicebox
+  ([vals]
+   (->choicebox vals true))
+  ([vals apply-natural-sorting?]
+   (let [sorted-vals (if apply-natural-sorting?
+                       (sort eutil/natural-order vals)
+                       vals)]
+     {:type :choicebox
+      :options (mapv (juxt identity identity) sorted-vals)})))
 
 (defn ->pb-choicebox-raw [cls]
   (let [values (protobuf/enum-values cls)]
