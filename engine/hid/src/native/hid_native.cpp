@@ -225,7 +225,7 @@ namespace dmHID
                 Keyboard* keyboard = &context->m_Keyboards[k];
                 keyboard->m_Connected = 1; // TODO: Actually detect if the keyboard is present
 
-                for (uint32_t i = 32; i < MAX_KEY_COUNT; ++i)
+                for (uint32_t i = 0; i < MAX_KEY_COUNT; ++i)
                 {
                     uint32_t mask = 1;
                     mask <<= i % 32;
