@@ -196,5 +196,4 @@
     :sanitize-fn sanitize-animation-set
     :node-type AnimationSetNode
     :ddf-type Rig$AnimationSetDesc
-    :read-defaults false
     :view-types [:cljfx-form-view]))

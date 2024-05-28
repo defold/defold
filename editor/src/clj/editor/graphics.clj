@@ -291,7 +291,7 @@
          #(:coordinate-space % :coordinate-space-local)
          :semantic-type)))
 
-;; TODO(save-value-cleanup): We shouldn't have to sanitize the attributes once every resource type has :read-defaults false.
+;; TODO(save-value-cleanup): We only really need to sanitize the attributes if a resource type has :read-defaults true.
 (defn sanitize-attribute-value-v [attribute-value]
   (protobuf/sanitize-repeated attribute-value :v))
 

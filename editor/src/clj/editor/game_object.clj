@@ -603,7 +603,6 @@
     :label "Game Object"
     :node-type GameObjectNode
     :ddf-type GameObject$PrototypeDesc
-    :read-defaults false
     :load-fn load-game-object
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
     :sanitize-fn (partial sanitize-game-object workspace)

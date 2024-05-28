@@ -492,7 +492,6 @@
     :label "Mesh"
     :node-type MeshNode
     :ddf-type MeshProto$MeshDesc
-    :read-defaults false
     :load-fn load-mesh
     :icon mesh-icon
     :view-types [:scene :text]

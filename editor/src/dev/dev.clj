@@ -1261,9 +1261,9 @@
    (pb-resource-type-info workspace fn/constantly-true))
   ([workspace field-info-predicate]
    (into (sorted-map)
-         (keep (fn [[ext resource-type]]
-                 (when-let [pb-class (-> resource-type :test-info :ddf-type)]
-                   (let [read-defaults (:read-defaults resource-type true)
+         (keep (fn [[ext {:keys [test-info] :as _resource-type}]]
+                 (when-let [pb-class (:ddf-type test-info)]
+                   (let [read-defaults (:read-defaults test-info)
                          pb-class-info (pb-class-info pb-class field-info-predicate)]
                      (pair ext {:read-defaults read-defaults
                                 :value-type pb-class

@@ -1266,7 +1266,6 @@
     :label "Particle FX"
     :node-type ParticleFXNode
     :ddf-type Particle$ParticleFX
-    :read-defaults false
     :load-fn load-particle-fx
     :sanitize-fn sanitize-particle-fx
     :icon particle-fx-icon

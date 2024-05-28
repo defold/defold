@@ -217,7 +217,6 @@
       :ext "sound"
       :node-type SoundNode
       :ddf-type Sound$SoundDesc
-      :read-defaults false
       :load-fn load-sound
       :icon sound-icon
       :icon-class :property

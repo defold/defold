@@ -3236,7 +3236,6 @@
         :build-ext (:build-ext def)
         :node-type GuiSceneNode
         :ddf-type (:pb-class def)
-        :read-defaults false
         :sanitize-fn sanitize-scene
         :load-fn load-gui-scene
         :icon (:icon def)

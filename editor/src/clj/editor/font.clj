@@ -801,7 +801,6 @@
       :label "Font"
       :node-type FontNode
       :ddf-type Font$FontDesc
-      :read-defaults false
       :load-fn load-font
       :icon font-icon
       :icon-class :design

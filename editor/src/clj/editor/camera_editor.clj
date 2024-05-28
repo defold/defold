@@ -312,7 +312,6 @@
     :ext "camera"
     :node-type CameraNode
     :ddf-type Camera$CameraDesc
-    :read-defaults false
     :load-fn load-camera
     :icon camera-icon
     :icon-class :property

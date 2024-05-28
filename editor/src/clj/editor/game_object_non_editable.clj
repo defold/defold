@@ -387,7 +387,6 @@
     :label "Non-Editable Game Object"
     :node-type NonEditableGameObjectNode
     :ddf-type GameObject$PrototypeDesc
-    :read-defaults false
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
     :sanitize-fn (partial sanitize-non-editable-game-object workspace)
     :load-fn load-non-editable-game-object

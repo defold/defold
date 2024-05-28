@@ -968,7 +968,6 @@
     :build-ext "a.texturesetc"
     :node-type AtlasNode
     :ddf-type AtlasProto$Atlas
-    :read-defaults false
     :load-fn load-atlas
     :icon atlas-icon
     :icon-class :design

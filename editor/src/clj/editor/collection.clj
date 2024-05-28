@@ -814,7 +814,6 @@
     :label "Collection"
     :node-type CollectionNode
     :ddf-type GameObject$CollectionDesc
-    :read-defaults false
     :load-fn load-collection
     :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :editable "go"))
     :sanitize-fn (partial sanitize-collection workspace)

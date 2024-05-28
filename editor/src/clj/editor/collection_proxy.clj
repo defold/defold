@@ -123,7 +123,6 @@
     :ext "collectionproxy"
     :node-type CollectionProxyNode
     :ddf-type GameSystem$CollectionProxyDesc
-    :read-defaults false
     :load-fn load-collection-proxy
     :icon collection-proxy-icon
     :icon-class :property

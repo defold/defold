@@ -103,7 +103,6 @@
         :build-ext (:build-ext def)
         :node-type ProtobufNode
         :ddf-type (:pb-class def)
-        :read-defaults false
         :load-fn (partial load-pb def)
         :icon (:icon def)
         :icon-class (:icon-class def)

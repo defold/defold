@@ -678,7 +678,6 @@
     :ext "sprite"
     :node-type SpriteNode
     :ddf-type Sprite$SpriteDesc
-    :read-defaults false
     :load-fn load-sprite
     :sanitize-fn sanitize-sprite
     :icon sprite-icon

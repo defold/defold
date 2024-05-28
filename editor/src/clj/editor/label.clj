@@ -421,7 +421,6 @@
     :ext "label"
     :node-type LabelNode
     :ddf-type Label$LabelDesc
-    :read-defaults false
     :load-fn load-label
     :sanitize-fn sanitize-label
     :icon label-icon

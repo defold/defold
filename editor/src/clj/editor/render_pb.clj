@@ -188,7 +188,6 @@
     :ext "render"
     :node-type RenderNode
     :ddf-type Render$RenderPrototypeDesc
-    :read-defaults false
     :load-fn load-render
     :sanitize-fn sanitize-render
     :icon "icons/32/Icons_30-Render.png"

@@ -186,7 +186,6 @@
     :ext "render_target"
     :node-type RenderTargetNode
     :ddf-type RenderTarget$RenderTargetDesc
-    :read-defaults false
     :load-fn load-render-target
     :sanitize-fn sanitize-render-target
     :icon texture-icon

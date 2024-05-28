@@ -622,7 +622,6 @@
     :label "Material"
     :node-type MaterialNode
     :ddf-type Material$MaterialDesc
-    :read-defaults false
     :load-fn load-material
     :sanitize-fn sanitize-material
     :icon "icons/32/Icons_31-Material.png"

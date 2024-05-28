@@ -314,7 +314,6 @@
     :build-ext "texturec"
     :node-type CubemapNode
     :ddf-type Graphics$Cubemap
-    :read-defaults false
     :load-fn load-cubemap
     :icon cubemap-icon
     :icon-class :design

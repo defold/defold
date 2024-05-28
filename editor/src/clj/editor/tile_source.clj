@@ -1031,7 +1031,6 @@
     :build-ext "t.texturesetc"
     :node-type TileSourceNode
     :ddf-type Tile$TileSet
-    :read-defaults false
     :load-fn load-tile-source
     :icon tile-source-icon
     :icon-class :design

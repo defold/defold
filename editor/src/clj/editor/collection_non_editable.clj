@@ -439,7 +439,6 @@
     :label "Non-Editable Collection"
     :node-type NonEditableCollectionNode
     :ddf-type GameObject$CollectionDesc
-    :read-defaults false
     :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
     :sanitize-fn (partial sanitize-non-editable-collection workspace)
     :load-fn load-non-editable-collection

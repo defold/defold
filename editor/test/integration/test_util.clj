@@ -1553,8 +1553,9 @@
 (defn protobuf-resource-exts-that-read-defaults [workspace]
   (into (sorted-set)
         (comp (mapcat #(vals (workspace/get-resource-type-map workspace %)))
-              (filter #(= :ddf (-> % :test-info :type)))
-              (filter #(:read-defaults % true))
+              (filter (fn [{:keys [test-info]}]
+                        (and (= :ddf (:type test-info))
+                             (:read-defaults test-info))))
               (keep :ext))
         [:editable :non-editable]))
 

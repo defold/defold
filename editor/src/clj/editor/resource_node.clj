@@ -268,7 +268,7 @@
 (defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn string-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
   {:pre [(protobuf/pb-class? ddf-type)
          (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))]}
-  (let [read-defaults (if (nil? read-defaults) true read-defaults)
+  (let [read-defaults (boolean read-defaults)
         read-raw-fn (if read-defaults
                       (partial protobuf/read-map-with-defaults ddf-type)
                       (partial protobuf/read-map-without-defaults ddf-type))
@@ -278,7 +278,7 @@
                          (some? string-encode-fn) (comp string-encode-fn))
         search-fn (or search-fn default-ddf-resource-search-fn)
         args (-> args
-                 (dissoc :string-encode-fn)
+                 (dissoc :read-defaults :string-encode-fn)
                  (assoc :textual? true
                         :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
                         :read-fn read-fn
@@ -286,6 +286,7 @@
                         :search-fn search-fn
                         :test-info {:type :ddf
                                     :ddf-type ddf-type
+                                    :read-defaults read-defaults
                                     :built-pb-class (or built-pb-class ddf-type)}))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 

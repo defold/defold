@@ -612,7 +612,6 @@
     :ext "collisionobject"
     :node-type CollisionObjectNode
     :ddf-type Physics$CollisionObjectDesc
-    :read-defaults false
     :load-fn load-collision-object
     :sanitize-fn sanitize-collision-object
     :icon collision-object-icon

@@ -165,7 +165,6 @@
       :ext "factory"
       :node-type FactoryNode
       :ddf-type GameSystem$FactoryDesc
-      :read-defaults false
       :load-fn (partial load-factory :game-object)
       :icon (get-in factory-types [:game-object :icon])
       :icon-class :property
@@ -179,7 +178,6 @@
       :ext "collectionfactory"
       :node-type FactoryNode
       :ddf-type GameSystem$CollectionFactoryDesc
-      :read-defaults false
       :load-fn (partial load-factory :collection)
       :icon (get-in factory-types [:collection :icon])
       :icon-class :property

@@ -151,7 +151,6 @@
     :build-ext (:build-ext pb-def)
     :node-type DisplayProfilesNode
     :ddf-type Render$DisplayProfiles
-    :read-defaults false
     :load-fn load-display-profiles
     :icon (:icon pb-def)
     :icon-class (:icon-class pb-def)

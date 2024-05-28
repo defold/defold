@@ -573,7 +573,6 @@
     :label model-resource-type-label
     :node-type ModelNode
     :ddf-type ModelProto$ModelDesc
-    :read-defaults false
     :load-fn load-model
     :sanitize-fn sanitize-model
     :icon model-icon

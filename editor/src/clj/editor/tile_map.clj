@@ -1509,7 +1509,6 @@
     :build-ext "tilemapc"
     :node-type TileMapNode
     :ddf-type Tile$TileGrid
-    :read-defaults false
     :load-fn load-tile-map
     :sanitize-fn sanitize-tile-map
     :icon tile-map-icon
