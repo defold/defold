@@ -638,7 +638,7 @@
                              :fit-size 16}]}]}))
 
 (defmethod handle-event :add-list-items [{:keys [value on-value-changed fx/event]}]
-  {:dispatch (assoc on-value-changed :fx/event (into value event))})
+  {:dispatch (assoc on-value-changed :fx/event (coll/into-vector value event))})
 
 (defn- keep-indices [indices coll]
   (into (coll/empty-with-meta coll)
@@ -1028,9 +1028,10 @@
                                                    key-path
                                                    default-row
                                                    fx/event]}]
-  (let [new-value (into value
-                        (map #(assoc-in default-row key-path %))
-                        event)]
+  (let [new-value (coll/into-vector
+                    value
+                    (map #(assoc-in default-row key-path %))
+                    event)]
     (if on-add
       (do (on-add) nil)
       {:dispatch (assoc on-value-changed :fx/event new-value)})))
