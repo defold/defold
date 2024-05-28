@@ -1893,21 +1893,20 @@ namespace dmRender
      * constants.tint = vmath.vector4(1, 1, 1, 1)
      * render.draw(self.my_pred, {constants = constants})
      * ```
-
+     *
      * Draw with predicate and frustum culling (without near+far planes):
      *
      * ```lua
      * local frustum = self.proj * self.view
      * render.draw(self.my_pred, {frustum = frustum})
      * ```
-
+     *
      * Draw with predicate and frustum culling (with near+far planes):
      *
      * ```lua
      * local frustum = self.proj * self.view
      * render.draw(self.my_pred, {frustum = frustum, frustum_planes = render.FRUSTUM_PLANES_ALL})
      * ```
-
      */
     int RenderScript_Draw(lua_State* L)
     {
@@ -3076,6 +3075,24 @@ namespace dmRender
     if (!dmGraphics::IsContextFeatureSupported(i->m_RenderContext->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER)) \
         return DM_LUA_ERROR("Compute shaders are not supported on this device or platform.");
 
+    /*# set the current compute program
+     *
+     * The name of the compute program must be specified in the ".render" resource set
+     * in the "game.project" setting. If nil (or no arguments) are passed to this function,
+     * the current compute program will instead be disabled.
+     *
+     * @name render.set_compute_program
+     * @examples
+     *
+     * Enable compute program named "fractals", then dispatch it.
+     *
+     * ```lua
+     * render.set_compute_program("fractals")
+     * render.enable_texture(0, self.backing_texture)
+     * render.dispatch(128, 128, 1)
+     * render.set_compute_program()
+     * ```
+     */
     static int RenderScript_SetComputeProgram(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -3109,6 +3126,49 @@ namespace dmRender
         return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
+    /*# dispatches the currently enabled compute program
+     * Dispatches the currently enabled compute program. The dispatch call takes three arguments x,y,z which constitutes
+     * the 'global working group' of the compute dispatch. Together with the 'local working group' specified in the compute shader
+     * as a layout qualifier, these two sets of parameters forms the number of invocations the compute shader will execute.
+     * An optional constant buffer can be provided to override the default constants. If no constants buffer is provided, a default
+     * system constants buffer is used containing constants as defined in the compute program.
+     *
+     * @name render.dispatch
+     * @param x [type:number] global work group size X
+     * @param y [type:number] global work group size Y
+     * @param z [type:number] global work group size Z
+     * @param [options] [type:table] optional table with properties:
+     *
+     * `constants`
+     * : [type:constant_buffer] optional constants to use while rendering
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     local color_params = { format = render.FORMAT_RGBA,
+     *                            width = render.get_window_width(),
+     *                            height = render.get_window_height()}
+     *     self.scene_rt = render.render_target({[render.BUFFER_COLOR_BIT] = color_params})
+     * end
+     *
+     * function update(self, dt)
+     *     render.set_compute_program("bloom")
+     *     render.enable_texture(0, self.backing_texture)
+     *     render.enable_texture(1, self.scene_rt)
+     *     render.dispatch(128, 128, 1)
+     *     render.set_compute_program()
+     * end
+     * ```
+     *
+     * Dispatch a compute program with a constant buffer:
+     *
+     * ```lua
+     * local constants = render.constant_buffer()
+     * constants.tint = vmath.vector4(1, 1, 1, 1)
+     * render.dispatch(32, 32, 32, {constants = constants})
+     * ```
+     */
     static int RenderScript_Dispatch(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
