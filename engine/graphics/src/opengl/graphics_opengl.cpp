@@ -40,8 +40,8 @@
 #include "graphics_opengl_private.h"
 
 #if defined(DM_PLATFORM_MACOS)
-// Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
-#include <Carbon/Carbon.h>
+    // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
+    #include <Carbon/Carbon.h>
 #endif
 
 /* Include standard OpenGL headers: GLFW uses GL_FALSE/GL_TRUE, and it is
@@ -52,6 +52,7 @@
  */
 #if defined(__APPLE_CC__)
     #if defined(DM_PLATFORM_IOS)
+        #include <platform/platform_window_ios.h>
         #include <OpenGLES/ES3/gl.h>
     #else
         #include <OpenGL/gl3.h>
@@ -60,6 +61,7 @@
         #endif
     #endif
 #elif defined(ANDROID)
+    #include <platform/platform_window_android.h>
     #include <EGL/egl.h>
     #include <GLES/gl.h>
 #else

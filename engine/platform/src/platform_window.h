@@ -194,11 +194,6 @@ namespace dmPlatform
     void*          AcquireAuxContext(HWindow window);
     void           UnacquireAuxContext(HWindow window, void* aux_context);
 
-    // Platform specifics
-    int32_t        AndroidVerifySurface(HWindow window);
-    void           AndroidBeginFrame(HWindow window);
-    void           iOSSetViewTypeOpenGL(HWindow window);
-
     void*          AcquireAuxContext(HWindow window);
     void           UnacquireAuxContext(HWindow window, void* aux_context);
 

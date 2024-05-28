@@ -641,29 +641,6 @@ namespace dmPlatform
         return glfwGetDefaultFramebuffer();
     }
 
-    int32_t AndroidVerifySurface(HWindow window)
-    {
-    #if defined(ANDROID)
-        return glfwAndroidVerifySurface();
-    #else
-        return 0;
-    #endif
-    }
-
-    void AndroidBeginFrame(HWindow window)
-    {
-    #if defined(ANDROID)
-        glfwAndroidBeginFrame();
-    #endif
-    }
-
-    void iOSSetViewTypeOpenGL(HWindow window)
-    {
-    #if defined(DM_PLATFORM_IOS)
-        glfwSetViewType(GLFW_OPENGL_API);
-    #endif
-    }
-
     const int PLATFORM_JOYSTICK_LAST       = GLFW_JOYSTICK_LAST;
     const int PLATFORM_KEY_ESC             = GLFW_KEY_ESC;
     const int PLATFORM_KEY_F1              = GLFW_KEY_F1;
