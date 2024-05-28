@@ -176,6 +176,7 @@ namespace dmPlatform
         return 0;
     }
 
+    const int PLATFORM_KEY_START           = 0;
     const int PLATFORM_JOYSTICK_LAST       = 0;
     const int PLATFORM_KEY_ESC             = 1;
     const int PLATFORM_KEY_F1              = 2;

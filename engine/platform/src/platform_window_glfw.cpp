@@ -641,6 +641,7 @@ namespace dmPlatform
         return glfwGetDefaultFramebuffer();
     }
 
+    const int PLATFORM_KEY_START           = 0;
     const int PLATFORM_JOYSTICK_LAST       = GLFW_JOYSTICK_LAST;
     const int PLATFORM_KEY_ESC             = GLFW_KEY_ESC;
     const int PLATFORM_KEY_F1              = GLFW_KEY_F1;
@@ -699,6 +700,7 @@ namespace dmPlatform
     const int PLATFORM_KEY_RSUPER          = GLFW_KEY_RSUPER;
     const int PLATFORM_KEY_MENU            = GLFW_KEY_MENU;
     const int PLATFORM_KEY_BACK            = GLFW_KEY_BACK;
+
     const int PLATFORM_MOUSE_BUTTON_LEFT   = GLFW_MOUSE_BUTTON_LEFT;
     const int PLATFORM_MOUSE_BUTTON_MIDDLE = GLFW_MOUSE_BUTTON_MIDDLE;
     const int PLATFORM_MOUSE_BUTTON_RIGHT  = GLFW_MOUSE_BUTTON_RIGHT;
