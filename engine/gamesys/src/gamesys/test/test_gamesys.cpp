@@ -66,6 +66,13 @@ namespace dmGameSystem
     void DumpResourceRefs(dmGameObject::HCollection collection);
 }
 
+#define EPSILON 0.0001f
+#define ASSERT_VEC4(exp, act)\
+    ASSERT_NEAR(exp.getX(), act.getX(), EPSILON);\
+    ASSERT_NEAR(exp.getY(), act.getY(), EPSILON);\
+    ASSERT_NEAR(exp.getZ(), act.getZ(), EPSILON);\
+    ASSERT_NEAR(exp.getW(), act.getW(), EPSILON);
+
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
 
@@ -2700,8 +2707,6 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     const uint32_t vertex_stride_a = sizeof(vs_format_a);
     const uint32_t vertex_stride_b = sizeof(vs_format_b);
 
-    const float EPSILON = 0.0001;
-
     #define SET_VTX_A(vtx, x,y,z, pi) \
         vtx.position[0] = x; \
         vtx.position[1] = y; \
@@ -4546,7 +4551,6 @@ TEST_F(MaterialTest, CustomVertexAttributes)
 
     const uint8_t* value_ptr;
     uint32_t num_values;
-    const float EPSILON = 0.0001;
 
     // Test position values
     {
@@ -4663,7 +4667,6 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
     ASSERT_NE((void*)0, material);
 
     const uint32_t INITIAL_SIZE = 4;
-    const float EPSILON = 0.0001;
 
     DynamicVertexAttributesContext ctx;
     ctx.m_Attributes.SetCapacity(INITIAL_SIZE);
@@ -5158,7 +5161,7 @@ TEST_F(ShaderTest, ComputeResource)
     dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
 
     dmGameSystem::ComputeProgramResource* compute_program_res;
-    dmResource::Result res = dmResource::Get(m_Factory, "/shader/valid.compute_programc", (void**) &compute_program_res);
+    dmResource::Result res = dmResource::Get(m_Factory, "/shader/inputs.compute_programc", (void**) &compute_program_res);
 
     ASSERT_EQ(dmResource::RESULT_OK, res);
     ASSERT_NE((dmGameSystem::ComputeProgramResource*) 0, compute_program_res);
@@ -5169,22 +5172,66 @@ TEST_F(ShaderTest, ComputeResource)
     ASSERT_NE((dmGraphics::HComputeProgram) 0, graphics_compute_shader);
 
     dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program);
-    ASSERT_EQ(2, dmGraphics::GetUniformCount(graphics_compute_program));
+    ASSERT_EQ(7, dmGraphics::GetUniformCount(graphics_compute_program));
 
     char buffer[128] = {};
     dmGraphics::Type type;
     int32_t size;
-    dmGraphics::GetUniformName(graphics_compute_program, 0, buffer, 128, &type, &size);
 
-    ASSERT_STREQ("color", buffer);
-    ASSERT_EQ(0, dmGraphics::GetUniformLocation(graphics_compute_program, "color"));
+    dmRender::HConstant ca, cb, cc, cd;
+    ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_a"), ca));
+    ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_b"), cb));
+    ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_c"), cc));
+    ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_d"), cd));
 
-    dmGraphics::GetUniformName(graphics_compute_program, 1, buffer, 128, &type, &size);
+    uint32_t vca,vcb,vcc,vcd;
+    dmVMath::Vector4* va = dmRender::GetConstantValues(ca, &vca);
 
-    ASSERT_STREQ("texture_out", buffer);
-    ASSERT_EQ(1, dmGraphics::GetUniformLocation(graphics_compute_program, "texture_out"));
+    dmVMath::Vector4 exp_a(1,2,3,4);
+    ASSERT_VEC4(exp_a, (*va));
+
+    dmVMath::Vector4* vb = dmRender::GetConstantValues(cb, &vcb);
+    dmVMath::Vector4 exp_b(11,21,31,41);
+    ASSERT_VEC4(exp_b, (*vb));
+
+    dmVMath::Vector4* vc = dmRender::GetConstantValues(cc, &vcc);
+    dmVMath::Vector4 exp_m_c[] = {
+        dmVMath::Vector4(1, 2,  3, 4),
+        dmVMath::Vector4(5, 6,  7, 8),
+        dmVMath::Vector4(9, 10,11,12),
+        dmVMath::Vector4(13,14,15,16),
+    };
+    ASSERT_VEC4(exp_m_c[0], vc[0]);
+    ASSERT_VEC4(exp_m_c[1], vc[1]);
+    ASSERT_VEC4(exp_m_c[2], vc[2]);
+    ASSERT_VEC4(exp_m_c[3], vc[3]);
+
+    dmVMath::Vector4* vd = dmRender::GetConstantValues(cd, &vcd);
+    dmVMath::Vector4 exp_m_d[] = {
+        dmVMath::Vector4(11,  12,  13, 14),
+        dmVMath::Vector4(15,  16,  17, 18),
+        dmVMath::Vector4(19, 110, 111,112),
+        dmVMath::Vector4(113,114, 115,116),
+    };
+    ASSERT_VEC4(exp_m_d[0], vd[0]);
+    ASSERT_VEC4(exp_m_d[1], vd[1]);
+    ASSERT_VEC4(exp_m_d[2], vd[2]);
+    ASSERT_VEC4(exp_m_d[3], vd[3]);
+
+    dmGraphics::HUniformLocation la = dmRender::GetComputeProgramSamplerUnit(compute_program, dmHashString64("texture_a"));
+    dmGraphics::HUniformLocation lb = dmRender::GetComputeProgramSamplerUnit(compute_program, dmHashString64("texture_b"));
+    dmGraphics::HUniformLocation lc = dmRender::GetComputeProgramSamplerUnit(compute_program, dmHashString64("texture_c"));
+
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, la);
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, lb);
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, lc);
 
     dmResource::Release(m_Factory, (void*) compute_program_res);
+}
+
+TEST_F(ShaderTest, ComputeProgram)
+{
+    dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
 }
 #endif
 
