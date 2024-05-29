@@ -1510,9 +1510,70 @@ def remove_flag(arr, flag, nargs):
         index = arr.index(flag)
         remove_flag_at_index(arr, index, nargs+1)
 
+def setup_csharp(conf):
+    platform = getattr(Options.options, 'platform', None)
+
+    if platform in ('x86_64-macos','arm64-macos'):
+        nuget_path = os.path.expanduser('~/.nuget/packages') # %userprofile%/.nuget/packages
+        dotnet_os ='osx'
+        dotnet_arch ='arm64'
+        dotnet_version ='8.0.0'
+        if 'x86_64' in platform:
+            dotnet_arch = 'x64'
+
+    aot_base = f"{nuget_path}/runtime.{dotnet_os}-{dotnet_arch}.microsoft.dotnet.ilcompiler/{dotnet_version}"
+
+    if platform in ('x86_64-macos','arm64-macos'):
+        # Since there are dynamic libraries with the same name, ld will choose them by default.
+        # only way to override that behavior is to explicitly specify the paths to the static libraries
+        conf.env['LINKFLAGS_CSHARP'] = [
+            f'{aot_base}/sdk/libbootstrapperdll.o',
+            f'{aot_base}/sdk/libRuntime.WorkstationGC.a',
+            f'{aot_base}/sdk/libeventpipe-enabled.a',
+            f'{aot_base}/framework/libSystem.Native.a',
+            f'{aot_base}/framework/libSystem.IO.Compression.Native.a',
+            f'{aot_base}/framework/libSystem.Globalization.Native.a']
+
+# For properties, see https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-publish
+Task.task_factory('csproj', '${DOTNET} publish -c ${MODE} -o ${BUILD_DIR} --artifacts-path ${ARTIFACTS_PATH} -r ${RUNTIME} ${VERBOSE} -p:AssemblyName=${ASSEMBLY_NAME} -p:PublishAot=true -p:NativeLib=Static -p:PublishTrimmed=true -p:IlcDehydrate=false ${SRC}',
+                      color='BROWN',
+                      after='cxxstlib')
+
+@feature('cs_stlib')
+@after('process_source')
+def compile_csharp_lib(self):
+    project = self.path.find_resource(self.project)
+    if not project:
+        self.bld.fatal("Couldn't find project '%s'" % self.project)
+
+    arch = 'osx-arm64'
+    libname = self.env.cstlib_PATTERN % self.target
+    libname_no_suffix = os.path.splitext(libname)[0]
+
+    tsk = self.create_task('csproj')
+    tsk.inputs.append(project)
+
+    # build/cs/osx-arm64/publish/libdlib_cs.a
+    build_dir = self.path.get_bld().make_node(f'cs')
+    target = build_dir.make_node(f'{libname}')
+    tsk.outputs.append(target)
+
+    tsk.env['RUNTIME'] = arch
+    tsk.env['MODE'] = 'Release' # Debug
+    tsk.env['BUILD_DIR'] = build_dir.abspath()
+    tsk.env['ARTIFACTS_PATH'] = build_dir.abspath()
+
+    tsk.env['ASSEMBLY_NAME'] = libname_no_suffix
+
+    lib_path = os.path.join(self.env["PREFIX"], 'lib', self.env['PLATFORM'])
+    inst_to=getattr(self,'install_path', lib_path)
+    if inst_to:
+        install_task = self.add_install_files(install_to=inst_to, install_from=tsk.outputs)
+
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
+    conf.find_program('dotnet', var='DOTNET', mandatory = True)
 
     if Options.options.with_iwyu:
         conf.find_program('include-what-you-use', var='IWYU', mandatory = False)
@@ -1847,10 +1908,13 @@ def detect(conf):
 
     conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
+    setup_csharp(conf)
+
     if platform in ('x86_64-macos','arm64-macos'):
         conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
+
     elif platform in ('arm64-ios','x86_64-ios'):
         conf.env['STLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface']

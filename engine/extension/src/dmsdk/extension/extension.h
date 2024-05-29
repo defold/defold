@@ -191,7 +191,7 @@ const size_t ExtensionDescBufferSize = 128;
  * @name ExtensionRegister
  * @param desc
  * @param desc_size [type:const char*] size of buffer holding desc. in bytes
- * @param name [type:const char*] extension name. human readble
+ * @param name [type:const char*] extension name. human readble. max 16 characters long.
  * @param app_initialize [type:FExtensionAppInitialize] app-init function. May be null
  * @param app_finalize [type:FExtensionAppFinalize] app-final function. May be null
  * @param initialize [type:FExtensionInitialize] init function. May not be 0

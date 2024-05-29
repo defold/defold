@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/static_assert.h>
 #include <dmsdk/extension/extension_gen.hpp>
@@ -25,7 +26,7 @@ extern "C" {
 typedef struct ExtensionDesc
 {
     const struct ExtensionDesc* m_Next;
-    const char*                 m_Name;
+    char                        m_Name[16];
     FExtensionAppInitialize     m_AppInitialize;
     FExtensionAppFinalize       m_AppFinalize;
     FExtensionInitialize        m_Initialize;
@@ -55,7 +56,7 @@ void ExtensionRegister(void* _desc,
 
     ExtensionDesc* desc = (ExtensionDesc*)_desc;
     memset(desc, 0, sizeof(ExtensionDesc));
-    desc->m_Name = name;
+    dmStrlCpy(desc->m_Name, name, sizeof(desc->m_Name));
     desc->m_AppInitialize = app_init;
     desc->m_AppFinalize = app_finalize;
     desc->m_Initialize = initialize;

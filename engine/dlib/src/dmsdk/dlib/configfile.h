@@ -18,6 +18,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 /*# SDK ConfigFile API documentation
  *
  * Configuration file access functions.
@@ -231,5 +235,9 @@ void ConfigFileRegisterExtension(void* desc,
 #define DM_DECLARE_CONFIGFILE_EXTENSION(symbol, name, create, destroy, get_string, get_int, get_float) \
     uint8_t DM_ALIGNED(16) DM_DMCF_PASTE_SYMREG2(symbol, __LINE__)[ConfigFileExtensionDescBufferSize]; \
     DM_REGISTER_CONFIGFILE_EXTENSION(symbol, DM_DMCF_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_DMCF_PASTE_SYMREG2(symbol, __LINE__)), name, create, destroy, get_string, get_int, get_float);
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 #endif // DMSDK_CONFIGFILE_H

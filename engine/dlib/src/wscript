@@ -320,6 +320,12 @@ def build(bld):
         srcdir='java_test',
         outdir='java_test')
 
+    # C#
+    bld.stlib(features= 'cs_stlib',
+              project = 'cs/dlib.csproj',
+              target  = 'dlib_cs')
+
+    # ************************************************************************
     if not Options.options.skip_build_tests:
         bld.recurse('test')
 
