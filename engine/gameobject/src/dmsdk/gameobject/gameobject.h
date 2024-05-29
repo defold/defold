@@ -86,6 +86,34 @@ namespace dmGameObject
      */
     typedef struct CollectionHandle* HCollection;
 
+    /*#
+     * Handle to a list of properties (gameobject_props.h)
+     * @typedef
+     * @name HPropertyContainer
+     */
+    typedef struct PropertyContainer* HPropertyContainer;
+
+    /*#
+     * Opaque handle to component instance
+     * @typedef
+     * @name HComponent
+     */
+    typedef void* HComponent;
+
+    /*#
+     * Opaque handle to internal representation of a component instance
+     * @typedef
+     * @name HComponentInternal
+     */
+    typedef uintptr_t HComponentInternal;
+
+    /*#
+     * Opaque handle to a component world
+     * @typedef
+     * @name HComponentWorld
+     */
+    typedef void* HComponentWorld;
+
     typedef void* HCollectionDesc;
 
     /*#
@@ -284,6 +312,8 @@ namespace dmGameObject
         };
 
         uint8_t m_HasKey : 1;
+
+        PropertyOptions();
     };
 
     /*# property variant
@@ -473,6 +503,22 @@ namespace dmGameObject
      */
     dmMessage::HSocket GetMessageSocket(HCollection collection);
 
+    /*# spawn a new game object
+     * Spawns a new gameobject instance. The actual creation is performed after the update is completed.
+     * @name Spawn
+     * @param collection [type: HCollection] Gameobject collection
+     * @param prototype [type: HPrototype] Prototype
+     * @param prototype_name [type: const char*] Prototype file name (.goc)
+     * @param id [type: dmhash_t] Id of the spawned instance
+     * @param properties [type: HPropertyContainer] Container with override properties
+     * @param position [type: dmVMath::Vector3] Position of the spawed object
+     * @param rotation [type: dmVMath::Quat] Rotation of the spawned object
+     * @param scale [type: dmVMath::Vector3] Scale of the spawned object
+     * return instance [type: HInstance] the spawned instance, 0 at failure
+     */
+    HInstance Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id,
+                      HPropertyContainer properties, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale);
+
     /*#
      * Retrieve a collection from the specified instance
      * @name GetCollection
@@ -555,10 +601,21 @@ namespace dmGameObject
      * @name GetComponentId
      * @param instance [type: dmGameObject::HInstance] Instance
      * @param component_index [type: uint16_t] Component index
-     * @param component_id [type: dmhash_t* Component id as out-argument
+     * @param component_id [type: dmhash_t*] Component id as out-argument
      * @return result [type: dmGameObject::Result] RESULT_OK if the component was found
      */
     Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
+
+    /*#
+     * Get the component, component type and its world
+     * @param instance [type: dmGameObject::HInstance] Instance
+     * @param component_id [type: dmhash_t] Component id
+     * @param component_type [type: uint32_t*] (out) Component type. Used for validation.
+     * @param component [type: HComponent*] (out) The component.
+     * @param world [type: HComponentWorld*] (out) The component world. May be 0.
+     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found
+     */
+    Result GetComponent(HInstance instance, dmhash_t component_id, uint32_t* component_type, HComponent* component, HComponentWorld* out_world);
 
     /*# set position
      * Set gameobject instance position
@@ -727,6 +784,31 @@ namespace dmGameObject
      * @return parent [type: dmGameObject::HInstance] Parent instance. NULL if passed instance is root
      */
     HInstance GetParent(HInstance instance);
+
+    /*#
+     * Get the component type index
+     * @name GetComponentTypeIndex
+     * @param collection Collection handle
+     * @param type_hash [type:dhmash_t] The hashed name of the registered component type (e.g. dmHashString("guic"))
+     * @return type_index [type:uint32_t] The component type index. 0xFFFFFFFF if not found
+     */
+    uint32_t GetComponentTypeIndex(HCollection collection, dmhash_t type_hash);
+
+    /*#
+     * Retrieve the world in the collection connected to the supplied component
+     * @param collection Collection handle
+     * @param component_type_index index of the component type
+     * @return world [type:void*] The pointer to the world, 0x0 if not found
+     */
+    HComponentWorld GetWorld(HCollection collection, uint32_t component_type_index);
+
+    /*#
+     * Retrieve the context for a component type
+     * @param collection Collection handle
+     * @param component_type_index index of the component type
+     * @return context [type:void*] The pointer to the context, 0x0 if not found
+     */
+    void* GetContext(HCollection collection, uint32_t component_type_index);
 
 
     // These functions are used for profiling functionality
@@ -976,4 +1058,3 @@ namespace dmGameObject
 }
 
 #endif // DMSDK_GAMEOBJECT_H
-

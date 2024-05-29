@@ -31,6 +31,8 @@
     #include <emscripten/html5.h>
 #endif
 
+#include <platform/platform_window_opengl.h>
+
 #include "graphics_opengl_defines.h"
 #include "../graphics_private.h"
 #include "../graphics_native.h"
@@ -38,12 +40,36 @@
 #include "graphics_opengl_private.h"
 
 #if defined(DM_PLATFORM_MACOS)
-// Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
-#include <Carbon/Carbon.h>
+    // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
+    #include <Carbon/Carbon.h>
 #endif
 
-#include <glfw/glfw.h>
-#include  <glfw/glfw_native.h>
+/* Include standard OpenGL headers: GLFW uses GL_FALSE/GL_TRUE, and it is
+ * convenient for the user to only have to include <GL/glfw.h>. This also
+ * solves the problem with Windows <GL/gl.h> and <GL/glu.h> needing some
+ * special defines which normally requires the user to include <windows.h>
+ * (which is not a nice solution for portable programs).
+ */
+#if defined(__APPLE_CC__)
+    #if defined(DM_PLATFORM_IOS)
+        #include <platform/platform_window_ios.h>
+        #include <OpenGLES/ES3/gl.h>
+    #else
+        #include <OpenGL/gl3.h>
+        #ifndef GLFW_NO_GLU
+            #include <OpenGL/glu.h>
+        #endif
+    #endif
+#elif defined(ANDROID)
+    #include <platform/platform_window_android.h>
+    #include <EGL/egl.h>
+    #include <GLES/gl.h>
+#else
+    #include <GL/gl.h>
+    #ifndef GLFW_NO_GLU
+        #include <GL/glu.h>
+    #endif
+#endif
 
 #if defined(__linux__) && !defined(ANDROID)
     #include <GL/glext.h>
@@ -192,28 +218,30 @@ namespace dmGraphics
 {
     using namespace dmVMath;
 
-static void LogGLError(GLint err, const char* fnname, int line)
-{
-#if defined(GL_ES_VERSION_2_0)
-    const char* error_str = "<unknown-gl-error>";
-    switch(err)
+    #define TO_STR_CASE(x) case x: return #x;
+    static const char* GetGLErrorLiteral(GLint err)
     {
-        case GL_INVALID_ENUM:
-            error_str = "GL_INVALID_ENUM";
-            break;
-        case GL_INVALID_VALUE:
-            error_str = "GL_INVALID_VALUE";
-            break;
-        case GL_INVALID_OPERATION:
-            error_str = "GL_INVALID_OPERATION";
-            break;
-        default:break;
+        switch(err)
+        {
+            TO_STR_CASE(GL_NO_ERROR);
+            TO_STR_CASE(GL_INVALID_ENUM);
+            TO_STR_CASE(GL_INVALID_VALUE);
+            TO_STR_CASE(GL_INVALID_OPERATION);
+            TO_STR_CASE(GL_INVALID_FRAMEBUFFER_OPERATION);
+            TO_STR_CASE(GL_OUT_OF_MEMORY);
+            // These are not available by the gl headers we are using currently
+            // but left for posterity
+            // TO_STR_CASE(GL_STACK_UNDERFLOW);
+            // TO_STR_CASE(GL_STACK_OVERFLOW);
+        }
+        return "<unknown-gl-error>";
     }
-    dmLogError("%s(%d): gl error %d: %s\n", fnname, line, err, error_str);
-#else
-    dmLogError("%s(%d): gl error %d: %s\n", fnname, line, err, gluErrorString(err));
-#endif
-}
+    #undef TO_STR_CASE
+
+    static inline void LogGLError(GLint err, const char* fnname, int line)
+    {
+        dmLogError("%s(%d): gl error %d: %s\n", fnname, line, err, GetGLErrorLiteral(err));
+    }
 
 // We use defines here so that we get a callstack from the correct function
 
@@ -245,7 +273,7 @@ static void LogGLError(GLint err, const char* fnname, int line)
                 LogGLError(err, __FUNCTION__, __LINE__); \
                 if (err == GL_OUT_OF_MEMORY) { \
                     dmLogWarning("Signs of surface being destroyed. skipping assert.");\
-                    if (glfwAndroidVerifySurface()) { \
+                    if (dmPlatform::AndroidVerifySurface(g_Context->m_Window)) { \
                         assert(0); \
                     } \
                 } else { \
@@ -352,7 +380,8 @@ static void LogFrameBufferError(GLenum status)
     {
         ChooseEAGLView() {
             // Let's us choose the CAEAGLLayer
-            glfwSetViewType(GLFW_OPENGL_API);
+            // Note: We don't need a valid window here (and we don't have access to one)
+            dmPlatform::iOSSetViewTypeOpenGL((dmPlatform::HWindow) 0);
         }
     } g_ChooseEAGLView;
     #endif
@@ -604,7 +633,7 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLIsSupported()
     {
-        return (glfwInit() == GL_TRUE);
+        return true;
     }
 
     static void OpenGLFinalize()
@@ -671,6 +700,8 @@ static void LogFrameBufferError(GLenum status)
 
     static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext context)
     {
+        dmPlatform::HWindow window = GetWindow(context);
+
         /*
             Check in order
             1) ARB - Extensions officially approved by the OpenGL Architecture Review Board
@@ -690,11 +721,16 @@ static void LogFrameBufferError(GLenum status)
                 // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
                 size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
                 dmStrlCpy(proc_str + l, extension_name, 256-l);
+
                 if(!OpenGLIsExtensionSupported(context, proc_str))
+                {
                     continue;
+                }
+
                 l = dmStrlCpy(proc_str, name, 255);
                 dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
-                func = (uintptr_t) glfwGetProcAddress(proc_str);
+                func = dmPlatform::GetProcAddress(window, proc_str);
+
                 if(func != 0x0)
                 {
                     break;
@@ -705,7 +741,7 @@ static void LogFrameBufferError(GLenum status)
         if(func == 0 && core_name)
         {
             // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
-            func = (uintptr_t) glfwGetProcAddress(core_name);
+            func = dmPlatform::GetProcAddress(window, core_name);
         }
     #endif
 
@@ -770,7 +806,7 @@ static void LogFrameBufferError(GLenum status)
 
             glBindTexture(GL_TEXTURE_2D, 0);
             CHECK_GL_ERROR;
-            glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
+            glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
             CHECK_GL_ERROR;
             glDeleteFramebuffers(1, &osfb);
             DeleteTexture(texture_handle);
@@ -981,6 +1017,8 @@ static void LogFrameBufferError(GLenum status)
 #if !(defined(__EMSCRIPTEN__) || defined(GL_ES_VERSION_2_0))
         GLint n;
         glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+        CHECK_GL_ERROR;
+
         if (n > 0)
         {
             int max_len = 0;
@@ -1443,7 +1481,7 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLBeginFrame(HContext context)
     {
 #if defined(ANDROID)
-        glfwAndroidBeginFrame();
+        dmPlatform::AndroidBeginFrame(((OpenGLContext*) context)->m_Window);
 #endif
     }
 
@@ -1451,7 +1489,7 @@ static void LogFrameBufferError(GLenum status)
     {
         DM_PROFILE(__FUNCTION__);
         PostDeleteTextures((OpenGLContext*) context, false);
-        glfwSwapBuffers();
+        dmPlatform::SwapBuffers(((OpenGLContext*) context)->m_Window);
         CHECK_GL_ERROR;
     }
 
@@ -2629,7 +2667,7 @@ static void LogFrameBufferError(GLenum status)
         }
 
         CHECK_GL_FRAMEBUFFER_ERROR;
-        glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
+        glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
         CHECK_GL_ERROR;
 
         return StoreAssetInContainer(context->m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
@@ -2712,7 +2750,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_FrameBufferInvalidateAttachments = rt != NULL;
 #endif
         }
-        glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? glfwGetDefaultFramebuffer() : rt->m_Id);
+        glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? dmPlatform::OpenGLGetDefaultFramebufferId() : rt->m_Id);
         CHECK_GL_ERROR;
 
     #if __EMSCRIPTEN__

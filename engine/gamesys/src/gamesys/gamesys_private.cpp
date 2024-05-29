@@ -32,7 +32,7 @@ namespace dmGameSystem
 
         int n = vsnprintf(buf, sizeof(buf), format, lst);
 
-        if (n < (int) sizeof(buf))
+        if (message != 0 && (n < (int) sizeof(buf)))
         {
             const char* id_str = dmHashReverseSafe64(message->m_Id);
 

@@ -12,8 +12,8 @@ height = 640
 input_method = HiddenInputField
 
 [project]
-title = transpilers_project
-dependencies#0 = https://github.com/defold/extension-teal/archive/main.zip
+title = transpile_teal_project
+dependencies#0 = {{defold.extension.teal.url}}
 
 [input]
 game_binding = /builtins/input/all.input_bindingc

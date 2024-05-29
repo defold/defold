@@ -274,6 +274,20 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
+        {
+            dmExtension::Params params;
+            params.m_ConfigFile = engine->m_Config;
+            params.m_ResourceFactory = engine->m_Factory;
+            if (engine->m_SharedScriptContext) {
+                params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+            } else {
+                params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+            }
+            dmExtension::Event event;
+            event.m_Event = dmExtension::EVENT_ID_ENGINE_DELETE;
+            dmExtension::DispatchEvent( &params, &event );
+        }
+
         if (engine->m_MainCollection)
             dmResource::Release(engine->m_Factory, engine->m_MainCollection);
         dmGameObject::PostUpdate(engine->m_Register);
@@ -1403,6 +1417,20 @@ namespace dmEngine
         if (engine->m_EngineService)
         {
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
+        }
+
+        {
+            dmExtension::Params params;
+            params.m_ConfigFile = engine->m_Config;
+            params.m_ResourceFactory = engine->m_Factory;
+            if (engine->m_SharedScriptContext) {
+                params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+            } else {
+                params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+            }
+            dmExtension::Event event;
+            event.m_Event = dmExtension::EVENT_ID_ENGINE_INITIALIZED;
+            dmExtension::DispatchEvent( &params, &event );
         }
 
         engine->m_PreviousFrameTime = dmTime::GetTime();

@@ -20,6 +20,8 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <gameobject/gameobject_props_lua.h>
+
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gamesys/script.h>
 #include <dmsdk/gameobject/script.h>
@@ -332,17 +334,9 @@ namespace dmGameSystem
                     dmhash_t instance_id = dmScript::CheckHash(L, -2);
                     uint32_t left = buffer_size - buffer_pos;
 
-                    uint32_t size = dmScript::CheckTable(L, (char*)(buffer + buffer_pos), left, -1);
-                    if (size > left)
-                        return luaL_error(L, "the properties supplied to collectionfactory.create are too many.");
+                    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
 
-                    dmGameObject::InstancePropertyBuffer buf;
-                    buf.property_buffer = buffer + buffer_pos;
-                    buf.property_buffer_size = size;
-                    buffer_pos = DM_ALIGN(buffer_pos + size, 16);
-                    assert((buffer_pos&15)==0); // Making sure the start of the buffer is always aligned
-
-                    prop_bufs.Put(instance_id, buf);
+                    prop_bufs.Put(instance_id, properties);
                     lua_pop(L, 1);
                 }
                 lua_pop(L, 1);
