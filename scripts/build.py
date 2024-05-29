@@ -561,10 +561,13 @@ class Configuration(object):
         if target_platform in ('js-web', 'wasm-web'): # smoe platforms are not yet supported using this sdk_info mechanic
             return
 
-        if not self.sdk_info:
-            print("Couldn't find any sdks for platform", target_platform)
-            print("We recommend you follow the setup guide found here: %s" % "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
-            sys.exit(1)
+        # We currently only support a subset of platforms using this mechanic
+        if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
+            # TODO: Make sure this check works for all platforms
+            if not self.sdk_info:
+                print("Couldn't find any sdks for platform", target_platform)
+                print("We recommend you follow the setup guide found here: %s" % "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
+                sys.exit(1)
 
         if self.verbose:
             print("SDK info:")
