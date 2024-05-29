@@ -54,6 +54,7 @@ gcm_sender_id = com.defold.save-data-project
 fcm_application_id = com.defold.save-data-project
 manifest = /builtins/manifests/android/AndroidManifest.xml
 proguard = /builtins/manifests/android/dmengine.pro
+extract_native_libs = 1
 
 [project]
 title = Save Data Project
