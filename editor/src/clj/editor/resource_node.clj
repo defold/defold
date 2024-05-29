@@ -207,7 +207,9 @@
             (distinct))
           ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
 
-(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
+(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label built-pb-class] :as args}]
+  {:pre [(protobuf/pb-class? ddf-type)
+         (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))]}
   (let [read-raw-fn (partial protobuf/read-text ddf-type)
         read-fn (cond->> read-raw-fn
                          (some? sanitize-fn) (comp sanitize-fn))
@@ -222,7 +224,8 @@
                :read-fn read-fn
                :write-fn (partial protobuf/map->str ddf-type)
                :test-info {:type :ddf
-                           :ddf-type ddf-type})]
+                           :ddf-type ddf-type
+                           :built-pb-class (or built-pb-class ddf-type)})]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
 (defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn meta-settings icon view-types tags tag-opts label] :as args}]

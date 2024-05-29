@@ -6,15 +6,27 @@ Defold uses the Python based build system [Waf](https://waf.io/). Most of the in
 
 Make sure you have followed the [setup guide](/README_SETUP.md) before attempting to build the engine. If you do not install all of the required software from the setup guide your attempts to build the engine will likely fail.
 
-## IMPORTANT PREREQUISITE - PACKAGE SDKs!
+## IMPORTANT PREREQUISITE - PLATFORM SDKs!
 
-### Local SDKs
-If you're a contributor, chances are that you have the necessary sdk's and tools already installed (E.g. Windows: Visual Studio+Windows SDK, macOS: Xcode or Linux: clang++)
-If this is the case, then you won't have to run the `install_sdk` build command, and thus would have no requirement for any prepackaged sdks.
+### Using local installation
+
+Our build setup can find the installation the platform SDK's for these platforms
+
+* Windows - Visual Studio + clang++
+* macOS/iOS - XCode
+* Android - Android Studio
+* Linux - clang++
+* Consoles - The vendor specific sdks
+
+In the future, we want to support HTML5 as well, for easier setup for all platforms.
+
+If you have these tools installed, you can skip the `./scripts/build.py install_sdk` step altogether.
 
 Since support for locally installed SDK's is in progress, some platforms still _do_ require the `--install_sdk` step, and thus requires you to have the prepackaged sdk's available.
 
 ### Prepackaged SDKs
+
+This step is currently needed for HTML5.
 
 Due to licensing restrictions **the SDKs are not distributed with Defold**. You need to provide these from a URL accessible by your local machine so that `build.py` and the `install_ext` command can download and unpack them.
 
@@ -72,7 +84,7 @@ $ ./scripts/build.py install_ext --platform=...
 It is important that you provide the `--platform` option to let the `install_ext` command know which platform you intend to build for (the target platform). When the `install_ext` command has finished you will find the external packages and downloaded SDKs in `./tmp/dynamo_home/ext`.
 
 **IMPORTANT!**
-You need to rerun the `install_ext` command whenever you switch target platform, as different packages and SDKs are installed.
+You need to rerun the `install_ext` command for each target platform, as different packages and SDKs are installed.
 
 #### Installing packages
 The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages are things such as Bullet and Protocol Buffers (a.k.a. protobuf).
@@ -88,10 +100,9 @@ This step also installs some Python dependencies:
 
 ### Step 3 - Installing SDKs
 
-The `install_sdk`command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.
+NOTE: As mentioned above, you may skip this step if your host OS and target OS is in the supported list of platforms that can use the local (host) installations of sdks.
 
-For some platforms, it is not necessary to install the platform SDK.
-For Windows/macOS, it can automatically pick up your local install of Visual Studio and XCode.
+The `install_sdk`command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.
 
 If you wish to build for any other platform, you will need to install an sdk package where the build system can find it.
 
@@ -101,7 +112,11 @@ Next thing you need to do is to install external packages:
 $ ./scripts/build.py install_sdk --platform=... --package-path=...
 ```
 
-You could also set the package path in an environment variable `DM_PACKAGES_URL`.
+You could also set the package path in an environment variable `DM_PACKAGES_URL`:
+
+```sh
+$ DM_PACKAGES_URL=https://my.url ./scripts/build.py install_sdk --platform=...
+```
 
 ### STEP 4 - Build the engine
 

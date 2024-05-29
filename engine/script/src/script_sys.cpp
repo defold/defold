@@ -1201,12 +1201,12 @@ union SaveLoadBuffer
     * project root.
     *
     * @name sys.reboot
-    * @param arg1 [type:string] argument 1
-    * @param arg2 [type:string] argument 2
-    * @param arg3 [type:string] argument 3
-    * @param arg4 [type:string] argument 4
-    * @param arg5 [type:string] argument 5
-    * @param arg6 [type:string] argument 6
+    * @param [arg1] [type:string] argument 1
+    * @param [arg2] [type:string] argument 2
+    * @param [arg3] [type:string] argument 3
+    * @param [arg4] [type:string] argument 4
+    * @param [arg5] [type:string] argument 5
+    * @param [arg6] [type:string] argument 6
     * @examples
     *
     * How to reboot engine with a specific bootstrap collection.
