@@ -363,10 +363,10 @@ public class TextureSetLayout {
             int area = 0;
             for (Rect rect : rectangles) {
                 area += rect.getArea();
-                maxLengthScale = Math.max(maxLengthScale, rect.rect.width + margin);
-                maxLengthScale = Math.max(maxLengthScale, rect.rect.height + margin);
+                maxLengthScale = Math.max(maxLengthScale, rect.rect.width);
+                maxLengthScale = Math.max(maxLengthScale, rect.rect.height);
             }
-
+            maxLengthScale += margin * 2;
             // Ensure the longest length found in all of the images will fit within one page, irrespective of orientation.
             final int defaultMaxPageSize = 1 << getExponentNextOrMatchingPowerOfTwo(Math.max((int)Math.sqrt(area), maxLengthScale));
             MaxRectsLayoutStrategy.Settings settings = new MaxRectsLayoutStrategy.Settings();
