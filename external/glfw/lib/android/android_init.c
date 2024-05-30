@@ -384,7 +384,7 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
         int newPhase = phase;
 
         // If previous phase was TAPPED, we need to return early since we currently cannot buffer actions/phases.
-        if (prevPhase == GLFW_PHASE_TAPPED) {
+        if (prevPhase == GLFW_PHASE_TAPPED || prevPhase == GLFW_PHASE_CANCELLED) {
             return 0x0;
         }
 
@@ -408,7 +408,6 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
         // just update the coordinates but leave the phase as began.
         if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_MOVED) {
             return touch;
-
         // If a touch both began and ended during one frame/update, set the phase as
         // tapped and we will send the released event during next update (see input.c).
         } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
@@ -482,7 +481,7 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
                 }
                 break;
             case AMOTION_EVENT_ACTION_CANCEL:
-                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
+                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_CANCELLED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
                     updateGlfwMousePos(x,y);
                     _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
                 }
@@ -874,17 +873,9 @@ int32_t glfwAndroidHandleInput(struct android_app* app, AInputEvent* event)
     if ((g_NumAppInputEvents + all_event_count) >= g_MaxAppInputEvents)
     {
         uint32_t size_increase = APP_INPUT_EVENTS_SIZE_INCREASE_STEP * (uint32_t) ceil((float) all_event_count / (float) APP_INPUT_EVENTS_SIZE_INCREASE_STEP);
-        if (g_AppInputEvents == 0)
-        {
-            g_MaxAppInputEvents = size_increase;
-            g_AppInputEvents = malloc(sizeof(struct InputEvent) * g_MaxAppInputEvents);
-            memset(g_AppInputEvents, 0, sizeof(struct InputEvent) * g_MaxAppInputEvents);
-        }
-        else
-        {
-            g_MaxAppInputEvents += size_increase;
-            g_AppInputEvents = realloc(g_AppInputEvents, sizeof(struct InputEvent) * g_MaxAppInputEvents);
-        }
+        g_MaxAppInputEvents += size_increase;
+        g_AppInputEvents = realloc(g_AppInputEvents, sizeof(struct InputEvent) * g_MaxAppInputEvents);
+        memset(g_AppInputEvents + g_NumAppInputEvents, 0, sizeof(struct InputEvent) * size_increase);
     }
 
     // This will let the engine thread know (engine_main)
