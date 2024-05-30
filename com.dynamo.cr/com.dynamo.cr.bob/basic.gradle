@@ -1,0 +1,43 @@
+def buildToolsDir = file('../../build_tools')
+
+task getHostPlatform {
+    doLast {
+        def command = [
+                "python",
+                "-c",
+                "import sys; sys.path.append('" + buildToolsDir + "'); import sdk; print(sdk.get_host_platform())"
+        ]
+
+        try {
+            def process = new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .start()
+            def output = new StringBuffer()
+            process.inputStream.eachLine { line -> output.append(line).append('\n') }
+            process.waitFor()
+            def outputString = output.toString().trim()
+
+            if (process.exitValue() == 0) {
+                gradle.ext.hostPlatform = outputString
+                if (gradle.ext.hostPlatform) {
+                    println "Host Platform: ${gradle.ext.hostPlatform}"
+                } else {
+                    throw new GradleException("Failed to determine host platform: output is empty")
+                }
+            } else {
+                throw new GradleException("Failed to determine host platform: ${outputString}")
+            }
+        } catch (Exception e) {
+            println "Exception occurred: ${e.message}"
+            throw e
+        }
+    }
+}
+
+task getGitRevision {
+    doLast {
+        def gitRevision = "git log --pretty=%H -n1".execute().text.trim()
+        gradle.ext.gitRevision = gitRevision
+        println "Git Revision: ${gitRevision}"
+    }
+}
