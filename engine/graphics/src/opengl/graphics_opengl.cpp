@@ -1903,6 +1903,13 @@ static void LogFrameBufferError(GLenum status)
         delete program_ptr;
     }
 
+    static void OpenGLInvalidateProgramHandle(HContext context, HProgram program)
+    {
+        (void) context;
+        OpenGLProgram* program_ptr = (OpenGLProgram*) program;
+        program_ptr->m_Id = 0x0;
+    }
+
     // Tries to compile a shader (either a vertex or fragment) program.
     // We use this together with a temporary GLuint program to see if we it's
     // possible to compile a reloaded program.
@@ -2003,6 +2010,26 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLDeleteComputeProgram(HComputeProgram program)
     {
         OpenGLDeleteShader((OpenGLShader*) program);
+    }
+
+    static void InvalidateOpenGLShader(OpenGLShader* shader)
+    {
+        shader->m_Id = 0x0;
+    }
+
+    static void OpenGLInvalidateVertexProgram(HVertexProgram prog)
+    {
+        InvalidateOpenGLShader((OpenGLShader*) prog);
+    }
+
+    static void OpenGLInvalidateFragmentProgram(HFragmentProgram prog)
+    {
+        InvalidateOpenGLShader((OpenGLShader*) prog);
+    }
+
+    static void OpenGLInvalidateComputeProgram(HComputeProgram prog)
+    {
+        InvalidateOpenGLShader((OpenGLShader*) prog);
     }
 
     static ShaderDesc::Language OpenGLGetProgramLanguage(HProgram program)
@@ -2872,6 +2899,16 @@ static void LogFrameBufferError(GLenum status)
         else
         {
             OpenGLDeleteTextureAsync(texture);
+        }
+    }
+
+    static void OpenGLInvalidateTexture(HTexture texture)
+    {
+        assert(texture);
+        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
+        for (uint16_t idx = 0; idx < tex->m_NumTextureIds; ++idx)
+        {
+            tex->m_TextureIds[idx] = 0x0;
         }
     }
 
@@ -3818,6 +3855,16 @@ static void LogFrameBufferError(GLenum status)
             return GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
+    }
+
+    static void OpenGLInvalidateVertexBuffer(HVertexBufferRef buffer)
+    {
+        buffer = 0x0;
+    }
+
+    static void OpenGLInvalidateIndexBuffer(HIndexBufferRef buffer)
+    {
+        buffer = 0x0;
     }
 
     GLenum TEXTURE_UNIT_NAMES[32] =

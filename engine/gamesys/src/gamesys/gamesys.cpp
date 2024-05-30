@@ -85,8 +85,8 @@ namespace dmGameSystem
     {
         dmResource::Result e;
 
-#define REGISTER_RESOURCE_TYPE(extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func)\
-    e = dmResource::RegisterType(factory, extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func);\
+#define REGISTER_RESOURCE_TYPE(extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func, render_context_lost_func)\
+    e = dmResource::RegisterType(factory, extension, context, preload_func, create_func, post_create_func, destroy_func, recreate_func, render_context_lost_func);\
     if( e != dmResource::RESULT_OK )\
     {\
         dmLogFatal("Unable to register resource type: %s (%s)", extension, dmResource::ResultToString(e));\
@@ -95,43 +95,43 @@ namespace dmGameSystem
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
-        REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate);
-        REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, 0, ResCollisionObjectCreate, 0, ResCollisionObjectDestroy, ResCollisionObjectRecreate);
-        REGISTER_RESOURCE_TYPE("convexshapec", physics_context, 0, ResConvexShapeCreate, 0, ResConvexShapeDestroy, ResConvexShapeRecreate);
-        REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate);
-        REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate);
-        REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramPreload, ResVertexProgramCreate, 0, ResVertexProgramDestroy, ResVertexProgramRecreate);
-        REGISTER_RESOURCE_TYPE("fpc", graphics_context, ResFragmentProgramPreload, ResFragmentProgramCreate, 0, ResFragmentProgramDestroy, ResFragmentProgramRecreate);
-        REGISTER_RESOURCE_TYPE("fontc", render_context, ResFontMapPreload, ResFontMapCreate, 0, ResFontMapDestroy, ResFontMapRecreate);
-        REGISTER_RESOURCE_TYPE("bufferc", graphics_context, ResBufferPreload, ResBufferCreate, 0, ResBufferDestroy, ResBufferRecreate);
-        REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate);
-        REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate);
-        REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate);
-        REGISTER_RESOURCE_TYPE("compute_programc", render_context, ResComputeProgramPreload, ResComputeProgramCreate, 0, ResComputeProgramDestroy, ResComputeProgramRecreate);
-        REGISTER_RESOURCE_TYPE("cpc", graphics_context, ResComputeShaderPreload, ResComputeShaderCreate, 0, ResComputeShaderDestroy, ResComputeShaderRecreate);
+        REGISTER_RESOURCE_TYPE("collectionproxyc", 0, 0, ResCollectionProxyCreate, 0, ResCollectionProxyDestroy, ResCollectionProxyRecreate, 0);
+        REGISTER_RESOURCE_TYPE("collisionobjectc", physics_context, 0, ResCollisionObjectCreate, 0, ResCollisionObjectDestroy, ResCollisionObjectRecreate, 0);
+        REGISTER_RESOURCE_TYPE("convexshapec", physics_context, 0, ResConvexShapeCreate, 0, ResConvexShapeDestroy, ResConvexShapeRecreate, 0);
+        REGISTER_RESOURCE_TYPE("particlefxc", 0, ResParticleFXPreload, ResParticleFXCreate, 0, ResParticleFXDestroy, ResParticleFXRecreate, 0);
+        REGISTER_RESOURCE_TYPE("texturec", graphics_context, ResTexturePreload, ResTextureCreate, ResTexturePostCreate, ResTextureDestroy, ResTextureRecreate, ResTextureRenderContextLost);
+        REGISTER_RESOURCE_TYPE("vpc", graphics_context, ResVertexProgramPreload, ResVertexProgramCreate, 0, ResVertexProgramDestroy, ResVertexProgramRecreate, ResVertexProgramRenderContextLost);
+        REGISTER_RESOURCE_TYPE("fpc", graphics_context, ResFragmentProgramPreload, ResFragmentProgramCreate, 0, ResFragmentProgramDestroy, ResFragmentProgramRecreate, ResFragmentProgramRenderContextLost);
+        REGISTER_RESOURCE_TYPE("fontc", render_context, ResFontMapPreload, ResFontMapCreate, 0, ResFontMapDestroy, ResFontMapRecreate, ResFontMapRenderContextLost);
+        REGISTER_RESOURCE_TYPE("bufferc", graphics_context, ResBufferPreload, ResBufferCreate, 0, ResBufferDestroy, ResBufferRecreate, 0);
+        REGISTER_RESOURCE_TYPE("meshc", graphics_context, ResMeshPreload, ResMeshCreate, 0, ResMeshDestroy, ResMeshRecreate, ResMeshRenderContextLost);
+        REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate, ResModelRenderContextLost);
+        REGISTER_RESOURCE_TYPE("materialc", render_context, ResMaterialPreload, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate, ResMaterialRenderContextLost);
+        REGISTER_RESOURCE_TYPE("compute_programc", render_context, ResComputeProgramPreload, ResComputeProgramCreate, 0, ResComputeProgramDestroy, ResComputeProgramRecreate, 0);
+        REGISTER_RESOURCE_TYPE("cpc", graphics_context, ResComputeShaderPreload, ResComputeShaderCreate, 0, ResComputeShaderDestroy, ResComputeShaderRecreate, ResComputeShaderRenderContextLost);
         // guic: res_gui.cpp
         // gui_scriptc: res_gui_script.cpp
-        REGISTER_RESOURCE_TYPE("glyph_bankc", 0, ResGlyphBankPreload, ResGlyphBankCreate, 0, ResGlyphBankDestroy, ResGlyphBankRecreate);
-        REGISTER_RESOURCE_TYPE("wavc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
-        REGISTER_RESOURCE_TYPE("oggc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
-        REGISTER_RESOURCE_TYPE("soundc", 0, ResSoundPreload, ResSoundCreate, 0, ResSoundDestroy, ResSoundRecreate);
-        REGISTER_RESOURCE_TYPE("camerac", 0, 0, ResCameraCreate, 0, ResCameraDestroy, ResCameraRecreate);
-        REGISTER_RESOURCE_TYPE("input_bindingc", input_context, 0, ResInputBindingCreate, 0, ResInputBindingDestroy, ResInputBindingRecreate);
-        REGISTER_RESOURCE_TYPE("gamepadsc", 0, 0, ResGamepadMapCreate, 0, ResGamepadMapDestroy, ResGamepadMapRecreate);
-        REGISTER_RESOURCE_TYPE("factoryc", 0, ResFactoryPreload, ResFactoryCreate, 0, ResFactoryDestroy, ResFactoryRecreate);
-        REGISTER_RESOURCE_TYPE("collectionfactoryc", 0, ResCollectionFactoryPreload, ResCollectionFactoryCreate, 0, ResCollectionFactoryDestroy, ResCollectionFactoryRecreate);
-        REGISTER_RESOURCE_TYPE("labelc", 0, ResLabelPreload, ResLabelCreate, 0, ResLabelDestroy, ResLabelRecreate);
-        REGISTER_RESOURCE_TYPE("lightc", 0, 0, ResLightCreate, 0, ResLightDestroy, ResLightRecreate);
-        REGISTER_RESOURCE_TYPE("render_scriptc", render_context, 0, ResRenderScriptCreate, 0, ResRenderScriptDestroy, ResRenderScriptRecreate);
-        REGISTER_RESOURCE_TYPE("render_targetc", render_context, ResRenderTargetPreload, ResRenderTargetCreate, 0, ResRenderTargetDestroy, ResRenderTargetRecreate);
-        REGISTER_RESOURCE_TYPE("renderc", render_context, 0, ResRenderPrototypeCreate, 0, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate);
-        REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, 0, ResSpriteDestroy, ResSpriteRecreate);
-        REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, 0, ResTextureSetDestroy, ResTextureSetRecreate);
-        REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridPreload, ResTileGridCreate, 0, ResTileGridDestroy, ResTileGridRecreate);
-        REGISTER_RESOURCE_TYPE("meshsetc", 0, ResMeshSetPreload, ResMeshSetCreate, 0, ResMeshSetDestroy, ResMeshSetRecreate);
-        REGISTER_RESOURCE_TYPE("skeletonc", 0, ResSkeletonPreload, ResSkeletonCreate, 0, ResSkeletonDestroy, ResSkeletonRecreate);
-        REGISTER_RESOURCE_TYPE("rigscenec", 0, ResRigScenePreload, ResRigSceneCreate, 0, ResRigSceneDestroy, ResRigSceneRecreate);
-        REGISTER_RESOURCE_TYPE("display_profilesc", render_context, 0, ResDisplayProfilesCreate, 0, ResDisplayProfilesDestroy, ResDisplayProfilesRecreate);
+        REGISTER_RESOURCE_TYPE("glyph_bankc", 0, ResGlyphBankPreload, ResGlyphBankCreate, 0, ResGlyphBankDestroy, ResGlyphBankRecreate, 0);
+        REGISTER_RESOURCE_TYPE("wavc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate, 0);
+        REGISTER_RESOURCE_TYPE("oggc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate, 0);
+        REGISTER_RESOURCE_TYPE("soundc", 0, ResSoundPreload, ResSoundCreate, 0, ResSoundDestroy, ResSoundRecreate, 0);
+        REGISTER_RESOURCE_TYPE("camerac", 0, 0, ResCameraCreate, 0, ResCameraDestroy, ResCameraRecreate, 0);
+        REGISTER_RESOURCE_TYPE("input_bindingc", input_context, 0, ResInputBindingCreate, 0, ResInputBindingDestroy, ResInputBindingRecreate, 0);
+        REGISTER_RESOURCE_TYPE("gamepadsc", 0, 0, ResGamepadMapCreate, 0, ResGamepadMapDestroy, ResGamepadMapRecreate, 0);
+        REGISTER_RESOURCE_TYPE("factoryc", 0, ResFactoryPreload, ResFactoryCreate, 0, ResFactoryDestroy, ResFactoryRecreate, 0);
+        REGISTER_RESOURCE_TYPE("collectionfactoryc", 0, ResCollectionFactoryPreload, ResCollectionFactoryCreate, 0, ResCollectionFactoryDestroy, ResCollectionFactoryRecreate, 0);
+        REGISTER_RESOURCE_TYPE("labelc", 0, ResLabelPreload, ResLabelCreate, 0, ResLabelDestroy, ResLabelRecreate, 0);
+        REGISTER_RESOURCE_TYPE("lightc", 0, 0, ResLightCreate, 0, ResLightDestroy, ResLightRecreate, 0);
+        REGISTER_RESOURCE_TYPE("render_scriptc", render_context, 0, ResRenderScriptCreate, 0, ResRenderScriptDestroy, ResRenderScriptRecreate, 0);
+        REGISTER_RESOURCE_TYPE("render_targetc", render_context, ResRenderTargetPreload, ResRenderTargetCreate, 0, ResRenderTargetDestroy, ResRenderTargetRecreate, 0);
+        REGISTER_RESOURCE_TYPE("renderc", render_context, 0, ResRenderPrototypeCreate, 0, ResRenderPrototypeDestroy, ResRenderPrototypeRecreate, 0);
+        REGISTER_RESOURCE_TYPE("spritec", 0, ResSpritePreload, ResSpriteCreate, 0, ResSpriteDestroy, ResSpriteRecreate, 0);
+        REGISTER_RESOURCE_TYPE("texturesetc", physics_context, ResTextureSetPreload, ResTextureSetCreate, 0, ResTextureSetDestroy, ResTextureSetRecreate, 0);
+        REGISTER_RESOURCE_TYPE(TILE_MAP_EXT, physics_context, ResTileGridPreload, ResTileGridCreate, 0, ResTileGridDestroy, ResTileGridRecreate, 0);
+        REGISTER_RESOURCE_TYPE("meshsetc", 0, ResMeshSetPreload, ResMeshSetCreate, 0, ResMeshSetDestroy, ResMeshSetRecreate, 0);
+        REGISTER_RESOURCE_TYPE("skeletonc", 0, ResSkeletonPreload, ResSkeletonCreate, 0, ResSkeletonDestroy, ResSkeletonRecreate, 0);
+        REGISTER_RESOURCE_TYPE("rigscenec", 0, ResRigScenePreload, ResRigSceneCreate, 0, ResRigSceneDestroy, ResRigSceneRecreate, ResRigSceneRenderContextLost);
+        REGISTER_RESOURCE_TYPE("display_profilesc", render_context, 0, ResDisplayProfilesCreate, 0, ResDisplayProfilesDestroy, ResDisplayProfilesRecreate, 0);
 
 #undef REGISTER_RESOURCE_TYPE
 
@@ -162,7 +162,7 @@ namespace dmGameSystem
                                 update_func, fixed_update_func, render_func, post_update_func, on_message_func, on_input_func, \
                                 on_reload_func, get_property_func, set_property_func, \
                                 iter_child_func, iter_property_func, \
-                                set_reads_transforms)\
+                                set_reads_transforms, render_context_lost_func)\
     factory_result = dmResource::GetTypeFromExtension(factory, extension, &type);\
     if (factory_result != dmResource::RESULT_OK)\
     {\
@@ -175,6 +175,7 @@ namespace dmGameSystem
     component_type.m_Context = context;\
     component_type.m_NewWorldFunction = new_world_func;\
     component_type.m_DeleteWorldFunction = delete_world_func;\
+    component_type.m_WorldRenderContextLost = render_context_lost_func;\
     component_type.m_CreateFunction = create_func;\
     component_type.m_DestroyFunction = destroy_func;\
     component_type.m_InitFunction = init_func;\
@@ -210,7 +211,7 @@ namespace dmGameSystem
                 &CompCollectionProxyUpdate, 0, &CompCollectionProxyRender, &CompCollectionProxyPostUpdate, &CompCollectionProxyOnMessage, &CompCollectionProxyOnInput,
                 0, 0, 0,
                 &CompCollectionProxyIterChildren, 0,
-                0);
+                0, 0);
 
         // See gameobject_comp.cpp for these two component types:
         // Priority 200 is reserved for scriptc (read+write transforms)
@@ -224,7 +225,7 @@ namespace dmGameSystem
                 &CompCollisionObjectUpdate, CompCollisionObjectFixedUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0,
                 &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty,
                 0, CompCollisionIterProperties,
-                1);
+                1, 0);
 
         REGISTER_COMPONENT_TYPE("camerac", 500, render_context,
                 &CompCameraNewWorld, &CompCameraDeleteWorld,
@@ -232,7 +233,7 @@ namespace dmGameSystem
                 &CompCameraUpdate, 0, 0, 0, &CompCameraOnMessage, 0,
                 &CompCameraOnReload, CompCameraGetProperty, CompCameraSetProperty,
                 0, 0,
-                1);
+                1, 0);
 
         REGISTER_COMPONENT_TYPE("soundc", 600, sound_context,
                 CompSoundNewWorld, CompSoundDeleteWorld,
@@ -240,7 +241,7 @@ namespace dmGameSystem
                 CompSoundUpdate, 0, 0, 0, CompSoundOnMessage, 0,
                 0, CompSoundGetProperty, CompSoundSetProperty,
                 0, 0,
-                0);
+                0, 0);
 
         REGISTER_COMPONENT_TYPE("modelc", 700, model_context,
                 CompModelNewWorld, CompModelDeleteWorld,
@@ -248,7 +249,7 @@ namespace dmGameSystem
                 CompModelUpdate, 0, CompModelRender, 0, CompModelOnMessage, 0,
                 0, CompModelGetProperty, CompModelSetProperty,
                 0, CompModelIterProperties,
-                0);
+                0, CompModelWorldRenderContextLost);
 
         // prio: 725  comp_mesh.cpp
 
@@ -258,7 +259,7 @@ namespace dmGameSystem
                 &CompParticleFXUpdate, 0, &CompParticleFXRender, 0, &CompParticleFXOnMessage, 0,
                 &CompParticleFXOnReload, 0, 0,
                 0, 0,
-                1);
+                1, CompParticleFXWorldRenderContextLost);
 
         REGISTER_COMPONENT_TYPE("factoryc", 900, factory_context,
                 CompFactoryNewWorld, CompFactoryDeleteWorld,
@@ -266,7 +267,7 @@ namespace dmGameSystem
                 CompFactoryUpdate, 0, 0, 0, CompFactoryOnMessage, 0,
                 0, CompFactoryGetProperty, 0,
                 0, 0,
-                0);
+                0, 0);
 
         REGISTER_COMPONENT_TYPE("collectionfactoryc", 950, collectionfactory_context,
                 CompCollectionFactoryNewWorld, CompCollectionFactoryDeleteWorld,
@@ -274,7 +275,7 @@ namespace dmGameSystem
                 CompCollectionFactoryUpdate, 0, 0, 0, 0, 0,
                 0, CompCollectionFactoryGetProperty, 0,
                 0, 0,
-                0);
+                0, 0);
 
         REGISTER_COMPONENT_TYPE("lightc", 1000, render_context,
                 CompLightNewWorld, CompLightDeleteWorld,
@@ -282,7 +283,7 @@ namespace dmGameSystem
                 CompLightUpdate, 0, 0, 0, CompLightOnMessage, 0,
                 0, 0, 0,
                 0, 0,
-                1);
+                1, 0);
 
         REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
                 CompSpriteNewWorld, CompSpriteDeleteWorld,
@@ -290,7 +291,7 @@ namespace dmGameSystem
                 CompSpriteUpdate, 0, CompSpriteRender, 0, CompSpriteOnMessage, 0,
                 CompSpriteOnReload, CompSpriteGetProperty, CompSpriteSetProperty,
                 0, CompSpriteIterProperties,
-                1);
+                1, CompSpriteWorldRenderContextLost);
 
         REGISTER_COMPONENT_TYPE(TILE_MAP_EXT, 1200, tilemap_context,
                 CompTileGridNewWorld, CompTileGridDeleteWorld,
@@ -298,7 +299,7 @@ namespace dmGameSystem
                 CompTileGridUpdate, 0, CompTileGridRender, 0, CompTileGridOnMessage, 0,
                 CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty,
                 0, CompTileGridIterProperties,
-                1);
+                1, CompTileGridWorldRenderContextLost);
 
         REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,
                 CompLabelNewWorld, CompLabelDeleteWorld,
@@ -306,7 +307,7 @@ namespace dmGameSystem
                 CompLabelUpdate, 0, CompLabelRender, 0, CompLabelOnMessage, 0,
                 CompLabelOnReload, CompLabelGetProperty, CompLabelSetProperty,
                 0, CompLabelIterProperties,
-                1);
+                1, 0);
 
         #undef REGISTER_COMPONENT_TYPE
 

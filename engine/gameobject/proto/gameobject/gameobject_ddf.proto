@@ -284,6 +284,10 @@ message Disable
 {
 }
 
+// Inner message to notify about render context lost
+message RenderContextLost
+{
+}
 
 // Script message wrapper for added typesafety
 message ScriptMessage

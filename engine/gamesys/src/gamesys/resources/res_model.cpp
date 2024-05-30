@@ -438,4 +438,45 @@ namespace dmGameSystem
         model_resource->m_Model = ddf;
         return AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, model_resource, params.m_Filename);
     }
+
+    void InvalidateResources(dmResource::HFactory factory, ModelResource* resource)
+    {
+        for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
+        {
+            MeshInfo& info = resource->m_Meshes[i];
+            dmGraphics::InvalidateVertexBuffer(info.m_Buffers->m_VertexBuffer);
+            dmGraphics::InvalidateIndexBuffer(info.m_Buffers->m_IndexBuffer);
+        }
+
+        if (resource->m_RigScene != 0x0)
+        {
+            dmResource::InvalidateGraphicsHandle(factory, resource->m_RigScene);
+        }
+
+        for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
+        {
+            MaterialInfo* material = &resource->m_Materials[i];
+            dmResource::InvalidateGraphicsHandle(factory, material->m_Material);
+
+            for (uint32_t t = 0; t < material->m_TexturesCount; ++t)
+            {
+                if (material->m_Textures[t].m_RenderTarget)
+                {
+                    dmResource::InvalidateGraphicsHandle(factory, (void*) material->m_Textures[t].m_RenderTarget);
+                }
+                else if (material->m_Textures[t].m_Texture)
+                {
+                    dmResource::InvalidateGraphicsHandle(factory, (void*) material->m_Textures[t].m_Texture);
+                }
+            }
+        }
+    }
+
+    dmResource::Result ResModelRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        ModelResource* model_resource = (ModelResource*)params.m_Resource->m_Resource;
+        InvalidateResources(params.m_Factory, model_resource);
+        return dmResource::RESULT_OK;
+
+    }
 }

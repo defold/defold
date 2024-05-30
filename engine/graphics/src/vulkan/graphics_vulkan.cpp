@@ -2522,6 +2522,11 @@ bail:
         delete program_ptr;
     }
 
+    static void VulkanInvalidateProgramHandle(HContext context, HProgram program)
+    {
+        (void)context; (void) program;
+    }
+
     static void DestroyShader(ShaderModule* shader)
     {
         if (!shader)
@@ -2575,6 +2580,16 @@ bail:
         ShaderModule* shader = (ShaderModule*) prog;
         DestroyShader(shader);
         delete shader;
+    }
+
+    static void VulkanInvalidateVertexProgram(HVertexProgram prog)
+    {
+        (void)prog;
+    }
+
+    static void VulkanInvalidateFragmentProgram(HFragmentProgram prog)
+    {
+        (void)prog;
     }
 
     static ShaderDesc::Language VulkanGetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
@@ -3465,6 +3480,11 @@ bail:
         g_VulkanContext->m_AssetHandleContainer.Release(texture);
     }
 
+    static void VulkanInvalidateTexture(HTexture texture)
+    {
+        (void)texture;
+    }
+
     static inline uint32_t GetOffsetFromMipmap(VulkanTexture* texture, uint8_t mipmap)
     {
         uint8_t bitspp  = GetTextureFormatBitsPerPixel(texture->m_GraphicsFormat);
@@ -4094,6 +4114,11 @@ bail:
         ShaderModule* shader = (ShaderModule*) prog;
         DestroyShader(shader);
         delete shader;
+    }
+
+    static void VulkanInvalidateComputeProgram(HComputeProgram prog)
+    {
+        (void)prog;
     }
 
     ///////////////////////////////////
@@ -4742,6 +4767,16 @@ bail:
             }
         }
         assert(0); // Should not happen
+    }
+
+    static void VulkanInvalidateVertexBuffer(HVertexBufferRef buffer)
+    {
+        (void)buffer;
+    }
+
+    static void VulkanInvalidateIndexBuffer(HIndexBufferRef buffer)
+    {
+        (void)buffer;
     }
 
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()

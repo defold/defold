@@ -28,7 +28,7 @@ namespace dmGameObject
 
     static dmResource::Result RegisterResourceTypeAnim(dmResource::ResourceTypeRegisterContext& ctx)
     {
-        return dmResource::RegisterType(ctx.m_Factory, ctx.m_Name,0,0,ResAnimCreate,0,ResAnimDestroy,0);
+        return dmResource::RegisterType(ctx.m_Factory, ctx.m_Name,0,0,ResAnimCreate,0,ResAnimDestroy,0,0);
     }
 }
 

@@ -96,7 +96,8 @@ namespace dmGameSystem
                                            ResAnimationSetCreate,
                                            0,
                                            ResAnimationSetDestroy,
-                                           ResAnimationSetRecreate);
+                                           ResAnimationSetRecreate,
+                                           0);
     }
 }
 

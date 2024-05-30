@@ -95,4 +95,11 @@ namespace dmGameSystem
         dmDDF::FreeMessage(ddf);
         return res;
     }
+
+    dmResource::Result ResComputeShaderRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        dmGraphics::HComputeProgram resource = (dmGraphics::HComputeProgram) params.m_Resource->m_Resource;
+        dmGraphics::InvalidateComputeProgram(resource);
+        return dmResource::RESULT_OK;
+    }
 }

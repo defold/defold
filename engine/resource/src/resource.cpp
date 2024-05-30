@@ -448,7 +448,8 @@ Result RegisterType(HFactory factory,
                            FResourceCreate create_function,
                            FResourcePostCreate post_create_function,
                            FResourceDestroy destroy_function,
-                           FResourceRecreate recreate_function)
+                           FResourceRecreate recreate_function,
+                           FResourceRenderContextLost context_lost_function)
 {
     if (factory->m_ResourceTypesCount == MAX_RESOURCE_TYPES)
         return RESULT_OUT_OF_RESOURCES;
@@ -472,6 +473,7 @@ Result RegisterType(HFactory factory,
     resource_type.m_PostCreateFunction = post_create_function;
     resource_type.m_DestroyFunction = destroy_function;
     resource_type.m_RecreateFunction = recreate_function;
+    resource_type.m_RenderContextLostFunction = context_lost_function;
 
     factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
 
@@ -1291,6 +1293,39 @@ void Release(HFactory factory, void* resource)
     }
 }
 
+bool InvalidateIterator(const IteratorResource& resource, void* user_ctx)
+{
+    HFactory factory = (HFactory)user_ctx;
+    InvalidateGraphicsHandle(factory, resource.m_Resource);
+    return true;
+}
+
+void InvalidateGraphicsResources(HFactory factory)
+{
+    IterateResources(factory, &InvalidateIterator, factory);
+}
+
+void InvalidateGraphicsHandle(HFactory factory, void* resource)
+{
+    DM_PROFILE(__FUNCTION__);
+
+    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
+    assert(resource_hash);
+
+    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+
+    SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+    if (resource_type->m_RenderContextLostFunction)
+    {
+        ResourceRenderContextLostParams params;
+        params.m_Factory = factory;
+        params.m_Context = resource_type->m_Context;
+        params.m_Resource = rd;
+        resource_type->m_RenderContextLostFunction(params);
+    }
+}
+
 void RegisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data)
 {
     if (factory->m_ResourceReloadedCallbacks)
@@ -1381,6 +1416,7 @@ struct ResourceIteratorCallbackInfo
 static void ResourceIteratorCallback(ResourceIteratorCallbackInfo* callback, const dmhash_t* id, SResourceDescriptor* resource)
 {
     IteratorResource info;
+    info.m_Resource     = resource->m_Resource;
     info.m_Id           = resource->m_NameHash;
     info.m_SizeOnDisc   = resource->m_ResourceSizeOnDisc;
     info.m_Size         = resource->m_ResourceSize ? resource->m_ResourceSize : resource->m_ResourceSizeOnDisc; // default to the size on disc if no in memory size was specified

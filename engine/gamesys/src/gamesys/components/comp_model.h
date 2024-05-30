@@ -47,6 +47,8 @@ namespace dmGameSystem
 
     void CompModelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
 
+    dmGameObject::CreateResult CompModelWorldRenderContextLost(const dmGameObject::ComponentWorldRenderContextLostParams& params);
+
     // Used in the script_model.cpp
     struct ModelComponent;
     struct ModelWorld;

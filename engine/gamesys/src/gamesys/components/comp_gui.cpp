@@ -2849,6 +2849,35 @@ namespace dmGameSystem
         ht->Put(*key, *value);
     }
 
+    static dmGameObject::CreateResult CompGuiRenderContextLost(const dmGameObject::ComponentWorldRenderContextLostParams& params)
+    {
+        GuiWorld* gui_world = (GuiWorld*)params.m_World;
+        CompGuiContext* gui_context = (CompGuiContext*)params.m_Context;
+
+        dmResource::HFactory resource_factory = dmScript::GetResourceFactory(gui_context->m_ScriptContext);
+        if (0 < gui_world->m_Components.Size())
+        {
+            for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
+            {
+                GuiComponent* component = gui_world->m_Components[i];
+                dmResource::InvalidateGraphicsHandle(resource_factory, component->m_Material);
+                dmResource::InvalidateGraphicsHandle(resource_factory, component->m_Resource);
+                for (uint32_t i = 0; i < component->m_ResourcePropertyPointers.Size(); ++i)
+                {
+                    if (component->m_ResourcePropertyPointers[i])
+                    {
+                        dmResource::InvalidateGraphicsHandle(resource_factory, component->m_ResourcePropertyPointers[i]);
+                    }
+                }
+            }
+        }
+
+        dmGraphics::InvalidateVertexBuffer(gui_world->m_VertexBuffer);
+        dmGraphics::InvalidateTexture(gui_world->m_WhiteTexture);
+
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     static dmGameObject::Result CompGuiTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
     {
         CompGuiContext* gui_context = new CompGuiContext;
@@ -2892,6 +2921,7 @@ namespace dmGameSystem
         ComponentTypeSetPropertyIteratorFn(type, CompGuiIterProperties);
         ComponentTypeSetGetFn(type, CompGuiGetComponent);
 
+        ComponentTypeSetWorldRenderContextLostFn(type, CompGuiRenderContextLost);
 
         // Now register the node types with the gui
         CompGuiNodeTypeCtx gui_node_ctx;

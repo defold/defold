@@ -243,6 +243,7 @@ namespace dmRender
     // Material
     HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
     void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
+    void                            InvalidateMaterial(dmRender::HRenderContext render_context, HMaterial material);
     HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
     dmhash_t                        GetMaterialSamplerNameHash(HMaterial material, uint32_t unit);
     uint32_t                        GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash);
@@ -337,6 +338,7 @@ namespace dmRender
      */
     HBufferedRenderBuffer           NewBufferedRenderBuffer(HRenderContext render_context, RenderBufferType type);
     void                            DeleteBufferedRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
+    void                            InvalidateBufferedRenderBuffer(HBufferedRenderBuffer buffer);
     HRenderBuffer                   AddRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     HRenderBuffer                   GetBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     int32_t                         GetBufferIndex(HRenderContext render_context, HBufferedRenderBuffer buffer);

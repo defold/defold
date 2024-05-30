@@ -129,6 +129,14 @@ namespace dmGameObject
         resources.SetCapacity(0);
     }
 
+    void InvalidatePropertyResources(dmResource::HFactory factory, dmArray<void*>& resources)
+    {
+        for (uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            dmResource::InvalidateGraphicsHandle(factory, resources[i]);
+        }
+    }
+
     enum PropertyContainerType
     {
         PROPERTY_CONTAINER_TYPE_NUMBER = 0,

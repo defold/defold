@@ -354,6 +354,24 @@ bail:
         return res;
     }
 
+    static dmResource::Result ResCollectionRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        HCollection hcollection = (HCollection) params.m_Resource->m_Resource;
+        InvalidatePropertyResources(params.m_Factory, hcollection->m_Collection->m_PropertyResources);
+        HRegister regist = hcollection->m_Collection->m_Register;
+        for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
+        {
+            ComponentWorldRenderContextLostParams params;
+            params.m_Context = regist->m_ComponentTypes[i].m_Context;
+            params.m_World = hcollection->m_Collection->m_ComponentWorlds[i];
+            if (regist->m_ComponentTypes[i].m_WorldRenderContextLost)
+            {
+                regist->m_ComponentTypes[i].m_WorldRenderContextLost(params);
+            }
+        }
+        return dmResource::RESULT_OK;
+    }
+
     static dmResource::Result RegisterResourceTypeCollection(dmResource::ResourceTypeRegisterContext& ctx)
     {
         // The engine.cpp creates the contexts for our built in types.
@@ -366,7 +384,8 @@ bail:
                                            ResCollectionCreate,
                                            0,
                                            ResCollectionDestroy,
-                                           ResCollectionRecreate);
+                                           ResCollectionRecreate,
+                                           ResCollectionRenderContextLost);
     }
 }
 

@@ -27,6 +27,8 @@ namespace dmGameSystem
     dmResource::Result ResMaterialRecreate(const dmResource::ResourceRecreateParams& params);
 
     dmResource::Result ResMaterialPreload(const dmResource::ResourcePreloadParams& params);
+
+    dmResource::Result ResMaterialRenderContextLost(const dmResource::ResourceRenderContextLostParams& params);
 }
 
 #endif

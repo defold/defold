@@ -27,6 +27,8 @@ namespace dmGameSystem
     dmResource::Result ResFragmentProgramDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResFragmentProgramRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResFragmentProgramRenderContextLost(const dmResource::ResourceRenderContextLostParams& params);
 }
 
 #endif // DM_GAMESYS_RES_FRAGMENT_PROGRAM_H

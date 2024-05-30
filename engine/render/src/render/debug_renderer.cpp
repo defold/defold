@@ -146,6 +146,21 @@ namespace dmRender
         dmGraphics::DeleteVertexDeclaration(debug_renderer.m_VertexDeclaration);
     }
 
+    void InvalidateDebugRenderer(HRenderContext context)
+    {
+        if (!context->m_DebugRenderer.m_RenderContext)
+            return;
+        DebugRenderer& debug_renderer = context->m_DebugRenderer;
+        dmResource::HFactory resource_factory = dmScript::GetResourceFactory(context->m_ScriptContext);
+        HMaterial material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D].m_RenderObject.m_Material;
+        dmRender::InvalidateMaterial(debug_renderer.m_RenderContext, material);
+
+        material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D].m_RenderObject.m_Material;
+        dmRender::InvalidateMaterial(debug_renderer.m_RenderContext, material);
+
+        dmGraphics::InvalidateVertexBuffer(debug_renderer.m_VertexBuffer);
+    }
+
     void ClearDebugRenderObjects(HRenderContext context)
     {
         if (!context->m_DebugRenderer.m_RenderContext)

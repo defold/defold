@@ -105,6 +105,7 @@ Result DestroyRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx)
 
 void ComponentTypeSetNewWorldFn(ComponentType* type, ComponentNewWorld fn)                  { type->m_NewWorldFunction = fn; }
 void ComponentTypeSetDeleteWorldFn(ComponentType* type, ComponentDeleteWorld fn)            { type->m_DeleteWorldFunction = fn; }
+void ComponentTypeSetWorldRenderContextLostFn(ComponentType* type, ComponentWorldRenderContextLost fn) { type->m_WorldRenderContextLost = fn; }
 void ComponentTypeSetCreateFn(ComponentType* type, ComponentCreate fn)                      { type->m_CreateFunction = fn; }
 void ComponentTypeSetDestroyFn(ComponentType* type, ComponentDestroy fn)                    { type->m_DestroyFunction = fn; }
 void ComponentTypeSetInitFn(ComponentType* type, ComponentInit fn)                          { type->m_InitFunction = fn; }

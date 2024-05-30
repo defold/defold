@@ -545,6 +545,7 @@ namespace dmGraphics
     HProgram             NewProgram(HContext context, HComputeProgram compute_program);
     HProgram             NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     void                 DeleteProgram(HContext context, HProgram program);
+    void                 InvalidateProgramHandle(HContext context, HProgram program);
 
     bool                 ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
     bool                 ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
@@ -552,6 +553,9 @@ namespace dmGraphics
     void                 DeleteVertexProgram(HVertexProgram prog);
     void                 DeleteFragmentProgram(HFragmentProgram prog);
     void                 DeleteComputeProgram(HComputeProgram prog);
+    void                 InvalidateVertexProgram(HVertexProgram prog);
+    void                 InvalidateFragmentProgram(HFragmentProgram prog);
+    void                 InvalidateComputeProgram(HComputeProgram prog);
 
     ShaderDesc::Language GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
@@ -610,6 +614,7 @@ namespace dmGraphics
     uint32_t GetTextureFormatBitsPerPixel(TextureFormat format);
     HTexture NewTexture(HContext context, const TextureCreationParams& params);
     void DeleteTexture(HTexture t);
+    void InvalidateTexture(HTexture texture);
 
     /**
      * Set texture data. For textures of type TEXTURE_TYPE_CUBE_MAP it's assumed that
@@ -737,6 +742,9 @@ namespace dmGraphics
 
     uint32_t    GetTypeSize(Type type);
     const char* GetGraphicsTypeLiteral(Type type);
+
+    void InvalidateVertexBuffer(HVertexBufferRef buffer);
+    void InvalidateIndexBuffer(HIndexBufferRef buffer);
 
     // Test functions:
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access);

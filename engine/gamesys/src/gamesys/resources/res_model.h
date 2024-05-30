@@ -27,6 +27,8 @@ namespace dmGameSystem
     dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResModelRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResModelRenderContextLost(const dmResource::ResourceRenderContextLostParams& params);
 }
 
 #endif // DM_GAMESYS_RES_MODEL_H

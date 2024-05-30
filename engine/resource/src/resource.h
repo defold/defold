@@ -385,6 +385,7 @@ namespace dmResource
      */
     struct IteratorResource
     {
+        void*    m_Resource;    // Resource struct
         dmhash_t m_Id;          // The name of the resource
         uint32_t m_SizeOnDisc;  // The size on disc (i.e. in the .darc file)
         uint32_t m_Size;        // in memory size, may be 0
@@ -410,6 +411,8 @@ namespace dmResource
     Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);
     // load with own buffer
     Result LoadResourceFromBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
+
+    void InvalidateGraphicsResources(HFactory factory);
 }
 
 #endif // RESOURCE_H

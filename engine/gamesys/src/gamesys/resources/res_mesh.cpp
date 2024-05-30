@@ -320,6 +320,34 @@ namespace dmGameSystem
         }
     }
 
+    static void InvalidateResources(dmResource::HFactory factory, MeshResource* resource)
+    {
+        if (resource->m_Material != 0x0)
+            dmResource::InvalidateGraphicsHandle(factory, resource->m_Material);
+
+        if (resource->m_BufferResource != 0x0)
+            dmResource::InvalidateGraphicsHandle(factory, resource->m_BufferResource);
+
+        if (resource->m_VertexBuffer) {
+            dmGraphics::InvalidateVertexBuffer(resource->m_VertexBuffer);
+        }
+
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (resource->m_Textures[i])
+            {
+                if (resource->m_RenderTargets[i])
+                {
+                    dmResource::InvalidateGraphicsHandle(factory, (void*)resource->m_RenderTargets[i]);
+                }
+                else
+                {
+                    dmResource::InvalidateGraphicsHandle(factory, (void*)resource->m_Textures[i]);
+                }
+            }
+        }
+    }
+
     dmResource::Result ResMeshPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmMeshDDF::MeshDesc* ddf;
@@ -387,5 +415,12 @@ namespace dmGameSystem
         ReleaseResources(params.m_Factory, mesh_resource);
         mesh_resource->m_MeshDDF = ddf;
         return AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, mesh_resource, params.m_Filename);
+    }
+
+    dmResource::Result ResMeshRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        MeshResource* mesh_resource = (MeshResource*)params.m_Resource->m_Resource;
+        InvalidateResources(params.m_Factory, mesh_resource);
+        return dmResource::RESULT_OK;
     }
 }

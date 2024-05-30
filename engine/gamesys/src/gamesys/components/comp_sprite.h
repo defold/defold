@@ -42,6 +42,8 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompSpriteSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
     void CompSpriteIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+
+    dmGameObject::CreateResult CompSpriteWorldRenderContextLost(const dmGameObject::ComponentWorldRenderContextLostParams& params);
 }
 
 #endif // DM_GAMESYS_COMP_SPRITE_H

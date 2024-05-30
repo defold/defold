@@ -1322,6 +1322,10 @@ namespace dmGraphics
     {
         g_functions.m_DeleteProgram(context, program);
     }
+    void InvalidateProgramHandle(HContext context, HProgram program)
+    {
+        g_functions.m_InvalidateProgramHandle(context, program);
+    }
     bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
     {
         return g_functions.m_ReloadVertexProgram(prog, ddf);
@@ -1498,6 +1502,10 @@ namespace dmGraphics
     {
         g_functions.m_DeleteTexture(t);
     }
+    void InvalidateTexture(HTexture texture)
+    {
+        g_functions.m_InvalidateTexture(texture);
+    }
     void SetTexture(HTexture texture, const TextureParams& params)
     {
         g_functions.m_SetTexture(texture, params);
@@ -1611,6 +1619,27 @@ namespace dmGraphics
     {
         return g_functions.m_DeleteComputeProgram(prog);
     }
+    void InvalidateVertexProgram(HVertexProgram prog)
+    {
+        g_functions.m_InvalidateVertexProgram(prog);
+    }
+    void InvalidateFragmentProgram(HFragmentProgram prog)
+    {
+        g_functions.m_InvalidateFragmentProgram(prog);
+    }
+    void InvalidateComputeProgram(HComputeProgram prog)
+    {
+        g_functions.m_InvalidateComputeProgram(prog);
+    }
+    void InvalidateVertexBuffer(HVertexBufferRef buffer)
+    {
+        g_functions.m_InvalidateVertexBuffer(buffer);
+    }
+    void InvalidateIndexBuffer(HIndexBufferRef buffer)
+    {
+        g_functions.m_InvalidateIndexBuffer(buffer);
+    }
+
 
 #if defined(DM_PLATFORM_IOS)
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)

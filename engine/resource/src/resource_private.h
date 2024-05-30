@@ -44,14 +44,15 @@ namespace dmResource
         {
             memset(this, 0, sizeof(*this));
         }
-        dmhash_t            m_ExtensionHash;
-        const char*         m_Extension;
-        void*               m_Context;
-        FResourcePreload    m_PreloadFunction;
-        FResourceCreate     m_CreateFunction;
-        FResourcePostCreate m_PostCreateFunction;
-        FResourceDestroy    m_DestroyFunction;
-        FResourceRecreate   m_RecreateFunction;
+        dmhash_t                   m_ExtensionHash;
+        const char*                m_Extension;
+        void*                      m_Context;
+        FResourcePreload           m_PreloadFunction;
+        FResourceCreate            m_CreateFunction;
+        FResourcePostCreate        m_PostCreateFunction;
+        FResourceDestroy           m_DestroyFunction;
+        FResourceRecreate          m_RecreateFunction;
+        FResourceRenderContextLost m_RenderContextLostFunction;
     };
 
     struct SResourceDescriptor;

@@ -27,6 +27,8 @@ namespace dmGameSystem
     dmResource::Result ResRigSceneDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResRigSceneRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResRigSceneRenderContextLost(const dmResource::ResourceRenderContextLostParams& params);
 }
 
 #endif // DM_GAMESYS_RES_SPINE_SCENE_H

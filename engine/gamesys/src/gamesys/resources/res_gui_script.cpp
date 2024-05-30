@@ -157,7 +157,8 @@ namespace dmGameSystem
                                            ResCreateGuiScript,
                                            0, // post create
                                            ResDestroyGuiScript,
-                                           ResRecreateGuiScript);
+                                           ResRecreateGuiScript,
+                                           0);
     }
 
     static dmResource::Result ResourceTypeGuiScript_Unregister(dmResource::ResourceTypeRegisterContext& ctx)

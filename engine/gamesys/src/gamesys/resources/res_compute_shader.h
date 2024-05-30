@@ -23,6 +23,7 @@ namespace dmGameSystem
     dmResource::Result ResComputeShaderCreate(const dmResource::ResourceCreateParams& params);
     dmResource::Result ResComputeShaderDestroy(const dmResource::ResourceDestroyParams& params);
     dmResource::Result ResComputeShaderRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResComputeShaderRenderContextLost(const dmResource::ResourceRenderContextLostParams& params);
 }
 
 #endif // DM_GAMESYS_RES_COMPUTE_SHADER_H

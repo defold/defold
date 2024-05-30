@@ -305,6 +305,11 @@ namespace dmRender
         delete font_map;
     }
 
+    void InvalidateFontMap(HFontMap font_map)
+    {
+        dmGraphics::InvalidateTexture(font_map->m_Texture);
+    }
+
     void SetFontMap(HFontMap font_map, FontMapParams& params)
     {
         const dmArray<Glyph>& glyphs = params.m_Glyphs;
@@ -477,6 +482,12 @@ namespace dmRender
         dmMemory::AlignedFree(text_context.m_ClientBuffer);
         dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
+    }
+
+    void InvalidateTextContext(HRenderContext render_context)
+    {
+        TextContext& text_context = render_context->m_TextContext;
+        dmGraphics::InvalidateVertexBuffer(text_context.m_VertexBuffer);
     }
 
     DrawTextParams::DrawTextParams()

@@ -76,6 +76,7 @@ namespace dmGameObject
     dmResource::Result LoadPropertyResources(dmResource::HFactory factory, const char** resource_paths, uint32_t resource_path_count, dmArray<void*>& out_resources);
     // dmResource::Release supplied paths and de-allocates through SetCapacity(0)
     void UnloadPropertyResources(dmResource::HFactory factory, dmArray<void*>& resources);
+    void InvalidatePropertyResources(dmResource::HFactory factory, dmArray<void*>& resources);
 
     typedef struct PropertyContainer* HPropertyContainer;
     typedef struct PropertyContainerBuilder* HPropertyContainerBuilder;

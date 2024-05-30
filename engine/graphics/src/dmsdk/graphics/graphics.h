@@ -78,12 +78,16 @@ namespace dmGraphics
      */
     typedef uintptr_t HVertexBuffer;
 
+    typedef HVertexBuffer& HVertexBufferRef;
+
     /*#
      * Index buffer handle
      * @typedef
      * @name HIndexBuffer
      */
     typedef uintptr_t HIndexBuffer;
+
+    typedef HIndexBuffer& HIndexBufferRef;
 
     /*#
      * Storage buffer handle

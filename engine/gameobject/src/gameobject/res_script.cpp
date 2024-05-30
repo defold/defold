@@ -91,6 +91,13 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
+    static dmResource::Result ResScriptRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        HScript script = (HScript)params.m_Resource->m_Resource;
+        InvalidatePropertyResources(params.m_Factory, script->m_PropertyResources);
+        return dmResource::RESULT_OK;
+    }
+
     static dmResource::Result ResScriptRecreate(const dmResource::ResourceRecreateParams& params)
     {
         HScript script = (HScript) params.m_Resource->m_Resource;
@@ -143,7 +150,8 @@ namespace dmGameObject
                                            ResScriptCreate,
                                            0,
                                            ResScriptDestroy,
-                                           ResScriptRecreate);
+                                           ResScriptRecreate,
+                                           ResScriptRenderContextLost);
     }
 }
 

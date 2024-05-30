@@ -206,6 +206,16 @@ namespace dmRender
         delete material;
     }
 
+    void InvalidateMaterial(dmRender::HRenderContext render_context, HMaterial material)
+    {
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        dmGraphics::InvalidateProgramHandle(graphics_context, material->m_Program);
+        dmGraphics::InvalidateVertexProgram(material->m_VertexProgram);
+        dmGraphics::InvalidateFragmentProgram(material->m_FragmentProgram);
+        //! TODO: replace with necessary call
+        // dmGraphics::DeleteVertexDeclaration(material->m_VertexDeclaration);
+    }
+
     void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro)
     {
         const dmArray<RenderConstant>& constants = material->m_Constants;

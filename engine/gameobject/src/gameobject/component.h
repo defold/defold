@@ -35,6 +35,7 @@ namespace dmGameObject
         void*                   m_Context;
         ComponentNewWorld       m_NewWorldFunction;
         ComponentDeleteWorld    m_DeleteWorldFunction;
+        ComponentWorldRenderContextLost m_WorldRenderContextLost;
         ComponentCreate         m_CreateFunction;
         ComponentDestroy        m_DestroyFunction;
         ComponentInit           m_InitFunction;

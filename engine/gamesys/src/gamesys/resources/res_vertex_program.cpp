@@ -66,6 +66,13 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
+    dmResource::Result ResVertexProgramRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        dmGraphics::HVertexProgram resource = (dmGraphics::HVertexProgram)params.m_Resource->m_Resource;
+        dmGraphics::InvalidateVertexProgram(resource);
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResVertexProgramRecreate(const dmResource::ResourceRecreateParams& params)
     {
         dmGraphics::HVertexProgram resource = (dmGraphics::HVertexProgram)params.m_Resource->m_Resource;

@@ -17,7 +17,7 @@
 
 namespace dmGameSystem
 {
-    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
+    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HFragmentProgram* program)
     {
         dmGraphics::ShaderDesc::Shader* shader = dmGraphics::GetShaderProgram(context, ddf);
         if (shader == 0x0)
@@ -49,7 +49,7 @@ namespace dmGameSystem
     dmResource::Result ResFragmentProgramCreate(const dmResource::ResourceCreateParams& params)
     {
         dmGraphics::ShaderDesc* ddf = (dmGraphics::ShaderDesc*)params.m_PreloadData;
-        dmGraphics::HVertexProgram resource = 0x0;
+        dmGraphics::HFragmentProgram resource = 0x0;
         dmResource::Result r = AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, ddf, &resource);
         if (r == dmResource::RESULT_OK)
         {
@@ -61,14 +61,14 @@ namespace dmGameSystem
 
     dmResource::Result ResFragmentProgramDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        dmGraphics::HVertexProgram resource = (dmGraphics::HVertexProgram)params.m_Resource->m_Resource;
+        dmGraphics::HFragmentProgram resource = (dmGraphics::HFragmentProgram)params.m_Resource->m_Resource;
         dmGraphics::DeleteFragmentProgram(resource);
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResFragmentProgramRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmGraphics::HVertexProgram resource = (dmGraphics::HVertexProgram)params.m_Resource->m_Resource;
+        dmGraphics::HFragmentProgram resource = (dmGraphics::HFragmentProgram)params.m_Resource->m_Resource;
         if (resource == 0)
         {
             return dmResource::RESULT_FORMAT_ERROR;
@@ -94,5 +94,12 @@ namespace dmGameSystem
 
         dmDDF::FreeMessage(ddf);
         return res;
+    }
+
+    dmResource::Result ResFragmentProgramRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        dmGraphics::HFragmentProgram resource = (dmGraphics::HFragmentProgram)params.m_Resource->m_Resource;
+        dmGraphics::InvalidateFragmentProgram(resource);
+        return dmResource::RESULT_OK;
     }
 }

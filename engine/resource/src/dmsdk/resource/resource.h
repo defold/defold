@@ -256,6 +256,21 @@ namespace dmResource
      */
     typedef Result (*FResourceRecreate)(const ResourceRecreateParams& params);
 
+    /**
+     * Parameters to ResourceRenderContextLost callback.
+     */
+    struct ResourceRenderContextLostParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// Resource context
+        void* m_Context;
+        /// Resource descriptor for resource to destroy
+        HResourceDescriptor m_Resource;
+    };
+
+    typedef Result (*FResourceRenderContextLost)(const ResourceRenderContextLostParams& params);
+
 
     /**
      * Register a resource type
@@ -267,6 +282,7 @@ namespace dmResource
      * @param post_create_function Post create function pointer
      * @param destroy_function Destroy function pointer
      * @param recreate_function Recreate function pointer. Optional, 0 if recreate is not supported.
+     * @param context_lost_function Render context lost function pointer. Optional, 0 if no need to react on render context lost.
      * @return RESULT_OK on success
      */
     Result RegisterType(HFactory factory,
@@ -276,7 +292,8 @@ namespace dmResource
                                FResourceCreate create_function,
                                FResourcePostCreate post_create_function,
                                FResourceDestroy destroy_function,
-                               FResourceRecreate recreate_function);
+                               FResourceRecreate recreate_function,
+                               FResourceRenderContextLost context_lost_function);
 
 
     /**
@@ -472,6 +489,14 @@ namespace dmResource
      * @param resource [type: void*] Resource pointer
      */
     void Release(HFactory factory, void* resource);
+
+    /*#
+     * Invalidate any graphics related resource. Resource not free.
+     * @name InvalidateGraphicsHandle
+     * @param factory [type: dmResource::HFactory] Factory handle
+     * @param resource [type: void*] Resource pointer
+     */
+    void InvalidateGraphicsHandle(HFactory factory, void* resource);
 
     /*#
      * Hint the preloader what to load before Create is called on the resource.

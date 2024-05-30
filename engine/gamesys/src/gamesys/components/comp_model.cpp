@@ -1638,6 +1638,20 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompModelIterPropertiesGetNext;
     }
 
+    dmGameObject::CreateResult CompModelWorldRenderContextLost(const dmGameObject::ComponentWorldRenderContextLostParams& params)
+    {
+        dmLogError("Invaldiate model world buffers");
+        ModelWorld* world = (ModelWorld*)params.m_World;
+        // m_BoundProgram
+        // dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
+        for (uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
+        {
+            dmRender::InvalidateBufferedRenderBuffer(world->m_VertexBuffers[i]);
+        }
+
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     // For tests
     void GetModelWorldRenderBuffers(void* model_world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count)
     {

@@ -1143,11 +1143,15 @@ namespace dmRender
 
     void OnContextEvent(void* context, const char* event_name)
     {
+        RenderContext* render_context = (RenderContext*)context;
         if (strcmp(event_name, "context_lost") == 0)
         {
             PauseRender(context);
+            dmResource::HFactory resource_factory = dmScript::GetResourceFactory(render_context->m_ScriptContext);
+            dmResource::InvalidateGraphicsResources(resource_factory);
+            InvalidateTextContext(render_context);
+            InvalidateDebugRenderer(render_context);
         }
-        RenderContext* render_context = (RenderContext*)context;
         if (render_context->m_CallbackInfo != 0x0)
         {
             dmScript::LuaCallbackInfo* cbk = render_context->m_CallbackInfo;

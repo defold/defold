@@ -212,6 +212,19 @@ namespace dmGameObject
         return r;
     }
 
+    static dmResource::Result ResGameObjectRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        Prototype* proto = (Prototype*) params.m_Resource->m_Resource;
+        for (uint32_t i = 0; i < proto->m_ComponentCount; ++i)
+        {
+            Prototype::Component& c = proto->m_Components[i];
+            dmResource::InvalidateGraphicsHandle(params.m_Factory, c.m_Resource);
+        }
+
+        InvalidatePropertyResources(params.m_Factory, proto->m_PropertyResources);
+        return dmResource::RESULT_OK;
+    }
+
     static dmResource::Result RegisterResourceTypeGameObject(dmResource::ResourceTypeRegisterContext& ctx)
     {
         // The engine.cpp creates the contexts for our built in types.
@@ -224,7 +237,8 @@ namespace dmGameObject
                                            ResGameObjectCreate,
                                            0,
                                            ResGameObjectDestroy,
-                                           ResGameObjectRecreate);
+                                           ResGameObjectRecreate,
+                                           ResGameObjectRenderContextLost);
     }
 }
 

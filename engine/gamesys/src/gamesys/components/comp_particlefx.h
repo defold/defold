@@ -36,6 +36,8 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompParticleFXOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
     void CompParticleFXOnReload(const dmGameObject::ComponentOnReloadParams& params);
+
+    dmGameObject::CreateResult CompParticleFXWorldRenderContextLost(const dmGameObject::ComponentWorldRenderContextLostParams& params);
 }
 
 #endif // DM_GAMESYS_COMP_PARTICLEFX_H

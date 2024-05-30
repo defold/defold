@@ -49,6 +49,8 @@ namespace dmGameSystem
     dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResTextureRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResTextureRenderContextLost(const dmResource::ResourceRenderContextLostParams& params);
 }
 
 #endif

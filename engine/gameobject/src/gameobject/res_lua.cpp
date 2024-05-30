@@ -163,7 +163,8 @@ namespace dmGameObject
                                            ResLuaCreate,
                                            0,
                                            ResLuaDestroy,
-                                           ResLuaRecreate);
+                                           ResLuaRecreate,
+                                           0);
     }
 }
 

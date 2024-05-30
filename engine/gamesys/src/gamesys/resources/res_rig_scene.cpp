@@ -183,4 +183,18 @@ namespace dmGameSystem
         params.m_Resource->m_ResourceSize = GetResourceSize(ss_resource, params.m_BufferSize);
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResRigSceneRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        RigSceneResource* rig_resource = (RigSceneResource*)params.m_Resource->m_Resource;
+        if (rig_resource->m_TextureSet != 0x0)
+            dmResource::InvalidateGraphicsHandle(params.m_Factory, rig_resource->m_TextureSet);
+        if (rig_resource->m_SkeletonRes != 0x0)
+            dmResource::InvalidateGraphicsHandle(params.m_Factory, rig_resource->m_SkeletonRes);
+        if (rig_resource->m_AnimationSetRes != 0x0)
+            dmResource::InvalidateGraphicsHandle(params.m_Factory, rig_resource->m_AnimationSetRes);
+        if (rig_resource->m_MeshSetRes != 0x0)
+            dmResource::InvalidateGraphicsHandle(params.m_Factory, rig_resource->m_MeshSetRes);
+        return dmResource::RESULT_OK;
+    }
 }

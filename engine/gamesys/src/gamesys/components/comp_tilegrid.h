@@ -46,6 +46,8 @@ namespace dmGameSystem
 
     void CompTileGridIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
 
+    dmGameObject::CreateResult CompTileGridWorldRenderContextLost(const dmGameObject::ComponentWorldRenderContextLostParams& params);
+
     // Script support
     struct TileGridComponent;
 

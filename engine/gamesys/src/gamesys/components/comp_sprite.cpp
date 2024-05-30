@@ -2226,6 +2226,24 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompSpriteIterPropertiesGetNext;
     }
 
+    dmGameObject::CreateResult CompSpriteWorldRenderContextLost(const dmGameObject::ComponentWorldRenderContextLostParams& params)
+    {
+        SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
+
+        DestroyMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool);
+
+        //! TODO: Invaldiate RenderObjects
+        // for (uint32_t i = 0; i < sprite_world->m_RenderObjects.Size(); ++i)
+        // {
+        //     delete sprite_world->m_RenderObjects[i];
+        // }
+
+        dmRender::InvalidateBufferedRenderBuffer(sprite_world->m_VertexBuffer);
+        dmRender::InvalidateBufferedRenderBuffer(sprite_world->m_IndexBuffer);
+
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     // For tests
     void GetSpriteWorldRenderBuffers(void* sprite_world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer)
     {

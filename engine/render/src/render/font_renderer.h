@@ -149,6 +149,12 @@ namespace dmRender
     void DeleteFontMap(HFontMap font_map);
 
     /**
+     * Invalidate texture handle in font map
+     * @param font_map Font map handle
+     */
+    void InvalidateFontMap(HFontMap font_map);
+
+    /**
      * Update the font map with the specified parameters. The parameters are consumed and should not be read after this call.
      * @param font_map Font map handle
      * @param params Parameters to update
@@ -178,6 +184,7 @@ namespace dmRender
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches);
     void FinalizeTextContext(HRenderContext render_context);
+    void InvalidateTextContext(HRenderContext render_context);
 
     const int MAX_FONT_RENDER_CONSTANTS = 16;
     /**

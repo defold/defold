@@ -442,4 +442,11 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResTextureRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        TextureResource* texture_res = (TextureResource*) params.m_Resource->m_Resource;
+        dmGraphics::InvalidateTexture(texture_res->m_Texture);
+        return dmResource::RESULT_OK;
+    }
 }

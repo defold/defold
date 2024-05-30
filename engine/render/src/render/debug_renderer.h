@@ -35,6 +35,8 @@ namespace dmRender
      */
     void FinalizeDebugRenderer(HRenderContext render_context);
 
+    void InvalidateDebugRenderer(HRenderContext context);
+
     void ClearDebugRenderObjects(HRenderContext render_context);
 
     void FlushDebug(HRenderContext render_context, uint32_t render_order);

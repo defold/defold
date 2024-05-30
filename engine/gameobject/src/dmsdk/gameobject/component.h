@@ -81,6 +81,16 @@ namespace dmGameObject
      */
     typedef CreateResult (*ComponentDeleteWorld)(const ComponentDeleteWorldParams& params);
 
+    struct ComponentWorldRenderContextLostParams
+    {
+        /// Context for the component type
+        void* m_Context;
+        /// The pointer to the world to destroy
+        void* m_World;
+    };
+
+    typedef CreateResult (*ComponentWorldRenderContextLost)(const ComponentWorldRenderContextLostParams& params);
+
     /*#
      * Parameters to ComponentCreate callback.
      */
@@ -477,6 +487,8 @@ namespace dmGameObject
      * @param fn [type: ComponentDeleteWorld] callback
      */
     void ComponentTypeSetDeleteWorldFn(ComponentType* type, ComponentDeleteWorld fn);
+
+    void ComponentTypeSetWorldRenderContextLostFn(ComponentType* type, ComponentWorldRenderContextLost fn);
 
     /*# set the component create callback
      * Set the component create callback. Called when a component instance is created.

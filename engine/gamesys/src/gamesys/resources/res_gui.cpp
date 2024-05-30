@@ -21,6 +21,7 @@
 #include <gameobject/lua_ddf.h>
 #include <gameobject/gameobject_script_util.h>
 #include <particle/particle.h>
+#include <render/font_renderer.h>
 #include "res_material.h"
 #include "res_texture.h"
 #include "res_textureset.h"
@@ -296,6 +297,46 @@ namespace dmGameSystem
         return r;
     }
 
+    static void HTInvalidateResource(dmResource::HFactory factory, const dmhash_t* key, void** value)
+    {
+        dmResource::InvalidateGraphicsHandle(factory, *value);
+    }
+
+    static dmResource::Result ResSceneDescRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource->m_Resource;
+        dmResource::HFactory factory = params.m_Factory;
+
+        for (uint32_t idx = 0; idx < scene_resource->m_ParticlePrototypes.Size(); ++idx)
+        {
+            dmResource::InvalidateGraphicsHandle(factory, scene_resource->m_ParticlePrototypes[idx]);
+        }
+        for (uint32_t idx = 0; idx < scene_resource->m_FontMaps.Size(); ++idx)
+        {
+            dmRender::InvalidateFontMap(scene_resource->m_FontMaps[idx]);
+        }
+        for (uint32_t idx = 0; idx < scene_resource->m_Materials.Size(); ++idx)
+        {
+            dmResource::InvalidateGraphicsHandle(factory, scene_resource->m_Materials[idx]);
+        }
+        for (uint32_t idx = 0; idx < scene_resource->m_GuiTextureSets.Size(); ++idx)
+        {
+            if(scene_resource->m_GuiTextureSets[idx].m_TextureSet)
+                dmResource::InvalidateGraphicsHandle(factory, scene_resource->m_GuiTextureSets[idx].m_TextureSet);
+            else
+                dmResource::InvalidateGraphicsHandle(factory, scene_resource->m_GuiTextureSets[idx].m_Texture);
+        }
+
+        scene_resource->m_Resources.Iterate(HTInvalidateResource, factory);
+
+        if (scene_resource->m_Material)
+        {
+            dmResource::InvalidateGraphicsHandle(factory, scene_resource->m_Material);
+        }
+
+        return dmResource::RESULT_OK;
+    }
+
     static dmResource::Result ResourceTypeGui_Register(dmResource::ResourceTypeRegisterContext& ctx)
     {
         dmGui::HContext* gui_ctx = (dmGui::HContext*)ctx.m_Contexts->Get(dmHashString64("guic"));
@@ -312,7 +353,8 @@ namespace dmGameSystem
                                            ResCreateSceneDesc,
                                            0, // post create
                                            ResDestroySceneDesc,
-                                           ResRecreateSceneDesc);
+                                           ResRecreateSceneDesc,
+                                           ResSceneDescRenderContextLost);
     }
 
 }

@@ -72,6 +72,26 @@ namespace dmRender
         delete buffer;
     }
 
+    void InvalidateBufferedRenderBuffer(HBufferedRenderBuffer buffer)
+    {
+        if (!buffer)
+            return;
+        for (uint32_t i = 0; i < buffer->m_Buffers.Size(); ++i)
+        {
+            switch(buffer->m_Type)
+            {
+            case RENDER_BUFFER_TYPE_VERTEX_BUFFER:
+                dmGraphics::InvalidateVertexBuffer(/*(dmGraphics::HVertexBufferRef) */buffer->m_Buffers[i]);
+                break;
+            case RENDER_BUFFER_TYPE_INDEX_BUFFER:
+                dmGraphics::InvalidateIndexBuffer(/*(dmGraphics::HIndexBufferRef) */buffer->m_Buffers[i]);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
     HRenderBuffer AddRenderBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer)
     {
         if (!buffer)

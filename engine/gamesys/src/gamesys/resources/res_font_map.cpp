@@ -198,4 +198,14 @@ namespace dmGameSystem
         params.m_Resource->m_ResourceSize = dmRender::GetFontMapResourceSize(font_map);
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResFontMapRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        dmRender::HFontMap font_map = (dmRender::HFontMap)params.m_Resource->m_Resource;
+        Resources* resources = (Resources*) dmRender::GetFontMapUserData(font_map);
+        dmResource::InvalidateGraphicsHandle(params.m_Factory, (void*) resources->m_MaterialResource);
+        dmResource::InvalidateGraphicsHandle(params.m_Factory, (void*) resources->m_GlyphBankResource);
+        dmRender::InvalidateFontMap(font_map);
+        return dmResource::RESULT_OK;
+    }
 }

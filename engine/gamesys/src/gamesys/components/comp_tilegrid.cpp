@@ -969,6 +969,17 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompTileGridIterPropertiesGetNext;
     }
 
+    dmGameObject::CreateResult CompTileGridWorldRenderContextLost(const dmGameObject::ComponentWorldRenderContextLostParams& params)
+    {
+        TileGridWorld* world = (TileGridWorld*) params.m_World;
+        if (world->m_VertexDeclaration)
+        {
+            // dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
+            dmRender::InvalidateBufferedRenderBuffer(world->m_VertexBuffer);
+        }
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     // For tests
     void GetTileGridWorldRenderBuffers(void* tilegrid_world, dmRender::HBufferedRenderBuffer* vx_buffer)
     {

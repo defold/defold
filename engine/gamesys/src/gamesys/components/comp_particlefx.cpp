@@ -702,4 +702,21 @@ namespace dmGameSystem
         ParticleFXWorld* world = (ParticleFXWorld*) pfx_world;
         *vx_buffer = world->m_VertexBuffer;
     }
+
+    dmGameObject::CreateResult CompParticleFXWorldRenderContextLost(const dmGameObject::ComponentWorldRenderContextLostParams& params)
+    {
+        ParticleFXContext* ctx = (ParticleFXContext*)params.m_Context;
+        ParticleFXWorld* pfx_world = (ParticleFXWorld*)params.m_World;
+        //! TODO: look into particle prototype
+        // for (uint32_t i = 0; i < pfx_world->m_Components.Size(); ++i)
+        // {
+        //     ParticleFXComponent* c = &pfx_world->m_Components[i];
+            // dmResource::Release(pfx_world->m_Context->m_Factory, c->m_ParticlePrototype);
+        //     dmParticle::DestroyInstance(pfx_world->m_ParticleContext, c->m_ParticleInstance);
+        // }
+
+        dmRender::InvalidateBufferedRenderBuffer(pfx_world->m_VertexBuffer);
+
+        return dmGameObject::CREATE_RESULT_OK;
+    }
 }

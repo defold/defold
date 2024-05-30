@@ -87,10 +87,13 @@ namespace dmGraphics
     typedef HFragmentProgram (*NewFragmentProgramFn)(HContext context, ShaderDesc::Shader* ddf);
     typedef HProgram (*NewProgramFn)(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     typedef void (*DeleteProgramFn)(HContext context, HProgram program);
+    typedef void (*InvalidateProgramHandleFn)(HContext context, HProgram program);
     typedef bool (*ReloadVertexProgramFn)(HVertexProgram prog, ShaderDesc::Shader* ddf);
     typedef bool (*ReloadFragmentProgramFn)(HFragmentProgram prog, ShaderDesc::Shader* ddf);
     typedef void (*DeleteVertexProgramFn)(HVertexProgram prog);
+    typedef void (*InvalidateVertexProgramFn)(HVertexProgram prog);
     typedef void (*DeleteFragmentProgramFn)(HFragmentProgram prog);
+    typedef void (*InvalidateFragmentProgramFn)(HFragmentProgram prog);
     typedef ShaderDesc::Language (*GetShaderProgramLanguageFn)(HContext context, ShaderDesc::ShaderClass shader_class);
     typedef ShaderDesc::Language (*GetProgramLanguageFn)(HProgram program);
     typedef void (*EnableProgramFn)(HContext context, HProgram program);
@@ -131,6 +134,7 @@ namespace dmGraphics
     typedef bool (*IsTextureFormatSupportedFn)(HContext context, TextureFormat format);
     typedef HTexture (*NewTextureFn)(HContext context, const TextureCreationParams& params);
     typedef void (*DeleteTextureFn)(HTexture t);
+    typedef void (*InvalidateTextureFn)(HTexture texture);
     typedef void (*SetTextureFn)(HTexture texture, const TextureParams& params);
     typedef void (*SetTextureAsyncFn)(HTexture texture, const TextureParams& params, SetTextureAsyncCallback callback, void* user_data);
     typedef void (*SetTextureParamsFn)(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy);
@@ -158,6 +162,9 @@ namespace dmGraphics
     typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc::Shader* ddf);
     typedef HProgram (*NewProgramFromComputeFn)(HContext context, HComputeProgram compute_program);
     typedef void (*DeleteComputeProgramFn)(HComputeProgram prog);
+    typedef void (*InvalidateComputeProgramFn)(HComputeProgram prog);
+    typedef void (*InvalidateVertexBufferFn)(HVertexBufferRef buffer);
+    typedef void (*InvalidateIndexBufferFn)(HIndexBufferRef buffer);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -198,10 +205,14 @@ namespace dmGraphics
         NewFragmentProgramFn m_NewFragmentProgram;
         NewProgramFn m_NewProgram;
         DeleteProgramFn m_DeleteProgram;
+        InvalidateProgramHandleFn m_InvalidateProgramHandle;
         ReloadVertexProgramFn m_ReloadVertexProgram;
         ReloadFragmentProgramFn m_ReloadFragmentProgram;
         DeleteVertexProgramFn m_DeleteVertexProgram;
         DeleteFragmentProgramFn m_DeleteFragmentProgram;
+        InvalidateVertexProgramFn m_InvalidateVertexProgram;
+        InvalidateFragmentProgramFn m_InvalidateFragmentProgram;
+        InvalidateComputeProgramFn m_InvalidateComputeProgram;
         GetProgramLanguageFn m_GetProgramLanguage;
         GetShaderProgramLanguageFn m_GetShaderProgramLanguage;
         EnableProgramFn m_EnableProgram;
@@ -240,6 +251,7 @@ namespace dmGraphics
         IsTextureFormatSupportedFn m_IsTextureFormatSupported;
         NewTextureFn m_NewTexture;
         DeleteTextureFn m_DeleteTexture;
+        InvalidateTextureFn m_InvalidateTexture;
         SetTextureFn m_SetTexture;
         SetTextureAsyncFn m_SetTextureAsync;
         SetTextureParamsFn m_SetTextureParams;
@@ -265,6 +277,8 @@ namespace dmGraphics
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
+        InvalidateVertexBufferFn m_InvalidateVertexBuffer;
+        InvalidateIndexBufferFn m_InvalidateIndexBuffer;
 
         // Compute
         ReloadComputeProgramFn  m_ReloadComputeProgram;
@@ -313,6 +327,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewFragmentProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateProgramHandle); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadVertexProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadFragmentProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexProgram); \
@@ -357,6 +372,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsTextureFormatSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewTexture); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteTexture); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateTexture); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTexture); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTextureAsync); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetTextureParams); \
@@ -385,7 +401,12 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewComputeProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgramFromCompute); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteComputeProgram);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteComputeProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateVertexBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateIndexBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateVertexProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateFragmentProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateComputeProgram);
 }
 
 #endif

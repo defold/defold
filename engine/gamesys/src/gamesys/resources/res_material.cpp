@@ -373,4 +373,25 @@ namespace dmGameSystem
         *params.m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResMaterialRenderContextLost(const dmResource::ResourceRenderContextLostParams& params)
+    {
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
+        MaterialResource* resource = (MaterialResource*) params.m_Resource->m_Resource;
+
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (resource->m_Textures[i])
+            {
+                dmResource::InvalidateGraphicsHandle(params.m_Factory, (void*)resource->m_Textures[i]);
+            }
+        }
+
+        dmRender::HMaterial material = resource->m_Material;
+        dmGraphics::InvalidateVertexProgram(dmRender::GetMaterialVertexProgram(material));
+        dmGraphics::InvalidateFragmentProgram(dmRender::GetMaterialFragmentProgram(material));
+        dmRender::InvalidateMaterial(render_context, material);
+
+        return dmResource::RESULT_OK;
+    }
 }

@@ -834,6 +834,11 @@ namespace dmGraphics
         delete p;
     }
 
+    static void NullInvalidateComputeProgram(HComputeProgram prog)
+    {
+        (void)prog;
+    }
+
     static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         ShaderProgram* vertex   = 0x0;
@@ -852,6 +857,11 @@ namespace dmGraphics
     static void NullDeleteProgram(HContext context, HProgram program)
     {
         delete (Program*) program;
+    }
+
+    static void NullInvalidateProgramHandle(HContext context, HProgram program)
+    {
+        (void)context; (void)program;
     }
 
     static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
@@ -904,6 +914,16 @@ namespace dmGraphics
         for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
             delete[] p->m_Uniforms[i].m_Name;
         delete p;
+    }
+
+    static void NullInvalidateVertexProgram(HVertexProgram prog)
+    {
+        (void)prog;
+    }
+
+    static void NullInvalidateFragmentProgram(HFragmentProgram prog)
+    {
+        (void)prog;
     }
 
     void SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderClass shader_class, ShaderDesc::Language language)
@@ -1475,6 +1495,11 @@ namespace dmGraphics
         }
     }
 
+    static void NullInvalidateTexture(HTexture texture)
+    {
+        (void)texture;
+    }
+
     static HandleResult NullGetTextureHandle(HTexture texture, void** out_handle)
     {
         *out_handle = 0x0;
@@ -1879,6 +1904,16 @@ namespace dmGraphics
             return GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
+    }
+
+    static void NullInvalidateVertexBuffer(HVertexBufferRef buffer)
+    {
+        (void)buffer;
+    }
+    
+    static void NullInvalidateIndexBuffer(HIndexBufferRef buffer)
+    {
+        (void)buffer;
     }
 
     bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)

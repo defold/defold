@@ -1142,6 +1142,22 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompMeshIterPropertiesGetNext;
     }
 
+    dmGameObject::CreateResult CompMeshWorldRenderContextLost(const dmGameObject::ComponentWorldRenderContextLostParams& params)
+    {
+        MeshWorld* world = (MeshWorld*)params.m_World;
+        for(uint32_t i = 0; i < world->m_VertexBufferPool.Size(); ++i)
+        {
+            dmGraphics::InvalidateVertexBuffer(world->m_VertexBufferPool[i]);
+        }
+
+        for(uint32_t i = 0; i < world->m_VertexBufferWorld.Size(); ++i)
+        {
+            dmGraphics::InvalidateVertexBuffer(world->m_VertexBufferWorld[i]);
+        }
+
+        return dmGameObject::CREATE_RESULT_OK;
+    }
+
     static dmGameObject::Result CompMeshTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
     {
         MeshContext* mesh_context = new MeshContext;
@@ -1164,6 +1180,8 @@ namespace dmGameSystem
         ComponentTypeSetSetPropertyFn(type, CompMeshSetProperty);
 
         ComponentTypeSetPropertyIteratorFn(type, CompMeshIterProperties);
+
+        ComponentTypeSetWorldRenderContextLostFn(type, CompMeshWorldRenderContextLost);
 
         return dmGameObject::RESULT_OK;
     }
