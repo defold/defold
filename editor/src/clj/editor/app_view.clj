@@ -41,6 +41,7 @@
             [editor.engine.native-extensions :as native-extensions]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.game-project :as game-project]
             [editor.github :as github]
@@ -817,11 +818,11 @@
       (throw e))))
 
 (defn- on-launched-hook! [project process url]
-  (let [hook-options {:exception-policy :ignore :opts {:url url}}]
+  (let [hook-opts {:url url}]
     (future
       (error-reporting/catch-all!
-        (extensions/execute-hook! project :on-target-launched hook-options)
-        (process/on-exit! process #(extensions/execute-hook! project :on-target-terminated hook-options))))))
+        @(extensions/execute-hook! project :on_target_launched hook-opts :exception-policy :ignore)
+        (process/on-exit! process #(extensions/execute-hook! project :on_target_terminated hook-opts :exception-policy :ignore))))))
 
 (defn- target-cannot-swap-engine? [target]
   (and (some? target)
@@ -1106,11 +1107,9 @@
                 project-build-successful (nil? (:error project-build-results))]
             (run-on-background-thread!
               (fn run-post-build-hook-on-background-thread! []
-                (extensions/execute-hook! project
-                                          :on-build-finished
-                                          {:exception-policy :ignore
-                                           :opts {:success project-build-successful
-                                                  :platform platform}}))
+                @(extensions/execute-hook! project :on_build_finished
+                                           {:success project-build-successful :platform platform}
+                                           :exception-policy :ignore))
               (fn process-post-build-hook-results-on-ui-thread! [_]
                 (if project-build-successful
                   (phase-5-await-engine-build! (assoc project-build-results :project-build-successful true))
@@ -1153,23 +1152,19 @@
           (let [platform (engine/current-platform)]
             (run-on-background-thread!
               (fn run-pre-build-hook-on-background-thread! []
-                (let [extension-error
-                      (extensions/execute-hook!
-                        project
-                        :on-build-started
-                        {:exception-policy :as-error
-                         :opts {:platform platform}})]
+                (let [extension-error @(extensions/execute-hook! project
+                                                                 :on_build_started
+                                                                 {:platform platform}
+                                                                 :exception-policy :as-error)]
                   ;; If there was an error in the pre-build hook, we won't proceed
                   ;; with the project build. But we still want to report the build
                   ;; failure to any post-build hooks that might need to know.
                   (when (some? extension-error)
                     (render-progress! (progress/make-indeterminate "Executing post-build hooks..."))
-                    (extensions/execute-hook!
-                      project
-                      :on-build-finished
-                      {:exception-policy :ignore
-                       :opts {:success false
-                              :platform platform}}))
+                    @(extensions/execute-hook! project
+                                               :on_build_finished
+                                               {:success false :platform platform}
+                                               :exception-policy :ignore))
                   extension-error))
               (fn process-pre-build-hook-results-on-ui-thread! [extension-error]
                 (if (some? extension-error)
@@ -2508,49 +2503,52 @@ If you do not specifically require different script states, consider changing th
 (def ^:private editor-extensions-allowed-commands-prefs-key
   "editor-extensions/allowed-commands")
 
-(defn make-extensions-ui [workspace changes-view prefs]
-  (reify extensions/UI
-    (reload-resources! [_]
-      (let [success-promise (promise)]
-        (disk/async-reload! (make-render-task-progress :resource-sync)
-                            workspace
-                            []
-                            changes-view
-                            success-promise)
-        (when-not @success-promise
-          (throw (ex-info "Reload failed" {})))))
-    (can-execute? [_ [cmd-name :as command]]
-      (let [allowed-commands (prefs/get-prefs prefs editor-extensions-allowed-commands-prefs-key #{})]
-        (if (allowed-commands cmd-name)
-          true
-          (let [allow (ui/run-now
-                        (dialogs/make-confirmation-dialog
-                          {:title "Allow executing shell command?"
-                           :icon {:fx/type fxui/icon
-                                  :type :icon/triangle-error
-                                  :fill "#fa6731"}
-                           :header "Extension wants to execute a shell command"
-                           :content {:fx/type fxui/label
-                                     :style-class "dialog-content-padding"
-                                     :text (string/join " " command)}
-                           :buttons [{:text "Abort Command"
-                                      :cancel-button true
-                                      :default-button true
-                                      :result false}
-                                     {:text "Allow"
-                                      :variant :danger
-                                      :result true}]}))]
-            (when allow
-              (prefs/set-prefs prefs editor-extensions-allowed-commands-prefs-key (conj allowed-commands cmd-name)))
-            allow))))
-    (display-output! [_ type string]
-      (let [[console-type prefix] (case type
-                                    :err [:extension-error "ERROR:EXT: "]
-                                    :out [:extension-output ""])]
-        (doseq [line (string/split-lines string)]
-          (console/append-console-entry! console-type (str prefix line)))))
-    (on-transact-thread [_ f]
-      (ui/run-now (f)))))
+(defn reload-extensions! [project kind workspace changes-view prefs]
+  (extensions/reload!
+    project kind
+    :reload-resources (fn []
+                        (let [f (future/make)]
+                          (disk/async-reload! (make-render-task-progress :resource-sync)
+                                              workspace
+                                              []
+                                              changes-view
+                                              (fn [success]
+                                                (if success
+                                                  (future/complete! f nil)
+                                                  (future/fail! f (RuntimeException. "Reload failed")))))
+                          f))
+    :can-execute? (fn [[cmd-name :as command]]
+                    (let [allowed-commands (prefs/get-prefs prefs editor-extensions-allowed-commands-prefs-key #{})]
+                      (if (allowed-commands cmd-name)
+                        (future/completed true)
+                        (let [f (future/make)]
+                          (ui/run-later
+                            (let [allow (dialogs/make-confirmation-dialog
+                                          {:title "Allow executing shell command?"
+                                           :icon {:fx/type fxui/icon
+                                                  :type :icon/triangle-error
+                                                  :fill "#fa6731"}
+                                           :header "Extension wants to execute a shell command"
+                                           :content {:fx/type fxui/label
+                                                     :style-class "dialog-content-padding"
+                                                     :text (string/join " " command)}
+                                           :buttons [{:text "Abort Command"
+                                                      :cancel-button true
+                                                      :default-button true
+                                                      :result false}
+                                                     {:text "Allow"
+                                                      :variant :danger
+                                                      :result true}]})]
+                              (when allow
+                                (prefs/set-prefs prefs editor-extensions-allowed-commands-prefs-key (conj allowed-commands cmd-name)))
+                              (future/complete! f allow)))
+                          f))))
+    :display-output (fn [type string]
+                      (let [[console-type prefix] (case type
+                                                    :err [:extension-error "ERROR:EXT: "]
+                                                    :out [:extension-output ""])]
+                        (doseq [line (string/split-lines string)]
+                          (console/append-console-entry! console-type (str prefix line)))))))
 
 (defn- fetch-libraries [workspace project changes-view prefs]
   (let [library-uris (project/project-dependencies project)
@@ -2575,7 +2573,7 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
-                                          (extensions/reload! project :library (make-extensions-ui workspace changes-view prefs))))))))))))))
+                                          (reload-extensions! project :library workspace changes-view prefs)))))))))))))
 
 (handler/defhandler :add-dependency :global
   (enabled? [] (disk-availability/available?))
@@ -2596,7 +2594,7 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :reload-extensions :global
   (enabled? [] (disk-availability/available?))
   (run [project workspace changes-view prefs]
-       (extensions/reload! project :all (make-extensions-ui workspace changes-view prefs))))
+       (reload-extensions! project :all workspace changes-view prefs)))
 
 (defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs project]
   (let [workspace (project/workspace project)

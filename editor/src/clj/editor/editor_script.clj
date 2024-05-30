@@ -17,13 +17,13 @@
             [dynamo.graph :as g]
             [editor.code.resource :as r]
             [editor.code.script :as script]
+            [editor.editor-extensions.runtime :as rt]
             [editor.lua :as lua]
-            [editor.luart :as luart]
             [editor.resource :as resource]))
 
 (g/defnk produce-prototype [_node-id lines resource]
   (try
-    (luart/read (string/join "\n" lines) (resource/resource->proj-path resource))
+    (rt/read (string/join "\n" lines) (resource/resource->proj-path resource))
     (catch Exception e
       (g/->error _node-id :prototype :fatal e "Could not compile editor extension"))))
 
