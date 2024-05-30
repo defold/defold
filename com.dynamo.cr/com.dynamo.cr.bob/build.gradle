@@ -1,0 +1,399 @@
+apply plugin: 'java'
+
+def env = System.getenv()
+def bobDir = file('../com.dynamo.cr.bob')
+def classesDir = file('../com.dynamo.cr.bob/build')
+def commonDir = file('../com.dynamo.cr.common')
+def buildToolsDir = file('../../build_tools')
+def dynamoHome = System.getenv("DYNAMO_HOME") ?: "../../tmp/dynamo_home"
+def hostPlatform = null
+def execProtoTasks = []
+
+repositories {
+    flatDir {
+        dirs 'lib', "$commonDir/ext", "$bobDir/lib"
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'lib', include: '*.jar')
+    implementation fileTree(dir: "$commonDir/ext", include: ['protobuf-java*.jar', 'commons*.jar', 'vecmath.jar', 'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar', 'aws/*.jar'])
+    implementation fileTree(dir: "$bobDir/lib", include: '*.jar')
+}
+
+task getHostPlatform {
+    def command = [
+            "python",
+            "-c",
+            "import sys; sys.path.append('" + buildToolsDir + "'); import sdk; print(sdk.get_host_platform())"
+    ]
+
+    try {
+        def process = new ProcessBuilder(command)
+                .redirectErrorStream(true)
+                .start()
+        def output = new StringBuffer()
+        process.inputStream.eachLine { line -> output.append(line).append('\n') }
+        process.waitFor()
+        def outputString = output.toString().trim()
+
+        if (process.exitValue() == 0) {
+            hostPlatform = outputString
+            if (hostPlatform) {
+                ext.hostPlatform = hostPlatform // Set as extra property
+                println "Host Platform: ${hostPlatform}"
+            } else {
+                throw new GradleException("Failed to determine host platform: output is empty")
+            }
+        } else {
+            throw new GradleException("Failed to determine host platform: ${outputString}")
+        }
+    } catch (Exception e) {
+        println "Exception occurred: ${e.message}"
+        throw e
+    }
+}
+
+task getGitRevision {
+    doLast {
+        def gitRevision = "git log --pretty=%H -n1".execute().text.trim()
+        project.ext.gitRevision = gitRevision
+        println "Git Revision: ${gitRevision}"
+    }
+}
+
+task cleanDirs(type: Delete) {
+    delete classesDir
+    delete file("$bobDir/generated")
+    delete file("$bobDir/dist")
+    delete file("$bobDir/tmp")
+    delete file("$bobDir/lib/luajit-share.zip")
+}
+
+task proto(type: Exec) {
+    group = 'build'
+    dependsOn 'getHostPlatform'
+    def protoDir = project.findProperty('protoDir') ?: ''
+    def protoFile = project.findProperty('protoFile') ?: ''
+    doFirst {
+        if (!protoDir || !protoFile) {
+            throw new GradleException("Properties 'protoDir' and 'protoFile' must be specified")
+        }
+        mkdir 'generated'
+    }
+    doLast {
+        if (!project.ext.hostPlatform) {
+            throw new GradleException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
+        }
+        commandLine "${dynamoHome}/ext/bin/${project.ext.hostPlatform}/protoc", "--java_out=generated", "-I${protoDir}", "-I${dynamoHome}/ext/include", "-I../../engine/gameobject/proto", "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoDir}/${protoFile}"
+    }
+}
+
+task compileGenerated(type: JavaCompile) {
+    source = fileTree('generated')
+    destinationDir = classesDir
+    include '**/*.java'
+    classpath = sourceSets.main.compileClasspath
+}
+
+task compileSrc(type: JavaCompile) {
+    source = fileTree("$bobDir/src")
+    destinationDir = classesDir
+    include 'com/**'
+    classpath = sourceSets.main.compileClasspath
+}
+
+task compileBobLight(dependsOn: [getGitRevision, getHostPlatform, compileGenerated, compileSrc]) {
+    doLast {
+        mkdir classesDir
+        execProtoTasks.each { task ->
+            dependsOn task
+        }
+        exec {
+            commandLine 'python', "${bobDir}/engine_version_generator.py"
+        }
+        copy {
+            from fileTree("${dynamoHome}/share") {
+                include 'java/dlib.jar'
+                include 'java/modelimporter.jar'
+                include 'java/texturecompiler.jar'
+            }
+            into "$bobDir/lib"
+        }
+        ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar'].each { jar ->
+            if (!file("$bobDir/lib/$jar").exists()) {
+                throw new GradleException("$jar is missing")
+            }
+        }
+        ['x86_64-macos', 'arm64-macos', 'x86_64-linux', 'x86_64-win32', 'x86-win32'].each { platform ->
+            copy {
+                from fileTree("${dynamoHome}/ext/bin/$platform")
+                into "$bobDir/libexec/$platform"
+                include '*'
+            }
+        }
+        copy {
+            from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-linux.tar.gz")))
+            into "$bobDir/libexec"
+            include 'bin/x86_64-linux/**'
+        }
+        copy {
+            from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-win32.tar.gz")))
+            into "$bobDir/libexec"
+            include 'bin/x86_64-win32/**'
+        }
+        copy {
+            from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-macos.tar.gz")))
+            into "$bobDir/libexec"
+            include 'bin/x86_64-macos/**'
+        }
+        copy {
+            from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-arm64-macos.tar.gz")))
+            into "$bobDir/libexec"
+            include 'bin/arm64-macos/**'
+        }
+        copy {
+            from fileTree("$bobDir/src") {
+                exclude '**/*.java'
+            }
+            into classesDir
+        }
+        copy {
+            from fileTree("${dynamoHome}/lib") {
+                include 'x86_64-macos/*texc_shared*'
+                include 'x86_64-macos/*modelc_shared*'
+                exclude '**/*dSYM.zip'
+            }
+            into "$bobDir/lib/x86_64-macos"
+        }
+        copy {
+            from fileTree("${dynamoHome}/lib") {
+                include 'arm64-macos/*texc_shared*'
+                include 'arm64-macos/*modelc_shared*'
+            }
+            into "$bobDir/lib/arm64-macos"
+        }
+        copy {
+            from fileTree("${dynamoHome}/lib") {
+                include 'x86_64-linux/*texc_shared*'
+                include 'x86_64-linux/*modelc_shared*'
+                exclude '**/*dSYM.zip'
+            }
+            into "$bobDir/lib/x86_64-linux"
+        }
+        copy {
+            from fileTree("${dynamoHome}/lib") {
+                include 'win32/*texc_shared*'
+                include 'win32/*modelc_shared*'
+                exclude '**/*dSYM.zip'
+            }
+            into "$bobDir/lib/x86-win32"
+        }
+        copy {
+            from fileTree("${dynamoHome}/lib") {
+                include 'x86_64-win32/*texc_shared*'
+                include 'x86_64-win32/*modelc_shared*'
+                exclude '**/*dSYM.zip'
+            }
+            into "$bobDir/lib/x86_64-win32"
+        }
+        jar {
+            archiveFileName = 'luajit-share.zip'
+            from "${dynamoHome}/ext/share/luajit"
+        }
+    }
+}
+
+task compile(dependsOn: ['compileBobLight']) {
+    doLast {
+        jar {
+            archiveFileName = 'android-res.zip'
+            from "${dynamoHome}/ext/share/java/res"
+        }
+        copy {
+            from fileTree("${dynamoHome}/ext/lib") {
+                include 'win32/OpenAL32.dll'
+                include 'win32/wrap_oal.dll'
+            }
+            into "$bobDir/lib/x86-win32"
+        }
+        copy {
+            from fileTree("${dynamoHome}/ext/lib") {
+                include 'x86_64-win32/OpenAL32.dll'
+                include 'x86_64-win32/wrap_oal.dll'
+            }
+            into "$bobDir/lib/x86_64-win32"
+        }
+    }
+}
+
+task distBobLight(dependsOn: ['compileBobLight']) {
+    doLast {
+        mkdir "$bobDir/dist"
+        mkdir "$bobDir/tmp"
+
+        jar {
+            archiveFileName = 'external-libs-light.jar'
+            from fileTree(dir: "$commonDir/ext", include: ['protobuf-java*.jar', 'commons*.jar', 'vecmath.jar', 'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar', 'httpcore-4.1.4.jar'])
+            from fileTree(dir: "$bobDir/lib", include: ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar', 'lz4-1.9.0.jar', 'commons-cli-1.2.jar', 'jna-5.13.0.jar', 'jna-platform-5.13.0.jar', 'jackson-core-asl-1.9.2.jar', 'jackson-mapper-asl-1.9.2.jar', 'openmali.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar', 'jaxb-api-2.3.0.jar', 'jaxb-core-2.3.0.jar', 'jaxb-impl-2.3.0.jar', 'antlr-runtime-4.9.1.jar', 'jmustache-1.8.jar'])
+        }
+
+        jar {
+            archiveFileName = 'bob-light.jar'
+            from classesDir
+            from fileTree("$bobDir") {
+                include 'lib/**/*texc_shared*'
+                include 'lib/**/*modelc_shared*'
+                exclude '**/*dSYM.zip'
+            }
+            from fileTree("$bobDir") {
+                include 'libexec/**/glslc*'
+                include 'libexec/**/spirv-cross*'
+                include 'libexec/**/spirv-opt*'
+                include 'libexec/**/luajit*'
+            }
+            from zipTree("$bobDir/tmp/external-libs-light.jar") {
+                exclude '**/META-INF/**'
+            }
+            from fileTree("$bobDir") {
+                include 'lib/luajit-share.zip'
+            }
+            manifest {
+                attributes 'Main-Class': 'com.dynamo.bob.Bob', 'is-bob-light': 'true'
+            }
+        }
+    }
+}
+
+task dist(dependsOn: ['compile']) {
+    doLast {
+        mkdir "$bobDir/dist"
+        mkdir "$bobDir/tmp"
+
+        jar {
+            archiveFileName = 'external-libs-builtins.jar'
+            from fileTree(dir: "$commonDir/ext", include: ['protobuf-java*.jar', 'commons*.jar', 'vecmath.jar', 'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar'])
+            from fileTree(dir: "$commonDir/ext/aws", include: '*.jar')
+            from fileTree(dir: "$bobDir/lib", include: ['*.jar', '!android.jar'])
+        }
+
+        jar {
+            archiveFileName = 'bob.jar'
+            from classesDir
+            from fileTree("$bobDir") {
+                include 'lib/**/*texc_shared*'
+                include 'lib/**/*modelc_shared*'
+                include 'lib/**/*libc++*'
+                include 'lib/*win32/OpenAL32.dll'
+                include 'lib/*win32/wrap_oal.dll'
+                exclude '**/*dSYM.zip'
+            }
+            from fileTree("$bobDir") {
+                include 'libexec/**/*'
+            }
+            from fileTree("$bobDir") {
+                include 'lib/report_template.html'
+                include 'lib/time_report_template.html'
+            }
+            from zipTree("$bobDir/lib/builtins.zip")
+            from zipTree("$bobDir/tmp/external-libs-builtins.jar") {
+                exclude '**/META-INF/**'
+            }
+            from fileTree("$bobDir") {
+                include 'lib/android.jar'
+                include 'lib/classes.dex'
+                include 'lib/*.zip'
+            }
+            manifest {
+                attributes 'Main-Class': 'com.dynamo.bob.Bob'
+            }
+        }
+    }
+}
+
+task installBobLight(dependsOn: ['distBobLight']) {
+    doLast {
+        copy {
+            from "$bobDir/dist/bob-light.jar"
+            into "$dynamoHome/share/java"
+        }
+    }
+}
+
+task install(dependsOn: ['dist']) {
+    doLast {
+        copy {
+            from "$bobDir/dist/bob.jar"
+            into "$dynamoHome/share/java"
+        }
+    }
+}
+
+gradle.projectsEvaluated {
+    def protoFiles = [
+            [dir: "../../engine/ddf/src", file: "ddf/ddf_extensions.proto"],
+            [dir: "../../engine/ddf/src", file: "ddf/ddf_math.proto"],
+            [dir: "../../engine/engine/proto", file: "engine/engine_ddf.proto"],
+            [dir: "../../engine/graphics/proto", file: "graphics/graphics_ddf.proto"],
+            [dir: "../../engine/gameobject/proto", file: "gameobject/properties_ddf.proto"],
+            [dir: "../../engine/gameobject/proto", file: "gameobject/gameobject_ddf.proto"],
+            [dir: "../../engine/gameobject/proto", file: "gameobject/lua_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/atlas_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/camera_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/gamesys_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/gui_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/label_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/model_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/physics_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/sound_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/sprite_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/texture_set_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/tile_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/mesh_ddf.proto"],
+            [dir: "../../engine/gamesys/proto", file: "gamesys/buffer_ddf.proto"],
+            [dir: "../../engine/rig/proto", file: "rig/rig_ddf.proto"],
+            [dir: "../../engine/input/proto", file: "input/input_ddf.proto"],
+            [dir: "../../engine/particle/proto", file: "particle/particle_ddf.proto"],
+            [dir: "../../engine/render/proto", file: "render/font_ddf.proto"],
+            [dir: "../../engine/render/proto", file: "render/material_ddf.proto"],
+            [dir: "../../engine/render/proto", file: "render/render_ddf.proto"],
+            [dir: "../../engine/render/proto", file: "render/render_target_ddf.proto"],
+            [dir: "../../engine/render/proto", file: "render/compute_program_ddf.proto"],
+            [dir: "../../engine/resource/proto", file: "resource/liveupdate_ddf.proto"],
+            [dir: "../../engine/resource/proto", file: "resource/resource_ddf.proto"],
+            [dir: "../../engine/script/src", file: "script/script_doc_ddf.proto"],
+            [dir: "../../engine/script/src", file: "script/lua_source_ddf.proto"],
+            [dir: "../../engine/script/src", file: "script/ddf_script.proto"],
+            [dir: "../../engine/script/src", file: "script/sys_ddf.proto"]
+    ]
+    protoFiles.each { proto ->
+        def protoDir = file(proto.dir)
+        def protoFilePath = file("${proto.dir}/${proto.file}")
+        execProtoTasks << task("protoTask_${proto.file.replace('/', '_').replace('.', '_')}", type: Exec, dependsOn: 'getHostPlatform') {
+            group = 'build'
+            doFirst {
+                if (!protoDir.exists()) {
+                    throw new GradleException("Directory '${protoDir}' does not exist")
+                }
+                if (!protoFilePath.exists()) {
+                    throw new GradleException("File '${protoFilePath}' does not exist")
+                }
+                mkdir 'generated'
+            }
+            commandLine "${dynamoHome}/ext/bin/${hostPlatform}/protoc", "--java_out=generated", "-I${protoDir}", "-I${dynamoHome}/ext/include", "-I../../engine/gameobject/proto", "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoFilePath}"
+            doFirst {
+                println "Running command: ${commandLine.join(' ')}"
+                println "protoDir: ${protoDir}"
+                println "protoFile: ${protoFilePath}"
+                println "dynamoHome: ${dynamoHome}"
+                println "hostPlatform: ${hostPlatform}"
+            }
+            doLast {
+                if (!hostPlatform) {
+                    throw new GradleException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
+                }
+            }
+        }
+    }
+    compileBobLight.dependsOn execProtoTasks
+}
