@@ -16,7 +16,10 @@ repositories {
 
 dependencies {
     implementation fileTree(dir: 'lib', include: '*.jar')
-    implementation fileTree(dir: "$commonDir/ext", include: ['protobuf-java*.jar', 'commons*.jar', 'vecmath.jar', 'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar', 'aws/*.jar'])
+    implementation fileTree(dir: "$commonDir/ext", include: [
+            'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
+            'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar', 'aws/*.jar'
+    ])
     implementation fileTree(dir: "$bobDir/lib", include: '*.jar')
 }
 
@@ -30,7 +33,6 @@ task cleanDirs(type: Delete) {
 
 clean.dependsOn cleanDirs
 
-// Define the proto tasks dynamically before any task that depends on them
 gradle.projectsEvaluated {
     execProtoTasks.dependsOn getHostPlatform
     gradle.ext.protoFiles.each { proto ->
@@ -50,7 +52,9 @@ gradle.projectsEvaluated {
                 if (!gradle.ext.hostPlatform) {
                     throw new GradleException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
                 }
-                commandLine "${dynamoHome}/ext/bin/${gradle.ext.hostPlatform}/protoc", "--java_out=generated", "-I${protoDir}", "-I${dynamoHome}/ext/include", "-I../../engine/gameobject/proto", "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoFilePath}"
+                commandLine "${dynamoHome}/ext/bin/${gradle.ext.hostPlatform}/protoc", "--java_out=generated",
+                        "-I${protoDir}", "-I${dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
+                        "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoFilePath}"
                 println "Running command: ${commandLine.join(' ')}"
             }
         }
@@ -58,7 +62,6 @@ gradle.projectsEvaluated {
 }
 
 task execProtoTasks {
-    // This task is just a placeholder to group all proto tasks
     dependsOn gradle.ext.protoFiles.collect { proto ->
         "protoTask_${proto.file.replace('/', '_').replace('.', '_')}"
     }
@@ -78,7 +81,9 @@ task proto(type: Exec, dependsOn: [getHostPlatform]) {
         if (!gradle.ext.hostPlatform) {
             throw new GradleException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
         }
-        commandLine "${dynamoHome}/ext/bin/${gradle.ext.hostPlatform}/protoc", "--java_out=generated", "-I${protoDir}", "-I${dynamoHome}/ext/include", "-I../../engine/gameobject/proto", "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoDir}/${protoFile}"
+        commandLine "${dynamoHome}/ext/bin/${gradle.ext.hostPlatform}/protoc", "--java_out=generated",
+                "-I${protoDir}", "-I${dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
+                "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoDir}/${protoFile}"
     }
 }
 
