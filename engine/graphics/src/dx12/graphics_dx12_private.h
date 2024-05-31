@@ -37,8 +37,10 @@ namespace dmGraphics
 
     struct DX12Texture
     {
-        ID3D12Resource*     m_Resource;
-        D3D12_RESOURCE_DESC m_ResourceDesc;
+        ID3D12Resource*       m_Resource;
+        D3D12_RESOURCE_DESC   m_ResourceDesc;
+        D3D12_RESOURCE_STATES m_ResourceStates[16];
+
         TextureType         m_Type;
         uint16_t            m_Width;
         uint16_t            m_Height;

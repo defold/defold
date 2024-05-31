@@ -642,7 +642,7 @@ namespace dmGraphics
     template <typename T>
     static void DestroyResourceDeferred(DX12FrameResource& current_frame_resource, T* resource) 
     {
-        if (resource == 0x0 || resource->m_Destroyed || resource->m_Resource == 0x0)
+        if (resource == 0x0 || resource->m_Resource == 0x0)
         {
             return;
         }
@@ -654,6 +654,7 @@ namespace dmGraphics
 
         current_frame_resource.m_ResourcesToDestroy.Push(resource->m_Resource);
         resource->m_Destroyed = 1;
+        resource->m_Resource = 0;
     }
 
     static void FlushResourcesToDestroy(DX12FrameResource& current_frame_resource)
@@ -735,10 +736,12 @@ namespace dmGraphics
         return pitch;
     }
 
-    static void CopyTextureData(const TextureParams& params, TextureFormat format_dst, TextureFormat format_src, D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, uint32_t* num_rows, uint32_t array_count, uint32_t mipmap_count, uint32_t* slice_row_pitch, uint8_t* pixels, uint8_t* upload_data)
+    static void CopyTextureData(const TextureParams& params, TextureFormat format_dst, TextureFormat format_src, D3D12_PLACED_SUBRESOURCE_FOOTPRINT layout, uint32_t* num_rows, uint32_t array_count, uint32_t mipmap_count, uint32_t* slice_row_pitch, uint8_t* pixels, uint8_t* upload_data)
     {
         uint8_t bpp_dst = GetTextureFormatBitsPerPixel(format_dst) / 8;
         uint8_t bpp_src = GetTextureFormatBitsPerPixel(format_src) / 8;
+
+        const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& subResourceLayout = layout; // layouts[subResourceIndex];
 
         for (uint64_t array = 0; array < array_count; array++)
         {
@@ -746,7 +749,7 @@ namespace dmGraphics
             {
                 const uint64_t subResourceIndex = mipmap + (array * mipmap_count);
          
-                const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& subResourceLayout = layouts[subResourceIndex];
+                //const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& subResourceLayout = layouts[subResourceIndex];
                 const uint64_t subResourceHeight                            = num_rows[subResourceIndex];
                 const uint64_t subResourcePitch                             = DM_ALIGN(subResourceLayout.Footprint.RowPitch, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
                 const uint64_t subResourceDepth                             = subResourceLayout.Footprint.Depth;
@@ -788,14 +791,13 @@ namespace dmGraphics
         uint64_t slice_upload_size = 0;
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp[16] = { 0 };
 
-        uint8_t bpp_dst = GetTextureFormatBitsPerPixel(format_dst) / 8;
-        uint32_t texture_pitch = texture->m_Width * bpp_dst;
-        uint32_t mipmap_pitch = GetPitchFromMipMap(texture_pitch, params.m_MipMap);
+        uint8_t bpp_dst            = GetTextureFormatBitsPerPixel(format_dst) / 8;
+        uint32_t texture_pitch     = texture->m_Width * bpp_dst;
+        uint32_t mipmap_pitch      = GetPitchFromMipMap(texture_pitch, params.m_MipMap);
 
         uint32_t num_rows[16];
         uint64_t row_size_in_bytes[16];
-
-        context->m_Device->GetCopyableFootprints(&texture->m_ResourceDesc, params.m_MipMap, texture->m_MipMapCount, 0, fp, num_rows, row_size_in_bytes, &slice_upload_size);
+        context->m_Device->GetCopyableFootprints(&texture->m_ResourceDesc, params.m_MipMap, 1, 0, fp, num_rows, row_size_in_bytes, &slice_upload_size);
 
         // create upload heap
         // upload heaps are used to upload data to the GPU. CPU can write to it, GPU can read from it
@@ -825,12 +827,18 @@ namespace dmGraphics
         hr = upload_heap->Map(0, NULL, (void**) &upload_data);
         CHECK_HR_ERROR(hr);
 
-        CopyTextureData(params, format_dst, format_src, fp, num_rows, 1, 1, &mipmap_pitch, pixels, upload_data);
+        CopyTextureData(params, format_dst, format_src, fp[0], num_rows, 1, 1, &mipmap_pitch, pixels, upload_data);
 
         if (!context->m_FrameBegun)
         {
             hr = context->m_CommandList->Reset(context->m_FrameResources[0].m_CommandAllocator, NULL); // Second argument is a pipeline object (TODO)
             CHECK_HR_ERROR(hr);
+        }
+
+        if (texture->m_ResourceStates[params.m_MipMap] != D3D12_RESOURCE_STATE_COPY_DEST)
+        {
+            context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[params.m_MipMap], D3D12_RESOURCE_STATE_COPY_DEST, (UINT) params.m_MipMap));
+            texture->m_ResourceStates[params.m_MipMap] = D3D12_RESOURCE_STATE_COPY_DEST;
         }
 
         D3D12_TEXTURE_COPY_LOCATION copy_dst = {};
@@ -841,7 +849,7 @@ namespace dmGraphics
         D3D12_TEXTURE_COPY_LOCATION copy_src = {};
         copy_src.pResource        = upload_heap;
         copy_src.Type             = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-        copy_src.PlacedFootprint  = fp[params.m_MipMap];
+        copy_src.PlacedFootprint  = fp[0];
 
         D3D12_BOX box = {};
         box.top    = params.m_Y;
@@ -854,7 +862,11 @@ namespace dmGraphics
         // The box acts like a clip box, which indicates where from the source we should take the data from
         context->m_CommandList->CopyTextureRegion(&copy_dst, params.m_X, params.m_Y, 0, &copy_src, &box);
 
-        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ));
+        if (texture->m_ResourceStates[params.m_MipMap] != D3D12_RESOURCE_STATE_GENERIC_READ)
+        {
+            context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[params.m_MipMap], D3D12_RESOURCE_STATE_GENERIC_READ, (UINT) params.m_MipMap));
+            texture->m_ResourceStates[params.m_MipMap] = D3D12_RESOURCE_STATE_GENERIC_READ;
+        }
 
         if (!context->m_FrameBegun)
         {
@@ -876,7 +888,7 @@ namespace dmGraphics
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), // a default heap
             D3D12_HEAP_FLAG_NONE,                              // no flags
             &CD3DX12_RESOURCE_DESC::Buffer(size),              // resource description for a buffer
-            D3D12_RESOURCE_STATE_COPY_DEST,                    // we will start this heap in the copy destination state since we will copy data from the upload heap to this heap
+            D3D12_RESOURCE_STATE_COMMON,                       // we will start this heap in the copy destination state since we will copy data from the upload heap to this heap
             NULL,                                              // optimized clear value must be null for this type of resource. used for render targets and depth/stencil buffers
             IID_PPV_ARGS(&device_buffer->m_Resource));
         CHECK_HR_ERROR(hr);
@@ -965,7 +977,7 @@ namespace dmGraphics
         }
 
         DX12VertexBuffer* vx_buffer = (DX12VertexBuffer*) _buffer;
-        if (size != vx_buffer->m_DeviceBuffer.m_DataSize)
+        //if (size != vx_buffer->m_DeviceBuffer.m_DataSize)
         {
             DestroyResourceDeferred(g_DX12Context->m_FrameResources[g_DX12Context->m_CurrentFrameIndex], &vx_buffer->m_DeviceBuffer);
         }
@@ -1012,10 +1024,12 @@ namespace dmGraphics
         }
 
         DX12IndexBuffer* ix_buffer = (DX12IndexBuffer*) buffer;
-        if (ix_buffer->m_DeviceBuffer.m_Resource == 0x0)
-        {
-            CreateDeviceBuffer(g_DX12Context, &ix_buffer->m_DeviceBuffer, size);
-        }
+        //if (ix_buffer->m_DeviceBuffer.m_Resource == 0x0)
+        //{
+        //    CreateDeviceBuffer(g_DX12Context, &ix_buffer->m_DeviceBuffer, size);
+        //}
+
+        DestroyResourceDeferred(g_DX12Context->m_FrameResources[g_DX12Context->m_CurrentFrameIndex], &ix_buffer->m_DeviceBuffer);
 
         DeviceBufferUploadHelper(g_DX12Context, &ix_buffer->m_DeviceBuffer, data, size);
     }
@@ -2304,7 +2318,12 @@ namespace dmGraphics
             format_actual = TEXTURE_FORMAT_RGBA;
             dxgi_format   = GetDXGIFormatFromTextureFormat(format_actual);
 
-            assert(0);
+            uint32_t data_pixel_count = params.m_Width * params.m_Height * tex_layer_count;
+            uint8_t bpp_new           = 32;
+            uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
+
+            RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
+            tex_data_ptr  = data_new;
         }
 
         if (!tex->m_Resource)
@@ -2327,12 +2346,22 @@ namespace dmGraphics
             HRESULT hr = g_DX12Context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, NULL, IID_PPV_ARGS(&tex->m_Resource));
             CHECK_HR_ERROR(hr);
 
+            for (int i = 0; i < tex->m_MipMapCount; ++i)
+            {
+                tex->m_ResourceStates[i] = D3D12_RESOURCE_STATE_COPY_DEST;
+            }
+
             tex->m_ResourceDesc = desc;
         }
 
         TextureBufferUploadHelper(g_DX12Context, tex, format_actual, format_orig, params, (uint8_t*) tex_data_ptr);
 
         DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+
+        if (format_orig == TEXTURE_FORMAT_RGB)
+        {
+            delete[] (uint8_t*)tex_data_ptr;
+        }
     }
 
     static uint32_t DX12GetTextureResourceSize(HTexture texture)
