@@ -26,7 +26,7 @@ def build(bld):
             'collection_factory/*',
             'font/*',
             'fragment_program/*',
-            'gui/*',
+            'gui/**',
             'image/*',
             'input/*',
             'label/*',

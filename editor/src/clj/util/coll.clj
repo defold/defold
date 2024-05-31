@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty?])
+  (:refer-clojure :exclude [bounded-count empty? some])
   (:import [clojure.lang IEditableCollection MapEntry]
            [java.util ArrayList]))
 
@@ -244,3 +244,28 @@
               (assoc-in nested-map path value)))
           (empty path-map)
           path-map))
+
+(defn- preserving-reduced [rf]
+  #(let [result (rf %1 %2)]
+     (cond-> result (reduced? result) reduced)))
+
+(defn flatten-xf
+  "Like clojure.core/flatten, but transducer and treats nils as empty sequences"
+  [rf]
+  (fn xf
+    ([] (rf))
+    ([result] (rf result))
+    ([result input]
+     (cond
+       (nil? input) result
+       (sequential? input) (reduce (preserving-reduced xf) result input)
+       :else (rf result input)))))
+
+(defn some
+  "Like clojure.core/some, but uses reduce instead of lazy sequences"
+  [pred coll]
+  (reduce (fn [_ v]
+            (when-let [ret (pred v)]
+              (reduced ret)))
+          nil
+          coll))

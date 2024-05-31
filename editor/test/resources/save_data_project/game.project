@@ -54,6 +54,7 @@ gcm_sender_id = com.defold.save-data-project
 fcm_application_id = com.defold.save-data-project
 manifest = /builtins/manifests/android/AndroidManifest.xml
 proguard = /builtins/manifests/android/dmengine.pro
+extract_native_libs = 1
 
 [project]
 title = Save Data Project
@@ -65,7 +66,7 @@ compress_archive = 1
 custom_resources = /referenced/custom
 bundle_resources = /referenced/bundle
 bundle_exclude_resources = /referenced/bundle/log.txt
-dependencies#0 = https://github.com/defold/extension-spine/archive/main.zip
+dependencies#0 = {{defold.extension.spine.url}}
 
 [input]
 game_binding = /checked.input_bindingc
@@ -241,6 +242,7 @@ include_dirs = library
 
 [liveupdate]
 settings = /liveupdate.settings
+mount_on_start = 0
 
 [native_extension]
 app_manifest = /checked.appmanifest

@@ -72,7 +72,8 @@ namespace dmGraphics
 
         while(next)
         {
-            if (next->m_Priority < selected->m_Priority && next->m_IsSupportedCb())
+            bool is_supported = next->m_IsSupportedCb();
+            if (next->m_Priority < selected->m_Priority && is_supported)
             {
                 selected = next;
             }
@@ -419,7 +420,7 @@ namespace dmGraphics
         *data_size = attribute.m_Values.m_BinaryValues.m_Count;
     }
 
-    uint8_t* WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4& color, float** uvs, uint32_t* page_indices, uint32_t num_textures)
+    uint8_t* WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4* color, float** uvs, uint32_t* page_indices, uint32_t num_textures)
     {
         uint32_t num_texcoords = 0;
         uint32_t num_page_indices = 0;
@@ -451,7 +452,10 @@ namespace dmGraphics
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
                 {
-                    memcpy(write_ptr, &color, info.m_ValueByteSize);
+                    if (color)
+                        memcpy(write_ptr, color, info.m_ValueByteSize);
+                    else
+                        memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
                 {

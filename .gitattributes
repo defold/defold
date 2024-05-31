@@ -1,34 +1,39 @@
 *.dae binary
 
-# Defold Protocol Buffer Text Files (https://github.com/github/linguist/issues/5091)
-*.animationset linguist-language=JSON5
-*.atlas linguist-language=JSON5
-*.camera linguist-language=JSON5
-*.collection linguist-language=JSON5
-*.collectionfactory linguist-language=JSON5
-*.collectionproxy linguist-language=JSON5
-*.collisionobject linguist-language=JSON5
-*.cubemap linguist-language=JSON5
-*.display_profiles linguist-language=JSON5
-*.factory linguist-language=JSON5
-*.font linguist-language=JSON5
-*.gamepads linguist-language=JSON5
-*.go linguist-language=JSON5
-*.gui linguist-language=JSON5
-*.input_binding linguist-language=JSON5
-*.label linguist-language=JSON5
-*.material linguist-language=JSON5
-*.mesh linguist-language=JSON5
-*.model linguist-language=JSON5
-*.particlefx linguist-language=JSON5
-*.render linguist-language=JSON5
-*.sound linguist-language=JSON5
-*.sprite linguist-language=JSON5
-*.spinemodel linguist-language=JSON5
-*.spinescene linguist-language=JSON5
-*.texture_profiles linguist-language=JSON5
-*.tilemap linguist-language=JSON5
-*.tilesource linguist-language=JSON5
+# Defold Protocol Buffer Text Files
+*.animationset linguist-language=Protocol-Buffer-Text-Format
+*.atlas linguist-language=Protocol-Buffer-Text-Format
+*.camera linguist-language=Protocol-Buffer-Text-Format
+*.collection linguist-language=Protocol-Buffer-Text-Format
+*.collectionfactory linguist-language=Protocol-Buffer-Text-Format
+*.collectionproxy linguist-language=Protocol-Buffer-Text-Format
+*.collisionobject linguist-language=Protocol-Buffer-Text-Format
+*.cubemap linguist-language=Protocol-Buffer-Text-Format
+*.display_profiles linguist-language=Protocol-Buffer-Text-Format
+*.factory linguist-language=Protocol-Buffer-Text-Format
+*.font linguist-language=Protocol-Buffer-Text-Format
+*.gamepads linguist-language=Protocol-Buffer-Text-Format
+*.go linguist-language=Protocol-Buffer-Text-Format
+*.gui linguist-language=Protocol-Buffer-Text-Format
+*.input_binding linguist-language=Protocol-Buffer-Text-Format
+*.label linguist-language=Protocol-Buffer-Text-Format
+*.material linguist-language=Protocol-Buffer-Text-Format
+*.mesh linguist-language=Protocol-Buffer-Text-Format
+*.model linguist-language=Protocol-Buffer-Text-Format
+*.particlefx linguist-language=Protocol-Buffer-Text-Format
+*.render linguist-language=Protocol-Buffer-Text-Format
+*.sound linguist-language=Protocol-Buffer-Text-Format
+*.sprite linguist-language=Protocol-Buffer-Text-Format
+*.spinemodel linguist-language=Protocol-Buffer-Text-Format
+*.spinescene linguist-language=Protocol-Buffer-Text-Format
+*.texture_profiles linguist-language=Protocol-Buffer-Text-Format
+*.tilemap linguist-language=Protocol-Buffer-Text-Format
+*.tilesource linguist-language=Protocol-Buffer-Text-Format
+
+# Defold YAML Files
+*.appmanifest linguist-language=YAML
+*.manifest linguist-language=YAML
+*.script_api linguist-language=YAML
 
 # Defold JSON Files
 *.buffer linguist-language=JSON

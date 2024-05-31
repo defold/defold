@@ -25,7 +25,7 @@
 
 namespace dmGraphics
 {
-    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
+    VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
         VkIOSSurfaceCreateInfoMVK sci;
         PFN_vkCreateIOSSurfaceMVK vkCreateIOSSurfaceMVK;

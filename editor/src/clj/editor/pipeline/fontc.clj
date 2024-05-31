@@ -16,21 +16,23 @@
   (:require [clojure.java.io :as io]
             [editor.resource :as resource]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator]
+  (:import [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator Fontc]
            [com.google.protobuf ByteString]
-           [javax.imageio ImageIO]
-           [java.util Arrays]
-           [java.awt Canvas BasicStroke Font FontMetrics Graphics2D Color RenderingHints Composite CompositeContext Shape Transparency]
-           [java.awt.font FontRenderContext GlyphVector]
-           [java.awt.geom AffineTransform PathIterator FlatteningPathIterator]
-           [java.awt.image BufferedImage Kernel ConvolveOp Raster WritableRaster DataBuffer DataBufferByte ComponentColorModel]
+           [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics2D RenderingHints Shape Transparency]
            [java.awt.color ColorSpace]
-           [java.io InputStream FileNotFoundException IOException]
+           [java.awt.font FontRenderContext GlyphVector]
+           [java.awt.geom AffineTransform FlatteningPathIterator PathIterator]
+           [java.awt.image BufferedImage ComponentColorModel ConvolveOp DataBuffer DataBufferByte Kernel Raster WritableRaster]
+           [java.io FileNotFoundException IOException InputStream]
            [java.nio.file Paths]
+           [java.util Arrays]
+           [javax.imageio ImageIO]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(def ^String default-characters-string (String. Fontc/ASCII_7BIT))
 
 (defn- next-pow2 [n]
   (assert (>= ^int n 0))
@@ -148,6 +150,12 @@
 (defn- make-glyph-data-bank ^bytes [glyph-extents]
   (byte-array (transduce (map :glyph-data-size) + 0 glyph-extents)))
 
+(defn check-monospaced [semi-glyphs]
+  (let [base-advance (if-let [first-glyph (first semi-glyphs)]
+                       (:advance first-glyph)
+                       0)]
+    (every? #(= base-advance (:advance %)) semi-glyphs)))
+
 (def ^:private positive-glyph-extent-pairs-xf (comp (map pair) (filter (comp positive-wh? :glyph-wh second))))
 
 (defn- compile-fnt-bitmap [font-desc font-resource resolver]
@@ -173,7 +181,8 @@
         line-height (+ cache-cell-max-ascent cache-cell-max-descent)
         cache-cell-wh (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
-        glyph-data-bank (make-glyph-data-bank glyph-extents)]
+        glyph-data-bank (make-glyph-data-bank glyph-extents)
+        is-monospaced (check-monospaced semi-glyphs)]
 
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
@@ -225,7 +234,9 @@
        :cache-cell-height (:height cache-cell-wh)
        :cache-cell-max-ascent max-ascent
        :glyph-channels channel-count
-       :glyph-data (ByteString/copyFrom glyph-data-bank)})))
+       :glyph-data (ByteString/copyFrom glyph-data-bank)
+       :is-monospaced is-monospaced
+       :padding padding})))
 
 (defn- do-blend-rasters [^Raster src ^Raster dst-in ^WritableRaster dst-out]
   (let [width (min (.getWidth src) (.getWidth dst-in) (.getWidth dst-out))
@@ -383,7 +394,11 @@
 (defn- ttf-semi-glyphs [font-desc ^Font font antialias]
   (let [prospect-codepoints (if (:all-chars font-desc)
                               (range 0x10ffff)
-                              (concat (range 32 127) (map int (:extra-characters font-desc))))
+                              (sort
+                                (eduction
+                                  (map int)
+                                  (distinct)
+                                  (:characters font-desc))))
         displayable-codepoint? (fn [codepoint] (.canDisplay font ^int codepoint))
         semi-glyphs (into []
                           (comp
@@ -438,7 +453,8 @@
                               (update :width #(* (int (Math/ceil (/ ^double % 4.0))) 4)))
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)
-        layer-mask (font-desc->layer-mask font-desc)]
+        layer-mask (font-desc->layer-mask font-desc)
+        is-monospaced (check-monospaced semi-glyphs)]
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
               (let [^BufferedImage glyph-image (let [face-color (Color. ^double (:alpha font-desc) 0.0 0.0)
@@ -494,7 +510,9 @@
      :glyph-data (ByteString/copyFrom glyph-data-bank)
      :alpha (:alpha font-desc)
      :outline-alpha (:outline-alpha font-desc)
-     :shadow-alpha (:shadow-alpha font-desc)}))
+     :shadow-alpha (:shadow-alpha font-desc)
+     :is-monospaced is-monospaced
+     :padding padding}))
 
 (defn- calculate-ttf-distance-field-edge-limit [^double width ^double spread ^double edge]
   (let [sdf-limit-value (- (/ width spread))]
@@ -585,8 +603,8 @@
             (aset image out-shadow-offset (unchecked-byte df-outline-channel)))))
       (when (and (> shadow-alpha 0.0) (> shadow-blur 0) (> channel-count 1))
         (let [image-byte-length (* width height channel-count)
-              shadow-image' (byte-array image-byte-length)
-              shadow-image (do (System/arraycopy image 0 shadow-image' 0 image-byte-length) shadow-image')
+              shadow-image (byte-array image-byte-length)
+              _ (System/arraycopy image 0 shadow-image 0 image-byte-length)
               shadow-data-buffer (DataBufferByte. shadow-image image-byte-length)
               shadow-band-offsets (int-array [0 1 2])
               shadow-n-bits (int-array [8 8 8])
@@ -640,7 +658,8 @@
         cache-cell-wh (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)
-        layer-mask (font-desc->layer-mask font-desc)]
+        layer-mask (font-desc->layer-mask font-desc)
+        is-monospaced (check-monospaced semi-glyphs)]
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
               (let [{:keys [^bytes field]} (draw-ttf-distance-field semi-glyph padding channel-count outline-width sdf-outline sdf-spread sdf-shadow-spread edge shadow-blur shadow-alpha)
@@ -685,7 +704,9 @@
      :glyph-data (ByteString/copyFrom glyph-data-bank)
      :alpha (:alpha font-desc)
      :outline-alpha (:outline-alpha font-desc)
-     :shadow-alpha (:shadow-alpha font-desc)}))
+     :shadow-alpha (:shadow-alpha font-desc)
+     :is-monospaced is-monospaced
+     :padding padding}))
 
 (defn compile-font [font-desc font-resource resolver]
   (let [font-ext (resource/type-ext font-resource)]

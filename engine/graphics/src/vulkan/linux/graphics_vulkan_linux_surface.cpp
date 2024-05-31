@@ -27,7 +27,7 @@
 
 namespace dmGraphics
 {
-    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
+    VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
         xcb_connection_t* connection = XGetXCBConnection(glfwGetX11Display());
         if (!connection)

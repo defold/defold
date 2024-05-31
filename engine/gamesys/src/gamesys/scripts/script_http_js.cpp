@@ -53,6 +53,7 @@ namespace dmGameSystem
     {
         dmMessage::URL  m_Requester;
         void*           m_RequestData;
+        const char*     m_Path;
         int             m_Callback;
     };
 
@@ -98,6 +99,7 @@ namespace dmGameSystem
         resp.m_HeadersLength = headers_length;
         resp.m_Response = (uint64_t) response;
         resp.m_ResponseLength = response_length;
+        resp.m_Path = ctx->m_Path;
 
         resp.m_Headers = (uint64_t) malloc(headers_length);
         memcpy((void*) resp.m_Headers, headers, headers_length);
@@ -143,6 +145,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         int callback = 0;
+        const char* path = 0;
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender)) {
             RequestParams request_params;
@@ -205,6 +208,10 @@ namespace dmGameSystem
                     {
                         request_params.m_ReportProgress = lua_toboolean(L, -1);
                     }
+                    else if (strcmp(attr, "path") == 0)
+                    {
+                        path = luaL_checkstring(L, -1);
+                    }
                     lua_pop(L, 1);
                 }
                 lua_pop(L, 1);
@@ -214,6 +221,7 @@ namespace dmGameSystem
             ctx->m_Callback = callback;
             ctx->m_Requester = sender;
             ctx->m_RequestData = request_params.m_SendData;
+            ctx->m_Path = path;
 
             request_params.m_Args = ctx;
 

@@ -1,0 +1,8 @@
+local mathutils = require('modules.mathutils')
+
+function init(self)
+    local a = { x = 0, y = 0 }
+    local b = { x = 0, y = 5 }
+    local distance = mathutils.distance(a, b)
+    print('Distance: ' .. distance)
+end

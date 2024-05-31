@@ -20,7 +20,7 @@
             [editor.core :as core]
             [editor.fs :as fs]
             [schema.core :as s]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.digest :as digest])
   (:import [clojure.lang PersistentHashMap]
            [java.io File FilterInputStream IOException InputStream]
@@ -78,7 +78,8 @@
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))
 
-(defn relative-path [^File f1 ^File f2]
+(defn relative-path
+  ^String [^File f1 ^File f2]
   ;; The strange comparison below is done due to the fact that we support case
   ;; insensitive file systems. For example NTFS and HFS. We want to compare the
   ;; paths without case but preserve the casing as supplied by the caller in the
@@ -445,16 +446,8 @@
       (.getAbsolutePath f))))
 
 (def ^:private ext->style-class
-  (let [config {"script" ["fp" "gui_script" "lua" "render_script" "script" "vp"
-                          "glsl"]
-                "design" ["atlas" "collection" "collisionobject" "cubemap" "dae"
-                          "font" "go" "gui" "label" "model" "particlefx"
-                          "spinemodel" "spinescene" "sprite" "tilemap"
-                          "tilesource" "render_target"]
-                "property" ["animationset" "camera" "collectionfactory"
-                            "collectionproxy" "display_profiles" "factory"
-                            "gamepads" "input_binding" "material" "project"
-                            "render" "sound" "texture_profiles"]}]
+  ;; TODO: make extension-spine use :icon-class
+  (let [config {"design" ["spinemodel" "spinescene"]}]
    (->> (for [[kind extensions] config
               :let [style-class (str "resource-kind-" kind)]
               ext extensions
@@ -463,17 +456,20 @@
         seq
         PersistentHashMap/createWithCheck)))
 
-(defn style-classes [resource]
-  (let [resource-kind-class (case (source-type resource)
-                              :file (some->> resource ext ext->style-class)
-                              :folder "resource-folder"
-                              nil)]
-    (cond-> #{"resource"} resource-kind-class (conj resource-kind-class))))
+(def icon-class->style-class
+  (coll/pair-map-by identity #(str "resource-kind-" (name %)) [:design :property :script]))
 
-(defn ext-style-classes [resource-ext]
-  (assert (or (nil? resource-ext) (string? resource-ext)))
-  (if-some [style-class (ext->style-class resource-ext)]
-    #{"resource" style-class}
+(defn type-style-classes [resource-type]
+  (if-let [explicit-class (or (some-> (:icon-class resource-type) icon-class->style-class)
+                              (some-> (:ext resource-type) ext->style-class))]
+    #{"resource" explicit-class}
+    #{"resource"}))
+
+(defn style-classes [resource]
+  (case (source-type resource)
+    :file (or (some-> (resource-type resource) type-style-classes)
+              #{"resource"})
+    :folder #{"resource" "resource-folder"}
     #{"resource"}))
 
 (defn filter-resources [resources query]

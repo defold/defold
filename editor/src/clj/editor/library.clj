@@ -17,11 +17,16 @@
             [clojure.string :as str]
             [editor.fs :as fs]
             [editor.progress :as progress]
-            [editor.settings-core :as settings-core])
+            [editor.resource :as resource]
+            [editor.settings-core :as settings-core]
+            [editor.system :as system]
+            [editor.url :as url]
+            [util.coll :refer [pair]])
   (:import [java.io File InputStream]
            [java.net HttpURLConnection URI]
+           [java.nio.file.attribute FileTime]
            [java.util Base64]
-           [java.util.zip ZipInputStream]
+           [java.util.zip ZipEntry ZipInputStream ZipOutputStream]
            [org.apache.commons.codec.digest DigestUtils]
            [org.apache.commons.io FilenameUtils]))
 
@@ -146,12 +151,62 @@
        :stream (when (= status :stale) (.getInputStream connection))
        :tag tag})))
 
+;; In dev builds, we replace patterns such as {{defold.extension.spine.url}}
+;; with JVM property values. This ensures we can use a specific branch of an
+;; extension in the integration tests as we develop new features. If there is a
+;; corresponding system property `defold.extension.spine.path` that points to a
+;; valid directory, we will use the contents of said directory in place of the
+;; library url.
+(def ^:private use-local-extension-dir!
+  (if-not (system/defold-dev?)
+    (constantly nil)
+    (let [local-extension-dirs-by-library-uris
+          (into {}
+                (keep
+                  (fn [[key value]]
+                    (when (re-matches #"defold\.extension\.(.+?).url" key)
+                      (when-some [library-uri (url/try-parse value)]
+                        (let [local-path-key (str (subs key 0 (- (count key) 4)) ".path")
+                              local-path (System/getProperty local-path-key)]
+                          (when (some? local-path)
+                            (let [local-dir (io/file local-path)]
+                              (when (.isDirectory local-dir)
+                                (pair library-uri (.getCanonicalFile local-dir))))))))))
+                (System/getProperties))
+
+          write-local-library-zip!
+          (fn write-local-library-zip! [^File output-file ^File library-repo-dir]
+            {:pre [(or (not (.exists output-file)) (.isFile output-file))
+                   (.isDirectory library-repo-dir)]}
+            (let [library-repo-dir (.getCanonicalFile library-repo-dir)]
+              (with-open [zip-output-stream (ZipOutputStream. (io/output-stream output-file))]
+                (reduce
+                  (fn [_ ^File source-file]
+                    (let [zip-entry-pathname (resource/relative-path library-repo-dir source-file)
+                          zip-entry (doto (ZipEntry. zip-entry-pathname)
+                                      (.setSize (.length source-file))
+                                      (.setLastModifiedTime (FileTime/fromMillis (.lastModified source-file))))]
+                      (.putNextEntry zip-output-stream zip-entry)
+                      (io/copy source-file zip-output-stream)))
+                  nil
+                  (fs/file-walker library-repo-dir false ["build"]))
+                (.finish zip-output-stream))))]
+
+      (fn use-local-extension-dir! [^URI library-uri]
+        (when-some [^File local-extension-dir (local-extension-dirs-by-library-uris library-uri)]
+          (let [name (str "local-" (.getName local-extension-dir))]
+            {:status :stale
+             :tag name
+             :new-file (doto (fs/create-temp-file! name ".zip")
+                         (write-local-library-zip! local-extension-dir))}))))))
+
 (defn- fetch-library! [resolver ^URI uri tag]
   (try
-    (let [response (resolver uri tag)]
-      {:status (:status response)
-       :new-file (when (= (:status response) :stale) (dump-to-temp-file! (:stream response)))
-       :tag (:tag response)})
+    (or (use-local-extension-dir! uri)
+        (let [response (resolver uri tag)]
+          {:status (:status response)
+           :new-file (when (= (:status response) :stale) (dump-to-temp-file! (:stream response)))
+           :tag (:tag response)}))
     (catch Exception e
       {:status :error
        :reason :fetch-failed

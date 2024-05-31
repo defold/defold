@@ -29,6 +29,7 @@
              :label "Display Profiles"
              :view-types [:cljfx-form-view :text]
              :icon "icons/32/Icons_50-Display-profiles.png"
+             :icon-class :property
              :pb-class Render$DisplayProfiles})
 
 (g/defnode ProfileNode
@@ -140,4 +141,5 @@
     :ddf-type Render$DisplayProfiles
     :load-fn (fn [project self resource pb] (load-display-profiles project self resource pb))
     :icon (:icon pb-def)
+    :icon-class (:icon-class pb-def)
     :view-types (:view-types pb-def)))

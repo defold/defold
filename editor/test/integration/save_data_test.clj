@@ -464,6 +464,10 @@
    {:default
     {"shape_type" :allowed-default}}
 
+   'dmRenderDDF.FontDesc
+   {:default
+    {"extra_characters" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
+
    'dmRenderDDF.MaterialDesc
    {:default
     {"textures" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
@@ -611,6 +615,11 @@
         (is (= [2.0 2.0 2.0] (g/node-value referenced-collection :scale)))
         (is (= [2.0 2.0 2.0] (g/node-value embedded-go :scale)))
         (is (= [2.0 2.0 2.0] (g/node-value referenced-go :scale)))))
+
+    (testing "font"
+      (let [extra-characters-font (project/get-resource-node project "/silently_migrated/extra_characters.font")]
+        (is (= " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~åäö"
+               (g/node-value extra-characters-font :characters)))))
 
     (testing "material"
       (let [legacy-textures-material (project/get-resource-node project "/silently_migrated/legacy_textures.material")]
