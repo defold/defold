@@ -1,12 +1,7 @@
 #! /usr/bin/env python
-<<<<<<< HEAD
 
 import waflib.Options
 from waf_dynamo import platform_supports_feature
-=======
-import waflib.Options
-from waf_dynamo import platform_supports_feature, platform_glfw_version
->>>>>>> dev
 
 def build(bld):
     for name in ['test_graphics', 'test_glsl_uniform_parser']:
