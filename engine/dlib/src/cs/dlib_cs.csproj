@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <PublishAot>true</PublishAot>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <TargetName>$(MSBuildProjectName)</TargetName>
+    <TargetName Condition="'$(OS)' != 'Windows_NT'">lib$(TargetName)</TargetName>
 
     <!--
                 <NoStdLib>true</NoStdLib>
@@ -31,7 +33,7 @@
 
   <ItemGroup>
     <!-- <PackageReference Include="Microsoft.DotNet.ILCompiler" Version="8.0.0" /> -->
-    <DirectPInvoke Include="dlib" />
+    <!-- <DirectPInvoke Include="dlib" /> -->
   </ItemGroup>
 
 </Project>

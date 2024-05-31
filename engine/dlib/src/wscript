@@ -322,8 +322,7 @@ def build(bld):
 
     # C#
     bld.stlib(features= 'cs_stlib',
-              project = 'cs/dlib.csproj',
-              target  = 'dlib_cs')
+              project = 'cs/dlib_cs.csproj')
 
     # ************************************************************************
     if not Options.options.skip_build_tests:

@@ -402,7 +402,8 @@ def default_flags(self):
                 self.env.append_value(f, ['-fno-rtti', '-stdlib=libc++', '-fno-exceptions', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
-        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
+        #self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
+        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon'])
         self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
@@ -1534,36 +1535,78 @@ def setup_csharp(conf):
             f'{aot_base}/framework/libSystem.IO.Compression.Native.a',
             f'{aot_base}/framework/libSystem.Globalization.Native.a']
 
+        conf.env['FRAMEWORK_CSHARP'] = ["AGL","OpenAL","OpenGL","QuartzCore"]
+
 # For properties, see https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-publish
-Task.task_factory('csproj', '${DOTNET} publish -c ${MODE} -o ${BUILD_DIR} --artifacts-path ${ARTIFACTS_PATH} -r ${RUNTIME} ${VERBOSE} -p:AssemblyName=${ASSEMBLY_NAME} -p:PublishAot=true -p:NativeLib=Static -p:PublishTrimmed=true -p:IlcDehydrate=false ${SRC}',
+Task.task_factory('csproj_stlib', '${DOTNET} publish -c ${MODE} -o ${BUILD_DIR} -v q --artifacts-path ${ARTIFACTS_PATH} -r ${RUNTIME} -p:PublishAot=true -p:NativeLib=Static -p:PublishTrimmed=true -p:IlcDehydrate=false ${SRC[0].abspath()}',
                       color='BROWN',
                       after='cxxstlib')
 
 @feature('cs_stlib')
-@after('process_source')
+@before('process_source')
 def compile_csharp_lib(self):
     project = self.path.find_resource(self.project)
     if not project:
         self.bld.fatal("Couldn't find project '%s'" % self.project)
 
-    arch = 'osx-arm64'
-    libname = self.env.cstlib_PATTERN % self.target
+    csnodes = project.parent.ant_glob('**/*.cs', quiet=False)
+    if not csnodes:
+        self.bld.fatal("No source files found in project '%s'" % self.project)
+
+
+    libname = os.path.basename(self.project)
+    if libname.startswith('lib'):
+        libname = libname[3:]
+
     libname_no_suffix = os.path.splitext(libname)[0]
 
-    tsk = self.create_task('csproj')
+    platform = self.env.PLATFORM
+    if platform in ['armv7-android']:
+        Logs.info("Platform '%s' does not yet support C# building" % platform)
+        return
+
+    build_util = create_build_utility(self.env)
+    if build_util.get_target_os() in ['win32']:
+        prefix = ''
+        suffix = '.lib'
+    else:
+        prefix = 'lib'
+        suffix = '.a'
+
+    def defold_platform_to_dotnet(target_os, target_arch):
+        # https://learn.microsoft.com/en-us/dotnet/core/rid-catalog
+        os_to_dotnet_os = {
+            'macos': 'osx',
+            'win32': 'win',
+        }
+        target_os = os_to_dotnet_os.get(target_os, target_os) # translate the name, or use the original one
+
+        arch_to_dotnet_arch = {
+            'x86_64': 'x64',
+            'arm64': 'arm64',
+            'armv7': 'arm',
+        }
+        target_arch = arch_to_dotnet_arch.get(target_arch, target_arch) # translate the name, or use the original one
+
+        if target_os and target_arch:
+            return f'{target_os}-{target_arch}'
+        return None
+
+    arch = defold_platform_to_dotnet(build_util.get_target_os(), build_util.get_target_architecture())
+
+    tsk = self.create_task('csproj_stlib')
     tsk.inputs.append(project)
+    tsk.inputs.extend(csnodes)
 
     # build/cs/osx-arm64/publish/libdlib_cs.a
     build_dir = self.path.get_bld().make_node(f'cs')
-    target = build_dir.make_node(f'{libname}')
+    target = build_dir.make_node(f'{prefix}{libname_no_suffix}{suffix}')
     tsk.outputs.append(target)
 
     tsk.env['RUNTIME'] = arch
     tsk.env['MODE'] = 'Release' # Debug
     tsk.env['BUILD_DIR'] = build_dir.abspath()
     tsk.env['ARTIFACTS_PATH'] = build_dir.abspath()
-
-    tsk.env['ASSEMBLY_NAME'] = libname_no_suffix
 
     lib_path = os.path.join(self.env["PREFIX"], 'lib', self.env['PLATFORM'])
     inst_to=getattr(self,'install_path', lib_path)
