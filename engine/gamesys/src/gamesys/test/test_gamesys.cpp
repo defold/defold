@@ -1291,8 +1291,6 @@ TEST_F(GuiTest, TextureResources)
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
 
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     dmGameSystem::TextureSetResource* valid_atlas = 0;
     dmGameSystem::TextureResource* valid_texture = 0;
 
@@ -1369,8 +1367,6 @@ TEST_F(GuiTest, TextureResources)
         dmGraphics::HTexture texture_h = (dmGraphics::HTexture) texture_source;
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, texture_h));
     }
-
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
