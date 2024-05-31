@@ -655,11 +655,16 @@ namespace dmGameSystem
             int32_t row_count = (int32_t)resource->m_RowCount;
             int32_t min_x = resource->m_MinCellX + region_x * TILEGRID_REGION_SIZE;
             int32_t min_y = resource->m_MinCellY + region_y * TILEGRID_REGION_SIZE;
-            int32_t max_x = dmMath::Min(min_x + (int32_t)TILEGRID_REGION_SIZE, resource->m_MinCellX + column_count);
-            int32_t max_y = dmMath::Min(min_y + (int32_t)TILEGRID_REGION_SIZE, resource->m_MinCellY + row_count);
 
-            dmVMath::Vector3 min_corner = dmVMath::Vector3(min_x * tile_width, min_y * tile_height, 0.f);
-            dmVMath::Vector3 max_corner = dmVMath::Vector3(max_x * tile_width, max_y * tile_height, 0.f);
+            int32_t region_max_x = min_x + TILEGRID_REGION_SIZE;
+            int32_t tilemap_max_x = resource->m_MinCellX + column_count;
+            int32_t region_max_y = min_y + TILEGRID_REGION_SIZE;
+            int32_t tilemap_max_y = resource->m_MinCellY + row_count;
+            int32_t max_x = dmMath::Min(region_max_x, tilemap_max_x);
+            int32_t max_y = dmMath::Min(region_max_y, tilemap_max_y);
+
+            dmVMath::Vector3 min_corner = dmVMath::Vector3((float)(min_x * tile_width), (float)(min_y * tile_height), 0.f);
+            dmVMath::Vector3 max_corner = dmVMath::Vector3((float)(max_x * tile_width), (float)(max_y * tile_height), 0.f);
             bool intersect = dmIntersection::TestFrustumOBB(frustum, component->m_World, min_corner, max_corner);
             entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
