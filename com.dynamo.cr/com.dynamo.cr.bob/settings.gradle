@@ -1,3 +1,10 @@
+gradle.ext.bobDir = file('../com.dynamo.cr.bob')
+gradle.ext.commonDir = file('../com.dynamo.cr.common')
+gradle.ext.testDir = file('../com.dynamo.cr.bob.test')
+
+gradle.ext.classesDir = file('../com.dynamo.cr.bob/build')
+gradle.ext.dynamoHome = System.getenv("DYNAMO_HOME") ?: "../../tmp/dynamo_home"
+
 gradle.ext.protoFiles = [
         [dir: "../../engine/ddf/src", file: "ddf/ddf_extensions.proto"],
         [dir: "../../engine/ddf/src", file: "ddf/ddf_math.proto"],
