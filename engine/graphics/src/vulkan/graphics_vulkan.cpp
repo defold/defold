@@ -2408,11 +2408,10 @@ bail:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
                         const ShaderResourceTypeInfo& type_info       = stage_type_infos[res.m_Type.m_TypeIndex];
-                        program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
+                        program_resource_binding.m_DataOffset         = info.m_UniformDataSizeAligned;
                         program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
 
                         info.m_UniformBufferCount++;
-                        info.m_UniformDataSize        += res.m_BlockSize;
                         info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BlockSize, ubo_alignment);
                         info.m_TotalUniformCount      += type_info.m_Members.Size();
                     }
@@ -2466,8 +2465,8 @@ bail:
             FillProgramResourceBindings(program, program->m_FragmentModule, bindings, ubo_alignment, ssbo_alignment, VK_SHADER_STAGE_FRAGMENT_BIT, binding_info);
         }
 
-        program->m_UniformData = new uint8_t[binding_info.m_UniformDataSize];
-        memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
+        program->m_UniformData = new uint8_t[binding_info.m_UniformDataSizeAligned];
+        memset(program->m_UniformData, 0, binding_info.m_UniformDataSizeAligned);
 
         program->m_UniformDataSizeAligned = binding_info.m_UniformDataSizeAligned;
         program->m_UniformBufferCount     = binding_info.m_UniformBufferCount;
@@ -2757,7 +2756,7 @@ bail:
         memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
     }
 
-    static void VulkanSetConstantV4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
+    static void VulkanSetConstant(HContext _context, Type type, const uint8_t* data, int count, HUniformLocation base_location)
     {
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentProgram);
@@ -2769,32 +2768,49 @@ bail:
         uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
+        ProgramResourceBinding& pgm_res                   = program_ptr->m_ResourceBindings[set][binding];
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-        const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
+        const ShaderResourceTypeInfo& type_info           = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
-        uint32_t offset = pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset;
-        WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
-    }
+        uint32_t type_size     = GetTypeSize(type);
+        uint8_t* write_ptr     = (uint8_t*) data;
+        uint32_t ubo_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
+        uint32_t base_offset   = pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset;
+        uint32_t height        = 1;
+        uint32_t write_size    = type_size;
 
-    static void VulkanSetConstantM4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-        assert(context->m_CurrentProgram);
-        assert(base_location != INVALID_UNIFORM_LOCATION);
+        switch(type)
+        {
+        case TYPE_FLOAT_MAT4:
+            write_size = 4 * sizeof(float);
+            height = 4;
+            break;
+        case TYPE_FLOAT_MAT3:
+            write_size = 3 * sizeof(float);
+            height = 3;
+            break;
+        case TYPE_FLOAT_MAT2:
+            write_size = 2 * sizeof(float);
+            height = 2;
+            break;
+        }
 
-        Program* program_ptr = (Program*) context->m_CurrentProgram;
-        uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
-        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+        // We have to align each "row" write as well as the start of each array block in vulkan
+        // E.g: If we write a mat3x3, each column has to be aligned to 16 bytes even though the data is 12 bytes per row,
+        //      and if we are trying to write a mat3x3 array, each element of the array must 
 
-        ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
-        const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-        const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
+        uint8_t* element_write_ptr = write_ptr;
+        for (int i = 0; i < dmMath::Max(1, count); ++i)
+        {
+            uint32_t array_offset = base_offset + i * DM_ALIGN(type_size, ubo_alignment);
 
-        uint32_t offset = pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset;
-        WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
+            for (int y = 0; y < height; ++y)
+            {
+                uint32_t write_offset = array_offset + DM_ALIGN(write_size * y, ubo_alignment);
+                WriteConstantData(write_offset, program_ptr->m_UniformData, element_write_ptr, write_size);
+                element_write_ptr += write_size;
+            }
+        }
     }
 
     static void VulkanSetSampler(HContext _context, HUniformLocation location, int32_t unit)

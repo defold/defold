@@ -26,6 +26,7 @@ Constant::Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location)
     : m_Values(0)
     , m_NameHash(name_hash)
     , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
+    , m_GraphicsType(dmGraphics::TYPE_FLOAT_VEC4)
     , m_Location(location)
     , m_NumValues(0)
 {
@@ -94,6 +95,16 @@ dmRenderDDF::MaterialDesc::ConstantType GetConstantType(HConstant constant)
 void SetConstantType(HConstant constant, dmRenderDDF::MaterialDesc::ConstantType type)
 {
     constant->m_Type = type;
+}
+
+void SetConstantGraphicsType(HConstant constant, dmGraphics::Type type)
+{
+    constant->m_GraphicsType = type;
+}
+
+dmGraphics::Type GetConstantGraphicsType(HConstant constant)
+{
+    return constant->m_GraphicsType;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -330,6 +341,44 @@ uint32_t GetNamedConstantCount(HNamedConstantBuffer buffer)
     return buffer->m_Constants.Size();
 }
 
+void SetGraphicsConstant(dmGraphics::HContext graphics_context, HRenderContext render_context, dmRenderDDF::MaterialDesc::ConstantType constant_type, dmGraphics::Type graphics_type, dmVMath::Vector4* values, uint32_t num_values, dmGraphics::HUniformLocation location)
+{
+    if (constant_type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+    {
+        if (graphics_type != dmGraphics::TYPE_FLOAT_MAT4)
+        {
+            uint32_t values_y     = 3;
+            uint32_t values_x     = 3;
+            uint32_t array_length = num_values / 4;
+            if (graphics_type == dmGraphics::TYPE_FLOAT_MAT2)
+            {
+                values_y = 2;
+                values_x = 2;
+            }
+
+            const float* scratch = PutFloatsIntoScratchBuffer(render_context, (const float*) values, 4, 4, values_x, values_y, array_length);
+            dmGraphics::SetConstant(graphics_context, graphics_type, (uint8_t*) scratch, array_length, location);
+        }
+        else
+        {
+            dmGraphics::SetConstant(graphics_context, graphics_type, (uint8_t*) values, num_values / 4, location);
+        }
+    }
+    else
+    {
+        if (graphics_type != dmGraphics::TYPE_FLOAT_VEC4)
+        {
+            uint32_t float_count_x = dmGraphics::GetTypeSize(graphics_type) / sizeof(float);
+            const float* scratch   = PutFloatsIntoScratchBuffer(render_context, (const float*) values, 4, 1, float_count_x, 1, num_values);
+            dmGraphics::SetConstant(graphics_context, graphics_type, (uint8_t*) scratch, num_values, location);
+        }
+        else
+        {
+            dmGraphics::SetConstant(graphics_context, graphics_type, (uint8_t*) values, num_values, location);
+        }
+    }
+}
+
 struct IterateConstantCtx
 {
     void (*m_Callback)(dmhash_t name_hash, void* ctx);
@@ -354,6 +403,7 @@ struct ApplyConstantContext
     dmGraphics::HContext m_GraphicsContext;
     HMaterial            m_Material;
     HNamedConstantBuffer m_ConstantBuffer;
+
     ApplyConstantContext(dmGraphics::HContext graphics_context, HMaterial material, HNamedConstantBuffer constant_buffer)
     {
         m_GraphicsContext = graphics_context;
@@ -369,14 +419,10 @@ static inline void ApplyConstant(ApplyConstantContext* context, const uint64_t* 
     {
         dmVMath::Vector4* values = &context->m_ConstantBuffer->m_Values[constant->m_ValueIndex];
 
-        if (constant->m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
-        {
-            dmGraphics::SetConstantM4(context->m_GraphicsContext, values, constant->m_NumValues / 4, *location);
-        }
-        else
-        {
-            dmGraphics::SetConstantV4(context->m_GraphicsContext, values, constant->m_NumValues, *location);
-        }
+        HConstant render_constant;
+        GetMaterialProgramConstant(context->m_Material, *name_hash, render_constant);
+
+        SetGraphicsConstant(context->m_GraphicsContext, context->m_Material->m_RenderContext, constant->m_Type, render_constant->m_GraphicsType, values, constant->m_NumValues, *location);
     }
 }
 

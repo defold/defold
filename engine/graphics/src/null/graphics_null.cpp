@@ -1052,6 +1052,16 @@ namespace dmGraphics
         return context->m_ProgramRegisters[base_location];
     }
 
+    static void NullSetConstant(HContext _context, Type type, const uint8_t* data, int count, HUniformLocation base_location)
+    {
+        assert(_context);
+        NullContext* context = (NullContext*) _context;
+        assert(context->m_Program != 0x0);
+        uint32_t type_size = GetTypeSize(type);
+        memcpy(&context->m_ProgramRegisters[base_location], data, type_size);
+    }
+
+    /*
     static void NullSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
     {
         assert(_context);
@@ -1067,6 +1077,7 @@ namespace dmGraphics
         assert(context->m_Program != 0x0);
         memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * 4 * count);
     }
+    */
 
     static void NullSetSampler(HContext context, HUniformLocation location, int32_t unit)
     {

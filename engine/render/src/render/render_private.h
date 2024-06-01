@@ -277,10 +277,10 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
         dmArray<TextureBinding>     m_TextureBindTable;
+        dmArray<float>              m_SetConstantScratchBuffer;
         dmhash_t                    m_FrustumHash;
 
-        dmHashTable32<MaterialTagList>  m_MaterialTagLists;
-
+        dmHashTable32<MaterialTagList>        m_MaterialTagLists;
         dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
         HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
@@ -312,6 +312,8 @@ namespace dmRender
 
     Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix);
 
+    const float* PutFloatsIntoScratchBuffer(HRenderContext render_context, const float* src_values, uint32_t src_values_x, uint32_t src_values_y, uint32_t dst_values_x, uint32_t dst_values_y, uint32_t array_length);
+    void SetGraphicsConstant(dmGraphics::HContext graphics_context, HRenderContext render_context, dmRenderDDF::MaterialDesc::ConstantType constant_type, dmGraphics::Type graphics_type, dmVMath::Vector4* values, uint32_t num_values, dmGraphics::HUniformLocation);
     void GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out);
     void SetMaterialConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers);
 
