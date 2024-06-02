@@ -710,7 +710,7 @@ namespace dmGameSystem
  */
 
 /*# Set the angular velocity.
- * @name b2d.body.get_angular_velocity
+ * @name b2d.body.set_angular_velocity
  * @param body [type: b2Body] body
  * @param omega [type: number] the new angular velocity in radians/second.
  */

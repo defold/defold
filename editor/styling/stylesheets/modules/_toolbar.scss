@@ -30,13 +30,17 @@
 
         &:hover {
             & > .image-view {
-                -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
+                -fx-effect: innershadow(gaussian, -df-text, 20, 0.3, 0, 0) !important;
             }
         }
         &:selected {
             -fx-background-color: -df-background-light;
             & > .image-view {
                 -fx-effect: innershadow(gaussian, -df-text-selected, 20, 0.3, 0, 0) !important;
+            }
+
+            SVGPath {
+                -fx-fill: -df-text-selected;
             }
         }
     }
@@ -94,7 +98,7 @@
     SVGPath {
         -fx-fill: -df-text;
         &:hover, &:pressed, &:focused {
-            -fx-fill: -df-text-selected;
+            -fx-fill: -df-text;
         }
     }
 
@@ -127,19 +131,19 @@
             -fx-border-width: 0;
             -fx-pref-width: 90px;
             >.label {
-                -fx-background-color: -df-component-darker;
+                -fx-background-color: -df-component-dark;
                 -fx-text-fill: -df-text;
             }
             .open-button {
                 -fx-border-width: 0;
-                -fx-background-color: -df-component-darker;
+                -fx-background-color: -df-component-dark;
                 .arrow {
                     -fx-background-color: -df-text;
                 }
             }
             &:hover, &:pressed, &:focused {
                 .open-button {
-                    -fx-background-color: -df-component-darker;
+                    -fx-background-color: -df-component-dark;
                     .arrow {
                         -fx-background-color: -df-text-selected;
                     }

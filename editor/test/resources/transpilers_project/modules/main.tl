@@ -1,1 +1,0 @@
-return "hello from teal"

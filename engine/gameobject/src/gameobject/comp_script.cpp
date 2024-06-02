@@ -24,6 +24,8 @@
 #include "gameobject_private.h"
 #include "gameobject_props_lua.h"
 
+#include "gameobject/gameobject_ddf.h"
+
 extern "C"
 {
 #include <lua/lauxlib.h>

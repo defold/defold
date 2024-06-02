@@ -494,7 +494,7 @@
                                   :passes [pass/transparent]}))))
 
 (g/defnk produce-pb-msg [pb font material size antialias alpha outline-alpha outline-width
-                         shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format
+                         shadow-alpha shadow-blur shadow-x shadow-y characters output-format
                          all-chars cache-width cache-height render-mode]
   ;; The reason we use the originally loaded pb is to retain any default values
   ;; This is important for the saved file to not contain more data than it would
@@ -511,7 +511,7 @@
           :shadow-blur shadow-blur
           :shadow-x shadow-x
           :shadow-y shadow-y
-          :extra-characters extra-characters
+          :characters characters
           :output-format output-format
           :all-chars all-chars
           :cache-width cache-width
@@ -741,14 +741,23 @@
             (dynamic visible output-format-defold-or-distance-field?))
   (property shadow-y g/Num
             (dynamic visible output-format-defold-or-distance-field?))
-  (property extra-characters g/Str
-            (dynamic visible output-format-defold-or-distance-field?))
-  (property all-chars g/Bool
-            (dynamic visible output-format-defold-or-distance-field?))
   (property cache-width g/Int
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-width)))
   (property cache-height g/Int
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-height)))
+  (property characters g/Str (default (protobuf/default Font$FontDesc :characters))
+            (dynamic visible output-format-defold-or-distance-field?)
+            (dynamic read-only? (gu/passthrough all-chars))
+            (set (fn [evaluation-context self _old-value new-value]
+                   ;; It is illegal to have no characters in the font, but it is
+                   ;; also useful to be able to reset the field to the default
+                   ;; set of characters. If the user clears the field, we reset
+                   ;; to the printable ASCII characters.
+                   (when (and (= "" new-value)
+                              (properties/user-edit? self :characters evaluation-context))
+                     (g/set-property self :characters fontc/default-characters-string)))))
+  (property all-chars g/Bool
+            (dynamic visible output-format-defold-or-distance-field?))
 
   (property pb g/Any (dynamic visible (g/constantly false)))
 
@@ -798,6 +807,38 @@
                           (resource-fields prop) (workspace/resolve-resource resource))]]
         (g/set-property self prop value)))))
 
+(defn sanitize-font [{:keys [characters extra-characters] :as font-desc}]
+  {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
+  ;; In a previous file format, we would always include all printable ASCII
+  ;; characters in the font, and the user could specify :extra-characters to
+  ;; include in addition to the ASCII characters.
+  ;; Now, we instead explicitly list the :characters to include, but default to
+  ;; the printable ASCII characters.
+  (let [explicit-characters
+        (if (pos? (count characters))
+          characters
+          fontc/default-characters-string)
+
+        distinct-extra-characters
+        (when (pos? (count extra-characters))
+          ;; We have extra-characters. Remove duplicates so we can add them to
+          ;; the characters field in the new file format.
+          (let [distinct-extra-characters
+                (into []
+                      (comp (remove (set explicit-characters))
+                            (distinct))
+                      extra-characters)]
+            (when (pos? (count distinct-extra-characters))
+              (String. (char-array distinct-extra-characters)))))
+
+        merged-characters
+        (cond-> explicit-characters
+                distinct-extra-characters (str distinct-extra-characters))]
+
+    (-> font-desc
+        (dissoc :extra-characters)
+        (assoc :characters merged-characters))))
+
 (defn register-resource-types [workspace]
   (concat
     (resource-node/register-ddf-resource-type workspace
@@ -807,6 +848,7 @@
       :node-type FontNode
       :ddf-type Font$FontDesc
       :load-fn load-font
+      :sanitize-fn sanitize-font
       :icon font-icon
       :icon-class :design
       :view-types [:scene :text])

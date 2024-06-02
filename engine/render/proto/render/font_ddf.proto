@@ -32,13 +32,14 @@ message FontDesc
     optional uint32 shadow_blur = 9 [default = 0];
     optional float shadow_x = 10 [default = 0.0];
     optional float shadow_y = 11 [default = 0.0];
-    optional string extra_characters = 12 [default = ""];
+    optional string extra_characters = 12 [default = ""]; // Deprecated
     optional FontTextureFormat output_format = 13 [default = TYPE_BITMAP];
 
     optional bool all_chars = 14 [default = false];
     optional uint32 cache_width = 15 [default = 0];
     optional uint32 cache_height = 16 [default = 0];
     optional FontRenderMode render_mode = 17 [default = MODE_SINGLE_LAYER];
+    optional string characters = 18 [default = ""];
 }
 
 message GlyphBank

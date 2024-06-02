@@ -12,18 +12,17 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <glfw/glfw.h>
-#include  <glfw/glfw_native.h>
-
 #include <dlib/log.h>
+
 #include "../vulkan/graphics_vulkan_defines.h"
 #include "../vulkan/graphics_vulkan_private.h"
+
+#include <platform/platform_window_vulkan.h>
 
 namespace dmGraphics
 {
     static const char*   g_extension_names[] = {
         VK_KHR_SURFACE_EXTENSION_NAME,
-
     #if defined(VK_USE_PLATFORM_WIN32_KHR)
         VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
         VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
@@ -31,12 +30,8 @@ namespace dmGraphics
         VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_XCB_KHR)
         VK_KHR_XCB_SURFACE_EXTENSION_NAME,
-    #elif defined(VK_USE_PLATFORM_MACOS_MVK)
-        VK_MVK_MACOS_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_IOS_MVK)
         VK_MVK_IOS_SURFACE_EXTENSION_NAME,
-    #elif defined(VK_USE_PLATFORM_METAL_EXT)
-        VK_EXT_METAL_SURFACE_EXTENSION_NAME,
     #endif
     };
 
@@ -48,7 +43,16 @@ namespace dmGraphics
 
     const char** GetExtensionNames(uint16_t* num_extensions)
     {
-        *num_extensions = sizeof(g_extension_names) / sizeof(g_extension_names[0]);
+        uint32_t required_platform_extensions_count = 0;
+        const char** required_platform_extensions   = dmPlatform::VulkanGetRequiredInstanceExtensions(&required_platform_extensions_count);
+
+        if (required_platform_extensions_count > 0)
+        {
+            *num_extensions = required_platform_extensions_count;
+            return required_platform_extensions;
+        }
+
+        *num_extensions = DM_ARRAY_SIZE(g_extension_names);
         return g_extension_names;
     }
 
@@ -78,11 +82,6 @@ namespace dmGraphics
             return false;
         }
 #endif
-
-        if (glfwInit() == 0)
-        {
-            dmLogError("Could not initialize glfw.");
-        }
         return true;
     }
 
@@ -130,8 +129,6 @@ namespace dmGraphics
             VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
             SynchronizeDevice(vk_device);
-
-            dmPlatform::CloseWindow(context->m_Window);
 
             VulkanDestroyResources(context);
 
@@ -206,7 +203,7 @@ namespace dmGraphics
     void NativeSwapBuffers(HContext context)
     {
     #if defined(ANDROID) || defined(DM_PLATFORM_IOS)
-        glfwSwapBuffers();
+        dmPlatform::SwapBuffers(((VulkanContext*) context)->m_Window);
     #endif
     }
 }

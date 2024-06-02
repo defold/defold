@@ -723,6 +723,16 @@
   (assert node-id)
   (transact (mark-defective node-id defective-value)))
 
+(defn defective?
+  "Returns true if the specified node-id has been marked as _defective_, or
+  false otherwise. The node-id must refer to a valid node."
+  ([node-id]
+   (defective? (now) node-id))
+  ([basis node-id]
+   (let [node (node-by-id basis node-id)]
+     (assert node)
+     (pos? (count (gt/get-property node basis :_output-jammers))))))
+
 ;; ---------------------------------------------------------------------------
 ;; Tracing
 ;; ---------------------------------------------------------------------------
