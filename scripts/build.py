@@ -238,6 +238,7 @@ class Configuration(object):
                  skip_builtins = False,
                  skip_bob_light = False,
                  disable_ccache = False,
+                 generate_compile_commands = False,
                  no_colors = False,
                  archive_domain = None,
                  package_path = None,
@@ -283,6 +284,7 @@ class Configuration(object):
         self.skip_builtins = skip_builtins
         self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
+        self.generate_compile_commands = generate_compile_commands
         self.no_colors = no_colors
         self.archive_path = "s3://%s/archive" % (archive_domain)
         self.archive_domain = archive_domain
@@ -927,6 +929,69 @@ class Configuration(object):
         else:
             print ("Wrote %s, %s" % (path, sig_path))
 
+    def generate_global_compile_commands_json(self):
+        # Generates a "global" compile_commands.json file in the root directory that can be
+        # used for example by EasyClangComplete in Sublime Text to get better code completion.
+        #
+        # Since the engine is built up using sub projects/libs, we generate compile_commands.json
+        # files for each of these libraries during a regular build, and collect them and concat
+        # them into one big "general"/project wide file here instead.
+        #
+        # Format of the compile_commands.json file is:
+        # >  [
+        # >     {
+        # >       "file": <file that would be compiled>
+        # >       "command": <compile command would be used on the file>,
+        # >       "directory": <build directory>,
+        # >     },
+        # >  ]
+        #
+        # The method to concat them all is quite simple but seems to work just fine;
+        #   - loop over engine library directories and find the compile_commands.json
+        #     file in the build subdir, that should have been generated during build_engine
+        #   - take all the contents of the file except the starting and ending square brackets
+        #     and copy it over into the output json
+        #
+
+        self._log("Generating global compile_commands.json")
+
+        # Put the output json in the defold root since its where EasyClangComplete would look for it
+        output_path = os.path.join(self.defold_root, 'compile_commands.json')
+
+        need_trailing_comma = False
+        with open(output_path, 'w') as output_file:
+            # Open array json token
+            output_file.write("[\n")
+
+            # We loop over engine/<subdirs> and look for engine/<subdir>/build/compile_commands.json
+            engine_path = os.path.join(self.defold_root, 'engine')
+            for engine_subpath in os.listdir(engine_path):
+                potential_json_path = os.path.join(engine_path, engine_subpath, "build", "compile_commands.json")
+
+                if os.path.exists(potential_json_path):
+                    self._log("Adding %s" % potential_json_path)
+
+                    with open(potential_json_path, 'r') as input_file:
+                        # Take content but skip first and last lines (they would only include square brackets)
+                        input_lines = input_file.readlines()[1:-1]
+
+                        # Prettify output a bit by skipping last newline, this makes any appended comma
+                        # to appear on the same line
+                        if input_lines[-1][-1] == '\n':
+                            input_lines[-1] = input_lines[-1][:-1]
+
+                        # Append comma when adding more than one
+                        if need_trailing_comma:
+                            output_file.write(",\n")
+
+                        # Copy over contents to output file
+                        output_file.write(''.join(input_lines))
+
+                        need_trailing_comma = True
+
+            # Close array
+            output_file.write("\n]\n")
+
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'content', 'builtins'), outfile = f, directory = join(self.dynamo_home, 'content'))
@@ -1050,7 +1115,8 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         disable_ccache = '--disable-ccache' if self.disable_ccache else ''
-        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'prefix':None}
+        generate_compile_commands = '--generate-compile-commands' if self.generate_compile_commands else ''
+        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'generate_compile_commands':generate_compile_commands, 'prefix':None}
 
     def get_base_platforms(self):
         # Base platforms is the platforms to build the base libs for.
@@ -1068,9 +1134,9 @@ class Configuration(object):
 
         return platforms
 
-    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, prefix):
+    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
         prefix = prefix and prefix or self.dynamo_home
-        return '%s %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
+        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
@@ -1147,6 +1213,8 @@ class Configuration(object):
             self.build_docs()
         if not self.skip_builtins:
             self.build_builtins()
+        if self.generate_compile_commands:
+            self.generate_global_compile_commands_json()
         if '--static-analyze' in self.waf_options:
             scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
             report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
@@ -2270,6 +2338,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'force disable of ccache. Default is false')
 
+    parser.add_option('--generate-compile-commands', dest='generate_compile_commands',
+                      action = 'store_true',
+                      default = False,
+                      help = 'generate compile_commands.json file. Default is false')
+
     parser.add_option('--no-colors', dest='no_colors',
                       action = 'store_true',
                       default = False,
@@ -2383,6 +2456,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_builtins = options.skip_builtins,
                       skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
+                      generate_compile_commands = options.generate_compile_commands,
                       no_colors = options.no_colors,
                       archive_domain = options.archive_domain,
                       package_path = options.package_path,
