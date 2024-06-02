@@ -165,6 +165,7 @@ namespace dmGui
 
         dmhash_t    m_MaterialNameHash;
         void*       m_Material;
+        void*       m_RenderConstants;
 
         uint64_t                m_ParticlefxHash;
         void*                   m_ParticlefxPrototype;
@@ -309,7 +310,11 @@ namespace dmGui
         GetResourceCallback         m_GetResourceCallback;
         void*                       m_GetResourceCallbackContext;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
-        OnWindowResizeCallback   m_OnWindowResizeCallback;
+        OnWindowResizeCallback      m_OnWindowResizeCallback;
+        GetMaterialPropertyCallback m_GetMaterialPropertyCallback;
+        void*                       m_GetMaterialPropertyCallbackContext;
+        SetMaterialPropertyCallback m_SetMaterialPropertyCallback;
+        void*                       m_SetMaterialPropertyCallbackContext;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);
@@ -539,6 +544,9 @@ namespace dmGui
     };
 
     PropDesc* GetPropertyDesc(dmhash_t property_hash);
+
+    bool GetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, dmGameObject::PropertyDesc& material_prop);
+    bool SetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, const dmGameObject::PropertyVar& property_var);
 }
 
 #endif

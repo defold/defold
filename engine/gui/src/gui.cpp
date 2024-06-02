@@ -363,6 +363,13 @@ namespace dmGui
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
         scene->m_GetResourceCallback = params->m_GetResourceCallback;
         scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
+
+        scene->m_GetMaterialPropertyCallback = params->m_GetMaterialPropertyCallback;
+        scene->m_GetMaterialPropertyCallbackContext = params->m_GetMaterialPropertyCallbackContext;
+
+        scene->m_SetMaterialPropertyCallback = params->m_SetMaterialPropertyCallback;
+        scene->m_SetMaterialPropertyCallbackContext = params->m_SetMaterialPropertyCallbackContext;
+
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
         scene->m_ScriptWorld = params->m_ScriptWorld;
 
@@ -2955,6 +2962,36 @@ namespace dmGui
 
         n->m_Node.m_Properties[property] = value;
         n->m_Node.m_DirtyLocal = 1;
+    }
+
+    bool GetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, dmGameObject::PropertyDesc& property_desc)
+    {
+        if (!scene->m_GetMaterialPropertyCallback)
+        {
+            return false;
+        }
+        return scene->m_GetMaterialPropertyCallback(scene->m_GetMaterialPropertyCallbackContext, scene, node, property_hash, property_desc);
+    }
+
+    bool SetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, const dmGameObject::PropertyVar& property_var)
+    {
+        if (!scene->m_SetMaterialPropertyCallback)
+        {
+            return false;
+        }
+        return scene->m_SetMaterialPropertyCallback(scene->m_SetMaterialPropertyCallbackContext, scene, node, property_hash, property_var);
+    }
+
+    const void* GetNodeRenderConstants(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_RenderConstants;
+    }
+
+    void SetNodeRenderConstants(HScene scene, HNode node, void* render_constants)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_RenderConstants = render_constants;
     }
 
     void SetNodeResetPoint(HScene scene, HNode node)
