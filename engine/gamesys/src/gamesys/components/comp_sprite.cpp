@@ -1768,8 +1768,10 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < sprite_count; ++i)
         {
             SpriteComponent& component = components[i];
-            if (!component.m_Enabled || !component.m_AddedToUpdate)
+            if (!component.m_Enabled || !component.m_AddedToUpdate || !dmGameObject::GetIsEnabled(component.m_Instance))
+            {
                 continue;
+            }
 
             HComponentRenderConstants constants = GetRenderConstants(&component);
             if (component.m_ReHash || (constants && dmGameSystem::AreRenderConstantsUpdated(constants)))

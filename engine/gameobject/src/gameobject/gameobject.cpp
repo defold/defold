@@ -54,7 +54,7 @@ namespace dmGameObject
 
     static void Unlink(Collection* collection, Instance* instance);
 
-#define PROP_FLOAT(var_name, prop_name)\
+#define PROP_NUMBER(var_name, prop_name)\
     const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
 
 #define PROP_VECTOR3(var_name, prop_name)\
@@ -74,6 +74,7 @@ namespace dmGameObject
     PROP_QUAT(ROTATION, rotation);
     PROP_VECTOR3(EULER, euler);
     PROP_VECTOR3(SCALE, scale);
+    PROP_NUMBER(ENABLED, enabled);
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
     static void DoDeleteInstance(Collection* collection, HInstance instance);
@@ -1196,6 +1197,19 @@ namespace dmGameObject
         }
 
         return instance;
+    }
+
+    static void SetEnabledOnSubTree(Collection* collection, Instance* instance, bool enabled)
+    {
+        // TODO: Use a stack for this
+        uint32_t index = instance->m_FirstChildIndex;
+        while (index != INVALID_INSTANCE_INDEX)
+        {
+            Instance* child = collection->m_Instances[index];
+            SetEnabledOnSubTree(collection, child, enabled);
+            child->m_Enabled = enabled;
+            index = child->m_SiblingIndex;
+        }
     }
 
     static void Unlink(Collection* collection, Instance* instance)
@@ -3204,6 +3218,11 @@ namespace dmGameObject
         return instance->m_Depth;
     }
 
+    bool GetIsEnabled(HInstance instance)
+    {
+        return instance->m_Enabled;
+    }
+
     uint32_t GetChildCount(HInstance instance)
     {
         Collection* collection = instance->m_Collection;
@@ -3406,6 +3425,14 @@ namespace dmGameObject
                 out_value.m_ValuePtr = ((float*)&instance->m_EulerRotation) + 2;
                 out_value.m_Variant = PropertyVar(*out_value.m_ValuePtr);
             }
+            else if (property_id == PROP_ENABLED)
+            {
+                // TODO: Why do we need the valueptr, for animation?
+                out_value.m_ValuePtr = 0x0;
+                out_value.m_Variant  = PropertyVar( (bool) instance->m_Enabled);
+                return PROPERTY_RESULT_OK;
+            }
+
             if (out_value.m_ValuePtr != 0x0)
             {
                 return PROPERTY_RESULT_OK;
@@ -3609,6 +3636,14 @@ namespace dmGameObject
                     return PROPERTY_RESULT_TYPE_MISMATCH;
                 instance->m_EulerRotation.setZ((float)value.m_Number);
                 UpdateEulerToRotation(instance);
+                return PROPERTY_RESULT_OK;
+            }
+            else if (property_id == PROP_ENABLED)
+            {
+                if (value.m_Type != PROPERTY_TYPE_BOOLEAN)
+                    return PROPERTY_RESULT_TYPE_MISMATCH;
+                instance->m_Enabled = value.m_Bool;
+                SetEnabledOnSubTree(instance->m_Collection, instance, value.m_Bool);
                 return PROPERTY_RESULT_OK;
             }
             else

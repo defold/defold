@@ -109,6 +109,7 @@ namespace dmGameObject
             m_ScaleAlongZ = 0;
             m_Bone = 0;
             m_Generated = 0;
+            m_Enabled = 1; // TODO: Get from prototype
             m_Parent = INVALID_INSTANCE_INDEX;
             m_Index = INVALID_INSTANCE_INDEX;
             m_LevelIndex = INVALID_INSTANCE_INDEX;
@@ -182,6 +183,8 @@ namespace dmGameObject
         // First child index. Index to Collection::m_Instances
         uint16_t        m_FirstChildIndex : 15;
         uint16_t        m_Pad4 : 1;
+
+        uint8_t         m_Enabled;
 
         uint32_t        m_ComponentInstanceUserDataCount;
         uintptr_t       m_ComponentInstanceUserData[0];

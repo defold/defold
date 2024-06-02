@@ -303,6 +303,8 @@ namespace dmGameObject
      */
     bool IsChildOf(HInstance child, HInstance parent);
 
+    bool GetIsEnabled(HInstance instance);
+
     /**
      * Retrieve a property from a component.
      * @param instance Instance of the game object
