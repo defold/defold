@@ -15,6 +15,7 @@
 #ifndef DM_PLATFORM_WINDOW_LINUX_H
 #define DM_PLATFORM_WINDOW_LINUX_H
 
+#include <X11/Xlib.h>
 #include <GL/glx.h>
 
 namespace dmPlatform

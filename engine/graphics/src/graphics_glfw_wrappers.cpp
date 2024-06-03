@@ -14,8 +14,6 @@
 
 #include "graphics_native.h"
 
-#include "graphics_private.h"
-
 #if defined(DM_PLATFORM_IOS)
     #include <platform/platform_window_ios.h>
 #elif defined(ANDROID)
@@ -27,6 +25,8 @@
 #elif defined(__linux__) && !defined(ANDROID)
     #include <platform/platform_window_linux.h>
 #endif
+
+#include "graphics_private.h"
 
 namespace dmGraphics
 {
