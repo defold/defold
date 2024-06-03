@@ -40,7 +40,7 @@ namespace dmGraphics
     id GetNativeiOSEAGLContext()            { return 0; }
 #endif
 
-#if defined(__MACH__)
+#if defined(__MACH__) && !defined(DM_PLATFORM_IOS)
     id GetNativeOSXNSWindow()               { return dmPlatform::GetOSXNSWindow(GetWindow(GetInstalledContext())); }
     id GetNativeOSXNSView()                 { return dmPlatform::GetOSXNSView(GetWindow(GetInstalledContext())); }
     id GetNativeOSXNSOpenGLContext()        { return dmPlatform::GetOSXNSOpenGLContext(GetWindow(GetInstalledContext())); }

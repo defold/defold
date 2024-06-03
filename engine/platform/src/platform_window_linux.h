@@ -12,6 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#ifndef DM_PLATFORM_WINDOW_LINUX_H
+#define DM_PLATFORM_WINDOW_LINUX_H
+
 #include <GL/glx.h>
 
 namespace dmPlatform
@@ -19,3 +22,5 @@ namespace dmPlatform
     Window 	   GetNativeX11Window();
 	GLXContext GetNativeX11GLXContext();
 }
+
+#endif // DM_PLATFORM_WINDOW_LINUX_H
