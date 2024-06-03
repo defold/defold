@@ -659,7 +659,7 @@
    :path ["android" "minimum_sdk_version"]}
   {:type :integer,
    :help "the API Level that the application targets (android:targetSdkVersion)",
-   :default 33,
+   :default 34,
    :path ["android" "target_sdk_version"]}
   {:type :string,
    :help "package identifier",

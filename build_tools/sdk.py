@@ -60,6 +60,9 @@ PACKAGES_LINUX_TOOLCHAIN="clang+llvm-%s-x86_64-linux-gnu-ubuntu-16.04" % VERSION
 # Android
 
 ANDROID_NDK_VERSION='25b'
+ANDROID_BUILD_TOOLS_VERSION = '34.0.0'
+ANDROID_NDK_API_VERSION='19' # Android 4.4
+ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 
 ## **********************************************************************************************
 # Win32
