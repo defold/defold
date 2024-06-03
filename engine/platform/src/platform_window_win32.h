@@ -12,30 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <glfw/glfw.h>
+#include <Windows.h>
 
-#include "platform_window_ios.h"
+#include "platform_window.h"
 
 namespace dmPlatform
 {
-    void SetiOSViewTypeOpenGL(HWindow window)
-    {
-        glfwSetViewType(GLFW_OPENGL_API);
-    }
-
-    id GetiOSUIWindow()
-    {
-        return glfwGetiOSUIWindow();
-    }
-
-    id GetiOSUIView()
-    {
-        return glfwGetiOSUIView();
-    }
-
-    id GetiOSEAGLContext()
-    {
-        return glfwGetiOSEAGLContext();
-    }
-
+    HWND  GetWindowsHWND();
+    HGLRC GetWindowsHGLRC();
 }

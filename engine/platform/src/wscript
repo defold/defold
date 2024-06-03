@@ -12,11 +12,18 @@ def build(bld):
     if platform_glfw_version(bld.env.PLATFORM) == 3:
         glfw_source = ['platform_window_glfw3.cpp']
         glfw3_source_vulkan = ['platform_window_glfw3_vulkan.cpp']
+
+        if bld.env.PLATFORM in ('x86_64-osx', 'arm64-osx'):
+            glfw_source += ['platform_window_glfw3_osx.cpp']
     else:
         if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
             glfw_source += ['platform_window_glfw_android.cpp']
         elif bld.env.PLATFORM in ('x86_64-ios', 'arm64-ios'):
             glfw_source += ['platform_window_glfw_ios.cpp']
+        elif bld.env.PLATFORM in ('x86_64-win32', 'win32'):
+            glfw_source += ['platform_window_glfw_win32.cpp']
+        elif bld.env.PLATFORM == 'x86_64-linux':
+            glfw_source += ['platform_window_glfw_linux.cpp']
 
     lib = bld.stlib(features = 'cxx c ddf',
                     includes = '.',
@@ -38,10 +45,17 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/platform', 'platform_window.h')
     bld.install_files('${PREFIX}/include/platform', 'platform_window_constants.h')
-    bld.install_files('${PREFIX}/include/platform', 'platform_window_android.h')
-    bld.install_files('${PREFIX}/include/platform', 'platform_window_ios.h')
+
+    # Graphics API includes
     bld.install_files('${PREFIX}/include/platform', 'platform_window_vulkan.h')
     bld.install_files('${PREFIX}/include/platform', 'platform_window_opengl.h')
+
+    # Platform includes
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_android.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_ios.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_osx.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_win32.h')
+    bld.install_files('${PREFIX}/include/platform', 'platform_window_linux.h')
 
     if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')

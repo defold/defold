@@ -373,7 +373,7 @@ static void LogFrameBufferError(GLenum status)
         ChooseEAGLView() {
             // Let's us choose the CAEAGLLayer
             // Note: We don't need a valid window here (and we don't have access to one)
-            dmPlatform::iOSSetViewTypeOpenGL((dmPlatform::HWindow) 0);
+            dmPlatform::SetiOSViewTypeOpenGL((dmPlatform::HWindow) 0);
         }
     } g_ChooseEAGLView;
     #endif

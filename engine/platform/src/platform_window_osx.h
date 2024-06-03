@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,30 +12,18 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <glfw/glfw.h>
+#ifndef DM_PLATFORM_WINDOW_OSX_H
+#define DM_PLATFORM_WINDOW_OSX_H
 
-#include "platform_window_ios.h"
+#include "platform_window.h"
+
+#include <objc/objc.h>
 
 namespace dmPlatform
 {
-    void SetiOSViewTypeOpenGL(HWindow window)
-    {
-        glfwSetViewType(GLFW_OPENGL_API);
-    }
-
-    id GetiOSUIWindow()
-    {
-        return glfwGetiOSUIWindow();
-    }
-
-    id GetiOSUIView()
-    {
-        return glfwGetiOSUIView();
-    }
-
-    id GetiOSEAGLContext()
-    {
-        return glfwGetiOSEAGLContext();
-    }
-
+    id GetOSXNSWindow(HWindow window);
+    id GetOSXNSView(HWindow window);
+    id GetOSXNSOpenGLContext(HWindow window);
 }
+
+#endif // DM_PLATFORM_WINDOW_OSX_H

@@ -14,7 +14,6 @@
 
 #include <glfw/glfw.h>
 
-#include "platform_window.h"
 #include "platform_window_android.h"
 
 namespace dmPlatform
@@ -27,5 +26,30 @@ namespace dmPlatform
     void AndroidBeginFrame(HWindow window)
     {
         glfwAndroidBeginFrame();
+    }
+
+    EGLContext GetAndroidEGLContext()
+    {
+        return glfwGetAndroidEGLContext();
+    }
+
+    EGLSurface GetAndroidEGLSurface()
+    {
+        return glfwGetAndroidEGLSurface();
+    }
+
+    JavaVM* GetAndroidJavaVM()
+    {
+        return glfwGetAndroidJavaVM();
+    }
+
+    jobject GetAndroidActivity()
+    {
+        return glfwGetAndroidActivity();
+    }
+
+    android_app* GetAndroidApp()
+    {
+        return glfwGetAndroidApp();
     }
 }
