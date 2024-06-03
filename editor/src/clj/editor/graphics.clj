@@ -153,7 +153,7 @@
 
 (defn resize-doubles [double-values semantic-type ^long new-element-count]
   {:pre [(vector? double-values)
-         (keyword? semantic-type)
+         (or (nil? semantic-type) (keyword? semantic-type))
          (nat-int? new-element-count)]}
   (let [old-element-count (count double-values)]
     (cond

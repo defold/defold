@@ -557,11 +557,11 @@ namespace dmGameSystem
         InitParametersFromDescription(component, ddf);
     }
 
-    void* CompLabelGetComponent(const dmGameObject::ComponentGetParams& params)
+    dmGameObject::HComponent CompLabelGetComponent(const dmGameObject::ComponentGetParams& params)
     {
         LabelWorld* world = (LabelWorld*)params.m_World;
-        uint32_t index = (uint32_t)*params.m_UserData;
-        return &world->m_Components.Get(index);
+        uint32_t index = (uint32_t)params.m_UserData;
+        return (dmGameObject::HComponent)&world->m_Components.Get(index);
     }
 
     void CompLabelGetTextMetrics(const LabelComponent* component, struct dmRender::TextMetrics& metrics)

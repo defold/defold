@@ -162,7 +162,7 @@
       :defold)
     :distance-field))
 
-(defn- measure-line [glyphs text-tracking ^String line]
+(defn- measure-line [is-monospaced padding glyphs text-tracking ^String line]
   (let [w (transduce (comp
                        (map #(:advance (glyphs (int %)) 0.0))
                        (interpose text-tracking))
@@ -170,9 +170,11 @@
                      0.0
                      line)
         len (.length line)]
-    (if-let [last (get glyphs (and (pos? len) (int (.charAt line (dec len)))))]
-      (- (+ w (:left-bearing last) (:width last)) (:advance last))
-      w)))
+    (if is-monospaced
+      (+ w padding)
+      (if-let [last (get glyphs (and (pos? len) (int (.charAt line (dec len)))))]
+        (- (+ w (:left-bearing last) (:width last)) (:advance last))
+        w))))
 
 (defn- split-text [glyphs ^String text line-break? max-width text-tracking]
   (if line-break?
@@ -274,7 +276,7 @@
            line-height (+ (:max-descent font-map) (:max-ascent font-map))
            text-tracking (* line-height text-tracking)
            lines (split-text glyphs text line-break? max-width text-tracking)
-           line-widths (map (partial measure-line glyphs text-tracking) lines)
+           line-widths (map (partial measure-line (:is-monospaced font-map) (:padding font-map) glyphs text-tracking) lines)
            max-width (reduce max 0 line-widths)]
        [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
 
@@ -301,7 +303,7 @@
             line-height (+ (:max-descent font-map) (:max-ascent font-map))
             text-tracking (* line-height text-tracking)
             lines (split-text glyphs text line-break? max-width text-tracking)
-            line-widths (mapv (partial measure-line glyphs text-tracking) lines)
+            line-widths (mapv (partial measure-line (:is-monospaced font-map) (:padding font-map) glyphs text-tracking) lines)
             max-width (reduce max 0 line-widths)]
         (assoc text-layout
                :width max-width
@@ -404,14 +406,20 @@
         face-mask (if layer-mask-enabled
                     [1 0 0]
                     [1 1 1])
-        shadow-offset {:x (:shadow-x font-map), :y (:shadow-y font-map)}
+        shadow-offset {:x (if (:is-monospaced font-map)
+                            (- (:shadow-x font-map) (* (:padding font-map) 0.5))
+                            (:shadow-x font-map))
+                       :y (:shadow-y font-map)}
         alpha (:alpha font-map)
         outline-alpha (:outline-alpha font-map)
-        shadow-alpha (:shadow-alpha font-map)]
-    ;; Output glyphs per layer in back to front, if enabled but always output face layer.
+        shadow-alpha (:shadow-alpha font-map)
+        font-offset {:x (if (:is-monospaced font-map)
+                          (- 0 (* (:padding font-map) 0.5))
+                          0)
+                     :y 0}]
     (when (and layer-mask-enabled shadow-enabled) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 0 1] shadow-offset alpha outline-alpha shadow-alpha))
-    (when (and layer-mask-enabled outline-enabled) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 1 0] nil alpha outline-alpha shadow-alpha))
-    (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn face-mask nil alpha outline-alpha shadow-alpha)))
+    (when (and layer-mask-enabled outline-enabled) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 1 0] font-offset alpha outline-alpha shadow-alpha))
+    (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn face-mask font-offset alpha outline-alpha shadow-alpha)))
 
 (defn gen-vertex-buffer
   [^GL2 gl {:keys [type font-map] :as font-data} text-entries]
@@ -486,7 +494,7 @@
                                   :passes [pass/transparent]}))))
 
 (g/defnk produce-pb-msg [pb font material size antialias alpha outline-alpha outline-width
-                         shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format
+                         shadow-alpha shadow-blur shadow-x shadow-y characters output-format
                          all-chars cache-width cache-height render-mode]
   ;; The reason we use the originally loaded pb is to retain any default values
   ;; This is important for the saved file to not contain more data than it would
@@ -503,7 +511,7 @@
           :shadow-blur shadow-blur
           :shadow-x shadow-x
           :shadow-y shadow-y
-          :extra-characters extra-characters
+          :characters characters
           :output-format output-format
           :all-chars all-chars
           :cache-width cache-width
@@ -733,14 +741,23 @@
             (dynamic visible output-format-defold-or-distance-field?))
   (property shadow-y g/Num
             (dynamic visible output-format-defold-or-distance-field?))
-  (property extra-characters g/Str
-            (dynamic visible output-format-defold-or-distance-field?))
-  (property all-chars g/Bool
-            (dynamic visible output-format-defold-or-distance-field?))
   (property cache-width g/Int
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-width)))
   (property cache-height g/Int
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? cache-height)))
+  (property characters g/Str (default (protobuf/default Font$FontDesc :characters))
+            (dynamic visible output-format-defold-or-distance-field?)
+            (dynamic read-only? (gu/passthrough all-chars))
+            (set (fn [evaluation-context self _old-value new-value]
+                   ;; It is illegal to have no characters in the font, but it is
+                   ;; also useful to be able to reset the field to the default
+                   ;; set of characters. If the user clears the field, we reset
+                   ;; to the printable ASCII characters.
+                   (when (and (= "" new-value)
+                              (properties/user-edit? self :characters evaluation-context))
+                     (g/set-property self :characters fontc/default-characters-string)))))
+  (property all-chars g/Bool
+            (dynamic visible output-format-defold-or-distance-field?))
 
   (property pb g/Any (dynamic visible (g/constantly false)))
 
@@ -790,6 +807,38 @@
                           (resource-fields prop) (workspace/resolve-resource resource))]]
         (g/set-property self prop value)))))
 
+(defn sanitize-font [{:keys [characters extra-characters] :as font-desc}]
+  {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
+  ;; In a previous file format, we would always include all printable ASCII
+  ;; characters in the font, and the user could specify :extra-characters to
+  ;; include in addition to the ASCII characters.
+  ;; Now, we instead explicitly list the :characters to include, but default to
+  ;; the printable ASCII characters.
+  (let [explicit-characters
+        (if (pos? (count characters))
+          characters
+          fontc/default-characters-string)
+
+        distinct-extra-characters
+        (when (pos? (count extra-characters))
+          ;; We have extra-characters. Remove duplicates so we can add them to
+          ;; the characters field in the new file format.
+          (let [distinct-extra-characters
+                (into []
+                      (comp (remove (set explicit-characters))
+                            (distinct))
+                      extra-characters)]
+            (when (pos? (count distinct-extra-characters))
+              (String. (char-array distinct-extra-characters)))))
+
+        merged-characters
+        (cond-> explicit-characters
+                distinct-extra-characters (str distinct-extra-characters))]
+
+    (-> font-desc
+        (dissoc :extra-characters)
+        (assoc :characters merged-characters))))
+
 (defn register-resource-types [workspace]
   (concat
     (resource-node/register-ddf-resource-type workspace
@@ -799,7 +848,9 @@
       :node-type FontNode
       :ddf-type Font$FontDesc
       :load-fn load-font
+      :sanitize-fn sanitize-font
       :icon font-icon
+      :icon-class :design
       :view-types [:scene :text])
     (workspace/register-resource-type workspace
       :ext "glyph_bank")

@@ -153,7 +153,10 @@
            ["Space" :show-palette]
            ["Tab" :tab]
            ["Up" :up]
-           ["W" :move-tool]]
+           ["W" :move-tool]
+           ["X" :flip-brush-horizontally]
+           ["Y" :flip-brush-vertically]
+           ["Z" :rotate-brush-90-degrees]]
    :win32 [["A" :add]
            ["Alt+Down" :move-down]
            ["Alt+F9" :edit-breakpoint]
@@ -261,7 +264,10 @@
            ["Space" :show-palette]
            ["Tab" :tab]
            ["Up" :up]
-           ["W" :move-tool]]
+           ["W" :move-tool]
+           ["X" :flip-brush-horizontally]
+           ["Y" :flip-brush-vertically]
+           ["Z" :rotate-brush-90-degrees]]
    :linux [["A" :add]
            ["Alt+Down" :move-down]
            ["Alt+F9" :edit-breakpoint]
@@ -369,7 +375,10 @@
            ["Space" :show-palette]
            ["Tab" :tab]
            ["Up" :up]
-           ["W" :move-tool]]})
+           ["W" :move-tool]
+           ["X" :flip-brush-horizontally]
+           ["Y" :flip-brush-vertically]
+           ["Z" :rotate-brush-90-degrees]]})
 
 (def default-host-key-bindings
   (platform->default-key-bindings (util/os)))
@@ -395,6 +404,9 @@
     "F"         ; :frame-selection
     "R"         ; :scale-tool
     "W"         ; :move-tool
+    "X"         ; :flip-brush-horizontally
+    "Y"         ; :flip-brush-vertically
+    "Z"         ; :rotate-brush-90-degrees
     "Shift+A"   ; :add-secondary
     "Shift+E"}) ; :erase-tool
 

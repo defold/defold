@@ -58,7 +58,7 @@ message SetCamera
     optional float  orthographic_zoom       = 6 [default = 1.0];
 }
 
-/*# makes the receiving camera become the active camera
+/** DEPRECATED! makes the receiving camera become the active camera
  *
  * Post this message to a camera-component to activate it.
  *
@@ -79,7 +79,7 @@ message SetCamera
  */
 message AcquireCameraFocus {}
 
-/*# deactivates the receiving camera
+/** DEPRECATED! deactivates the receiving camera
  * <p>
  * Post this message to a camera-component to deactivate it. The camera is then removed from the active cameras.
  * See <code>acquire_camera_focus</code> for more information how the active cameras are used in rendering.

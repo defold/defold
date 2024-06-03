@@ -481,8 +481,9 @@
                                          (contains? tags :embeddable))
                                  ext))
                              (workspace/get-resource-type-map workspace))]
-    (when-let [resource (first (resource-dialog/make workspace project {:ext component-exts :title "Select Component File"}))]
-      (add-referenced-component! go-id resource select-fn))))
+    (when-let [resources (resource-dialog/make workspace project {:ext component-exts :title "Select Component File" :selection :multiple})]
+      (doseq [resource resources]
+        (add-referenced-component! go-id resource select-fn)))))
 
 (defn- selection->game-object [selection]
   (g/override-root (handler/adapt-single selection GameObjectNode)))
@@ -591,5 +592,6 @@
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
     :sanitize-fn (partial sanitize-game-object workspace)
     :icon game-object-common/game-object-icon
+    :icon-class :design
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

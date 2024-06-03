@@ -44,6 +44,16 @@ namespace dmGraphics
         RESOURCE_TYPE_RENDER_TARGET = 3,
     };
 
+    struct OneTimeCommandBuffer
+    {
+        OneTimeCommandBuffer(struct VulkanContext* context) : m_Context(context) {}
+        VkResult Begin();
+        VkResult End();
+
+        struct VulkanContext*  m_Context;
+        VkCommandBuffer        m_CmdBuffer;
+    };
+
     struct DeviceBuffer
     {
         DeviceBuffer(){}
@@ -502,7 +512,7 @@ namespace dmGraphics
     const char** GetValidationLayers(uint16_t* num_layers, bool use_validation, bool use_renderdoc);
     const char** GetValidationLayersExt(uint16_t* num_layers);
 
-    VkResult     CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
+    VkResult     CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI);
 
     bool         LoadVulkanLibrary();
     void         LoadVulkanFunctions(VkInstance vk_instance);
