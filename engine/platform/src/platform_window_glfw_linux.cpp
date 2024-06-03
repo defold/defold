@@ -20,12 +20,12 @@
 
 namespace dmPlatform
 {
-    Window GetNativeX11Window()
+    Window GetX11Window()
     {
     	return glfwGetX11Window();
     }
 
-    GLXContext GetNativeX11GLXContext()
+    GLXContext GetX11GLXContext()
     {
     	return glfwGetX11GLXContext();
     }

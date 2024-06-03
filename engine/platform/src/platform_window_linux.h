@@ -19,8 +19,8 @@
 
 namespace dmPlatform
 {
-    Window 	   GetNativeX11Window();
-	GLXContext GetNativeX11GLXContext();
+    Window     GetX11Window();
+    GLXContext GetX11GLXContext();
 }
 
 #endif // DM_PLATFORM_WINDOW_LINUX_H
