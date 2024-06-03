@@ -1899,6 +1899,9 @@ def detect(conf):
             conf.env['LIB_JNI'] = ['jni']
             conf.env['LIB_JNI_NOASAN'] = ['jni_noasan']
 
+    if Options.options.generate_compile_commands:
+        conf.load('clang_compilation_database')
+
 
 def configure(conf):
     detect(conf)
@@ -1919,6 +1922,7 @@ def options(opt):
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
+    opt.add_option('--generate-compile-commands', action="store_true", default=False, dest='generate_compile_commands', help='generate (appending mode) compile_commands.json')
     opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
