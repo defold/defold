@@ -261,6 +261,15 @@
 (defn memory-resource? [resource]
   (instance? MemoryResource resource))
 
+(defn counterpart-memory-resource
+  "Given a MemoryResource, returns its editable or non-editable counterpart. We
+  use this during build target fusion to ensure embedded resources from editable
+  resources are fused with the equivalent embedded resources from non-editable
+  resources."
+  [memory-resource]
+  {:pre [(memory-resource? memory-resource)]}
+  (update memory-resource :editable not))
+
 (defn- make-zip-resource-input-stream
   ^InputStream [zip-resource]
   (let [zip-file (ZipFile. ^File (io/as-file (:zip-uri zip-resource)))
