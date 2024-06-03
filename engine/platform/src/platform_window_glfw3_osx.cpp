@@ -13,10 +13,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define GLFW_EXPOSE_NATIVE_COCOA
-#include <glfw/glfw3native.h>
-
 #include <glfw/glfw3.h>
+
+#define GLFW_EXPOSE_NATIVE_COCOA
+#define GLFW_EXPOSE_NATIVE_NSGL
+#include <glfw/glfw3native.h>
 
 #include "platform_window_osx.h"
 

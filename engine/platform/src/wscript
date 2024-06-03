@@ -13,7 +13,7 @@ def build(bld):
         glfw_source = ['platform_window_glfw3.cpp']
         glfw3_source_vulkan = ['platform_window_glfw3_vulkan.cpp']
 
-        if bld.env.PLATFORM in ('x86_64-osx', 'arm64-osx'):
+        if bld.env.PLATFORM in ('x86_64-macos', 'arm64-macos'):
             glfw_source += ['platform_window_glfw3_osx.cpp']
     else:
         if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
