@@ -526,7 +526,7 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
             float default_value_f = 0.0f;
             if (attribute->type == cgltf_attribute_type_tangent)
             {
-                desired_num_components = 3; // for some reason it give 4 elements
+                desired_num_components = 4; // xyz + handedness
             }
             else if (attribute->type == cgltf_attribute_type_color)
             {

@@ -176,20 +176,24 @@ static void CreateTestMesh(dmRigDDF::MeshSet* mesh_set, int model_index, int mes
     mesh.m_Normals[10]            = 1.0;
     mesh.m_Normals[11]            = 0.0;
 
-    mesh.m_Tangents.m_Count       = vert_count*3;
+    mesh.m_Tangents.m_Count       = vert_count*4;
     mesh.m_Tangents.m_Data        = new float[mesh.m_Tangents.m_Count];
     mesh.m_Tangents[0]            = 0.0;
     mesh.m_Tangents[1]            = 0.0;
     mesh.m_Tangents[2]            = 1.0;
-    mesh.m_Tangents[3]            = 0.0;
+    mesh.m_Tangents[3]            = 1.0;
     mesh.m_Tangents[4]            = 0.0;
-    mesh.m_Tangents[5]            = 1.0;
-    mesh.m_Tangents[6]            = 0.0;
-    mesh.m_Tangents[7]            = 0.0;
-    mesh.m_Tangents[8]            = 1.0;
+    mesh.m_Tangents[5]            = 0.0;
+    mesh.m_Tangents[6]            = 1.0;
+    mesh.m_Tangents[7]            = 1.0;
+    mesh.m_Tangents[8]            = 0.0;
     mesh.m_Tangents[9]            = 0.0;
-    mesh.m_Tangents[10]           = 0.0;
+    mesh.m_Tangents[10]           = 1.0;
     mesh.m_Tangents[11]           = 1.0;
+    mesh.m_Tangents[12]           = 0.0;
+    mesh.m_Tangents[13]           = 0.0;
+    mesh.m_Tangents[14]           = 1.0;
+    mesh.m_Tangents[15]           = 1.0;
 
     mesh.m_Colors.m_Count         = vert_count*4;
     mesh.m_Colors.m_Data          = new float[mesh.m_Colors.m_Count];

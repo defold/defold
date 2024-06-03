@@ -45,7 +45,7 @@ namespace dmRig
         // used to creating primitives from indices.
         dmArray<dmVMath::Vector3>       m_ScratchPositionBuffer;
         dmArray<dmVMath::Vector3>       m_ScratchNormalBuffer;
-        dmArray<dmVMath::Vector3>       m_ScratchTangentBuffer;
+        dmArray<dmVMath::Vector4>       m_ScratchTangentBuffer;
     };
 
 
@@ -801,7 +801,8 @@ namespace dmRig
 
                 if (has_tangents)
                 {
-                    Vector3 tangent_in(tangents_in[i*3+0], tangents_in[i*3+1], tangents_in[i*3+2]);
+                    Vector3 tangent_in(tangents_in[i*4+0], tangents_in[i*4+1], tangents_in[i*4+2]);
+                    float tangent_handedness = tangents_in[i*4+3];
                     tangent = normal_matrix * tangent_in;
                     if (lengthSqr(tangent) > 0.0f) {
                         normalize(tangent);
@@ -809,6 +810,7 @@ namespace dmRig
                     *tangents_buffer++ = tangent[0];
                     *tangents_buffer++ = tangent[1];
                     *tangents_buffer++ = tangent[2];
+                    *tangents_buffer++ = tangent_handedness;
                 }
             }
             return;
@@ -822,7 +824,8 @@ namespace dmRig
             const Vector3 normal_in(normals_in[i*3+0], normals_in[i*3+1], normals_in[i*3+2]);
             Vector4 normal_out(0.0f, 0.0f, 0.0f, 0.0f);
 
-            const Vector3 tangent_in = has_tangents ? Vector3(tangents_in[i*3+0], tangents_in[i*3+1], tangents_in[i*3+2]) : Vector3(0,0,0);
+            const Vector3 tangent_in = has_tangents ? Vector3(tangents_in[i*4+0], tangents_in[i*4+1], tangents_in[i*4+2]) : Vector3(0,0,0);
+            const float tangent_handedness = tangents_in[i*4+3];
             Vector4 tangent_out(0.0f, 0.0f, 0.0f, 0.0f);
 
             const uint32_t bi_offset = i * 4;
@@ -867,6 +870,7 @@ namespace dmRig
                 *tangents_buffer++ = tangent[0];
                 *tangents_buffer++ = tangent[1];
                 *tangents_buffer++ = tangent[2];
+                *tangents_buffer++ = tangent_handedness;
             }
         }
     }
@@ -974,7 +978,7 @@ namespace dmRig
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT:
                 {
-                    memcpy(write_ptr, &tangents[idx*3], dmMath::Min(3 * sizeof(float), data_size));
+                    memcpy(write_ptr, &tangents[idx*4], dmMath::Min(4 * sizeof(float), data_size));
                 } break;
                 default:
                 {
@@ -1035,12 +1039,12 @@ namespace dmRig
                 {
                     out_write_ptr->pos[c] = *positions++;
                     out_write_ptr->normal[c] = *normals++;
-                    out_write_ptr->tangent[c] = *tangents++;
                 }
 
                 for (int c = 0; c < 4; ++c)
                 {
                     out_write_ptr->color[c] = colors ? *colors++ : 1.0f;
+                    out_write_ptr->tangent[c] = *tangents++;
                 }
 
                 for (int c = 0; c < 2; ++c)
@@ -1075,12 +1079,12 @@ namespace dmRig
                 {
                     out_write_ptr->pos[c] = positions[idx*3+c];
                     out_write_ptr->normal[c] = normals[idx*3+c];
-                    out_write_ptr->tangent[c] = tangents[idx*3+c];
                 }
 
                 for (int c = 0; c < 4; ++c)
                 {
                     out_write_ptr->color[c] = colors ? colors[idx*4+c] : 1.0f;
+                    out_write_ptr->tangent[c] = tangents[idx*4+c];
                 }
 
                 for (int c = 0; c < 2; ++c)
@@ -1096,7 +1100,8 @@ namespace dmRig
         return out_write_ptr;
     }
 
-    static void EnsureSize(dmArray<Vector3>& array, uint32_t size)
+    template <typename T>
+    static void EnsureSize(T& array, uint32_t size)
     {
         if (array.Capacity() < size) {
             array.OffsetCapacity(size - array.Capacity());
@@ -1116,7 +1121,7 @@ namespace dmRig
         dmArray<Matrix4>& pose_matrices = context->m_ScratchPoseMatrixBuffer;
         dmArray<Vector3>& positions     = context->m_ScratchPositionBuffer;
         dmArray<Vector3>& normals       = context->m_ScratchNormalBuffer;
-        dmArray<Vector3>& tangents      = context->m_ScratchTangentBuffer;
+        dmArray<Vector4>& tangents      = context->m_ScratchTangentBuffer;
 
         uint32_t bone_count   = GetBoneCount(instance);
         uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
@@ -1193,7 +1198,7 @@ namespace dmRig
         dmArray<Matrix4>& pose_matrices      = context->m_ScratchPoseMatrixBuffer;
         dmArray<Vector3>& positions          = context->m_ScratchPositionBuffer;
         dmArray<Vector3>& normals            = context->m_ScratchNormalBuffer;
-        dmArray<Vector3>& tangents           = context->m_ScratchTangentBuffer;
+        dmArray<Vector4>& tangents           = context->m_ScratchTangentBuffer;
 
         // If the rig has bones, update the pose to be local-to-model
         uint32_t bone_count = GetBoneCount(instance);
