@@ -14,6 +14,8 @@
 
 #include <glfw/glfw.h>
 
+#include <glfw/glfw_native.h>
+
 #include "platform_window_ios.h"
 
 namespace dmPlatform
