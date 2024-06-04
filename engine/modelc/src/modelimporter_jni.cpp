@@ -685,7 +685,7 @@ static jobject CreateMesh(JNIEnv* env, const TypeInfos* types, const dmArray<job
     uint32_t icount = mesh->m_IndexCount;
     SET_FARRAY(obj, positions, vcount * 3, mesh->m_Positions);
     SET_FARRAY(obj, normals, vcount * 3, mesh->m_Normals);
-    SET_FARRAY(obj, tangents, vcount * 3, mesh->m_Tangents);
+    SET_FARRAY(obj, tangents, vcount * 4, mesh->m_Tangents);
     SET_FARRAY(obj, colors, vcount * 4, mesh->m_Color);
     SET_FARRAY(obj, weights, vcount * 4, mesh->m_Weights);
     SET_FARRAY(obj, texCoords0, vcount * mesh->m_TexCoord0NumComponents, mesh->m_TexCoord0);

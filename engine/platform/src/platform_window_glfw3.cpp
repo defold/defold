@@ -388,8 +388,10 @@ namespace dmPlatform
 
     int32_t GetKey(HWindow window, int32_t code)
     {
-        if (code < 0)
+        if (code < 0 || code > GLFW_KEY_LAST)
+        {
             return 0;
+        }
         return glfwGetKey(window->m_Window, code);
     }
 
@@ -514,6 +516,7 @@ namespace dmPlatform
         g_GLFW3Context.m_GamepadEventCallbackUserData = user_data;
     }
 
+    const int PLATFORM_KEY_START           = 32;
     const int PLATFORM_JOYSTICK_LAST       = GLFW_JOYSTICK_LAST;
     const int PLATFORM_KEY_ESC             = GLFW_KEY_ESCAPE;
     const int PLATFORM_KEY_F1              = GLFW_KEY_F1;

@@ -470,7 +470,9 @@
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
     (ui/with-controls [^ButtonBase create-new-project-button new-project-location-field ^TextField new-project-title-field template-categories ^ListVew template-list]
       (setup-location-field! new-project-location-field "Select New Project Location" new-project-location-directory)
-      (b/bind! (location-field-title-property new-project-location-field) (.textProperty new-project-title-field))
+      (let [title-text-property (.textProperty new-project-title-field)
+        sanitized-title-property (b/map dialogs/sanitize-folder-name title-text-property)]
+        (b/bind! (location-field-title-property new-project-location-field) sanitized-title-property))
       (doto template-list
         (ui/cell-factory! (fn [project-template]
                             {:graphic (make-template-entry project-template)})))

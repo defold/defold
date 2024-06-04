@@ -103,8 +103,8 @@ PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0c
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-2.7.1".split()
 PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.3.261.1 lipo-9ffdea2 glfw-2.7.1".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-33 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-34 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-34 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -118,8 +118,8 @@ PACKAGES_TAPI_VERSION="tapi1.6"
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
 PACKAGES_ANDROID_NDK="android-ndk-r25b"
 PACKAGES_ANDROID_SDK="android-sdk"
-ANDROID_TARGET_API_LEVEL=33
-ANDROID_BUILD_TOOLS_VERSION="33.0.1"
+ANDROID_TARGET_API_LEVEL=34
+ANDROID_BUILD_TOOLS_VERSION="34.0.0"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -238,6 +238,7 @@ class Configuration(object):
                  skip_builtins = False,
                  skip_bob_light = False,
                  disable_ccache = False,
+                 generate_compile_commands = False,
                  no_colors = False,
                  archive_domain = None,
                  package_path = None,
@@ -283,6 +284,7 @@ class Configuration(object):
         self.skip_builtins = skip_builtins
         self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
+        self.generate_compile_commands = generate_compile_commands
         self.no_colors = no_colors
         self.archive_path = "s3://%s/archive" % (archive_domain)
         self.archive_domain = archive_domain
@@ -561,10 +563,13 @@ class Configuration(object):
         if target_platform in ('js-web', 'wasm-web'): # smoe platforms are not yet supported using this sdk_info mechanic
             return
 
-        if not self.sdk_info:
-            print("Couldn't find any sdks for platform", target_platform)
-            print("We recommend you follow the setup guide found here: %s" % "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
-            sys.exit(1)
+        # We currently only support a subset of platforms using this mechanic
+        if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
+            # TODO: Make sure this check works for all platforms
+            if not self.sdk_info:
+                print("Couldn't find any sdks for platform", target_platform)
+                print("We recommend you follow the setup guide found here: %s" % "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
+                sys.exit(1)
 
         if self.verbose:
             print("SDK info:")
@@ -944,6 +949,69 @@ class Configuration(object):
         else:
             print ("Wrote %s, %s" % (path, sig_path))
 
+    def generate_global_compile_commands_json(self):
+        # Generates a "global" compile_commands.json file in the root directory that can be
+        # used for example by EasyClangComplete in Sublime Text to get better code completion.
+        #
+        # Since the engine is built up using sub projects/libs, we generate compile_commands.json
+        # files for each of these libraries during a regular build, and collect them and concat
+        # them into one big "general"/project wide file here instead.
+        #
+        # Format of the compile_commands.json file is:
+        # >  [
+        # >     {
+        # >       "file": <file that would be compiled>
+        # >       "command": <compile command would be used on the file>,
+        # >       "directory": <build directory>,
+        # >     },
+        # >  ]
+        #
+        # The method to concat them all is quite simple but seems to work just fine;
+        #   - loop over engine library directories and find the compile_commands.json
+        #     file in the build subdir, that should have been generated during build_engine
+        #   - take all the contents of the file except the starting and ending square brackets
+        #     and copy it over into the output json
+        #
+
+        self._log("Generating global compile_commands.json")
+
+        # Put the output json in the defold root since its where EasyClangComplete would look for it
+        output_path = os.path.join(self.defold_root, 'compile_commands.json')
+
+        need_trailing_comma = False
+        with open(output_path, 'w') as output_file:
+            # Open array json token
+            output_file.write("[\n")
+
+            # We loop over engine/<subdirs> and look for engine/<subdir>/build/compile_commands.json
+            engine_path = os.path.join(self.defold_root, 'engine')
+            for engine_subpath in os.listdir(engine_path):
+                potential_json_path = os.path.join(engine_path, engine_subpath, "build", "compile_commands.json")
+
+                if os.path.exists(potential_json_path):
+                    self._log("Adding %s" % potential_json_path)
+
+                    with open(potential_json_path, 'r') as input_file:
+                        # Take content but skip first and last lines (they would only include square brackets)
+                        input_lines = input_file.readlines()[1:-1]
+
+                        # Prettify output a bit by skipping last newline, this makes any appended comma
+                        # to appear on the same line
+                        if input_lines[-1][-1] == '\n':
+                            input_lines[-1] = input_lines[-1][:-1]
+
+                        # Append comma when adding more than one
+                        if need_trailing_comma:
+                            output_file.write(",\n")
+
+                        # Copy over contents to output file
+                        output_file.write(''.join(input_lines))
+
+                        need_trailing_comma = True
+
+            # Close array
+            output_file.write("\n]\n")
+
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'content', 'builtins'), outfile = f, directory = join(self.dynamo_home, 'content'))
@@ -1067,7 +1135,8 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
         skip_codesign = '--skip-codesign' if self.skip_codesign else ''
         disable_ccache = '--disable-ccache' if self.disable_ccache else ''
-        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'prefix':None}
+        generate_compile_commands = '--generate-compile-commands' if self.generate_compile_commands else ''
+        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'generate_compile_commands':generate_compile_commands, 'prefix':None}
 
     def get_base_platforms(self):
         # Base platforms is the platforms to build the base libs for.
@@ -1085,9 +1154,9 @@ class Configuration(object):
 
         return platforms
 
-    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, prefix):
+    def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
         prefix = prefix and prefix or self.dynamo_home
-        return '%s %s/ext/bin/waf --prefix=%s %s %s %s distclean configure build install' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache)
+        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
@@ -1164,6 +1233,8 @@ class Configuration(object):
             self.build_docs()
         if not self.skip_builtins:
             self.build_builtins()
+        if self.generate_compile_commands:
+            self.generate_global_compile_commands_json()
         if '--static-analyze' in self.waf_options:
             scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
             report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
@@ -2283,6 +2354,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'force disable of ccache. Default is false')
 
+    parser.add_option('--generate-compile-commands', dest='generate_compile_commands',
+                      action = 'store_true',
+                      default = False,
+                      help = 'generate compile_commands.json file. Default is false')
+
     parser.add_option('--no-colors', dest='no_colors',
                       action = 'store_true',
                       default = False,
@@ -2396,6 +2472,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_builtins = options.skip_builtins,
                       skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
+                      generate_compile_commands = options.generate_compile_commands,
                       no_colors = options.no_colors,
                       archive_domain = options.archive_domain,
                       package_path = options.package_path,

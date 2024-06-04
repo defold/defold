@@ -227,12 +227,10 @@ namespace dmHID
 
                 for (uint32_t i = 0; i < MAX_KEY_COUNT; ++i)
                 {
-                    uint32_t mask = 1;
-                    mask <<= i % 32;
-
-                    Key key       = (Key) i;
-                    int key_value = GetKeyValue(key);
-                    int state     = dmPlatform::GetKey(context->m_Window, key_value);
+                    Key key        = (Key) i;
+                    int key_value  = GetKeyValue(key);
+                    int state      = dmPlatform::GetKey(context->m_Window, key_value);
+                    uint32_t mask  = 1 << (i % 32);
 
                     if (state)
                         keyboard->m_Packet.m_Keys[i / 32] |= mask;
@@ -299,16 +297,15 @@ namespace dmHID
             for (uint32_t t = 0; t < MAX_TOUCH_DEVICE_COUNT; ++t)
             {
                 TouchDevice* device = &context->m_TouchDevices[t];
+                TouchDevicePacket* packet = &device->m_Packet;
 
-                dmPlatform::TouchData touch_data[dmHID::MAX_TOUCH_COUNT];
+                dmPlatform::TouchData touch_data[dmHID::MAX_TOUCH_COUNT] = {};
+                packet->m_TouchCount = dmPlatform::GetTouchData(context->m_Window, touch_data, dmHID::MAX_TOUCH_COUNT);
 
-                uint32_t n_touch = dmPlatform::GetTouchData(context->m_Window, touch_data, dmHID::MAX_TOUCH_COUNT);
-                if (n_touch > 0)
+                if (packet->m_TouchCount > 0)
                 {
                     device->m_Connected = 1;
-                    TouchDevicePacket* packet = &device->m_Packet;
-                    packet->m_TouchCount = n_touch;
-                    for (int i = 0; i < n_touch; ++i)
+                    for (int i = 0; i < packet->m_TouchCount; ++i)
                     {
                         packet->m_Touches[i].m_TapCount = touch_data[i].m_TapCount;
                         packet->m_Touches[i].m_Id       = touch_data[i].m_Id;
