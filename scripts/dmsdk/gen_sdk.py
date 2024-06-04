@@ -14,6 +14,7 @@ import os, sys, json, pprint, re, collections
 import gen_ir
 import gen_util as util
 import gen_cpp
+import gen_csharp
 
 # until we have a DEFOLD_HOME
 sys.path.insert(0, os.path.normpath(os.path.join(os.environ["DYNAMO_HOME"], '../..')))
@@ -265,7 +266,7 @@ def generate(gen_info, includes, basepath, outdir):
         relative_path = os.path.relpath(path, basepath)
 
         parsed_includes = parse_c_includes(path)
-        
+
         data = None
         with open(path, 'r', encoding='utf-8') as f:
             data = f.read()
@@ -273,16 +274,18 @@ def generate(gen_info, includes, basepath, outdir):
         ast = gen_ir.gen(path, includes)
         ast = cleanup_ast(ast, path)
 
-        with open('debug.json', 'w') as f:
-            pprint.pprint(ast, f)
+        # with open('debug.json', 'w') as f:
+        #     pprint.pprint(ast, f)
 
         state = State()
         parse(data, ast, state)
 
-        for lang_key in file_info["languages"].keys():
+        languages = file_info["languages"]
+        for lang_key in languages.keys():
             info = dict(file_info["languages"].get(lang_key))
             info['license'] = apply_license.LICENSE
 
+            out_data = None
             if lang_key == "cpp":
                 out = os.path.join(outdir, os.path.splitext(path)[0] + "_gen.hpp")
 
@@ -290,9 +293,23 @@ def generate(gen_info, includes, basepath, outdir):
 
                 out_data = gen_cpp.gen_cpp_header(basepath, relative_path, out, info, ast, state, parsed_includes)
 
-                with open(out, 'w', encoding='utf-8') as f:
-                    f.write(out_data)
-                    print("Generated", out)
+            elif lang_key == "csharp":
+                out = os.path.join(basepath, 'cs', os.path.splitext(relative_path)[0] + "_gen.cs")
+                out_data = gen_csharp.gen_csharp(os.path.join(basepath, 'cs'), relative_path, out, info, ast, state)
+
+            else:
+                print("Unsupported language", lang_key)
+                return False
+
+            if not out_data:
+                print("Failed to generate file", out)
+                return False
+
+            with open(out, 'w', encoding='utf-8') as f:
+                f.write(out_data)
+                print("Generated", out)
+
+    return True
 
 def Usage(parser):
     parser.print_help()
@@ -326,7 +343,11 @@ if __name__ == "__main__":
     includes = info["includes"]
     includes = [os.path.expandvars(i) for i in includes]
     includes = [os.path.join(cwd, i) for i in includes]
-    generate(info, includes, args.basepath, args.output)
+    result = generate(info, includes, args.basepath, args.output)
+
+    if not result:
+        print("Generation failed for", args.input)
+        sys.exit(1)
 
 
 
