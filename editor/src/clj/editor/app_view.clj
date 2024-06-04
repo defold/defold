@@ -89,6 +89,7 @@
            [com.defold.editor Editor]
            [com.defold.editor UIUtil]
            [com.dynamo.bob Platform]
+           [com.dynamo.bob.bundle BundleHelper]
            [com.sun.javafx PlatformUtil]
            [com.sun.javafx.scene NodeHelper]
            [java.io BufferedReader File IOException OutputStream PipedInputStream PipedOutputStream PrintWriter]
@@ -2397,7 +2398,8 @@ If you do not specifically require different script states, consider changing th
     (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
           package (game-project/get-setting game-project ["android" "package"] evaluation-context)
           project-title (game-project/get-setting game-project ["project" "title"] evaluation-context)
-          apk-path (io/file output-directory project-title (str project-title ".apk"))]
+          binary-name (BundleHelper/projectNameToBinaryName project-title)
+          apk-path (io/file output-directory binary-name (str binary-name ".apk"))]
       ;; Do the actual work asynchronously because adb commands are blocking.
       (future
         (error-reporting/catch-all!
@@ -2410,7 +2412,7 @@ If you do not specifically require different script states, consider changing th
                     _ (.println writer "Listing devices...")
                     device (or (first (adb/list-devices! adb-path))
                                (throw (ex-info "No devices are connected" {:adb adb-path})))]
-                (.println writer (format "Installing on '%s'..." (:label device)))
+                (.println writer (format "Installing `%s` on '%s'..." apk-path (:label device)))
                 (adb/install! adb-path device apk-path out)
                 (when launch
                   (.println writer (format "Launching %s..." package))
