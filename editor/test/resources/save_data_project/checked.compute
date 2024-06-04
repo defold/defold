@@ -1,4 +1,4 @@
-program: "/checked.cp"
+compute_program: "/checked.cp"
 constants {
   name: "constant_1"
   type: CONSTANT_TYPE_USER
