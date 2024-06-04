@@ -407,7 +407,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             // transform and register scene external resources (if compiling)
             String scriptPath = sceneBuilder.getScript();
             String suffix = BuilderUtil.getSuffix(scriptPath);
-            if (!suffix.equals("gui_script"))
+            if (!suffix.isEmpty() && !suffix.equals("gui_script"))
             {
                  throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_WRONG_RESOURCE_TYPE,
                          new String[] { scriptPath, suffix, "gui_script" } ));
