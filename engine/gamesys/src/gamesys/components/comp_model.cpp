@@ -1572,9 +1572,9 @@ namespace dmGameSystem
         return component->m_NodeInstances[bone_index];
     }
 
-    ModelComponent* CompModelGetComponent(ModelWorld* world, uintptr_t user_data)
+    ModelComponent* CompModelGetComponent(ModelWorld* world, dmGameObject::HComponentInternal user_data)
     {
-        return world->m_Components.Get(user_data);;
+        return world->m_Components.Get(user_data);
     }
 
     bool CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled)

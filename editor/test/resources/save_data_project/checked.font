@@ -9,9 +9,9 @@ shadow_alpha: 0.3
 shadow_blur: 8
 shadow_x: 4.0
 shadow_y: -4.0
-extra_characters: "\303\245\303\244\303\266"
 output_format: TYPE_DISTANCE_FIELD
 all_chars: true
 cache_width: 2048
 cache_height: 2048
 render_mode: MODE_MULTI_LAYER
+characters: " !\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\303\245\303\244\303\266"

@@ -24,6 +24,7 @@
 #include "../gameobject_private.h"
 
 #include <dmsdk/resource/resource.hpp>
+#include "gameobject/gameobject_ddf.h"
 
 using namespace dmVMath;
 

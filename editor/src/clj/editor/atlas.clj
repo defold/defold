@@ -185,7 +185,7 @@
         page-offset-x (get-rect-page-offset layout-width (:page rect))]
     (doseq [p vertex-line-points]
       (let [x (+ (:x rect) (* 0.5 width) (* width (first p)) page-offset-x)
-            y (+ (:y rect) (* 0.5 height) (* height (second p)))  ]
+            y (+ (:y rect) (* 0.5 height) (* height (second p)))]
         (vtx/buf-push-floats! buf (gen-outline-vertex wt pt x y cr cg cb))))))
 
 (defn- gen-outline-vertex-buffer [renderables count]
@@ -231,8 +231,11 @@
   (let [path (resource/proj-path image-resource)
         rect (get image-path->rect path)
         editor-rect (atlas-rect->editor-rect rect)
-        aabb (geom/rect->aabb editor-rect)
-        [layout-width layout-height] layout-size]
+        [layout-width layout-height] layout-size
+        page-index (:page rect)
+        page-offset-x (get-rect-page-offset layout-width page-index)
+        adjusted-editor-rect (assoc editor-rect :x (+ (:x editor-rect) page-offset-x))
+        aabb (geom/rect->aabb adjusted-editor-rect)]
     {:node-id _node-id
      :aabb aabb
      :renderable {:render-fn render-image-outlines
@@ -242,7 +245,7 @@
                               :order order
                               :layout-width layout-width
                               :layout-height layout-height
-                              :page-index (:page rect)}
+                              :page-index page-index}
                   :passes [pass/outline]}
      :children [{:aabb aabb
                  :node-id _node-id
@@ -954,15 +957,16 @@
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
-                                    :ext "atlas"
-                                    :label "Atlas"
-                                    :build-ext "a.texturesetc"
-                                    :node-type AtlasNode
-                                    :ddf-type AtlasProto$Atlas
-                                    :load-fn load-atlas
-                                    :icon atlas-icon
-                                    :view-types [:scene :text]
-                                    :view-opts {:scene {:grid false}}))
+    :ext "atlas"
+    :label "Atlas"
+    :build-ext "a.texturesetc"
+    :node-type AtlasNode
+    :ddf-type AtlasProto$Atlas
+    :load-fn load-atlas
+    :icon atlas-icon
+    :icon-class :design
+    :view-types [:scene :text]
+    :view-opts {:scene {:grid false}}))
 
 (defn- selection->atlas [selection] (handler/adapt-single selection AtlasNode))
 (defn- selection->animation [selection] (handler/adapt-single selection AtlasAnimation))

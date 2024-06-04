@@ -17,6 +17,8 @@
 #include <dlib/hashtable.h>
 #include <dlib/dstrings.h>
 
+#include <platform/platform_window.h>
+
 #include "hid_private.h"
 #include "hid.h"
 
@@ -58,6 +60,7 @@ namespace dmHID
 
     void Update(HContext context)
     {
+        dmPlatform::PollEvents(context->m_Window);
         context->m_Keyboards[0].m_Connected = !context->m_IgnoreKeyboard;
         context->m_Mice[0].m_Connected = !context->m_IgnoreMouse;
         context->m_TouchDevices[0].m_Connected = !context->m_IgnoreTouchDevice;

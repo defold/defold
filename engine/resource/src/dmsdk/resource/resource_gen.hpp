@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/resource and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/resource/sdk_gen.json
+// Generated with cwd=/Users/mawe/work/defold/engine/resource and cmd=/Users/mawe/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mawe/work/defold/engine/resource/sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King

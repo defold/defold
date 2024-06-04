@@ -31,11 +31,11 @@
 
 using namespace dmVMath;
 
-static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, uint8_t* property_buffer, uint32_t property_buffer_size, const Point3& position, const Quat& rotation, const Vector3& scale)
+static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties, const Point3& position, const Quat& rotation, const Vector3& scale)
 {
     dmGameObject::HPrototype prototype = 0x0;
     if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, property_buffer, property_buffer_size, position, rotation, scale);
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
         dmResource::Release(factory, prototype);
         return result;
     }
@@ -49,7 +49,7 @@ static int Lua_Spawn(lua_State* L) {
     uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
     dmResource::HFactory factory = dmGameObject::GetFactory(collection);
-    dmGameObject::HInstance spawned = Spawn(factory, collection, prototype, id, 0x0, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance spawned = Spawn(factory, collection, prototype, id, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     if (spawned == 0x0) {
         luaL_error(L, "failed to spawn");
         return 1;
@@ -612,17 +612,17 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti2)
 {
     Init();
 
-    dmGameObject::HInstance go2 = Spawn(m_Factory, m_Collection, "/a.goc", 2, 0x0, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go2 = Spawn(m_Factory, m_Collection, "/a.goc", 2, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
 
     Update();
 
     ASSERT_EQ(0u, dmGameObject::GetAddToUpdateCount(m_Collection));
     ASSERT_EQ(0u, dmGameObject::GetRemoveFromUpdateCount(m_Collection));
 
-    dmGameObject::HInstance go9 = Spawn(m_Factory, m_Collection, "/a.goc", 9, 0x0, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
-    dmGameObject::HInstance go3 = Spawn(m_Factory, m_Collection, "/a.goc", 3, 0x0, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
-    dmGameObject::HInstance go4 = Spawn(m_Factory, m_Collection, "/a.goc", 4, 0x0, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
-    dmGameObject::HInstance go6 = Spawn(m_Factory, m_Collection, "/a.goc", 6, 0x0, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go9 = Spawn(m_Factory, m_Collection, "/a.goc", 9, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go3 = Spawn(m_Factory, m_Collection, "/a.goc", 3, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go4 = Spawn(m_Factory, m_Collection, "/a.goc", 4, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go6 = Spawn(m_Factory, m_Collection, "/a.goc", 6, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
 
     Delete(go4);
     Delete(go2);
@@ -636,7 +636,7 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti2)
     PostUpdate();
     // The linked list should now have been corrupted
     // and the next spawned object won't get added to the AddToUpdate list
-    dmGameObject::HInstance go10 = Spawn(m_Factory, m_Collection, "/a.goc", 10, 0x0, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go10 = Spawn(m_Factory, m_Collection, "/a.goc", 10, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
 
     ASSERT_EQ(1u, dmGameObject::GetAddToUpdateCount(m_Collection));
     ASSERT_EQ(0u, dmGameObject::GetRemoveFromUpdateCount(m_Collection));

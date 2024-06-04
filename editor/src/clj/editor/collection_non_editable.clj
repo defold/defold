@@ -441,5 +441,6 @@
     :sanitize-fn (partial sanitize-non-editable-collection workspace)
     :load-fn load-non-editable-collection
     :icon collection-common/collection-icon
+    :icon-class :design
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

@@ -127,7 +127,7 @@
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (output form-data g/Any produce-form-data)
-  (output gpu-texture-generator g/Any {:f generate-gpu-texture })
+  (output gpu-texture-generator g/Any {:f generate-gpu-texture})
   (output build-targets g/Any :cached produce-build-targets)
   (output build-errors g/Any (g/fnk [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
                                (g/package-errors _node-id
@@ -162,6 +162,7 @@
     :ddf-type RenderTarget$RenderTargetDesc
     :load-fn load-render-target
     :icon texture-icon
+    :icon-class :design
     :view-types [:cljfx-form-view :text]
     :view-opts {}
     :label "Render Target"))

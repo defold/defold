@@ -4,6 +4,25 @@
 
 ### Android SDK/NDK
 
+When building the engine, the build system tries to find the sdk in this order:
+
+* `$DYNAMO_HOME/ext/SDKs/android-sdk` -  This is mainly for the Defold team and their CI
+* `$ANDROID_HOME` - Set this path to point to your android studio sdk installation (e.g. `ANDROID_HOME=~/Library/Android/sdk` is the default installation on macOS)
+
+#### Android Studio
+
+For the easiest build setup, you can install [Android Studio](https://developer.android.com/studio)
+Once installed, you need to also install the NDK.
+Open "Settings" -> "Languages & Frameworks" -> "Android SDK". From the "SDK Tools" tab choose "NDK (Side by side)".
+
+The build system will find the most recent build tools and NDK versions.
+However, the minimum API target numbers are fixed, and are specified our [sdk.py](./build_tools/sdk.py)
+
+#### Version specific builds
+
+This step isn't required if you have Android Studio installed.
+It is mainly for the Defold team and the build server setup.
+
 **Note that the SDK version numbers aren't the same as the Api Level numbers!**
 
 * Download SDK Tools 24.3.4 (or later) from here: [http://developer.android.com/sdk/index.html](http://developer.android.com/sdk/index.html)
@@ -239,7 +258,7 @@ We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms
 
 Creating a new android package is straight forward:
 
-    APILEVEL=33
+    APILEVEL=34
     mkdir -p sdkpack_android
     cd sdkpack_android
     mkdir -p share/java
@@ -255,7 +274,7 @@ Creating a new android package is straight forward:
 
 Update the reference to the tar ball in `<defold>/scripts/build.py`
 
-    PACKAGES_ANDROID="... android-33 ...".split()
+    PACKAGES_ANDROID="... android-34 ...".split()
 
 Find and update all `ANDROID_BUILD_TOOLS_VERSION`, `ANDROID_TARGET_API_LEVEL` and `ANDROID_PLATFORM` in the `defold` project folder.
 

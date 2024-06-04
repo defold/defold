@@ -66,20 +66,20 @@ Label.emphasis {
 }
 
 * {
-  -df-background-darker: derive(#212428, -10%);
-  -df-background-dark: derive(#212428, -5%);
+  -df-background-darker: derive(#212428, -40%);
   -df-background: #212428;
-  -df-background-light: derive(#212428, 10%);
-  -df-background-lighter: derive(#212428, 20%);
-  -df-component-darker: derive(#464c55, -20%);
-  -df-component-dark: derive(#464c55, -10%);
-  -df-component: #464c55;
-  -df-component-light: derive(#464c55, 10%);
-  -df-component-lighter: derive(#464c55, 20%);
-  -df-text-darker: derive(#b4bac1, -20%);
-  -df-text-dark: derive(#b4bac1, -40%);
-  -df-text: #b4bac1;
-  -df-text-selected: derive(#b4bac1, 20%);
+  -df-background-light: #2c2e33;
+  -df-background-lighter: #3B3F43;
+  -df-background-input: #292a2f;
+  -df-component-darker: #212428;
+  -df-component-dark: #393c41;
+  -df-component-light: #45474B;
+  -df-component-lighter: #52575c;
+  -df-component-icon: #8f9296;
+  -df-text-dark: #848484;
+  -df-text: #a2b0be;
+  -df-text-light: #f0f2f6;
+  -df-text-selected: #f0f2f6;
   -df-defold-red-dark: derive(#e32f44, -10%);
   -df-defold-red: #e32f44;
   -df-defold-red-light: derive(#e32f44, 10%);
@@ -179,7 +179,7 @@ Label.emphasis {
 }
 
 .progress-indicator {
-  -fx-progress-color: -df-component;
+  -fx-progress-color: -df-component-lighter;
 }
 
 @font-face {
@@ -235,17 +235,17 @@ Label.emphasis {
   -fx-border-radius: 4;
   -fx-padding: 6px 17px;
   -fx-min-width: 100px;
-  -fx-background-color: -df-background-lighter;
+  -fx-background-color: -df-component-dark;
   -fx-background-insets: 0;
-  -fx-border-color: -df-background-dark;
+  -fx-border-color: -df-component-darker;
   -fx-border-width: 1;
   -fx-text-fill: -df-text;
 }
 
 .button:hover {
-  -fx-background-color: -df-component-darker;
+  -fx-background-color: -df-component-lighter;
 }
 
 .button:armed {
-  -fx-background-color: -df-background-lighter;
+  -fx-background-color: -df-component-light;
 }
