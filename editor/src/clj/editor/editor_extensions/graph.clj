@@ -23,9 +23,11 @@
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.resource :as resource]
-            [editor.types :as types])
-  (:import [clojure.lang MultiFn]
-           [org.luaj.vm2 LuaError]))
+            [editor.types :as types]
+            [util.fn :as fn])
+  (:import [org.luaj.vm2 LuaError]))
+
+(set! *warn-on-reflection* true)
 
 (defn node-id-or-path->node-id
   "Coerce a value that may be node id or proj-path to existing node id"
@@ -47,7 +49,7 @@
     (validation/ensure spec value)))
 
 (defn- resource-converter [node-id-or-path outline-property project evaluation-context]
-  (validation/ensure (s/or :nothing #{""} :resource ::validation/node-id) node-id-or-path)
+  (validation/ensure (s/or :nothing #{""} :resource ::validation/node-id-or-path) node-id-or-path)
   (when-not (= node-id-or-path "")
     (let [node-id (node-id-or-path->node-id node-id-or-path project evaluation-context)
           resource (g/node-value node-id :resource evaluation-context)
@@ -65,9 +67,6 @@
    types/Vec3 {:to identity :from (ensuring-converter (s/tuple number? number? number?))}
    types/Vec4 {:to identity :from (ensuring-converter (s/tuple number? number? number? number?))}
    'editor.resource.Resource {:to resource/proj-path :from resource-converter}})
-
-(defn- multi-responds? [^MultiFn multi & args]
-  (some? (.getMethod multi (apply (.-dispatchFn multi) args))))
 
 (defn- property->prop-kw [property]
   (if (string/starts-with? property "__")
@@ -106,15 +105,14 @@
     property              string property name
     evaluation-context    used evaluation context"
   [node-id property evaluation-context]
-  (if (multi-responds? ext-get node-id property evaluation-context)
+  (if (fn/multi-responds? ext-get node-id property evaluation-context)
     #(ext-get node-id property evaluation-context)
-    (if-let [outline-property (outline-property node-id property evaluation-context)]
+    (when-let [outline-property (outline-property node-id property evaluation-context)]
       (when-let [to (-> outline-property
                         properties/edit-type-id
                         edit-type-id->value-converter
                         :to)]
-        #(some-> (properties/value outline-property) to))
-      nil)))
+        #(some-> (properties/value outline-property) to)))))
 
 ;; endregion
 
@@ -138,9 +136,9 @@
 
   Returns nil if there is no setter for the node-id+property pair"
   [node-id property project evaluation-context]
-  (if (multi-responds? ext-setter node-id property evaluation-context)
+  (if (fn/multi-responds? ext-setter node-id property evaluation-context)
     (ext-setter node-id property evaluation-context)
-    (if-let [outline-property (outline-property node-id property evaluation-context)]
+    (when-let [outline-property (outline-property node-id property evaluation-context)]
       (when-not (properties/read-only? outline-property)
         (when-let [from (-> outline-property
                             properties/edit-type-id
@@ -148,7 +146,6 @@
                             :from)]
           #(properties/set-value evaluation-context
                                  outline-property
-                                 (from % outline-property project evaluation-context))))
-      nil)))
+                                 (from % outline-property project evaluation-context)))))))
 
 ;; endregion

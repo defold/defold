@@ -37,7 +37,7 @@
       (try
         (transact txs)
         (future/complete! f nil)
-        (catch Exception ex (future/fail! f ex))))
+        (catch Throwable ex (future/fail! f ex))))
     f))
 
 (defmethod action->batched-executor+input "set" [action project evaluation-context]
@@ -62,15 +62,15 @@
           (future/completed nil)
           future-fns))
 
-(defn- input-stream->console [input-stream display-output type]
+(defn- input-stream->console [input-stream display-output! type]
   (future
     (error-reporting/catch-all!
       (with-open [reader (io/reader input-stream)]
         (doseq [line (line-seq reader)]
-          (display-output type line))))))
+          (display-output! type line))))))
 
 (defn- shell! [commands project state]
-  (let [{:keys [can-execute? reload-resources display-output]} state
+  (let [{:keys [can-execute? reload-resources! display-output!]} state
         root (lsp.async/with-auto-evaluation-context evaluation-context
                (-> project
                    (project/workspace evaluation-context)
@@ -79,24 +79,25 @@
           (eduction
             (map
               (fn [cmd+args]
-                #(future/then
-                   (can-execute? cmd+args)
-                   (fn [can-execute]
-                     (if can-execute
-                       (let [process (doto (apply process/start! {:dir root} cmd+args)
-                                       (-> process/out (input-stream->console display-output :out))
-                                       (-> process/err (input-stream->console display-output :err)))
-                             exit-code (process/await-exit-code process)]
-                         (when-not (zero? exit-code)
-                           (throw (ex-info (str "Command \""
-                                                (string/join " " cmd+args)
-                                                "\" exited with code "
-                                                exit-code)
-                                           {:cmd cmd+args
-                                            :exit-code exit-code}))))
-                       (throw (ex-info (str "Command \"" (string/join " " cmd+args) "\" aborted") {:cmd cmd+args})))))))
+                (fn start-async-shell-command! []
+                  (future/then
+                    (can-execute? cmd+args)
+                    (fn on-can-execute-response [can-execute]
+                      (if can-execute
+                        (let [process (doto (apply process/start! {:dir root} cmd+args)
+                                        (-> process/out (input-stream->console display-output! :out))
+                                        (-> process/err (input-stream->console display-output! :err)))
+                              exit-code (process/await-exit-code process)]
+                          (when-not (zero? exit-code)
+                            (throw (ex-info (str "Command \""
+                                                 (string/join " " cmd+args)
+                                                 "\" exited with code "
+                                                 exit-code)
+                                            {:cmd cmd+args
+                                             :exit-code exit-code}))))
+                        (throw (ex-info (str "Command \"" (string/join " " cmd+args) "\" aborted") {:cmd cmd+args}))))))))
             commands))
-        (future/then (fn [_] (reload-resources))))))
+        (future/then (fn [_] (reload-resources!))))))
 
 (defmethod action->batched-executor+input "shell" [action _ _]
   [shell! (:command action)])

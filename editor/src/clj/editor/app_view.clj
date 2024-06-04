@@ -1107,7 +1107,8 @@
                 project-build-successful (nil? (:error project-build-results))]
             (run-on-background-thread!
               (fn run-post-build-hook-on-background-thread! []
-                @(extensions/execute-hook! project :on_build_finished
+                @(extensions/execute-hook! project
+                                           :on_build_finished
                                            {:success project-build-successful :platform platform}
                                            :exception-policy :ignore))
               (fn process-post-build-hook-results-on-ui-thread! [_]
@@ -2506,18 +2507,18 @@ If you do not specifically require different script states, consider changing th
 (defn reload-extensions! [project kind workspace changes-view prefs]
   (extensions/reload!
     project kind
-    :reload-resources (fn []
-                        (let [f (future/make)]
-                          (disk/async-reload! (make-render-task-progress :resource-sync)
-                                              workspace
-                                              []
-                                              changes-view
-                                              (fn [success]
-                                                (if success
-                                                  (future/complete! f nil)
-                                                  (future/fail! f (RuntimeException. "Reload failed")))))
-                          f))
-    :can-execute? (fn [[cmd-name :as command]]
+    :reload-resources! (fn reload-resources! []
+                         (let [f (future/make)]
+                           (disk/async-reload! (make-render-task-progress :resource-sync)
+                                               workspace
+                                               []
+                                               changes-view
+                                               (fn [success]
+                                                 (if success
+                                                   (future/complete! f nil)
+                                                   (future/fail! f (RuntimeException. "Reload failed")))))
+                           f))
+    :can-execute? (fn can-execute? [[cmd-name :as command]]
                     (let [allowed-commands (prefs/get-prefs prefs editor-extensions-allowed-commands-prefs-key #{})]
                       (if (allowed-commands cmd-name)
                         (future/completed true)
@@ -2543,12 +2544,12 @@ If you do not specifically require different script states, consider changing th
                                 (prefs/set-prefs prefs editor-extensions-allowed-commands-prefs-key (conj allowed-commands cmd-name)))
                               (future/complete! f allow)))
                           f))))
-    :display-output (fn [type string]
-                      (let [[console-type prefix] (case type
-                                                    :err [:extension-error "ERROR:EXT: "]
-                                                    :out [:extension-output ""])]
-                        (doseq [line (string/split-lines string)]
-                          (console/append-console-entry! console-type (str prefix line)))))))
+    :display-output! (fn display-output! [type string]
+                       (let [[console-type prefix] (case type
+                                                     :err [:extension-error "ERROR:EXT: "]
+                                                     :out [:extension-output ""])]
+                         (doseq [line (string/split-lines string)]
+                           (console/append-console-entry! console-type (str prefix line)))))))
 
 (defn- fetch-libraries [workspace project changes-view prefs]
   (let [library-uris (project/project-dependencies project)

@@ -24,6 +24,8 @@
             [editor.outline :as outline]
             [editor.resource :as resource]))
 
+(set! *warn-on-reflection* true)
+
 (defn- continue [acc env lua-fn f & args]
   (let [new-lua-fn (fn [env m]
                      (lua-fn env (apply f m args)))]
@@ -63,6 +65,8 @@
                                           (handler/adapt-every resource/Resource)
                                           (->> (keep #(project/get-resource-node project % evaluation-context)))
                                           (node-ids->lua-selection q)))]
+                 (when-not (:evaluation-context env)
+                   (g/update-cache-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
 
 (defmethod gen-selection-query "outline" [q acc _]
@@ -84,7 +88,7 @@
     q))
 
 (defn command->dynamic-handler [{:keys [label query active run locations]} path project state]
-  (let [{:keys [rt display-output]} state
+  (let [{:keys [rt display-output!]} state
         lua-fn->env-fn (compile-query query project)
         contexts (into #{}
                        (map {"Assets" :asset-browser
@@ -107,7 +111,7 @@
                          (lua-fn->env-fn
                            (fn [env opts]
                              (error-handling/try-with-extension-exceptions
-                               :display-output display-output
+                               :display-output! display-output!
                                :label (str label "'s \"active\" in " path)
                                :catch false
                                (rt/->clj rt (rt/invoke-immediate (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
@@ -126,4 +130,4 @@
                                        (when-let [actions (rt/->clj rt lua-result)]
                                          (lsp.async/with-auto-evaluation-context evaluation-context
                                            (actions/perform! actions project state evaluation-context)))))
-                                   (future/catch #(error-handling/display-script-error display-output error-label %))))))))}))
+                                   (future/catch #(error-handling/display-script-error! display-output! error-label %))))))))}))

@@ -25,7 +25,6 @@
             [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.validation :as validation]
-            [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
@@ -36,15 +35,17 @@
             [editor.util :as util]
             [editor.workspace :as workspace])
   (:import [com.dynamo.bob Platform]
-           [java.nio.file FileAlreadyExistsException Files LinkOption NotDirectoryException Path]
+           [java.nio.file FileAlreadyExistsException Files NotDirectoryException Path]
            [org.luaj.vm2 LuaError Prototype]))
+
+(set! *warn-on-reflection* true)
 
 (defn- ext-state
   "Returns an extension state, a map with following keys:
-    :reload-resources      0-arg function used to reload resources
+    :reload-resources!     0-arg function used to reload resources
     :can-execute?          1-arg function of command vector used to ask the user
                            if it's okay to execute this command
-    :display-output        2-arg function used to display extension-related
+    :display-output!       2-arg function used to display extension-related
                            output to the user, where args are:
                              type    output type, :err or :out
                              msg     string message, may be multiline
@@ -74,13 +75,13 @@
     path    a proj-path of the editor script, string
     ret     a Clojure data structure returned from function in that file"
   [state fn-keyword opts evaluation-context]
-  (let [{:keys [rt all display-output]} state
+  (let [{:keys [rt all display-output!]} state
         lua-opts (rt/->lua opts)
         label (name fn-keyword)]
     (eduction
       (keep (fn [[path lua-fn]]
               (when-let [ret (error-handling/try-with-extension-exceptions
-                               :display-output display-output
+                               :display-output! display-output!
                                :label (str label " in " path)
                                :catch nil
                                (rt/->clj rt (rt/invoke-immediate rt lua-fn lua-opts evaluation-context)))]
@@ -101,9 +102,9 @@
 
 ;; region script API
 
-(defn- mk-ext-get [project]
-  (rt/lua-fn [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
-    (let [node-id-or-path (validation/ensure ::validation/node-id (rt/->clj rt lua-node-id-or-path))
+(defn- make-ext-get-fn [project]
+  (rt/lua-fn ext-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
+    (let [node-id-or-path (validation/ensure ::validation/node-id-or-path (rt/->clj rt lua-node-id-or-path))
           property (validation/ensure string? (rt/->clj rt lua-property))
           node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)
           getter (graph/ext-value-getter node-id property evaluation-context)]
@@ -114,22 +115,22 @@
                                property
                                "\" property")))))))
 
-(defn- mk-ext-can-get [project]
-  (rt/lua-fn [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
-    (let [node-id-or-path (validation/ensure ::validation/node-id (rt/->clj rt lua-node-id-or-path))
+(defn- make-ext-can-get-fn [project]
+  (rt/lua-fn ext-can-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
+    (let [node-id-or-path (validation/ensure ::validation/node-id-or-path (rt/->clj rt lua-node-id-or-path))
           property (validation/ensure string? (rt/->clj rt lua-property))
           node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)]
       (some? (graph/ext-value-getter node-id property evaluation-context)))))
 
-(defn- mk-ext-can-set [project]
-  (rt/lua-fn [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
-    (let [node-id-or-path (validation/ensure ::validation/node-id (rt/->clj rt lua-node-id-or-path))
+(defn- make-ext-can-set-fn [project]
+  (rt/lua-fn ext-can-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
+    (let [node-id-or-path (validation/ensure ::validation/node-id-or-path (rt/->clj rt lua-node-id-or-path))
           property (validation/ensure string? (rt/->clj rt lua-property))
           node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)]
       (some? (graph/ext-value-setter node-id property project evaluation-context)))))
 
-(defn- mk-ext-create-directory [project reload-resources]
-  (rt/suspendable-lua-fn [{:keys [rt evaluation-context]} lua-proj-path]
+(defn- make-ext-create-directory-fn [project reload-resources!]
+  (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
     (let [^String proj-path (rt/->clj rt lua-proj-path)]
       (validation/ensure validation/resource-path? proj-path)
       (let [root-path (-> project
@@ -143,15 +144,15 @@
         (if (.startsWith dir-path root-path)
           (try
             (fs/create-path-directories! dir-path)
-            (future/then (reload-resources) rt/and-refresh-context)
+            (future/then (reload-resources!) rt/and-refresh-context)
             (catch FileAlreadyExistsException e
               (throw (LuaError. (str "File already exists: " (.getMessage e)))))
             (catch Exception e
-              (throw (LuaError. (str (.getMessage e))))))
+              (throw (LuaError. ^String (or (.getMessage e) (.getSimpleName (class e)))))))
           (throw (LuaError. (str "Can't create " dir-path ": outside of project directory"))))))))
 
-(defn- mk-ext-delete-directory [project reload-resources]
-  (rt/suspendable-lua-fn [{:keys [rt evaluation-context]} lua-proj-path]
+(defn- make-ext-delete-directory-fn [project reload-resources!]
+  (rt/suspendable-lua-fn ext-delete-directory [{:keys [rt evaluation-context]} lua-proj-path]
     (let [proj-path (validation/ensure validation/resource-path? (rt/->clj rt lua-proj-path))
           root-path (-> project
                         (project/workspace evaluation-context)
@@ -180,7 +181,7 @@
         :else
         (try
           (when (fs/delete-path-directory! dir-path)
-            (future/then (reload-resources) rt/and-refresh-context))
+            (future/then (reload-resources!) rt/and-refresh-context))
           (catch NotDirectoryException e
             (throw (LuaError. (str "Not a directory: " (.getMessage e)))))
           (catch Exception e
@@ -193,14 +194,14 @@
       normalized-path
       (throw (LuaError. (str "Can't access " file-name ": outside of project directory"))))))
 
-(defn- mk-ext-remove-file [project-path reload-resources]
-  (rt/suspendable-lua-fn [{:keys [rt]} lua-file-name]
+(defn- make-ext-remove-file-fn [project-path reload-resources!]
+  (rt/suspendable-lua-fn ext-remove-file [{:keys [rt]} lua-file-name]
     (let [file-name (validation/ensure string? (rt/->clj rt lua-file-name))
           file-path (ensure-file-path-in-project-directory project-path file-name)]
-      (when-not (Files/exists file-path (into-array LinkOption []))
+      (when-not (Files/exists file-path fs/empty-link-option-array)
         (throw (LuaError. (str "No such file or directory: " file-name))))
       (Files/delete file-path)
-      (future/then (reload-resources) rt/and-refresh-context))))
+      (future/then (reload-resources!) rt/and-refresh-context))))
 
 ;; endregion
 
@@ -223,7 +224,7 @@
           (mapcat
             (fn [[path language-servers]]
               (error-handling/try-with-extension-exceptions
-                :display-output (:display-output state)
+                :display-output! (:display-output! state)
                 :label (str "Reloading language servers in " path)
                 :catch []
                 (validation/ensure ::validation/language-servers language-servers))))
@@ -240,19 +241,19 @@
 ;; region reload
 
 (defn- reload-commands! [project state evaluation-context]
-  (let [{:keys [display-output]} state]
+  (let [{:keys [display-output!]} state]
     (handler/register-dynamic! ::commands
       (into []
             (mapcat
               (fn [[path ret]]
                 (error-handling/try-with-extension-exceptions
-                  :display-output display-output
+                  :display-output! display-output!
                   :label (str "Reloading commands in " path)
                   :catch nil
                   (eduction
                     (keep (fn [command]
                             (error-handling/try-with-extension-exceptions
-                              :display-output display-output
+                              :display-output! display-output!
                               :label (str (:label command) " in " path)
                               :catch nil
                               (commands/command->dynamic-handler command path project state))))
@@ -269,7 +270,7 @@
 (def hooks-file-path "/hooks.editor_script")
 
 (defn- re-create-ext-state [initial-state evaluation-context]
-  (let [{:keys [rt display-output]} initial-state]
+  (let [{:keys [rt display-output!]} initial-state]
     (->> [:library-prototypes :project-prototypes]
          (eduction (mapcat initial-state))
          (reduce
@@ -277,13 +278,13 @@
              (cond
                (instance? LuaError x)
                (do
-                 (display-output :err (str "Compilation failed" (some->> (ex-message x) (str ": "))))
+                 (display-output! :err (str "Compilation failed" (some->> (ex-message x) (str ": "))))
                  acc)
 
                (instance? Prototype x)
                (let [proto-path (.tojstring (.-source ^Prototype x))]
                  (if-let [module (error-handling/try-with-extension-exceptions
-                                   :display-output display-output
+                                   :display-output! display-output!
                                    :label (str "Loading " proto-path)
                                    :catch nil
                                    (validation/ensure ::validation/module
@@ -330,17 +331,17 @@
     kind       which scripts to reload, either :all, :library or :project
 
   Required kv-args:
-    :reload-resources    0-arg function that asynchronously reloads the editor
-                         resources, returns a CompletableFuture (that might
-                         complete exceptionally if reload fails)
-    :can-execute?        1-arg function that takes in a command vector and asks
-                         the user if it's okay to execute this command. Returns
-                         a CompletableFuture that will resolve to boolean
-    :display-output      2-arg function used for displaying output in the
-                         console, the args are:
-                           type    output type, :out or :err
-                           msg     a string to output, might be multiline"
-  [project kind & {:keys [reload-resources can-execute? display-output] :as opts}]
+    :reload-resources!    0-arg function that asynchronously reloads the editor
+                          resources, returns a CompletableFuture (that might
+                          complete exceptionally if reload fails)
+    :can-execute?         1-arg function that takes in a command vector and asks
+                          the user if it's okay to execute this command. Returns
+                          a CompletableFuture that will resolve to boolean
+    :display-output!      2-arg function used for displaying output in the
+                          console, the args are:
+                            type    output type, :out or :err
+                            msg     a string to output, might be multiline"
+  [project kind & {:keys [reload-resources! can-execute? display-output!] :as opts}]
   (g/with-auto-evaluation-context evaluation-context
     (let [extensions (g/node-value project :editor-extensions evaluation-context)
           old-state (ext-state project evaluation-context)
@@ -355,14 +356,14 @@
                               :find-resource (partial find-resource project)
                               :resolve-file (partial resolve-file project-path)
                               :close-written (rt/suspendable-lua-fn [_]
-                                               (future/then (reload-resources) rt/and-refresh-context))
-                              :out (line-writer #(display-output :out %))
-                              :err (line-writer #(display-output :err %))
-                              :env {"editor" {"get" (mk-ext-get project)
-                                              "can_get" (mk-ext-can-get project)
-                                              "can_set" (mk-ext-can-set project)
-                                              "create_directory" (mk-ext-create-directory project reload-resources)
-                                              "delete_directory" (mk-ext-delete-directory project reload-resources)
+                                               (future/then (reload-resources!) rt/and-refresh-context))
+                              :out (line-writer #(display-output! :out %))
+                              :err (line-writer #(display-output! :err %))
+                              :env {"editor" {"get" (make-ext-get-fn project)
+                                              "can_get" (make-ext-can-get-fn project)
+                                              "can_set" (make-ext-can-set-fn project)
+                                              "create_directory" (make-ext-create-directory-fn project reload-resources!)
+                                              "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
                                               "platform" (.getPair (Platform/getHostPlatform))
                                               "version" (system/defold-version)
                                               "engine_sha1" (system/defold-engine-sha1)
@@ -370,7 +371,7 @@
                                     "io" {"tmpfile" nil}
                                     "os" {"execute" nil
                                           "exit" nil
-                                          "remove" (mk-ext-remove-file project-path reload-resources)
+                                          "remove" (make-ext-remove-file-fn project-path reload-resources!)
                                           "rename" nil
                                           "setlocale" nil
                                           "tmpname" nil}})
@@ -422,7 +423,7 @@
                          When not provided, the exception will be re-thrown"
   [project hook-keyword opts & {:keys [exception-policy]}]
   (g/with-auto-evaluation-context evaluation-context
-    (let [{:keys [rt display-output hooks] :as state} (ext-state project evaluation-context)]
+    (let [{:keys [rt display-output! hooks] :as state} (ext-state project evaluation-context)]
       (if-let [lua-fn (get hooks hook-keyword)]
         (-> (rt/invoke-suspending rt lua-fn (rt/->lua opts))
             (future/then
@@ -432,7 +433,7 @@
                     (actions/perform! actions project state evaluation-context)))))
             (future/catch
               (fn [ex]
-                (error-handling/display-script-error display-output (str "hook " (name hook-keyword)) ex)
+                (error-handling/display-script-error! display-output! (str "hook " (name hook-keyword)) ex)
                 (case exception-policy
                   :as-error (hook-exception->error ex project hook-keyword)
                   :ignore nil

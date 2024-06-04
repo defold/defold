@@ -35,7 +35,7 @@
 
 (def node-id? int?)
 
-(s/def ::node-id
+(s/def ::node-id-or-path
   (s/or :internal-id node-id? :resource-path resource-path?))
 
 ;; editor script module
@@ -59,7 +59,7 @@
 ;; action
 
 (s/def :editor.extensions.validation.action/action #{"set" "shell"})
-(s/def :editor.extensions.validation.action/node_id ::node-id)
+(s/def :editor.extensions.validation.action/node_id ::node-id-or-path)
 (s/def :editor.extensions.validation.action/property string?)
 (s/def :editor.extensions.validation.action/value any?)
 (s/def :editor.extensions.validation.action/command (s/coll-of string?))

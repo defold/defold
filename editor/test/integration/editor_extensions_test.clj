@@ -243,11 +243,11 @@
     (let [resource-sync (bound-fn* workspace/resource-sync!)
           sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
       (extensions/reload! project :all
-                          :reload-resources (fn []
-                                              (resource-sync workspace)
-                                              (future/completed nil))
+                          :reload-resources! (fn test-reload-resources! []
+                                               (resource-sync workspace)
+                                               (future/completed nil))
                           :can-execute? (constantly (future/completed true))
-                          :display-output println)
+                          :display-output! println)
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (handler/eval-contexts
@@ -267,11 +267,11 @@
     (let [resource-sync (bound-fn* workspace/resource-sync!)
           output (atom [])
           _ (extensions/reload! project :all
-                                :reload-resources (fn []
-                                                    (resource-sync workspace)
-                                                    (future/completed nil))
+                                :reload-resources! (fn test-reload-resources! []
+                                                     (resource-sync workspace)
+                                                     (future/completed nil))
                                 :can-execute? (constantly (future/completed true))
-                                :display-output #(swap! output conj [%1 %2]))
+                                :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
