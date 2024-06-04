@@ -1565,7 +1565,7 @@ TEST_F(dmRenderScriptTest, TestDispatch)
     const char* script =
     "function init(self)\n"
     "   render.set_compute_program('test_compute')\n"
-    "   render.dispatch(1,2,3)\n"
+    "   render.dispatch_compute(1,2,3)\n"
     "   render.set_compute_program()\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
