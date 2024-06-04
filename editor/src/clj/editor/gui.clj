@@ -339,7 +339,6 @@
       (conj 1.0)))
 
 (declare get-registered-node-type-info get-registered-node-type-infos)
-(declare ^:private TextureNode)
 
 ;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1722,8 +1721,7 @@
 (g/defnode LayerNode
   (inherits outline/OutlineNode)
   (property name g/Str
-            (dynamic error (g/fnk [_node-id name name-counts]
-                             (prop-unique-id-error _node-id :name name name-counts "Name")))
+            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
             (set (partial update-gui-resource-references :layer)))
   (property child-index g/Int (dynamic visible (g/constantly false)) (default 0))
   (input name-counts NameCounts)
@@ -2143,6 +2141,7 @@
 (defn- attach-layer
   ([self layers-node layer]
    (attach-layer self layers-node layer false))
+  ;; Self is not used here but added to conform all attach-*** functions
   ([_self layers-node layer internal?]
    (concat
     (g/connect layer :_node-id layers-node :nodes)
@@ -2170,14 +2169,6 @@
      (concat
       (g/operation-label "Add Layer")
       (add-layer project scene parent name next-index select-fn)))))
-
-;; Layers have a bit of different structure - there is no :names entry
-;; in the LayersNode node
-(defn- gen-layer-node-tx-attach-fn [target source]
-  (let [taken-id-names (g/node-value target :ordered-layer-names)]
-    (concat
-      (g/update-property source :name outline/resolve-id taken-id-names)
-      (attach-layer nil target source))))
 
 (g/defnode LayersNode
   (inherits core/Scope)
