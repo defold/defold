@@ -35,6 +35,33 @@
 					"ExtensionUnregister": "Unregister"
 				}
 
+			},
+			"csharp": {
+				"namespace": "Extension",
+				"class": "Extension",
+				"dllimport": "extension",
+				"ignore": [
+					"ExtensionRegisteriOSUIApplicationDelegate",
+					"ExtensionUnregisteriOSUIApplicationDelegate",
+					"ExtensionRegisterCallback"
+				],
+				"rename": {
+					"ExtensionAppParams": "AppParams",
+					"ExtensionParams": "Params",
+					"ExtensionEvent": "Event",
+					"ExtensionRegister": "Register",
+					"FExtensionAppInitialize": "IntPtr",
+					"FExtensionAppFinalize": "IntPtr",
+					"FExtensionInitialize": "IntPtr",
+					"FExtensionFinalize": "IntPtr",
+					"FExtensionUpdate": "IntPtr",
+					"FExtensionOnEvent": "IntPtr",
+					"FExtensionCallback": "IntPtr",
+					"HConfigFile": "dmSDK.Dlib.ConfigFile.Config*",
+					"HResourceFactory": "//HResourceFactory",
+					"lua_State": "//lua_State",
+					"enum EventID": "//enum EventID"
+				}
 			}
 		}}
 	]

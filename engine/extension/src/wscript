@@ -23,4 +23,10 @@ def build(bld):
     bld.install_files('${PREFIX}/include/extension', 'extension.h')
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
+    # C#
+    bld.stlib(features= 'cs_stlib',
+              project = 'cs/extension_cs.csproj')
+
+    bld.add_group()
+
     bld.recurse('test')

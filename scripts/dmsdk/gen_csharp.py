@@ -12,6 +12,14 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
+
+# SOme good-to-read references
+
+# examples: https://stackoverflow.com/questions/11968960/how-use-pinvoke-for-c-struct-array-pointer-to-c-sharp
+# field offset: https://stackoverflow.com/questions/8757855/getting-pointer-to-struct-inside-itself-unsafe-context
+
+
+
 import os, sys, pprint
 
 ###########################################
@@ -36,11 +44,16 @@ c_to_cstypes = {
     'const char *': 'string',
     'const void *': 'void*',
     'int32_t':      'int',
-    'uint32_t':     'UInt32',
+    'uint32_t':     'uint',
+    'int16_t':      'short',
+    'uint16_t':     'ushort',
+    'int8_t':       'char',
+    'uint8_t':      'byte',
     'dmhash_t':     'UInt64',
     'uint64_t':     'UInt64',
 }
 
+# in order to avoid reserved keywords
 c_to_csvars = {
     'string': 'str',
 }
@@ -94,13 +107,42 @@ def gen_csharp_func(decl):
 
     return 'public static extern %s %s(%s)' % (ret_type, decl['name'], ', '.join(args))
 
-def gen_cs_struct_typedef(name, indent):
+def gen_cs_struct(decl, rename_patterns, opaque, indent):
+    #pprint.pprint(decl, sys.stdout)
+
+    name = rename_symbols(rename_patterns, decl['name'])
+    while name.endswith('*'):
+        name = name[:-1]
+
     spaces = '    ' * indent
-    return f'''{spaces}[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack=1)]
-{spaces}public struct {name}
-{spaces}{{
-{spaces}    // opaque struct
-{spaces}}}'''
+    spaces1 = '    ' * (indent+1)
+    s = ''
+    s += f'{spaces}[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack=1)]\n'
+    s += f'{spaces}public struct {name}\n'
+    s += f'{spaces}{{\n'
+
+    if opaque:
+        s += f'{spaces}    // opaque struct\n'
+    else:
+        for member in decl['inner']:
+            n = member['name']
+            if n.startswith('m_'):
+                n = n[2:]
+            n = rename_symbols(rename_patterns, n)
+            t = rename_symbols(rename_patterns, member['type']['qualType'])
+
+            if t.startswith('//'):
+                ot = member['type']['qualType']
+                print(f"CS: Warning: exiting struct {name}, as member {ot} {n} isn't supported yet")
+                break # if we skip one, we can't guarantuee the order/layout
+
+            # TODO: Find out the layout!
+            s += f'{spaces1}public {t} {n};\n'
+
+
+    s += f'{spaces}}}'
+    return s
+
 
 
 def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
@@ -183,14 +225,12 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
     #     l('    };')
     #     l('')
 
-    for decl, doc in state.struct_typedefs:
+    for decl, doc in state.struct_types:
         n = decl['name']
         if n in ignores:
             continue
-        renamed = rename_symbols(prefixes, n)
-        while renamed.endswith('*'):
-            renamed = renamed[:-1]
-        struct_typedef = gen_cs_struct_typedef(renamed, 3)
+
+        struct_typedef = gen_cs_struct(decl, prefixes, False, 3)
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
