@@ -1,44 +1,7 @@
 import java.util.concurrent.Executors
 
 apply plugin: 'java'
-
-def buildToolsDir = "../../build_tools"
-def dynamoHome = System.getenv("DYNAMO_HOME") ?: "../../tmp/dynamo_home"
-
-task getHostPlatform {
-    doLast {
-        def command = [
-                "python",
-                "-c",
-                "import sys; sys.path.append('" + buildToolsDir +"'); import sdk; print(sdk.get_host_platform())"
-        ]
-
-        try {
-            def process = new ProcessBuilder(command)
-                    .redirectErrorStream(true)
-                    .start()
-            def output = new StringBuffer()
-            process.inputStream.eachLine { line -> output.append(line).append('\n') }
-            process.waitFor()
-            def outputString = output.toString().trim()
-
-            if (process.exitValue() == 0) {
-                def hostPlatform = outputString
-                if (hostPlatform) {
-                    project.ext.hostPlatform = hostPlatform
-                    println "Host Platform: ${hostPlatform}"
-                } else {
-                    throw new GradleException("Failed to determine host platform: output is empty")
-                }
-            } else {
-                throw new GradleException("Failed to determine host platform: ${outputString}")
-            }
-        } catch (Exception e) {
-            println "Exception occurred: ${e.message}"
-            throw e
-        }
-    }
-}
+apply from: '../com.dynamo.cr.bob/basic.gradle'
 
 task cleanGenerated {
     doLast {
@@ -46,25 +9,20 @@ task cleanGenerated {
     }
 }
 
-task getGitRevision {
-    doLast {
-        def gitRevision = "git log --pretty=%H -n1".execute().text.trim()
-        project.ext.gitRevision = gitRevision
-        println "Git Revision: ${gitRevision}"
-    }
-}
+clean.dependsOn cleanGenerated
 
-task extGeneratedCopy(dependsOn: [getGitRevision, getHostPlatform]) {
+task extGeneratedCopy(dependsOn: [getGitRevision]) {
     doLast {
+        def gitRevision = tasks.getGitRevision.gitRevision
         def extGeneratedDir = file('ext_generated')
         extGeneratedDir.mkdirs()
         copy {
-            from "${dynamoHome}/archive/${project.ext.gitRevision}/engine/share/java"
+            from "${project.dynamoHome}/archive/${gitRevision}/engine/share/java"
             include 'dlib.jar'
             into extGeneratedDir
         }
         copy {
-            from "${dynamoHome}/share/java"
+            from "${project.dynamoHome}/share/java"
             include 'dlib.jar'
             into extGeneratedDir
         }
@@ -121,10 +79,10 @@ task generateProtos(dependsOn: extGeneratedCopy) {
         protoTasks.each { proto ->
             futures << executor.submit {
                 def command = [
-                        "${dynamoHome}/ext/bin/${project.ext.hostPlatform}/protoc",
+                        "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc",
                         "--java_out=generated",
                         "-I${proto.dir}",
-                        "-I${dynamoHome}/ext/include",
+                        "-I${project.dynamoHome}/ext/include",
                         "-I../../engine/ddf/src",
                         "-I../../engine/script/src",
                         "-I../../engine/gameobject/proto",

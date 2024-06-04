@@ -1,35 +1,33 @@
 apply plugin: 'java'
 
-apply from: '../com.dynamo.cr.bob/settings.gradle'
 apply from: '../com.dynamo.cr.bob/basic.gradle'
 
 repositories {
     flatDir {
-        dirs 'lib', "$gradle.ext.commonDir/ext", "$gradle.ext.bobDir/lib"
+        dirs 'lib', "$project.commonDir/ext", "$project.bobDir/lib"
     }
 }
 
 dependencies {
-    implementation fileTree(dir: "$gradle.ext.bobDir/lib", include: '*.jar')
-    implementation fileTree(dir: "$gradle.ext.commonDir/ext", include: [
+    implementation fileTree(dir: "$project.bobDir/lib", include: '*.jar')
+    implementation fileTree(dir: "$project.commonDir/ext", include: [
             'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
             'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar', 'aws/*.jar'
     ])
 }
 
 task cleanDirs(type: Delete) {
-    delete gradle.ext.classesDir
-    delete file("$gradle.ext.bobDir/generated")
-    delete file("$gradle.ext.bobDir/dist")
-    delete file("$gradle.ext.bobDir/tmp")
-    delete file("$gradle.ext.bobDir/lib/luajit-share.zip")
+    delete project.classesDir
+    delete file("$project.bobDir/generated")
+    delete file("$project.bobDir/dist")
+    delete file("$project.bobDir/tmp")
+    delete file("$project.bobDir/lib/luajit-share.zip")
 }
 
 clean.dependsOn cleanDirs
 
 gradle.projectsEvaluated {
-    execProtoTasks.dependsOn getHostPlatform
-    gradle.ext.protoFiles.each { proto ->
+    project.protoFiles.each { proto ->
         def protoDir = file(proto.dir)
         def protoFilePath = file("${proto.dir}/${proto.file}")
         def protoTaskName = "protoTask_${proto.file.replace('/', '_').replace('.', '_')}"
@@ -43,11 +41,11 @@ gradle.projectsEvaluated {
                     throw new GradleException("File '${protoFilePath}' does not exist")
                 }
                 mkdir 'generated'
-                if (!gradle.ext.hostPlatform) {
+                if (!project.hostPlatform) {
                     throw new GradleException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
                 }
-                commandLine "${gradle.ext.dynamoHome}/ext/bin/${gradle.ext.hostPlatform}/protoc", "--java_out=generated",
-                        "-I${protoDir}", "-I${gradle.ext.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
+                commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=generated",
+                        "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
                         "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoFilePath}"
             }
         }
@@ -55,12 +53,12 @@ gradle.projectsEvaluated {
 }
 
 task execProtoTasks {
-    dependsOn gradle.ext.protoFiles.collect { proto ->
+    dependsOn project.protoFiles.collect { proto ->
         "protoTask_${proto.file.replace('/', '_').replace('.', '_')}"
     }
 }
 
-task proto(type: Exec, dependsOn: [getHostPlatform]) {
+task proto(type: Exec){//}, dependsOn: [getHostPlatform]) {
     group = 'build'
     def protoDir = project.findProperty('protoDir') ?: ''
     def protoFile = project.findProperty('protoFile') ?: ''
@@ -71,11 +69,11 @@ task proto(type: Exec, dependsOn: [getHostPlatform]) {
         mkdir 'generated'
     }
     doLast {
-        if (!gradle.ext.hostPlatform) {
+        if (!project.hostPlatform) {
             throw new GradleException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
         }
-        commandLine "${gradle.ext.dynamoHome}/ext/bin/${gradle.ext.hostPlatform}/protoc", "--java_out=generated",
-                "-I${protoDir}", "-I${gradle.ext.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
+        commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=generated",
+                "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
                 "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoDir}/${protoFile}"
     }
 }
@@ -83,7 +81,7 @@ task proto(type: Exec, dependsOn: [getHostPlatform]) {
 sourceSets {
     main {
         java {
-            srcDirs = ["$gradle.ext.bobDir/src", 'generated']
+            srcDirs = ["$project.bobDir/src", 'generated']
         }
     }
 }
@@ -91,7 +89,7 @@ sourceSets {
 task compileGenerated(type: JavaCompile) {
     dependsOn execProtoTasks
     source = fileTree('generated')
-    destinationDirectory = gradle.ext.classesDir
+    destinationDirectory = project.classesDir
     include '**/*.java'
     classpath = sourceSets.main.compileClasspath
     options.encoding = 'UTF-8'
@@ -100,7 +98,7 @@ task compileGenerated(type: JavaCompile) {
 
 task compileSrc(type: JavaCompile, dependsOn: compileGenerated) {
     source = sourceSets.main.java
-    destinationDirectory = gradle.ext.classesDir
+    destinationDirectory = project.classesDir
     include '**'
     classpath = sourceSets.main.compileClasspath
     options.encoding = 'UTF-8'
@@ -109,98 +107,98 @@ task compileSrc(type: JavaCompile, dependsOn: compileGenerated) {
 
 task compileBobLight(dependsOn: [getGitRevision, compileSrc]) {
     doLast {
-        mkdir gradle.ext.classesDir
+        mkdir project.classesDir
         exec {
-            commandLine 'python', "${gradle.ext.bobDir}/engine_version_generator.py"
+            commandLine 'python', "${project.bobDir}/engine_version_generator.py"
         }
         copy {
-            from fileTree("${gradle.ext.dynamoHome}/share") {
+            from fileTree("${project.dynamoHome}/share") {
                 include 'java/dlib.jar'
                 include 'java/modelimporter.jar'
                 include 'java/texturecompiler.jar'
             }
-            into "$gradle.ext.bobDir/lib"
+            into "$project.bobDir/lib"
         }
         ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar'].each { jar ->
-            if (!file("$gradle.ext.bobDir/lib/$jar").exists()) {
+            if (!file("$project.bobDir/lib/$jar").exists()) {
                 throw new GradleException("$jar is missing")
             }
         }
         ['x86_64-macos', 'arm64-macos', 'x86_64-linux', 'x86_64-win32', 'x86-win32'].each { platform ->
             copy {
-                from fileTree("${gradle.ext.dynamoHome}/ext/bin/$platform")
-                into "$gradle.ext.bobDir/libexec/$platform"
+                from fileTree("${project.dynamoHome}/ext/bin/$platform")
+                into "$project.bobDir/libexec/$platform"
                 include '*'
             }
         }
         copy {
             from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-linux.tar.gz")))
-            into "$gradle.ext.bobDir/libexec"
+            into "$project.bobDir/libexec"
             include 'bin/x86_64-linux/**'
         }
         copy {
             from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-win32.tar.gz")))
-            into "$gradle.ext.bobDir/libexec"
+            into "$project.bobDir/libexec"
             include 'bin/x86_64-win32/**'
         }
         copy {
             from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-macos.tar.gz")))
-            into "$gradle.ext.bobDir/libexec"
+            into "$project.bobDir/libexec"
             include 'bin/x86_64-macos/**'
         }
         copy {
             from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-arm64-macos.tar.gz")))
-            into "$gradle.ext.bobDir/libexec"
+            into "$project.bobDir/libexec"
             include 'bin/arm64-macos/**'
         }
         copy {
-            from fileTree("$gradle.ext.bobDir/src") {
+            from fileTree("$project.bobDir/src") {
                 exclude '**/*.java'
             }
-            into gradle.ext.classesDir
+            into project.classesDir
         }
         copy {
-            from fileTree("${gradle.ext.dynamoHome}/lib") {
+            from fileTree("${project.dynamoHome}/lib") {
                 include 'x86_64-macos/*texc_shared*'
                 include 'x86_64-macos/*modelc_shared*'
                 exclude '**/*dSYM.zip'
             }
-            into "$gradle.ext.bobDir/lib/x86_64-macos"
+            into "$project.bobDir/lib/x86_64-macos"
         }
         copy {
-            from fileTree("${gradle.ext.dynamoHome}/lib") {
+            from fileTree("${project.dynamoHome}/lib") {
                 include 'arm64-macos/*texc_shared*'
                 include 'arm64-macos/*modelc_shared*'
             }
-            into "$gradle.ext.bobDir/lib/arm64-macos"
+            into "$project.bobDir/lib/arm64-macos"
         }
         copy {
-            from fileTree("${gradle.ext.dynamoHome}/lib") {
+            from fileTree("${project.dynamoHome}/lib") {
                 include 'x86_64-linux/*texc_shared*'
                 include 'x86_64-linux/*modelc_shared*'
                 exclude '**/*dSYM.zip'
             }
-            into "$gradle.ext.bobDir/lib/x86_64-linux"
+            into "$project.bobDir/lib/x86_64-linux"
         }
         copy {
-            from fileTree("${gradle.ext.dynamoHome}/lib") {
+            from fileTree("${project.dynamoHome}/lib") {
                 include 'win32/*texc_shared*'
                 include 'win32/*modelc_shared*'
                 exclude '**/*dSYM.zip'
             }
-            into "$gradle.ext.bobDir/lib/x86-win32"
+            into "$project.bobDir/lib/x86-win32"
         }
         copy {
-            from fileTree("${gradle.ext.dynamoHome}/lib") {
+            from fileTree("${project.dynamoHome}/lib") {
                 include 'x86_64-win32/*texc_shared*'
                 include 'x86_64-win32/*modelc_shared*'
                 exclude '**/*dSYM.zip'
             }
-            into "$gradle.ext.bobDir/lib/x86_64-win32"
+            into "$project.bobDir/lib/x86_64-win32"
         }
         jar {
             archiveFileName = 'luajit-share.zip'
-            from "${gradle.ext.dynamoHome}/ext/share/luajit"
+            from "${project.dynamoHome}/ext/share/luajit"
         }
     }
 }
@@ -209,33 +207,33 @@ task compile(dependsOn: ['compileBobLight']) {
     doLast {
         jar {
             archiveFileName = 'android-res.zip'
-            from "${gradle.ext.dynamoHome}/ext/share/java/res"
+            from "${project.dynamoHome}/ext/share/java/res"
         }
         copy {
-            from fileTree("${gradle.ext.dynamoHome}/ext/lib") {
+            from fileTree("${project.dynamoHome}/ext/lib") {
                 include 'win32/OpenAL32.dll'
                 include 'win32/wrap_oal.dll'
             }
-            into "$gradle.ext.bobDir/lib/x86-win32"
+            into "$project.bobDir/lib/x86-win32"
         }
         copy {
-            from fileTree("${gradle.ext.dynamoHome}/ext/lib") {
+            from fileTree("${project.dynamoHome}/ext/lib") {
                 include 'x86_64-win32/OpenAL32.dll'
                 include 'x86_64-win32/wrap_oal.dll'
             }
-            into "$gradle.ext.bobDir/lib/x86_64-win32"
+            into "$project.bobDir/lib/x86_64-win32"
         }
     }
 }
 
 task createExternalLibsLightJar(type: Jar) {
     archiveFileName = 'external-libs-light.jar'
-    from fileTree(dir: "$gradle.ext.commonDir/ext", include: [
+    from fileTree(dir: "$project.commonDir/ext", include: [
             'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
             'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar',
             'httpcore-4.1.4.jar'
     ])
-    from fileTree(dir: "$gradle.ext.bobDir/lib", include: [
+    from fileTree(dir: "$project.bobDir/lib", include: [
             'dlib.jar', 'modelimporter.jar', 'texturecompiler.jar',
             'lz4-1.9.0.jar', 'commons-cli-1.2.jar', 'jna-5.13.0.jar',
             'jna-platform-5.13.0.jar', 'jackson-core-asl-1.9.2.jar',
@@ -243,13 +241,13 @@ task createExternalLibsLightJar(type: Jar) {
             'jsoup-1.11.3.jar', 'jaxb-api-2.3.0.jar', 'jaxb-core-2.3.0.jar',
             'jaxb-impl-2.3.0.jar', 'antlr-runtime-4.9.1.jar', 'jmustache-1.8.jar'
     ])
-    destinationDirectory = file("$gradle.ext.bobDir/tmp")
+    destinationDirectory = file("$project.bobDir/tmp")
     includeEmptyDirs = false
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     dependsOn compileSrc
     doLast {
-        if (!file("$gradle.ext.bobDir/tmp/external-libs-light.jar").exists()) {
-            throw new GradleException("File '$gradle.ext.bobDir/tmp/external-libs-light.jar' was not created")
+        if (!file("$project.bobDir/tmp/external-libs-light.jar").exists()) {
+            throw new GradleException("File '$project.bobDir/tmp/external-libs-light.jar' was not created")
         } else {
             println "external-libs-light.jar successfully created"
         }
@@ -258,20 +256,20 @@ task createExternalLibsLightJar(type: Jar) {
 
 task createBobLightJar(type: Jar, dependsOn: createExternalLibsLightJar) {
     archiveFileName = 'bob-light.jar'
-    from gradle.ext.classesDir
-    from fileTree("$gradle.ext.bobDir") {
+    from project.classesDir
+    from fileTree("$project.bobDir") {
         include 'lib/**/*texc_shared*'
         include 'lib/**/*modelc_shared*'
         exclude '**/*dSYM.zip'
     }
-    from fileTree("$gradle.ext.bobDir") {
+    from fileTree("$project.bobDir") {
         include 'libexec/**/glslc*'
         include 'libexec/**/spirv-cross*'
         include 'libexec/**/spirv-opt*'
         include 'libexec/**/luajit*'
     }
 
-    def externalLibsLightJarFile = file("$gradle.ext.bobDir/tmp/external-libs-light.jar")
+    def externalLibsLightJarFile = file("$project.bobDir/tmp/external-libs-light.jar")
     doFirst {
         if (!externalLibsLightJarFile.exists()) {
             throw new GradleException("File '${externalLibsLightJarFile}' does not exist")
@@ -285,30 +283,30 @@ task createBobLightJar(type: Jar, dependsOn: createExternalLibsLightJar) {
         exclude '**/META-INF/**'
     }
 
-    from file("$gradle.ext.bobDir/lib/luajit-share.zip")
+    from file("$project.bobDir/lib/luajit-share.zip")
     manifest {
         attributes 'Main-Class': 'com.dynamo.bob.Bob', 'is-bob-light': 'true'
     }
-    destinationDirectory = file("$gradle.ext.bobDir/dist")
+    destinationDirectory = file("$project.bobDir/dist")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 task distBobLight(dependsOn: ['compileBobLight', 'createBobLightJar']) {
     doLast {
-        mkdir "$gradle.ext.bobDir/dist"
-        mkdir "$gradle.ext.bobDir/tmp"
+        mkdir "$project.bobDir/dist"
+        mkdir "$project.bobDir/tmp"
     }
 }
 
 task createExternalLibsBuiltinsJar(type: Jar) {
     archiveFileName = 'external-libs-builtins.jar'
-    from fileTree(dir: "$gradle.ext.commonDir/ext", include: [
+    from fileTree(dir: "$project.commonDir/ext", include: [
             'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
             'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar'
     ])
-    from fileTree(dir: "$gradle.ext.commonDir/ext/aws", include: '*.jar')
-    from fileTree(dir: "$gradle.ext.bobDir/lib", include: ['*.jar', '!android.jar'])
-    destinationDirectory = file("$gradle.ext.bobDir/tmp")
+    from fileTree(dir: "$project.commonDir/ext/aws", include: '*.jar')
+    from fileTree(dir: "$project.bobDir/lib", include: ['*.jar', '!android.jar'])
+    destinationDirectory = file("$project.bobDir/tmp")
     includeEmptyDirs = false
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     dependsOn compileSrc
@@ -317,8 +315,8 @@ task createExternalLibsBuiltinsJar(type: Jar) {
 
 task createBobJar(type: Jar, dependsOn: createExternalLibsBuiltinsJar) {
     archiveFileName = 'bob.jar'
-    from gradle.ext.classesDir
-    from fileTree("$gradle.ext.bobDir") {
+    from project.classesDir
+    from fileTree("$project.bobDir") {
         include 'lib/**/*texc_shared*'
         include 'lib/**/*modelc_shared*'
         include 'lib/**/*libc++*'
@@ -326,15 +324,15 @@ task createBobJar(type: Jar, dependsOn: createExternalLibsBuiltinsJar) {
         include 'lib/*win32/wrap_oal.dll'
         exclude '**/*dSYM.zip'
     }
-    from fileTree("$gradle.ext.bobDir") {
+    from fileTree("$project.bobDir") {
         include 'libexec/**/*'
     }
-    from fileTree("$gradle.ext.bobDir") {
+    from fileTree("$project.bobDir") {
         include 'lib/report_template.html'
         include 'lib/time_report_template.html'
     }
 
-    def externalLibsBuiltinsJarFile = file("$gradle.ext.bobDir/tmp/external-libs-builtins.jar")
+    def externalLibsBuiltinsJarFile = file("$project.bobDir/tmp/external-libs-builtins.jar")
     doFirst {
         if (!externalLibsBuiltinsJarFile.exists()) {
             throw new GradleException("File '${externalLibsBuiltinsJarFile}' does not exist")
@@ -345,7 +343,7 @@ task createBobJar(type: Jar, dependsOn: createExternalLibsBuiltinsJar) {
     } {
         exclude '**/META-INF/**'
     }
-    from fileTree("$gradle.ext.bobDir") {
+    from fileTree("$project.bobDir") {
         include 'lib/android.jar'
         include 'lib/classes.dex'
         include 'lib/*.zip'
@@ -353,22 +351,22 @@ task createBobJar(type: Jar, dependsOn: createExternalLibsBuiltinsJar) {
     manifest {
         attributes 'Main-Class': 'com.dynamo.bob.Bob'
     }
-    destinationDirectory = file("$gradle.ext.bobDir/dist")
+    destinationDirectory = file("$project.bobDir/dist")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 task distBob(dependsOn: ['compile', 'createBobJar']) {
     doLast {
-        mkdir "$gradle.ext.bobDir/dist"
-        mkdir "$gradle.ext.bobDir/tmp"
+        mkdir "$project.bobDir/dist"
+        mkdir "$project.bobDir/tmp"
     }
 }
 
 task installBobLight(dependsOn: ['distBobLight']) {
     doLast {
         copy {
-            from "$gradle.ext.bobDir/dist/bob-light.jar"
-            into "$gradle.ext.dynamoHome/share/java"
+            from "$project.bobDir/dist/bob-light.jar"
+            into "$project.dynamoHome/share/java"
         }
     }
 }
@@ -376,8 +374,8 @@ task installBobLight(dependsOn: ['distBobLight']) {
 task install(dependsOn: ['distBob']) {
     doLast {
         copy {
-            from "$gradle.ext.bobDir/dist/bob.jar"
-            into "$gradle.ext.dynamoHome/share/java"
+            from "$project.bobDir/dist/bob.jar"
+            into "$project.dynamoHome/share/java"
         }
     }
 }
