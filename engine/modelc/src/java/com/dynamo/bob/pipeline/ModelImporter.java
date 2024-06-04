@@ -164,7 +164,7 @@ public class ModelImporter {
 
         public float[]     positions; // float3
         public float[]     normals; // float3
-        public float[]     tangents; // float3
+        public float[]     tangents; // float4
         public float[]     colors; // float4
         public float[]     weights; // float4
         public int[]       bones; // uint4
@@ -368,7 +368,7 @@ public class ModelImporter {
             max_count = mesh.vertexCount;
         DebugPrintFloatArray(indent+1, "positions", mesh.positions, max_count, 3);
         DebugPrintFloatArray(indent+1, "normals", mesh.normals, max_count, 3);
-        DebugPrintFloatArray(indent+1, "tangents", mesh.tangents, max_count, 3);
+        DebugPrintFloatArray(indent+1, "tangents", mesh.tangents, max_count, 4);
         DebugPrintFloatArray(indent+1, "colors", mesh.colors, max_count, 4);
         DebugPrintFloatArray(indent+1, "weights", mesh.weights, max_count, 4);
         DebugPrintIntArray(indent+1, "bones", mesh.bones, max_count, 4);
@@ -481,7 +481,8 @@ public class ModelImporter {
     };
 
     // Used for testing the importer. Usage:
-    //   ./src/com/dynamo/bob/pipeline/test_model_importer.sh <model path>
+    //    cd engine/modelc
+    //   ./scripts/test_model_importer.sh <model path>
     public static void main(String[] args) throws IOException {
         System.setProperty("java.awt.headless", "true");
 

@@ -48,7 +48,7 @@ namespace dmModelImporter
         // loop using m_VertexCount * stride
         float*      m_Positions;    // 3 floats per vertex
         float*      m_Normals;      // 3 floats per vertex
-        float*      m_Tangents;     // 3 floats per vertex
+        float*      m_Tangents;     // 4 floats per vertex
         float*      m_Color;        // 4 floats per vertex
         float*      m_Weights;      // 4 weights per vertex
         uint32_t*   m_Bones;        // 4 bones per vertex
