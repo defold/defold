@@ -83,7 +83,7 @@ namespace dmGameSystem
         {
             return dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET;
         }
-        else if (strcmp(path_ext, ".compute_programc") == 0)
+        else if (strcmp(path_ext, ".computec") == 0)
         {
             return dmRender::RENDER_RESOURCE_TYPE_COMPUTE_PROGRAM;
         }

@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "res_compute_program.h"
+#include "res_compute.h"
 #include "res_texture.h"
 
 #include <render/render.h>
@@ -50,10 +50,10 @@ namespace dmGameSystem
         ReleaseTextures(factory, resources->m_Textures);
     }
 
-    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::ComputeProgramDesc* ddf, ComputeProgramResources* resources)
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::ComputeDesc* ddf, ComputeProgramResources* resources)
     {
         dmResource::Result factory_e;
-        factory_e = dmResource::Get(factory, ddf->m_Program, (void**) &resources->m_ComputeProgram);
+        factory_e = dmResource::Get(factory, ddf->m_ComputeProgram, (void**) &resources->m_ComputeProgram);
         if ( factory_e != dmResource::RESULT_OK)
         {
             ReleaseResources(factory, resources);
@@ -84,7 +84,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    static void SetProgram(ComputeProgramResource* resource, dmRenderDDF::ComputeProgramDesc* ddf, ComputeProgramResources* resources)
+    static void SetProgram(ComputeResource* resource, dmRenderDDF::ComputeDesc* ddf, ComputeProgramResources* resources)
     {
         //////////////////////////////
         // Set program constants
@@ -109,6 +109,10 @@ namespace dmGameSystem
         uint32_t sampler_unit = 0;
         for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
         {
+            // Note from PR (https://github.com/defold/defold/pull/8975):
+            // The sampler does have a m_NameHash.
+            // The downside would be that the reverse lookup of hashes, wouldn't work (need to hash the string at least once)
+            // Perhaps we should add a helper: dmHashAddDebugString(hash, string), which we can then disable in release mode.
             dmhash_t base_name_hash             = dmHashString64(sampler[i].m_Name);
             dmGraphics::TextureWrap uwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapU);
             dmGraphics::TextureWrap vwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapV);
@@ -148,7 +152,7 @@ namespace dmGameSystem
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
     {
-        ComputeProgramResource* resource        = (ComputeProgramResource*) params.m_UserData;
+        ComputeResource* resource               = (ComputeResource*) params.m_UserData;
         dmRender::HComputeProgram program       = resource->m_Program;
         dmRender::HRenderContext render_context = dmRender::GetProgramRenderContext(program);
         dmGraphics::HContext graphics_context   = dmRender::GetGraphicsContext(render_context);
@@ -161,10 +165,10 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::Result ResComputeProgramCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResComputeCreate(const dmResource::ResourceCreateParams& params)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
-        dmRenderDDF::ComputeProgramDesc* ddf   = (dmRenderDDF::ComputeProgramDesc*)params.m_PreloadData;
+        dmRenderDDF::ComputeDesc* ddf   = (dmRenderDDF::ComputeDesc*)params.m_PreloadData;
 
         ComputeProgramResources resources = {};
         dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources);
@@ -173,15 +177,15 @@ namespace dmGameSystem
             dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(render_context, resources.m_ComputeProgram);
 
             dmResource::SResourceDescriptor desc;
-            dmResource::Result res = dmResource::GetDescriptor(params.m_Factory, ddf->m_Program, &desc);
+            dmResource::Result res = dmResource::GetDescriptor(params.m_Factory, ddf->m_ComputeProgram, &desc);
 
             assert(res == dmResource::RESULT_OK);
             dmRender::SetProgramUserData(compute_program, desc.m_NameHash);
 
             dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, compute_program);
 
-            ComputeProgramResource* resource = new ComputeProgramResource();
-            resource->m_Program = compute_program;
+            ComputeResource* resource = new ComputeResource();
+            resource->m_Program       = compute_program;
             SetProgram(resource, ddf, &resources);
 
             params.m_Resource->m_Resource = (void*) resource;
@@ -190,9 +194,9 @@ namespace dmGameSystem
         return r;
     }
 
-    dmResource::Result ResComputeProgramDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResComputeDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        ComputeProgramResource* resource        = (ComputeProgramResource*) params.m_Resource->m_Resource;
+        ComputeResource* resource               = (ComputeResource*) params.m_Resource->m_Resource;
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
         dmRender::HComputeProgram program       = resource->m_Program;
 
@@ -207,10 +211,10 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResComputeProgramRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResComputeRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmRenderDDF::ComputeProgramDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ComputeProgramDesc>(params.m_Buffer, params.m_BufferSize, &ddf);
+        dmRenderDDF::ComputeDesc* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ComputeDesc>(params.m_Buffer, params.m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
@@ -221,7 +225,7 @@ namespace dmGameSystem
 
         if (r == dmResource::RESULT_OK)
         {
-            ComputeProgramResource* resource  = (ComputeProgramResource*) params.m_Resource->m_Resource;
+            ComputeResource* resource         = (ComputeResource*) params.m_Resource->m_Resource;
             dmRender::HComputeProgram program = resource->m_Program;
 
             // Release old resources
@@ -234,16 +238,16 @@ namespace dmGameSystem
         return r;
     }
 
-    dmResource::Result ResComputeProgramPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResComputePreload(const dmResource::ResourcePreloadParams& params)
     {
-        dmRenderDDF::ComputeProgramDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ComputeProgramDesc>(params.m_Buffer, params.m_BufferSize, &ddf);
+        dmRenderDDF::ComputeDesc* ddf;
+        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ComputeDesc>(params.m_Buffer, params.m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Program);
+        dmResource::PreloadHint(params.m_HintInfo, ddf->m_ComputeProgram);
         *params.m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }

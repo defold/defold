@@ -225,14 +225,13 @@ struct CopyToBufferTest : ITest
 
 struct ReadPixelsTest : ITest
 {
-    uint8_t* m_Buffer;
+    uint8_t m_Buffer[512 * 512 * 4];
     bool m_DidRead;
 
     void Initialize(EngineCtx* engine) override
     {
         m_DidRead = false;
-        m_Buffer = new uint8_t[512 * 512 * 4];
-        memset(m_Buffer, 0, 512 * 512 * 4);
+        memset(m_Buffer, 0, sizeof(m_Buffer));
     }
 
     void Execute(EngineCtx* engine) override

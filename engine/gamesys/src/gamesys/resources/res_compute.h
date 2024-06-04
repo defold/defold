@@ -22,7 +22,7 @@
 namespace dmGameSystem
 {
     struct TextureResource;
-    struct ComputeProgramResource
+    struct ComputeResource
     {
         dmRender::HComputeProgram m_Program;
         TextureResource*          m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
@@ -30,10 +30,10 @@ namespace dmGameSystem
         uint32_t                  m_NumTextures;
     };
 
-    dmResource::Result ResComputeProgramCreate(const dmResource::ResourceCreateParams& params);
-    dmResource::Result ResComputeProgramDestroy(const dmResource::ResourceDestroyParams& params);
-    dmResource::Result ResComputeProgramRecreate(const dmResource::ResourceRecreateParams& params);
-    dmResource::Result ResComputeProgramPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResComputeCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResComputeDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResComputeRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResComputePreload(const dmResource::ResourcePreloadParams& params);
 }
 
 #endif // DM_GAMESYS_RES_COMPUTE_PROGRAM_H

@@ -65,7 +65,7 @@ BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
 BUILDERS['.renderc']        = render.render_ddf_pb2.RenderPrototypeDesc
 BUILDERS['.convexshapec']   = gamesys.physics_ddf_pb2.ConvexShape
 BUILDERS['.collisionobjectc'] = gamesys.physics_ddf_pb2.CollisionObjectDesc
-BUILDERS['.compute_programc'] = render.compute_program_ddf_pb2.ComputeProgramDesc
+BUILDERS['.computec']         = render.compute_program_ddf_pb2.ComputeProgramDesc
 
 proto_type_to_string_map = {}
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BOOL]    = 'TYPE_BOOL'

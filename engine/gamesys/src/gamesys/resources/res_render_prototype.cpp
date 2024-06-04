@@ -15,7 +15,7 @@
 #include "res_render_prototype.h"
 #include "res_texture.h"
 #include "res_render_target.h"
-#include "res_compute_program.h"
+#include "res_compute.h"
 
 #include <render/render_ddf.h>
 
@@ -120,7 +120,7 @@ namespace dmGameSystem
                         } break;
                         case dmRender::RENDER_RESOURCE_TYPE_COMPUTE_PROGRAM:
                         {
-                            dmGameSystem::ComputeProgramResource* compute_res = (dmGameSystem::ComputeProgramResource*) render_resource;
+                            dmGameSystem::ComputeResource* compute_res = (dmGameSystem::ComputeResource*) render_resource;
                             render_resource_val = (uint64_t) compute_res->m_Program;
                         } break;
                         case dmRender::RENDER_RESOURCE_TYPE_INVALID:

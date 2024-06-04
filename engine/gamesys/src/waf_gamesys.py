@@ -366,8 +366,8 @@ def transform_sprite(task, msg):
         st.texture = transform_tilesource_name(st.texture)
     return msg
 
-def transform_compute_program(task, msg):
-    msg.program = msg.program.replace('.cp', '.cpc')
+def transform_compute(task, msg):
+    msg.compute_program = msg.compute_program.replace('.cp', '.cpc')
     return msg
 
 def transform_tilegrid(task, msg):
@@ -525,7 +525,7 @@ proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilema
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilemapc', transform_tilegrid)
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
-proto_compile_task('compute_program', 'render.compute_program_ddf_pb2', 'compute_program_ddf_pb2.ComputeProgramDesc', '.compute_program', '.compute_programc', transform_compute_program)
+proto_compile_task('compute', 'render.compute_program_ddf_pb2', 'compute_program_ddf_pb2.ComputeDesc', '.compute', '.computec', transform_compute)
 
 new_copy_task('project', '.project', '.projectc')
 

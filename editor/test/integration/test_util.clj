@@ -1277,8 +1277,8 @@
 (defmethod edit-resource-node "collisionobject" [resource-node-id]
   (g/update-property resource-node-id :linear-damping type-preserving-add 0.1))
 
-(defmethod edit-resource-node "compute_program" [resource-node-id]
-  (g/update-property resource-node-id :constants update-in [0 :name] str "new_name"))
+(defmethod edit-resource-node "compute" [resource-node-id]
+  (g/update-property resource-node-id :constants update-in [0 :name] str \_))
 
 (defmethod edit-resource-node "convexshape" [resource-node-id]
   (g/update-property resource-node-id :pb update-in [:data 0] type-preserving-add 1))

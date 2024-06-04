@@ -24,7 +24,7 @@
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_textureset.h"
 #include "gamesys/resources/res_render_target.h"
-#include "gamesys/resources/res_compute_program.h"
+#include "gamesys/resources/res_compute.h"
 
 #include <stdio.h>
 
@@ -5160,11 +5160,11 @@ TEST_F(ShaderTest, ComputeResource)
 {
     dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
 
-    dmGameSystem::ComputeProgramResource* compute_program_res;
-    dmResource::Result res = dmResource::Get(m_Factory, "/shader/inputs.compute_programc", (void**) &compute_program_res);
+    dmGameSystem::ComputeResource* compute_program_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/shader/inputs.computec", (void**) &compute_program_res);
 
     ASSERT_EQ(dmResource::RESULT_OK, res);
-    ASSERT_NE((dmGameSystem::ComputeProgramResource*) 0, compute_program_res);
+    ASSERT_NE((dmGameSystem::ComputeResource*) 0, compute_program_res);
 
     dmRender::HComputeProgram compute_program = compute_program_res->m_Program;
 

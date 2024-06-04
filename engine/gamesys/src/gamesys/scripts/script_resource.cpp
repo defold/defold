@@ -886,9 +886,9 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * : [type:number] Texture creation flags that can be used to dictate how the texture is created. The default value is [ref:resource.TEXTURE_USAGE_FLAG_SAMPLE], which means that the texture can be sampled from a shader. 
  * These flags may or may not be supported on the running device and/or the underlying graphics API and is simply used internally as a 'hint' when creating the texture. There is no guarantee that any of these will have any effect. Supported values:
  *
- * - `resource.TEXTURE_USAGE_FLAG_SAMPLE`
- * - `resource.TEXTURE_USAGE_FLAG_MEMORYLESS`
- * - `resource.TEXTURE_USAGE_FLAG_STORAGE`
+ * - `resource.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
+ * - `resource.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
+ * - `resource.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
@@ -1050,9 +1050,9 @@ static int CreateTexture(lua_State* L)
  * `flags`
  * : [type:number] Texture creation flags that can be used to dictate how the texture is created. Supported values:
  *
- * - `resource.TEXTURE_USAGE_FLAG_SAMPLE`
- * - `resource.TEXTURE_USAGE_FLAG_MEMORYLESS`
- * - `resource.TEXTURE_USAGE_FLAG_STORAGE`
+ * - `resource.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
+ * - `resource.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
+ * - `resource.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *

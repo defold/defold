@@ -12,9 +12,9 @@ uniform mat4 buffer_d;
 
 void main()
 {
-	ivec2 tex_coord   = ivec2(gl_GlobalInvocationID.xy);
-	vec4 sample_b     = texture(texture_b, tex_coord);
-	vec4 sample_c     = texture(texture_c, tex_coord);
+    ivec2 tex_coord   = ivec2(gl_GlobalInvocationID.xy);
+    vec4 sample_b     = texture(texture_b, tex_coord);
+    vec4 sample_c     = texture(texture_c, tex_coord);
     vec4 output_value = buffer_a + buffer_b + buffer_c[0] + buffer_d[0] + sample_b + sample_c;
     imageStore(texture_a, tex_coord, output_value);
 }

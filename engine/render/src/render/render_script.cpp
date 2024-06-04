@@ -3082,6 +3082,7 @@ namespace dmRender
      * the current compute program will instead be disabled.
      *
      * @name render.set_compute_program
+     * @param compute_program [type:string|hash|nil] compute program id to use, or nil to disable
      * @examples
      *
      * Enable compute program named "fractals", then dispatch it.
@@ -3089,7 +3090,7 @@ namespace dmRender
      * ```lua
      * render.set_compute_program("fractals")
      * render.enable_texture(0, self.backing_texture)
-     * render.dispatch(128, 128, 1)
+     * render.dispatch_compute(128, 128, 1)
      * render.set_compute_program()
      * ```
      */
@@ -3133,7 +3134,7 @@ namespace dmRender
      * An optional constant buffer can be provided to override the default constants. If no constants buffer is provided, a default
      * system constants buffer is used containing constants as defined in the compute program.
      *
-     * @name render.dispatch
+     * @name render.dispatch_compute
      * @param x [type:number] global work group size X
      * @param y [type:number] global work group size Y
      * @param z [type:number] global work group size Z
@@ -3156,7 +3157,7 @@ namespace dmRender
      *     render.set_compute_program("bloom")
      *     render.enable_texture(0, self.backing_texture)
      *     render.enable_texture(1, self.scene_rt)
-     *     render.dispatch(128, 128, 1)
+     *     render.dispatch_compute(128, 128, 1)
      *     render.set_compute_program()
      * end
      * ```
@@ -3166,7 +3167,7 @@ namespace dmRender
      * ```lua
      * local constants = render.constant_buffer()
      * constants.tint = vmath.vector4(1, 1, 1, 1)
-     * render.dispatch(32, 32, 32, {constants = constants})
+     * render.dispatch_compute(32, 32, 32, {constants = constants})
      * ```
      */
     static int RenderScript_Dispatch(lua_State* L)
@@ -3241,7 +3242,7 @@ namespace dmRender
         {"enable_material",                 RenderScript_EnableMaterial},
         {"disable_material",                RenderScript_DisableMaterial},
         {"set_compute_program",             RenderScript_SetComputeProgram},
-        {"dispatch",                        RenderScript_Dispatch},
+        {"dispatch_compute",                RenderScript_Dispatch},
         {"set_camera",                      RenderScript_SetCamera},
         {0, 0}
     };

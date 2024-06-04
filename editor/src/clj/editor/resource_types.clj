@@ -27,7 +27,7 @@
             [editor.collection-non-editable :as collection-non-editable]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
-            [editor.compute-program :as compute-program]
+            [editor.compute :as compute-program]
             [editor.cubemap :as cubemap]
             [editor.display-profiles :as display-profiles]
             [editor.editor-script :as editor-script]
