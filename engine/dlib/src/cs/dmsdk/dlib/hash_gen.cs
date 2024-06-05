@@ -18,47 +18,45 @@
 using System.Runtime.InteropServices;
 using System.Reflection.Emit;
 
-namespace dmSDK {
-    namespace Dlib {
-        public unsafe partial class Hash
-        {
-            /*#
-            * Generated from [ref:dmHashBuffer32]
-            */
-            [DllImport("dlib", EntryPoint="dmHashBuffer32", CallingConvention = CallingConvention.Cdecl)]
-            public static extern UInt32 HashBuffer32(void* buffer, UInt32 buffer_len);
+namespace dmSDK.Dlib {
+    public unsafe partial class Hash
+    {
+        /*#
+        * Generated from [ref:dmHashBuffer32]
+        */
+        [DllImport("dlib", EntryPoint="dmHashBuffer32", CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint HashBuffer32(void* buffer, uint buffer_len);
 
-            /*#
-            * Generated from [ref:dmHashBuffer64]
-            */
-            [DllImport("dlib", EntryPoint="dmHashBuffer64", CallingConvention = CallingConvention.Cdecl)]
-            public static extern UInt64 HashBuffer64(void* buffer, UInt32 buffer_len);
+        /*#
+        * Generated from [ref:dmHashBuffer64]
+        */
+        [DllImport("dlib", EntryPoint="dmHashBuffer64", CallingConvention = CallingConvention.Cdecl)]
+        public static extern UInt64 HashBuffer64(void* buffer, uint buffer_len);
 
-            /*#
-            * Generated from [ref:dmHashString32]
-            */
-            [DllImport("dlib", EntryPoint="dmHashString32", CallingConvention = CallingConvention.Cdecl)]
-            public static extern UInt32 HashString32(string str);
+        /*#
+        * Generated from [ref:dmHashString32]
+        */
+        [DllImport("dlib", EntryPoint="dmHashString32", CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint HashString32(string str);
 
-            /*#
-            * Generated from [ref:dmHashString64]
-            */
-            [DllImport("dlib", EntryPoint="dmHashString64", CallingConvention = CallingConvention.Cdecl)]
-            public static extern UInt64 HashString64(string str);
+        /*#
+        * Generated from [ref:dmHashString64]
+        */
+        [DllImport("dlib", EntryPoint="dmHashString64", CallingConvention = CallingConvention.Cdecl)]
+        public static extern UInt64 HashString64(string str);
 
-            /*#
-            * Generated from [ref:dmHashReverseSafe64]
-            */
-            [DllImport("dlib", EntryPoint="dmHashReverseSafe64", CallingConvention = CallingConvention.Cdecl)]
-            public static extern string HashReverseSafe64(UInt64 hash);
+        /*#
+        * Generated from [ref:dmHashReverseSafe64]
+        */
+        [DllImport("dlib", EntryPoint="dmHashReverseSafe64", CallingConvention = CallingConvention.Cdecl)]
+        public static extern string HashReverseSafe64(UInt64 hash);
 
-            /*#
-            * Generated from [ref:dmHashReverseSafe32]
-            */
-            [DllImport("dlib", EntryPoint="dmHashReverseSafe32", CallingConvention = CallingConvention.Cdecl)]
-            public static extern string HashReverseSafe32(UInt32 hash);
+        /*#
+        * Generated from [ref:dmHashReverseSafe32]
+        */
+        [DllImport("dlib", EntryPoint="dmHashReverseSafe32", CallingConvention = CallingConvention.Cdecl)]
+        public static extern string HashReverseSafe32(uint hash);
 
-        } // Hash
-    } // Dlib
-} // dmSDK
+    } // Hash
+} // dmSDK.Dlib
 

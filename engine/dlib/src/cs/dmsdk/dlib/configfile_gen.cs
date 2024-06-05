@@ -18,38 +18,35 @@
 using System.Runtime.InteropServices;
 using System.Reflection.Emit;
 
-namespace dmSDK {
-    namespace Dlib {
-        public unsafe partial class ConfigFile
+namespace dmSDK.Dlib {
+    public unsafe partial class ConfigFile
+    {
+        /*#
+        * Generated from [ref:ConfigFile]
+        */
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack=1)]
+        public struct Config
         {
-            /*#
-            * Generated from [ref:HConfigFile]
-            */
-            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack=1)]
-            public struct Config
-            {
-                // opaque struct
-            }
+        }
 
-            /*#
-            * Generated from [ref:ConfigFileGetString]
-            */
-            [DllImport("dlib", EntryPoint="ConfigFileGetString", CallingConvention = CallingConvention.Cdecl)]
-            public static extern string GetString(Config* config, string key, string default_value);
+        /*#
+        * Generated from [ref:ConfigFileGetString]
+        */
+        [DllImport("dlib", EntryPoint="ConfigFileGetString", CallingConvention = CallingConvention.Cdecl)]
+        public static extern string GetString(Config* config, string key, string default_value);
 
-            /*#
-            * Generated from [ref:ConfigFileGetInt]
-            */
-            [DllImport("dlib", EntryPoint="ConfigFileGetInt", CallingConvention = CallingConvention.Cdecl)]
-            public static extern int GetInt(Config* config, string key, int default_value);
+        /*#
+        * Generated from [ref:ConfigFileGetInt]
+        */
+        [DllImport("dlib", EntryPoint="ConfigFileGetInt", CallingConvention = CallingConvention.Cdecl)]
+        public static extern int GetInt(Config* config, string key, int default_value);
 
-            /*#
-            * Generated from [ref:ConfigFileGetFloat]
-            */
-            [DllImport("dlib", EntryPoint="ConfigFileGetFloat", CallingConvention = CallingConvention.Cdecl)]
-            public static extern float GetFloat(Config* config, string key, float default_value);
+        /*#
+        * Generated from [ref:ConfigFileGetFloat]
+        */
+        [DllImport("dlib", EntryPoint="ConfigFileGetFloat", CallingConvention = CallingConvention.Cdecl)]
+        public static extern float GetFloat(Config* config, string key, float default_value);
 
-        } // ConfigFile
-    } // Dlib
-} // dmSDK
+    } // ConfigFile
+} // dmSDK.Dlib
 

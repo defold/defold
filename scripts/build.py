@@ -2248,6 +2248,7 @@ release          - Release editor
 shell            - Start development shell
 smoke_test       - Test editor and engine in combination
 local_smoke      - Test run smoke test using local dev environment
+gen_sdk_source   - Regenerate the C++/C# bindings for our dmSDK
 
 Multiple commands can be specified
 

@@ -30,7 +30,6 @@
 				"class": "ConfigFile",
 				"dllimport": "dlib",
 				"ignore": [
-					"ConfigFile",
 					"ConfigFileRegisterExtension",
 					"FConfigFileCreate",
 					"FConfigFileDestroy",
@@ -42,7 +41,8 @@
 					"HConfigFile": "Config*",
 					"ConfigFileGetString": "GetString",
 					"ConfigFileGetInt": "GetInt",
-					"ConfigFileGetFloat": "GetFloat"
+					"ConfigFileGetFloat": "GetFloat",
+					"ConfigFile": "Config"
 				}
 			}
 		}},

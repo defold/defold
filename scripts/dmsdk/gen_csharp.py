@@ -76,10 +76,15 @@ def gen_doc_header(name, description, namespace, source):
  */
 """
 
-def gen_doc_link(name):
-    return f"""            /*#
-            * Generated from [ref:{name}]
-            */"""
+def get_indent(indent):
+    return '    ' * indent
+
+def gen_doc_link(name, indent):
+    spaces =  get_indent(indent)
+    s  = f'{spaces}/*#\n'
+    s += f'{spaces}* Generated from [ref:{name}]\n'
+    s += f'{spaces}*/'
+    return s
 
 def rename_type(name):
     return c_to_cstypes.get(name, name)
@@ -114,8 +119,8 @@ def gen_cs_struct(decl, rename_patterns, opaque, indent):
     while name.endswith('*'):
         name = name[:-1]
 
-    spaces = '    ' * indent
-    spaces1 = '    ' * (indent+1)
+    spaces = get_indent(indent)
+    spaces1 = get_indent(indent+1)
     s = ''
     s += f'{spaces}[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack=1)]\n'
     s += f'{spaces}public struct {name}\n'
@@ -168,13 +173,16 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
     if not dllimport:
         raise Exception("C# file has no 'dllimport' defined!")
 
+    indent = 1
+    spaces = '    ' * indent
+    spaces1 = '    ' * (indent+1)
+
     l(f'using System.Runtime.InteropServices;')
     l(f'using System.Reflection.Emit;')
     l(f'')
-    l(f'namespace dmSDK {{')
-    l(f'    namespace {namespace} {{')
-    l(f'        public unsafe partial class {classname}')
-    l(f'        {{')
+    l(f'namespace dmSDK.{namespace} {{')
+    l(f'{spaces}public unsafe partial class {classname}')
+    l(f'{spaces}{{')
 
 
     # basename = os.path.basename(out_path).replace('.', '_')
@@ -230,11 +238,9 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
         if n in ignores:
             continue
 
-        struct_typedef = gen_cs_struct(decl, prefixes, False, 3)
+        struct_typedef = gen_cs_struct(decl, prefixes, False, indent+1)
 
-        # out_doc = get_cpp_doc(prefixes, doc)
-        # if out_doc is None:
-        out_doc = gen_doc_link(n)
+        out_doc = gen_doc_link(n, indent+1)
         l(out_doc)
         l(f'{struct_typedef}')
         l('')
@@ -252,7 +258,6 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
     #     l('    typedef %s %s;' % (n, renamed))
     #     l('')
 
-
     for decl, doc in state.functions:
         n = decl['name']
         if n in ignores:
@@ -264,13 +269,11 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
-        out_doc = gen_doc_link(decl['name'])
+        out_doc = gen_doc_link(decl['name'], indent+1)
         l(out_doc)
-        l(f'            {cs_func_prefix}')
-        l(f'            {cs_func};')
+        l(f'{spaces1}{cs_func_prefix}')
+        l(f'{spaces1}{cs_func};')
         l('')
-
-    # l('')
 
     #print("struct_typedefs"); pprint.pp(state.struct_typedefs)
     #print("function_typedefs"); pprint.pp(state.function_typedefs)
@@ -278,9 +281,8 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
     #print("enum_types"); pprint.pp(state.enum_types)
     #print("functions"); pprint.pp(state.functions)
 
-    l(f'        }} // {classname}')
-    l(f'    }} // {namespace}')
-    l(f'}} // dmSDK')
+    l(f'{spaces}}} // {classname}')
+    l(f'}} // dmSDK.{namespace}')
 
     l('') # always have a newline at the end
     return out_lines

@@ -97,37 +97,37 @@ namespace dmResource
     /*#
     * Generated from [ref:ResourceGet]
     */
-    Result Get(HFactory factory,const char * name,void ** resource);
+    Result Get(HFactory factory, const char * name, void ** resource);
 
     /*#
     * Generated from [ref:ResourceGetByHash]
     */
-    Result GetByHash(HFactory factory,dmhash_t name,void ** resource);
+    Result GetByHash(HFactory factory, dmhash_t name, void ** resource);
 
     /*#
     * Generated from [ref:ResourceRelease]
     */
-    void Release(HFactory factory,void * resource);
+    void Release(HFactory factory, void * resource);
 
     /*#
     * Generated from [ref:ResourcePreloadHint]
     */
-    bool PreloadHint(HPreloadHintInfo preloader,const char * path);
+    bool PreloadHint(HPreloadHintInfo preloader, const char * path);
 
     /*#
     * Generated from [ref:ResourceGetPath]
     */
-    Result GetPath(HFactory factory,const void * resource,dmhash_t * hash);
+    Result GetPath(HFactory factory, const void * resource, dmhash_t * hash);
 
     /*#
     * Generated from [ref:ResourceAddFile]
     */
-    Result AddFile(HFactory factory,const char * path,uint32_t size,const void * resource);
+    Result AddFile(HFactory factory, const char * path, uint32_t size, const void * resource);
 
     /*#
     * Generated from [ref:ResourceRemoveFile]
     */
-    Result RemoveFile(HFactory factory,const char * path);
+    Result RemoveFile(HFactory factory, const char * path);
 
     /*#
     * Generated from [ref:ResourceDescriptorGetNameHash]
@@ -137,7 +137,7 @@ namespace dmResource
     /*#
     * Generated from [ref:ResourceDescriptorSetResource]
     */
-    void SetResource(HDescriptor rd,void * resource);
+    void SetResource(HDescriptor rd, void * resource);
 
     /*#
     * Generated from [ref:ResourceDescriptorGetResource]
@@ -147,7 +147,7 @@ namespace dmResource
     /*#
     * Generated from [ref:ResourceDescriptorSetPrevResource]
     */
-    void SetPrevResource(HDescriptor rd,void * resource);
+    void SetPrevResource(HDescriptor rd, void * resource);
 
     /*#
     * Generated from [ref:ResourceDescriptorGetPrevResource]
@@ -157,7 +157,7 @@ namespace dmResource
     /*#
     * Generated from [ref:ResourceDescriptorSetResourceSize]
     */
-    void SetResourceSize(HDescriptor rd,uint32_t size);
+    void SetResourceSize(HDescriptor rd, uint32_t size);
 
     /*#
     * Generated from [ref:ResourceDescriptorGetResourceSize]
