@@ -23,6 +23,8 @@
 
 #include "graphics.h"
 #include "graphics_private.h"
+#include "graphics_native.h"
+
 #include "null/graphics_null_private.h"
 
 #define APP_TITLE "GraphicsTest"
@@ -1325,6 +1327,25 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color0));
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color1));
     }
+}
+
+TEST_F(dmGraphicsTest, TestGraphicsNativeSymbols)
+{
+    dmGraphics::GetNativeiOSUIWindow();
+    dmGraphics::GetNativeiOSUIView();
+    dmGraphics::GetNativeiOSEAGLContext();
+    dmGraphics::GetNativeOSXNSWindow();
+    dmGraphics::GetNativeOSXNSView();
+    dmGraphics::GetNativeOSXNSOpenGLContext();
+    dmGraphics::GetNativeWindowsHWND();
+    dmGraphics::GetNativeWindowsHGLRC();
+    dmGraphics::GetNativeAndroidEGLContext();
+    dmGraphics::GetNativeAndroidEGLSurface();
+    dmGraphics::GetNativeAndroidJavaVM();
+    dmGraphics::GetNativeAndroidActivity();
+    dmGraphics::GetNativeAndroidApp();
+    dmGraphics::GetNativeX11Window();
+    dmGraphics::GetNativeX11GLXContext();
 }
 
 extern "C" void dmExportedSymbols();
