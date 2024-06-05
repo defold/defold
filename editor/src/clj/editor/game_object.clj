@@ -141,11 +141,9 @@
                                (vec (distinct (concat display-order (:display-order source-properties))))))))
 
 (defn resource-path-error [_node-id source-resource]
-  (let [node-type (some-> source-resource resource/resource-type :node-type)]
     (or (validation/prop-error :fatal _node-id :path validation/prop-nil? source-resource "Path")
         (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")
-        (and (= node-type editor.code.script/ScriptNode)
-             (validation/prop-error :fatal _node-id :script validation/prop-resource-ext? source-resource "script" "Path")))))
+        (validation/prop-error :fatal _node-id :script validation/prop-resource-comp? source-resource "Path")))
 
 (g/defnk produce-component-build-targets [_node-id build-resource ddf-message pose resource-property-build-targets source-build-targets]
   ;; Create a build-target for the referenced or embedded component. Also tag on
