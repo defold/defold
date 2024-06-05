@@ -425,7 +425,8 @@
         (g/set-property source :child-index next-index)
         (attach-gui-node node-tree target source type)))))
 
-(defn- gen-outline-node-tx-attach-fn
+;; SDK api
+(defn gen-outline-node-tx-attach-fn
   ([attach-fn]
    (gen-outline-node-tx-attach-fn attach-fn :names))
   ([attach-fn target-name-key]
