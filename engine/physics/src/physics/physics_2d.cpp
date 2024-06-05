@@ -1054,7 +1054,7 @@ namespace dmPhysics
     {
         b2Shape* shape = (b2Shape*) _shape;
         shape->m_radius = radius * world->m_Context->m_Scale;
-        shape->m_creationScale = radius;
+        shape->m_creationScale = shape->m_radius;
     }
 
     void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
