@@ -55,11 +55,12 @@ namespace dmGraphics
 
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable();
     static bool                         NullIsSupported();
+    static HContext                     NullGetContext();
     static const int8_t    g_null_adapter_priority = 2;
     static GraphicsAdapter g_null_adapter(ADAPTER_FAMILY_NULL);
     static NullContext*    g_NullContext = 0x0;
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, g_null_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, NullGetContext, g_null_adapter_priority);
 
     struct AssetContainerLock
     {
@@ -144,6 +145,11 @@ namespace dmGraphics
     static bool NullIsSupported()
     {
         return true;
+    }
+
+    static HContext NullGetContext()
+    {
+        return g_NullContext;
     }
 
     static void NullDeleteContext(HContext _context)

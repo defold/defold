@@ -12,26 +12,18 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_PLATFORM_WINDOW_ANDROID_H
-#define DM_PLATFORM_WINDOW_ANDROID_H
+#ifndef DM_PLATFORM_WINDOW_OSX_H
+#define DM_PLATFORM_WINDOW_OSX_H
 
 #include "platform_window.h"
 
-#include <EGL/egl.h>
-#include <GLES/gl.h>
-#include <android/native_window.h>
-#include <android_native_app_glue.h>
+#include <objc/objc.h>
 
 namespace dmPlatform
 {
-    int32_t      AndroidVerifySurface(HWindow window);
-    void         AndroidBeginFrame(HWindow window);
-
-    EGLContext   GetAndroidEGLContext();
-    EGLSurface   GetAndroidEGLSurface();
-    JavaVM*      GetAndroidJavaVM();
-    jobject      GetAndroidActivity();
-    android_app* GetAndroidApp();
+    id GetOSXNSWindow(HWindow window);
+    id GetOSXNSView(HWindow window);
+    id GetOSXNSOpenGLContext(HWindow window);
 }
 
-#endif // DM_PLATFORM_WINDOW_ANDROID_H
+#endif // DM_PLATFORM_WINDOW_OSX_H
