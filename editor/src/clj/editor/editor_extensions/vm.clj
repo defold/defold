@@ -24,37 +24,47 @@
   at the same time we might be holding a lock in another thread that invoked a
   Lua script that uses coroutines. The with-lock macro is aware of this and will
   not actually lock in coroutine threads. We trust luaj coroutines to
-  multi-thread safely in coroutines."
+  multi-thread safely in coroutines. In other words, all other coroutine threads
+  will be parked while one of them (or the \"main\" thread) is running, so the
+  locking is only needed to prevent 2 editor threads from interacting with Lua
+  VM simultaneously."
   (:refer-clojure :exclude [read])
+  (:require [clojure.java.io :as io])
   (:import [clojure.lang Named]
-           [java.io ByteArrayInputStream]
            [java.nio.charset StandardCharsets]
            [java.util List Map]
            [java.util.concurrent.locks ReentrantLock]
+           [org.apache.commons.io.input CharSequenceInputStream]
            [org.luaj.vm2 Globals LuaBoolean LuaClosure LuaDouble LuaFunction LuaInteger LuaNil LuaString LuaTable LuaUserdata LuaValue Prototype Varargs]
            [org.luaj.vm2.compiler LuaC]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn read
-  "Read a string with a chunk of lua code and return a Prototype for bind"
+  "Read a chunk of lua code and return a Prototype for bind
+
+  Chunk can be a string of Lua code, or anything convertible to an InputStream,
+  e.g. File, URI, URL, Socket or byte array"
   ^Prototype [chunk chunk-name]
   (.compile LuaC/instance
-            (ByteArrayInputStream. (.getBytes ^String chunk StandardCharsets/UTF_8))
+            (if (instance? String chunk)
+              (CharSequenceInputStream. ^String chunk StandardCharsets/UTF_8)
+              (io/input-stream chunk))
             chunk-name))
 
 (deftype LuaVM [env lock])
 
-(defn ^Globals env
+(defn env
   "Return VM environment (Globals)
 
   Returned value is not thread safe"
-  [^LuaVM vm]
+  ^Globals [^LuaVM vm]
   (.-env vm))
 
-(defn ^ReentrantLock lock
+(defn lock
   "Return lock used for synchronising access to this VM"
-  [^LuaVM vm]
+  ^ReentrantLock [^LuaVM vm]
   (.-lock vm))
 
 (defn bind
@@ -155,7 +165,7 @@
 
             (pos-int? clj-k)                   ;; grow acc-v
             (let [acc-v (or acc-v (transient []))
-                  i (dec clj-k)                ;; 1-indexed to 0-indexed
+                  i (dec (long clj-k))                ;; 1-indexed to 0-indexed
                   acc-v (loop [acc-v acc-v]
                           (if (< (count acc-v) i)
                             (recur (conj! acc-v nil))
@@ -173,6 +183,8 @@
                                 (let [v (acc-v i)]
                                   (if (nil? v)
                                     (recur (inc i) acc-m)
+                                    ;; increment integer key to convert it back
+                                    ;; to 1-indexed domain.
                                     (recur (inc i) (assoc! acc-m (inc i) v)))))))
                           acc-m)]
               (recur lua-k nil acc-m))))))))

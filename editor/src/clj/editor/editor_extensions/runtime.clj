@@ -54,7 +54,7 @@
            [java.io File PrintStream Writer]
            [java.nio.charset StandardCharsets]
            [org.apache.commons.io.output WriterOutputStream]
-           [org.luaj.vm2 LoadState LuaError LuaFunction LuaValue]
+           [org.luaj.vm2 LoadState LuaError LuaFunction LuaValue OrphanedThread]
            [org.luaj.vm2.compiler LuaC]
            [org.luaj.vm2.lib Bit32Lib CoroutineLib PackageLib PackageLib$lua_searcher PackageLib$preload_searcher StringLib TableLib]
            [org.luaj.vm2.lib.jse JseMathLib JseOsLib]))
@@ -106,16 +106,32 @@
   [^EditorExtensionsRuntime runtime lua-value]
   (vm/->clj lua-value (.-lua-vm runtime)))
 
-(def ^:private ^:dynamic *execution-context* nil)
+(def ^:private ^:dynamic *execution-context*
+  "Map that holds editor-related data during editor script execution
 
-(defn current-execution-context []
+  The map must have the following keys:
+    :evaluation-context    the evaluation context for the current execution
+    :rt                    the runtime used for execution
+    :mode                  :suspendable or :immediate
+
+  This dynamic var is private and should not be leaked to the users of this ns.
+  It is bound when executing immediate and suspendable functions. For
+  correctness, it should only be read using current-execution-context fn. It is
+  necessary for executing the scripts in a context of a particular editor state
+  (evaluation context) without passing the context explicitly to the scripts,
+  since they should not store and reuse it. Any editor functions that need
+  access to the execution context should receive it as an argument (see lua-fn
+  and suspendable-lua-fn)"
+  nil)
+
+(defn- current-execution-context []
   {:pre [(some? *execution-context*)]}
   *execution-context*)
 
 (defn wrap-suspendable-function
   ^LuaFunction [f]
   (DefoldVarArgFn.
-    (fn [& args]
+    (fn suspendable-function-wrapper [& args]
       (let [ctx (current-execution-context)]
         (if (= :immediate (:mode ctx))
           (throw (LuaError. "Cannot use long-running editor function in immediate context")))
@@ -137,15 +153,18 @@
     instruct the runtime to refresh the execution (evaluation) context of the
     running script
   - any of the above, but delivered asynchronously using a CompletableFuture
+
   Execution context is a map with the following keys:
     :evaluation-context    the evaluation context for the current execution
     :rt                    the runtime used for execution
-    :mode                  :suspendable or :immediate
-
-  Returned function will be executed in an execution context that can be
-  accessed using current-execution-context fn"
+    :mode                  :suspendable or :immediate"
   [& fn-tail]
   `(wrap-suspendable-function (fn ~@fn-tail)))
+
+(defn wrap-immediate-function ^LuaFunction [f]
+  (DefoldVarArgFn.
+    (fn immediate-function-wrapper [& args]
+      (vm/->lua (apply f (current-execution-context) args)))))
 
 (defmacro lua-fn
   "Defines a regular Lua function
@@ -156,18 +175,15 @@
   context is a map with the following keys:
     :evaluation-context    the evaluation context for the current execution
     :rt                    the runtime used for execution
-    :mode                  :suspendable or :immediate
-
-  Returned function will be executed in an execution context that can be
-  accessed using current-execution-context fn"
+    :mode                  :suspendable or :immediate"
   [& fn-tail]
-  `(let [f# (fn ~@fn-tail)]
-     (DefoldVarArgFn.
-       (fn [~'& args#]
-         (vm/->lua (apply f# (current-execution-context) args#))))))
+  `(wrap-immediate-function (fn ~@fn-tail)))
 
 (defn read
-  "Read a string with a chunk of lua code and return a Prototype for bind"
+  "Read a chunk of lua code and return a Prototype for bind
+
+  Chunk can be a string of Lua code, or anything convertible to an InputStream,
+  e.g. File, URI, URL, Socket or byte array"
   ([chunk]
    (vm/read chunk "REPL"))
   ([chunk chunk-name]
@@ -311,11 +327,13 @@
           (future/completed (or lua-ret LuaValue/NIL))
           (let [^Suspend suspend (->clj runtime lua-ret)]
             (-> (try
-                  (apply (.-f suspend) execution-context (.-args suspend))
+                  (future/wrap (apply (.-f suspend) execution-context (.-args suspend)))
                   (catch Throwable e (future/failed e)))
-                future/wrap
                 ;; treat thrown Exceptions as error signals to the scripts
-                (future/catch identity)
+                (future/catch (fn [e]
+                                (if (instance? OrphanedThread e)
+                                  (throw e)
+                                  e)))
                 (future/then-async
                   (fn [result]
                     (if (refresh-context? result)
@@ -358,7 +376,7 @@
   {:arglists '([runtime lua-fn args* evaluation-context?])}
   [^EditorExtensionsRuntime runtime lua-fn & rest-args]
   (let [last-arg (last rest-args)
-        context-provided (and (map? last-arg) (contains? last-arg :basis))
+        context-provided (g/evaluation-context? last-arg)
         evaluation-context (if context-provided last-arg (g/make-evaluation-context))
         lua-args (if context-provided (butlast rest-args) rest-args)
         result (binding [*execution-context* {:evaluation-context evaluation-context

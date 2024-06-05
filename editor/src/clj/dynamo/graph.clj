@@ -1543,3 +1543,12 @@
   [graph-id sequence-id]
   (swap! *the-system* is/cancel graph-id sequence-id)
   nil)
+
+(defn evaluation-context?
+  "Check if a value is an evaluation context"
+  [x]
+  (and (map? x)
+       (contains? x :basis)
+       (contains? x :in-production)
+       (contains? x :local)
+       (contains? x :hits)))

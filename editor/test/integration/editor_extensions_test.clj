@@ -13,50 +13,56 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.editor-extensions-test
-  (:require [clojure.string :as string]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.runtime :as rt]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
-            [editor.lsp :as lsp]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [support.test-support :as test-support])
   (:import [org.luaj.vm2 LuaError]))
 
+(set! *warn-on-reflection* true)
+
 (deftest read-bind-test
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (let [rt (rt/make)
           p (rt/read "return 1")]
-      (= 1 (rt/->clj rt (rt/invoke-immediate rt (rt/bind rt p)))))))
+      (is (= 1 (rt/->clj rt (rt/invoke-immediate rt (rt/bind rt p))))))))
 
 (deftest thread-safe-access-test
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (let [rt (rt/make)
-          _ (rt/invoke-immediate rt (rt/bind rt (rt/read "global = 1")))
+          _ (rt/invoke-immediate rt (rt/bind rt (rt/read "global = -1")))
           inc-and-get (rt/read "return function () global = global + 1; return global end")
           lua-inc-and-get (rt/invoke-immediate rt (rt/bind rt inc-and-get))
           ec (g/make-evaluation-context)
           threads 10
           per-thread-calls 1000
           iterations 100]
-      (dotimes [_ iterations]
-        (when-not (is (distinct? (->> (fn []
-                                        (future
-                                          (->> #(rt/invoke-immediate rt lua-inc-and-get ec)
-                                               (repeatedly per-thread-calls)
-                                               (vec))))
-                                      (repeatedly threads)
-                                      (vec)                 ;; launch all threads in parallel
-                                      (mapcat deref)        ;; await
-                                      (map #(rt/->clj rt %)))))
-          (throw (Exception. "Lua runtime is not thread-safe!")))))))
+      (dotimes [i iterations]
+        (let [results (->> (fn []
+                             (future
+                               (->> #(rt/invoke-immediate rt lua-inc-and-get ec)
+                                    (repeatedly per-thread-calls)
+                                    (vec))))
+                           (repeatedly threads)
+                           (vec)                 ;; launch all threads in parallel
+                           (mapcat deref)        ;; await
+                           (map #(rt/->clj rt %)))
+              expected-count (* threads per-thread-calls)]
+          (when-not (and (is (= expected-count (count results)))
+                         (is (distinct? results))
+                         (is (= (range (* i expected-count) (* (inc i) expected-count))
+                                (sort results))))
+            (throw (Exception. "Lua runtime is not thread-safe!"))))))))
 
 (deftest immediate-invocations-complete-while-suspending-invocations-are-suspended
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (let [completable-future (future/make)
           rt (rt/make :env {"suspend_with_promise" (rt/suspendable-lua-fn [_] completable-future)
                             "no_suspend" (rt/lua-fn [_] (rt/->lua "immediate-result"))})
@@ -70,7 +76,7 @@
         (is (= "suspended-result" (rt/->clj rt @suspended-future)))))))
 
 (deftest suspending-calls-without-suspensions-complete-immediately
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (let [rt (rt/make)
           lua-fib (->> (rt/read "local function fib(n)
                                    if n <= 1 then
@@ -87,7 +93,7 @@
       (is (future/done? (rt/invoke-suspending rt lua-fib (rt/->lua 30)))))))
 
 (deftest suspending-calls-in-immediate-mode-are-disallowed
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (let [rt (rt/make :env {"suspending" (rt/suspendable-lua-fn [_] (future/make))})
           calls-suspending (->> (rt/read "return function () suspending() end")
                                 (rt/bind rt)
@@ -98,7 +104,7 @@
             (rt/invoke-immediate rt calls-suspending))))))
 
 (deftest user-coroutines-are-separated-from-system-coroutines
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (let [rt (rt/make :env {"suspending" (rt/suspendable-lua-fn [{:keys [rt]} x]
                                            (inc (rt/->clj rt x)))})
           coromix (->> (rt/read "local function yield_twice(x)
@@ -112,7 +118,7 @@
                                    local success1, result1 = coroutine.resume(co, n)
                                    local success2, result2 = coroutine.resume(co, result1)
                                    local success3, result3 = coroutine.resume(co, result2)
-                                   local success4, result4 = coroutine.resume(co, result2)
+                                   local success4, result4 = coroutine.resume(co, result3)
                                    return {
                                      {success1, result1},
                                      {success2, result2},
@@ -133,7 +139,7 @@
              (rt/->clj rt @(rt/invoke-suspending rt coromix (rt/->lua 5))))))))
 
 (deftest user-coroutines-work-normally-in-immediate-mode
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (let [rt (rt/make)
           lua-fn (->> (rt/read "local function yields_twice()
                                   coroutine.yield(1)
@@ -171,8 +177,8 @@
   (output value g/Any :cached (gu/passthrough value)))
 
 (deftest suspendable-functions-can-refresh-contexts
-  (test-util/with-loaded-project
-    (let [node-id (g/make-node! (g/node-id->graph-id project) TestNode :value 1)
+  (test-support/with-clean-system
+    (let [node-id (g/make-node! world TestNode :value 1)
           rt (rt/make :env {"get_value" (rt/lua-fn [{:keys [evaluation-context]}]
                                           (rt/->lua (g/node-value node-id :value evaluation-context)))
                             "set_value" (rt/suspendable-lua-fn [{:keys [rt]} n]
@@ -201,7 +207,7 @@
 
 
 (deftest suspending-lua-failure-test
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (let [rt (rt/make :env {"suspend_fail_immediately" (rt/suspendable-lua-fn [_]
                                                          (throw (LuaError. "failed immediately")))
                             "suspend_fail_async" (rt/suspendable-lua-fn [_]
@@ -221,7 +227,7 @@
              (rt/->clj rt @(rt/invoke-suspending rt lua-fn)))))))
 
 (deftest immediate-failures-test
-  (test-util/with-loaded-project
+  (test-support/with-clean-system
     (let [rt (rt/make :env {"immediate_error" (rt/lua-fn [_]
                                                 (throw (Exception. "fail")))})]
       (is

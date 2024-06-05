@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.editor-extensions.error-handling
-  (:require [clojure.spec.alpha :as s]))
+  (:require [clojure.spec.alpha :as s])
+  (:import [org.luaj.vm2 OrphanedThread]))
 
 (set! *warn-on-reflection* true)
 
@@ -41,6 +42,7 @@
       (throw (Exception. ":display-output! is required")))
     `(try
        ~expr
+       (catch OrphanedThread ~ex-sym (throw ~ex-sym))
        (catch Throwable ~ex-sym
          (display-script-error! ~(:display-output! opts) ~(:label opts "Extension") ~ex-sym)
          ~(:catch opts `(throw ~ex-sym))))))

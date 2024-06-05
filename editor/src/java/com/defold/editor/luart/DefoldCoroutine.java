@@ -24,20 +24,31 @@ public class DefoldCoroutine {
 
     /*
     This class defines the necessary thread binding conveyance support for Lua
-    coroutines that run in background threads:
-    1. Calling coroutine.resume() invokes the DefoldLuaThread::resume method
-       from a Clojure thread. At this point we memoize the current thread
-       bindings.
-    2. Calling coroutine.create() invokes Create::call method. In the method,
-       we create our own implementation of the LuaThread (i.e. coroutine) that
-       restores the thread binding before beginning to execute the actual
-       function code.
-    3. Finally, when the coroutine is suspended using coroutine.yield(), the
-       coroutine thread blocks until it receives a response. It receives a
-       response when another Clojure thread calls coroutine.resume(), possibly
-       with different thread bindings! At this point we should also refresh the
-       coroutine thread's bindings. This is implemented in a Yield::invoke
-       method after doing the actual yield machinery.
+    coroutines that run in background threads. From the point of view of the
+    editor, editor threads create a coroutine (it doesn't start running yet),
+    and then continuously resume while it hasn't finished. From the point of
+    view of the coroutine, there is a single coroutine thread per coroutine
+    that starts running on first resume, and then it gets blocked when the
+    coroutine's lua function yields control back to the editor, continuing
+    execution after the later resume call by the editor thread.
+
+    Binding conveyance works like this:
+    1. Right before the resume call by the editor thread, we store current
+       thread bindings in a volatile of the coroutine object (see
+       DefoldLuaThread::resume)
+    2. The coroutine thread invokes a lua function to start the coroutine
+       execution. Before invoking the function, we restore the thread bindings
+       that were set by the editor thread when it called resume. This is
+       implemented by wrapping the Lua function we want to execute with the one
+       that restores the thread bindings before calling the wrapped function
+       (this is implemented in Create class).
+    3. If the coroutine thread yields, the coroutine thread will block until the
+       editor thread resumes it again. When the editor thread resumes it again,
+       it might have other thread bindings, so they get updated in the resume
+       call. After it calls resume, the coroutine thread that was waiting in the
+       yield call wakes up, and at that point we want to reset the thread
+       bindings of the coroutine thread again. This is implemented in
+       Yield::invoke method, after doing the actual yield machinery.
      */
 
     public static class DefoldLuaThread extends LuaThread {

@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.editor-script
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
+            [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.script :as script]
             [editor.editor-extensions.runtime :as rt]
@@ -23,7 +23,7 @@
 
 (g/defnk produce-prototype [_node-id lines resource]
   (try
-    (rt/read (string/join "\n" lines) (resource/resource->proj-path resource))
+    (rt/read (data/lines-input-stream lines) (resource/resource->proj-path resource))
     (catch Exception e
       (g/->error _node-id :prototype :fatal e "Could not compile editor extension"))))
 

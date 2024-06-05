@@ -17,6 +17,8 @@
   (:import [java.util.concurrent CompletableFuture CompletionException]
            [java.util.function Function]))
 
+(set! *warn-on-reflection* true)
+
 ;; TODO: get rid of this namespace once we move to a JDK that supports virtual threads.
 
 (defn make

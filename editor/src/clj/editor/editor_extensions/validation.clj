@@ -17,6 +17,7 @@
   (:require [clojure.spec.alpha :as s]
             [clojure.string :as str]
             [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.util :as util])
   (:import [clojure.lang MultiFn]
            [java.util List Map]
@@ -33,7 +34,7 @@
 (defn resource-path? [x]
   (and (string? x) (string/starts-with? x "/")))
 
-(def node-id? int?)
+(def node-id? g/node-id?)
 
 (s/def ::node-id-or-path
   (s/or :internal-id node-id? :resource-path resource-path?))
