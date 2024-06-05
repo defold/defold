@@ -24,6 +24,7 @@
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.types :as types]
@@ -45,17 +46,11 @@
                  :ext "collection"
                  :pb-type GameSystem$CollectionFactoryDesc}})
 
-(defn- set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
-
-(defn- clear-form-op [{:keys [node-id]} [property]]
-  (g/clear-property! node-id property))
-
 (g/defnk produce-form-data
   [_node-id factory-type prototype-resource load-dynamically dynamic-prototype]
   {:form-ops {:user-data {:node-id _node-id}
-              :set set-form-op
-              :clear clear-form-op}
+              :set protobuf-forms-util/set-form-op
+              :clear protobuf-forms-util/clear-form-op}
    :navigation false
    :sections [{:title (get-in factory-types [factory-type :title])
                :fields [{:path [:prototype]

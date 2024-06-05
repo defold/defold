@@ -18,73 +18,28 @@
             [editor.code.shader :as code.shader]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
-            [editor.material :as material]
             [editor.protobuf :as protobuf]
-            [editor.protobuf-forms :as protobuf-forms]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
+            [editor.render-program-utils :as render-program-utils]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.murmur :as murmur])
-  (:import [com.dynamo.render.proto ComputeProgram$ComputeDesc Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$WrapMode]))
+  (:import [com.dynamo.render.proto ComputeProgram$ComputeDesc]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:private form-data
-  (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
-    {:navigation false
-     :sections
-     [{:title "Compute Program"
-       :fields
-       [{:path [:compute-program]
-         :label "Compute Program"
-         :type :resource :filter "cp"}
-        {:path [:constants]
-         :label "Constants"
-         :type :table
-         :columns [{:path [:name] :label "Name" :type :string}
-                   {:path [:type]
-                    :label "Type"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options constant-values)
-                    :default (ffirst constant-values)}
-                   {:path [:value] :label "Value" :type :vec4}]}
-        {:path [:samplers]
-         :label "Samplers"
-         :type :table
-         :columns (let [wrap-options (protobuf/enum-values Material$MaterialDesc$WrapMode)
-                        min-options (protobuf/enum-values Material$MaterialDesc$FilterModeMin)
-                        mag-options (protobuf/enum-values Material$MaterialDesc$FilterModeMag)]
-                    [{:path [:name] :label "Name" :type :string}
-                     {:path [:wrap-u]
-                      :label "Wrap U"
-                      :type :choicebox
-                      :options (protobuf-forms/make-options wrap-options)
-                      :default (ffirst wrap-options)}
-                     {:path [:wrap-v]
-                      :label "Wrap V"
-                      :type :choicebox
-                      :options (protobuf-forms/make-options wrap-options)
-                      :default (ffirst wrap-options)}
-                     {:path [:filter-min]
-                      :label "Filter Min"
-                      :type :choicebox
-                      :options (protobuf-forms/make-options min-options)
-                      :default (ffirst min-options)}
-                     {:path [:filter-mag]
-                      :label "Filter Mag"
-                      :type :choicebox
-                      :options (protobuf-forms/make-options mag-options)
-                      :default (ffirst mag-options)}
-                     {:path [:max-anisotropy]
-                      :label "Max Anisotropy"
-                      :type :number}])}]}]}))
-
-(defn- set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
-
-(defn- clear-form-op [{:keys [node-id]} [property]]
-  (g/clear-property! node-id property))
+  {:navigation false
+   :sections
+   [{:title "Compute Program"
+     :fields
+     [{:path [:compute-program]
+       :label "Compute Program"
+       :type :resource :filter "cp"}
+      (render-program-utils/gen-form-data-constants "Constants" :constants)
+      (render-program-utils/gen-form-data-samplers "Samplers" :samplers)]}]})
 
 (g/defnk produce-form-data [_node-id name compute-program constants samplers :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
@@ -92,14 +47,14 @@
     (-> form-data
         (assoc :values form-values)
         (assoc :form-ops {:user-data {:node-id _node-id}
-                          :set set-form-op
-                          :clear clear-form-op}))))
+                          :set protobuf-forms-util/set-form-op
+                          :clear protobuf-forms-util/clear-form-op}))))
 
 ;; Load/Save/PB
 (g/defnk produce-base-pb-msg [compute-program constants samplers :as base-pb-msg]
   (-> base-pb-msg
       (update :compute-program resource/resource->proj-path)
-      (update :constants material/hack-upgrade-constants)))
+      (update :constants render-program-utils/hack-upgrade-constants)))
 
 (defn- build-compute [resource build-resource->fused-build-resource user-data]
   (let [build-resource->fused-build-resource-path (comp resource/proj-path build-resource->fused-build-resource)
@@ -162,7 +117,7 @@
 (defn load-compute [_project self resource pb]
   (concat
     (g/set-property self :compute-program (workspace/resolve-resource resource (:compute-program pb)))
-    (g/set-property self :constants (material/hack-downgrade-constants (:constants pb)))
+    (g/set-property self :constants (render-program-utils/hack-downgrade-constants (:constants pb)))
     (g/set-property self :samplers (:samplers pb))))
 
 (defn register-resource-types [workspace]
