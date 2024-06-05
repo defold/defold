@@ -3082,7 +3082,7 @@ namespace dmRender
      * the current compute program will instead be disabled.
      *
      * @name render.set_compute
-     * @param compute_program [type:string|hash|nil] compute program id to use, or nil to disable
+     * @param compute [type:string|hash|nil] compute id to use, or nil to disable
      * @examples
      *
      * Enable compute program named "fractals", then dispatch it.
@@ -3112,7 +3112,7 @@ namespace dmRender
             {
                 return DM_LUA_ERROR("Could not find compute program '%s'", dmHashReverseSafe64(program_id));
             }
-            else if (render_resource->m_Type != RENDER_RESOURCE_TYPE_COMPUTE_PROGRAM)
+            else if (render_resource->m_Type != RENDER_RESOURCE_TYPE_COMPUTE)
             {
                 return DM_LUA_ERROR("Render resource is not a compute program.");
             }
@@ -3195,7 +3195,7 @@ namespace dmRender
             lua_pop(L, 1);
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE_PROGRAM, p_x, p_y, p_z, (uint64_t) constant_buffer)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, p_x, p_y, p_z, (uint64_t) constant_buffer)))
         {
             return 0;
         }

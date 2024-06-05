@@ -16,7 +16,7 @@
 #include "res_texture.h"
 
 #include <render/render.h>
-#include <render/compute_program_ddf.h>
+#include <render/compute_ddf.h>
 
 namespace dmGameSystem
 {

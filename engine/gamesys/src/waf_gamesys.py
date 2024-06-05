@@ -525,7 +525,7 @@ proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilema
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilemapc', transform_tilegrid)
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
-proto_compile_task('compute', 'render.compute_program_ddf_pb2', 'compute_program_ddf_pb2.ComputeDesc', '.compute', '.computec', transform_compute)
+proto_compile_task('compute', 'render.compute_ddf_pb2', 'compute_ddf_pb2.ComputeDesc', '.compute', '.computec', transform_compute)
 
 new_copy_task('project', '.project', '.projectc')
 

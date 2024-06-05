@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_COMPUTE_PROGRAM_H
-#define DM_GAMESYS_RES_COMPUTE_PROGRAM_H
+#ifndef DM_GAMESYS_RES_COMPUTE_H
+#define DM_GAMESYS_RES_COMPUTE_H
 
 #include <render/render.h>
 
@@ -36,4 +36,4 @@ namespace dmGameSystem
     dmResource::Result ResComputePreload(const dmResource::ResourcePreloadParams& params);
 }
 
-#endif // DM_GAMESYS_RES_COMPUTE_PROGRAM_H
+#endif // DM_GAMESYS_RES_COMPUTE_H

@@ -85,7 +85,7 @@ namespace dmGameSystem
         }
         else if (strcmp(path_ext, ".computec") == 0)
         {
-            return dmRender::RENDER_RESOURCE_TYPE_COMPUTE_PROGRAM;
+            return dmRender::RENDER_RESOURCE_TYPE_COMPUTE;
         }
         return dmRender::RENDER_RESOURCE_TYPE_INVALID;
     }

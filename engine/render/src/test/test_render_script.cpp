@@ -1551,7 +1551,7 @@ TEST_F(dmRenderScriptTest, TestComputeEnableDisable)
     dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_Context, m_ComputeProgram);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
-    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_compute", (uint64_t) compute_program, dmRender::RENDER_RESOURCE_TYPE_COMPUTE_PROGRAM);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_compute", (uint64_t) compute_program, dmRender::RENDER_RESOURCE_TYPE_COMPUTE);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmRender::DeleteComputeProgram(m_Context, compute_program);
@@ -1574,7 +1574,7 @@ TEST_F(dmRenderScriptTest, TestDispatch)
     dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_Context, m_ComputeProgram);
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
-    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_compute", (uint64_t) compute_program, dmRender::RENDER_RESOURCE_TYPE_COMPUTE_PROGRAM);
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_compute", (uint64_t) compute_program, dmRender::RENDER_RESOURCE_TYPE_COMPUTE);
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
 
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
@@ -1583,7 +1583,7 @@ TEST_F(dmRenderScriptTest, TestDispatch)
     ASSERT_EQ(dmRender::COMMAND_TYPE_SET_COMPUTE, commands[0].m_Type);
     ASSERT_EQ(compute_program, (dmRender::HComputeProgram) commands[0].m_Operands[0]);
 
-    ASSERT_EQ(dmRender::COMMAND_TYPE_DISPATCH_COMPUTE_PROGRAM, commands[1].m_Type);
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DISPATCH_COMPUTE, commands[1].m_Type);
     ASSERT_EQ(1, commands[1].m_Operands[0]);
     ASSERT_EQ(2, commands[1].m_Operands[1]);
     ASSERT_EQ(3, commands[1].m_Operands[2]);

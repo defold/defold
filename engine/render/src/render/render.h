@@ -72,7 +72,7 @@ namespace dmRender
         RENDER_RESOURCE_TYPE_INVALID         = 0,
         RENDER_RESOURCE_TYPE_MATERIAL        = 1,
         RENDER_RESOURCE_TYPE_RENDER_TARGET   = 2,
-        RENDER_RESOURCE_TYPE_COMPUTE_PROGRAM = 3,
+        RENDER_RESOURCE_TYPE_COMPUTE = 3,
     };
 
     enum RenderBufferType
