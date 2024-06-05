@@ -140,6 +140,13 @@
       (update :display-order (fn [display-order]
                                (vec (distinct (concat display-order (:display-order source-properties))))))))
 
+(defn resource-path-error [_node-id source-resource]
+  (let [node-type (some-> source-resource resource/resource-type :node-type)]
+    (or (validation/prop-error :fatal _node-id :path validation/prop-nil? source-resource "Path")
+        (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")
+        (and (= node-type editor.code.script/ScriptNode)
+             (validation/prop-error :fatal _node-id :script validation/prop-resource-ext? source-resource "script" "Path")))))
+
 (g/defnk produce-component-build-targets [_node-id build-resource ddf-message pose resource-property-build-targets source-build-targets]
   ;; Create a build-target for the referenced or embedded component. Also tag on
   ;; :instance-data with the overrides for this instance. This will later be
@@ -148,7 +155,8 @@
   ;;
   ;; TODO: We can avoid some of this processing & input dependencies for embedded components. Separate into individual production functions?
   ;; For example, embedded components do not have resource-property-build-targets, and cannot refer to raw sounds.
-  (when-some [source-build-target (first source-build-targets)]
+  (or (resource-path-error _node-id (:resource build-resource))
+    (when-some [source-build-target (first source-build-targets)]
     (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
       (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
       (let [is-embedded (contains? ddf-message :data)
@@ -161,7 +169,7 @@
                             (let [proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
                               (game-object-common/referenced-component-instance-data build-resource ddf-message pose proj-path->resource-property-build-target)))
             build-target (assoc build-target :instance-data instance-data)]
-        [(bt/with-content-hash build-target)]))))
+        [(bt/with-content-hash build-target)])))))
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
@@ -320,8 +328,7 @@
                          (when-some [alter-referenced-component-fn (some-> resource-type :tag-opts :component :alter-referenced-component-fn)]
                            (alter-referenced-component-fn self comp-node)))))))
             (dynamic error (g/fnk [_node-id source-resource]
-                                  (or (validation/prop-error :info _node-id :path validation/prop-nil? source-resource "Path")
-                                      (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
+                             (resource-path-error _node-id source-resource))))
 
   (input source-id g/NodeID :cascade-delete)
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
