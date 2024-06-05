@@ -1,4 +1,5 @@
-// Copyright 2020-2023 The Defold Foundation
+
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,26 +13,31 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_PLATFORM_WINDOW_ANDROID_H
-#define DM_PLATFORM_WINDOW_ANDROID_H
+#include <glfw/glfw3.h>
 
-#include "platform_window.h"
+#define GLFW_EXPOSE_NATIVE_COCOA
+#define GLFW_EXPOSE_NATIVE_NSGL
+#include <glfw/glfw3native.h>
 
-#include <EGL/egl.h>
-#include <GLES/gl.h>
-#include <android/native_window.h>
-#include <android_native_app_glue.h>
+#include "platform_window_osx.h"
+
+#include "platform_window_glfw3_private.h"
 
 namespace dmPlatform
 {
-    int32_t      AndroidVerifySurface(HWindow window);
-    void         AndroidBeginFrame(HWindow window);
+    id GetOSXNSWindow(HWindow window)
+    {
+    	return glfwGetCocoaWindow(window->m_Window);
+    }
 
-    EGLContext   GetAndroidEGLContext();
-    EGLSurface   GetAndroidEGLSurface();
-    JavaVM*      GetAndroidJavaVM();
-    jobject      GetAndroidActivity();
-    android_app* GetAndroidApp();
+    id GetOSXNSView(HWindow window)
+    {
+    	return glfwGetCocoaView(window->m_Window);
+    }
+
+    id GetOSXNSOpenGLContext(HWindow window)
+    {
+    	return glfwGetNSGLContext(window->m_Window);
+    }
 }
 
-#endif // DM_PLATFORM_WINDOW_ANDROID_H

@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,26 +12,21 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_PLATFORM_WINDOW_ANDROID_H
-#define DM_PLATFORM_WINDOW_ANDROID_H
+#include <glfw/glfw.h>
 
-#include "platform_window.h"
+#include <glfw/glfw_native.h>
 
-#include <EGL/egl.h>
-#include <GLES/gl.h>
-#include <android/native_window.h>
-#include <android_native_app_glue.h>
+#include "platform_window_linux.h"
 
 namespace dmPlatform
 {
-    int32_t      AndroidVerifySurface(HWindow window);
-    void         AndroidBeginFrame(HWindow window);
+    Window GetX11Window()
+    {
+    	return glfwGetX11Window();
+    }
 
-    EGLContext   GetAndroidEGLContext();
-    EGLSurface   GetAndroidEGLSurface();
-    JavaVM*      GetAndroidJavaVM();
-    jobject      GetAndroidActivity();
-    android_app* GetAndroidApp();
+    GLXContext GetX11GLXContext()
+    {
+    	return glfwGetX11GLXContext();
+    }
 }
-
-#endif // DM_PLATFORM_WINDOW_ANDROID_H
