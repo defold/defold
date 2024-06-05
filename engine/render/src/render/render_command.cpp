@@ -205,7 +205,7 @@ namespace dmRender
                     render_context->m_Material = 0;
                     break;
                 }
-                case COMMAND_TYPE_SET_COMPUTE_PROGRAM:
+                case COMMAND_TYPE_SET_COMPUTE:
                 {
                     render_context->m_ComputeProgram = (HComputeProgram) c->m_Operands[0];
                     break;

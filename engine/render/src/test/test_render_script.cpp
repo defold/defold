@@ -1540,10 +1540,10 @@ TEST_F(dmRenderScriptTest, TestComputeEnableDisable)
 {
     const char* script =
     "function init(self)\n"
-    "   render.set_compute_program('test_compute')\n"
-    "   render.set_compute_program(hash('test_compute'))\n"
-    "   render.set_compute_program(nil)\n"
-    "   render.set_compute_program()\n"
+    "   render.set_compute('test_compute')\n"
+    "   render.set_compute(hash('test_compute'))\n"
+    "   render.set_compute(nil)\n"
+    "   render.set_compute()\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -1564,9 +1564,9 @@ TEST_F(dmRenderScriptTest, TestDispatch)
 {
     const char* script =
     "function init(self)\n"
-    "   render.set_compute_program('test_compute')\n"
+    "   render.set_compute('test_compute')\n"
     "   render.dispatch_compute(1,2,3)\n"
-    "   render.set_compute_program()\n"
+    "   render.set_compute()\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -1580,7 +1580,7 @@ TEST_F(dmRenderScriptTest, TestDispatch)
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
     dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
 
-    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_COMPUTE_PROGRAM, commands[0].m_Type);
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_COMPUTE, commands[0].m_Type);
     ASSERT_EQ(compute_program, (dmRender::HComputeProgram) commands[0].m_Operands[0]);
 
     ASSERT_EQ(dmRender::COMMAND_TYPE_DISPATCH_COMPUTE_PROGRAM, commands[1].m_Type);
@@ -1588,7 +1588,7 @@ TEST_F(dmRenderScriptTest, TestDispatch)
     ASSERT_EQ(2, commands[1].m_Operands[1]);
     ASSERT_EQ(3, commands[1].m_Operands[2]);
 
-    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_COMPUTE_PROGRAM, commands[2].m_Type);
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_COMPUTE, commands[2].m_Type);
     ASSERT_EQ(0, commands[2].m_Operands[0]);
 
     commands.SetSize(0);

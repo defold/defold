@@ -26,14 +26,14 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [util.murmur :as murmur])
-  (:import [com.dynamo.render.proto ComputeProgram$ComputeDesc]))
+  (:import [com.dynamo.render.proto Compute$ComputeDesc]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:private form-data
   {:navigation false
    :sections
-   [{:title "Compute Program"
+   [{:title "Compute"
      :fields
      [{:path [:compute-program]
        :label "Compute Program"
@@ -62,7 +62,7 @@
         (-> (:compute-desc-with-build-resources user-data)
             (update :compute-program build-resource->fused-build-resource-path))]
     {:resource resource
-     :content (protobuf/map->bytes ComputeProgram$ComputeDesc compute-desc-with-fused-build-resource-paths)}))
+     :content (protobuf/map->bytes Compute$ComputeDesc compute-desc-with-fused-build-resource-paths)}))
 
 (defn- build-target-samplers [samplers]
   (mapv (fn [sampler]
@@ -125,7 +125,7 @@
     :ext "compute"
     :label "Compute"
     :node-type ComputeNode
-    :ddf-type ComputeProgram$ComputeDesc
+    :ddf-type Compute$ComputeDesc
     :load-fn load-compute
     :icon "icons/32/Icons_31-Material.png"
     :icon-class :property

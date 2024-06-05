@@ -3081,20 +3081,20 @@ namespace dmRender
      * in the "game.project" setting. If nil (or no arguments) are passed to this function,
      * the current compute program will instead be disabled.
      *
-     * @name render.set_compute_program
+     * @name render.set_compute
      * @param compute_program [type:string|hash|nil] compute program id to use, or nil to disable
      * @examples
      *
      * Enable compute program named "fractals", then dispatch it.
      *
      * ```lua
-     * render.set_compute_program("fractals")
+     * render.set_compute("fractals")
      * render.enable_texture(0, self.backing_texture)
      * render.dispatch_compute(128, 128, 1)
-     * render.set_compute_program()
+     * render.set_compute()
      * ```
      */
-    static int RenderScript_SetComputeProgram(lua_State* L)
+    static int RenderScript_SetCompute(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -3120,7 +3120,7 @@ namespace dmRender
             compute_program = (void*) render_resource->m_Resource;
         }
 
-        if (InsertCommand(i, Command(COMMAND_TYPE_SET_COMPUTE_PROGRAM, (uint64_t) compute_program)))
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_COMPUTE, (uint64_t) compute_program)))
         {
             return 0;
         }
@@ -3154,11 +3154,11 @@ namespace dmRender
      * end
      *
      * function update(self, dt)
-     *     render.set_compute_program("bloom")
+     *     render.set_compute("bloom")
      *     render.enable_texture(0, self.backing_texture)
      *     render.enable_texture(1, self.scene_rt)
      *     render.dispatch_compute(128, 128, 1)
-     *     render.set_compute_program()
+     *     render.set_compute()
      * end
      * ```
      *
@@ -3241,7 +3241,7 @@ namespace dmRender
         {"constant_buffer",                 RenderScript_ConstantBuffer},
         {"enable_material",                 RenderScript_EnableMaterial},
         {"disable_material",                RenderScript_DisableMaterial},
-        {"set_compute_program",             RenderScript_SetComputeProgram},
+        {"set_compute",                     RenderScript_SetCompute},
         {"dispatch_compute",                RenderScript_Dispatch},
         {"set_camera",                      RenderScript_SetCamera},
         {0, 0}
