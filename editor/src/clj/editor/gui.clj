@@ -503,11 +503,11 @@
 ;; SDK api
 (defn prop-resource-error
   ([node-id prop-kw prop-value prop-name]
-    (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
-      (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+   (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
+       (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
   ([node-id prop-kw prop-value prop-name resource-ext]
-    (or (prop-resource-error node-id prop-kw prop-value prop-name)
-      (validation/prop-error :fatal node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))))
+   (or (prop-resource-error node-id prop-kw prop-value prop-name)
+       (validation/prop-error :fatal node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))))
 
 ;; SDK api
 (defn references-gui-resource? [evaluation-context node-id prop-kw gui-resource-name]
