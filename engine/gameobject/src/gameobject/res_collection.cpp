@@ -12,7 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
+
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 
@@ -212,10 +213,10 @@ bail:
         return res;
     }
 
-    static dmResource::Result ResCollectionPreload(const dmResource::ResourcePreloadParams& params)
+    static dmResource::Result ResCollectionPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmGameObjectDDF::CollectionDesc* collection_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params.m_Buffer, params.m_BufferSize, &collection_desc);
+        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params->m_Buffer, params->m_BufferSize, &collection_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
@@ -227,17 +228,17 @@ bail:
         {
             if (instances[i].m_Prototype != 0x0)
             {
-                dmResource::PreloadHint(params.m_HintInfo, instances[i].m_Prototype);
+                dmResource::PreloadHint(params->m_HintInfo, instances[i].m_Prototype);
             }
         }
         const char** resources = collection_desc->m_PropertyResources.m_Data;
         uint32_t n_resources = collection_desc->m_PropertyResources.m_Count;
         for (uint32_t i = 0; i < n_resources; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, resources[i]);
+            dmResource::PreloadHint(params->m_HintInfo, resources[i]);
         }
 
-        *params.m_PreloadData = collection_desc;
+        *params->m_PreloadData = collection_desc;
         return dmResource::RESULT_OK;
     }
 
@@ -252,13 +253,13 @@ bail:
         return size;
     }
 
-    static dmResource::Result ResCollectionCreate(const dmResource::ResourceCreateParams& params)
+    static dmResource::Result ResCollectionCreate(const dmResource::ResourceCreateParams* params)
     {
-        Register* regist = (Register*) params.m_Context;
-        dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) params.m_PreloadData;
+        Register* regist = (Register*) params->m_Context;
+        dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) params->m_PreloadData;
 
         HCollection hcollection = 0;
-        dmResource::Result res = AcquireResources(collection_desc->m_Name, params.m_Factory, regist, collection_desc, params.m_Filename, &hcollection);
+        dmResource::Result res = AcquireResources(collection_desc->m_Name, params->m_Factory, regist, collection_desc, params->m_Filename, &hcollection);
         dmDDF::FreeMessage(collection_desc);
 
         if (res != dmResource::RESULT_OK)
@@ -266,31 +267,31 @@ bail:
             return res;
         }
 
-        params.m_Resource->m_Resource = hcollection;
-        params.m_Resource->m_ResourceSize = CalcSize(hcollection->m_Collection);
+        ResourceDescriptorSetResource(params->m_Resource, hcollection);
+        ResourceDescriptorSetResourceSize(params->m_Resource, CalcSize(hcollection->m_Collection));
         return res;
     }
 
-    static dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams& params)
+    static dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        HCollection hcollection = (HCollection) params.m_Resource->m_Resource;
-        UnloadPropertyResources(params.m_Factory, hcollection->m_Collection->m_PropertyResources);
+        HCollection hcollection = (HCollection) ResourceDescriptorGetResource(params->m_Resource);
+        UnloadPropertyResources(params->m_Factory, hcollection->m_Collection->m_PropertyResources);
         DeleteCollection(hcollection); // delay delete
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result ResCollectionRecreate(const dmResource::ResourceRecreateParams& params)
+    static dmResource::Result ResCollectionRecreate(const dmResource::ResourceRecreateParams* params)
     {
         dmGameObjectDDF::CollectionDesc* collection_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params.m_Buffer, params.m_BufferSize, &collection_desc);
+        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params->m_Buffer, params->m_BufferSize, &collection_desc);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        HCollection prev_hcollection = (HCollection) params.m_Resource->m_Resource;
+        HCollection prev_hcollection = (HCollection) ResourceDescriptorGetResource(params->m_Resource);
         Collection* prev_collection = prev_hcollection->m_Collection;
-        Register* regist = (Register*) params.m_Context;
+        Register* regist = (Register*) params->m_Context;
         bool was_initialized = IsCollectionInitialized(prev_collection);
 
         if (was_initialized)
@@ -300,7 +301,7 @@ bail:
         dmGameObject::DetachCollection(prev_collection);
 
         HCollection delete_hcollection = 0;
-        dmResource::Result res = AcquireResources(collection_desc->m_Name, params.m_Factory, regist, collection_desc, params.m_Filename, &delete_hcollection);
+        dmResource::Result res = AcquireResources(collection_desc->m_Name, params->m_Factory, regist, collection_desc, params->m_Filename, &delete_hcollection);
         if (dmResource::RESULT_OK == res)
         {
             // We cannot simply swap the HCollection, since that's the resource that has been handed out
@@ -330,7 +331,7 @@ bail:
                     dmGameObject::DeleteCollection(new_collection);
 
                     // Reattach/reinit the collection
-                    dmGameObject::AttachCollection(prev_collection, collection_desc->m_Name, params.m_Factory, regist, prev_hcollection);
+                    dmGameObject::AttachCollection(prev_collection, collection_desc->m_Name, params->m_Factory, regist, prev_hcollection);
                     if (was_initialized)
                     {
                         dmGameObject::Init(prev_hcollection);
@@ -343,30 +344,30 @@ bail:
 
             dmGameObject::DeleteCollection(delete_hcollection->m_Collection);
 
-            params.m_Resource->m_PrevResource = 0;
-            params.m_Resource->m_ResourceSize = CalcSize(prev_hcollection->m_Collection);
+            ResourceDescriptorSetPrevResource(params->m_Resource, 0);
+            ResourceDescriptorSetResourceSize(params->m_Resource, CalcSize(prev_hcollection->m_Collection));
         }
         else
         {
-            dmGameObject::AttachCollection(prev_collection, collection_desc->m_Name, params.m_Factory, regist, prev_hcollection);
+            dmGameObject::AttachCollection(prev_collection, collection_desc->m_Name, params->m_Factory, regist, prev_hcollection);
         }
         dmDDF::FreeMessage(collection_desc);
         return res;
     }
 
-    static dmResource::Result RegisterResourceTypeCollection(dmResource::ResourceTypeRegisterContext& ctx)
+    static ResourceResult RegisterResourceTypeCollection(HResourceTypeContext ctx, HResourceType type)
     {
-        // The engine.cpp creates the contexts for our built in types.
-        void** context = ctx.m_Contexts->Get(ctx.m_NameHash);
+        // The engine.cpp creates the contexts for some of our our built in types (i.e. same context for some types)
+        void* context = ResourceTypeContextGetContextByHash(ctx, ResourceTypeGetNameHash(type));
         assert(context);
-        return dmResource::RegisterType(ctx.m_Factory,
-                                           ctx.m_Name,
-                                           *context,
-                                           ResCollectionPreload,
-                                           ResCollectionCreate,
-                                           0,
-                                           ResCollectionDestroy,
-                                           ResCollectionRecreate);
+        return (ResourceResult)dmResource::SetupType(ctx,
+                                                    type,
+                                                    context,
+                                                    ResCollectionPreload,
+                                                    ResCollectionCreate,
+                                                    0,
+                                                    ResCollectionDestroy,
+                                                    ResCollectionRecreate);
     }
 }
 

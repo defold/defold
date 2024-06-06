@@ -12,10 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef RESOURCE_LOAD_QUEUE
-#define RESOURCE_LOAD_QUEUE
+#ifndef DM_RESOURCE_LOAD_QUEUE_H
+#define DM_RESOURCE_LOAD_QUEUE_H
 
 #include "../resource.h"
+#include "../resource_private.h"
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmLoadQueue
 {
@@ -33,9 +35,9 @@ namespace dmLoadQueue
 
     struct PreloadInfo
     {
-        dmResource::FResourcePreload m_CompleteFunction;
-        dmResource::PreloadHintInfo  m_HintInfo;
-        void*                        m_Context;
+        FResourcePreload        m_CompleteFunction;
+        ResourcePreloadHintInfo m_HintInfo;
+        void*                   m_Context;
     };
 
     struct LoadResult
@@ -59,4 +61,4 @@ namespace dmLoadQueue
     void FreeLoad(HQueue queue, HRequest request);
 } // namespace dmLoadQueue
 
-#endif
+#endif // DM_RESOURCE_LOAD_QUEUE_H

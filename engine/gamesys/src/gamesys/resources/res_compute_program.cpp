@@ -31,9 +31,9 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
     {
-        dmRender::HComputeProgram program       = (dmRender::HComputeProgram) params.m_UserData;
+        dmRender::HComputeProgram program       = (dmRender::HComputeProgram) params->m_UserData;
         dmRender::HRenderContext render_context = dmRender::GetProgramRenderContext(program);
         dmGraphics::HContext graphics_context   = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HComputeProgram shader      = GetComputeProgramShader(program);
@@ -45,60 +45,60 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::Result ResComputeProgramCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResComputeProgramCreate(const dmResource::ResourceCreateParams* params)
     {
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
-        dmRenderDDF::ComputeProgramDesc* ddf   = (dmRenderDDF::ComputeProgramDesc*)params.m_PreloadData;
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
+        dmRenderDDF::ComputeProgramDesc* ddf   = (dmRenderDDF::ComputeProgramDesc*)params->m_PreloadData;
 
         void* shader;
-        dmResource::Result r = AcquireResources(params.m_Factory, ddf, &shader);
+        dmResource::Result r = AcquireResources(params->m_Factory, ddf, &shader);
         if (r == dmResource::RESULT_OK)
         {
             dmRender::HComputeProgram program = dmRender::NewComputeProgram(render_context, (dmGraphics::HComputeProgram) shader);
 
-            dmResource::SResourceDescriptor desc;
-            dmResource::Result res = dmResource::GetDescriptor(params.m_Factory, ddf->m_Program, &desc);
+            HResourceDescriptor desc;
+            dmResource::Result res = dmResource::GetDescriptor(params->m_Factory, ddf->m_Program, &desc);
 
             assert(res == dmResource::RESULT_OK);
-            dmRender::SetProgramUserData(program, desc.m_NameHash);
+            dmRender::SetProgramUserData(program, ResourceDescriptorGetNameHash(desc));
 
-            dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, program);
+            dmResource::RegisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, program);
 
-            params.m_Resource->m_Resource = (void*) program;
+            dmResource::SetResource(params->m_Resource, program);
         }
         dmDDF::FreeMessage(ddf);
         return r;
     }
 
-    dmResource::Result ResComputeProgramDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResComputeProgramDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
-        dmRender::HComputeProgram program = (dmRender::HComputeProgram) params.m_Resource->m_Resource;
+        dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
+        dmRender::HComputeProgram program = (dmRender::HComputeProgram) dmResource::GetResource(params->m_Resource);
 
-        dmResource::UnregisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, program);
+        dmResource::UnregisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, program);
 
-        dmResource::Release(params.m_Factory, (void*) dmRender::GetComputeProgramShader(program));
+        dmResource::Release(params->m_Factory, (void*) dmRender::GetComputeProgramShader(program));
         dmRender::DeleteComputeProgram(render_context, program);
 
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResComputeProgramRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResComputeProgramRecreate(const dmResource::ResourceRecreateParams* params)
     {
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResComputeProgramPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResComputeProgramPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmRenderDDF::ComputeProgramDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ComputeProgramDesc>(params.m_Buffer, params.m_BufferSize, &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ComputeProgramDesc>(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Program);
-        *params.m_PreloadData = ddf;
+        dmResource::PreloadHint(params->m_HintInfo, ddf->m_Program);
+        *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 }
