@@ -74,7 +74,7 @@
       (when-not (= (resource/type-ext v) ext)
         (format "%s '%s' is not of type %s" name (resource/resource->proj-path v) (format-ext ext)))))
 
-(defn prop-resource-comp? [v name]
+(defn prop-resource-not-component? [v name]
   (let [resource-type (some-> v resource/resource-type)
         tags (:tags resource-type)]
     (when-not (or (contains? tags :component)

@@ -143,7 +143,7 @@
 (defn resource-path-error [_node-id source-resource]
     (or (validation/prop-error :fatal _node-id :path validation/prop-nil? source-resource "Path")
         (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")
-        (validation/prop-error :fatal _node-id :script validation/prop-resource-comp? source-resource "Path")))
+        (validation/prop-error :fatal _node-id :script validation/prop-resource-not-component? source-resource "Path")))
 
 (g/defnk produce-component-build-targets [_node-id build-resource ddf-message pose resource-property-build-targets source-build-targets]
   ;; Create a build-target for the referenced or embedded component. Also tag on
@@ -154,20 +154,20 @@
   ;; TODO: We can avoid some of this processing & input dependencies for embedded components. Separate into individual production functions?
   ;; For example, embedded components do not have resource-property-build-targets, and cannot refer to raw sounds.
   (or (resource-path-error _node-id (:resource build-resource))
-    (when-some [source-build-target (first source-build-targets)]
-    (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
-      (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-      (let [is-embedded (contains? ddf-message :data)
-            build-target (-> source-build-target
-                             (assoc :resource build-resource)
-                             (wrap-if-raw-sound _node-id))
-            build-resource (:resource build-target) ; The wrap-if-raw-sound call might have changed this.
-            instance-data (if is-embedded
-                            (game-object-common/embedded-component-instance-data build-resource ddf-message pose)
-                            (let [proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
-                              (game-object-common/referenced-component-instance-data build-resource ddf-message pose proj-path->resource-property-build-target)))
-            build-target (assoc build-target :instance-data instance-data)]
-        [(bt/with-content-hash build-target)])))))
+      (when-some [source-build-target (first source-build-targets)]
+        (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
+          (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
+          (let [is-embedded (contains? ddf-message :data)
+                build-target (-> source-build-target
+                                 (assoc :resource build-resource)
+                                 (wrap-if-raw-sound _node-id))
+                build-resource (:resource build-target)     ; The wrap-if-raw-sound call might have changed this.
+                instance-data (if is-embedded
+                                (game-object-common/embedded-component-instance-data build-resource ddf-message pose)
+                                (let [proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
+                                  (game-object-common/referenced-component-instance-data build-resource ddf-message pose proj-path->resource-property-build-target)))
+                build-target (assoc build-target :instance-data instance-data)]
+            [(bt/with-content-hash build-target)])))))
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
