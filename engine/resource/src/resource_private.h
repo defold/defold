@@ -18,6 +18,7 @@
 #include <ddf/ddf.h>
 #include "resource_archive.h"
 #include "resource.h"
+#include <dmsdk/resource/resource.hpp>
 
 // Internal API that preloader needs to use.
 
@@ -34,37 +35,73 @@
 #endif
 
 
+/**
+ * Resource descriptor
+ * @name ResourceDescriptor
+ * @member m_NameHash [type: uint64_t] Hash of resource name
+ * @member m_Resource [type: void*] Resource pointer. Must be unique and not NULL.
+ * @member m_PrevResource [type: void*] Resource pointer. Resource pointer to a previous version of the resource, iff it exists. Only used when recreating resources.
+ * @member m_ResourceSize [type: uint32_t] Resource size in memory. I.e. the payload of m_Resource
+ */
+struct ResourceDescriptor
+{
+    /// Hash of resource name
+    uint64_t m_NameHash;
+    /// Resource pointer. Must be unique and not NULL.
+    void*    m_Resource;
+    /// Resource pointer to a previous version of the resource, iff it exists. Only used when recreating resources.
+    void*    m_PrevResource;
+    /// Resource size in memory. I.e. the payload of m_Resource
+    uint32_t m_ResourceSize;
+
+    // private members
+    HResourceType   m_ResourceType;
+    uint32_t        m_ResourceSizeOnDisc;
+    uint32_t        m_ReferenceCount;
+    uint16_t        m_Version;
+};
+
+struct ResourceType
+{
+    ResourceType() // TODO: Will it be ok using C++ constructor, since this is a private header?
+    {
+        memset(this, 0, sizeof(*this));
+    }
+    dmhash_t            m_ExtensionHash;
+    const char*         m_Extension; // The suffix, without the '.'
+    void*               m_Context;
+    FResourcePreload    m_PreloadFunction;
+    FResourceCreate     m_CreateFunction;
+    FResourcePostCreate m_PostCreateFunction;
+    FResourceDestroy    m_DestroyFunction;
+    FResourceRecreate   m_RecreateFunction;
+    uint8_t             m_Index;
+};
+
+struct ResourceTypeContext
+{
+    HResourceFactory        m_Factory;
+    dmHashTable64<void*>*   m_Contexts;
+};
+
+struct ResourcePreloadHintInfo
+{
+    HResourcePreloader      m_Preloader;
+    int32_t                 m_Parent;
+};
+
 namespace dmResource
 {
-    const uint32_t MAX_RESOURCE_TYPES = 128;
-
-    struct SResourceType
-    {
-        SResourceType()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-        dmhash_t            m_ExtensionHash;
-        const char*         m_Extension;
-        void*               m_Context;
-        FResourcePreload    m_PreloadFunction;
-        FResourceCreate     m_CreateFunction;
-        FResourcePostCreate m_PostCreateFunction;
-        FResourceDestroy    m_DestroyFunction;
-        FResourceRecreate   m_RecreateFunction;
-    };
-
-    struct SResourceDescriptor;
 
     Result CheckSuppliedResourcePath(const char* name);
 
     // load with default internal buffer and its management, returns buffer ptr in 'buffer'
     Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);
 
-    Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, SResourceDescriptor* descriptor);
+    Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, HResourceDescriptor descriptor);
     uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);
 
-    SResourceType* FindResourceType(SResourceFactory* factory, const char* extension);
+    HResourceType FindResourceType(HFactory factory, const char* extension);
     uint32_t GetRefCount(HFactory factory, void* resource);
     uint32_t GetRefCount(HFactory factory, dmhash_t identifier);
 
@@ -87,23 +124,6 @@ namespace dmResource
      */
     //Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path);
 
-    struct PreloadHintInfo
-    {
-        HPreloader m_Preloader;
-        int32_t    m_Parent;
-    };
-
-    struct PreloadRequest;
-
-    struct TypeCreatorDesc
-    {
-        const char* m_Name;
-        FResourceTypeRegister m_RegisterFn;
-        FResourceTypeRegister m_DeregisterFn;
-        TypeCreatorDesc* m_Next;
-    };
-
-    const TypeCreatorDesc* GetFirstTypeCreatorDesc();
 }
 
 #endif

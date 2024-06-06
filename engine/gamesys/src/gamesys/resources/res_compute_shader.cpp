@@ -34,55 +34,55 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResComputeShaderPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResComputeShaderPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmGraphics::ShaderDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
-        *params.m_PreloadData = ddf;
+        *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResComputeShaderCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResComputeShaderCreate(const dmResource::ResourceCreateParams* params)
     {
-        dmGraphics::ShaderDesc* ddf         = (dmGraphics::ShaderDesc*) params.m_PreloadData;
+        dmGraphics::ShaderDesc* ddf         = (dmGraphics::ShaderDesc*) params->m_PreloadData;
         dmGraphics::HComputeProgram resource = 0x0;
-        dmResource::Result r                = AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, ddf, &resource);
+        dmResource::Result r                = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, ddf, &resource);
         dmDDF::FreeMessage(ddf);
         if (r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*) resource;
+            dmResource::SetResource(params->m_Resource, (void*)resource);
         }
         return r;
     }
 
-    dmResource::Result ResComputeShaderDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResComputeShaderDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        dmGraphics::HComputeProgram resource = (dmGraphics::HComputeProgram) params.m_Resource->m_Resource;
+        dmGraphics::HComputeProgram resource = (dmGraphics::HComputeProgram) dmResource::GetResource(params->m_Resource);
         dmGraphics::DeleteComputeProgram(resource);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResComputeShaderRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResComputeShaderRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        dmGraphics::HComputeProgram resource = (dmGraphics::HComputeProgram) params.m_Resource->m_Resource;
+        dmGraphics::HComputeProgram resource = (dmGraphics::HComputeProgram) dmResource::GetResource(params->m_Resource);
         if (resource == 0)
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
         dmGraphics::ShaderDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
         dmResource::Result res = dmResource::RESULT_OK;
-        dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram((dmGraphics::HContext) params.m_Context, ddf);
+        dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram((dmGraphics::HContext) params->m_Context, ddf);
         if (shader == 0x0)
         {
             res = dmResource::RESULT_FORMAT_ERROR;

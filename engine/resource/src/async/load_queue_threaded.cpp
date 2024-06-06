@@ -148,14 +148,14 @@ namespace dmLoadQueue
                     assert(current->m_Buffer.Size() == size);
                     if (current->m_PreloadInfo.m_CompleteFunction)
                     {
-                        dmResource::ResourcePreloadParams params;
+                        ResourcePreloadParams params;
                         params.m_Factory       = queue->m_Factory;
                         params.m_Context       = current->m_PreloadInfo.m_Context;
                         params.m_Buffer        = current->m_Buffer.Begin();
                         params.m_BufferSize    = current->m_Buffer.Size();
                         params.m_HintInfo      = &current->m_PreloadInfo.m_HintInfo;
                         params.m_PreloadData   = &result.m_PreloadData;
-                        result.m_PreloadResult = current->m_PreloadInfo.m_CompleteFunction(params);
+                        result.m_PreloadResult = (dmResource::Result)current->m_PreloadInfo.m_CompleteFunction(&params);
                     }
                     else
                     {

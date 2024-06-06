@@ -108,7 +108,7 @@ namespace dmGameSystem
         dmGraphics::SetTextureAsync(texture, params, 0, (void*) 0);
     }
 
-    static dmResource::Result AcquireResources(const char* path, dmResource::SResourceDescriptor* resource_desc, dmGraphics::HContext context, ImageDesc* image_desc,
+    static dmResource::Result AcquireResources(const char* path, dmGraphics::HContext context, ImageDesc* image_desc,
         ResTextureUploadParams upload_params, dmGraphics::HTexture texture, dmGraphics::HTexture* texture_out)
     {
         DM_PROFILE_DYN(path, 0);
@@ -313,54 +313,54 @@ namespace dmGameSystem
         delete image_desc;
     }
 
-    dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams* params)
     {
         DM_PROFILE(__FUNCTION__);
         dmGraphics::TextureImage* texture_image;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
+        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params->m_Buffer, params->m_BufferSize, (&texture_image));
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image);
-        *params.m_PreloadData = image_desc;
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image);
+        *params->m_PreloadData = image_desc;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTexturePostCreate(const dmResource::ResourcePostCreateParams& params)
+    dmResource::Result ResTexturePostCreate(const dmResource::ResourcePostCreateParams* params)
     {
         // Poll state of texture async texture processing and return state. RESULT_PENDING indicates we need to poll again.
-        TextureResource* texture_res = (TextureResource*) params.m_Resource->m_Resource;
+        TextureResource* texture_res = (TextureResource*) dmResource::GetResource(params->m_Resource);
 
         if(!SynchronizeTexture(texture_res->m_Texture, false))
         {
             return dmResource::RESULT_PENDING;
         }
 
-        ImageDesc* image_desc = (ImageDesc*) params.m_PreloadData;
+        ImageDesc* image_desc = (ImageDesc*) params->m_PreloadData;
         dmDDF::FreeMessage(image_desc->m_DDFImage);
         DestroyImage(image_desc);
-        params.m_Resource->m_ResourceSize = dmGraphics::GetTextureResourceSize(texture_res->m_Texture);
+        dmResource::SetResourceSize(params->m_Resource, dmGraphics::GetTextureResourceSize(texture_res->m_Texture));
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTextureCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResTextureCreate(const dmResource::ResourceCreateParams* params)
     {
         ResTextureUploadParams upload_params = {};
-        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params->m_Context;
         dmGraphics::HTexture texture;
 
-        ImageDesc* image_desc = (ImageDesc*) params.m_PreloadData;
+        ImageDesc* image_desc = (ImageDesc*) params->m_PreloadData;
 
         if (image_desc->m_DDFImage->m_Alternatives.m_Count > 0)
         {
-            dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, image_desc, upload_params, 0, &texture);
+            dmResource::Result r = AcquireResources(params->m_Filename, graphics_context, image_desc, upload_params, 0, &texture);
             if (r == dmResource::RESULT_OK)
             {
                 TextureResource* texture_res = new TextureResource();
                 texture_res->m_Texture = texture;
-                params.m_Resource->m_Resource = (void*) texture_res;
+                dmResource::SetResource(params->m_Resource, texture_res);
             }
             return r;
         }
@@ -371,23 +371,23 @@ namespace dmGameSystem
             // has to be removed, e.g render target resources.
             TextureResource* texture_res  = new TextureResource();
             texture_res->m_Texture        = 0;
-            params.m_Resource->m_Resource = (void*) texture_res;
+            dmResource::SetResource(params->m_Resource, texture_res);
         }
 
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        TextureResource* texture_res = (TextureResource*) params.m_Resource->m_Resource;
+        TextureResource* texture_res = (TextureResource*) dmResource::GetResource(params->m_Resource);
         dmGraphics::DeleteTexture(texture_res->m_Texture);
         delete texture_res;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResTextureRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResTextureRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        ResTextureReCreateParams* recreate_params = (ResTextureReCreateParams*)params.m_Message;
+        ResTextureReCreateParams* recreate_params = (ResTextureReCreateParams*)params->m_Message;
         dmGraphics::TextureImage* texture_image = 0x0;
 
         if (recreate_params)
@@ -399,19 +399,19 @@ namespace dmGameSystem
 
         if(!texture_image_raw)
         {
-            dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params.m_Buffer, params.m_BufferSize, (&texture_image));
+            dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params->m_Buffer, params->m_BufferSize, (&texture_image));
             if ( e != dmDDF::RESULT_OK )
             {
                 return dmResource::RESULT_FORMAT_ERROR;
             }
         }
-        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
-        TextureResource* texture_res = (TextureResource*) params.m_Resource->m_Resource;
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params->m_Context;
+        TextureResource* texture_res = (TextureResource*) dmResource::GetResource(params->m_Resource);
         dmGraphics::HTexture texture = texture_res->m_Texture;
 
         // Create the image from the DDF data.
         // Note that the image desc for performance reasons keeps references to the DDF image, meaning they're invalid after the DDF message has been free'd!
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params.m_Context, texture_image);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image);
 
         ResTextureUploadParams upload_params = {};
 
@@ -422,7 +422,7 @@ namespace dmGameSystem
 
         // Set up the new texture (version), wait for it to finish before issuing new requests
         SynchronizeTexture(texture, true);
-        dmResource::Result r = AcquireResources(params.m_Filename, params.m_Resource, graphics_context, image_desc, upload_params, texture, &texture);
+        dmResource::Result r = AcquireResources(params->m_Filename, graphics_context, image_desc, upload_params, texture, &texture);
 
         // Texture might have changed
         texture_res->m_Texture = texture;
@@ -438,7 +438,7 @@ namespace dmGameSystem
         }
         if(r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_ResourceSize = dmGraphics::GetTextureResourceSize(texture);
+            dmResource::SetResourceSize(params->m_Resource, dmGraphics::GetTextureResourceSize(texture));
         }
         return r;
     }

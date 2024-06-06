@@ -15,14 +15,14 @@
 #ifndef DM_GAMESYS_RES_COMPUTE_PROGRAM_H
 #define DM_GAMESYS_RES_COMPUTE_PROGRAM_H
 
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResComputeProgramCreate(const dmResource::ResourceCreateParams& params);
-    dmResource::Result ResComputeProgramDestroy(const dmResource::ResourceDestroyParams& params);
-    dmResource::Result ResComputeProgramRecreate(const dmResource::ResourceRecreateParams& params);
-    dmResource::Result ResComputeProgramPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResComputeProgramCreate(const dmResource::ResourceCreateParams* params);
+    dmResource::Result ResComputeProgramDestroy(const dmResource::ResourceDestroyParams* params);
+    dmResource::Result ResComputeProgramRecreate(const dmResource::ResourceRecreateParams* params);
+    dmResource::Result ResComputeProgramPreload(const dmResource::ResourcePreloadParams* params);
 }
 
 #endif // DM_GAMESYS_RES_COMPUTE_PROGRAM_H
