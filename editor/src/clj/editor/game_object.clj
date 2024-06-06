@@ -260,18 +260,29 @@
 
 ;; -----------------------------------------------------------------------------
 
+(defn- get-all-comp-exts [workspace]
+  (keep (fn [[ext {:keys [tags :as _resource-type]}]]
+          (when (or (contains? tags :component)
+                    (contains? tags :embeddable))
+            ext))
+        (workspace/get-resource-type-map workspace)))
+
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
 
   (property path g/Any
-            (dynamic edit-type (g/fnk [source-resource]
-                                      {:type resource/Resource
-                                       :ext (some-> source-resource resource/resource-type :ext)
-                                       :to-type (fn [v] (:resource v))
-                                       :from-type (fn [r] {:resource r :overrides []})}))
+            (dynamic edit-type (g/fnk [source-resource _node-id]
+                                 (let [resource-type (some-> source-resource resource/resource-type)
+                                       tags (:tags resource-type)]
+                                   {:type resource/Resource
+                                    :ext (or (and (or (contains? tags :component) (contains? tags :embeddable))
+                                                  (some-> resource-type :ext))
+                                             (get-all-comp-exts (project/workspace (project/get-project _node-id))))
+                                    :to-type (fn [v] (:resource v))
+                                    :from-type (fn [r] {:resource r :overrides []})})))
             (value (g/fnk [source-resource ddf-properties]
-                          {:resource source-resource
-                           :overrides ddf-properties}))
+                     {:resource source-resource
+                      :overrides ddf-properties}))
             (set (fn [evaluation-context self old-value new-value]
                    (concat
                      (when-some [old-source (g/node-value self :source-id evaluation-context)]
@@ -481,14 +492,9 @@
         (add-component go-id resource id game-object-common/identity-transform-properties [] select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
-  (let [component-exts (keep (fn [[ext {:keys [tags :as _resource-type]}]]
-                               (when (or (contains? tags :component)
-                                         (contains? tags :embeddable))
-                                 ext))
-                             (workspace/get-resource-type-map workspace))]
-    (when-let [resources (resource-dialog/make workspace project {:ext component-exts :title "Select Component File" :selection :multiple})]
-      (doseq [resource resources]
-        (add-referenced-component! go-id resource select-fn)))))
+  (when-let [resources (resource-dialog/make workspace project {:ext (get-all-comp-exts workspace) :title "Select Component File" :selection :multiple})]
+    (doseq [resource resources]
+      (add-referenced-component! go-id resource select-fn))))
 
 (defn- selection->game-object [selection]
   (g/override-root (handler/adapt-single selection GameObjectNode)))
