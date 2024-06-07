@@ -264,7 +264,11 @@
         (is (= 1.0 (test-util/prop sprite-outline :playback-rate)))
         (is (some? handler+context))
         (is (handler/enabled? handler+context))
-        (is (any? @(handler/run handler+context)))
+        (is (nil?
+              (try
+                @(handler/run handler+context)
+                nil
+                (catch Throwable e e))))
         (is (= [1.5 1.5 1.5] (test-util/prop sprite-outline :position)))
         (is (= 2.5 (test-util/prop sprite-outline :playback-rate)))))))
 

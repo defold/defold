@@ -96,7 +96,8 @@
   []
   (LuaVM. (Globals.) (ReentrantLock.)))
 
-(defn- invoke ^Varargs [vm ^LuaFunction lua-fn args]
+(defn- invoke
+  ^Varargs [vm ^LuaFunction lua-fn args]
   (with-lock vm (.invoke lua-fn (LuaValue/varargsOf (into-array LuaValue args)))))
 
 (defn invoke-1
@@ -139,12 +140,26 @@
   nil (->lua [_] LuaValue/NIL)
   Object (->lua [x] (LuaValue/userdataOf x))
   LuaValue (->lua [x] x)
-  Number (->lua [x] (LuaValue/valueOf (double x)))
-  Boolean (->lua [x] (LuaValue/valueOf x))
-  String (->lua [x] (LuaValue/valueOf x))
-  Named (->lua [x] (LuaValue/valueOf (.getName x)))
-  List (->lua [x] (LuaValue/listOf (into-array LuaValue (mapv ->lua x))))
-  Map (->lua [x] (LuaValue/tableOf (into-array LuaValue (into [] (comp cat (map ->lua)) x)))))
+  Number (->lua [x] (LuaDouble/valueOf (double x)))
+  Boolean (->lua [x] (LuaBoolean/valueOf x))
+  String (->lua [x] (LuaString/valueOf x))
+  Named (->lua [x] (LuaString/valueOf (.getName x)))
+  List (->lua [x]
+         (let [len (count x)
+               ret (LuaTable. len 0)]
+           (loop [i 0]
+             (when-not (= i len)
+               (let [v (x i)]
+                 (when (some? v)
+                   (.rawset ret (int (inc i)) ^LuaValue (->lua v))))
+               (recur (inc i))))
+           ret))
+  Map (->lua [x]
+        (reduce-kv
+          (fn [^LuaTable acc k v]
+            (cond-> acc (and (some? k) (some? v)) (doto (.hashset (->lua k) (->lua v)))))
+          (LuaTable. 0 (count x))
+          x)))
 
 (defn- lua-table->clj-map-or-vector [^LuaTable table vm]
   (loop [prev-k LuaValue/NIL

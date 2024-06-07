@@ -27,6 +27,8 @@
             [editor.workspace :as workspace])
   (:import [org.luaj.vm2 LuaError]))
 
+(set! *warn-on-reflection* true)
+
 (defmulti action->batched-executor+input (fn [action _project _evaluation-context]
                                            (:action action)))
 
