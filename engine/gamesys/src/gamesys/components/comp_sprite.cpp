@@ -409,7 +409,7 @@ namespace dmGameSystem
         return component->m_Resource->m_NumTextures;
     }
 
-    static inline TextureSetResource* GetTextureSet(const SpriteComponent* component, uint32_t index) {
+    static inline TextureSetResource* GetTextureSetByIndex(const SpriteComponent* component, uint32_t index) {
         const SpriteResourceOverrides* overrides = component->m_Overrides;
         const SpriteTexture* texture = 0;
         if (overrides && index < overrides->m_Textures.Size())
@@ -419,9 +419,31 @@ namespace dmGameSystem
         return texture ? texture->m_TextureSet : 0;
     }
 
+    static inline TextureSetResource* GetTextureSetByHash(const SpriteComponent* component, dmhash_t sampler_name_hash)
+    {
+        if (component->m_Overrides)
+        {
+            for (uint32_t i = 0; i < component->m_Overrides->m_Textures.Size(); ++i)
+            {
+                if (sampler_name_hash == component->m_Overrides->m_Textures[i].m_SamplerNameHash)
+                {
+                    return component->m_Overrides->m_Textures[i].m_TextureSet;
+                }
+            }
+        }
+        for (uint32_t i = 0; i < component->m_Resource->m_NumTextures; ++i)
+        {
+            if (sampler_name_hash == component->m_Resource->m_Textures[i].m_SamplerNameHash)
+            {
+                return component->m_Resource->m_Textures[i].m_TextureSet;
+            }
+        }
+        return 0;
+    }
+
     // Until we can set multiple play cursors, we'll use the first texture set as the driving animation
     static inline TextureSetResource* GetFirstTextureSet(const SpriteComponent* component) {
-        return GetTextureSet(component, 0);
+        return GetTextureSetByIndex(component, 0);
     }
 
     TextureResource* GetTextureResource(const SpriteComponent* component, uint32_t texture_unit)
@@ -1066,7 +1088,7 @@ namespace dmGameSystem
         textures.m_NumTextures = GetNumTextures(first);
         for (uint32_t i = 0; i < textures.m_NumTextures; ++i)
         {
-            textures.m_Resources[i] = GetTextureSet(first, i);
+            textures.m_Resources[i] = GetTextureSetByIndex(first, i);
             textures.m_TextureSets[i] = textures.m_Resources[i]->m_TextureSet;
         }
 
@@ -1599,7 +1621,7 @@ namespace dmGameSystem
 
             for (uint32_t i = 0; i < textures.m_NumTextures; ++i)
             {
-                textures.m_Resources[i] = GetTextureSet(component, i);
+                textures.m_Resources[i] = GetTextureSetByIndex(component, i);
                 textures.m_TextureSets[i] = textures.m_Resources[i]->m_TextureSet;
             }
 
@@ -1986,9 +2008,21 @@ namespace dmGameSystem
         }
         else if (get_property == PROP_IMAGE)
         {
-            TextureSetResource* texture_set = GetFirstTextureSet(component);
+            TextureSetResource* texture_set = 0;
+
+            if (params.m_Options.m_HasKey)
+            {
+                out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
+                texture_set = GetTextureSetByHash(component, params.m_Options.m_Key);
+            }
             if (!texture_set)
+            {
+                texture_set = GetFirstTextureSet(component);
+            }
+            if (!texture_set)
+            {
                 return dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND;
+            }
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), texture_set, out_value);
         }
         else if (get_property == PROP_TEXTURE[0])
