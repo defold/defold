@@ -82,7 +82,7 @@
     :fragment-program (resource/resource->proj-path fragment-program)
     :vertex-constants (render-program-utils/hack-upgrade-constants vertex-constants)
     :fragment-constants (render-program-utils/hack-upgrade-constants fragment-constants)
-    :samplers (mapv #(protobuf/clear-defaults Material$MaterialDesc$Sampler %) samplers)
+    :samplers (render-program-utils/editable-samplers->samplers samplers)
     :tags tags
     :vertex-space vertex-space
     :max-page-count max-page-count))
@@ -386,15 +386,7 @@
     :filter-min :filter-mode-min-linear
     :filter-mag :filter-mode-mag-linear))
 
-(def ^:private editable-sampler-optional-field-defaults
-  (-> Material$MaterialDesc$Sampler
-      (protobuf/default-message #{:optional})
-      (dissoc :name-hash :texture))) ; TODO: Support assigning a default :texture for each sampler in the material.
-
-(defn- sampler->editable-sampler [sampler]
-  (merge editable-sampler-optional-field-defaults sampler))
-
-(def ^:private default-editable-sampler (sampler->editable-sampler default-pb-sampler))
+(def ^:private default-editable-sampler (render-program-utils/sampler->editable-sampler default-pb-sampler))
 
 (defn sampler->tex-params
   ([sampler]
@@ -507,8 +499,7 @@
 (defn load-material [_project self resource material-desc]
   {:pre [(map? material-desc)]} ; Material$MaterialDesc in map format.
   (let [resolve-resource #(workspace/resolve-resource resource %)
-        attributes->editable-attributes #(mapv attribute->editable-attribute %)
-        samplers->editable-samplers #(mapv sampler->editable-sampler %)]
+        attributes->editable-attributes #(mapv attribute->editable-attribute %)]
     (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
       vertex-program (resolve-resource :vertex-program)
       fragment-program (resolve-resource :fragment-program)
@@ -516,7 +507,7 @@
       fragment-constants (render-program-utils/hack-downgrade-constants :fragment-constants)
       attributes (attributes->editable-attributes :attributes)
       name :name
-      samplers (samplers->editable-samplers :samplers)
+      samplers (render-program-utils/samplers->editable-samplers :samplers)
       tags :tags
       vertex-space :vertex-space
       max-page-count :max-page-count)))
