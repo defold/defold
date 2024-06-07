@@ -1078,8 +1078,6 @@ TEST_F(SpriteTest, GoDeletion)
 // Test that animation done event reaches either callback or onmessage
 TEST_F(SpriteTest, FlipbookAnim)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     // Spawn one go with a script that will initiate animations on the above sprites
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_flipbook_anim.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -1104,8 +1102,6 @@ TEST_F(SpriteTest, FlipbookAnim)
 
 TEST_F(SpriteTest, FrameCount)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
@@ -1116,13 +1112,28 @@ TEST_F(SpriteTest, FrameCount)
 
 TEST_F(SpriteTest, GetSetSliceProperty)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_slice9.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, GetSetImagesByHash)
+{
+    void* atlas=0;
+    dmResource::Result res = dmResource::Get(m_Factory, "/atlas/valid_64x64.t.texturesetc", &atlas);
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/image/get_set_image_by_hash.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmResource::Release(m_Factory, atlas);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1289,8 +1300,6 @@ TEST_P(CursorTest, Cursor)
 TEST_F(GuiTest, TextureResources)
 {
     dmhash_t go_id = dmHashString64("/go");
-    dmhash_t gui_comp_id = dmHashString64("gui");
-
     dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
 
     dmGameSystem::TextureSetResource* valid_atlas = 0;

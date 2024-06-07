@@ -453,7 +453,7 @@ namespace dmGraphics
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
                 {
                     uint32_t unit = num_texcoords++;
-                    if (unit >= num_textures)
+                    if (unit >= num_textures || !uvs[unit])
                         unit = 0;
                     memcpy(write_ptr, uvs[unit] + vertex_index * 2, info.m_ValueByteSize);
                 } break;
