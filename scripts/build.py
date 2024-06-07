@@ -738,17 +738,20 @@ class Configuration(object):
             basedir = self.dynamo_home
             topfolder = 'defoldsdk'
 
+            def is_header(path):
+                return file.endswith('.h') or file.endswith('.hpp')
+
             # Includes
             includes = []
             for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "sdk/include")):
                 for file in files:
-                    if file.endswith('.h'):
+                    if is_header(file):
                         includes.append(os.path.join(root, file))
 
             # proto _ddf.h + "res_*.h"
             for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "include")):
                 for file in files:
-                    if file.endswith('.h') and ('ddf' in file or file.startswith('res_')):
+                    if is_header(file) and ('ddf' in file or file.startswith('res_')):
                         includes.append(os.path.join(root, file))
 
             self._add_files_to_zip(zip, includes, basedir, topfolder)
@@ -780,17 +783,20 @@ class Configuration(object):
             topfolder = 'defoldsdk'
             defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
 
+            def is_header(path):
+                return file.endswith('.h') or file.endswith('.hpp')
+
             # Includes
             includes = []
             for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "sdk/include")):
                 for file in files:
-                    if file.endswith('.h'):
+                    if is_header(file):
                         includes.append(os.path.join(root, file))
 
             # proto _ddf.h + "res_*.h"
             for root, dirs, files in os.walk(os.path.join(self.dynamo_home, "include")):
                 for file in files:
-                    if file.endswith('.h') and ('ddf' in file or file.startswith('res_')):
+                    if is_header(file) and ('ddf' in file or file.startswith('res_')):
                         includes.append(os.path.join(root, file))
 
             self._add_files_to_zip(zip, includes, self.dynamo_home, topfolder)
@@ -1153,6 +1159,26 @@ class Configuration(object):
             platforms.append(self.host)
 
         return platforms
+
+# ------------------------------------------------------------
+# Gen source files ->
+
+    def _gen_sdk_source_lib(self, libname, args, cwd, info):
+        self._log('Generating source for %s' % libname)
+        libargs = args + ['-i', info]
+        run.env_command(self._form_env(), libargs, cwd = cwd)
+
+    def gen_sdk_source(self):
+        print("Generating source!")
+        cmd = self.get_python() + [os.path.normpath(join(self.defold_root, './scripts/dmsdk/gen_sdk.py'))]
+        for lib in ENGINE_LIBS:
+            cwd = 'engine/%s' % lib
+            info = join(self.defold_root, 'engine/%s/sdk_gen.json' % lib)
+            if os.path.exists(info):
+                self._gen_sdk_source_lib(lib, cmd, join(self.defold_root, cwd), info)
+
+# <- Gen source files
+# ------------------------------------------------------------
 
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
         prefix = prefix and prefix or self.dynamo_home
@@ -2312,6 +2338,7 @@ release          - Release editor
 shell            - Start development shell
 smoke_test       - Test editor and engine in combination
 local_smoke      - Test run smoke test using local dev environment
+gen_sdk_source   - Regenerate the dmSDK bindings from our C sdk
 
 Multiple commands can be specified
 

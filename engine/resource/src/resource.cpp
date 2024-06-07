@@ -46,6 +46,7 @@
 #include "resource_private.h"
 #include "resource_util.h"
 #include <resource/resource_ddf.h>
+#include <dmsdk/resource/resource.hpp>
 
 #include "providers/provider.h"         // dmResourceProviderArchive::Result
 #include "providers/provider_archive.h" // dmResourceProviderArchive::LoadManifest
@@ -64,37 +65,26 @@
 
 DM_PROPERTY_U32(rmtp_Resource, 0, FrameReset, "# resources");
 
-namespace dmResource
-{
-const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
-
-#define RESOURCE_SOCKET_NAME "@resource"
-
-const char* BUNDLE_MANIFEST_FILENAME            = "game.dmanifest";
-const char* BUNDLE_INDEX_FILENAME               = "game.arci";
-const char* BUNDLE_DATA_FILENAME                = "game.arcd";
-const char* BUNDLE_PUBLIC_KEY_FILENAME          = "game.public.der";
-
-
-const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
 struct ResourceReloadedCallbackPair
 {
-    ResourceReloadedCallback    m_Callback;
+    FResourceReloadedCallback   m_Callback;
     void*                       m_UserData;
 };
 
-struct SResourceFactory
+const uint32_t MAX_RESOURCE_TYPES = 128;
+
+struct ResourceFactory
 {
     // TODO: Arg... budget. Two hash-maps. Really necessary?
-    dmHashTable64<SResourceDescriptor>*          m_Resources;
+    dmHashTable64<ResourceDescriptor>*          m_Resources;
     dmHashTable<uintptr_t, uint64_t>*            m_ResourceToHash;
     // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
     // Used for reloading of resources
     dmHashTable64<const char*>*                  m_ResourceHashToFilename;
     // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
     dmArray<ResourceReloadedCallbackPair>*       m_ResourceReloadedCallbacks;
-    SResourceType                                m_ResourceTypes[MAX_RESOURCE_TYPES];
+    ResourceType                                 m_ResourceTypes[MAX_RESOURCE_TYPES];
     uint32_t                                     m_ResourceTypesCount;
 
     // Guard for anything that touches anything that could be shared
@@ -124,7 +114,23 @@ struct SResourceFactory
     uint16_t                                     m_Version;
 };
 
-static inline uint16_t IncreaseVersion(HFactory factory)
+
+namespace dmResource
+{
+const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
+
+#define RESOURCE_SOCKET_NAME "@resource"
+
+const char* BUNDLE_MANIFEST_FILENAME            = "game.dmanifest";
+const char* BUNDLE_INDEX_FILENAME               = "game.arci";
+const char* BUNDLE_DATA_FILENAME                = "game.arcd";
+const char* BUNDLE_PUBLIC_KEY_FILENAME          = "game.public.der";
+
+
+const char* MAX_RESOURCES_KEY = "resource.max_resources";
+
+
+static inline uint16_t IncreaseVersion(HResourceFactory factory)
 {
     uint16_t next_version = factory->m_Version++;
     if (next_version == RESOURCE_VERSION_INVALID)
@@ -132,19 +138,6 @@ static inline uint16_t IncreaseVersion(HFactory factory)
         return ++factory->m_Version;
     }
     return next_version;
-}
-
-SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
-{
-    for (uint32_t i = 0; i < factory->m_ResourceTypesCount; ++i)
-    {
-        SResourceType* rt = &factory->m_ResourceTypes[i];
-        if (strcmp(extension, rt->m_Extension) == 0)
-        {
-            return rt;
-        }
-    }
-    return 0;
 }
 
 Result CheckSuppliedResourcePath(const char* name)
@@ -216,7 +209,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         return 0;
     }
 
-    SResourceFactory* factory = new SResourceFactory;
+    ResourceFactory* factory = new ResourceFactory;
     memset(factory, 0, sizeof(*factory));
     factory->m_Socket = socket;
 
@@ -335,7 +328,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     factory->m_ResourceTypesCount = 0;
 
     const uint32_t table_size = dmMath::Max(1u, (3 * params->m_MaxResources) / 4);
-    factory->m_Resources = new dmHashTable64<SResourceDescriptor>();
+    factory->m_Resources = new dmHashTable64<ResourceDescriptor>();
     factory->m_Resources->SetCapacity(table_size, params->m_MaxResources);
 
     factory->m_ResourceToHash = new dmHashTable<uintptr_t, uint64_t>();
@@ -365,7 +358,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     return factory;
 }
 
-static void ResourceIteratorCallback(void*, const dmhash_t* id, SResourceDescriptor* resource)
+static void ResourceIteratorCallback(void*, const dmhash_t* id, ResourceDescriptor* resource)
 {
     dmLogError("Resource: %s  ref count: %u", dmHashReverseSafe64(*id), resource->m_ReferenceCount);
 }
@@ -419,7 +412,7 @@ static void Dispatch(dmMessage::Message* message, void* user_ptr)
             for (uint32_t i = 0; i < count; ++i)
             {
                 const char* resource = (const char *) (uintptr_t)reload_resources + *(str_offset_cursor + i * sizeof(uint64_t));
-                SResourceDescriptor* resource_descriptor;
+                ResourceDescriptor* resource_descriptor;
                 ReloadResource(factory, resource, &resource_descriptor);
             }
         }
@@ -441,6 +434,75 @@ void UpdateFactory(HFactory factory)
     DM_PROPERTY_ADD_U32(rmtp_Resource, factory->m_Resources->Size());
 }
 
+HResourceType AllocateResourceType(HFactory factory, const char* extension)
+{
+    if (factory->m_ResourceTypesCount == MAX_RESOURCE_TYPES)
+    {
+        dmLogError("Cannot allocate a new resource type!");
+        return 0;
+    }
+
+    // Dots not allowed in extension
+    if (strrchr(extension, '.') != 0)
+    {
+        dmLogError("No '.' is allowed for the resource type '%s'", extension);
+        return 0;
+    }
+
+    // Note, we don't increase the counter it at this point
+    HResourceType type = &factory->m_ResourceTypes[factory->m_ResourceTypesCount++];
+    memset(type, 0, sizeof(ResourceType));
+    type->m_Index = factory->m_ResourceTypesCount - 1;
+    return type;
+}
+
+void FreeResourceType(HFactory factory, HResourceType type)
+{
+    // Make sure we're removing the same one as we were creating
+    assert(type == &factory->m_ResourceTypes[factory->m_ResourceTypesCount-1]);
+    // We know it's the last one
+    --factory->m_ResourceTypesCount;
+}
+
+Result ValidateResourceType(HResourceType type)
+{
+    // Dots not allowed in extension
+    if (strrchr(type->m_Extension, '.') != 0)
+    {
+        dmLogError("No '.' is allowed for the resource type '%s'", type->m_Extension);
+        return RESULT_INVAL;
+    }
+
+    if (type->m_CreateFunction == 0 || type->m_DestroyFunction == 0)
+    {
+        dmLogError("Missing create or destroy function for resource type '%s'", type->m_Extension);
+        return RESULT_INVAL;
+    }
+
+    return RESULT_OK;
+}
+
+HResourceType FindResourceTypeByHash(HResourceFactory factory, dmhash_t extension_hash)
+{
+    for (uint32_t i = 0; i < factory->m_ResourceTypesCount; ++i)
+    {
+        HResourceType rt = &factory->m_ResourceTypes[i];
+        if (extension_hash == rt->m_ExtensionHash)
+        {
+            return rt;
+        }
+    }
+    return 0;
+}
+
+HResourceType FindResourceType(HResourceFactory factory, const char* extension)
+{
+    return FindResourceTypeByHash(factory, dmHashString64(extension));
+}
+
+
+
+
 Result RegisterType(HFactory factory,
                            const char* extension,
                            void* context,
@@ -450,32 +512,54 @@ Result RegisterType(HFactory factory,
                            FResourceDestroy destroy_function,
                            FResourceRecreate recreate_function)
 {
-    if (factory->m_ResourceTypesCount == MAX_RESOURCE_TYPES)
-        return RESULT_OUT_OF_RESOURCES;
-
-    // Dots not allowed in extension
-    if (strrchr(extension, '.') != 0)
-        return RESULT_INVAL;
-
-    if (create_function == 0 || destroy_function == 0)
-        return RESULT_INVAL;
-
-    if (FindResourceType(factory, extension) != 0)
+    HResourceType type = FindResourceType(factory, extension);
+    if (type != 0)
+    {
+        dmLogError("Resource type %s already registered!", extension);
         return RESULT_ALREADY_REGISTERED;
+    }
 
-    SResourceType resource_type;
-    resource_type.m_ExtensionHash = dmHashString64(extension);
-    resource_type.m_Extension = extension;
-    resource_type.m_Context = context;
-    resource_type.m_PreloadFunction = preload_function;
-    resource_type.m_CreateFunction = create_function;
-    resource_type.m_PostCreateFunction = post_create_function;
-    resource_type.m_DestroyFunction = destroy_function;
-    resource_type.m_RecreateFunction = recreate_function;
+    type = AllocateResourceType(factory, extension);
+    if (!type)
+    {
+        return RESULT_INVAL;
+    }
 
-    factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
+    type->m_ExtensionHash = dmHashString64(extension);
+    type->m_Extension = extension;
+    type->m_Context = context;
+    type->m_PreloadFunction = (::FResourcePreload)preload_function;
+    type->m_CreateFunction = (::FResourceCreate)create_function;
+    type->m_PostCreateFunction = (::FResourcePostCreate)post_create_function;
+    type->m_DestroyFunction = (::FResourceDestroy)destroy_function;
+    type->m_RecreateFunction = (::FResourceRecreate)recreate_function;
 
-    return RESULT_OK;
+    Result result = ValidateResourceType(type);
+    if (result != RESULT_OK)
+    {
+        FreeResourceType(factory, type);
+    }
+
+    return result;
+}
+
+Result SetupType(HResourceTypeContext ctx,
+                 HResourceType type,
+                 void* context,
+                 FResourcePreload preload_function,
+                 FResourceCreate create_function,
+                 FResourcePostCreate post_create_function,
+                 FResourceDestroy destroy_function,
+                 FResourceRecreate recreate_function)
+{
+    type->m_Context = context;
+    type->m_PreloadFunction = (::FResourcePreload)preload_function;
+    type->m_CreateFunction = (::FResourceCreate)create_function;
+    type->m_PostCreateFunction = (::FResourcePostCreate)post_create_function;
+    type->m_DestroyFunction = (::FResourceDestroy)destroy_function;
+    type->m_RecreateFunction = (::FResourceRecreate)recreate_function;
+
+    return ValidateResourceType(type);
 }
 
 struct SResourceDependencyCallback
@@ -586,15 +670,15 @@ const char* GetExtFromPath(const char* path)
 }
 
 // Assumes m_LoadMutex is already held
-static Result DoCreateResource(HFactory factory, SResourceType* resource_type, const char* name, const char* canonical_path,
+static Result DoCreateResource(HFactory factory, ResourceType* resource_type, const char* name, const char* canonical_path,
     dmhash_t canonical_path_hash, void* buffer, uint32_t buffer_size, void** resource_out)
 {
     // TODO: We should *NOT* allocate SResource dynamically...
-    SResourceDescriptor tmp_resource;
+    ResourceDescriptor tmp_resource;
     memset(&tmp_resource, 0, sizeof(tmp_resource));
     tmp_resource.m_NameHash       = canonical_path_hash;
     tmp_resource.m_ReferenceCount = 1;
-    tmp_resource.m_ResourceType   = (void*) resource_type;
+    tmp_resource.m_ResourceType   = resource_type;
 
     void *preload_data = 0;
     Result create_error = RESULT_OK;
@@ -603,13 +687,14 @@ static Result DoCreateResource(HFactory factory, SResourceType* resource_type, c
     {
         ResourcePreloadParams params;
         params.m_Factory     = factory;
+        params.m_Type        = resource_type;
         params.m_Context     = resource_type->m_Context;
         params.m_Buffer      = buffer;
         params.m_BufferSize  = buffer_size;
         params.m_PreloadData = &preload_data;
         params.m_Filename    = name;
         params.m_HintInfo    = 0; // No hinting now
-        create_error         = resource_type->m_PreloadFunction(params);
+        create_error         = (Result)resource_type->m_PreloadFunction(&params);
     }
 
     if (create_error == RESULT_OK)
@@ -619,25 +704,27 @@ static Result DoCreateResource(HFactory factory, SResourceType* resource_type, c
 
         ResourceCreateParams params;
         params.m_Factory     = factory;
+        params.m_Type        = resource_type;
         params.m_Context     = resource_type->m_Context;
         params.m_Buffer      = buffer;
         params.m_BufferSize  = buffer_size;
         params.m_PreloadData = preload_data;
         params.m_Resource    = &tmp_resource;
         params.m_Filename    = name;
-        create_error         = resource_type->m_CreateFunction(params);
+        create_error         = (Result)resource_type->m_CreateFunction(&params);
     }
 
     if (create_error == RESULT_OK && resource_type->m_PostCreateFunction)
     {
         ResourcePostCreateParams params;
         params.m_Factory     = factory;
+        params.m_Type        = resource_type;
         params.m_Context     = resource_type->m_Context;
         params.m_PreloadData = preload_data;
         params.m_Resource    = &tmp_resource;
         for(;;)
         {
-            create_error = resource_type->m_PostCreateFunction(params);
+            create_error = (Result)resource_type->m_PostCreateFunction(&params);
             if(create_error != RESULT_PENDING)
                 break;
             dmTime::Sleep(1000);
@@ -662,9 +749,10 @@ static Result DoCreateResource(HFactory factory, SResourceType* resource_type, c
         {
             ResourceDestroyParams params;
             params.m_Factory  = factory;
+            params.m_Type     = resource_type;
             params.m_Context  = resource_type->m_Context;
             params.m_Resource = &tmp_resource;
-            resource_type->m_DestroyFunction(params);
+            resource_type->m_DestroyFunction(&params);
             return insert_error;
         }
     }
@@ -676,12 +764,12 @@ static Result DoCreateResource(HFactory factory, SResourceType* resource_type, c
 }
 
 // Assumes m_LoadMutex is already held
-static Result PrepareResourceCreation(HFactory factory, const char* canonical_path, dmhash_t canonical_path_hash, void** resource_out, SResourceType** resource_type_out)
+static Result PrepareResourceCreation(HFactory factory, const char* canonical_path, dmhash_t canonical_path_hash, void** resource_out, HResourceType* resource_type_out)
 {
     *resource_out = 0;
 
     // Try to get from already loaded resources
-    SResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
+    ResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
     if (rd)
     {
         assert(factory->m_ResourceToHash->Get((uintptr_t) rd->m_Resource));
@@ -707,7 +795,7 @@ static Result PrepareResourceCreation(HFactory factory, const char* canonical_pa
     // skip over '.'
     ext++;
 
-    SResourceType* resource_type = FindResourceType(factory, ext);
+    ResourceType* resource_type = FindResourceType(factory, ext);
     if (resource_type == 0)
     {
         dmLogError("Unknown resource type: %s", ext);
@@ -731,7 +819,7 @@ static Result CreateAndLoadResource(HFactory factory, const char* name, void** r
     GetCanonicalPath(name, canonical_path);
     dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
-    SResourceType* resource_type;
+    ResourceType* resource_type;
     Result res = PrepareResourceCreation(factory, canonical_path, canonical_path_hash, resource, &resource_type);
     if (res != RESULT_OK)
     {
@@ -768,7 +856,7 @@ Result CreateResource(HFactory factory, const char* name, void* data, uint32_t d
     GetCanonicalPath(name, canonical_path);
     dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
-    SResourceType* resource_type;
+    ResourceType* resource_type;
     Result res = PrepareResourceCreation(factory, canonical_path, canonical_path_hash, resource, &resource_type);
 
     if (res != RESULT_OK)
@@ -832,9 +920,14 @@ Result Get(HFactory factory, const char* name, void** resource)
     return r;
 }
 
+ResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash)
+{
+    return factory->m_Resources->Get(canonical_path_hash);
+}
+
 Result Get(HFactory factory, dmhash_t name, void** resource)
 {
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, name);
+    ResourceDescriptor* rd = FindByHash(factory, name);
     if (!rd)
     {
         return RESULT_RESOURCE_NOT_FOUND;
@@ -844,12 +937,7 @@ Result Get(HFactory factory, dmhash_t name, void** resource)
     return RESULT_OK;
 }
 
-SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash)
-{
-    return factory->m_Resources->Get(canonical_path_hash);
-}
-
-Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, SResourceDescriptor* descriptor)
+Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, ResourceDescriptor* descriptor)
 {
     if (factory->m_Resources->Full())
     {
@@ -907,14 +995,14 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     return result;
 }
 
-static Result DoReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
+static Result DoReloadResource(HFactory factory, const char* name, HResourceDescriptor* out_descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path);
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
+    ResourceDescriptor* rd = factory->m_Resources->Get(canonical_path_hash);
 
     if (out_descriptor)
         *out_descriptor = rd;
@@ -922,7 +1010,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     if (rd == 0x0)
         return RESULT_RESOURCE_NOT_FOUND;
 
-    SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+    ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
     if (!resource_type->m_RecreateFunction)
         return RESULT_NOT_SUPPORTED;
 
@@ -937,15 +1025,16 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     assert(buffer == factory->m_Buffer.Begin());
 
     ResourceRecreateParams params;
-    params.m_Factory = factory;
-    params.m_Context = resource_type->m_Context;
-    params.m_Message = 0;
-    params.m_Buffer = buffer;
+    params.m_Factory    = factory;
+    params.m_Type       = resource_type;
+    params.m_Context    = resource_type->m_Context;
+    params.m_Message    = 0;
+    params.m_Buffer     = buffer;
     params.m_BufferSize = buffer_size;
-    params.m_Resource = rd;
-    params.m_Filename = name;
-    rd->m_PrevResource = 0;
-    Result create_result = resource_type->m_RecreateFunction(params);
+    params.m_Resource   = rd;
+    params.m_Filename   = name;
+    rd->m_PrevResource  = 0;
+    Result create_result = (Result)resource_type->m_RecreateFunction(&params);
     if (create_result == RESULT_OK)
     {
         rd->m_Version = IncreaseVersion(factory);
@@ -958,18 +1047,21 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
                 ResourceReloadedParams reload_params;
                 reload_params.m_UserData = pair.m_UserData;
                 reload_params.m_Resource = rd;
-                reload_params.m_Name = name;
-                pair.m_Callback(reload_params);
+                reload_params.m_Filename = name;
+                reload_params.m_FilenameHash = canonical_path_hash;
+                reload_params.m_Type     = resource_type;
+                pair.m_Callback(&reload_params);
             }
         }
         if (rd->m_PrevResource) {
-            SResourceDescriptor tmp_resource = *rd;
+            ResourceDescriptor tmp_resource = *rd;
             tmp_resource.m_Resource = rd->m_PrevResource;
             ResourceDestroyParams params;
-            params.m_Factory = factory;
-            params.m_Context = resource_type->m_Context;
-            params.m_Resource = &tmp_resource;
-            dmResource::Result res = resource_type->m_DestroyFunction(params);
+            params.m_Factory    = factory;
+            params.m_Type       = resource_type;
+            params.m_Context    = resource_type->m_Context;
+            params.m_Resource   = &tmp_resource;
+            Result res = (Result)resource_type->m_DestroyFunction(&params);
             rd->m_PrevResource = 0x0;
             return res;
         }
@@ -981,7 +1073,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     }
 }
 
-Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
+Result ReloadResource(HFactory factory, const char* name, HResourceDescriptor* out_descriptor)
 {
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
 
@@ -1003,7 +1095,7 @@ Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** 
             dmLogError("%s could not be reloaded since it was never loaded before.", name);
             break;
         case RESULT_NOT_SUPPORTED:
-            dmLogWarning("Reloading of resource type %s not supported.", ((SResourceType*)(*out_descriptor)->m_ResourceType)->m_Extension);
+            dmLogWarning("Reloading of resource type %s not supported.", ((ResourceType*)((*out_descriptor)->m_ResourceType))->m_Extension);
             break;
         default:
             dmLogWarning("%s could not be reloaded, unknown error: %d.", name, result);
@@ -1021,12 +1113,12 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
 
     assert(data);
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
+    ResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
     if (!rd) {
         return RESULT_RESOURCE_NOT_FOUND;
     }
 
-    SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+    ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
     if (!resource_type->m_RecreateFunction)
         return RESULT_NOT_SUPPORTED;
 
@@ -1035,14 +1127,15 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
 
     ResourceRecreateParams params;
     params.m_Factory = factory;
+    params.m_Type    = resource_type;
     params.m_Context = resource_type->m_Context;
     params.m_Message = 0;
-    params.m_Buffer = data;
+    params.m_Buffer  = data;
     params.m_BufferSize = datasize;
     params.m_Resource = rd;
     params.m_Filename = 0;
-    params.m_NameHash = hashed_name;
-    Result create_result = resource_type->m_RecreateFunction(params);
+    params.m_FilenameHash = hashed_name;
+    Result create_result = (Result)resource_type->m_RecreateFunction(&params);
     if (create_result == RESULT_OK)
     {
         if (factory->m_ResourceReloadedCallbacks)
@@ -1053,9 +1146,10 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
                 ResourceReloadedParams params;
                 params.m_UserData = pair.m_UserData;
                 params.m_Resource = rd;
-                params.m_Name = 0;
-                params.m_NameHash = hashed_name;
-                pair.m_Callback(params);
+                params.m_Type     = resource_type;
+                params.m_Filename = 0;
+                params.m_FilenameHash = hashed_name;
+                pair.m_Callback(&params);
             }
         }
         return RESULT_OK;
@@ -1076,25 +1170,26 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
 
     assert(message);
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
+    ResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
     if (!rd) {
         return RESULT_RESOURCE_NOT_FOUND;
     }
 
-    SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+    ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
     if (!resource_type->m_RecreateFunction)
         return RESULT_NOT_SUPPORTED;
 
     ResourceRecreateParams params;
     params.m_Factory = factory;
+    params.m_Type    = resource_type;
     params.m_Context = resource_type->m_Context;
     params.m_Message = message;
     params.m_Buffer = 0;
     params.m_BufferSize = 0;
     params.m_Resource = rd;
     params.m_Filename = 0;
-    params.m_NameHash = hashed_name;
-    Result create_result = resource_type->m_RecreateFunction(params);
+    params.m_FilenameHash = hashed_name;
+    Result create_result = (Result)resource_type->m_RecreateFunction(&params);
     if (create_result == RESULT_OK)
     {
         if (factory->m_ResourceReloadedCallbacks)
@@ -1105,9 +1200,9 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
                 ResourceReloadedParams params;
                 params.m_UserData = pair.m_UserData;
                 params.m_Resource = rd;
-                params.m_Name = 0;
-                params.m_NameHash = hashed_name;
-                pair.m_Callback(params);
+                params.m_Filename = 0;
+                params.m_FilenameHash = hashed_name;
+                pair.m_Callback(&params);
             }
         }
         return RESULT_OK;
@@ -1120,7 +1215,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
     return RESULT_OK;
 }
 
-Result GetType(HFactory factory, void* resource, ResourceType* type)
+Result GetType(HFactory factory, void* resource, HResourceType* type)
 {
     assert(type);
 
@@ -1130,22 +1225,22 @@ Result GetType(HFactory factory, void* resource, ResourceType* type)
         return RESULT_NOT_LOADED;
     }
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    ResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
     assert(rd);
     assert(rd->m_ReferenceCount > 0);
-    *type = (ResourceType) rd->m_ResourceType;
+    *type = rd->m_ResourceType;
 
     return RESULT_OK;
 }
 
-Result GetTypeFromExtension(HFactory factory, const char* extension, ResourceType* type)
+Result GetTypeFromExtensionHash(HFactory factory, dmhash_t extension_hash, HResourceType* type)
 {
     assert(type);
 
-    SResourceType* resource_type = FindResourceType(factory, extension);
+    ResourceType* resource_type = FindResourceTypeByHash(factory, extension_hash);
     if (resource_type)
     {
-        *type = (ResourceType) resource_type;
+        *type = resource_type;
         return RESULT_OK;
     }
     else
@@ -1154,13 +1249,18 @@ Result GetTypeFromExtension(HFactory factory, const char* extension, ResourceTyp
     }
 }
 
-Result GetExtensionFromType(HFactory factory, ResourceType type, const char** extension)
+Result GetTypeFromExtension(HFactory factory, const char* extension, HResourceType* type)
+{
+    return GetTypeFromExtensionHash(factory, dmHashString64(extension), type);
+}
+
+Result GetExtensionFromType(HFactory factory, HResourceType type, const char** extension)
 {
     for (uint32_t i = 0; i < factory->m_ResourceTypesCount; ++i)
     {
-        SResourceType* rt = &factory->m_ResourceTypes[i];
+        ResourceType* rt = &factory->m_ResourceTypes[i];
 
-        if (((uintptr_t) rt) == type)
+        if (rt == type)
         {
             *extension = rt->m_Extension;
             return RESULT_OK;
@@ -1171,17 +1271,17 @@ Result GetExtensionFromType(HFactory factory, ResourceType type, const char** ex
     return RESULT_UNKNOWN_RESOURCE_TYPE;
 }
 
-Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor)
+Result GetDescriptor(HFactory factory, const char* name, HResourceDescriptor* descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path);
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
-    SResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(canonical_path_hash);
+    ResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(canonical_path_hash);
     if (tmp_descriptor)
     {
-        *descriptor = *tmp_descriptor;
+        *descriptor = tmp_descriptor;
         return RESULT_OK;
     }
     else
@@ -1190,14 +1290,14 @@ Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* de
     }
 }
 
-Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor)
+Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, HResourceDescriptor* descriptor)
 {
-    SResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(hashed_name);
+    ResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(hashed_name);
     if (!tmp_descriptor) {
         return RESULT_NOT_LOADED;
     }
 
-    SResourceType* type = (SResourceType*) tmp_descriptor->m_ResourceType;
+    ResourceType* type = (ResourceType*) tmp_descriptor->m_ResourceType;
     bool ext_match = ext_count == 0;
     if (!ext_match) {
         for (uint32_t i = 0; i < ext_count; ++i) {
@@ -1208,11 +1308,19 @@ Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64
         }
     }
     if (ext_match) {
-        *descriptor = *tmp_descriptor;
+        *descriptor = tmp_descriptor;
         return RESULT_OK;
     } else {
         return RESULT_INVALID_FILE_EXTENSION;
     }
+}
+
+void IncRef(HFactory factory, HResourceDescriptor rd)
+{
+    (void)factory;
+    assert(rd);
+    assert(rd->m_ReferenceCount > 0);
+    ++rd->m_ReferenceCount;
 }
 
 void IncRef(HFactory factory, void* resource)
@@ -1220,10 +1328,8 @@ void IncRef(HFactory factory, void* resource)
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     assert(resource_hash);
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
-    assert(rd);
-    assert(rd->m_ReferenceCount > 0);
-    ++rd->m_ReferenceCount;
+    ResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    IncRef(factory, rd);
 }
 
 uint16_t GetVersion(HFactory factory, void* resource)
@@ -1231,7 +1337,7 @@ uint16_t GetVersion(HFactory factory, void* resource)
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     assert(resource_hash);
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    ResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
     assert(rd);
     return rd->m_Version;
 }
@@ -1242,14 +1348,14 @@ uint32_t GetRefCount(HFactory factory, void* resource)
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     if(!resource_hash)
         return 0;
-    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    ResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
     assert(rd);
     return rd->m_ReferenceCount;
 }
 
 uint32_t GetRefCount(HFactory factory, dmhash_t identifier)
 {
-    SResourceDescriptor* rd = factory->m_Resources->Get(identifier);
+    ResourceDescriptor* rd = factory->m_Resources->Get(identifier);
     if(!rd)
         return 0;
     return rd->m_ReferenceCount;
@@ -1262,22 +1368,23 @@ void Release(HFactory factory, void* resource)
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
     assert(resource_hash);
 
-    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    ResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
     assert(rd);
     assert(rd->m_ReferenceCount > 0);
     rd->m_ReferenceCount--;
 
     if (rd->m_ReferenceCount == 0)
     {
-        SResourceType* resource_type = (SResourceType*) rd->m_ResourceType;
+        ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
 
         DM_PROFILE_DYN(resource_type->m_Extension, 0);
 
         ResourceDestroyParams params;
-        params.m_Factory = factory;
-        params.m_Context = resource_type->m_Context;
-        params.m_Resource = rd;
-        resource_type->m_DestroyFunction(params);
+        params.m_Factory    = factory;
+        params.m_Type       = resource_type;
+        params.m_Context    = resource_type->m_Context;
+        params.m_Resource   = rd;
+        resource_type->m_DestroyFunction(&params);
 
         factory->m_ResourceToHash->Erase((uintptr_t) resource);
         factory->m_Resources->Erase(*resource_hash);
@@ -1291,7 +1398,7 @@ void Release(HFactory factory, void* resource)
     }
 }
 
-void RegisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data)
+void RegisterResourceReloadedCallback(HFactory factory, FResourceReloadedCallback callback, void* user_data)
 {
     if (factory->m_ResourceReloadedCallbacks)
     {
@@ -1306,7 +1413,7 @@ void RegisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback
     }
 }
 
-void UnregisterResourceReloadedCallback(HFactory factory, ResourceReloadedCallback callback, void* user_data)
+void UnregisterResourceReloadedCallback(HFactory factory, FResourceReloadedCallback callback, void* user_data)
 {
     if (factory->m_ResourceReloadedCallbacks)
     {
@@ -1378,7 +1485,7 @@ struct ResourceIteratorCallbackInfo
     bool                m_ShouldContinue;
 };
 
-static void ResourceIteratorCallback(ResourceIteratorCallbackInfo* callback, const dmhash_t* id, SResourceDescriptor* resource)
+static void ResourceIteratorCallback(ResourceIteratorCallbackInfo* callback, const dmhash_t* id, ResourceDescriptor* resource)
 {
     IteratorResource info;
     info.m_Id           = resource->m_NameHash;
@@ -1431,111 +1538,4 @@ const char* ResultToString(Result r)
     return "RESULT_UNDEFINED";
 }
 
-
-dmhash_t GetNameHash(HResourceDescriptor desc)
-{
-    return desc->m_NameHash;
-}
-
-void* GetResource(HResourceDescriptor desc)
-{
-    return desc->m_Resource;
-}
-
-void* GetPreviousResource(HResourceDescriptor desc)
-{
-    return desc->m_PrevResource;
-}
-
-void SetResource(HResourceDescriptor desc, void* resource)
-{
-    desc->m_Resource = resource;
-}
-
-void SetResourceSize(HResourceDescriptor desc, uint32_t size)
-{
-    desc->m_ResourceSize = size;
-}
-
-
-TypeCreatorDesc* g_ResourceTypeCreatorDescFirst = 0;
-
-void RegisterTypeCreatorDesc(struct TypeCreatorDesc* desc,
-                            uint32_t desc_size,
-                            const char *name,
-                            FResourceTypeRegister register_fn,
-                            FResourceTypeRegister deregister_fn)
-{
-    DM_STATIC_ASSERT(dmResource::s_ResourceTypeCreatorDescBufferSize >= sizeof(struct TypeCreatorDesc), Invalid_Struct_Size);
-
-    dmLogDebug("Registered resource type descriptor %s", name);
-    desc->m_Name = name;
-    desc->m_RegisterFn = register_fn;
-    desc->m_DeregisterFn = deregister_fn;
-    desc->m_Next = g_ResourceTypeCreatorDescFirst;
-    g_ResourceTypeCreatorDescFirst = desc;
-}
-
-const TypeCreatorDesc* GetFirstTypeCreatorDesc()
-{
-    return g_ResourceTypeCreatorDescFirst;
-}
-
-
-// add already registered types
-Result RegisterTypes(HFactory factory, dmHashTable64<void*>* contexts)
-{
-    const TypeCreatorDesc* desc = GetFirstTypeCreatorDesc();
-    while (desc)
-    {
-        if (contexts->Full()) {
-            uint32_t capacity = contexts->Capacity() + 8;
-            contexts->SetCapacity(capacity/2, capacity);
-        }
-
-        ResourceTypeRegisterContext ctx;
-        ctx.m_Factory = factory;
-        ctx.m_Contexts = contexts;
-        ctx.m_Name = desc->m_Name;
-        ctx.m_NameHash = dmHashString64(desc->m_Name);
-        Result result = desc->m_RegisterFn(ctx);
-        if (result != RESULT_OK)
-        {
-            dmLogError("Failed to register type '%s': %s", desc->m_Name, ResultToString(result));
-            return result;
-        }
-
-        dmLogDebug("Registered type '%s'", desc->m_Name);
-        desc = desc->m_Next;
-    }
-    return RESULT_OK;
-}
-
-Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts)
-{
-    const TypeCreatorDesc* desc = GetFirstTypeCreatorDesc();
-    while (desc)
-    {
-        if (desc->m_DeregisterFn)
-        {
-            ResourceTypeRegisterContext ctx;
-            ctx.m_Factory = factory;
-            ctx.m_Contexts = contexts;
-            ctx.m_Name = desc->m_Name;
-            ctx.m_NameHash = dmHashString64(desc->m_Name);
-
-            Result result = desc->m_DeregisterFn(ctx);
-            if (result != RESULT_OK)
-            {
-                dmLogError("Failed to deregister type '%s': %s", desc->m_Name, ResultToString(result));
-                return result;
-            }
-            dmLogDebug("Deregistered type '%s'", desc->m_Name);
-        }
-
-        desc = desc->m_Next;
-    }
-    return RESULT_OK;
-}
-
-}
+} // namespace dmResource

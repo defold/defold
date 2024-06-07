@@ -16,12 +16,12 @@
 
 #include <dlib/hash.h>
 
-#include <resource/resource.h>
-
 #include "../gameobject.h"
 #include "../component.h"
 
 #include "gameobject/test/reload/test_gameobject_reload_ddf.h"
+
+#include <dmsdk/resource/resource.hpp>
 
 struct ReloadTargetComponent
 {
@@ -93,7 +93,7 @@ protected:
         dmResource::Result e = dmResource::RegisterType(m_Factory, "rt", this, 0, ResReloadTargetCreate, 0, ResReloadTargetDestroy, ResReloadTargetRecreate);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "rt", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType rt_type;
@@ -130,9 +130,9 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResReloadTargetCreate(const dmResource::ResourceCreateParams& params);
-    static dmResource::Result ResReloadTargetDestroy(const dmResource::ResourceDestroyParams& params);
-    static dmResource::Result ResReloadTargetRecreate(const dmResource::ResourceRecreateParams& params);
+    static dmResource::Result ResReloadTargetCreate(const dmResource::ResourceCreateParams* params);
+    static dmResource::Result ResReloadTargetDestroy(const dmResource::ResourceDestroyParams* params);
+    static dmResource::Result ResReloadTargetRecreate(const dmResource::ResourceRecreateParams* params);
 
     static dmGameObject::CreateResult CompReloadTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params);
     static dmGameObject::CreateResult CompReloadTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
@@ -159,13 +159,13 @@ public:
     dmHashTable64<void*> m_Contexts;
 };
 
-dmResource::Result ReloadCollectionTest::ResReloadTargetCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result ReloadCollectionTest::ResReloadTargetCreate(const dmResource::ResourceCreateParams* params)
 {
     TestGameObjectDDF::ReloadTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(params.m_Buffer, params.m_BufferSize, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) obj;
+        ResourceDescriptorSetResource(params->m_Resource, obj);
         return dmResource::RESULT_OK;
     }
     else
@@ -174,20 +174,20 @@ dmResource::Result ReloadCollectionTest::ResReloadTargetCreate(const dmResource:
     }
 }
 
-dmResource::Result ReloadCollectionTest::ResReloadTargetDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result ReloadCollectionTest::ResReloadTargetDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
+    dmDDF::FreeMessage((void*) ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result ReloadCollectionTest::ResReloadTargetRecreate(const dmResource::ResourceRecreateParams& params)
+dmResource::Result ReloadCollectionTest::ResReloadTargetRecreate(const dmResource::ResourceRecreateParams* params)
 {
-    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
+    dmDDF::FreeMessage((void*) ResourceDescriptorGetResource(params->m_Resource));
     TestGameObjectDDF::ReloadTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(params.m_Buffer, params.m_BufferSize, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::ReloadTarget>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) obj;
+        ResourceDescriptorSetResource(params->m_Resource, obj);
         return dmResource::RESULT_OK;
     }
     else

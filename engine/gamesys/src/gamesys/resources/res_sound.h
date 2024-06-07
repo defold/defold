@@ -15,18 +15,18 @@
 #ifndef DM_GAMESYS_RES_SOUND_H
 #define DM_GAMESYS_RES_SOUND_H
 
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gamesys/resources/res_sound.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResSoundPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResSoundPreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResSoundCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResSoundCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResSoundDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResSoundDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResSoundRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResSoundRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif

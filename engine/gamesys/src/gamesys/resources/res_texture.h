@@ -15,7 +15,7 @@
 #ifndef DM_GAMESYS_RES_TEXTURE_H
 #define DM_GAMESYS_RES_TEXTURE_H
 
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gamesys/resources/res_texture.h>
 #include <graphics/graphics.h>
 
@@ -40,15 +40,15 @@ namespace dmGameSystem
     dmGraphics::TextureType TextureImageToTextureType(dmGraphics::TextureImage::Type type);
     dmGraphics::TextureFormat TextureImageToTextureFormat(dmGraphics::TextureImage::TextureFormat format);
 
-    dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResTextureCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResTextureCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResTexturePostCreate(const dmResource::ResourcePostCreateParams& params);
+    dmResource::Result ResTexturePostCreate(const dmResource::ResourcePostCreateParams* params);
 
-    dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResTextureRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResTextureRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif

@@ -179,6 +179,7 @@ namespace dmGraphics
         uint8_t m_StageFlags;
     };
 
+    HContext             GetInstalledContext();
     uint32_t             GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
     uint32_t             GetGraphicsTypeDataSize(Type type);
     void                 InstallAdapterVendor();

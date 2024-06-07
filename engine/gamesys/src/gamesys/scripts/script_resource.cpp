@@ -37,6 +37,7 @@
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmGameSystem
 {
@@ -274,32 +275,26 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
 
 static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
 {
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, path_hash);
+    HResourceDescriptor rd = dmResource::FindByHash(factory, path_hash);
     if (!rd) {
         luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
         return 0;
     }
 
-    dmResource::ResourceType resource_type;
-    dmResource::Result r = dmResource::GetType(factory, rd->m_Resource, &resource_type);
+    HResourceType expected_resource_type;
+    dmResource::Result r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
     if( r != dmResource::RESULT_OK )
     {
         ReportPathError(L, r, path_hash);
     }
 
-    dmResource::ResourceType expected_resource_type;
-    r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
-    if( r != dmResource::RESULT_OK )
-    {
-        ReportPathError(L, r, path_hash);
-    }
-
+    HResourceType resource_type = dmResource::GetType(rd);
     if (resource_type != expected_resource_type) {
         luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
         return 0;
     }
 
-    return rd->m_Resource;
+    return dmResource::GetResource(rd);
 }
 
 static dmhash_t GetCanonicalPathHash(const char* path)
@@ -1264,7 +1259,7 @@ static int ReleaseResource(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
     if (!rd)
     {
         return DM_LUA_ERROR("Could not get resource: %s", dmHashReverseSafe64(path_hash));
@@ -1276,7 +1271,7 @@ static int ReleaseResource(lua_State* L)
     // This will remove the entry in the collections list of dynamically allocated resource (if it exists),
     // but we do the actual release here since we allow releasing arbitrary resources now
     dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
-    dmResource::Release(g_ResourceModule.m_Factory, rd->m_Resource);
+    dmResource::Release(g_ResourceModule.m_Factory, dmResource::GetResource(rd));
 
     return 0;
 }

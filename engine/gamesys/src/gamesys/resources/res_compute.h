@@ -17,7 +17,7 @@
 
 #include <render/render.h>
 
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmGameSystem
 {
@@ -30,10 +30,10 @@ namespace dmGameSystem
         uint32_t                  m_NumTextures;
     };
 
-    dmResource::Result ResComputeCreate(const dmResource::ResourceCreateParams& params);
-    dmResource::Result ResComputeDestroy(const dmResource::ResourceDestroyParams& params);
-    dmResource::Result ResComputeRecreate(const dmResource::ResourceRecreateParams& params);
-    dmResource::Result ResComputePreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResComputeCreate(const dmResource::ResourceCreateParams* params);
+    dmResource::Result ResComputeDestroy(const dmResource::ResourceDestroyParams* params);
+    dmResource::Result ResComputeRecreate(const dmResource::ResourceRecreateParams* params);
+    dmResource::Result ResComputePreload(const dmResource::ResourcePreloadParams* params);
 }
 
 #endif // DM_GAMESYS_RES_COMPUTE_H

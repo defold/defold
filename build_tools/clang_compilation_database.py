@@ -22,7 +22,6 @@ def collect_compilation_db_tasks(self):
 
 	for task in getattr(self, 'compiled_tasks', []):
 		if isinstance(task, (c.c, cxx.cxx)):
-			Logs.info("task.keep_last_cmd: %s" % task.keep_last_cmd)
 			clang_db.append(task)
 
 def write_compilation_database(ctx):

@@ -15,7 +15,7 @@
 #ifndef DM_GAMESYS_RES_GLYPH_BANK_H
 #define DM_GAMESYS_RES_GLYPH_BANK_H
 
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 #include <render/font_ddf.h>
 
 namespace dmGameSystem
@@ -25,13 +25,13 @@ namespace dmGameSystem
         dmRenderDDF::GlyphBank* m_DDF;
     };
 
-    dmResource::Result ResGlyphBankPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResGlyphBankPreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResGlyphBankCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResGlyphBankCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResGlyphBankDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResGlyphBankDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResGlyphBankRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResGlyphBankRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_RES_GLYPH_BANK_H
