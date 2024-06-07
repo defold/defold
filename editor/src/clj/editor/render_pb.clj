@@ -80,7 +80,7 @@
                                    {:path [:path]
                                     :label "Render Resource"
                                     :type :resource
-                                    :filter ["material" "render_target"]
+                                    :filter ["material" "render_target" "compute"]
                                     :default nil}]}]}]})
 
 (defn- set-form-op [{:keys [node-id] :as user-data} path value]
