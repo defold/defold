@@ -53,14 +53,16 @@ namespace
 class dmRenderScriptTest : public jc_test_base_class
 {
 protected:
-    dmPlatform::HWindow m_Window;
-    dmScript::HContext m_ScriptContext;
-    dmRender::HRenderContext m_Context;
-    dmGraphics::HContext m_GraphicsContext;
-    dmRender::HFontMap m_SystemFontMap;
-    dmRender::HMaterial m_FontMaterial;
-    dmGraphics::HVertexProgram m_VertexProgram;
+    dmPlatform::HWindow          m_Window;
+    dmScript::HContext           m_ScriptContext;
+    dmRender::HRenderContext     m_Context;
+    dmGraphics::HContext         m_GraphicsContext;
+    dmRender::HFontMap           m_SystemFontMap;
+    dmRender::HMaterial          m_FontMaterial;
+
+    dmGraphics::HVertexProgram   m_VertexProgram;
     dmGraphics::HFragmentProgram m_FragmentProgram;
+    dmGraphics::HComputeProgram  m_ComputeProgram;
 
     virtual void SetUp()
     {
@@ -114,6 +116,18 @@ protected:
 
         m_FontMaterial = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
         dmRender::SetFontMapMaterial(m_SystemFontMap, m_FontMaterial);
+
+        const char* compute_program_src =
+            "#version 430\n"
+            "uniform vec4 tint;\n"
+            "uniform sampler2D texture_sampler\n";
+
+        dmGraphics::ShaderDesc::Shader compute_shader_ddf;
+        memset(&compute_shader_ddf,0,sizeof(compute_shader_ddf));
+        compute_shader_ddf.m_Source.m_Data  = (uint8_t*) compute_program_src;
+        compute_shader_ddf.m_Source.m_Count = strlen(compute_program_src);
+
+        m_ComputeProgram = dmGraphics::NewComputeProgram(m_GraphicsContext, &compute_shader_ddf);
     }
 
     virtual void TearDown()
@@ -1517,6 +1531,69 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
     dmGraphics::DeleteVertexProgram(vp);
     dmGraphics::DeleteFragmentProgram(fp);
     dmRender::DeleteMaterial(m_Context, material);
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestComputeEnableDisable)
+{
+    const char* script =
+    "function init(self)\n"
+    "   render.set_compute('test_compute')\n"
+    "   render.set_compute(hash('test_compute'))\n"
+    "   render.set_compute(nil)\n"
+    "   render.set_compute()\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_Context, m_ComputeProgram);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_compute", (uint64_t) compute_program, dmRender::RENDER_RESOURCE_TYPE_COMPUTE);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmRender::DeleteComputeProgram(m_Context, compute_program);
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+TEST_F(dmRenderScriptTest, TestDispatch)
+{
+    const char* script =
+    "function init(self)\n"
+    "   render.set_compute('test_compute')\n"
+    "   render.dispatch_compute(1,2,3)\n"
+    "   render.set_compute()\n"
+    "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+
+    dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_Context, m_ComputeProgram);
+
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_FAILED, dmRender::InitRenderScriptInstance(render_script_instance));
+    dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "test_compute", (uint64_t) compute_program, dmRender::RENDER_RESOURCE_TYPE_COMPUTE);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
+
+    dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
+    dmRender::ParseCommands(m_Context, &commands[0], commands.Size());
+
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_COMPUTE, commands[0].m_Type);
+    ASSERT_EQ(compute_program, (dmRender::HComputeProgram) commands[0].m_Operands[0]);
+
+    ASSERT_EQ(dmRender::COMMAND_TYPE_DISPATCH_COMPUTE, commands[1].m_Type);
+    ASSERT_EQ(1, commands[1].m_Operands[0]);
+    ASSERT_EQ(2, commands[1].m_Operands[1]);
+    ASSERT_EQ(3, commands[1].m_Operands[2]);
+
+    ASSERT_EQ(dmRender::COMMAND_TYPE_SET_COMPUTE, commands[2].m_Type);
+    ASSERT_EQ(0, commands[2].m_Operands[0]);
+
+    commands.SetSize(0);
+
+    dmRender::DeleteComputeProgram(m_Context, compute_program);
 
     dmRender::DeleteRenderScriptInstance(render_script_instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
