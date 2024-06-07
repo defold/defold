@@ -31,7 +31,7 @@ namespace dmGraphics
     extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, dmGraphics::HUniformLocation base_register);
 }
 
-class dmRenderMaterialTest : public jc_test_base_class
+class RenderProgramTestBase : public jc_test_base_class
 {
 public:
     dmPlatform::HWindow           m_Window;
@@ -56,7 +56,7 @@ public:
         m_GraphicsContext        = dmGraphics::NewContext(graphics_context_params);
         m_Params.m_ScriptContext = dmScript::NewContext(0, 0, true);
         m_Params.m_MaxCharacters = 256;
-        m_Params.m_MaxBatches = 128;
+        m_Params.m_MaxBatches    = 128;
         m_RenderContext          = dmRender::NewRenderContext(m_GraphicsContext, m_Params);
     }
     virtual void TearDown()
@@ -68,6 +68,9 @@ public:
         dmScript::DeleteContext(m_Params.m_ScriptContext);
     }
 };
+
+class dmRenderMaterialTest : public RenderProgramTestBase {};
+class dmRenderComputeTest : public RenderProgramTestBase {};
 
 static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
 {
@@ -301,6 +304,61 @@ TEST_F(dmRenderMaterialTest, MatchMaterialTags)
 
     dmhash_t tags_e[] = { 3, 4, 6 };
     ASSERT_FALSE(dmRender::MatchMaterialTags(DM_ARRAY_SIZE(material_tags), material_tags, DM_ARRAY_SIZE(tags_e), tags_e));
+}
+
+TEST_F(dmRenderComputeTest, TestComputeConstants)
+{
+    const char* shader_src =
+        "#version 430\n"
+        "uniform vec4 tint_a;\n"
+        "uniform vec4 tint_b;\n"
+        "uniform sampler2D texture_sampler;\n"
+        ;
+
+    dmGraphics::ShaderDesc::Shader cp_shader  = MakeDDFShader(shader_src, strlen(shader_src));
+    dmGraphics::HComputeProgram cp            = dmGraphics::NewComputeProgram(m_GraphicsContext, &cp_shader);
+    dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_RenderContext, cp);
+    ASSERT_NE((dmRender::HComputeProgram) 0, compute_program);
+
+    // Constants buffer
+    dmRender::HNamedConstantBuffer constants = dmRender::NewNamedConstantBuffer();
+    Vector4 test_v(1.0f, 0.0f, 0.0f, 1.0f);
+    dmRender::SetNamedConstant(constants, dmHashString64("tint_a"), &test_v, 1);
+    test_v.setX(0.0f);
+    test_v.setY(1.0f);
+    dmRender::SetNamedConstant(constants, dmHashString64("tint_b"), &test_v, 1);
+
+    dmGraphics::HProgram program = dmRender::GetComputeProgram(compute_program);
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+
+    dmGraphics::HUniformLocation tint_loc_a = dmGraphics::GetUniformLocation(program, "tint_a");
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_loc_a);
+
+    dmGraphics::HUniformLocation tint_loc_b = dmGraphics::GetUniformLocation(program, "tint_b");
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_loc_b);
+
+    dmRender::ApplyNamedConstantBuffer(m_RenderContext, compute_program, constants);
+
+    {
+        const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc_a);
+        ASSERT_EQ(1.0f, v.getX());
+        ASSERT_EQ(0.0f, v.getY());
+        ASSERT_EQ(0.0f, v.getZ());
+        ASSERT_EQ(1.0f, v.getW());
+    }
+
+    {
+        const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc_b);
+        ASSERT_EQ(0.0f, v.getX());
+        ASSERT_EQ(1.0f, v.getY());
+        ASSERT_EQ(0.0f, v.getZ());
+        ASSERT_EQ(1.0f, v.getW());
+    }
+    dmGraphics::DisableProgram(m_GraphicsContext);
+
+    dmRender::DeleteNamedConstantBuffer(constants);
+    dmGraphics::DeleteComputeProgram(cp);
+    dmRender::DeleteComputeProgram(m_RenderContext, compute_program);
 }
 
 extern "C" void dmExportedSymbols();

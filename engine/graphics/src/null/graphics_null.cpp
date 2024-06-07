@@ -662,6 +662,11 @@ namespace dmGraphics
         g_DrawCount++;
     }
 
+    static void NullDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        // Not supported
+    }
+
     // For tests
     void ResetDrawCount()
     {
@@ -1363,15 +1368,16 @@ namespace dmGraphics
             texture_type    = TEXTURE_TYPE_2D;
         }
 
-        tex->m_Type          = texture_type;
-        tex->m_Width         = params.m_Width;
-        tex->m_Height        = params.m_Height;
-        tex->m_Depth         = params.m_Depth;
-        tex->m_MipMapCount   = 0;
-        tex->m_Data          = 0;
-        tex->m_DataState     = 0;
-        tex->m_NumTextureIds = num_texture_ids;
-        tex->m_LastBoundUnit = new int32_t[num_texture_ids];
+        tex->m_Type           = texture_type;
+        tex->m_Width          = params.m_Width;
+        tex->m_Height         = params.m_Height;
+        tex->m_Depth          = params.m_Depth;
+        tex->m_MipMapCount    = 0;
+        tex->m_Data           = 0;
+        tex->m_DataState      = 0;
+        tex->m_NumTextureIds  = num_texture_ids;
+        tex->m_LastBoundUnit  = new int32_t[num_texture_ids];
+        tex->m_UsageHintFlags = params.m_UsageHintBits;
 
         for (int i = 0; i < num_texture_ids; ++i)
         {
@@ -1849,6 +1855,11 @@ namespace dmGraphics
     static uint8_t NullGetNumTextureHandles(HTexture texture)
     {
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_NumTextureIds;
+    }
+
+    static uint32_t NullGetTextureUsageHintFlags(HTexture texture)
+    {
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_UsageHintFlags;
     }
 
     static bool NullIsContextFeatureSupported(HContext _context, ContextFeature feature)

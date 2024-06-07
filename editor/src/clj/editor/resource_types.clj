@@ -27,6 +27,7 @@
             [editor.collection-non-editable :as collection-non-editable]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
+            [editor.compute :as compute]
             [editor.cubemap :as cubemap]
             [editor.display-profiles :as display-profiles]
             [editor.editor-script :as editor-script]
@@ -70,6 +71,7 @@
       (collection-non-editable/register-resource-types workspace)
       (collection-proxy/register-resource-types workspace)
       (collision-object/register-resource-types workspace)
+      (compute/register-resource-types workspace)
       (cubemap/register-resource-types workspace)
       (display-profiles/register-resource-types workspace)
       (editor-script/register-resource-types workspace)

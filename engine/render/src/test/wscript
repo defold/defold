@@ -21,12 +21,12 @@ def build(bld):
                 target = 'test_display_profiles')
 
     bld.program(features = 'cxx cprogram test',
-                source = ['test_material.cpp'],
+                source = ['test_render_programs.cpp'],
                 use = libs,
                 exported_symbols = exported_symbols,
                 web_libs = ['library_sys.js', 'library_script.js'],
                 includes = ['../../src', '../../proto'],
-                target = 'test_material')
+                target = 'test_render_programs')
 
     bld.program(features = 'cxx cprogram test',
                 source = ['test_render_script.cpp'],

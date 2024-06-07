@@ -25,6 +25,7 @@
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics");
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, FrameReset, "# vertices", &rmtp_Graphics);
+DM_PROPERTY_U32(rmtp_DispatchCalls, 0, FrameReset, "# dispatches", &rmtp_Graphics);
 
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
@@ -135,6 +136,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D_ARRAY);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_CUBE_MAP);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_IMAGE_2D);
             default:break;
         }
         return "<unknown dmGraphics::TextureType>";
@@ -1317,6 +1319,10 @@ namespace dmGraphics
     {
         g_functions.m_Draw(context, prim_type, first, count);
     }
+    void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        g_functions.m_DispatchCompute(context, group_count_x, group_count_y, group_count_z);
+    }
     HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
     {
         return g_functions.m_NewVertexProgram(context, ddf);
@@ -1604,6 +1610,10 @@ namespace dmGraphics
     uint8_t GetNumTextureHandles(HTexture texture)
     {
         return g_functions.m_GetNumTextureHandles(texture);
+    }
+    uint32_t GetTextureUsageHintFlags(HTexture texture)
+    {
+        return g_functions.m_GetTextureUsageHintFlags(texture);
     }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
