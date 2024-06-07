@@ -2108,10 +2108,6 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_IMAGE)
         {
-            /*
-            m_Key
-            m_HasKey
-            */
             dmhash_t sampler_name_hash = params.m_Options.m_HasKey ? params.m_Options.m_Key : 0;
             dmGameObject::PropertyResult res = AddOverrideTextureSet(dmGameObject::GetFactory(params.m_Instance), component, sampler_name_hash, params.m_Value.m_Hash);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
