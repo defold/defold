@@ -1060,7 +1060,7 @@ namespace dmGameSystem
         dmArray<float> scratch_pos;
 
         // The list of pointers to the scratch uvs
-        float* scratch_uv_ptrs[MAX_TEXTURE_COUNT];
+        float* scratch_uv_ptrs[MAX_TEXTURE_COUNT] = {};
 
         TexturesData textures = {};
         textures.m_NumTextures = GetNumTextures(first);
@@ -2074,9 +2074,11 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_IMAGE)
         {
-            // TODO: use the sampler name as the key
-            // For now, we'll use hash("")==0 as the default sampler name
-            dmhash_t sampler_name_hash = 0;
+            /*
+            m_Key
+            m_HasKey
+            */
+            dmhash_t sampler_name_hash = params.m_Options.m_HasKey ? params.m_Options.m_Key : 0;
             dmGameObject::PropertyResult res = AddOverrideTextureSet(dmGameObject::GetFactory(params.m_Instance), component, sampler_name_hash, params.m_Value.m_Hash);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
