@@ -17,6 +17,8 @@
             [editor.protobuf-forms :as protobuf-forms])
   (:import [com.dynamo.render.proto Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$WrapMode]))
 
+(set! *warn-on-reflection* true)
+
 (defn gen-form-data-constants [label path-key]
   {:path [path-key]
    :label label
