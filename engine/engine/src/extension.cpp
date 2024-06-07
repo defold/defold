@@ -21,9 +21,14 @@
 // we'll at least check on most platforms.
 // (I don't want to add any runtime code to do these types of checks /MAWE)
 #if __cplusplus >= 201103L
-// Keeping backwards compatibility
 DM_STATIC_ASSERT(offsetof(dmExtension::AppParams, m_ConfigFile) == offsetof(dmEngine::ExtensionAppParams, m_ConfigFile), Struct_Member_Offset_Mismatch);
 #endif
+
+
+HConfigFile EngineExtensionGetConfigFile(ExtensionAppParams* app_params)
+{
+    return ((dmEngine::ExtensionAppParams*)app_params)->m_ConfigFile;
+}
 
 namespace dmEngine
 {

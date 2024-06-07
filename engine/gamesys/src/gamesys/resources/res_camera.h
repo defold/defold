@@ -15,16 +15,16 @@
 #ifndef DM_GAMESYS_RES_CAMERA_H
 #define DM_GAMESYS_RES_CAMERA_H
 
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gamesys/resources/res_camera.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResCameraCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResCameraCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResCameraDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResCameraDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResCameraRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResCameraRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_RES_CAMERA_H
