@@ -421,6 +421,7 @@ namespace dmHID
         }
     }
 
+    // Test only
     void ClearTouches(HTouchDevice device)
     {
         if (device != 0x0 && device->m_Connected)

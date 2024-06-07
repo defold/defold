@@ -13,10 +13,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.non-editable-resources-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.defold-project :as project]
+            [editor.fs :as fs]
+            [editor.game-project :as game-project]
             [editor.math :as math]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.shared-editor-settings :as shared-editor-settings]
@@ -28,6 +32,7 @@
             [util.coll :refer [pair]]
             [util.digestable :as digestable])
   (:import [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
+           [com.dynamo.gameobject.proto GameObject$CollectionDesc]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl.util.texture TextureData]
            [editor.gl.shader ShaderLifecycle]
@@ -285,6 +290,49 @@
             :room-referenced-chair-referenced-script "/assets/from-room-referenced-chair-referenced-script.atlas"
             :house-room-referenced-chair-referenced-script "/assets/from-house-room-referenced-chair-referenced-script.atlas"}]]
     (perform-build-target-test atlas-property-proj-paths-by-node-key)))
+
+(deftest build-target-fusion-test
+  (let [project-path (tu/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_ (tu/make-directory-deleter project-path)]
+      (tu/set-non-editable-directories! project-path ["/non-editable"])
+      (with-clean-system
+        ;; Create a collection with an embedded game object with an embedded
+        ;; component. Then, make a copy of the collection resource under a
+        ;; non-editable directory, and reference both collections from the main
+        ;; collection.  We want to ensure the build targets for the embedded
+        ;; resources are fused into one.
+        (let [workspace (tu/setup-workspace! world project-path)
+              project (tu/setup-project! workspace)
+              game-project (tu/resource-node project "/game.project")
+              main-collection (tu/make-resource-node! project "/main.collection")]
+          (game-project/set-setting! game-project ["bootstrap" "main_collection"] (resource-node/resource main-collection))
+          (let [editable-room (tu/make-resource-node! project "/editable/room.collection")]
+            (is (resource/editable? (resource-node/resource editable-room)))
+            (is (= :editor.collection/CollectionNode (g/node-type-kw editable-room)))
+            (-> editable-room
+                (tu/add-embedded-game-object!)
+                (tu/add-embedded-component! (workspace/get-resource-type workspace "camera")))
+            (-> (tu/add-referenced-collection! main-collection (resource-node/resource editable-room))
+                (tu/prop! :id "editable-room")))
+          (tu/save-project! project)
+          (fs/copy-directory! (io/file project-path "editable")
+                              (io/file project-path "non-editable"))
+          (workspace/resource-sync! workspace)
+          (let [non-editable-room (tu/resource-node project "/non-editable/room.collection")]
+            (is (not (resource/editable? (resource-node/resource non-editable-room))))
+            (is (= :editor.collection-non-editable/NonEditableCollectionNode (g/node-type-kw non-editable-room)))
+            (-> (tu/add-referenced-collection! main-collection (resource-node/resource non-editable-room))
+                (tu/prop! :id "non-editable-room")))
+
+          (testing "Build targets from embedded resources inside editable resources fuse with equivalents from non-editable resources."
+            (with-open [_ (tu/build! main-collection)]
+              (let [main-collection-pb-map (protobuf/bytes->map-without-defaults GameObject$CollectionDesc (tu/node-build-output main-collection))
+                    [editable-room-instance-pb-map non-editable-room-instance-pb-map] (:instances main-collection-pb-map)]
+                (is (= "/editable-room/go" (:id editable-room-instance-pb-map)))
+                (is (= "/non-editable-room/go" (:id non-editable-room-instance-pb-map)))
+                (is (string/includes? (:prototype editable-room-instance-pb-map) "generated"))
+                (is (= (:prototype editable-room-instance-pb-map)
+                       (:prototype non-editable-room-instance-pb-map)))))))))))
 
 ;; -----------------------------------------------------------------------------
 ;; scene-test

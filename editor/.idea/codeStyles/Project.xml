@@ -23,9 +23,10 @@
           <entry key="editor.analytics-test/with-config!" value="-1" />
           <entry key="editor.code.resource/register-code-resource-type" value="-1" />
           <entry key="editor.defold-project/with-transpiler-txs-fn" value="-1" />
-          <entry key="editor.editor-extensions/execute-with!" value="-1" />
-          <entry key="editor.editor-extensions/gen-query" value="-1" />
-          <entry key="editor.editor-extensions/try-with-extension-exceptions" value="-1" />
+          <entry key="editor.editor-extensions.runtime/lua-fn" value="-1" />
+          <entry key="editor.editor-extensions.runtime/suspendable-lua-fn" value="-1" />
+          <entry key="editor.editor-extensions.validation/ensure" value="-1" />
+          <entry key="editor.editor-extensions.vm/with-lock" value="-1" />
           <entry key="editor.file-test/with-temp-dir" value="-1" />
           <entry key="editor.file-test/with-temp-dir!" value="-1" />
           <entry key="editor.fs/maybe-silently" value="-1" />

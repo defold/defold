@@ -24,6 +24,7 @@ namespace dmGraphics
     struct GraphicsAdapterFunctionTable;
     typedef GraphicsAdapterFunctionTable (*GraphicsAdapterRegisterFunctionsCb)();
     typedef bool                         (*GraphicsAdapterIsSupportedCb)();
+    typedef HContext                     (*GraphicsAdapterGetContextCb)();
 
     struct GraphicsAdapter
     {
@@ -33,15 +34,16 @@ namespace dmGraphics
         struct GraphicsAdapter*            m_Next;
         GraphicsAdapterRegisterFunctionsCb m_RegisterCb;
         GraphicsAdapterIsSupportedCb       m_IsSupportedCb;
+        GraphicsAdapterGetContextCb        m_GetContextCb;
         AdapterFamily                      m_Family;
         int8_t                             m_Priority;
     };
 
-    void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int8_t priority);
+    void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, GraphicsAdapterGetContextCb get_context_cb, int8_t priority);
 
     // This snippet is taken from extension.h (SDK)
-    #define DM_REGISTER_GRAPHICS_ADAPTER(adapter_name, adapter_ptr, is_supported_cb, register_functions_cb, priority) extern "C" void adapter_name () { \
-        RegisterGraphicsAdapter(adapter_ptr, is_supported_cb, register_functions_cb, priority); \
+    #define DM_REGISTER_GRAPHICS_ADAPTER(adapter_name, adapter_ptr, is_supported_cb, register_functions_cb, get_context_cb, priority) extern "C" void adapter_name () { \
+        RegisterGraphicsAdapter(adapter_ptr, is_supported_cb, register_functions_cb, get_context_cb, priority); \
     }
 
     typedef HContext (*NewContextFn)(const ContextParams& params);

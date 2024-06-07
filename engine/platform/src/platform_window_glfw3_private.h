@@ -17,6 +17,8 @@
 
 #include <glfw/glfw3.h>
 
+#include "platform_window.h"
+
 namespace dmPlatform
 {
     struct Window

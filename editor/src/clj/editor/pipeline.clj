@@ -116,15 +116,23 @@
 
 (defn- make-dep-resources
   [deps build-targets-by-content-hash]
+  ;; Create a map that resolves an original BuildResource into a fused
+  ;; BuildResource. Build target fusion is based on the content-hash values of
+  ;; the build targets. In order to fuse build targets from both editable and
+  ;; non-editable BuildResources, we make sure to add their counterpart to the
+  ;; resulting map alongside the original BuildResource.
   (into {}
-        (map (fn [build-target]
-               (let [content-hash (:content-hash build-target)
-                     build-resource (:resource build-target)
-                     fused-build-resource (:resource (get build-targets-by-content-hash content-hash))]
-                 (assert (bt/content-hash? content-hash))
-                 (assert (workspace/build-resource? build-resource))
-                 (assert (workspace/build-resource? fused-build-resource))
-                 (pair build-resource fused-build-resource))))
+        (mapcat
+          (fn [{:keys [content-hash] :as build-target}]
+            (assert (bt/content-hash? content-hash))
+            (let [original-build-resource (:resource build-target)
+                  counterpart-build-resource (workspace/counterpart-build-resource original-build-resource)
+                  fused-build-target (get build-targets-by-content-hash content-hash)
+                  fused-build-resource (:resource fused-build-target)]
+              (cond-> [(pair original-build-resource fused-build-resource)]
+
+                      counterpart-build-resource
+                      (conj (pair counterpart-build-resource fused-build-resource))))))
         (flatten deps)))
 
 (defn prune-artifact-map [artifact-map build-targets-by-content-hash]

@@ -15,18 +15,18 @@
 #ifndef DM_GAMESYS_RES_MODEL_H
 #define DM_GAMESYS_RES_MODEL_H
 
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gamesys/resources/res_model.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResModelPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResModelPreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResModelCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResModelCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResModelRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResModelRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_RES_MODEL_H

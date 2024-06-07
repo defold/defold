@@ -16,7 +16,7 @@
   (:refer-clojure :exclude [memoize partial])
   (:require [internal.java :as java]
             [util.coll :as coll :refer [pair]])
-  (:import [clojure.lang ArityException Compiler Fn IFn IHashEq]
+  (:import [clojure.lang ArityException Compiler Fn IFn IHashEq MultiFn]
            [java.lang.reflect Method]))
 
 (set! *warn-on-reflection* true)
@@ -241,3 +241,8 @@
   "Like clojure.core/partial, but with equality semantics"
   [f & args]
   (PartialFn. (apply clojure.core/partial f args) f args))
+
+(defn multi-responds?
+  "Check if a multimethod has a matching method for the supplied arguments"
+  [^MultiFn multi & args]
+  (some? (.getMethod multi (apply (.-dispatchFn multi) args))))

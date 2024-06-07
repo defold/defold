@@ -354,7 +354,12 @@
             :semantic-type :semantic-type-normal
             :coordinate-space :default ; Assigned default-coordinate-space parameter.
             :data-type :type-float
-            :element-count 3}])))
+            :element-count 3}
+           {:name "tangent"
+            :semantic-type :semantic-type-tangent
+            :coordinate-space :default ; Assigned default-coordinate-space parameter.
+            :data-type :type-float
+            :element-count 4}])))
 
 (defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space]
   {:pre [(coordinate-space? default-coordinate-space)]}
@@ -578,10 +583,14 @@
         normal-transform (:normal-transform renderable-data)]
     (geom/transf-n4 normal-transform local-directions)))
 
+(defn- renderable-data->world-tangent-v4 [renderable-data]
+  (let [tangents (:tangent-data renderable-data)
+        normal-transform (:normal-transform renderable-data)]
+    (geom/transf-tangents normal-transform tangents)))
+
 (def ^:private renderable-data->world-normal-v3 (partial renderable-data->world-direction-v3 :normal-data))
 (def ^:private renderable-data->world-normal-v4 (partial renderable-data->world-direction-v4 :normal-data))
 (def ^:private renderable-data->world-tangent-v3 (partial renderable-data->world-direction-v3 :tangent-data))
-(def ^:private renderable-data->world-tangent-v4 (partial renderable-data->world-direction-v4 :tangent-data))
 
 (defn put-attributes! [^VertexBuffer vbuf renderable-datas]
   (let [vertex-description (.vertex-description vbuf)

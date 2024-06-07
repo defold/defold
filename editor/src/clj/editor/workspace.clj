@@ -152,6 +152,10 @@ ordinary paths."
 
 (def build-resource? (partial instance? BuildResource))
 
+(defn source-resource? [value]
+  (and (resource/resource? value)
+       (not (build-resource? value))))
+
 (defn make-build-resource
   ([source-resource]
    (make-build-resource source-resource nil))
@@ -159,6 +163,20 @@ ordinary paths."
    {:pre [(resource/resource? source-resource)
           (not (build-resource? source-resource))]}
    (BuildResource. source-resource prefix)))
+
+(defn counterpart-build-resource
+  "Given a BuildResource, returns its editable or non-editable counterpart if
+  applicable. We use this during build target fusion to ensure embedded
+  resources from editable resources are fused with the equivalent embedded
+  resources from non-editable resources. Returns nil if the BuildResource has no
+  counterpart applicable to build target fusion."
+  [build-resource]
+  {:pre [(build-resource? build-resource)]}
+  (let [source-resource (:resource build-resource)]
+    (assert (source-resource? source-resource))
+    (when (resource/memory-resource? source-resource)
+      (assoc build-resource
+        :resource (resource/counterpart-memory-resource source-resource)))))
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
   (let [sorted-children (->> children

@@ -193,30 +193,30 @@ TEST_F(ResourceTest, TestRenderPrototypeResources)
     ASSERT_NE((void*)0, render_prototype);
     ASSERT_EQ(3, render_prototype->m_RenderResources.Size());
 
-    dmResource::ResourceType res_type_render_target;
-    dmResource::ResourceType res_type_material;
+    HResourceType res_type_render_target;
+    HResourceType res_type_material;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "materialc", &res_type_material));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetTypeFromExtension(m_Factory, "render_targetc", &res_type_render_target));
 
-    dmResource::SResourceDescriptor* rd_mat = dmResource::FindByHash(m_Factory, dmHashString64("/material/valid.materialc"));
+    HResourceDescriptor rd_mat = dmResource::FindByHash(m_Factory, dmHashString64("/material/valid.materialc"));
     ASSERT_NE((void*)0, rd_mat);
 
-    dmResource::SResourceDescriptor* rd_rt = dmResource::FindByHash(m_Factory, dmHashString64("/render_target/valid.render_targetc"));
+    HResourceDescriptor rd_rt = dmResource::FindByHash(m_Factory, dmHashString64("/render_target/valid.render_targetc"));
     ASSERT_NE((void*)0, rd_rt);
 
-    dmResource::ResourceType types[] = { res_type_material, res_type_render_target, res_type_material };
-    void* resources[] = { rd_mat->m_Resource, rd_rt->m_Resource, rd_mat->m_Resource };
+    HResourceType types[] = { res_type_material, res_type_render_target, res_type_material };
+    void* resources[] = { dmResource::GetResource(rd_mat), dmResource::GetResource(rd_rt), dmResource::GetResource(rd_mat) };
 
     for (int i = 0; i < render_prototype->m_RenderResources.Size(); ++i)
     {
         ASSERT_NE((void*)0, render_prototype->m_RenderResources[i]);
-        dmResource::ResourceType res_type;
+        HResourceType res_type;
         dmResource::GetType(m_Factory, render_prototype->m_RenderResources[i], &res_type);
         ASSERT_EQ(types[i], res_type);
         ASSERT_EQ(resources[i], render_prototype->m_RenderResources[i]);
     }
 
-    dmGameSystem::RenderTargetResource* rt = (dmGameSystem::RenderTargetResource*) rd_rt->m_Resource;
+    dmGameSystem::RenderTargetResource* rt = (dmGameSystem::RenderTargetResource*) dmResource::GetResource(rd_rt);
     ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, rt->m_RenderTarget));
     ASSERT_EQ(dmGraphics::ASSET_TYPE_RENDER_TARGET, dmGraphics::GetAssetType(rt->m_RenderTarget));
 
@@ -301,8 +301,8 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     void* resource = 0x0;
     dmhash_t res_hash = dmHashString64("/test_simple.texturec");
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(m_Factory, res_hash);
-    ASSERT_NE((dmResource::SResourceDescriptor*)0, rd);
+    HResourceDescriptor rd = dmResource::FindByHash(m_Factory, res_hash);
+    ASSERT_NE((HResourceDescriptor)0, rd);
     ASSERT_EQ(2, rd->m_ReferenceCount);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test_simple.texturec", &resource));
@@ -845,9 +845,9 @@ TEST_F(SoundTest, UpdateSoundResource)
     dmhash_t soundata_hash = 0;
     GetResourceProperty(go, comp_name, prop_name, &soundata_hash);
 
-    dmResource::SResourceDescriptor* descp = dmResource::FindByHash(m_Factory, soundata_hash);
+    HResourceDescriptor descp = dmResource::FindByHash(m_Factory, soundata_hash);
     dmLogInfo("Original size: %d", descp->m_ResourceSize);
-    ASSERT_EQ(42270+16, descp->m_ResourceSize);  // valid.wav. Size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
+    ASSERT_EQ(42270+16, dmResource::GetResourceSize(descp));  // valid.wav. Size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
 
     // Update sound component with custom buffer from lua. See set_sound.script:update()
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1078,8 +1078,6 @@ TEST_F(SpriteTest, GoDeletion)
 // Test that animation done event reaches either callback or onmessage
 TEST_F(SpriteTest, FlipbookAnim)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     // Spawn one go with a script that will initiate animations on the above sprites
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_flipbook_anim.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -1104,8 +1102,6 @@ TEST_F(SpriteTest, FlipbookAnim)
 
 TEST_F(SpriteTest, FrameCount)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
@@ -1116,13 +1112,28 @@ TEST_F(SpriteTest, FrameCount)
 
 TEST_F(SpriteTest, GetSetSliceProperty)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_slice9.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, GetSetImagesByHash)
+{
+    void* atlas=0;
+    dmResource::Result res = dmResource::Get(m_Factory, "/atlas/valid_64x64.t.texturesetc", &atlas);
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/image/get_set_image_by_hash.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmResource::Release(m_Factory, atlas);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1289,8 +1300,6 @@ TEST_P(CursorTest, Cursor)
 TEST_F(GuiTest, TextureResources)
 {
     dmhash_t go_id = dmHashString64("/go");
-    dmhash_t gui_comp_id = dmHashString64("gui");
-
     dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
 
     dmGameSystem::TextureSetResource* valid_atlas = 0;

@@ -35,11 +35,16 @@ namespace dmGraphics
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
-    void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int8_t priority)
+    void RegisterGraphicsAdapter(GraphicsAdapter* adapter,
+        GraphicsAdapterIsSupportedCb              is_supported_cb,
+        GraphicsAdapterRegisterFunctionsCb        register_functions_cb,
+        GraphicsAdapterGetContextCb               get_context_cb,
+        int8_t                                    priority)
     {
         adapter->m_Next          = g_adapter_list;
         adapter->m_IsSupportedCb = is_supported_cb;
         adapter->m_RegisterCb    = register_functions_cb;
+        adapter->m_GetContextCb  = get_context_cb;
         adapter->m_Priority      = priority;
         g_adapter_list           = adapter;
     }
@@ -271,6 +276,11 @@ namespace dmGraphics
         return g_functions.m_NewContext(params);
     }
 
+    HContext GetInstalledContext()
+    {
+        assert(g_adapter && "No graphics adapter installed");
+        return g_adapter->m_GetContextCb();
+    }
 
     static inline BufferType GetAttachmentBufferType(RenderTargetAttachment attachment)
     {
@@ -443,7 +453,7 @@ namespace dmGraphics
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
                 {
                     uint32_t unit = num_texcoords++;
-                    if (unit >= num_textures)
+                    if (unit >= num_textures || !uvs[unit])
                         unit = 0;
                     memcpy(write_ptr, uvs[unit] + vertex_index * 2, info.m_ValueByteSize);
                 } break;

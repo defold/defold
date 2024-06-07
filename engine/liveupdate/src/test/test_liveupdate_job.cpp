@@ -23,8 +23,6 @@
 #include <dlib/time.h>
 #include <dlib/job_thread.h>
 
-static volatile bool g_TestAsyncCallbackComplete = false;
-
 #if defined(DM_USE_SINGLE_THREAD)
 class AsyncTestMultiThread : public jc_test_base_class
 #else

@@ -15,9 +15,16 @@
 #ifndef DM_PLATFORM_WINDOW_IOS_H
 #define DM_PLATFORM_WINDOW_IOS_H
 
+#include "platform_window.h"
+
+#include <objc/objc.h>
+
 namespace dmPlatform
 {
-    void iOSSetViewTypeOpenGL(HWindow window);
+    void SetiOSViewTypeOpenGL(HWindow window);
+    id   GetiOSUIWindow();
+    id   GetiOSUIView();
+    id   GetiOSEAGLContext();
 }
 
 #endif // DM_PLATFORM_WINDOW_IOS_H

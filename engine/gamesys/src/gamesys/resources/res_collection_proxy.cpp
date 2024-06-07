@@ -31,43 +31,43 @@ namespace dmGameSystem
             dmDDF::FreeMessage(resource->m_DDF);
     }
 
-    dmResource::Result ResCollectionProxyCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResCollectionProxyCreate(const dmResource::ResourceCreateParams* params)
     {
         CollectionProxyResource* cspr = new CollectionProxyResource();
-        dmResource::Result r = AcquireResource(params.m_Factory, params.m_Buffer, params.m_BufferSize, cspr);
+        dmResource::Result r = AcquireResource(params->m_Factory, params->m_Buffer, params->m_BufferSize, cspr);
         if (r == dmResource::RESULT_OK)
         {
-            cspr->m_UrlHash = dmHashString64(params.m_Filename);
-            params.m_Resource->m_Resource = (void*) cspr;
+            cspr->m_UrlHash = dmHashString64(params->m_Filename);
+            dmResource::SetResource(params->m_Resource, cspr);
         }
         else
         {
-            ReleaseResources(params.m_Factory, cspr);
+            ReleaseResources(params->m_Factory, cspr);
         }
         return r;
     }
 
-    dmResource::Result ResCollectionProxyDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResCollectionProxyDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        CollectionProxyResource* cspr = (CollectionProxyResource*) params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, cspr);
+        CollectionProxyResource* cspr = (CollectionProxyResource*) dmResource::GetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, cspr);
         delete cspr;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResCollectionProxyRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResCollectionProxyRecreate(const dmResource::ResourceRecreateParams* params)
     {
         CollectionProxyResource tmp_cspr;
-        dmResource::Result r = AcquireResource(params.m_Factory, params.m_Buffer, params.m_BufferSize, &tmp_cspr);
+        dmResource::Result r = AcquireResource(params->m_Factory, params->m_Buffer, params->m_BufferSize, &tmp_cspr);
         if (r == dmResource::RESULT_OK)
         {
-            CollectionProxyResource* cspr = (CollectionProxyResource*) params.m_Resource->m_Resource;
-            ReleaseResources(params.m_Factory, cspr);
+            CollectionProxyResource* cspr = (CollectionProxyResource*) dmResource::GetResource(params->m_Resource);
+            ReleaseResources(params->m_Factory, cspr);
             *cspr = tmp_cspr;
         }
         else
         {
-            ReleaseResources(params.m_Factory, &tmp_cspr);
+            ReleaseResources(params->m_Factory, &tmp_cspr);
         }
         return r;
     }

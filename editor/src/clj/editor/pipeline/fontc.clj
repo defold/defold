@@ -17,7 +17,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [util.coll :refer [pair]])
-  (:import [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator]
+  (:import [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator Fontc]
            [com.dynamo.render.proto Font$FontDesc]
            [com.google.protobuf ByteString]
            [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics2D RenderingHints Shape Transparency]
@@ -33,6 +33,8 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(def ^String default-characters-string (String. Fontc/ASCII_7BIT))
 
 (defn- next-pow2 [n]
   (assert (>= ^int n 0))
@@ -390,7 +392,11 @@
 (defn- ttf-semi-glyphs [font-desc ^Font font antialias]
   (let [prospect-codepoints (if (:all-chars font-desc)
                               (range 0x10ffff)
-                              (concat (range 32 127) (map int (:extra-characters font-desc))))
+                              (sort
+                                (eduction
+                                  (map int)
+                                  (distinct)
+                                  (:characters font-desc))))
         displayable-codepoint? (fn [codepoint] (.canDisplay font ^int codepoint))
         semi-glyphs (into []
                           (comp
