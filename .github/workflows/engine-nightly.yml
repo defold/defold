@@ -15,7 +15,7 @@ env:
 
 jobs:
   bld-eng-macos-64:
-    runs-on: macOS-13
+    runs-on: macOS-14
     steps: [
       { name: 'Checkout', uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
