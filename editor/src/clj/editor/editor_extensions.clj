@@ -13,8 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.editor-extensions
-  (:require [clojure.set :as set]
+  (:require [cljfx.api :as fx]
+            [clojure.set :as set]
             [clojure.stacktrace :as stacktrace]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.console :as console]
@@ -31,6 +33,7 @@
             [editor.handler :as handler]
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
+            [editor.process :as process]
             [editor.system :as system]
             [editor.util :as util]
             [editor.workspace :as workspace])
@@ -187,6 +190,59 @@
           (catch Exception e
             (throw (LuaError. (str (.getMessage e))))))))))
 
+(def ^:private empty-lua-string
+  (rt/->lua ""))
+
+(defn- make-ext-execute-fn [^Path project-path display-output! reload-resources!]
+  (rt/suspendable-lua-fn ext-execute [{:keys [rt]} & lua-args]
+    (when (empty? lua-args)
+      (throw (LuaError. "No arguments provided to editor.execute()")))
+    (let [args (mapv #(rt/->clj rt %) lua-args)
+          last-arg (peek args)
+          options-provided (map? last-arg)
+          cmd+args (validation/ensure ::validation/execute-command
+                     (if options-provided (pop args) args))
+          options (validation/ensure ::validation/execute-options
+                    (if options-provided last-arg {}))
+          err (:err options "pipe")
+          out (:out options "pipe")
+          reload (:reload_resources options true)
+          ^Process p (apply process/start!
+                            {:dir (.toFile project-path)
+                             :out (case out
+                                    ("pipe" "capture") :pipe
+                                    "discard" :discard)
+                             :err (case err
+                                    "pipe" :pipe
+                                    "discard" :discard
+                                    "stdout" :stdout)}
+                            cmd+args)
+          maybe-output-future (when (= "capture" out)
+                                (future/supply-async
+                                  (or (process/capture! (process/out p))
+                                      empty-lua-string)))]
+      (when (= "pipe" out)
+        (actions/input-stream->console (process/out p) display-output! :out))
+      (when (= "pipe" err)
+        (actions/input-stream->console (process/err p) display-output! :err))
+      (-> (.onExit p)
+          (future/then
+            (fn [_]
+              (let [exit-code (.exitValue p)]
+                (when-not (zero? exit-code)
+                  (throw (LuaError. (format "Command \"%s\" exited with code %s"
+                                            (string/join " " cmd+args)
+                                            exit-code)))))))
+          (cond-> maybe-output-future
+                  (future/then (fn [_] maybe-output-future))
+
+                  reload
+                  (future/then
+                    (fn [result]
+                      (future/then
+                        (reload-resources!)
+                        (fn [_] (rt/and-refresh-context result))))))))))
+
 (defn- ensure-file-path-in-project-directory
   ^Path [^Path project-path ^String file-name]
   (let [normalized-path (.normalize (.resolve project-path file-name))]
@@ -202,6 +258,41 @@
         (throw (LuaError. (str "No such file or directory: " file-name))))
       (Files/delete file-path)
       (future/then (reload-resources!) rt/and-refresh-context))))
+
+(def ^:private ext-transact
+  (rt/suspendable-lua-fn ext-transact [{:keys [rt]} lua-txs]
+    (let [txs (validation/ensure ::validation/transaction-steps (rt/->clj rt lua-txs))
+          f (future/make)
+          transact (bound-fn* g/transact)]
+      (fx/on-fx-thread
+        (try
+          (transact txs)
+          (future/complete! f (rt/and-refresh-context nil))
+          (catch Throwable ex (future/fail! f ex))))
+      f)))
+
+(defn- make-ext-tx-set-fn [project]
+  (rt/lua-fn ext-tx-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property lua-value]
+    (let [node-id (graph/node-id-or-path->node-id
+                    (validation/ensure
+                      ::validation/node-id-or-path
+                      (rt/->clj rt lua-node-id-or-path))
+                    project
+                    evaluation-context)
+          property (validation/ensure string? (rt/->clj rt lua-property))
+          value (rt/->clj rt lua-value)
+          setter (graph/ext-value-setter node-id property project evaluation-context)]
+      (if setter
+        (-> (setter value)
+            (with-meta {:type :transaction-step})
+            (rt/wrap-userdata "editor.tx.set(...)"))
+        (throw (LuaError. (format "Can't set property \"%s\" of %s"
+                                  property
+                                  (name (graph/node-id->type-keyword node-id evaluation-context)))))))))
+
+(defn- make-ext-save-fn [save!]
+  (rt/suspendable-lua-fn ext-save [_]
+    (future/then (save!) rt/and-refresh-context)))
 
 ;; endregion
 
@@ -340,8 +431,11 @@
     :display-output!      2-arg function used for displaying output in the
                           console, the args are:
                             type    output type, :out or :err
-                            msg     a string to output, might be multiline"
-  [project kind & {:keys [reload-resources! can-execute? display-output!] :as opts}]
+                            msg     a string to output, might be multiline
+    :save!                0-arg function that asynchronously saves any unsaved
+                          changes, returns CompletableFuture (that might
+                          complete exceptionally if reload fails)"
+  [project kind & {:keys [reload-resources! can-execute? display-output! save!] :as opts}]
   (g/with-auto-evaluation-context evaluation-context
     (let [extensions (g/node-value project :editor-extensions evaluation-context)
           old-state (ext-state project evaluation-context)
@@ -364,7 +458,11 @@
                                               "can_set" (make-ext-can-set-fn project)
                                               "create_directory" (make-ext-create-directory-fn project reload-resources!)
                                               "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
+                                              "execute" (make-ext-execute-fn project-path display-output! reload-resources!)
                                               "platform" (.getPair (Platform/getHostPlatform))
+                                              "save" (make-ext-save-fn save!)
+                                              "transact" ext-transact
+                                              "tx" {"set" (make-ext-tx-set-fn project)}
                                               "version" (system/defold-version)
                                               "engine_sha1" (system/defold-engine-sha1)
                                               "editor_sha1" (system/defold-editor-sha1)}

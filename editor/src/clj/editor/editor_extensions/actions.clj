@@ -64,7 +64,15 @@
           (future/completed nil)
           future-fns))
 
-(defn- input-stream->console [input-stream display-output! type]
+(defn input-stream->console
+  "Pipe the input stream as text lines to the console output
+
+  Args
+    input-stream       the InputStream to consume
+    display-output!    2-arg function used to display extension-related output
+                       to the user
+    type               display-output!'s type argument, either :err or :out"
+  [input-stream display-output! type]
   (future
     (error-reporting/catch-all!
       (with-open [reader (io/reader input-stream)]
