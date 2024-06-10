@@ -12,17 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_COMPUTE_PROGRAM_H
-#define DM_GAMESYS_RES_COMPUTE_PROGRAM_H
+#ifndef DMSDK_EXTENSION_HPP
+#define DMSDK_EXTENSION_HPP
 
-#include <dmsdk/resource/resource.hpp>
+#if !defined(__cplusplus)
+   #error "This file is supported in C++ only!"
+#endif
 
-namespace dmGameSystem
-{
-    dmResource::Result ResComputeProgramCreate(const dmResource::ResourceCreateParams* params);
-    dmResource::Result ResComputeProgramDestroy(const dmResource::ResourceDestroyParams* params);
-    dmResource::Result ResComputeProgramRecreate(const dmResource::ResourceRecreateParams* params);
-    dmResource::Result ResComputeProgramPreload(const dmResource::ResourcePreloadParams* params);
-}
+#include "extension_gen.hpp"
 
-#endif // DM_GAMESYS_RES_COMPUTE_PROGRAM_H
+#endif // DMSDK_EXTENSION_HPP

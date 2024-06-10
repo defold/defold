@@ -85,6 +85,7 @@ namespace dmGraphics
 
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
+    typedef void (*DispatchComputeFn)(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
     typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc::Shader* ddf);
     typedef HFragmentProgram (*NewFragmentProgramFn)(HContext context, ShaderDesc::Shader* ddf);
     typedef HProgram (*NewProgramFn)(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
@@ -155,6 +156,7 @@ namespace dmGraphics
     typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
     typedef uint8_t (*GetNumTextureHandlesFn)(HTexture texture);
+    typedef uint32_t (*GetTextureUsageHintFlagsFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
     typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc::Shader* ddf);
@@ -196,6 +198,7 @@ namespace dmGraphics
         DisableVertexBufferFn m_DisableVertexBuffer;
         DrawElementsFn m_DrawElements;
         DrawFn m_Draw;
+        DispatchComputeFn m_DispatchCompute;
         NewVertexProgramFn m_NewVertexProgram;
         NewFragmentProgramFn m_NewFragmentProgram;
         NewProgramFn m_NewProgram;
@@ -264,6 +267,7 @@ namespace dmGraphics
         GetNumSupportedExtensionsFn m_GetNumSupportedExtensions;
         GetSupportedExtensionFn m_GetSupportedExtension;
         GetNumTextureHandlesFn m_GetNumTextureHandles;
+        GetTextureUsageHintFlagsFn m_GetTextureUsageHintFlags;
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
@@ -311,6 +315,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElements); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Draw); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DispatchCompute); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewFragmentProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgram); \
@@ -382,6 +387,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumSupportedExtensions); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetSupportedExtension); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumTextureHandles); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureUsageHintFlags); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \

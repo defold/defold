@@ -407,5 +407,8 @@ void ExtensionUnregisteriOSUIApplicationDelegate(void* delegate);
 
 #if defined(__cplusplus)
 } // extern "C"
+
+#include "extension.hpp"
+
 #endif
 #endif // #ifndef DMSDK_EXTENSION_H

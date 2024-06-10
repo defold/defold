@@ -39,12 +39,4 @@
 #include <dmsdk/dlib/transform.h>
 #include <dmsdk/dlib/vmath.h>
 
-// C++ apis
-#include <dmsdk/engine/extension.hpp>       // The accessor functions for our extension structs
-#include <dmsdk/resource/resource.hpp>
-
-// Generated apis
-#include <dmsdk/dlib/configfile_gen.hpp>
-#include <dmsdk/extension/extension_gen.hpp>
-
 #endif // DMSDK_SDK_H

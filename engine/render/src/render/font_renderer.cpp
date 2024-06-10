@@ -82,9 +82,9 @@ namespace dmRender
     , m_CacheCellHeight(0)
     , m_CacheCellPadding(0)
     , m_LayerMask(FACE)
-    , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
     , m_IsMonospaced(false)
     , m_Padding(0)
+    , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
     {
 
     }

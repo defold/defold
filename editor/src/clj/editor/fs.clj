@@ -27,7 +27,7 @@
 
 ;; util
 
-(defonce ^:private empty-link-option-array (make-array LinkOption 0))
+(defonce empty-link-option-array (make-array LinkOption 0))
 (defonce ^:private empty-string-array (make-array String 0))
 
 (defprotocol PathCoercions

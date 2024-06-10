@@ -18,7 +18,7 @@
 #include <ddf/ddf.h>
 #include "resource_archive.h"
 #include "resource.h"
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 // Internal API that preloader needs to use.
 
