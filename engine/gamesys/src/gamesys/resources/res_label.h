@@ -15,7 +15,7 @@
 #ifndef DM_GAMESYS_RES_LABEL_H
 #define DM_GAMESYS_RES_LABEL_H
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_label.h>
 
 namespace dmGameSystem

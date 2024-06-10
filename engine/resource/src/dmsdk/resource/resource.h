@@ -517,5 +517,8 @@ void ResourceRegisterTypeCreatorDesc(void* desc, uint32_t size, const char *name
     uint8_t DM_ALIGNED(16) DM_RESOURCE_PASTE_SYMREG2(symbol, __LINE__)[ResourceTypeCreatorDescBufferSize]; \
     DM_REGISTER_RESOURCE_TYPE(symbol, DM_RESOURCE_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_RESOURCE_PASTE_SYMREG2(symbol, __LINE__)), suffix, register_fn, deregister_fn);
 
+#if defined(__cplusplus)
+    #include "resource.hpp"
+#endif
 
 #endif // DMSDK_RESOURCE_H

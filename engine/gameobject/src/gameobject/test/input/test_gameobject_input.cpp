@@ -24,7 +24,7 @@
 
 #include "gameobject/test/input/test_gameobject_input_ddf.h"
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 using namespace dmVMath;
 

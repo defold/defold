@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-#include <dmsdk/dlib/configfile_gen.hpp>
+#include <dmsdk/dlib/configfile.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 
