@@ -23,7 +23,7 @@
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 #include "gameobject/gameobject_ddf.h"
 
 using namespace dmVMath;

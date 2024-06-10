@@ -17,7 +17,7 @@
 
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 #include <dmsdk/gameobject/gameobject.h>
 #include <stdint.h>
 

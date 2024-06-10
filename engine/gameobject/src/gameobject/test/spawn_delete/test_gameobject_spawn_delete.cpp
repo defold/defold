@@ -27,7 +27,7 @@
 #include "gameobject/test/spawn_delete/test_gameobject_spawn_delete_ddf.h"
 #include "../proto/gameobject/gameobject_ddf.h"
 #include "../proto/gameobject/lua_ddf.h"
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 using namespace dmVMath;
 

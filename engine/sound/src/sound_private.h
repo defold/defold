@@ -15,7 +15,7 @@
 #ifndef DM_SOUND_PRIVATE_H
 #define DM_SOUND_PRIVATE_H
 
-#include <dmsdk/dlib/configfile_gen.hpp>
+#include <dmsdk/dlib/configfile.h>
 #include "sound.h"
 
 namespace dmSound

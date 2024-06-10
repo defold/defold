@@ -12,19 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_RES_COLLECTION_PROXY_H
-#define DM_GAMESYS_RES_COLLECTION_PROXY_H
+#ifndef DMSDK_EXTENSION_HPP
+#define DMSDK_EXTENSION_HPP
 
-#include <dmsdk/resource/resource.h>
-#include <dmsdk/gamesys/resources/res_collection_proxy.h>
+#if !defined(__cplusplus)
+   #error "This file is supported in C++ only!"
+#endif
 
-namespace dmGameSystem
-{
-    dmResource::Result ResCollectionProxyCreate(const dmResource::ResourceCreateParams* params);
+#include "extension_gen.hpp"
 
-    dmResource::Result ResCollectionProxyDestroy(const dmResource::ResourceDestroyParams* params);
-
-    dmResource::Result ResCollectionProxyRecreate(const dmResource::ResourceRecreateParams* params);
-}
-
-#endif // DM_GAMESYS_RES_COLLECTION_PROXY_H
+#endif // DMSDK_EXTENSION_HPP

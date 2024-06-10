@@ -27,7 +27,7 @@
 
 #include <dmsdk/gameobject/script.h>
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 class ComponentTest : public jc_test_base_class
 {
