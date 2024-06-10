@@ -539,9 +539,9 @@ namespace dmGraphics
     void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
     // Shaders
-    HVertexProgram       NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
-    HFragmentProgram     NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
-    HComputeProgram      NewComputeProgram(HContext context, ShaderDesc::Shader* ddf);
+    HVertexProgram       NewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
+    HFragmentProgram     NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
+    HComputeProgram      NewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
 
     HProgram             NewProgram(HContext context, HComputeProgram compute_program);
     HProgram             NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
