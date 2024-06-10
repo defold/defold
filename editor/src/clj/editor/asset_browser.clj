@@ -346,7 +346,7 @@
              resource (first selection)
              src-files (.getFiles (Clipboard/getSystemClipboard))
              dest-path (resource/abs-path resource)]
-         (if-let [conflicting-file (some #(when (string/starts-with? dest-path (.getPath %)) %) src-files)]
+         (if-let [conflicting-file (some #(when (string/starts-with? dest-path (.getPath ^File %)) %) src-files)]
            (let [res-proj-path (resource/proj-path resource)
                  dest-proj-path (resource/file->proj-path (workspace/project-path workspace) conflicting-file)]
              (notifications/show!
