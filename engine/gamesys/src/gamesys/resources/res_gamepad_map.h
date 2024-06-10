@@ -15,7 +15,7 @@
 #ifndef DM_GAMESYS_GAMEPAD_MAP_H
 #define DM_GAMESYS_GAMEPAD_MAP_H
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 #include <gameobject/gameobject.h>
 
 namespace dmGameSystem

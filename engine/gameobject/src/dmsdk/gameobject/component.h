@@ -17,11 +17,11 @@
 
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/dlib/hash.h>
-#include <dmsdk/dlib/configfile_gen.hpp>
+#include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/script/script.h>
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameObject
 {

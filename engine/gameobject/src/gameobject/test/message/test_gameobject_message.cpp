@@ -28,7 +28,7 @@
 
 #include "../../../proto/gameobject/gameobject_ddf.h"
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 void DispatchCallback(dmMessage::Message *message, void* user_ptr);
 

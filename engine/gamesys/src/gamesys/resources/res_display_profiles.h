@@ -15,7 +15,7 @@
 #ifndef DM_GAMESYS_RES_DISPLAY_PROFILES_H
 #define DM_GAMESYS_RES_DISPLAY_PROFILES_H
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {

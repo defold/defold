@@ -16,7 +16,7 @@
 #define DM_GAMESYS_RES_RENDER_TARGET_H
 
 #include "res_texture.h"
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {

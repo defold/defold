@@ -15,7 +15,7 @@
 #ifndef DM_GAMESYS_RES_LIGHT_H
 #define DM_GAMESYS_RES_LIGHT_H
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
