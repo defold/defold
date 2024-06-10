@@ -16,13 +16,17 @@
 #define DM_GAMESYS_RES_RENDER_TARGET_H
 
 #include "res_texture.h"
+#include <graphics/graphics.h>
 #include <dmsdk/resource/resource.hpp>
 
 namespace dmGameSystem
 {
     struct RenderTargetResource
     {
-        TextureResource*          m_TextureResource;
+        TextureResource*          m_ColorAttachmentResources[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureResource*          m_DepthAttachmentResource;
+        dmhash_t                  m_ColorAttachmentPaths[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS];
+        dmhash_t                  m_DepthAttachmentPath;
         dmGraphics::HRenderTarget m_RenderTarget;
     };
 
