@@ -134,6 +134,7 @@ namespace dmGraphics
         uint64_t                m_TextureFormatSupport;
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
+        uint32_t                m_SwapInterval;
         float                   m_MaxAnisotropy;
         uint32_t                m_AsyncProcessingSupport           : 1;
         uint32_t                m_AnisotropySupport                : 1;

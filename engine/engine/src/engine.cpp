@@ -890,6 +890,13 @@ namespace dmEngine
             return false;
         }
 
+        bool setting_vsync     = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
+        uint32_t swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);
+        if (!setting_vsync)
+        {
+            swap_interval = 0;
+        }
+
         dmJobThread::JobThreadCreationParams job_thread_create_param;
         job_thread_create_param.m_ThreadNames[0] = "DefoldJobThread1";
         job_thread_create_param.m_ThreadCount    = 1;
@@ -907,6 +914,7 @@ namespace dmEngine
         graphics_context_params.m_Height                  = engine->m_Height;
         graphics_context_params.m_PrintDeviceInfo         = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
         graphics_context_params.m_JobThread               = engine->m_JobThreadContext;
+        graphics_context_params.m_SwapInterval            = swap_interval;
 
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
@@ -932,15 +940,6 @@ namespace dmEngine
         engine->m_UpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
 
         SetUpdateFrequency(engine, engine->m_UpdateFrequency);
-
-        bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
-
-        uint32_t opengl_swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);
-        if (!setting_vsync)
-        {
-            opengl_swap_interval = 0;
-        }
-        SetSwapInterval(engine, opengl_swap_interval);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
