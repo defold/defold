@@ -442,8 +442,8 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
     dmRender::RenderListBegin(m_Context);
 
     dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader, 0, 0);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader, 0, 0);
     dmRender::HMaterial material = dmRender::NewMaterial(m_Context, vp, fp);
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);
@@ -563,8 +563,8 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader("foo", 3);
     dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(shader_src, strlen(shader_src));
 
-    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_shader);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_shader);
+    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_shader, 0, 0);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_shader, 0, 0);
     dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, vp, fp);
 
     dmhash_t texture_sampler_1_hash = dmHashString64("texture_sampler_1");
@@ -717,8 +717,8 @@ TEST_F(dmRenderTest, TestEnableDisableContextTextures)
     dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader("foo", 3);
     dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader("foo", 3);
 
-    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_shader);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_shader);
+    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_shader, 0, 0);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_shader, 0, 0);
     dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, vp, fp);
 
     dmhash_t tag = dmHashString64("tag");
@@ -832,8 +832,8 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
                              "uniform lowp sampler2D texture_sampler_3;\n";
 
     dmGraphics::ShaderDesc::Shader shader    = MakeDDFShader(shader_src, strlen(shader_src));
-    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
-    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
+    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader, 0, 0);
+    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader, 0, 0);
     dmRender::HMaterial material             = dmRender::NewMaterial(m_Context, vp, fp);
     dmRender::HMaterial material_no_samplers = dmRender::NewMaterial(m_Context, vp, fp);
 

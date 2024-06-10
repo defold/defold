@@ -14,6 +14,7 @@
 
 #include "res_fragment_program.h"
 #include <graphics/graphics.h>
+#include <dlib/log.h>
 
 namespace dmGameSystem
 {
@@ -24,9 +25,11 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(context, shader);
+        char error_buffer[1024] = {};
+        dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(context, shader, error_buffer, sizeof(error_buffer));
         if (prog == 0)
         {
+            dmLogError("Failed to create fragment program: %s", error_buffer);
             return dmResource::RESULT_FORMAT_ERROR;
         }
         *program = prog;
