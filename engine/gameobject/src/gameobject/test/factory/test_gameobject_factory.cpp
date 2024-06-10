@@ -24,7 +24,7 @@
 #include "../gameobject_private.h"
 #include "../gameobject_props_lua.h"
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 using namespace dmVMath;
 

@@ -15,9 +15,9 @@
 #ifndef DMSDK_ENGINE_EXTENSION_HPP
 #define DMSDK_ENGINE_EXTENSION_HPP
 
-#include <dmsdk/dlib/configfile_gen.hpp>
+#include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/webserver.h>
-#include <dmsdk/extension/extension_gen.hpp>
+#include <dmsdk/extension/extension.h>
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/hid/hid.h>
 

@@ -16,7 +16,7 @@
 
 #include <dlib/log.h>
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 #include "gameobject_private.h"
 #include "gameobject_props.h"

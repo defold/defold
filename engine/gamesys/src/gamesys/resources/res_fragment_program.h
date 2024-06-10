@@ -15,7 +15,7 @@
 #ifndef DM_GAMESYS_RES_FRAGMENT_PROGRAM_H
 #define DM_GAMESYS_RES_FRAGMENT_PROGRAM_H
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_fragment_program.h>
 
 namespace dmGameSystem

@@ -16,7 +16,7 @@
 #define DM_RES_TEXTURESET_H
 
 #include <dmsdk/gamesys/resources/res_textureset.h>
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {

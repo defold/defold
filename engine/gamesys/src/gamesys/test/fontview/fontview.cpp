@@ -27,7 +27,7 @@
 #include "../../resources/res_vertex_program.h"
 #include "../../resources/res_material.h"
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 #ifdef __MACH__
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)

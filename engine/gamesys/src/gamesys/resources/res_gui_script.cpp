@@ -21,7 +21,7 @@
 #include <gameobject/lua_ddf.h>
 #include <gameobject/gameobject_script_util.h>
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
