@@ -2337,19 +2337,19 @@ bail:
     {
         if (shader->m_ShaderMeta.m_UniformBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
         {
-            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of uniform buffers exceeded: vertex shader has %d buffers, but maximum is %d.",
+            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of uniform buffers exceeded: shader has %d buffers, but maximum is %d.",
                 shader->m_ShaderMeta.m_UniformBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
             return false;
         }
         else if (shader->m_ShaderMeta.m_StorageBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers)
         {
-            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of storage exceeded: vertex shader has %d buffer, but maximum is %d.",
+            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of storage exceeded: shader has %d buffer, but maximum is %d.",
                 shader->m_ShaderMeta.m_StorageBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers);
             return false;
         }
         else if (shader->m_ShaderMeta.m_Textures.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
         {
-            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of texture samplers exceeded: vertex shader has %d samplers, but maximum is %d.",
+            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of texture samplers exceeded: shader has %d samplers, but maximum is %d.",
                 shader->m_ShaderMeta.m_Textures.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
             return false;
         }
