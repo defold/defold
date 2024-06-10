@@ -222,6 +222,31 @@ namespace dmGameSystem
  * ```
  */
 
+/*# reference to render target resource
+ *
+ * Constructor-like function with two purposes:
+ *
+ * - Load the specified resource as part of loading the script
+ * - Return a hash to the run-time version of the resource
+ *
+ * [icon:attention] This function can only be called within [ref:go.property] function calls.
+ *
+ * @name resource.render_target
+ * @param [path] [type:string] optional resource path string to the resource
+ * @return path [type:hash] a path hash to the binary version of the resource
+ * @examples
+ *
+ * Set a render target color attachment as a model texture:
+ *
+ * ```lua
+ * go.property("my_render_target", resource.render_target("/rt.render_target"))
+ * function init(self)
+ *   local rt_info = resource.get_render_target_info(self.my_render_target)
+ *   go.set("#model", "texture0", rt_info.attachments[1].texture)
+ * end
+ * ```
+ */
+
 struct SetTextureAsyncRequest
 {
     dmhash_t                   m_PathHash;

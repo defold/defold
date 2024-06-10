@@ -68,12 +68,13 @@
 (def resource-kind->workspace->extensions
   "Declares which file extensions are valid for different kinds of resource
   properties. This affects the Property Editor, but is also used for validation."
-  {"atlas"       #(workspace/resource-kind-extensions % :atlas)
-   "font"        (constantly "font")
-   "material"    (constantly "material")
-   "buffer"      (constantly "buffer")
-   "texture"     (constantly (conj image/exts "cubemap" "render_target"))
-   "tile_source" (constantly "tilesource")})
+  {"atlas"        #(workspace/resource-kind-extensions % :atlas)
+   "font"          (constantly "font")
+   "material"      (constantly "material")
+   "buffer"        (constantly "buffer")
+   "texture"       (constantly (conj image/exts "cubemap" "render_target"))
+   "tile_source"   (constantly "tilesource")
+   "render_target" (constantly "render_target")})
 
 (def valid-resource-kind? (partial contains? resource-kind->workspace->extensions))
 

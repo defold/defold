@@ -1216,9 +1216,9 @@
         (make-atlas!    "/from-sub-props-collection.atlas")
         (make-material! "/from-sub-props-collection.material")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (edit-script! ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
+                             (edit-script! ["go.property('atlas',    resource.atlas('/from-props-script.atlas'))"
                                             "go.property('material', resource.material('/from-props-script.material'))"
-                                            "go.property('texture',   resource.texture('/from-props-script.png'))"]))
+                                            "go.property('texture',  resource.texture('/from-props-script.png'))"]))
               props-collection (doto (make-resource-node! "/props.collection"))
               embedded-game-object-instance (tu/add-embedded-game-object! props-collection)
               embedded-game-object(tu/to-game-object-node-id embedded-game-object-instance)

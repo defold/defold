@@ -324,7 +324,10 @@
               {:type :script-property-type-resource :resource-kind "texture" :value (resolve-workspace-resource "/absolute/path/to/resource.png")}
               {:type :script-property-type-resource :resource-kind "tile_source" :value nil}
               {:type :script-property-type-resource :resource-kind "tile_source" :value nil}
-              {:type :script-property-type-resource :resource-kind "tile_source" :value (resolve-workspace-resource "/absolute/path/to/resource.tilesource")}]
+              {:type :script-property-type-resource :resource-kind "tile_source" :value (resolve-workspace-resource "/absolute/path/to/resource.tilesource")}
+              {:type :script-property-type-resource :resource-kind "render_target" :value nil}
+              {:type :script-property-type-resource :resource-kind "render_target" :value nil}
+              {:type :script-property-type-resource :resource-kind "render_target" :value (resolve-workspace-resource "/absolute/path/to/resource.render_target")}]
              (map #(select-keys % [:value :type :resource-kind])
                   (src->properties workspace
                     (string/join "\n" ["go.property(\"test\", true)"
@@ -368,7 +371,10 @@
                                        "go.property(\"test\", resource.texture('/absolute/path/to/resource.png'))"
                                        "go.property(\"test\", resource.tile_source())"
                                        "go.property(\"test\", resource.tile_source(''))"
-                                       "go.property(\"test\", resource.tile_source('/absolute/path/to/resource.tilesource'))"])))))
+                                       "go.property(\"test\", resource.tile_source('/absolute/path/to/resource.tilesource'))"
+                                       "go.property(\"test\", resource.render_target())"
+                                       "go.property(\"test\", resource.render_target(''))"
+                                       "go.property(\"test\", resource.render_target('/absolute/path/to/resource.render_target'))"])))))
 
       (is (= []
              (src->properties workspace "foo.property(\"test\", true)")))
