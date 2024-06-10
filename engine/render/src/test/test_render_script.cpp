@@ -111,8 +111,8 @@ protected:
         shader_ddf.m_Source.m_Data  = (uint8_t*)"foo";
         shader_ddf.m_Source.m_Count = 3;
 
-        m_VertexProgram = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader_ddf);
-        m_FragmentProgram = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader_ddf);
+        m_VertexProgram = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader_ddf, 0, 0);
+        m_FragmentProgram = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader_ddf, 0, 0);
 
         m_FontMaterial = dmRender::NewMaterial(m_Context, m_VertexProgram, m_FragmentProgram);
         dmRender::SetFontMapMaterial(m_SystemFontMap, m_FontMaterial);
@@ -127,7 +127,7 @@ protected:
         compute_shader_ddf.m_Source.m_Data  = (uint8_t*) compute_program_src;
         compute_shader_ddf.m_Source.m_Count = strlen(compute_program_src);
 
-        m_ComputeProgram = dmGraphics::NewComputeProgram(m_GraphicsContext, &compute_shader_ddf);
+        m_ComputeProgram = dmGraphics::NewComputeProgram(m_GraphicsContext, &compute_shader_ddf, 0, 0);
     }
 
     virtual void TearDown()
@@ -1441,8 +1441,8 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
                              "uniform lowp sampler2D texture_sampler_3;\n";
 
     dmGraphics::ShaderDesc::Shader shader = MakeDDFShader(shader_src, strlen(shader_src));
-    dmGraphics::HVertexProgram vp         = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
-    dmGraphics::HFragmentProgram fp       = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
+    dmGraphics::HVertexProgram vp         = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader, 0, 0);
+    dmGraphics::HFragmentProgram fp       = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader, 0, 0);
     dmRender::HMaterial material          = dmRender::NewMaterial(m_Context, vp, fp);
 
     /////////////////////////////

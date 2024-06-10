@@ -826,7 +826,7 @@ namespace dmGraphics
         return p;
     }
 
-    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return (HComputeProgram) NewShaderProgramFromDDF(ddf);
     }
@@ -865,12 +865,12 @@ namespace dmGraphics
         delete (Program*) program;
     }
 
-    static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return (HVertexProgram) NewShaderProgramFromDDF(ddf);
     }
 
-    static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return (HFragmentProgram) NewShaderProgramFromDDF(ddf);
     }
