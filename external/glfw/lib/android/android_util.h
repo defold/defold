@@ -22,7 +22,7 @@
 #define CMD_INPUT_MARKED_TEXT (1)
 
 #define MAX_APP_COMMANDS (16)
-#define MAX_APP_INPUT_EVENTS (64)
+#define APP_INPUT_EVENTS_SIZE_INCREASE_STEP (32)
 
 struct Command
 {

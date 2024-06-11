@@ -40,6 +40,7 @@
 #include <gamesys/mesh_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
 #include <dmsdk/gamesys/resources/res_material.h>
+#include <dmsdk/resource/resource.h>
 
 #include "../resources/res_mesh.h"
 
@@ -216,7 +217,7 @@ namespace dmGameSystem
 
     static const uint64_t AABB_HASH = dmHashString64("AABB");
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
 
     dmGameObject::CreateResult CompMeshNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -1077,11 +1078,13 @@ namespace dmGameSystem
         return res;
     }
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
     {
-        MeshWorld* world = (MeshWorld*) params.m_UserData;
+        MeshWorld* world = (MeshWorld*) params->m_UserData;
         const dmArray<MeshComponent*>& components = world->m_Components.GetRawObjects();
         uint32_t n = components.Size();
+
+        const void* resource = dmResource::GetResource(params->m_Resource);
         for (uint32_t i = 0; i < n; ++i)
         {
             MeshComponent* component = components[i];
@@ -1089,9 +1092,9 @@ namespace dmGameSystem
             {
                 const dmRender::HMaterial material = GetMaterial(component, component->m_Resource);
                 const dmGameSystem::BufferResource* buffer_resource = GetVerticesBuffer(component, component->m_Resource);
-                if (component->m_Resource == params.m_Resource->m_Resource ||
-                   material == params.m_Resource->m_Resource ||
-                   buffer_resource == params.m_Resource->m_Resource)
+                if (component->m_Resource == resource ||
+                   material == resource ||
+                   buffer_resource == resource)
                 {
                     component->m_ReHash = 1;
                     continue;
@@ -1100,7 +1103,7 @@ namespace dmGameSystem
                 for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
                 {
                     dmGraphics::HTexture texture = GetTexture(component, i);
-                    if (texture == (uintptr_t) params.m_Resource->m_Resource)
+                    if (texture == (uintptr_t) resource)
                     {
                         component->m_ReHash = 1;
                         break;

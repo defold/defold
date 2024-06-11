@@ -20,13 +20,13 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResCollectionFactoryPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResCollectionFactoryPreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResCollectionFactoryCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResCollectionFactoryCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResCollectionFactoryDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResCollectionFactoryDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResCollectionFactoryRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResCollectionFactoryRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_RES_FACTORY_H

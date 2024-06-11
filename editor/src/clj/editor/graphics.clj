@@ -358,6 +358,11 @@
           :coordinate-space :coordinate-space-world
           :data-type :type-float
           :shader-type :shader-type-vec3}
+         {:name "tangent"
+          :semantic-type :semantic-type-tangent
+          :coordinate-space :coordinate-space-world
+          :data-type :type-float
+          :shader-type :shader-type-vec4}
          {:name "mtx_world"
           :semantic-type :semantic-type-world-matrix
           :coordinate-space :coordinate-space-world
@@ -595,10 +600,14 @@
         world-transform-array (math/vecmath->clj (doto ^Matrix4d (:normal-transform renderable-data) (.transpose)))]
     (into [] (repeat vertex-count world-transform-array))))
 
+(defn- renderable-data->world-tangent-v4 [renderable-data]
+  (let [tangents (:tangent-data renderable-data)
+        normal-transform (:normal-transform renderable-data)]
+    (geom/transf-tangents normal-transform tangents)))
+
 (def ^:private renderable-data->world-normal-v3 (partial renderable-data->world-direction-v3 :normal-data))
 (def ^:private renderable-data->world-normal-v4 (partial renderable-data->world-direction-v4 :normal-data))
 (def ^:private renderable-data->world-tangent-v3 (partial renderable-data->world-direction-v3 :tangent-data))
-(def ^:private renderable-data->world-tangent-v4 (partial renderable-data->world-direction-v4 :tangent-data))
 
 (defn put-attributes! [^VertexBuffer vbuf renderable-datas]
   (let [vertex-description (.vertex-description vbuf)

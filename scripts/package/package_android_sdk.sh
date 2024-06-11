@@ -25,9 +25,9 @@
 
 set -e
 
-ANDROID_PLATFORM=33
-ANDROID_TARGET_API_LEVEL=33
-ANDROID_BUILD_TOOLS_VERSION=33.0.1
+ANDROID_PLATFORM=34
+ANDROID_TARGET_API_LEVEL=34
+ANDROID_BUILD_TOOLS_VERSION=34.0.0
 
 PLATFORM=android-${ANDROID_PLATFORM}
 
@@ -79,6 +79,8 @@ else
 fi
 
 echo "cd ${ANDROID_SDK_INSTALLDIR}"
+
+# Doesn't work with JDK for arm64 on mac
 
 # Since Android SDK only works with JDK8, here's a config hack (for JDK 9 and 10, not 11)
 # e.g. export PATH=/usr/lib/jdk/jdk-10.0.2/bin:$PATH

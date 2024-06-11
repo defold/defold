@@ -225,13 +225,12 @@ struct CopyToBufferTest : ITest
 
 struct ReadPixelsTest : ITest
 {
-    uint8_t* m_Buffer;
+    uint8_t m_Buffer[512 * 512 * 4];
     bool m_DidRead;
 
     void Initialize(EngineCtx* engine) override
     {
         m_DidRead = false;
-        m_Buffer = new uint8_t[512 * 512 * 4];
         memset(m_Buffer, 0, sizeof(m_Buffer));
     }
 
@@ -306,8 +305,8 @@ struct SubPassTest : ITest
         fs_shader.m_Textures.m_Data  = &fs_input_color;
         fs_shader.m_Textures.m_Count = 1;
 
-        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader);
-        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader);
+        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader, 0, 0);
+        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader, 0, 0);
 
         m_ShaderProgram     = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
         m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
@@ -398,7 +397,14 @@ struct SubPassTest : ITest
 
 struct ComputeTest : ITest
 {
-    dmGraphics::HProgram m_Program;
+    dmGraphics::HProgram                    m_Program;
+    dmGraphics::HUniformLocation            m_UniformLoc;
+    dmGraphics::ShaderDesc::ResourceBinding m_ColorMember;
+
+    struct buf
+    {
+        float color[4];
+    };
 
     void Initialize(EngineCtx* engine) override
     {
@@ -417,14 +423,48 @@ struct ComputeTest : ITest
             compute_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_compute_program);
         }
 
-        dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_shader);
+        m_ColorMember = {};
+        m_ColorMember.m_Name = "color";
+        m_ColorMember.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4;
+
+
+        dmGraphics::ShaderDesc::ResourceMember color_member = {};
+        color_member.m_Name = "color";
+        color_member.m_NameHash = dmHashString64(color_member.m_Name);
+
+        dmGraphics::ShaderDesc::ResourceTypeInfo resource_type_info = {};
+        resource_type_info.m_Name = "buf";
+        resource_type_info.m_NameHash = dmHashString64(resource_type_info.m_Name);
+        resource_type_info.m_Members.m_Count = 1;
+        resource_type_info.m_Members.m_Data = &color_member;
+
+        dmGraphics::ShaderDesc::ResourceBinding uniform_block = {};
+        uniform_block.m_Name                     = "buf";
+        uniform_block.m_NameHash                 = dmHashString64(uniform_block.m_Name);
+        uniform_block.m_Type.m_Type.m_TypeIndex  = 0;
+        uniform_block.m_Type.m_UseTypeIndex      = 1;
+
+        compute_shader.m_UniformBuffers.m_Data  = &uniform_block;
+        compute_shader.m_UniformBuffers.m_Count = 1;
+        compute_shader.m_Types.m_Data           = &resource_type_info;
+        compute_shader.m_Types.m_Count          = 1;
+
+        dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_shader, 0, 0);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, compute_program);
+
+        m_UniformLoc = dmGraphics::GetUniformLocation(m_Program, "buf");
     }
 
     void Execute(EngineCtx* engine) override
     {
+        dmVMath::Vector4 color(1.0f, 0.0f, 0.0f, 1.0f);
 
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::SetConstantV4(engine->m_GraphicsContext, &color, 1, m_UniformLoc);
+
+        dmGraphics::DispatchCompute(engine->m_GraphicsContext, 1, 1, 1);
+        dmGraphics::DisableProgram(engine->m_GraphicsContext);
     }
 };
 
@@ -493,8 +533,8 @@ struct StorageBufferTest : ITest
         vs_shader.m_Inputs.m_Data  = m_VertexAttributes;
         vs_shader.m_Inputs.m_Count = sizeof(m_VertexAttributes) / sizeof(dmGraphics::ShaderDesc::ResourceBinding);
 
-        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader);
-        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader);
+        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader, 0, 0);
+        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader, 0, 0);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
 
@@ -572,6 +612,7 @@ static void* EngineCreate(int argc, char** argv)
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
+    //engine->m_Test = new ComputeTest();
     //engine->m_Test = new ComputeTest();
     //engine->m_Test = new StorageBufferTest();
     //engine->m_Test = new ReadPixelsTest();

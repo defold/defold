@@ -109,8 +109,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
                 }
             }
         }
-        minWidth = Math.max(minWidth, settings.minPageWidth);
-        minHeight = Math.max(minHeight, settings.minPageHeight);
+        minWidth = Math.max(minWidth + settings.paddingX, settings.minPageWidth);
+        minHeight = Math.max(minHeight + settings.paddingY, settings.minPageHeight);
 
         // Find the minimal page size that fits all rects.
         Page bestResult = null;

@@ -50,6 +50,7 @@
 #include <gui/gui_script.h>
 
 #include <dmsdk/gamesys/gui.h>
+#include <dmsdk/resource/resource.h>
 
 DM_PROPERTY_EXTERN(rmtp_Gui);
 DM_PROPERTY_U32(rmtp_GuiVertexCount, 0, FrameReset, "#", &rmtp_Gui);
@@ -120,10 +121,10 @@ namespace dmGameSystem
         uint32_t                    m_MaxAnimationCount;
     };
 
-    static void GuiResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
+    static void GuiResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
     {
-        GuiWorld* world = (GuiWorld*) params.m_UserData;
-        void* resource = params.m_Resource->m_Resource;
+        GuiWorld* world = (GuiWorld*) params->m_UserData;
+        void* resource = dmResource::GetResource(params->m_Resource);
 
         for (uint32_t j = 0; j < world->m_Components.Size(); ++j)
         {

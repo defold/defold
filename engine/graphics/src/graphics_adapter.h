@@ -24,6 +24,7 @@ namespace dmGraphics
     struct GraphicsAdapterFunctionTable;
     typedef GraphicsAdapterFunctionTable (*GraphicsAdapterRegisterFunctionsCb)();
     typedef bool                         (*GraphicsAdapterIsSupportedCb)();
+    typedef HContext                     (*GraphicsAdapterGetContextCb)();
 
     struct GraphicsAdapter
     {
@@ -33,15 +34,16 @@ namespace dmGraphics
         struct GraphicsAdapter*            m_Next;
         GraphicsAdapterRegisterFunctionsCb m_RegisterCb;
         GraphicsAdapterIsSupportedCb       m_IsSupportedCb;
+        GraphicsAdapterGetContextCb        m_GetContextCb;
         AdapterFamily                      m_Family;
         int8_t                             m_Priority;
     };
 
-    void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int8_t priority);
+    void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, GraphicsAdapterGetContextCb get_context_cb, int8_t priority);
 
     // This snippet is taken from extension.h (SDK)
-    #define DM_REGISTER_GRAPHICS_ADAPTER(adapter_name, adapter_ptr, is_supported_cb, register_functions_cb, priority) extern "C" void adapter_name () { \
-        RegisterGraphicsAdapter(adapter_ptr, is_supported_cb, register_functions_cb, priority); \
+    #define DM_REGISTER_GRAPHICS_ADAPTER(adapter_name, adapter_ptr, is_supported_cb, register_functions_cb, get_context_cb, priority) extern "C" void adapter_name () { \
+        RegisterGraphicsAdapter(adapter_ptr, is_supported_cb, register_functions_cb, get_context_cb, priority); \
     }
 
     typedef HContext (*NewContextFn)(const ContextParams& params);
@@ -80,8 +82,9 @@ namespace dmGraphics
     typedef void (*DisableVertexBufferFn)(HContext context, HVertexBuffer vertex_buffer);
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
-    typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc::Shader* ddf);
-    typedef HFragmentProgram (*NewFragmentProgramFn)(HContext context, ShaderDesc::Shader* ddf);
+    typedef void (*DispatchComputeFn)(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+    typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
+    typedef HFragmentProgram (*NewFragmentProgramFn)(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
     typedef HProgram (*NewProgramFn)(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     typedef void (*DeleteProgramFn)(HContext context, HProgram program);
     typedef bool (*ReloadVertexProgramFn)(HVertexProgram prog, ShaderDesc::Shader* ddf);
@@ -150,9 +153,10 @@ namespace dmGraphics
     typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
     typedef uint8_t (*GetNumTextureHandlesFn)(HTexture texture);
+    typedef uint32_t (*GetTextureUsageHintFlagsFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
-    typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc::Shader* ddf);
+    typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
     typedef HProgram (*NewProgramFromComputeFn)(HContext context, HComputeProgram compute_program);
     typedef void (*DeleteComputeProgramFn)(HComputeProgram prog);
 
@@ -191,6 +195,7 @@ namespace dmGraphics
         DisableVertexBufferFn m_DisableVertexBuffer;
         DrawElementsFn m_DrawElements;
         DrawFn m_Draw;
+        DispatchComputeFn m_DispatchCompute;
         NewVertexProgramFn m_NewVertexProgram;
         NewFragmentProgramFn m_NewFragmentProgram;
         NewProgramFn m_NewProgram;
@@ -259,6 +264,7 @@ namespace dmGraphics
         GetNumSupportedExtensionsFn m_GetNumSupportedExtensions;
         GetSupportedExtensionFn m_GetSupportedExtension;
         GetNumTextureHandlesFn m_GetNumTextureHandles;
+        GetTextureUsageHintFlagsFn m_GetTextureUsageHintFlags;
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
@@ -306,6 +312,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableVertexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DrawElements); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, Draw); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DispatchCompute); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewFragmentProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgram); \
@@ -377,6 +384,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumSupportedExtensions); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetSupportedExtension); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetNumTextureHandles); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureUsageHintFlags); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \

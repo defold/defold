@@ -14,13 +14,30 @@
 
 #include <glfw/glfw.h>
 
-#include "platform_window.h"
+#include <glfw/glfw_native.h>
+
 #include "platform_window_ios.h"
 
 namespace dmPlatform
 {
-    void iOSSetViewTypeOpenGL(HWindow window)
+    void SetiOSViewTypeOpenGL(HWindow window)
     {
         glfwSetViewType(GLFW_OPENGL_API);
     }
+
+    id GetiOSUIWindow()
+    {
+        return glfwGetiOSUIWindow();
+    }
+
+    id GetiOSUIView()
+    {
+        return glfwGetiOSUIView();
+    }
+
+    id GetiOSEAGLContext()
+    {
+        return glfwGetiOSEAGLContext();
+    }
+
 }

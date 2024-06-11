@@ -33,6 +33,7 @@ namespace dmGraphics
 
     struct OpenGLTexture
     {
+        TextureParams     m_Params;
         TextureType       m_Type;
         GLuint*           m_TextureIds;
         uint32_t          m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
@@ -44,7 +45,7 @@ namespace dmGraphics
         uint16_t          m_OriginalWidth;
         uint16_t          m_OriginalHeight;
         uint16_t          m_MipMapCount;
-        TextureParams     m_Params;
+        uint8_t           m_UsageHintFlags;
     };
 
     struct OpenGLRenderTargetAttachment
@@ -69,6 +70,39 @@ namespace dmGraphics
         uint32_t                     m_BufferTypeFlags;
     };
 
+    struct OpenGLShader
+    {
+        GLuint               m_Id;
+        ShaderDesc::Language m_Language;
+    };
+
+    struct OpenGLVertexAttribute
+    {
+        dmhash_t m_NameHash;
+        int32_t  m_Location;
+        GLint    m_Count;
+        GLenum   m_Type;
+    };
+
+    struct OpenGLUniform
+    {
+        char*            m_Name;
+        dmhash_t         m_NameHash;
+        HUniformLocation m_Location;
+        GLint            m_Count;
+        GLenum           m_Type;
+        uint8_t          m_TextureUnit   : 7;
+        uint8_t          m_IsTextureType : 1;
+    };
+
+    struct OpenGLProgram
+    {
+        GLuint                         m_Id;
+        ShaderDesc::Language           m_Language;
+        dmArray<OpenGLVertexAttribute> m_Attributes;
+        dmArray<OpenGLUniform>         m_Uniforms;
+    };
+
     struct OpenGLContext
     {
         OpenGLContext(const ContextParams& params);
@@ -81,6 +115,8 @@ namespace dmGraphics
         void*                   m_AuxContext;
         int32_atomic_t          m_AuxContextJobPending;
         int32_atomic_t          m_DeleteContextRequested;
+
+        OpenGLProgram*          m_CurrentProgram;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 
@@ -114,33 +150,6 @@ namespace dmGraphics
         uint32_t                m_StorageBufferSupport             : 1;
         uint32_t                m_RenderDocSupport                 : 1;
         uint32_t                m_InstancingSupport                : 1;
-    };
-
-    struct OpenGLShader
-    {
-        GLuint               m_Id;
-        ShaderDesc::Language m_Language;
-    };
-
-    struct OpenglVertexAttribute
-    {
-        dmhash_t m_NameHash;
-        int32_t  m_Location;
-        GLint    m_Count;
-        GLenum   m_Type;
-    };
-
-    struct OpenGLProgram
-    {
-        GLuint                         m_Id;
-        ShaderDesc::Language           m_Language;
-        dmArray<OpenglVertexAttribute> m_Attributes;
-    };
-
-    struct OpenGLComputeProgram
-    {
-        GLuint               m_Id;
-        ShaderDesc::Language m_Language;
     };
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__
