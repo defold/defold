@@ -16,7 +16,6 @@
 #include <testmain/testmain.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include <dmsdk/sdk.h>
 #include <extension/extension.h>
 
 
