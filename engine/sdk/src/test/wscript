@@ -44,7 +44,7 @@ def build(bld):
               always   = True)
 
     bld.program(features         = 'c cxx embed test',
-                includes         = '.',
+                includes         = '. ../',
                 use              = 'TESTMAIN EXTENSION DLIB SOCKET LUA PROFILE_NULL test_sdk_lib',
                 exported_symbols = ['TestSdk'],
                 target           = 'test_sdk',
