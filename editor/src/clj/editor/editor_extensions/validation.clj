@@ -111,6 +111,22 @@
           :opt-un [:editor.extensions.validation.language-server/watched_files]))
 (s/def ::language-servers (s/coll-of ::language-server))
 
+(defn- transaction-step? [x]
+  (= :transaction-step (:type (meta x))))
+
+(s/def ::transaction-steps (s/coll-of transaction-step? :min-count 1))
+
+(s/def :editor.extensions.validation.execute-options/reload_resources boolean?)
+(s/def :editor.extensions.validation.execute-options/out
+  #{"capture" "discard" "pipe"})
+(s/def :editor.extensions.validation.execute-options/err
+  #{"stdout" "discard" "pipe"})
+(s/def ::execute-command (s/coll-of string? :min-count 1))
+(s/def ::execute-options
+  (s/keys :opt-un [:editor.extensions.validation.execute-options/reload_resources
+                   :editor.extensions.validation.execute-options/out
+                   :editor.extensions.validation.execute-options/err]))
+
 (defn- ->lua-string
   "Convert Clojure data structure to a string representing equivalent Lua data structure"
   [x]
@@ -161,6 +177,7 @@
             node-id? "is not a node id"
             resource-path? "is not a resource path"
             map? "is not a table"
+            transaction-step? "is not a transaction step"
             nil))
 
         (set? pred)
