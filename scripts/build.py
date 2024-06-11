@@ -328,9 +328,6 @@ class Configuration(object):
             os._exit(5)
 
     def get_python(self):
-        if 'macos' in self.host and 'arm64' == platform.machine():
-            if 'x86_64-macos' == self.target_platform:
-                return ['arch', '-x86_64', 'python']
         return ['python']
 
     def _create_common_dirs(self):
