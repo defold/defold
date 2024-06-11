@@ -15,7 +15,7 @@
 #ifndef DM_GAMESYS_RES_FACTORY_H
 #define DM_GAMESYS_RES_FACTORY_H
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_factory.h>
 
 namespace dmGameSystem

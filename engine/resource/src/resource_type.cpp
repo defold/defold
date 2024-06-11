@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/dlib/log.h>
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 #include "resource_private.h"
 
 /////////////////////////////////////////////////////////////////////
@@ -28,67 +28,67 @@ struct TypeCreatorDesc
 
 void* ResourceTypeContextGetContextByHash(HResourceTypeContext ctx, dmhash_t name)
 {
-	void** out = ctx->m_Contexts->Get(name);
-	if (out)
-		return *out;
-	return 0;
+    void** out = ctx->m_Contexts->Get(name);
+    if (out)
+        return *out;
+    return 0;
 }
 
 /////////////////////////////////////////////////////////////////////
 
 void ResourceTypeSetContext(HResourceType type, void* ctx)
 {
-	type->m_Context = ctx;
+    type->m_Context = ctx;
 }
 
 void* ResourceTypeGetContext(HResourceType type)
 {
-	return type->m_Context;
+    return type->m_Context;
 }
 
 const char* ResourceTypeGetName(HResourceType type)
 {
-	return type->m_Extension;
+    return type->m_Extension;
 }
 
 dmhash_t ResourceTypeGetNameHash(HResourceType type)
 {
-	return type->m_ExtensionHash;
+    return type->m_ExtensionHash;
 }
 
 void ResourceTypeSetPreloadFn(HResourceType type, FResourcePreload fn)
 {
-	type->m_PreloadFunction = fn;
+    type->m_PreloadFunction = fn;
 }
 
 void ResourceTypeSetCreateFn(HResourceType type, FResourceCreate fn)
 {
-	type->m_CreateFunction = fn;
+    type->m_CreateFunction = fn;
 }
 
 void ResourceTypeSetPostCreateFn(HResourceType type, FResourcePostCreate fn)
 {
-	type->m_PostCreateFunction = fn;
+    type->m_PostCreateFunction = fn;
 }
 
 void ResourceTypeSetDestroyFn(HResourceType type, FResourceDestroy fn)
 {
-	type->m_DestroyFunction = fn;
+    type->m_DestroyFunction = fn;
 }
 
 void ResourceTypeSetRecreateFn(HResourceType type, FResourceRecreate fn)
 {
-	type->m_RecreateFunction = fn;
+    type->m_RecreateFunction = fn;
 }
 
 
 TypeCreatorDesc* g_ResourceTypeCreatorDescFirst = 0;
 
 void ResourceRegisterTypeCreatorDesc(void* _desc,
-		                            uint32_t desc_size,
-		                            const char *name,
-		                            FResourceTypeRegister register_fn,
-		                            FResourceTypeDeregister deregister_fn)
+                                    uint32_t desc_size,
+                                    const char *name,
+                                    FResourceTypeRegister register_fn,
+                                    FResourceTypeDeregister deregister_fn)
 {
     DM_STATIC_ASSERT(ResourceTypeCreatorDescBufferSize >= sizeof(struct TypeCreatorDesc), Invalid_Struct_Size);
 
@@ -110,7 +110,7 @@ void RegisterTypeCreatorDesc(void* desc,
                             FResourceTypeRegister register_fn,
                             FResourceTypeDeregister deregister_fn)
 {
-	ResourceRegisterTypeCreatorDesc(desc, desc_size, name, register_fn, deregister_fn);
+    ResourceRegisterTypeCreatorDesc(desc, desc_size, name, register_fn, deregister_fn);
 }
 
 static const TypeCreatorDesc* GetFirstTypeCreatorDesc()
@@ -148,12 +148,12 @@ Result RegisterTypes(HFactory factory, dmHashTable64<void*>* contexts)
         result = dmResource::ValidateResourceType(type);
         if (dmResource::RESULT_OK != result)
         {
-        	dmResource::FreeResourceType(factory, type);
-        	dmLogDebug("Failed to register type '%s'", desc->m_Name);
+            dmResource::FreeResourceType(factory, type);
+            dmLogDebug("Failed to register type '%s'", desc->m_Name);
         }
         else
         {
-        	dmLogDebug("Registered type '%s'", desc->m_Name);
+            dmLogDebug("Registered type '%s'", desc->m_Name);
         }
         desc = desc->m_Next;
     }

@@ -1770,7 +1770,7 @@ static void LogFrameBufferError(GLenum status)
     #endif
     }
 
-    static GLuint DoCreateShader(GLenum type, const void* program, uint32_t program_size)
+    static GLuint DoCreateShader(GLenum type, const void* program, uint32_t program_size, char* error_buffer, uint32_t error_buffer_size)
     {
         GLuint shader_id = glCreateShader(type);
         CHECK_GL_ERROR;
@@ -1784,7 +1784,24 @@ static void LogFrameBufferError(GLenum status)
         glGetShaderiv(shader_id, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
-            dmLogError("Unable to compile %s shader.", type == GL_VERTEX_SHADER ? "vertex" : "fragment");
+            const char* type_str = "";
+            switch(type)
+            {
+                case GL_VERTEX_SHADER:
+                    type_str = "vertex";
+                    break;
+                case GL_FRAGMENT_SHADER:
+                    type_str = "fragment";
+                    break;
+                case DMGRAPHICS_TYPE_COMPUTE_SHADER:
+                    type_str = "compute";
+                    break;
+                default:
+                    break;
+            }
+
+            char* log_str = 0;
+
 #ifndef NDEBUG
             GLint logLength;
             glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &logLength);
@@ -1792,10 +1809,16 @@ static void LogFrameBufferError(GLenum status)
             {
                 GLchar *log = (GLchar *)malloc(logLength);
                 glGetShaderInfoLog(shader_id, logLength, &logLength, log);
-                dmLogError("%s", log);
-                free(log);
             }
 #endif
+            if (error_buffer)
+            {
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader.\nError: %s", type_str, log_str == 0 ? "Unknown" : log_str);
+            }
+            if (log_str)
+            {
+                free(log_str);
+            }
             glDeleteShader(shader_id);
             return 0;
         }
@@ -1803,9 +1826,9 @@ static void LogFrameBufferError(GLenum status)
         return shader_id;
     }
 
-    static OpenGLShader* CreateShader(GLenum type, ShaderDesc::Shader* ddf)
+    static OpenGLShader* CreateShader(GLenum type, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        GLuint shader_id = DoCreateShader(type, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        GLuint shader_id = DoCreateShader(type, ddf->m_Source.m_Data, ddf->m_Source.m_Count, error_buffer, error_buffer_size);
         if (!shader_id)
         {
             return 0;
@@ -1816,22 +1839,22 @@ static void LogFrameBufferError(GLenum status)
         return shader;
     }
 
-    static HVertexProgram OpenGLNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HVertexProgram OpenGLNewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HVertexProgram) CreateShader(GL_VERTEX_SHADER, ddf);
+        return (HVertexProgram) CreateShader(GL_VERTEX_SHADER, ddf, error_buffer, error_buffer_size);
     }
 
-    static HFragmentProgram OpenGLNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HFragmentProgram OpenGLNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf);
+        return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf, error_buffer, error_buffer_size);
     }
 
-    static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-        return (HVertexProgram) CreateShader(DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf);
+        return (HVertexProgram) CreateShader(DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf, error_buffer, error_buffer_size);
     #else
-        dmLogInfo("Compute Shaders are not supported for OpenGL on this platform.");
+        dmSnPrintf(error_buffer, error_buffer_size, "Compute Shaders are not supported for OpenGL on this platform.");
         return 0;
     #endif
     }

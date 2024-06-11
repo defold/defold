@@ -37,7 +37,7 @@
 #include "gameobject/gameobject_ddf.h"
 
 #include <dmsdk/dlib/vmath.h>
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects");
 

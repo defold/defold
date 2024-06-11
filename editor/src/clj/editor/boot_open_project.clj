@@ -211,7 +211,7 @@
                                                             console/url-prefix (console/make-request-handler console-view)})
                                    http-server/start!)]
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
-      (app-view/reload-extensions! project :all workspace changes-view prefs)
+      (app-view/reload-extensions! app-view project :all workspace changes-view)
 
       (when updater
         (let [update-link (.lookup root "#update-link")]

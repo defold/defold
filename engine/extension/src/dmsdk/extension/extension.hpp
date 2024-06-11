@@ -12,19 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-package com.defold.editor.luart;
+#ifndef DMSDK_EXTENSION_HPP
+#define DMSDK_EXTENSION_HPP
 
-import org.luaj.vm2.lib.jse.JseIoLib;
+#if !defined(__cplusplus)
+   #error "This file is supported in C++ only!"
+#endif
 
-import java.io.IOException;
+#include "extension_gen.hpp"
 
-public class IoLib extends JseIoLib {
-
-    /**
-     * made public to avoid reflection from clojure
-     */
-    @Override
-    public File openFile(String s, boolean b, boolean b1, boolean b2, boolean b3) throws IOException {
-        return super.openFile(s, b, b1, b2, b3);
-    }
-}
+#endif // DMSDK_EXTENSION_HPP

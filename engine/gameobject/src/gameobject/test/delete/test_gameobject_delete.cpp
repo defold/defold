@@ -22,7 +22,7 @@
 #include "../gameobject_private.h"
 #include "gameobject/test/delete/test_gameobject_delete_ddf.h"
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 class DeleteTest : public jc_test_base_class
 {

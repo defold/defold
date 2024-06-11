@@ -38,11 +38,11 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="15.1" # we also use this to match version on Github Actions
+VERSION_XCODE="15.4" # we also use this to match version on Github Actions
 VERSION_XCODE_CLANG="15.0.0"
-VERSION_MACOSX="14.2"
-VERSION_IPHONEOS="17.2"
-VERSION_IPHONESIMULATOR="17.2"
+VERSION_MACOSX="14.5"
+VERSION_IPHONEOS="17.5"
+VERSION_IPHONESIMULATOR="17.5"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
@@ -60,6 +60,8 @@ PACKAGES_LINUX_TOOLCHAIN="clang+llvm-%s-x86_64-linux-gnu-ubuntu-16.04" % VERSION
 # Android
 
 ANDROID_NDK_VERSION='25b'
+ANDROID_TARGET_API_LEVEL = 34
+ANDROID_PACKAGE = "android-%s" % ANDROID_TARGET_API_LEVEL
 ANDROID_BUILD_TOOLS_VERSION = '34.0.0'
 ANDROID_NDK_API_VERSION='19' # Android 4.4
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0

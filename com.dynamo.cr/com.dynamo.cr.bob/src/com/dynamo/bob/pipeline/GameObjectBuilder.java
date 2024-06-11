@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
 
+import com.dynamo.bob.util.BobNLS;
 import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.proto.DdfMath.Vector3;
@@ -235,6 +236,11 @@ public class GameObjectBuilder extends Builder<Void> {
             compStorage.add(ext);
             String inExt = "." + ext;
             String outExt = project.replaceExt(inExt);
+            if (ext.equals("gui_script") || ext.equals("render_script"))
+            {
+                throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.BuilderUtil_WRONG_RESOURCE_TYPE,
+                        new String[] { c, ext, "script" } ));
+            }
             c = BuilderUtil.replaceExt(c, inExt, outExt);
 
             PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();

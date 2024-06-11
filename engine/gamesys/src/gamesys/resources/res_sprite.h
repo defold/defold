@@ -16,7 +16,7 @@
 #define DM_GAMESYS_RES_SPRITE_H
 
 #include <dmsdk/gamesys/resources/res_sprite.h>
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {

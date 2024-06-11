@@ -305,8 +305,8 @@ struct SubPassTest : ITest
         fs_shader.m_Textures.m_Data  = &fs_input_color;
         fs_shader.m_Textures.m_Count = 1;
 
-        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader);
-        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader);
+        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader, 0, 0);
+        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader, 0, 0);
 
         m_ShaderProgram     = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
         m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
@@ -449,7 +449,7 @@ struct ComputeTest : ITest
         compute_shader.m_Types.m_Data           = &resource_type_info;
         compute_shader.m_Types.m_Count          = 1;
 
-        dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_shader);
+        dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_shader, 0, 0);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, compute_program);
 
@@ -533,8 +533,8 @@ struct StorageBufferTest : ITest
         vs_shader.m_Inputs.m_Data  = m_VertexAttributes;
         vs_shader.m_Inputs.m_Count = sizeof(m_VertexAttributes) / sizeof(dmGraphics::ShaderDesc::ResourceBinding);
 
-        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader);
-        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader);
+        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader, 0, 0);
+        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader, 0, 0);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
 

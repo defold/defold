@@ -22,4 +22,8 @@ HConfigFile EngineExtensionGetConfigFile(ExtensionAppParams* app_params);
 
 // TODO: Add C api's for the rest of the contexts
 
+#if defined(__cplusplus)
+    #include "extension.hpp"
+#endif
+
 #endif // #ifndef DMSDK_ENGINE_EXTENSION_H
