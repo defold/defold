@@ -985,7 +985,7 @@ namespace dmRig
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT:
                 {
-                    memcpy(write_ptr, &tangents[idx*4], dmMath::Min(4 * sizeof(float), data_size));
+                    memcpy(write_ptr, &params.m_Tangents[params.m_Index*4], dmMath::Min(4 * sizeof(float), data_size));
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
                 {
@@ -994,6 +994,7 @@ namespace dmRig
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
                 {
                     memcpy(write_ptr, params.m_NormalTransform, dmMath::Min(sizeof(dmVMath::Matrix4), data_size));
+                } break;
                 default:
                 {
                     memcpy(write_ptr, info.m_ValuePtr, data_size);

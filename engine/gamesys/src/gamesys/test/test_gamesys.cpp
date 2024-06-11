@@ -76,8 +76,6 @@ namespace dmGameSystem
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
 
-static const float EPSILON = 0.000001;
-
 static bool RunString(lua_State* L, const char* script)
 {
     if (luaL_dostring(L, script) != 0)
