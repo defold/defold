@@ -258,15 +258,11 @@
       (save-project! project)
       (future/completed nil))))
 
-(defn- can-execute? [_]
-  (future/completed true))
-
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
     (let [sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
       (extensions/reload! project :all
                           :reload-resources! (make-reload-resources-fn workspace)
-                          :can-execute? can-execute?
                           :display-output! println
                           :save! (make-save-fn project))
       (let [handler+context (handler/active
@@ -292,7 +288,6 @@
     (let [output (atom [])
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
-                                :can-execute? can-execute?
                                 :display-output! #(swap! output conj [%1 %2])
                                 :save! (make-save-fn project))
           handler+context (handler/active
@@ -316,7 +311,6 @@
     (let [output (atom [])
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
-                                :can-execute? can-execute?
                                 :display-output! #(swap! output conj [%1 %2])
                                 :save! (make-save-fn project))
           handler+context (handler/active
@@ -342,7 +336,6 @@
     (let [output (atom [])
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
-                                :can-execute? can-execute?
                                 :display-output! #(swap! output conj [%1 %2])
                                 :save! (make-save-fn project))
           node (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))
@@ -376,7 +369,6 @@
       (is (= [1 2 3] (test-util/prop node :__vec3)))
       (is (= [1 2 3 4] (test-util/prop node :__vec4)))
 
-
       ;; single undo
       (g/undo! (g/node-id->graph-id project))
 
@@ -387,7 +379,6 @@
   (let [output (atom [])
         _ (extensions/reload! project :all
                               :reload-resources! (make-reload-resources-fn workspace)
-                              :can-execute? can-execute?
                               :display-output! #(swap! output conj [%1 %2])
                               :save! (make-save-fn project))
         handler+context (handler/active

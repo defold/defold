@@ -46,8 +46,6 @@
 (defn- ext-state
   "Returns an extension state, a map with following keys:
     :reload-resources!     0-arg function used to reload resources
-    :can-execute?          1-arg function of command vector used to ask the user
-                           if it's okay to execute this command
     :display-output!       2-arg function used to display extension-related
                            output to the user, where args are:
                              type    output type, :err or :out
@@ -425,9 +423,6 @@
     :reload-resources!    0-arg function that asynchronously reloads the editor
                           resources, returns a CompletableFuture (that might
                           complete exceptionally if reload fails)
-    :can-execute?         1-arg function that takes in a command vector and asks
-                          the user if it's okay to execute this command. Returns
-                          a CompletableFuture that will resolve to boolean
     :display-output!      2-arg function used for displaying output in the
                           console, the args are:
                             type    output type, :out or :err
@@ -435,7 +430,7 @@
     :save!                0-arg function that asynchronously saves any unsaved
                           changes, returns CompletableFuture (that might
                           complete exceptionally if reload fails)"
-  [project kind & {:keys [reload-resources! can-execute? display-output! save!] :as opts}]
+  [project kind & {:keys [reload-resources! display-output! save!] :as opts}]
   (g/with-auto-evaluation-context evaluation-context
     (let [extensions (g/node-value project :editor-extensions evaluation-context)
           old-state (ext-state project evaluation-context)
