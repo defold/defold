@@ -1,0 +1,5 @@
+go.property("num", 0)
+go.property("boolean", false)
+go.property("resource", resource.atlas())
+go.property("vec3", vmath.vector3())
+go.property("vec4", vmath.vector4())

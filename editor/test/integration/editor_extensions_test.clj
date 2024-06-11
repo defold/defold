@@ -13,13 +13,15 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.editor-extensions-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.runtime :as rt]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.process :as process]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -244,16 +246,25 @@
   (succeeding-selection [_] [])
   (alt-selection [_] []))
 
+(defn- make-reload-resources-fn [workspace]
+  (let [resource-sync (bound-fn* workspace/resource-sync!)]
+    (fn reload-resources! []
+      (resource-sync workspace)
+      (future/completed nil))))
+
+(defn- make-save-fn [project]
+  (let [save-project! (bound-fn* test-util/save-project!)]
+    (fn save! []
+      (save-project! project)
+      (future/completed nil))))
+
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
-    (let [resource-sync (bound-fn* workspace/resource-sync!)
-          sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
+    (let [sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
       (extensions/reload! project :all
-                          :reload-resources! (fn test-reload-resources! []
-                                               (resource-sync workspace)
-                                               (future/completed nil))
-                          :can-execute? (constantly (future/completed true))
-                          :display-output! println)
+                          :reload-resources! (make-reload-resources-fn workspace)
+                          :display-output! println
+                          :save! (make-save-fn project))
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (handler/eval-contexts
@@ -274,14 +285,11 @@
 
 (deftest refresh-context-after-write-test
   (test-util/with-loaded-project "test/resources/editor_extensions/refresh_context_project"
-    (let [resource-sync (bound-fn* workspace/resource-sync!)
-          output (atom [])
+    (let [output (atom [])
           _ (extensions/reload! project :all
-                                :reload-resources! (fn test-reload-resources! []
-                                                     (resource-sync workspace)
-                                                     (future/completed nil))
-                                :can-execute? (constantly (future/completed true))
-                                :display-output! #(swap! output conj [%1 %2]))
+                                :reload-resources! (make-reload-resources-fn workspace)
+                                :display-output! #(swap! output conj [%1 %2])
+                                :save! (make-save-fn project))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
@@ -297,3 +305,90 @@
       ;; capture in the test output.
       (is (= [[:out "old = Initial content, new = Another text!, reverted = Initial content"]]
              @output)))))
+
+(deftest execute-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/execute_test"
+    (let [output (atom [])
+          _ (extensions/reload! project :all
+                                :reload-resources! (make-reload-resources-fn workspace)
+                                :display-output! #(swap! output conj [%1 %2])
+                                :save! (make-save-fn project))
+          handler+context (handler/active
+                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                            (handler/eval-contexts
+                              [(handler/->context :global {} (->StaticSelection []))]
+                              false)
+                            {})]
+      @(handler/run handler+context)
+      ;; see test.editor_script:
+      ;; first, it tries to execute `git bleh`, catches the error, then prints it.
+      ;; second, it captures the output of `git log --oneline --max-count=10` and
+      ;; prints the hashes.
+      (is (= (into [[:out "false\tCommand \"git bleh\" exited with code 1"]]
+                   (map (fn [line]
+                          [:out (re-find #"\w+" line)]))
+                   (string/split-lines
+                     (process/exec! "git" "log" "--oneline" "--max-count=10")))
+            @output)))))
+
+(deftest transact-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/transact_test"
+    (let [output (atom [])
+          _ (extensions/reload! project :all
+                                :reload-resources! (make-reload-resources-fn workspace)
+                                :display-output! #(swap! output conj [%1 %2])
+                                :save! (make-save-fn project))
+          node (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))
+          handler+context (handler/active
+                            (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
+                            (handler/eval-contexts
+                              [(handler/->context :outline {} (->StaticSelection [node]))]
+                              false)
+                            {})
+          test-initial-state! (fn test-initial-state! []
+                                (is (= "properties" (test-util/prop node :id)))
+                                (is (= 0.0 (test-util/prop node :__num)))
+                                (is (= false (test-util/prop node :__boolean)))
+                                (is (nil? (test-util/prop node :__resource)))
+                                (is (= [0.0 0.0 0.0] (test-util/prop node :__vec3)))
+                                (is (= [0.0 0.0 0.0 0.0] (test-util/prop node :__vec4))))]
+
+      ;; initial state of the node
+      (test-initial-state!)
+
+      ;; see test.editor_script: it records old id, then transacts 6 properties
+      ;; at once, then prints new id and old id
+      @(handler/run handler+context)
+      (is (= [[:out "old id = properties, new id = My node id"]] @output))
+
+      ;; properties changed
+      (is (= "My node id" (test-util/prop node :id)))
+      (is (= 15.5 (test-util/prop node :__num)))
+      (is (= true (test-util/prop node :__boolean)))
+      (is (some? (test-util/prop node :__resource)))
+      (is (= [1 2 3] (test-util/prop node :__vec3)))
+      (is (= [1 2 3 4] (test-util/prop node :__vec4)))
+
+      ;; single undo
+      (g/undo! (g/node-id->graph-id project))
+
+      ;; all the changes should be reverted — a single transaction!
+      (test-initial-state!))))
+
+(test-util/with-loaded-project "test/resources/editor_extensions/save_test"
+  (let [output (atom [])
+        _ (extensions/reload! project :all
+                              :reload-resources! (make-reload-resources-fn workspace)
+                              :display-output! #(swap! output conj [%1 %2])
+                              :save! (make-save-fn project))
+        handler+context (handler/active
+                          (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
+                          (handler/eval-contexts
+                            [(handler/->context :asset-browser {} (->StaticSelection []))]
+                            false)
+                          {})]
+    @(handler/run handler+context)
+    ;; see test.editor_script: it uses editor.transact() to set a file text, then reads
+    ;; the file text from file system, then saves, then reads it again.
+    (is (= [[:out "file read: before save = 'Initial text', after save = 'New text'"]]
+           @output))))
