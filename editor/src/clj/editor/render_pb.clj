@@ -118,7 +118,8 @@
 
 (defn- build-errors
   [_node-id script named-render-resources]
-  (when-let [errors (->> (into [(validation/prop-error :fatal _node-id :script validation/prop-resource-missing? script "Script")]
+  (when-let [errors (->> (into [(or (validation/prop-error :fatal _node-id :script validation/prop-resource-missing? script "Script")
+                                    (validation/prop-error :fatal _node-id :script validation/prop-resource-ext? script "render_script" "Script"))]
                                (for [{:keys [name path]} named-render-resources]
                                  (validation/prop-error :fatal _node-id :path validation/prop-resource-missing? path name)))
                          (remove nil?)
