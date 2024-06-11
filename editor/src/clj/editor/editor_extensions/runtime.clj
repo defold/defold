@@ -50,7 +50,7 @@
             [dynamo.graph :as g]
             [editor.editor-extensions.vm :as vm]
             [editor.future :as future])
-  (:import [com.defold.editor.luart DefoldBaseLib DefoldCoroutine$Create DefoldCoroutine$Yield DefoldIoLib DefoldVarArgFn SearchPath]
+  (:import [com.defold.editor.luart DefoldBaseLib DefoldCoroutine$Create DefoldCoroutine$Yield DefoldIoLib DefoldUserdata DefoldVarArgFn SearchPath]
            [java.io File PrintStream Writer]
            [java.nio.charset StandardCharsets]
            [org.apache.commons.io.output WriterOutputStream]
@@ -202,8 +202,10 @@
 
 (defn wrap-userdata
   "Wraps the value into a LuaUserdata"
-  [x]
-  (vm/wrap-userdata x))
+  ([x]
+   (vm/wrap-userdata x))
+  ([x string-representation]
+   (DefoldUserdata. x string-representation)))
 
 (defn- writer->print-stream [^Writer writer]
   (-> writer

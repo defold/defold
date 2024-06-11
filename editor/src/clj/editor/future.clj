@@ -15,7 +15,7 @@
 (ns editor.future
   (:refer-clojure :exclude [future])
   (:import [java.util.concurrent CompletableFuture CompletionException]
-           [java.util.function Function]))
+           [java.util.function Function Supplier]))
 
 (set! *warn-on-reflection* true)
 
@@ -28,6 +28,14 @@
 (defn completed
   ^CompletableFuture [x]
   (CompletableFuture/completedFuture x))
+
+(defmacro supply-async [& body]
+  `(let [bindings# (get-thread-bindings)]
+     (CompletableFuture/supplyAsync
+       (reify Supplier
+         (get [~'_]
+           (with-bindings bindings#
+             ~@body))))))
 
 (defn wrap [x]
   (if (instance? CompletableFuture x)
