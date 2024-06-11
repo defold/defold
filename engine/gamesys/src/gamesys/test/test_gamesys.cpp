@@ -64,6 +64,11 @@ using namespace dmVMath;
 namespace dmGameSystem
 {
     void DumpResourceRefs(dmGameObject::HCollection collection);
+    extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
+    extern void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out);
+    extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
+    extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
+    extern void GetTileGridWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
 }
 
 #define EPSILON 0.0001f
@@ -2613,14 +2618,6 @@ TEST_F(ComponentTest, PhysicsUpdateMassTest)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-namespace dmGameSystem
-{
-    extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
-    extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
-    extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
-    extern void GetTileGridWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
-};
-
 TEST_F(ComponentTest, DispatchBuffersTest)
 {
     dmHashEnableReverseHash(true);
@@ -4975,8 +4972,6 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
 TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_animate.goc", dmHashString64("/attributes_go_animate"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -4993,8 +4988,6 @@ TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
 
 TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_set_get_sparse.goc", dmHashString64("/attributes_dynamic_go_set_get_sparse"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -5004,10 +4997,50 @@ TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
     dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 }
 
+TEST_F(MaterialTest, DynamicVertexAttributesCount)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    const uint32_t NUM_INSTANCES = 32;
+
+    dmArray<dmGameObject::HInstance> instances;
+    instances.SetCapacity(NUM_INSTANCES);
+    instances.SetSize(NUM_INSTANCES);
+
+    void* sprite_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    ASSERT_NE((void*) 0, sprite_world);
+
+    dmGameSystem::DynamicAttributePool* dynamic_attribute_pool = 0;
+    GetSpriteWorldDynamicAttributePool(sprite_world, &dynamic_attribute_pool);
+
+    char name_buffer[128] = {};
+    for (int i = 0; i < NUM_INSTANCES; ++i)
+    {
+        dmSnPrintf(name_buffer, sizeof(name_buffer), "/dynamic_attribute_instance_%d", i);
+
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_count.goc", dmHashString64(name_buffer), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+        ASSERT_NE((void*)0, go);
+        instances[i] = go;
+
+        ASSERT_EQ((i+1), dynamic_attribute_pool->Size());
+    }
+
+    for (int i = 0; i < NUM_INSTANCES; ++i)
+    {
+        dmGameObject::Delete(m_Collection, instances[i], false);
+        // PostUpdate deletes the instance, Delete just flags it for deletion
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        ASSERT_EQ(NUM_INSTANCES - i - 1, dynamic_attribute_pool->Size());
+    }
+
+    ASSERT_EQ(0, dynamic_attribute_pool->Size());
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
+}
+
 TEST_F(MaterialTest, GoGetSetConstants)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/material.goc", dmHashString64("/material"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
