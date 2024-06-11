@@ -30,9 +30,7 @@
     #include "alloca_vendor.h"
 #elif defined(_WIN32)
     #include <malloc.h>
-    #if !defined(alloca)
-        #define alloca(_SIZE) _alloca(_SIZE)
-    #endif
+    #define alloca(_SIZE) _alloca(_SIZE)
 #else
     #include <alloca.h>
 #endif
