@@ -362,6 +362,7 @@
   (output proj-path->build-target g/Any :cached produce-proj-path->build-target)
 
   ;; GameObject interface.
+  (output save-value g/Any (gu/passthrough prototype-desc))
   (output build-targets g/Any :cached produce-build-targets)
   (output ddf-component-properties g/Any :cached produce-ddf-component-properties)
   (output node-outline outline/OutlineData produce-node-outline)
@@ -370,6 +371,10 @@
 (defn- sanitize-non-editable-game-object [workspace prototype-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type)))
+
+(defn- string-encode-non-editable-game-object [workspace prototype-desc]
+  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
+    (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
 (defn- load-non-editable-game-object [_project self resource prototype-desc]
   ;; Validate the prototype-desc.
@@ -389,6 +394,7 @@
     :ddf-type GameObject$PrototypeDesc
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
     :sanitize-fn (partial sanitize-non-editable-game-object workspace)
+    :string-encode-fn (partial string-encode-non-editable-game-object workspace)
     :load-fn load-non-editable-game-object
     :icon game-object-common/game-object-icon
     :icon-class :design

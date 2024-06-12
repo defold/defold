@@ -19,6 +19,7 @@
             [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.code.preprocessors :as code.preprocessors]
+            [editor.code.resource :as code.resource]
             [editor.code.script-intelligence :as si]
             [editor.code.transpilers :as code.transpilers]
             [editor.collision-groups :as collision-groups]
@@ -558,6 +559,34 @@
    (g/node-value project :dirty-save-data))
   ([project evaluation-context]
    (g/node-value project :dirty-save-data evaluation-context)))
+
+(defn upgraded-file-formats-save-data
+  ([include-non-editable-directories project]
+   (g/with-auto-evaluation-context evaluation-context
+     (upgraded-file-formats-save-data include-non-editable-directories project evaluation-context)))
+  ([include-non-editable-directories project evaluation-context]
+   (let [upgraded-resource-type? (complement code.resource/code-resource-type?)
+
+         upgraded-editable-save-data
+         (filterv (comp upgraded-resource-type? resource/resource-type :resource)
+                  (all-save-data project evaluation-context))]
+
+     (if-not include-non-editable-directories
+       upgraded-editable-save-data
+       (let [resources-by-proj-path (g/valid-node-value project :resource-map evaluation-context)
+             resource-nodes-by-proj-path (g/valid-node-value project :nodes-by-resource-path evaluation-context)]
+         (into upgraded-editable-save-data
+               (keep (fn [[proj-path node-id]]
+                       (when-let [resource (resources-by-proj-path proj-path)]
+                         (when (and (not (resource/editable? resource))
+                                    (resource/file-resource? resource))
+                           (let [resource-type (resource/resource-type resource)]
+                             (when (and (:write-fn resource-type)
+                                        (not (code.resource/code-resource-type? resource-type)))
+                               (let [save-value (g/node-value node-id :save-value evaluation-context)]
+                                 (when-not (g/error-value? save-value)
+                                   (resource-node/make-save-data node-id resource save-value true)))))))))
+               resource-nodes-by-proj-path))))))
 
 (declare make-count-progress-steps-tracer make-progress-tracer)
 

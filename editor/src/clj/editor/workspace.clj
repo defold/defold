@@ -957,6 +957,14 @@ ordinary paths."
                   false))
               non-editable-directory-proj-paths)))
 
+(defn has-non-editable-directories?
+  ([workspace]
+   (g/with-auto-evaluation-context evaluation-context
+     (has-non-editable-directories? workspace evaluation-context)))
+  ([workspace evaluation-context]
+   (not= fn/constantly-true
+         (g/node-value workspace :editable-proj-path? evaluation-context))))
+
 (defn make-workspace [graph project-path build-settings workspace-config]
   (let [editable-proj-path? (if-some [non-editable-directory-proj-paths (not-empty (:non-editable-directories workspace-config))]
                               (make-editable-proj-path-predicate non-editable-directory-proj-paths)

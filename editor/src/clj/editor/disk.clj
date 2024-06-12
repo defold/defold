@@ -185,8 +185,7 @@
     (throw (Exception. (g/error-message save-datas)))
     (let [written-save-datas
           (filterv (fn [{:keys [resource]}]
-                     (and (resource/editable? resource)
-                          (not (resource/read-only? resource))))
+                     (not (resource/read-only? resource)))
                    save-datas)
 
           written-disk-sha256s

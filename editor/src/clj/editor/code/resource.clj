@@ -218,6 +218,11 @@
                              (or modified-lines
                                  (loaded-unmodified-lines _node-id)))))
 
+(defn code-resource-type? [resource-type]
+  (and (:textual? resource-type)
+       (identical? read-fn (:read-fn resource-type))
+       (identical? write-fn (:write-fn resource-type))))
+
 (defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label lazy-loaded additional-load-fn built-pb-class] :as args}]
   (let [connect-breakpoints (contains? tags :debuggable)
         load-fn (partial load-fn additional-load-fn lazy-loaded connect-breakpoints)

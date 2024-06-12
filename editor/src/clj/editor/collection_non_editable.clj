@@ -411,6 +411,7 @@
   (output embedded-game-object-instance-build-targets g/Any :cached produce-embedded-game-object-instance-build-targets)
 
   ;; Collection interface.
+  (output save-value g/Any (gu/passthrough collection-desc))
   (output build-targets g/Any :cached produce-build-targets)
   (output ddf-properties g/Any :cached produce-ddf-properties)
   (output node-outline outline/OutlineData produce-node-outline)
@@ -419,6 +420,10 @@
 (defn- sanitize-non-editable-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type)))
+
+(defn- string-encode-non-editable-collection [workspace collection-desc]
+  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
+    (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
 (defn- load-non-editable-collection [_project self resource collection-desc]
   ;; Validate the collection-desc.
@@ -441,6 +446,7 @@
     :ddf-type GameObject$CollectionDesc
     :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
     :sanitize-fn (partial sanitize-non-editable-collection workspace)
+    :string-encode-fn (partial string-encode-non-editable-collection workspace)
     :load-fn load-non-editable-collection
     :icon collection-common/collection-icon
     :icon-class :design

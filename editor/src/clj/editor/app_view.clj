@@ -55,7 +55,6 @@
             [editor.live-update-settings :as live-update-settings]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
-            [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
@@ -2204,73 +2203,88 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :save-and-upgrade-all :global
   (enabled? [] (not (bob/build-in-progress?)))
-  (run [app-view changes-view project]
+  (run [app-view changes-view project workspace]
        (let [git (g/node-value changes-view :git)]
-         (and
+         (when (and
 
-           ;; Check if the project is under version control. If not, advise
-           ;; against performing the file format upgrade, and show a dialog on
-           ;; how to set up version control for the project. The user can opt to
-           ;; proceed with the upgrade anyway.
-           (or (some? git)
-               (dialogs/make-confirmation-dialog
-                 {:title "Not Safe to Upgrade File Formats"
-                  :size :default
-                  :icon :icon/triangle-error
-                  :header "Version Control Recommended"
-                  :content (make-version-control-info-dialog-content "Due to potential data-loss concerns, file format upgrades should only be performed on projects under Version Control.")
-                  :buttons [{:text "Abort"
-                             :cancel-button true
-                             :default-button true
-                             :result false}
-                            {:text "Proceed Anyway"
-                             :variant :danger
-                             :result true}]}))
+                 ;; Check if the project is under version control. If not,
+                 ;; advise against performing the file format upgrade, and show
+                 ;; a dialog on how to set up version control for the project.
+                 ;; The user can opt to proceed with the upgrade anyway.
+                 (or (some? git)
+                     (dialogs/make-confirmation-dialog
+                       {:title "Not Safe to Upgrade File Formats"
+                        :size :default
+                        :icon :icon/triangle-error
+                        :header "Version Control Recommended"
+                        :content (make-version-control-info-dialog-content "Due to potential data-loss concerns, file format upgrades should only be performed on projects under Version Control.")
+                        :buttons [{:text "Abort"
+                                   :cancel-button true
+                                   :default-button true
+                                   :result false}
+                                  {:text "Proceed Anyway"
+                                   :variant :danger
+                                   :result true}]}))
 
-           ;; Check if there are uncommitted changes. If so, show a dialog
-           ;; advising against performing the file format upgrade, and instead
-           ;; ask the user to commit their changes before retrying. The user can
-           ;; opt to proceed with the upgrade anyway.
-           (or (nil? git)
-               (not (git/has-local-changes? git))
-               (dialogs/make-confirmation-dialog
-                 {:title "Not Safe to Upgrade File Formats"
-                  :size :default
-                  :icon :icon/triangle-error
-                  :header "Uncommitted changes detected"
-                  :content {:fx/type fxui/label
-                            :style-class "dialog-content-padding"
-                            :text "Due to potential data-loss concerns, file format upgrades should start from a clean working directory.\n\nWe recommend you commit your local changes before retrying the operation."}
-                  :buttons [{:text "Abort"
-                             :cancel-button true
-                             :default-button true
-                             :result false}
-                            {:text "Proceed Anyway"
-                             :variant :danger
-                             :result true}]}))
+                 ;; Check if there are uncommitted changes. If so, show a dialog
+                 ;; advising against performing the file format upgrade, and
+                 ;; instead ask the user to commit their changes before
+                 ;; retrying. The user can opt to proceed with the upgrade
+                 ;; anyway.
+                 (or (nil? git)
+                     (not (git/has-local-changes? git))
+                     (dialogs/make-confirmation-dialog
+                       {:title "Not Safe to Upgrade File Formats"
+                        :size :default
+                        :icon :icon/triangle-error
+                        :header "Uncommitted changes detected"
+                        :content {:fx/type fxui/label
+                                  :style-class "dialog-content-padding"
+                                  :text "Due to potential data-loss concerns, file format upgrades should start from a clean working directory.\n\nWe recommend you commit your local changes before retrying the operation."}
+                        :buttons [{:text "Abort"
+                                   :cancel-button true
+                                   :default-button true
+                                   :result false}
+                                  {:text "Proceed Anyway"
+                                   :variant :danger
+                                   :result true}]})))
 
-           ;; We've deemed it safe to proceed with the file format upgrade, or the
-           ;; user has chosen to ignore our warnings. Show one last confirmation
-           ;; dialog before proceeding.
-           (dialogs/make-confirmation-dialog
-             {:title "Save and Upgrade File Formats?"
-              :size :large
-              :icon :icon/circle-question
-              :header "Re-save all files in the latest file format?"
-              :content {:fx/type fxui/label
-                        :style-class "dialog-content-padding"
-                        :text "All files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this."}
-              :buttons [{:text "Cancel"
-                         :cancel-button true
-                         :default-button true
-                         :result false}
-                        {:text "Upgrade File Formats"
-                         :variant :danger
-                         :result true}]})
+           ;; We've deemed it safe to proceed with the file format upgrade, or
+           ;; the user has chosen to ignore our warnings. Show one last
+           ;; confirmation dialog before proceeding.
+           (let [workspace-has-non-editable-directories (workspace/has-non-editable-directories? workspace)
+                 buttons (cond-> [{:text "Cancel"
+                                   :cancel-button true
+                                   :default-button true
+                                   :result nil}
+                                  {:text (if workspace-has-non-editable-directories
+                                           "Upgrade Editable Files"
+                                           "Upgrade Project Files")
+                                   :variant :danger
+                                   :result :upgrade-editable-files}]
 
-           ;; The user has opted to proceed with the file format upgrade.
-           (do (project/clear-cached-save-data! project)
-               (async-save! app-view changes-view project project/all-save-data))))))
+                                 workspace-has-non-editable-directories
+                                 (conj {:text "Upgrade All Files"
+                                        :variant :danger
+                                        :result :upgrade-all-files}))
+                 result (dialogs/make-confirmation-dialog
+                          {:title "Save and Upgrade File Formats?"
+                           :size :large
+                           :icon :icon/circle-question
+                           :header "Re-save all files in the latest file format?"
+                           :content {:fx/type fxui/label
+                                     :style-class "dialog-content-padding"
+                                     :text "Files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this."}
+                           :buttons buttons})
+                 save-data-fn (case result
+                                :upgrade-editable-files (partial project/upgraded-file-formats-save-data false)
+                                :upgrade-all-files (partial project/upgraded-file-formats-save-data true)
+                                nil)]
+
+             (when save-data-fn
+               ;; The user has opted to proceed with the file format upgrade.
+               (project/clear-cached-save-data! project)
+               (async-save! app-view changes-view project save-data-fn)))))))
 
 (handler/defhandler :async-reload :global
   (active? [prefs] (not (async-reload-on-app-focus? prefs)))
