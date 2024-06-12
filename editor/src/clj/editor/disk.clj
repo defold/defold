@@ -209,12 +209,15 @@
                        :platform (get bob-args "platform")
                        :variant (get bob-args "variant")}]
         (render-reload-progress! (progress/make-indeterminate "Executing bundle hook..."))
-        (if-let [extension-error (extensions/execute-hook! project :on-bundle-started
-                                                           {:exception-policy :as-error
-                                                            :opts hook-opts})]
+        (if-let [extension-error @(extensions/execute-hook! project
+                                                            :on_bundle_started
+                                                            hook-opts
+                                                            :exception-policy :as-error)]
           (try
-            (extensions/execute-hook! project :on-bundle-finished {:exception-policy :ignore
-                                                                   :opts (assoc hook-opts :success false)})
+            @(extensions/execute-hook! project
+                                       :on_bundle_finished
+                                       (assoc hook-opts :success false)
+                                       :exception-policy :ignore)
             (ui/run-later
               (try
                 (handle-bob-error! render-build-error! project (g/make-evaluation-context) {:error extension-error})
@@ -247,13 +250,13 @@
                                (future
                                  (try
                                    (let [result (bob/bob-build! project evaluation-context bob-commands bob-args build-server-headers render-build-progress! log-output-stream task-cancelled?)]
-                                     (extensions/execute-hook!
-                                       project
-                                       :on-bundle-finished
-                                       {:exception-policy :ignore
-                                        :opts (assoc hook-opts
-                                                :success (not (or (:error result)
-                                                                  (:exception result))))})
+                                     @(extensions/execute-hook!
+                                        project
+                                        :on_bundle_finished
+                                        (assoc hook-opts
+                                          :success (not (or (:error result)
+                                                            (:exception result))))
+                                        :exception-policy :ignore)
                                      (render-build-progress! progress/done)
                                      (ui/run-later
                                        (try

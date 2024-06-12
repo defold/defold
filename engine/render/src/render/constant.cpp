@@ -352,13 +352,26 @@ void IterateNamedConstants(HNamedConstantBuffer buffer, void (*callback)(dmhash_
 struct ApplyConstantContext
 {
     dmGraphics::HContext m_GraphicsContext;
-    HMaterial            m_Material;
     HNamedConstantBuffer m_ConstantBuffer;
+
+    union
+    {
+        HMaterial       m_Material;
+        HComputeProgram m_ComputeProgram;
+    };
+
     ApplyConstantContext(dmGraphics::HContext graphics_context, HMaterial material, HNamedConstantBuffer constant_buffer)
     {
         m_GraphicsContext = graphics_context;
-        m_Material = material;
-        m_ConstantBuffer = constant_buffer;
+        m_Material        = material;
+        m_ConstantBuffer  = constant_buffer;
+    }
+
+    ApplyConstantContext(dmGraphics::HContext graphics_context, HComputeProgram program, HNamedConstantBuffer constant_buffer)
+    {
+        m_GraphicsContext = graphics_context;
+        m_ComputeProgram  = program;
+        m_ConstantBuffer  = constant_buffer;
     }
 };
 
@@ -385,6 +398,31 @@ void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial
     dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
     ApplyConstantContext context(graphics_context, material, buffer);
     buffer->m_Constants.Iterate(ApplyConstant, &context);
+}
+
+static inline void ApplyConstantCompute(ApplyConstantContext* context, const uint64_t* name_hash, NamedConstantBuffer::Constant* constant)
+{
+    dmGraphics::HUniformLocation* location = context->m_ComputeProgram->m_NameHashToLocation.Get(*name_hash);
+    if (location)
+    {
+        dmVMath::Vector4* values = &context->m_ConstantBuffer->m_Values[constant->m_ValueIndex];
+
+        if (constant->m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        {
+            dmGraphics::SetConstantM4(context->m_GraphicsContext, values, constant->m_NumValues / 4, *location);
+        }
+        else
+        {
+            dmGraphics::SetConstantV4(context->m_GraphicsContext, values, constant->m_NumValues, *location);
+        }
+    }
+}
+
+void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBuffer buffer)
+{
+    dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+    ApplyConstantContext context(graphics_context, program, buffer);
+    buffer->m_Constants.Iterate(ApplyConstantCompute, &context);
 }
 
 }

@@ -38,6 +38,9 @@ scripts/android-v4/build/
 # IntelliJ
 editor/.gradle/
 
+# Clang compilation databse
+compile_commands.json
+
 # eastwood
 editor/.eastwood
 editor/eastwood-warnings.txt

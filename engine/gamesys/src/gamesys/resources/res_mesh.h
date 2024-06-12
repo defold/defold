@@ -15,21 +15,20 @@
 #ifndef DM_GAMESYS_RES_MESH_H
 #define DM_GAMESYS_RES_MESH_H
 
-#include <stdint.h>
 #include <dmsdk/resource/resource.h>
-#include <dmsdk/graphics/graphics.h>
 #include <dmsdk/gamesys/resources/res_buffer.h>
 #include <dmsdk/gamesys/resources/res_mesh.h>
+#include <dmsdk/graphics/graphics.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResMeshPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResMeshPreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResMeshCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResMeshCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResMeshDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResMeshDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResMeshRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResMeshRecreate(const dmResource::ResourceRecreateParams* params);
 
     bool BuildVertexDeclaration(BufferResource* buffer_resource, dmGraphics::HVertexDeclaration* out_vert_decl);
 }

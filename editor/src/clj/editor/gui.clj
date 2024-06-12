@@ -425,6 +425,18 @@
         (g/set-property source :child-index next-index)
         (attach-gui-node node-tree target source type)))))
 
+;; SDK api
+(defn gen-outline-node-tx-attach-fn
+  ([attach-fn]
+   (gen-outline-node-tx-attach-fn attach-fn :names))
+  ([attach-fn target-name-key]
+   (fn [target source]
+     (let [node-tree (node->gui-scene target)
+           taken-id-names (g/node-value target target-name-key)]
+       (concat
+         (g/update-property source :name outline/resolve-id taken-id-names)
+         (attach-fn node-tree target source))))))
+
 ;; Schema validation is disabled because it severely affects project load times.
 ;; You might want to enable these before making drastic changes to Gui nodes.
 
@@ -501,9 +513,13 @@
       (validation/prop-error :fatal node-id prop-kw (partial validation/prop-id-duplicate? id-counts) prop-value)))
 
 ;; SDK api
-(defn prop-resource-error [node-id prop-kw prop-value prop-name]
-  (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
-      (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+(defn prop-resource-error
+  ([node-id prop-kw prop-value prop-name]
+   (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
+       (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+  ([node-id prop-kw prop-value prop-name resource-ext]
+   (or (prop-resource-error node-id prop-kw prop-value prop-name)
+       (validation/prop-error :fatal node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))))
 
 ;; SDK api
 (defn references-gui-resource? [evaluation-context node-id prop-kw gui-resource-name]
@@ -2035,7 +2051,9 @@
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Textures" "Textures" 1 false []))
+  (output node-outline outline/OutlineData :cached
+          (gen-outline-fnk "Textures" "Textures" 1 false [{:node-type TextureNode
+                                                           :tx-attach-fn (gen-outline-node-tx-attach-fn attach-texture)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
                  [_node-id "Textures..." texture-icon add-textures-handler {}])))
@@ -2074,7 +2092,9 @@
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Materials" "Materials" 1 false []))
+  (output node-outline outline/OutlineData :cached
+          (gen-outline-fnk "Materials" "Materials" 1 false [{:node-type MaterialNode
+                                                             :tx-attach-fn (gen-outline-node-tx-attach-fn attach-material)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
             [_node-id "Materials..." material-icon add-materials-handler {}])))
@@ -2114,7 +2134,9 @@
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Fonts" "Fonts" 2 false []))
+  (output node-outline outline/OutlineData :cached
+          (gen-outline-fnk "Fonts" "Fonts" 2 false [{:node-type FontNode
+                                                     :tx-attach-fn (gen-outline-node-tx-attach-fn attach-font)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
                  [_node-id "Fonts..." font-icon add-fonts-handler {}])))
@@ -2122,9 +2144,10 @@
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 (defn- attach-layer
-  ([layers-node layer]
-   (attach-layer layers-node layer false))
-  ([layers-node layer internal?]
+  ([self layers-node layer]
+   (attach-layer self layers-node layer false))
+  ;; Self is not used here but added to conform all attach-*** functions
+  ([_self layers-node layer internal?]
    (concat
     (g/connect layer :_node-id layers-node :nodes)
     (when (not internal?)
@@ -2138,9 +2161,10 @@
 
 (defn add-layer [project scene parent name child-index select-fn]
   (g/make-nodes (g/node-id->graph-id scene) [node [LayerNode :name name :child-index child-index]]
-                (attach-layer parent node)
-                (when select-fn
-                  (select-fn [node]))))
+    ;; Self is not used when attaching layers
+    (attach-layer nil parent node)
+    (when select-fn
+      (select-fn [node]))))
 
 (defn- add-layer-handler [project {:keys [scene parent]} select-fn]
   (let [name (outline/resolve-id "layer" (g/node-value parent :name-counts))
@@ -2169,7 +2193,9 @@
   (output layer->index g/Any :cached (g/fnk [ordered-layer-names]
                                        (zipmap ordered-layer-names (range))))
   (input child-indices NodeIndex :array)
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layers" "Layers" 3 true []))
+  (output node-outline outline/OutlineData :cached
+          (gen-outline-fnk "Layers" "Layers" 3 true [{:node-type LayerNode
+                                                      :tx-attach-fn (gen-outline-node-tx-attach-fn attach-layer :ordered-layer-names)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
                  [_node-id "Layer" layer-icon add-layer-handler {}])))
@@ -2209,7 +2235,11 @@
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layouts" "Layouts" 4 false []))
+  (output node-outline outline/OutlineData :cached
+          ;; Layouts don't have any child-reqs for the outline copy/pasting,
+          ;; since there is essentially only one node that _can_ be supported
+          ;; per "layout type".
+          (gen-outline-fnk "Layouts" "Layouts" 4 false []))
   (output add-handler-info g/Any
           (g/fnk [_node-id unused-display-profiles]
             (mapv #(vector _node-id % layout-icon add-layout-handler {:display-profile %})
@@ -2249,7 +2279,9 @@
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Particle FX" "Particle FX" 5 false []))
+  (output node-outline outline/OutlineData :cached
+          (gen-outline-fnk "Particle FX" "Particle FX" 5 false [{:node-type ParticleFXResource
+                                                                 :tx-attach-fn (gen-outline-node-tx-attach-fn attach-particlefx-resource)}]))
   (output add-handler-info g/Any
           (g/fnk [_node-id]
                  [_node-id "Particle FX..." particlefx/particle-fx-icon add-particlefx-resources-handler {}])))
@@ -2470,7 +2502,7 @@
 
 (g/defnk produce-own-build-errors [_node-id material max-nodes node-ids script]
   (g/package-errors _node-id
-                    (when script (prop-resource-error _node-id :script script "Script"))
+                    (when script (prop-resource-error _node-id :script script "Script" "gui_script"))
                     (prop-resource-error _node-id :material material "Material")
                     (validate-max-nodes _node-id max-nodes node-ids)))
 
@@ -2500,7 +2532,7 @@
                      [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id script]
                              (when script
-                               (prop-resource-error _node-id :script script "Script"))))
+                               (prop-resource-error _node-id :script script "Script" "gui_script"))))
             (dynamic edit-type (g/fnk [] {:type resource/Resource
                                           :ext "gui_script"})))
 
@@ -2916,7 +2948,7 @@
                     (g/connect layers-node :build-errors self :build-errors)
                     (g/connect layers-node :node-outline self :child-outlines)
                     (g/connect layers-node :add-handler-info self :handler-infos)
-                    (attach-layer layers-node no-layer true)
+                    (attach-layer self layers-node no-layer true)
                     (loop [[layer-desc & more] (:layers scene)
                            tx-data []
                            child-index 0]
@@ -2925,7 +2957,7 @@
                                                           [layer [LayerNode
                                                                   :name (:name layer-desc)
                                                                   :child-index child-index]]
-                                                          (attach-layer layers-node layer))]
+                                                          (attach-layer self layers-node layer))]
                           (recur more (conj tx-data layer-tx-data) (inc child-index)))
                         tx-data)))
       (g/make-nodes graph-id [node-tree NodeTree]

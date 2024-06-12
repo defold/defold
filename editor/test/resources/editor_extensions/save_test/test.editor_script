@@ -1,0 +1,24 @@
+local M = {}
+
+function M.get_commands()
+    return {{
+        label = "Test",
+        locations = {"Assets"},
+        run = function ()
+            editor.transact { editor.tx.set("/test.txt", "text", "New text") }
+            local old_file = assert(io.open("test.txt", "r"))
+            local read_before_save = old_file:read("*a")
+            old_file:close()
+            editor.save()
+            local new_file = assert(io.open("test.txt", "r"))
+            local read_after_save = new_file:read("*a")
+            new_file:close()
+            -- cleanup
+            editor.transact { editor.tx.set("/test.txt", "text", read_before_save) }
+            editor.save()
+            print(("file read: before save = '%s', after save = '%s'"):format(read_before_save, read_after_save))
+        end
+    }}
+end
+
+return M

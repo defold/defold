@@ -43,7 +43,7 @@ Result CreateRegisteredComponentTypes(const ComponentTypeCreateCtx* ctx)
     {
         ComponentType component_type;
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         dmResource::Result factory_result = dmResource::GetTypeFromExtension(ctx->m_Factory, type_desc->m_Name, &resource_type);
         if (factory_result != dmResource::RESULT_OK)
         {

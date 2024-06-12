@@ -167,11 +167,11 @@ namespace dmEngine
     {
         Engine* engine = (Engine*)user_data;
         dmExtension::Params params;
-        params.m_ConfigFile = engine->m_Config;
+        params.m_ConfigFile      = engine->m_Config;
         params.m_ResourceFactory = engine->m_Factory;
-        params.m_L          = 0;
+        params.m_L               = 0;
         dmExtension::Event event;
-        event.m_Event = focus ? dmExtension::EVENT_ID_ACTIVATEAPP : dmExtension::EVENT_ID_DEACTIVATEAPP;
+        event.m_Event = focus ? EXTENSION_EVENT_ID_ACTIVATEAPP : EXTENSION_EVENT_ID_DEACTIVATEAPP;
         dmExtension::DispatchEvent( &params, &event );
 
         dmGameSystem::OnWindowFocus(focus != 0);
@@ -190,7 +190,7 @@ namespace dmEngine
         params.m_ResourceFactory = engine->m_Factory;
         params.m_L          = 0;
         dmExtension::Event event;
-        event.m_Event = iconify ? dmExtension::EVENT_ID_ICONIFYAPP : dmExtension::EVENT_ID_DEICONIFYAPP;
+        event.m_Event = iconify ? EXTENSION_EVENT_ID_ICONIFYAPP : EXTENSION_EVENT_ID_DEICONIFYAPP;
         dmExtension::DispatchEvent( &params, &event );
 
         dmGameSystem::OnWindowIconify(iconify != 0);
@@ -284,7 +284,7 @@ namespace dmEngine
                 params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
             }
             dmExtension::Event event;
-            event.m_Event = dmExtension::EVENT_ID_ENGINE_DELETE;
+            event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
             dmExtension::DispatchEvent( &params, &event );
         }
 
@@ -1379,7 +1379,7 @@ namespace dmEngine
             uint16_t prio = 0;
             while (s)
             {
-                dmResource::ResourceType type;
+                HResourceType type;
                 fact_result = dmResource::GetTypeFromExtension(engine->m_Factory, s, &type);
                 if (fact_result == dmResource::RESULT_OK)
                 {
@@ -1429,7 +1429,7 @@ namespace dmEngine
                 params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
             }
             dmExtension::Event event;
-            event.m_Event = dmExtension::EVENT_ID_ENGINE_INITIALIZED;
+            event.m_Event = EXTENSION_EVENT_ID_ENGINE_INITIALIZED;
             dmExtension::DispatchEvent( &params, &event );
         }
 

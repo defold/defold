@@ -1812,7 +1812,7 @@ namespace dmGameSystem
         {
             result = false;
         }
-        dmResource::ResourceType co_resource_type;
+        HResourceType co_resource_type;
         if (result)
         {
             dmResource::Result fact_result = dmResource::GetTypeFromExtension(context.m_Factory, COLLISION_OBJECT_EXT, &co_resource_type);

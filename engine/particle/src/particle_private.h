@@ -16,7 +16,6 @@
 #ifndef DM_PARTICLE_PRIVATE_H
 #define DM_PARTICLE_PRIVATE_H
 
-#include <dlib/configfile.h>
 #include <dlib/index_pool.h>
 #include <dlib/transform.h>
 

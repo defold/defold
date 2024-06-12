@@ -15,18 +15,18 @@
 #ifndef DM_GAMESYS_RES_MATERIAL_H
 #define DM_GAMESYS_RES_MATERIAL_H
 
-#include <dmsdk/gamesys/resources/res_material.h>
 #include <dmsdk/resource/resource.h>
+#include <dmsdk/gamesys/resources/res_material.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResMaterialCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResMaterialCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResMaterialDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResMaterialDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResMaterialRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResMaterialRecreate(const dmResource::ResourceRecreateParams* params);
 
-    dmResource::Result ResMaterialPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResMaterialPreload(const dmResource::ResourcePreloadParams* params);
 }
 
 #endif

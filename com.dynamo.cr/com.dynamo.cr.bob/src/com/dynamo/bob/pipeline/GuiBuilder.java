@@ -405,7 +405,14 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         if(builder != null) {
             // transform and register scene external resources (if compiling)
-            sceneBuilder.setScript(BuilderUtil.replaceExt(sceneBuilder.getScript(), ".gui_script", ".gui_scriptc"));
+            String scriptPath = sceneBuilder.getScript();
+            String suffix = BuilderUtil.getSuffix(scriptPath);
+            if (!suffix.isEmpty() && !suffix.equals("gui_script"))
+            {
+                 throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_WRONG_RESOURCE_TYPE,
+                         new String[] { scriptPath, suffix, "gui_script" } ));
+            }
+            sceneBuilder.setScript(BuilderUtil.replaceExt(scriptPath, ".gui_script", ".gui_scriptc"));
             sceneBuilder.setMaterial(BuilderUtil.replaceExt(sceneBuilder.getMaterial(), ".material", ".materialc"));
 
             for (FontDesc f : sceneBuilder.getFontsList()) {

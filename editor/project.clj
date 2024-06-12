@@ -116,7 +116,7 @@
                       "../engine/graphics/proto"
                       "../engine/input/proto"
                       "../engine/particle/proto/particle"
-                      "../engine/render/proto/render"
+                      "../engine/render/proto"
                       "../engine/resource/proto"
                       "../engine/rig/proto"
                       "../engine/script/src"]
@@ -140,7 +140,7 @@
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"
-                      :lua-language-server-version "v1.7793"}
+                      :lua-language-server-version "v1.7795"}
 
   :codox             {:sources                   ["src/clj"]
                       :output-dir                "target/doc/api"

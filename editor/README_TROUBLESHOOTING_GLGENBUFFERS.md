@@ -13,7 +13,7 @@ Open a new issue [here](https://github.com/defold/defold/issues) and attach the 
 
 ## Windows
 
-To help you troubleshoot we need some info about your graphics card, for instance the output from [dxdiag](https://support.microsoft.com/en-us/help/4028644/windows-open-and-run-dxdiagexe) or a GL Report from [OpenGL ExtensionsViewer](www.realtech-vr.com/glview/). Open a new issue [here](https://github.com/defold/editor2-issues/issues) and attach the info.
+To help you troubleshoot we need some info about your graphics card, for instance the output from [dxdiag](https://support.microsoft.com/en-us/help/4028644/windows-open-and-run-dxdiagexe) or a GL Report from [OpenGL ExtensionsViewer](www.realtech-vr.com/glview/). Open a new issue [here](https://github.com/defold/defold/issues) and attach the info.
 
 ### Windows 10 + older Intel HD integrated graphics card (HD2000, HD3000)
 

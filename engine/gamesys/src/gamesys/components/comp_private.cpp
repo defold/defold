@@ -18,6 +18,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <render/render.h>
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
@@ -264,16 +265,17 @@ dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, c
     if (value.m_Type != dmGameObject::PROPERTY_TYPE_HASH) {
         return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
     }
-    dmResource::SResourceDescriptor rd;
+    HResourceDescriptor rd;
     dmResource::Result res = dmResource::GetDescriptorWithExt(factory, value.m_Hash, exts, ext_count, &rd);
     if (res == dmResource::RESULT_OK)
     {
-        if (*out_resource != rd.m_Resource) {
-            dmResource::IncRef(factory, rd.m_Resource);
+        void* resource = dmResource::GetResource(rd);
+        if (*out_resource != resource) {
+            dmResource::IncRef(factory, rd);
             if (*out_resource) {
                 dmResource::Release(factory, *out_resource);
             }
-            *out_resource = rd.m_Resource;
+            *out_resource = resource;
         }
         return dmGameObject::PROPERTY_RESULT_OK;
     }
