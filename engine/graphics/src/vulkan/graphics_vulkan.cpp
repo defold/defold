@@ -1136,7 +1136,7 @@ bail:
         // GLFW 3.4 doesn't support static linking with vulkan,
         // instead we need to pass in the function that loads symbol for any
         // platform that is using GLFW.
-    #if defined(__MACH__)
+    #if defined(__MACH__) && !defined(DM_PLATFORM_IOS)
         dmPlatform::VulkanSetLoader();
     #endif
 
