@@ -345,11 +345,11 @@
        (let [tree-view (g/node-value asset-browser :tree-view)
              resource (first selection)
              src-files (.getFiles (Clipboard/getSystemClipboard))
-             dest-path (resource/abs-path resource)]
-         (if-let [conflicting-file (some #(when (and (.startsWith (.toPath (io/file dest-path))
-                                                                  (.toPath ^File %))
-                                                     (not= dest-path (.getPath ^File %)))
-                                            %)
+             dest-path (.toPath (io/file (resource/abs-path resource)))]
+         (if-let [conflicting-file (some #(let [src-path (.toPath ^File %)]
+                                            (when (and (.startsWith dest-path src-path)
+                                                       (not= dest-path src-path))
+                                              %))
                                          src-files)]
            (let [res-proj-path (resource/proj-path resource)
                  dest-proj-path (resource/file->proj-path (workspace/project-path workspace) conflicting-file)]
