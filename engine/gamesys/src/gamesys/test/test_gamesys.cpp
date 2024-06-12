@@ -24,6 +24,7 @@
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_textureset.h"
 #include "gamesys/resources/res_render_target.h"
+#include "gamesys/resources/res_compute.h"
 
 #include <stdio.h>
 
@@ -63,7 +64,19 @@ using namespace dmVMath;
 namespace dmGameSystem
 {
     void DumpResourceRefs(dmGameObject::HCollection collection);
+    extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
+    extern void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out);
+    extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
+    extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
+    extern void GetTileGridWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
 }
+
+#define EPSILON 0.0001f
+#define ASSERT_VEC4(exp, act)\
+    ASSERT_NEAR(exp.getX(), act.getX(), EPSILON);\
+    ASSERT_NEAR(exp.getY(), act.getY(), EPSILON);\
+    ASSERT_NEAR(exp.getZ(), act.getZ(), EPSILON);\
+    ASSERT_NEAR(exp.getW(), act.getW(), EPSILON);
 
 // Reloading these resources needs an update to clear any dirty data and get to a good state.
 static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
@@ -238,9 +251,10 @@ static bool UpdateAndWaitUntilDone(
     dmGameObject::HCollection          collection,
     const dmGameObject::UpdateContext* update_context,
     bool                               ignore_script_update_fail,
-    const char*                        tests_done_key)
+    const char*                        tests_done_key,
+    uint32_t                           timeout_seconds = 1)
 {
-    uint64_t timeout = 1 * 1000000; // microseconds
+    uint64_t timeout = timeout_seconds * 1000000; // microseconds
     uint64_t stop_time = dmTime::GetTime() + timeout;
     bool tests_done = false;
     while (!tests_done)
@@ -290,7 +304,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture.goc", dmHashString64("/create_texture"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture.goc", dmHashString64("/create_texture"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -408,7 +422,7 @@ TEST_F(ResourceTest, TestResourceScriptBuffer)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_buffer.goc", dmHashString64("/script_buffer"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_buffer.goc", dmHashString64("/script_buffer"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -428,7 +442,7 @@ TEST_F(ResourceTest, TestResourceScriptRenderTarget)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_render_target.goc", dmHashString64("/script_render_target"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_render_target.goc", dmHashString64("/script_render_target"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -448,7 +462,7 @@ TEST_F(ResourceTest, TestResourceScriptAtlas)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_atlas.goc", dmHashString64("/script_atlas"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_atlas.goc", dmHashString64("/script_atlas"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -469,7 +483,7 @@ TEST_F(ResourceTest, TestSetTextureFromScript)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/set_texture.goc", dmHashString64("/set_texture"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/set_texture.goc", dmHashString64("/set_texture"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     dmGameSystem::TextureSetResource* texture_set_res = 0;
@@ -628,6 +642,14 @@ TEST_P(ComponentTest, TestReloadFail)
     dmDDF::FreeMessage(go_ddf);
 }
 
+TEST_F(ComponentTest, CameraTest)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/camera/camera_info.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // Test that tries to reload shaders with errors in them.
 TEST_F(ComponentTest, ReloadInvalidMaterial)
 {
@@ -694,10 +716,10 @@ TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
     dmhash_t hash_go_consume_no    = dmHashString64("/go_consume_no");
     dmhash_t hash_go_consume_proxy = dmHashString64("/go_consume_proxy");
 
-    dmGameObject::HInstance go_consume_yes = Spawn(m_Factory, m_Collection, path_consume_yes, hash_go_consume_yes, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_consume_yes = Spawn(m_Factory, m_Collection, path_consume_yes, hash_go_consume_yes, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_consume_yes);
 
-    dmGameObject::HInstance go_consume_no = Spawn(m_Factory, m_Collection, path_consume_no, hash_go_consume_no, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_consume_no = Spawn(m_Factory, m_Collection, path_consume_no, hash_go_consume_no, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_consume_no);
 
     // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
@@ -1031,15 +1053,15 @@ TEST_P(ResourcePropTest, ResourceRefCounting)
 TEST_F(SpriteTest, GoDeletion)
 {
     // Spawn 3 dumy game objects with one sprite in each
-    dmGameObject::HInstance go1 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go1"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    dmGameObject::HInstance go2 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go2"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    dmGameObject::HInstance go3 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go3"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go1 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go1"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go2 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go2"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go3 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go3"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go1);
     ASSERT_NE((void*)0, go2);
     ASSERT_NE((void*)0, go3);
 
     // Spawn one go with a script that will initiate animations on the above sprites
-    dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_property_anim.goc", dmHashString64("/go_animater"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_property_anim.goc", dmHashString64("/go_animater"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_animater);
 
     // 1st iteration:
@@ -1069,10 +1091,8 @@ TEST_F(SpriteTest, GoDeletion)
 // Test that animation done event reaches either callback or onmessage
 TEST_F(SpriteTest, FlipbookAnim)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     // Spawn one go with a script that will initiate animations on the above sprites
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_flipbook_anim.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_flipbook_anim.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     lua_State* L = m_Scriptlibcontext.m_LuaState;
@@ -1095,9 +1115,7 @@ TEST_F(SpriteTest, FlipbookAnim)
 
 TEST_F(SpriteTest, FrameCount)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count/sprite_frame_count.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     WaitForTestsDone(100, false, 0);
@@ -1107,13 +1125,28 @@ TEST_F(SpriteTest, FrameCount)
 
 TEST_F(SpriteTest, GetSetSliceProperty)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_slice9.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_slice9.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(SpriteTest, GetSetImagesByHash)
+{
+    void* atlas=0;
+    dmResource::Result res = dmResource::Get(m_Factory, "/atlas/valid_64x64.t.texturesetc", &atlas);
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/image/get_set_image_by_hash.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmResource::Release(m_Factory, atlas);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1131,7 +1164,7 @@ TEST_F(ParticleFxTest, PlayAnim)
     dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     // Spawn one go with a script that will initiate animations on the above sprites
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     bool tests_done = false;
@@ -1162,7 +1195,7 @@ TEST_F(CursorTest, GuiFlipbookCursor)
 
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_cursor.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0x0, go);
 
     dmMessage::URL msg_url;
@@ -1209,7 +1242,7 @@ TEST_F(GuiTest, GuiFlipbookAnim)
 {
     dmhash_t go_id = dmHashString64("/go");
     dmhash_t gui_comp_id = dmHashString64("gui");
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_anim.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_anim.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0x0, go);
 
     dmMessage::URL msg_url;
@@ -1239,7 +1272,7 @@ TEST_P(CursorTest, Cursor)
     dmhash_t cursor_prop_id = dmHashString64("cursor");
     dmhash_t sprite_comp_id = dmHashString64("sprite");
     dmhash_t animation_id = dmHashString64(anim_id_str);
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0x0, go);
 
     // Dummy URL, just needed to kick flipbook animation on sprite
@@ -1271,6 +1304,95 @@ TEST_P(CursorTest, Cursor)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Tests the different types of textures (atlas, texture, dynamic)
+// This test makes sure that we can use the correct resource pointers.
+TEST_F(GuiTest, TextureResources)
+{
+    dmhash_t go_id = dmHashString64("/go");
+    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
+
+    dmGameSystem::TextureSetResource* valid_atlas = 0;
+    dmGameSystem::TextureResource* valid_texture = 0;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/atlas/valid.t.texturesetc", (void**) &valid_atlas));
+    ASSERT_TRUE(valid_atlas != 0x0);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/valid_png.texturec", (void**) &valid_texture));
+    ASSERT_TRUE(valid_atlas != 0x0);
+
+    dmGraphics::HTexture valid_atlas_th = valid_atlas->m_Texture->m_Texture;
+    dmGraphics::HTexture valid_texture_th = valid_texture->m_Texture;
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/texture_resources/texture_resources.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmResource::Release(m_Factory, valid_atlas);
+    dmResource::Release(m_Factory, valid_texture);
+
+    // Update + render the GO - this is needed to trigger the creation of the dynamic texture
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+
+    uint32_t component_type_index        = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
+    dmGameSystem::GuiWorld* gui_world    = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(m_Collection, component_type_index);
+    dmGameSystem::GuiComponent* gui_comp = gui_world->m_Components[0];
+
+    {
+        // Box1 is using the "texture" entry, which should equate to a texture resource
+        dmGui::HNode box1 = dmGui::GetNodeById(gui_comp->m_Scene, "box1");
+        ASSERT_NE(0, box1);
+
+        dmGui::NodeTextureType texture_type;
+        dmGui::HTextureSource texture_source = dmGui::GetNodeTexture(gui_comp->m_Scene, box1, &texture_type);
+        ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_TEXTURE, texture_type);
+
+        dmGameSystem::TextureResource* texture_res = (dmGameSystem::TextureResource*) texture_source;
+        ASSERT_EQ(texture_res, valid_texture);
+        ASSERT_EQ(valid_texture_th, texture_res->m_Texture); // same texture
+
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, texture_res->m_Texture));
+    }
+
+    {
+        // Box2 is using the "texture set" entry, which should equate to a texture set resource
+        dmGui::HNode box2 = dmGui::GetNodeById(gui_comp->m_Scene, "box2");
+        ASSERT_NE(0, box2);
+
+        dmGui::NodeTextureType texture_type;
+        dmGui::HTextureSource texture_source = dmGui::GetNodeTexture(gui_comp->m_Scene, box2, &texture_type);
+        ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, texture_type);
+
+        dmGameSystem::TextureSetResource* texture_set_res = (dmGameSystem::TextureSetResource*) texture_source;
+        ASSERT_EQ(valid_atlas, texture_set_res);
+        ASSERT_NE(valid_texture_th, texture_set_res->m_Texture->m_Texture); // NOT the same texture, we swap it out in the script
+
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, texture_set_res->m_Texture->m_Texture));
+        ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, valid_atlas_th)); // Old texture has been removed
+    }
+
+    {
+        // Box2 is using the "texture set" entry, which should equate to a texture set resource
+        dmGui::HNode box3 = dmGui::GetNodeById(gui_comp->m_Scene, "box3");
+        ASSERT_NE(0, box3);
+
+        dmGui::NodeTextureType texture_type;
+        dmGui::HTextureSource texture_source = dmGui::GetNodeTexture(gui_comp->m_Scene, box3, &texture_type);
+        ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_DYNAMIC, texture_type);
+
+        dmGraphics::HTexture texture_h = (dmGraphics::HTexture) texture_source;
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, texture_h));
+    }
+
+    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1324,7 +1446,7 @@ TEST_F(WindowTest, MouseLock)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/mouse_lock.goc", dmHashString64("/mouse_lock"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/mouse_lock.goc", dmHashString64("/mouse_lock"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1356,7 +1478,7 @@ TEST_F(WindowTest, Events)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1462,7 +1584,7 @@ TEST_P(FactoryTest, Test)
     // Spawn the game object with the script we want to call
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmhash_t go_hash = dmHashString64("/go");
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
     ASSERT_NE((void*)0, go);
@@ -1658,7 +1780,7 @@ TEST_P(CollectionFactoryTest, Test)
     // Spawn the game object with the script we want to call
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmhash_t go_hash = dmHashString64("/go");
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
     ASSERT_NE((void*)0, go);
@@ -1927,7 +2049,7 @@ TEST_P(DrawCountTest, DrawCount)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1976,7 +2098,7 @@ TEST_P(BoxRenderTest, BoxRender)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     // Spawn the game object with the script we want to call
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -2027,7 +2149,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/input/connected_event_test.goc", dmHashString64("/gamepad_connected"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/input/connected_event_test.goc", dmHashString64("/gamepad_connected"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -2095,18 +2217,18 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
     const char* path_sleepy_go = "/collision_object/sleepy_base.goc";
     dmhash_t hash_base_go = dmHashString64("/base-go");
     // place the base object so that the upper level of base is at Y = 0
-    dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, base_go);
 
     // two dynamic 'body' objects will get spawned and placed apart
     const char* path_body_go = "/collision_object/body.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (10,10)
-    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, 0, Point3(10,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, Point3(10,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body1_go);
     dmhash_t hash_body2_go = dmHashString64("/body2-go");
     // place this body standing on the base with its center at (50,10)
-    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body2_go, 0, 0, Point3(50,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body2_go, 0, Point3(50,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body2_go);
 
 
@@ -2146,7 +2268,7 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
     const char* path_go = "/collision_object/properties.goc";
     dmhash_t hash_go = dmHashString64("/go");
     // place the base object so that the upper level of base is at Y = 0
-    dmGameObject::HInstance properties_go = Spawn(m_Factory, m_Collection, path_go, hash_go, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance properties_go = Spawn(m_Factory, m_Collection, path_go, hash_go, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, properties_go);
 
     // iterate until the lua env signals the end of the test of error occurs
@@ -2201,14 +2323,14 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     const char* path_body2_go = "/collision_object/groupmask_body2.goc";
     dmhash_t hash_body2_go = dmHashString64("/body2-go");
     // place this body standing on the base with its center at (20,5)
-    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body2_go);
 
     // two dynamic 'body' objects will get spawned and placed apart
     const char* path_body1_go = "/collision_object/groupmask_body1.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
-    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body1_go);
 
     // iterate until the lua env signals the end of the test of error occurs
@@ -2262,14 +2384,14 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest )
     const char* path_body2_go = "/collision_object/groupmask_body2.goc";
     dmhash_t hash_body2_go = dmHashString64("/body2-go");
     // place this body standing on the base with its center at (20,5)
-    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body2_go);
 
     // two dynamic 'body' objects will get spawned and placed apart
     const char* path_body1_go = "/collision_object/groupmask_body1.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
-    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body1_go);
 
     // iterate until the lua env signals the end of the test of error occurs
@@ -2317,18 +2439,18 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
     const char* path_body_go = "/collision_object/body.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
-    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body1_go);
     dmhash_t hash_body2_go = dmHashString64("/body2-go");
     // place this body standing on the base with its center at (20,5)
-    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body2_go, 0, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body2_go, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, body2_go);
 
     // a 'base' gameobject works as the base for other dynamic objects to stand on
     const char* path_sleepy_go = "/collision_object/velocity_threshold_base.goc";
     dmhash_t hash_base_go = dmHashString64("/base-go");
     // place the base object so that the upper level of base is at Y = 0
-    dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, base_go);
 
     // iterate until the lua env signals the end of the test of error occurs
@@ -2378,13 +2500,13 @@ TEST_F(ComponentTest, JointTest)
     dmhash_t hash_go_joint_test_b = dmHashString64("/joint_test_b");
     dmhash_t hash_go_joint_test_c = dmHashString64("/joint_test_c");
 
-    dmGameObject::HInstance go_c = Spawn(m_Factory, m_Collection, path_joint_test_c, hash_go_joint_test_c, 0, 0, Point3(0, -100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_c = Spawn(m_Factory, m_Collection, path_joint_test_c, hash_go_joint_test_c, 0, Point3(0, -100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_c);
 
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_b);
 
-    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_joint_test_a, hash_go_joint_test_a, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_joint_test_a, hash_go_joint_test_a, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_a);
 
     // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
@@ -2432,10 +2554,10 @@ TEST_F(ComponentTest, PhysicsListenerTest)
     dmhash_t hash_go_object = dmHashString64("/test_object");
     dmhash_t hash_go_trigger = dmHashString64("/test_trigger");
 
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_b);
 
-    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_test_trigger, hash_go_trigger, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_test_trigger, hash_go_trigger, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_a);
 
     bool tests_done = false;
@@ -2478,7 +2600,7 @@ TEST_F(ComponentTest, PhysicsUpdateMassTest)
 
     dmhash_t hash_go_object = dmHashString64("/test_object");
 
-    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_b);
 
     bool tests_done = false;
@@ -2495,14 +2617,6 @@ TEST_F(ComponentTest, PhysicsUpdateMassTest)
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
-
-namespace dmGameSystem
-{
-    extern void GetSpriteWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer, dmRender::HBufferedRenderBuffer* ix_buffer);
-    extern void GetModelWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer** vx_buffers, uint32_t* vx_buffers_count);
-    extern void GetParticleFXWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
-    extern void GetTileGridWorldRenderBuffers(void* world, dmRender::HBufferedRenderBuffer* vx_buffer);
-};
 
 TEST_F(ComponentTest, DispatchBuffersTest)
 {
@@ -2549,7 +2663,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_test/dispatch_buffers_test.goc", dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_test/dispatch_buffers_test.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     // Play particlefx
@@ -2600,8 +2714,6 @@ TEST_F(ComponentTest, DispatchBuffersTest)
 
     const uint32_t vertex_stride_a = sizeof(vs_format_a);
     const uint32_t vertex_stride_b = sizeof(vs_format_b);
-
-    const float EPSILON = 0.0001;
 
     #define SET_VTX_A(vtx, x,y,z, pi) \
         vtx.position[0] = x; \
@@ -4447,7 +4559,6 @@ TEST_F(MaterialTest, CustomVertexAttributes)
 
     const uint8_t* value_ptr;
     uint32_t num_values;
-    const float EPSILON = 0.0001;
 
     // Test position values
     {
@@ -4564,7 +4675,6 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
     ASSERT_NE((void*)0, material);
 
     const uint32_t INITIAL_SIZE = 4;
-    const float EPSILON = 0.0001;
 
     DynamicVertexAttributesContext ctx;
     ctx.m_Attributes.SetCapacity(INITIAL_SIZE);
@@ -4862,11 +4972,9 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
 
 TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_animate.goc", dmHashString64("/attributes_go_animate"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_animate.goc", dmHashString64("/attributes_go_animate"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     for (int i = 0; i < 10; ++i)
@@ -4880,12 +4988,52 @@ TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
 
 TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_set_get_sparse.goc", dmHashString64("/attributes_dynamic_go_set_get_sparse"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_go_set_get_sparse.goc", dmHashString64("/attributes_dynamic_go_set_get_sparse"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
+}
+
+TEST_F(MaterialTest, DynamicVertexAttributesCount)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    const uint32_t NUM_INSTANCES = 32;
+
+    dmArray<dmGameObject::HInstance> instances;
+    instances.SetCapacity(NUM_INSTANCES);
+    instances.SetSize(NUM_INSTANCES);
+
+    void* sprite_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+    ASSERT_NE((void*) 0, sprite_world);
+
+    dmGameSystem::DynamicAttributePool* dynamic_attribute_pool = 0;
+    GetSpriteWorldDynamicAttributePool(sprite_world, &dynamic_attribute_pool);
+
+    char name_buffer[128] = {};
+    for (int i = 0; i < NUM_INSTANCES; ++i)
+    {
+        dmSnPrintf(name_buffer, sizeof(name_buffer), "/dynamic_attribute_instance_%d", i);
+
+        dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/attributes_dynamic_count.goc", dmHashString64(name_buffer), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+        ASSERT_NE((void*)0, go);
+        instances[i] = go;
+
+        ASSERT_EQ((i+1), dynamic_attribute_pool->Size());
+    }
+
+    for (int i = 0; i < NUM_INSTANCES; ++i)
+    {
+        dmGameObject::Delete(m_Collection, instances[i], false);
+        // PostUpdate deletes the instance, Delete just flags it for deletion
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        ASSERT_EQ(NUM_INSTANCES - i - 1, dynamic_attribute_pool->Size());
+    }
+
+    ASSERT_EQ(0, dynamic_attribute_pool->Size());
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
@@ -4893,11 +5041,9 @@ TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
 
 TEST_F(MaterialTest, GoGetSetConstants)
 {
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
-
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/material.goc", dmHashString64("/material"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/material/material.goc", dmHashString64("/material"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -4909,7 +5055,7 @@ TEST_F(ComponentTest, GetSetCollisionShape)
     dmHashEnableReverseHash(true);
     dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
 
-    dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_shape.goc", dmHashString64("/get_set_shape_go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_shape.goc", dmHashString64("/get_set_shape_go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_base);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -4921,7 +5067,7 @@ TEST_F(ComponentTest, GetSetErrorCollisionShape)
     dmHashEnableReverseHash(true);
     dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
 
-    dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_error_shape.goc", dmHashString64("/get_set_error_shape_go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_error_shape.goc", dmHashString64("/get_set_error_shape_go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_base);
 
     ASSERT_FALSE(dmGameObject::Final(m_Collection));
@@ -4941,7 +5087,7 @@ TEST_F(SysTest, LoadBufferSync)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_sync.goc", dmHashString64("/load_buffer_sync"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_sync.goc", dmHashString64("/load_buffer_sync"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -4961,7 +5107,7 @@ static bool RunTestLoadBufferASync(int test_n,
     if (!RunString(scriptlibcontext.m_LuaState, buffer))
         return false;
 
-    return UpdateAndWaitUntilDone(scriptlibcontext, collection, update_context, ignore_script_update_fail, "tests_done");
+    return UpdateAndWaitUntilDone(scriptlibcontext, collection, update_context, ignore_script_update_fail, "tests_done", 3);
 }
 
 TEST_F(SysTest, LoadBufferASync)
@@ -4982,7 +5128,7 @@ TEST_F(SysTest, LoadBufferASync)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async.goc", dmHashString64("/load_buffer_async"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async.goc", dmHashString64("/load_buffer_async"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     // Test 1
@@ -5058,32 +5204,78 @@ TEST_F(ShaderTest, ComputeResource)
 {
     dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
 
-    dmRender::HComputeProgram compute_program_res;
-    dmResource::Result res = dmResource::Get(m_Factory, "/shader/valid.compute_programc", (void**) &compute_program_res);
+    dmGameSystem::ComputeResource* compute_program_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/shader/inputs.computec", (void**) &compute_program_res);
 
     ASSERT_EQ(dmResource::RESULT_OK, res);
-    ASSERT_NE((dmRender::HComputeProgram) 0, compute_program_res);
+    ASSERT_NE((dmGameSystem::ComputeResource*) 0, compute_program_res);
 
-    dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program_res);
+    dmRender::HComputeProgram compute_program = compute_program_res->m_Program;
+
+    dmGraphics::HComputeProgram graphics_compute_shader = dmRender::GetComputeProgramShader(compute_program);
     ASSERT_NE((dmGraphics::HComputeProgram) 0, graphics_compute_shader);
 
-    dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program_res);
-    ASSERT_EQ(2, dmGraphics::GetUniformCount(graphics_compute_program));
+    dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program);
+    ASSERT_EQ(7, dmGraphics::GetUniformCount(graphics_compute_program));
 
     char buffer[128] = {};
     dmGraphics::Type type;
     int32_t size;
-    dmGraphics::GetUniformName(graphics_compute_program, 0, buffer, 128, &type, &size);
 
-    ASSERT_STREQ("color", buffer);
-    ASSERT_EQ(0, dmGraphics::GetUniformLocation(graphics_compute_program, "color"));
+    dmRender::HConstant ca, cb, cc, cd;
+    ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_a"), ca));
+    ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_b"), cb));
+    ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_c"), cc));
+    ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_d"), cd));
 
-    dmGraphics::GetUniformName(graphics_compute_program, 1, buffer, 128, &type, &size);
+    uint32_t vca,vcb,vcc,vcd;
+    dmVMath::Vector4* va = dmRender::GetConstantValues(ca, &vca);
 
-    ASSERT_STREQ("texture_out", buffer);
-    ASSERT_EQ(1, dmGraphics::GetUniformLocation(graphics_compute_program, "texture_out"));
+    dmVMath::Vector4 exp_a(1,2,3,4);
+    ASSERT_VEC4(exp_a, (*va));
+
+    dmVMath::Vector4* vb = dmRender::GetConstantValues(cb, &vcb);
+    dmVMath::Vector4 exp_b(11,21,31,41);
+    ASSERT_VEC4(exp_b, (*vb));
+
+    dmVMath::Vector4* vc = dmRender::GetConstantValues(cc, &vcc);
+    dmVMath::Vector4 exp_m_c[] = {
+        dmVMath::Vector4(1, 2,  3, 4),
+        dmVMath::Vector4(5, 6,  7, 8),
+        dmVMath::Vector4(9, 10,11,12),
+        dmVMath::Vector4(13,14,15,16),
+    };
+    ASSERT_VEC4(exp_m_c[0], vc[0]);
+    ASSERT_VEC4(exp_m_c[1], vc[1]);
+    ASSERT_VEC4(exp_m_c[2], vc[2]);
+    ASSERT_VEC4(exp_m_c[3], vc[3]);
+
+    dmVMath::Vector4* vd = dmRender::GetConstantValues(cd, &vcd);
+    dmVMath::Vector4 exp_m_d[] = {
+        dmVMath::Vector4(11,  12,  13, 14),
+        dmVMath::Vector4(15,  16,  17, 18),
+        dmVMath::Vector4(19, 110, 111,112),
+        dmVMath::Vector4(113,114, 115,116),
+    };
+    ASSERT_VEC4(exp_m_d[0], vd[0]);
+    ASSERT_VEC4(exp_m_d[1], vd[1]);
+    ASSERT_VEC4(exp_m_d[2], vd[2]);
+    ASSERT_VEC4(exp_m_d[3], vd[3]);
+
+    dmGraphics::HUniformLocation la = dmRender::GetComputeProgramSamplerUnit(compute_program, dmHashString64("texture_a"));
+    dmGraphics::HUniformLocation lb = dmRender::GetComputeProgramSamplerUnit(compute_program, dmHashString64("texture_b"));
+    dmGraphics::HUniformLocation lc = dmRender::GetComputeProgramSamplerUnit(compute_program, dmHashString64("texture_c"));
+
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, la);
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, lb);
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, lc);
 
     dmResource::Release(m_Factory, (void*) compute_program_res);
+}
+
+TEST_F(ShaderTest, ComputeProgram)
+{
+    dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
 }
 #endif
 

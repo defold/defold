@@ -28,6 +28,7 @@
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.protobuf :as protobuf]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Camera$CameraDesc]
@@ -53,17 +54,11 @@
                                    camera-edge-list)]
     camera-mesh-lines-v4))
 
-(defn- set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
-
-(defn- clear-form-op [{:keys [node-id]} [property]]
-  (g/clear-property! node-id property))
-
 (g/defnk produce-form-data
   [_node-id aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom]
   {:form-ops {:user-data {:node-id _node-id}
-              :set set-form-op
-              :clear clear-form-op}
+              :set protobuf-forms-util/set-form-op
+              :clear protobuf-forms-util/clear-form-op}
    :navigation false
    :sections [{:title "Camera"
                :fields [{:path [:aspect-ratio]
@@ -313,6 +308,7 @@
     :ddf-type Camera$CameraDesc
     :load-fn load-camera
     :icon camera-icon
+    :icon-class :property
     :view-types [:cljfx-form-view :text]
     :view-opts {}
     :tags #{:component}

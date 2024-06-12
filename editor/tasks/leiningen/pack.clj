@@ -13,13 +13,16 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns leiningen.pack
-  (:require
-   [clojure.java.io :as io]
-   [clojure.string :as str]
-   [leiningen.util.http-cache :as http-cache])
-  (:import
-   (java.util.zip ZipFile)
-   (org.apache.commons.io FileUtils)))
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
+            [leiningen.util.http-cache :as http-cache])
+  (:import [java.io File]
+           [java.nio.file CopyOption Files FileSystems FileVisitor FileVisitResult LinkOption Path Paths]
+           [java.nio.file.attribute FileAttribute]
+           [java.util.zip ZipEntry ZipFile]
+           [org.apache.commons.io FileUtils]))
+
+(set! *warn-on-reflection* true)
 
 (defn dynamo-home [] (get (System/getenv) "DYNAMO_HOME"))
 
@@ -88,7 +91,7 @@
 
 (defn artifact-files
   []
-  (let [subst (fn [s] (.replace s "${DYNAMO-HOME}" (dynamo-home)))]
+  (let [subst (fn [s] (str/replace s "${DYNAMO-HOME}" (dynamo-home)))]
     (into {} (for [[src dest] artifacts]
                [(io/file (subst src)) (io/file (subst dest))]))))
 
@@ -102,7 +105,7 @@
    "windows-x64"      ["x86_64-win32"]})
 
 (defn jar-file
-  [[artifact version & {:keys [classifier]} :as dependency]]
+  ^File [[artifact version & {:keys [classifier]} :as dependency]]
   (io/file (str (System/getProperty "user.home")
                 "/.m2/repository/"
                 (str/replace (namespace artifact) "." "/")
@@ -122,7 +125,7 @@
   (let [java-platform (str/replace-first classifier "natives-" "")
         natives-path (str "natives/" java-platform)]
     (with-open [zip-file (ZipFile. (jar-file dependency))]
-      (doseq [entry (enumeration-seq (.entries zip-file))]
+      (doseq [^ZipEntry entry (enumeration-seq (.entries zip-file))]
         (when (.startsWith (.getName entry) natives-path)
           (let [libname (.getName (io/file (.getName entry)))]
             (doseq [target-platform (jogl-classifier->platforms java-platform)]
@@ -136,11 +139,55 @@
   (doseq [jogl-native-dep (filter jogl-native-dep? dependencies)]
     (extract-jogl-native-dep jogl-native-dep pack-path)))
 
+(defn pack-lua-language-server [pack-path lua-language-server-version]
+  (let [release-path (-> (format "https://github.com/defold/lua-language-server/releases/download/%s/release.zip"
+                                 lua-language-server-version)
+                         http-cache/download
+                         .toPath)
+        file-attributes (into-array FileAttribute [])
+        ^"[Ljava.nio.file.CopyOption;" copy-options (into-array CopyOption [])]
+   (with-open [fs (FileSystems/newFileSystem release-path)]
+     (doseq [platform (keys engine-artifacts)
+             :let [zip-file-name (str platform ".zip")
+                   src-zip-path (.getPath fs "lsp-lua-language-server" (into-array String ["plugins" zip-file-name]))
+                   dst-root-path (Paths/get pack-path (into-array String [platform "bin" "lsp" "lua"]))]]
+       ;; Copy config.json to the pack path
+       (let [source-path (.getPath fs "lsp-lua-language-server" (into-array String ["plugins" "share" "config.json"]))
+             target-path (.resolve dst-root-path "config.json")]
+         (Files/createDirectories (.getParent target-path) file-attributes)
+         (Files/copy source-path target-path copy-options))
+       ;; Copy contents of bin zips to the pack path
+       (with-open [fs (FileSystems/newFileSystem src-zip-path)]
+         (doseq [^Path root-path (.getRootDirectories fs)
+                 :let [entry-path->dst-path (fn [^Path p]
+                                              (let [name-count (.getNameCount p)]
+                                                (when (< 2 name-count)
+                                                  (.resolve dst-root-path
+                                                            (-> root-path
+                                                                (.relativize p)
+                                                                ;; remove leading "bin/${platform}"
+                                                                (.subpath 2 name-count)
+                                                                str)))))]]
+           (Files/walkFileTree
+             root-path
+             (reify FileVisitor
+               (preVisitDirectory [_ path _]
+                 (when-let [^Path target-path (entry-path->dst-path path)]
+                   (when-not (Files/exists target-path (into-array LinkOption []))
+                     (Files/createDirectories target-path file-attributes)))
+                 FileVisitResult/CONTINUE)
+               (visitFile [_ path _]
+                 (when-let [^Path target-path (entry-path->dst-path path)]
+                   (Files/deleteIfExists target-path)
+                   (Files/copy ^Path path target-path copy-options))
+                 FileVisitResult/CONTINUE)
+               (postVisitDirectory [_ _ _] FileVisitResult/CONTINUE)))))))))
+
 (defn copy-artifacts
   [pack-path archive-domain git-sha]
   (let [files (merge (engine-artifact-files archive-domain git-sha)
                      (artifact-files))]
-    (doseq [[src dest] files]
+    (doseq [[^File src dest] files]
       (let [dest (io/file pack-path dest)]
         (println (format "copying '%s' to '%s'" (str src) (str dest)))
         (if-not (.exists src)
@@ -154,7 +201,8 @@
   [{:keys [dependencies packing] :as project} & [git-sha]]
   (let [sha (or git-sha (:engine project))
         archive-domain (get project :archive-domain)
-        {:keys [pack-path]} packing]
+        {:keys [pack-path lua-language-server-version]} packing]
     (FileUtils/deleteQuietly (io/file pack-path))
     (copy-artifacts pack-path archive-domain sha)
-    (pack-jogl-natives pack-path dependencies)))
+    (pack-jogl-natives pack-path dependencies)
+    (pack-lua-language-server pack-path lua-language-server-version)))

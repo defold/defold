@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/extension and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/extension/sdk_gen.json
+// Generated with cwd=/Users/mawe/work/defold/engine/extension and cmd=/Users/mawe/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mawe/work/defold/engine/extension/sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
@@ -57,6 +57,8 @@ namespace dmExtension
         EVENT_ID_DEACTIVATEAPP,
         EVENT_ID_ICONIFYAPP,
         EVENT_ID_DEICONIFYAPP,
+        EVENT_ID_ENGINE_INITIALIZED,
+        EVENT_ID_ENGINE_DELETE,
     };
 
     /*#

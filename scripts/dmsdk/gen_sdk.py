@@ -286,6 +286,7 @@ def generate(gen_info, includes, basepath, outdir):
             info['license'] = apply_license.LICENSE
 
             out_data = None
+
             if lang_key == "cpp":
                 out = os.path.join(outdir, os.path.splitext(path)[0] + "_gen.hpp")
 

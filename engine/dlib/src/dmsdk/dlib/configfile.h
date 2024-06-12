@@ -237,7 +237,11 @@ void ConfigFileRegisterExtension(void* desc,
     DM_REGISTER_CONFIGFILE_EXTENSION(symbol, DM_DMCF_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_DMCF_PASTE_SYMREG2(symbol, __LINE__)), name, create, destroy, get_string, get_int, get_float);
 
 #if defined(__cplusplus)
+
 } // extern "C"
+
+#include "configfile.hpp"
+
 #endif
 
 #endif // DMSDK_CONFIGFILE_H

@@ -223,10 +223,9 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
+        TileGridComponent* component;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, &receiver, 0);
-        TileGridComponent* component = (TileGridComponent*) user_data;
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, &receiver, 0);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
 
@@ -298,7 +297,7 @@ namespace dmGameSystem
                 bitmask |= FLIP_VERTICAL;
             }
         }
-        
+
         SetTileGridTile(component, layer_index, cell_x, cell_y, tile, bitmask);
 
         dmMessage::URL sender;
@@ -361,9 +360,8 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0, 0);
-        TileGridComponent* component = (TileGridComponent*) user_data;
+        TileGridComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
         uint32_t layer_index = GetLayerIndex(component, layer_id);
@@ -427,9 +425,8 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, 0, 0);
-        TileGridComponent* component = (TileGridComponent*) user_data;
+        TileGridComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
 
         int x, y, w, h;
         GetTileGridBounds(component, &x, &y, &w, &h);
@@ -464,10 +461,9 @@ namespace dmGameSystem
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
-        uintptr_t user_data;
+        TileGridComponent* component;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, TILE_MAP_EXT, &user_data, &receiver, 0);
-        TileGridComponent* component = (TileGridComponent*) user_data;
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, &receiver, 0);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
         uint32_t layer_index = GetLayerIndex(component, layer_id);
@@ -566,7 +562,7 @@ namespace dmGameSystem
          * |val| bitmask|  basic 3bits | corresponding   |
          * |   |        |  transforms  | transformations |
          * |----------------------------------------------
-         * | 0 | (000)  |         R_0  | R_180 + H + V   |  
+         * | 0 | (000)  |         R_0  | R_180 + H + V   |
          * | 1 | (001)  |     H + R_0  | R_180 + V       |
          * | 2 | (010)  |     V + R_0  | R_180 + H       |
          * | 3 | (011)  | V + H + R_0  | R_180           |
@@ -575,7 +571,7 @@ namespace dmGameSystem
          * | 6 | (110)  |     V + R_90 | R_270 + H       |
          * | 7 | (111)  | V + H + R_90 | R_270           |
          * -----------------------------------------------
-         * 
+         *
          * Since we want to use arithmetic sum in Lua API (and avoid using of bit module)
          * and also want to avoid extra arithmetic operations in the engine (because we are doing them on Lua side anyways)
          * we can use mirrored values from basic transforms

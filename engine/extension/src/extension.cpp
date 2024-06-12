@@ -15,7 +15,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/static_assert.h>
-#include <dmsdk/extension/extension_gen.hpp>
+#include <dmsdk/extension/extension.h>
 
 #include "extension.h"
 

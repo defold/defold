@@ -55,11 +55,12 @@ namespace dmGraphics
 
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable();
     static bool                         NullIsSupported();
+    static HContext                     NullGetContext();
     static const int8_t    g_null_adapter_priority = 2;
     static GraphicsAdapter g_null_adapter(ADAPTER_FAMILY_NULL);
     static NullContext*    g_NullContext = 0x0;
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, g_null_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, NullGetContext, g_null_adapter_priority);
 
     struct AssetContainerLock
     {
@@ -144,6 +145,11 @@ namespace dmGraphics
     static bool NullIsSupported()
     {
         return true;
+    }
+
+    static HContext NullGetContext()
+    {
+        return g_NullContext;
     }
 
     static void NullDeleteContext(HContext _context)
@@ -656,6 +662,11 @@ namespace dmGraphics
         g_DrawCount++;
     }
 
+    static void NullDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        // Not supported
+    }
+
     // For tests
     void ResetDrawCount()
     {
@@ -815,7 +826,7 @@ namespace dmGraphics
         return p;
     }
 
-    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return (HComputeProgram) NewShaderProgramFromDDF(ddf);
     }
@@ -854,12 +865,12 @@ namespace dmGraphics
         delete (Program*) program;
     }
 
-    static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return (HVertexProgram) NewShaderProgramFromDDF(ddf);
     }
 
-    static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return (HFragmentProgram) NewShaderProgramFromDDF(ddf);
     }
@@ -1357,15 +1368,16 @@ namespace dmGraphics
             texture_type    = TEXTURE_TYPE_2D;
         }
 
-        tex->m_Type          = texture_type;
-        tex->m_Width         = params.m_Width;
-        tex->m_Height        = params.m_Height;
-        tex->m_Depth         = params.m_Depth;
-        tex->m_MipMapCount   = 0;
-        tex->m_Data          = 0;
-        tex->m_DataState     = 0;
-        tex->m_NumTextureIds = num_texture_ids;
-        tex->m_LastBoundUnit = new int32_t[num_texture_ids];
+        tex->m_Type           = texture_type;
+        tex->m_Width          = params.m_Width;
+        tex->m_Height         = params.m_Height;
+        tex->m_Depth          = params.m_Depth;
+        tex->m_MipMapCount    = 0;
+        tex->m_Data           = 0;
+        tex->m_DataState      = 0;
+        tex->m_NumTextureIds  = num_texture_ids;
+        tex->m_LastBoundUnit  = new int32_t[num_texture_ids];
+        tex->m_UsageHintFlags = params.m_UsageHintBits;
 
         for (int i = 0; i < num_texture_ids; ++i)
         {
@@ -1843,6 +1855,11 @@ namespace dmGraphics
     static uint8_t NullGetNumTextureHandles(HTexture texture)
     {
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_NumTextureIds;
+    }
+
+    static uint32_t NullGetTextureUsageHintFlags(HTexture texture)
+    {
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_UsageHintFlags;
     }
 
     static bool NullIsContextFeatureSupported(HContext _context, ContextFeature feature)

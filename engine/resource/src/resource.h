@@ -23,7 +23,7 @@
 
 struct ResourceDescriptor;
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 typedef struct ResourcePreloader* HResourcePreloader;
 

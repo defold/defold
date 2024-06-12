@@ -5821,3 +5821,34 @@ driver
     map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 7 }
     map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 6 }
 }
+
+driver
+{
+    device: "Retroid Pocket Controller"
+    platform: "android"
+    dead_zone: 0.2
+    map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
+    map { input: GAMEPAD_LSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
+    map { input: GAMEPAD_LSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
+    map { input: GAMEPAD_LSTICK_UP type: GAMEPAD_TYPE_AXIS index: 1 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
+    map { input: GAMEPAD_LSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 17 hat_mask: 0 }
+    map { input: GAMEPAD_RSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 2 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
+    map { input: GAMEPAD_RSTICK_RIGHT type: GAMEPAD_TYPE_AXIS index: 2 mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
+    map { input: GAMEPAD_RSTICK_DOWN type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
+    map { input: GAMEPAD_RSTICK_UP type: GAMEPAD_TYPE_AXIS index: 3 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } hat_mask: 0 }
+    map { input: GAMEPAD_RSTICK_CLICK type: GAMEPAD_TYPE_BUTTON index: 18 hat_mask: 0 }
+    map { input: GAMEPAD_LPAD_LEFT type: GAMEPAD_TYPE_AXIS index: 6 mod { mod: GAMEPAD_MODIFIER_NEGATE } hat_mask: 16 }
+    map { input: GAMEPAD_LPAD_RIGHT type: GAMEPAD_TYPE_AXIS index: 6 hat_mask: 16 }
+    map { input: GAMEPAD_LPAD_DOWN type: GAMEPAD_TYPE_AXIS index: 7 hat_mask: 15 }
+    map { input: GAMEPAD_LPAD_UP type: GAMEPAD_TYPE_AXIS index: 7 mod { mod: GAMEPAD_MODIFIER_NEGATE } hat_mask: 15 }
+    map { input: GAMEPAD_RPAD_UP type: GAMEPAD_TYPE_BUTTON index: 3 hat_mask: 0 }
+    map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 1 hat_mask: 0 }
+    map { input: GAMEPAD_RPAD_RIGHT type: GAMEPAD_TYPE_BUTTON index: 0 hat_mask: 0 }
+    map { input: GAMEPAD_RPAD_LEFT type: GAMEPAD_TYPE_BUTTON index: 6 hat_mask: 0 }
+    map { input: GAMEPAD_LSHOULDER type: GAMEPAD_TYPE_BUTTON index: 4 hat_mask: 0 }
+    map { input: GAMEPAD_RSHOULDER type: GAMEPAD_TYPE_BUTTON index: 5 hat_mask: 0 }
+    map { input: GAMEPAD_LTRIGGER type: GAMEPAD_TYPE_BUTTON index: 8 hat_mask: 0 }
+    map { input: GAMEPAD_RTRIGGER type: GAMEPAD_TYPE_BUTTON index: 9 hat_mask: 0 }
+    map { input: GAMEPAD_START type: GAMEPAD_TYPE_BUTTON index: 15 hat_mask: 0 }
+    map { input: GAMEPAD_BACK type: GAMEPAD_TYPE_BUTTON index: 17 hat_mask: 0 }
+}

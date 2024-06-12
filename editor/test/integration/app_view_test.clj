@@ -188,7 +188,6 @@
               project (test-util/setup-project! workspace)
               artifact-map (workspace/artifact-map workspace)
               game-project (test-util/resource-node project "/game.project")
-              game-project-build-targets (g/node-value game-project :build-targets)
               expected-cached-build-target-endpoints (into (sorted-set)
                                                            (mapcat (fn [{build-resource :resource :as build-target}]
                                                                      (let [source-resource (:resource build-resource)]
@@ -197,7 +196,7 @@
                                                                          ;; This is a project (i.e. not embedded) resource node.
                                                                          (when-some [source-node-id (test-util/resource-node project source-resource)]
                                                                            (node-cacheable-build-target-endpoints source-node-id))))))
-                                                           (pipeline/flatten-build-targets game-project-build-targets))]
+                                                           (build/resolve-node-dependencies game-project project))]
           (test-util/run-event-loop!
             (fn [exit-event-loop!]
               (g/clear-system-cache!)

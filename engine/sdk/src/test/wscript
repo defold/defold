@@ -75,7 +75,7 @@ def build(bld):
     sdk_dir = os.path.join(bld.env['DYNAMO_HOME'], 'sdk', 'include', 'dmsdk')
     exclude_dirs = ['vectormath', 'external', 'lua']
     exclude_files = ['sdk.h']
-    exclude_endings = ['_posix.h', '_win32.h', '_mach.h', '_android.h', '_pthread.h', '_vendor.h', '_nx64.h', '_ps4.h', '_ps5.h']
+    exclude_endings = ['_gen.hpp', '_posix.h', '_win32.h', '_mach.h', '_android.h', '_pthread.h', '_vendor.h', '_nx64.h', '_ps4.h', '_ps5.h']
 
     if not platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
         exclude_dirs.append('glfw')

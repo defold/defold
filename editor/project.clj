@@ -116,7 +116,7 @@
                       "../engine/graphics/proto"
                       "../engine/input/proto"
                       "../engine/particle/proto/particle"
-                      "../engine/render/proto/render"
+                      "../engine/render/proto"
                       "../engine/resource/proto"
                       "../engine/rig/proto"
                       "../engine/script/src"]
@@ -139,7 +139,8 @@
                       "prerelease" ["do" "clean," "protobuf," "sass" "once," "javac," "with-profile" "dev,sidecar,release" "run" "-m" "aot"]}
 
   ;; used by `pack` task
-  :packing           {:pack-path "resources/_unpack"}
+  :packing           {:pack-path "resources/_unpack"
+                      :lua-language-server-version "v1.7795"}
 
   :codox             {:sources                   ["src/clj"]
                       :output-dir                "target/doc/api"
@@ -252,7 +253,9 @@
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
-                                :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
+                                :jvm-opts          ["-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/main.zip"
+                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/main.zip"
+                                                    "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful

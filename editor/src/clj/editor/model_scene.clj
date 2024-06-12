@@ -133,7 +133,7 @@
 (defn mesh->renderable-data [mesh]
   (let [positions (flat->vectors 3 (:positions mesh))
         normals (flat->vectors 3 (:normals mesh))
-        tangents (flat->vectors 3 (:tangents mesh))
+        tangents (flat->vectors 4 (:tangents mesh))
         colors (flat->vectors 4 (:colors mesh))
         texcoord0s (flat->vectors (:num-texcoord0-components mesh 0) (:texcoord0 mesh))
         texcoord1s (flat->vectors (:num-texcoord1-components mesh 0) (:texcoord1 mesh))
@@ -193,7 +193,7 @@
                                    :vertex-space-local :coordinate-space-local
                                    :vertex-space-world :coordinate-space-world)
         vertex-description (or override-vertex-description
-                               (let [manufactured-attribute-keys [:position :texcoord0 :normal]
+                               (let [manufactured-attribute-keys [:position :texcoord0 :normal :tangent]
                                      shader-bound-attributes (graphics/shader-bound-attributes gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space)]
                                  (graphics/make-vertex-description shader-bound-attributes)))
         coordinate-space-info (graphics/coordinate-space-info (:attributes vertex-description))
@@ -434,11 +434,12 @@
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
-                                    :ext model-file-types
-                                    :label "Model Scene"
-                                    :node-type ModelSceneNode
-                                    :icon mesh-icon
-                                    :view-types [:scene :text]))
+    :ext model-file-types
+    :label "Model Scene"
+    :node-type ModelSceneNode
+    :icon mesh-icon
+    :icon-class :design
+    :view-types [:scene :text]))
 
 (defn- update-vb [^GL2 _gl ^VertexBuffer vb data]
   (let [{:keys [mesh-renderable-data ^Matrix4d world-transform ^Matrix4d normal-transform vertex-attribute-bytes]} data]

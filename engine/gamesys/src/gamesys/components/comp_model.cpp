@@ -46,7 +46,7 @@
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/model_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_Model, 0, FrameReset, "# components", &rmtp_Components);
@@ -155,13 +155,14 @@ namespace dmGameSystem
 
         world->m_Components.SetCapacity(comp_count);
         world->m_RenderObjects.SetCapacity(comp_count);
-        DM_STATIC_ASSERT( sizeof(dmRig::RigModelVertex) == ((3+3+3+4+2+2)*4), Invalid_Struct_Size);
+        // position, normal, tangent, color, texcoord0, texcoord1 * sizeof(float)
+        DM_STATIC_ASSERT( sizeof(dmRig::RigModelVertex) == ((3+3+4+4+2+2)*4), Invalid_Struct_Size);
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(graphics_context);
         dmGraphics::AddVertexStream(stream_declaration, "position",  3, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration, "normal",    3, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "tangent",   3, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "tangent",   4, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration, "color",     4, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration, "texcoord1", 2, dmGraphics::TYPE_FLOAT, false);
@@ -1572,9 +1573,9 @@ namespace dmGameSystem
         return component->m_NodeInstances[bone_index];
     }
 
-    ModelComponent* CompModelGetComponent(ModelWorld* world, uintptr_t user_data)
+    ModelComponent* CompModelGetComponent(ModelWorld* world, dmGameObject::HComponentInternal user_data)
     {
-        return world->m_Components.Get(user_data);;
+        return world->m_Components.Get(user_data);
     }
 
     bool CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled)

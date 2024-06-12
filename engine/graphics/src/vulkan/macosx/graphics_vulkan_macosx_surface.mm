@@ -15,46 +15,17 @@
 #include <dlib/math.h>
 #include <dlib/array.h>
 
-#include  <glfw/glfw_native.h>
 #include <objc/objc.h>
-
-#if defined(DM_PLATFORM_MACOS)
-    #include <Carbon/Carbon.h>
-#endif
 
 #include "../graphics_vulkan_defines.h"
 #include "../graphics_vulkan_private.h"
 
+#include <platform/platform_window_vulkan.h>
+
 namespace dmGraphics
 {
-    // Source: GLFW3
-    VkResult CreateWindowSurface(VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
+    VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
-        VkMacOSSurfaceCreateInfoMVK sci;
-        PFN_vkCreateMacOSSurfaceMVK vkCreateMacOSSurfaceMVK;
-
-         vkCreateMacOSSurfaceMVK = (PFN_vkCreateMacOSSurfaceMVK)
-            vkGetInstanceProcAddr(vkInstance, "vkCreateMacOSSurfaceMVK");
-        if (!vkCreateMacOSSurfaceMVK)
-        {
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-
-        id window_layer  = glfwGetOSXCALayer();
-        id window_view   = glfwGetOSXNSView();
-        id window_object = glfwGetOSXNSWindow();
-
-        // JG: OpenGL and MVK differs on osx on how to deal with highDPI.. On OpenGL it doesn't seem to matter,
-        //.    so for NOW we bring vulkan closer to OpenGL and always create a surface with max scale factor
-        // if (enableHighDPI)
-        {
-            [window_layer setContentsScale:[window_object backingScaleFactor]];
-        }
-
-        memset(&sci, 0, sizeof(sci));
-        sci.sType = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK;
-        sci.pView = window_view;
-
-        return vkCreateMacOSSurfaceMVK(vkInstance, &sci, 0, vkSurfaceOut);
+        return dmPlatform::VulkanCreateWindowSurface(vkInstance, window, vkSurfaceOut);
     }
 }
