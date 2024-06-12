@@ -524,72 +524,6 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    static int CheckGoGetResult(lua_State* L, dmGameObject::PropertyResult result, const PropertyDesc& property_desc, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options, bool index_requested)
-    {
-        DM_HASH_REVERSE_MEM(hash_ctx, 512);
-        switch (result)
-        {
-        case dmGameObject::PROPERTY_RESULT_OK:
-            {
-                if (index_requested && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_ARRAY))
-                {
-                    return luaL_error(L, "Options table contains index, but property '%s' is not an array.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-                else if (property_options.m_HasKey && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_HASHTABLE))
-                {
-                    return luaL_error(L, "Options table contains key, but property '%s' is not a hashtable.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-
-                dmGameObject::LuaPushVar(L, property_desc.m_Variant);
-
-                return 1;
-            }
-        case dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND:
-            {
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Resource `%s` for property '%s' not found!", dmHashReverseSafe64Alloc(&hash_ctx, property_options.m_Key), dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-                else
-                {
-                    return luaL_error(L, "Property '%s' not found!", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-            }
-        case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
-            {
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is an array, but in options table specified key instead of index.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-                return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-        case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
-            {
-                if (!property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-                }
-                return luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64Alloc(&hash_ctx, property_options.m_Key), dmHashReverseSafe64Alloc(&hash_ctx, property_id));
-            }
-        case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
-            {
-                const char* path = dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path);
-                const char* property = dmHashReverseSafe64Alloc(&hash_ctx, property_id);
-                if (target.m_Fragment)
-                {
-                    return luaL_error(L, "'%s#%s' does not have any property called '%s'", path, dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), property);
-                }
-                return luaL_error(L, "'%s' does not have any property called '%s'", path, property);
-            }
-        case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
-            return luaL_error(L, "Could not find component '%s' when resolving '%s'", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), lua_tostring(L, 1));
-        default:
-            // Should never happen, programmer error
-            return luaL_error(L, "go.get failed with error code %d", result);
-        }
-        return 0;
-    }
-
     /*# gets a named property of the specified game object or component
      *
      * @name go.get
@@ -673,7 +607,10 @@ namespace dmGameObject
         }
         dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(instance), target.m_Path);
         if (target_instance == 0)
+        {
             return luaL_error(L, "Could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
+        }
+
         dmGameObject::PropertyOptions property_options;
         property_options.m_Index = 0;
         property_options.m_HasKey = 0;
@@ -682,41 +619,7 @@ namespace dmGameObject
         // Options table
         if (lua_gettop(L) > 2)
         {
-            luaL_checktype(L, 3, LUA_TTABLE);
-            lua_pushvalue(L, 3);
-
-            lua_getfield(L, -1, "key");
-            if (!lua_isnil(L, -1))
-            {
-                property_options.m_Key = dmScript::CheckHashOrString(L, -1);
-                property_options.m_HasKey = 1;
-            }
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "index");
-            if (!lua_isnil(L, -1)) // make it optional
-            {
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Options table cannot contain both 'key' and 'index'.");
-                }
-                if (!lua_isnumber(L, -1))
-                {
-                    return luaL_error(L, "Invalid number passed as index argument in options table.");
-                }
-
-                property_options.m_Index = luaL_checkinteger(L, -1) - 1;
-
-                if (property_options.m_Index < 0)
-                {
-                    return luaL_error(L, "Trying to get property value from '%s' with an index < 0: %d", dmHashReverseSafe64Alloc(&hash_ctx, property_id), property_options.m_Index);
-                }
-
-                index_requested = true;
-            }
-            lua_pop(L, 1);
-
-            lua_pop(L, 1);
+            dmGameObject::LuaToPropertyOptions(L, 3, &property_options, property_id, &index_requested);
         }
         dmGameObject::PropertyDesc property_desc;
         dmGameObject::PropertyResult result = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
@@ -727,7 +630,7 @@ namespace dmGameObject
 
             // We already have the first value, so no need to get it again.
             // But we do need to check the result, we could still get errors even if the result is OK
-            int handle_go_get_result = CheckGoGetResult(L, result, property_desc, property_id, target_instance, target, property_options, index_requested);
+            int handle_go_get_result = CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
             if (handle_go_get_result != 1)
             {
                 return handle_go_get_result;
@@ -739,7 +642,7 @@ namespace dmGameObject
             {
                 property_options.m_Index = i;
                 result                   = dmGameObject::GetProperty(target_instance, target.m_Fragment, property_id, property_options, property_desc);
-                handle_go_get_result     = CheckGoGetResult(L, result, property_desc, property_id, target_instance, target, property_options, index_requested);
+                handle_go_get_result     = CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
                 if (handle_go_get_result != 1)
                 {
                     return handle_go_get_result;
@@ -750,7 +653,7 @@ namespace dmGameObject
             return 1;
         }
 
-        return CheckGoGetResult(L, result, property_desc, property_id, target_instance, target, property_options, index_requested);
+        return CheckGetPropertyResult(L, "go", result, property_desc, property_id, target, property_options, index_requested);
     }
 
     static int HandleGoSetResult(lua_State* L, dmGameObject::PropertyResult result, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options)

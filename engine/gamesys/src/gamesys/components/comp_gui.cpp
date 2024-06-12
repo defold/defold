@@ -221,18 +221,19 @@ namespace dmGameSystem
         return GetRenderConstant(render_constants, name_hash, out_constant);
     }
 
-    static bool GetMaterialPropertyCallback(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, dmGameObject::PropertyDesc& property_desc)
+    static bool GetMaterialPropertyCallback(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, dmGameObject::PropertyDesc& property_desc, const dmGameObject::PropertyOptions* options)
     {
         GuiComponent* gui_component  = (GuiComponent*) ctx;
         GuiSceneResource* resource   = gui_component->m_Resource;
         dmRender::HMaterial material = GetMaterial(gui_component, resource, scene, node);
+        uint32_t value_index         = options ? options->m_Index : 0;
 
         CompGuiRenderConstantUserData user_data = {};
         user_data.m_GuiComponent = gui_component;
         user_data.m_Node         = node;
         user_data.m_Material     = material;
 
-        return GetMaterialConstant(material, property_id, 0, property_desc, false, CompGuiGetMaterialConstantCallback, &user_data) == dmGameObject::PROPERTY_RESULT_OK;
+        return GetMaterialConstant(material, property_id, value_index, property_desc, false, CompGuiGetMaterialConstantCallback, &user_data) == dmGameObject::PROPERTY_RESULT_OK;
     }
 
     static void CompGuiSetMaterialConstantCallback(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)

@@ -144,7 +144,7 @@ namespace dmGui
     /**
      * Callback to get material property
      */
-    typedef bool (*GetMaterialPropertyCallback)(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, dmGameObject::PropertyDesc& property_desc);
+    typedef bool (*GetMaterialPropertyCallback)(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, dmGameObject::PropertyDesc& property_desc, const dmGameObject::PropertyOptions* options);
 
     /**
      * Callback to set material property

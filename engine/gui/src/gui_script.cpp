@@ -24,6 +24,7 @@
 #include <script/script.h>
 
 #include <gameobject/gameobject_props_lua.h>
+#include <gameobject/gameobject_script_util.h>
 
 #include "gui.h"
 #include "gui_private.h"
@@ -642,9 +643,9 @@ namespace dmGui
         HNode hnode;
         LuaCheckNodeInternal(L, 1, &hnode);
 
-        dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
+        dmhash_t property_id = dmScript::CheckHashOrString(L, 2);
 
-        dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
+        dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_id);
         if (pd)
         {
             Vector4 base_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
@@ -669,37 +670,54 @@ namespace dmGui
             return 1;
         }
 
-        dmGameObject::PropertyDesc property_desc;
-        if (dmGui::GetMaterialProperty(scene, hnode, property_hash, property_desc))
+        dmGameObject::PropertyOptions property_options = {};
+        bool index_requested = false;
+
+        if (lua_gettop(L) >= 3)
         {
-            /*
-            struct PropertyDesc
-            {
-                PropertyDesc();
-                dmhash_t    m_ElementIds[4];
-                PropertyVar m_Variant;
-                float*      m_ValuePtr;
-                uint16_t    m_ReadOnly    : 1;
-                uint16_t    m_ValueType   : 1;
-                uint16_t    m_ArrayLength : 14;
-            };
-            */
-
-            if (property_desc.m_ArrayLength == 1)
-            {
-                dmGameObject::LuaPushVar(L, property_desc.m_Variant);
-            }
-            else
-            {
-                assert(0);
-            }
-
-            return 1;
+            dmGameObject::LuaToPropertyOptions(L, 3, &property_options, property_id, &index_requested);
         }
 
-        // void* GetNodeMaterial(HScene scene, HNode node);
+        dmMessage::URL target = {};
+        dmGameObject::PropertyDesc property_desc;
+        dmGameObject::PropertyResult property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
+             dmGameObject::PROPERTY_RESULT_OK : dmGameObject::PROPERTY_RESULT_NOT_FOUND;
 
-        return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
+        if (property_res == dmGameObject::PROPERTY_RESULT_OK && !index_requested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && property_desc.m_ArrayLength > 1)
+        {
+            lua_newtable(L);
+
+            // We already have the first value, so no need to get it again.
+            // But we do need to check the result, we could still get errors even if the result is OK
+            int handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+            if (handle_go_get_result != 1)
+            {
+                return handle_go_get_result;
+            }
+
+            lua_rawseti(L, -2, 1);
+
+            for (int i = 1; i < property_desc.m_ArrayLength; ++i)
+            {
+                property_options.m_Index = i;
+                property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
+                        dmGameObject::PROPERTY_RESULT_OK : dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+
+                handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+                if (handle_go_get_result != 1)
+                {
+                    return handle_go_get_result;
+                }
+
+                lua_rawseti(L, -2, i + 1);
+            }
+        }
+        else
+        {
+            dmGameObject::LuaPushVar(L, property_desc.m_Variant);
+        }
+
+        return dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
     }
 
     /*# sets the named property of a specified gui node 
@@ -822,9 +840,8 @@ namespace dmGui
 
         dmGameObject::PropertyVar property_var;
         dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
-        if (result == dmGameObject::PROPERTY_RESULT_OK)
+        if (result == dmGameObject::PROPERTY_RESULT_OK && dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var))
         {
-            dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var);
             return 0;
         }
 

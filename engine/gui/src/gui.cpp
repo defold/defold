@@ -2964,13 +2964,13 @@ namespace dmGui
         n->m_Node.m_DirtyLocal = 1;
     }
 
-    bool GetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, dmGameObject::PropertyDesc& property_desc)
+    bool GetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, dmGameObject::PropertyDesc& property_desc, const dmGameObject::PropertyOptions* options)
     {
         if (!scene->m_GetMaterialPropertyCallback)
         {
             return false;
         }
-        return scene->m_GetMaterialPropertyCallback(scene->m_GetMaterialPropertyCallbackContext, scene, node, property_hash, property_desc);
+        return scene->m_GetMaterialPropertyCallback(scene->m_GetMaterialPropertyCallbackContext, scene, node, property_hash, property_desc, options);
     }
 
     bool SetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, const dmGameObject::PropertyVar& property_var)
