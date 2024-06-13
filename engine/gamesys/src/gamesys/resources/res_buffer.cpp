@@ -231,7 +231,7 @@ namespace dmGameSystem
 
     dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams* params)
     {
-        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params->m_Context;
         BufferResource* buffer_resource = new BufferResource();
         memset(buffer_resource, 0, sizeof(BufferResource));
         buffer_resource->m_BufferDDF = (dmBufferDDF::BufferDesc*) params->m_PreloadData;
@@ -268,7 +268,7 @@ namespace dmGameSystem
         ReleaseResources(params->m_Factory, buffer_resource);
         buffer_resource->m_BufferDDF = ddf;
 
-        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
+        dmGraphics::HContext graphics_context = (dmGraphics::HContext) params->m_Context;
         if (!BuildBuffer(graphics_context, buffer_resource))
         {
             return dmResource::RESULT_INVALID_DATA;

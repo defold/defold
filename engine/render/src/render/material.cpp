@@ -252,6 +252,20 @@ namespace dmRender
         return -1;
     }
 
+    dmhash_t GetMaterialSamplerNameHash(HMaterial material, uint32_t unit)
+    {
+        if (unit < material->m_Samplers.Size())
+        {
+            return material->m_Samplers[unit].m_NameHash;
+        }
+        return 0;
+    }
+
+    uint32_t GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash)
+    {
+        return GetProgramSamplerUnit(material->m_Samplers, name_hash);
+    }
+
     dmGraphics::HProgram GetMaterialProgram(HMaterial material)
     {
         return material->m_Program;

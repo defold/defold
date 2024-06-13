@@ -783,8 +783,10 @@ namespace dmRender
         }
     }
 
-    typedef int32_t (*GetResourceBindingIndexFn)(HMaterial, dmhash_t);
-    static void GetRenderContextResources(dmArray<ResourceBinding>& resources, GetResourceBindingIndexFn get_resource_binding_index_fn, HMaterial material, uint64_t* resource_array, uint32_t max_resource_count)
+
+    /*
+    template <typename T>
+    static void GetRenderContextResources(dmArray<ResourceBinding>& resources, dmArray<T> render_descs, uint64_t* resource_array, uint32_t max_resource_count)
     {
         uint32_t num_bindings = resources.Size();
         for (uint32_t i = 0; i < num_bindings; ++i)
@@ -794,12 +796,14 @@ namespace dmRender
 
             if (resources[i].m_Samplerhash)
             {
-                int32_t hash_sampler_index = get_resource_binding_index_fn(material, resources[i].m_Samplerhash);
+                int32_t hash_sampler_index = GetProgramSamplerIndexWrapper(render_descs, resources[i].m_Samplerhash);
                 if (hash_sampler_index >= 0)
                 {
                     resource_index = hash_sampler_index;
                     resource       = resources[i].m_Resource;
                 }
+                // The sampler doesn't exist, so we ignore it.
+                else continue;
             }
             else if (resource == 0)
             {
@@ -817,14 +821,51 @@ namespace dmRender
         }
     }
 
-    static void GetRenderContextStorageBuffers(HRenderContext render_context, HMaterial material, dmGraphics::HStorageBuffer* storage_buffers)
+    static inline void GetRenderContextStorageBuffers(HRenderContext render_context, const dmArray<MaterialStorageBuffer>& material_storage_buffers, dmGraphics::HStorageBuffer* storage_buffers)
     {
-        GetRenderContextResources(render_context->m_StorageBufferBindTable, GetMaterialStorageBufferIndex, material, storage_buffers, dmGraphics::MAX_STORAGE_BUFFERS);
+        GetRenderContextResources(render_context->m_StorageBufferBindTable, material_storage_buffers, storage_buffers, dmGraphics::MAX_STORAGE_BUFFERS);
     }
 
-    static void GetRenderContextTextures(HRenderContext render_context, HMaterial material, dmGraphics::HTexture* textures)
+    static inline void GetRenderContextTextures(HRenderContext render_context, const dmArray<Sampler>& samplers, dmGraphics::HTexture* textures)
     {
-        GetRenderContextResources(render_context->m_TextureBindTable, GetMaterialSamplerIndex, material, textures, RenderObject::MAX_TEXTURE_COUNT);
+        GetRenderContextResources(render_context->m_TextureBindTable, samplers, textures, RenderObject::MAX_TEXTURE_COUNT);
+    }
+    */
+
+    static void GetRenderContextTextures(HRenderContext render_context, const dmArray<Sampler>& samplers, dmGraphics::HTexture* textures)
+    {
+        uint32_t num_bindings = render_context->m_TextureBindTable.Size();
+        for (uint32_t i = 0; i < num_bindings; ++i)
+        {
+            uint32_t sampler_index       = i;
+            dmGraphics::HTexture texture = textures[i];
+
+            // If a texture has been bound by a sampler hash, the material must have a valid sampler for it
+            if (render_context->m_TextureBindTable[i].m_Samplerhash)
+            {
+                int32_t hash_sampler_index = GetProgramSamplerIndex(samplers, render_context->m_TextureBindTable[i].m_Samplerhash);
+                if (hash_sampler_index >= 0)
+                {
+                    sampler_index = hash_sampler_index;
+                    texture       = render_context->m_TextureBindTable[i].m_Resource;
+                }
+                // The sampler doesn't exist, so we ignore it.
+                else continue;
+            }
+            else if (texture == 0)
+            {
+                texture = render_context->m_TextureBindTable[i].m_Resource;
+            }
+
+            if (sampler_index >= 0 && sampler_index < RenderObject::MAX_TEXTURE_COUNT)
+            {
+                textures[sampler_index] = texture;
+            }
+            else
+            {
+                dmLogOnceWarning("Unable to bind texture to unit %d, max %d texture units are supported.", i, RenderObject::MAX_TEXTURE_COUNT);
+            }
+        }
     }
 
     Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options)
@@ -1041,7 +1082,8 @@ namespace dmRender
         }
 
         dmGraphics::DisableProgram(context);
-        TrimTextureBindingTable(render_context);
+        TrimResourceBindingTable(render_context->m_TextureBindTable);
+        TrimResourceBindingTable(render_context->m_StorageBufferBindTable);
     }
 
     // NOTE: Currently only used externally in 1 test (fontview.cpp)
@@ -1061,8 +1103,8 @@ namespace dmRender
         if(context_material)
         {
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
-            GetRenderContextTextures(render_context, context_material, render_context_textures);
-            GetRenderContextStorageBuffers(render_context, context_material, render_context_ssbos);
+            GetRenderContextTextures(render_context, context_material->m_Samplers, render_context_textures);
+            //GetRenderContextStorageBuffers(render_context, context_material, render_context_ssbos);
         }
 
         dmGraphics::PipelineState ps_orig = dmGraphics::GetPipelineState(context);
@@ -1093,7 +1135,7 @@ namespace dmRender
                     // resource layout than the current material.
                     memset(render_context_textures, 0, sizeof(render_context_textures));
                     GetRenderContextTextures(render_context, material->m_Samplers, render_context_textures);
-                    GetRenderContextStorageBuffers(render_context, material, render_context_ssbos);
+                    //GetRenderContextStorageBuffers(render_context, material, render_context_ssbos);
                 }
             }
 
