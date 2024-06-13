@@ -19,8 +19,6 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 
-#include <resource/resource.h>
-
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "../script.h"
@@ -28,6 +26,8 @@
 #include "gameobject/test/component/test_gameobject_component_ddf.h"
 
 #include <dmsdk/gameobject/script.h>
+
+#include <dmsdk/resource/resource.h>
 
 class ComponentTest : public jc_test_base_class
 {
@@ -71,7 +71,7 @@ protected:
         e = dmResource::RegisterType(m_Factory, "c", this, 0, CCreate, 0, CDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         dmGameObject::Result result;
 
         // A has component_user_data
@@ -196,16 +196,16 @@ public:
 };
 
 template <typename T>
-dmResource::Result GenericDDFCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result GenericDDFCreate(const dmResource::ResourceCreateParams* params)
 {
-    ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ComponentTest* game_object_test = (ComponentTest*) params->m_Context;
     game_object_test->m_CreateCountMap[T::m_DDFHash]++;
 
     T* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<T>(params.m_Buffer, params.m_BufferSize, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<T>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) obj;
+        ResourceDescriptorSetResource(params->m_Resource, obj);
         return dmResource::RESULT_OK;
     }
     else
@@ -215,12 +215,12 @@ dmResource::Result GenericDDFCreate(const dmResource::ResourceCreateParams& para
 }
 
 template <typename T>
-dmResource::Result GenericDDFDestory(const dmResource::ResourceDestroyParams& params)
+dmResource::Result GenericDDFDestory(const dmResource::ResourceDestroyParams* params)
 {
-    ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ComponentTest* game_object_test = (ComponentTest*) params->m_Context;
     game_object_test->m_DestroyCountMap[T::m_DDFHash]++;
 
-    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
+    dmDDF::FreeMessage((void*) ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 
@@ -486,10 +486,10 @@ static int LuaTestCompType(lua_State* L)
     int top = lua_gettop(L);
 
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
-    uintptr_t user_data = 0;
+    dmGameObject::HComponent component = 0;
     dmMessage::URL receiver;
-    dmGameObject::GetComponentUserDataFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &user_data, &receiver, 0);
-    assert(user_data == 1);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &component, &receiver, 0);
+    assert(*(uintptr_t*)component == 1);
 
     assert(top == lua_gettop(L));
 
@@ -526,9 +526,10 @@ static int LuaTestGetComponentFromLua(lua_State* L)
     lua_pushnumber(L, expect_fail);
     lua_setglobal(L, "expected_error");
 
+    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     void* component = 0;
     dmMessage::URL receiver; // needed for error output
-    dmGameObject::GetComponentFromLua(L, 1, component_ext, 0, (void**)&component, &receiver);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(instance), component_ext, (void**)&component, &receiver, 0);
 
     // If it fails, it will not return here
 
@@ -539,11 +540,11 @@ static int LuaTestGetComponentFromLua(lua_State* L)
 
     if (expect_fail && !call_failed)
     {
-        return luaL_error(L, "GetComponentUserDataFromLua succeeded unexpectedly");
+        return luaL_error(L, "GetComponentFromLua succeeded unexpectedly");
     }
     else if(!expect_fail && call_failed)
     {
-        return luaL_error(L, "GetComponentUserDataFromLua failed unexpectedly");
+        return luaL_error(L, "GetComponentFromLua failed unexpectedly");
     }
 
     assert(top == lua_gettop(L));
@@ -625,20 +626,20 @@ struct ComponentApiTestContext
     void* m_DestroyContext;
 } g_ComponentApiTestContext;
 
-static dmResource::Result ResourceTypeTestResourceCreate(const dmResource::ResourceCreateParams& params)
+static dmResource::Result ResourceTypeTestResourceCreate(const dmResource::ResourceCreateParams* params)
 {
-    params.m_Resource->m_Resource = malloc(1);
-    params.m_Resource->m_ResourceSize = 1;
+    ResourceDescriptorSetResource(params->m_Resource, malloc(1));
+    ResourceDescriptorSetResourceSize(params->m_Resource, 1);
     return dmResource::RESULT_OK;
 }
 
-static dmResource::Result ResourceTypeTestResourceDestroy(const dmResource::ResourceDestroyParams& params)
+static dmResource::Result ResourceTypeTestResourceDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    free(params.m_Resource->m_Resource);
+    free((void*)ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 
-static dmGameObject::Result ComponentTypeTest_Create(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+static dmGameObject::Result ComponentTypeTest_Create(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
 {
     g_ComponentApiTestContext.m_Created = 1;
     g_ComponentApiTestContext.m_CreateContext = malloc(1);
@@ -647,7 +648,7 @@ static dmGameObject::Result ComponentTypeTest_Create(const dmGameObject::Compone
     return dmGameObject::RESULT_OK;
 }
 
-static dmGameObject::Result ComponentTypeTest_Destroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+static dmGameObject::Result ComponentTypeTest_Destroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
 {
     g_ComponentApiTestContext.m_Destroyed = 1;
     g_ComponentApiTestContext.m_DestroyContext = ComponentTypeGetContext(type);

@@ -34,7 +34,6 @@ namespace dmScript
     struct ExtensionsData
     {
         HContext    m_Context;
-        uint32_t    m_InitializedExtensions[DM_SCRIPT_MAX_EXTENSIONS / (8 * sizeof(uint32_t))];
         int         m_Ref;
     };
 
@@ -44,7 +43,6 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 0);
 
         ExtensionsData* extension_data = (ExtensionsData*)lua_newuserdata(L, sizeof(ExtensionsData));
-        memset(extension_data->m_InitializedExtensions, 0, sizeof(extension_data->m_InitializedExtensions));
         extension_data->m_Ref = LUA_NOREF;
         extension_data->m_Context = context;
 
@@ -64,25 +62,12 @@ namespace dmScript
         
         SetContextValue(extension_data->m_Context);
 
-        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-        uint32_t i = 0;
-        while (ed) {
-            if (ed->Initialize)
-            {
-                dmExtension::Params p;
-                p.m_ConfigFile = GetConfigFile(context);
-                p.m_ResourceFactory = GetResourceFactory(context);
-                p.m_L = L;
-                dmExtension::Result r = ed->Initialize(&p);
-                if (r == dmExtension::RESULT_OK) {
-                    extension_data->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
-                } else {
-                    dmLogError("Failed to initialize extension: %s", ed->m_Name);
-                }
-            }
-            ++i;
-            ed = ed->m_Next;
-        }
+        dmExtension::Params p;
+        p.m_ConfigFile = GetConfigFile(context);
+        p.m_ResourceFactory = GetResourceFactory(context);
+        p.m_L = L;
+
+        dmExtension::Initialize(&p);
     }
 
     static ExtensionsData* GetExtensionData(HContext context)
@@ -108,25 +93,11 @@ namespace dmScript
             return;
         }
 
-        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-        uint32_t i = 0;
-        while (ed) {
-            if (ed->Update)
-            {
-                dmExtension::Params p;
-                p.m_ConfigFile = GetConfigFile(context);
-                p.m_ResourceFactory = GetResourceFactory(context);
-                p.m_L = L;
-                if (extension_data->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                    dmExtension::Result r = ed->Update(&p);
-                    if (r != dmExtension::RESULT_OK) {
-                        dmLogError("Failed to update extension: %s", ed->m_Name);
-                    }
-                }
-            }
-            ++i;
-            ed = ed->m_Next;
-        }
+        dmExtension::Params p;
+        p.m_ConfigFile = GetConfigFile(context);
+        p.m_ResourceFactory = GetResourceFactory(context);
+        p.m_L = L;
+        dmExtension::Update(&p);
     }
 
     static void InternalFinalizeExtensions(HContext context)
@@ -139,28 +110,18 @@ namespace dmScript
         {
             return;
         }
-        const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-        uint32_t i = 0;
-        while (ed) {
-            if (ed->Finalize)
-            {
-                dmExtension::Params p;
-                p.m_ConfigFile = GetConfigFile(context);
-                p.m_ResourceFactory = GetResourceFactory(context);
-                p.m_L = L;
-                if (extension_data->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                    dmExtension::Result r = ed->Finalize(&p);
-                    if (r != dmExtension::RESULT_OK) {
-                        dmLogError("Failed to finalize extension: %s", ed->m_Name);
-                    }
-                }
-            }
-            ++i;
-            ed = ed->m_Next;
+
+        dmExtension::Params p;
+        p.m_ConfigFile = GetConfigFile(context);
+        p.m_ResourceFactory = GetResourceFactory(context);
+        p.m_L = L;
+
+        dmExtension::Result r = dmExtension::Finalize(&p);
+        if (r != dmExtension::RESULT_OK) {
+            dmLogError("Failed to finalize extensions");
         }
         Unref(L, LUA_REGISTRYINDEX, extension_data->m_Ref);
         extension_data->m_Ref = LUA_NOREF;
-        memset(extension_data->m_InitializedExtensions, 0, sizeof(extension_data->m_InitializedExtensions));
     }
 
     void InitializeExtensions(HContext context)

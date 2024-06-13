@@ -108,9 +108,10 @@ You need the `dos2unix` command line tool to convert line endings of certain sou
 
 <details><summary>Windows...</summary><p>
 
-#### Visual C++ 2019 Community
+#### Visual C++ 2022 Community
 
 [Download](https://visualstudio.microsoft.com/vs/older-downloads/) the Community version or use the Professional or Enterprise version if you have the proper licence. When installing, select the "Desktop Development with C++" workload. There is also an optional 3rd party git client.
+Also, make sure to install the "clang++" compiler as well.
 
 #### Terminal
 
@@ -122,6 +123,8 @@ This terminal has the tool `winget` to install some packages.
 
 
 #### MSYS/MinGW
+
+This is an alternative to Terminal/git-bash setup.
 
 This will get you a shell that behaves like Linux and is much easier to build Defold through. [Download](https://sourceforge.net/projects/mingw/files/Installer/mingw-get-setup.exe/download) and run the installer and check these packages (binary):
 
@@ -140,6 +143,8 @@ You also need to install `wget`. From the mingw terminal run:
 **NOTE:** You can start the visual installer again by simply running `mingw-get`
 
 #### Git
+
+This is not needed if you've installed `git-bash`
 
 You need to [download](https://git-scm.com/download/win) a command line version of Git.
 

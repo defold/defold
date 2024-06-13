@@ -140,6 +140,11 @@
       (update :display-order (fn [display-order]
                                (vec (distinct (concat display-order (:display-order source-properties))))))))
 
+(defn resource-path-error [_node-id source-resource]
+    (or (validation/prop-error :fatal _node-id :path validation/prop-nil? source-resource "Path")
+        (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")
+        (validation/prop-error :fatal _node-id :script validation/prop-resource-not-component? source-resource "Path")))
+
 (g/defnk produce-component-build-targets [_node-id build-resource ddf-message pose resource-property-build-targets source-build-targets]
   ;; Create a build-target for the referenced or embedded component. Also tag on
   ;; :instance-data with the overrides for this instance. This will later be
@@ -148,20 +153,21 @@
   ;;
   ;; TODO: We can avoid some of this processing & input dependencies for embedded components. Separate into individual production functions?
   ;; For example, embedded components do not have resource-property-build-targets, and cannot refer to raw sounds.
-  (when-some [source-build-target (first source-build-targets)]
-    (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
-      (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-      (let [is-embedded (contains? ddf-message :data)
-            build-target (-> source-build-target
-                             (assoc :resource build-resource)
-                             (wrap-if-raw-sound _node-id))
-            build-resource (:resource build-target) ; The wrap-if-raw-sound call might have changed this.
-            instance-data (if is-embedded
-                            (game-object-common/embedded-component-instance-data build-resource ddf-message pose)
-                            (let [proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
-                              (game-object-common/referenced-component-instance-data build-resource ddf-message pose proj-path->resource-property-build-target)))
-            build-target (assoc build-target :instance-data instance-data)]
-        [(bt/with-content-hash build-target)]))))
+  (or (resource-path-error _node-id (:resource build-resource))
+      (when-some [source-build-target (first source-build-targets)]
+        (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
+          (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
+          (let [is-embedded (contains? ddf-message :data)
+                build-target (-> source-build-target
+                                 (assoc :resource build-resource)
+                                 (wrap-if-raw-sound _node-id))
+                build-resource (:resource build-target)     ; The wrap-if-raw-sound call might have changed this.
+                instance-data (if is-embedded
+                                (game-object-common/embedded-component-instance-data build-resource ddf-message pose)
+                                (let [proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
+                                  (game-object-common/referenced-component-instance-data build-resource ddf-message pose proj-path->resource-property-build-target)))
+                build-target (assoc build-target :instance-data instance-data)]
+            [(bt/with-content-hash build-target)])))))
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
@@ -254,18 +260,29 @@
 
 ;; -----------------------------------------------------------------------------
 
+(defn- get-all-comp-exts [workspace]
+  (keep (fn [[ext {:keys [tags :as _resource-type]}]]
+          (when (or (contains? tags :component)
+                    (contains? tags :embeddable))
+            ext))
+        (workspace/get-resource-type-map workspace)))
+
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
 
   (property path g/Any
-            (dynamic edit-type (g/fnk [source-resource]
-                                      {:type resource/Resource
-                                       :ext (some-> source-resource resource/resource-type :ext)
-                                       :to-type (fn [v] (:resource v))
-                                       :from-type (fn [r] {:resource r :overrides []})}))
+            (dynamic edit-type (g/fnk [source-resource _node-id]
+                                 (let [resource-type (some-> source-resource resource/resource-type)
+                                       tags (:tags resource-type)]
+                                   {:type resource/Resource
+                                    :ext (or (and (or (contains? tags :component) (contains? tags :embeddable))
+                                                  (some-> resource-type :ext))
+                                             (get-all-comp-exts (project/workspace (project/get-project _node-id))))
+                                    :to-type (fn [v] (:resource v))
+                                    :from-type (fn [r] {:resource r :overrides []})})))
             (value (g/fnk [source-resource ddf-properties]
-                          {:resource source-resource
-                           :overrides ddf-properties}))
+                     {:resource source-resource
+                      :overrides ddf-properties}))
             (set (fn [evaluation-context self old-value new-value]
                    (concat
                      (when-some [old-source (g/node-value self :source-id evaluation-context)]
@@ -320,8 +337,7 @@
                          (when-some [alter-referenced-component-fn (some-> resource-type :tag-opts :component :alter-referenced-component-fn)]
                            (alter-referenced-component-fn self comp-node)))))))
             (dynamic error (g/fnk [_node-id source-resource]
-                                  (or (validation/prop-error :info _node-id :path validation/prop-nil? source-resource "Path")
-                                      (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
+                             (resource-path-error _node-id source-resource))))
 
   (input source-id g/NodeID :cascade-delete)
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
@@ -476,12 +492,8 @@
         (add-component go-id resource id game-object-common/identity-transform-properties [] select-fn)))))
 
 (defn add-component-handler [workspace project go-id select-fn]
-  (let [component-exts (keep (fn [[ext {:keys [tags :as _resource-type]}]]
-                               (when (or (contains? tags :component)
-                                         (contains? tags :embeddable))
-                                 ext))
-                             (workspace/get-resource-type-map workspace))]
-    (when-let [resource (first (resource-dialog/make workspace project {:ext component-exts :title "Select Component File"}))]
+  (when-let [resources (resource-dialog/make workspace project {:ext (get-all-comp-exts workspace) :title "Select Component File" :selection :multiple})]
+    (doseq [resource resources]
       (add-referenced-component! go-id resource select-fn))))
 
 (defn- selection->game-object [selection]
@@ -591,5 +603,6 @@
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
     :sanitize-fn (partial sanitize-game-object workspace)
     :icon game-object-common/game-object-icon
+    :icon-class :design
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

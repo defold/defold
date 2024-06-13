@@ -35,16 +35,16 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResBufferPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmBufferDDF::BufferDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        *params.m_PreloadData = ddf;
+        *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 
@@ -229,14 +229,14 @@ namespace dmGameSystem
         return true;
     }
 
-    dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResBufferCreate(const dmResource::ResourceCreateParams* params)
     {
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;
         BufferResource* buffer_resource = new BufferResource();
         memset(buffer_resource, 0, sizeof(BufferResource));
-        buffer_resource->m_BufferDDF = (dmBufferDDF::BufferDesc*) params.m_PreloadData;
-        params.m_Resource->m_Resource = (void*) buffer_resource;
-        buffer_resource->m_NameHash = dmHashString64(params.m_Filename);
+        buffer_resource->m_BufferDDF = (dmBufferDDF::BufferDesc*) params->m_PreloadData;
+        ResourceDescriptorSetResource(params->m_Resource, buffer_resource);
+        buffer_resource->m_NameHash = dmHashString64(params->m_Filename);
 
         if (!BuildBuffer(graphics_context, buffer_resource))
         {
@@ -248,24 +248,24 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResBufferDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResBufferDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        BufferResource* buffer_resource = (BufferResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, buffer_resource);
+        BufferResource* buffer_resource = (BufferResource*)ResourceDescriptorGetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, buffer_resource);
         delete buffer_resource;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResBufferRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResBufferRecreate(const dmResource::ResourceRecreateParams* params)
     {
         dmBufferDDF::BufferDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmBufferDDF_BufferDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
-        BufferResource* buffer_resource = (BufferResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, buffer_resource);
+        BufferResource* buffer_resource = (BufferResource*)ResourceDescriptorGetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, buffer_resource);
         buffer_resource->m_BufferDDF = ddf;
 
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params.m_Context;

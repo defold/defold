@@ -19,15 +19,17 @@
 #include <dlib/log.h>
 #include <dlib/profile.h>
 #include <dlib/time.h>
-#include <extension/extension.h>
+
 #include <render/render.h>
 #include <script/script.h>
-#include <dmsdk/dlib/vmath.h>
 
 #include "profiler_private.h"
 #include "profile_render.h"
 
 #include <algorithm> // std::sort
+
+#include <dmsdk/dlib/vmath.h>
+#include <dmsdk/extension/extension.h>
 
 DM_PROPERTY_GROUP(rmtp_Profiler, "Profiler");
 DM_PROPERTY_U32(rmtp_CpuUsage, 0, FrameReset, "%% Cpu Usage", &rmtp_Profiler);

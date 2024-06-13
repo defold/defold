@@ -185,9 +185,9 @@ namespace dmGraphics
         TEXTURE_USAGE_HINT_NONE       = 0,
         TEXTURE_USAGE_HINT_SAMPLE     = 1,
         TEXTURE_USAGE_HINT_MEMORYLESS = 2,
-        TEXTURE_USAGE_HINT_INPUT      = 4,
-        TEXTURE_USAGE_HINT_COLOR      = 8,
-        TEXTURE_USAGE_HINT_STORAGE    = 16,
+        TEXTURE_USAGE_HINT_STORAGE    = 4,
+        TEXTURE_USAGE_HINT_INPUT      = 8,
+        TEXTURE_USAGE_HINT_COLOR      = 16,
     };
 
     struct TextureCreationParams
@@ -538,11 +538,12 @@ namespace dmGraphics
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
+    void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
     // Shaders
-    HVertexProgram       NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
-    HFragmentProgram     NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
-    HComputeProgram      NewComputeProgram(HContext context, ShaderDesc::Shader* ddf);
+    HVertexProgram       NewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
+    HFragmentProgram     NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
+    HComputeProgram      NewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
 
     HProgram             NewProgram(HContext context, HComputeProgram compute_program);
     HProgram             NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
@@ -654,6 +655,7 @@ namespace dmGraphics
     uint8_t     GetTextureMipmapCount(HTexture texture);
     TextureType GetTextureType(HTexture texture);
     uint8_t     GetNumTextureHandles(HTexture texture);
+    uint32_t    GetTextureUsageHintFlags(HTexture texture);
 
     const char* GetTextureTypeLiteral(TextureType texture_type);
     const char* GetTextureFormatLiteral(TextureFormat format);
@@ -706,6 +708,14 @@ namespace dmGraphics
             }
         }
         return false;
+    }
+
+    static inline bool IsTypeTextureType(Type type)
+    {
+        return type == TYPE_SAMPLER_2D ||
+               type == TYPE_SAMPLER_CUBE ||
+               type == TYPE_SAMPLER_2D_ARRAY ||
+               type == TYPE_IMAGE_2D;
     }
 
     /**

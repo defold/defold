@@ -694,6 +694,7 @@
     :load-fn load-sprite
     :sanitize-fn sanitize-sprite
     :icon sprite-icon
+    :icon-class :design
     :view-types [:scene :text]
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{:position :rotation :scale}}}

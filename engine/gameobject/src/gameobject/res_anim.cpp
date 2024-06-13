@@ -16,19 +16,19 @@
 
 namespace dmGameObject
 {
-    static dmResource::Result ResAnimCreate(const dmResource::ResourceCreateParams& params)
+    static dmResource::Result ResAnimCreate(const dmResource::ResourceCreateParams* params)
     {
         return dmResource::RESULT_NOT_SUPPORTED;
     }
 
-    static dmResource::Result ResAnimDestroy(const dmResource::ResourceDestroyParams& params)
+    static dmResource::Result ResAnimDestroy(const dmResource::ResourceDestroyParams* params)
     {
         return dmResource::RESULT_NOT_SUPPORTED;
     }
 
-    static dmResource::Result RegisterResourceTypeAnim(dmResource::ResourceTypeRegisterContext& ctx)
+    static ResourceResult RegisterResourceTypeAnim(HResourceTypeContext ctx, HResourceType type)
     {
-        return dmResource::RegisterType(ctx.m_Factory, ctx.m_Name,0,0,ResAnimCreate,0,ResAnimDestroy,0);
+        return (ResourceResult)dmResource::SetupType(ctx, type, 0, 0, ResAnimCreate, 0, ResAnimDestroy, 0);
     }
 }
 

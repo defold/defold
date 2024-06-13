@@ -19,6 +19,7 @@
             [editor.graph-util :as gu]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
@@ -29,12 +30,6 @@
 
 ; This must match 'MAX_BUFFER_COLOR_ATTACHMENTS' in engine/graphics/src/graphics.h
 (def ^:private max-color-attachment-count 4)
-
-(defn- set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
-
-(defn- clear-form-op [{:keys [node-id]} [property]]
-  (g/clear-property! node-id property))
 
 (def form-data
   {:navigation false
@@ -71,8 +66,8 @@
     (-> form-data
         (assoc :values form-values)
         (assoc :form-ops {:user-data {:node-id _node-id}
-                          :set set-form-op
-                          :clear clear-form-op}))))
+                          :set protobuf-forms-util/set-form-op
+                          :clear protobuf-forms-util/clear-form-op}))))
 
 (g/defnk produce-pb-msg
   [color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-format depth-stencil-attachment-texture-storage]
@@ -127,7 +122,7 @@
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (output form-data g/Any produce-form-data)
-  (output gpu-texture-generator g/Any {:f generate-gpu-texture })
+  (output gpu-texture-generator g/Any {:f generate-gpu-texture})
   (output build-targets g/Any :cached produce-build-targets)
   (output build-errors g/Any (g/fnk [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
                                (g/package-errors _node-id
@@ -162,6 +157,7 @@
     :ddf-type RenderTarget$RenderTargetDesc
     :load-fn load-render-target
     :icon texture-icon
+    :icon-class :design
     :view-types [:cljfx-form-view :text]
     :view-opts {}
     :label "Render Target"))

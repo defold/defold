@@ -17,6 +17,8 @@
             [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.build :as build]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.code-completion :refer :all]
@@ -41,35 +43,35 @@
           module2-node     (project/get-resource-node project module2-resource)]
       (testing "are empty when no modules have been required"
         (is (not (g/error? (g/node-value script-node :build-targets))))
-        (is (empty? (g/node-value script-node :module-build-targets)))
+        (is (empty? (:dynamic-deps (first (g/node-value script-node :build-targets)))))
         (is (empty? (g/node-value script-node :module-completion-infos))))
       (testing "are added when a module is required"
         (test-util/set-code-editor-source! script-node "local x = require('module1')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
-        (is (= (g/node-value script-node :module-build-targets)
-               [(g/node-value module1-node :build-targets)]))
+        (is (= (:dynamic-deps (first (g/node-value script-node :build-targets)))
+               [(resource/proj-path module1-resource)]))
         (is (= (g/node-value script-node :module-completion-infos)
                [(g/node-value module1-node :completion-info)])))
       (testing "are updated when a requirements change"
         (test-util/set-code-editor-source! script-node "local x = require('module1')\nlocal y = require('module2')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
-        (is (= (set (g/node-value script-node :module-build-targets))
-               #{(g/node-value module1-node :build-targets)
-                 (g/node-value module2-node :build-targets)}))
+        (is (= (set (:dynamic-deps (first (g/node-value script-node :build-targets))))
+               #{(resource/proj-path module1-resource)
+                 (resource/proj-path module2-resource)}))
         (is (= (set (g/node-value script-node :module-completion-infos))
                #{(g/node-value module1-node :completion-info)
                  (g/node-value module2-node :completion-info)})))
       (testing "are updated when a required module is no longer required"
         (test-util/set-code-editor-source! script-node "local x = require('module2')")
         (is (not (g/error? (g/node-value script-node :build-targets))))
-        (is (= (g/node-value script-node :module-build-targets)
-               [(g/node-value module2-node :build-targets)]))
+        (is (= (:dynamic-deps (first (g/node-value script-node :build-targets)))
+               [(resource/proj-path module2-resource)]))
         (is (= (g/node-value script-node :module-completion-infos)
                [(g/node-value module2-node :completion-info)])))
       (testing "are removed when a module is no longer required"
         (test-util/set-code-editor-source! script-node "local x = 4711")
         (is (not (g/error? (g/node-value script-node :build-targets))))
-        (is (empty? (g/node-value script-node :module-build-targets)))
+        (is (empty? (:dynamic-deps (first (g/node-value script-node :build-targets)))))
         (is (empty? (g/node-value script-node :module-completion-infos))))
       (testing "ignores invalid requires"
         (test-util/set-code-editor-source! script-node "require \"\"")
@@ -130,7 +132,7 @@
                                                         "return M"))
           project          (test-util/setup-project! workspace [module-resource script-resource])
           script-node      (project/get-resource-node project script-resource)
-          build-targets    (g/node-value script-node :build-targets)
+          build-targets    (build/resolve-node-dependencies script-node project)
           error-message    (some :message (tree-seq :causes :causes build-targets))]
       (is (g/error? build-targets))
       (is (= (str "The file '/MODULE.lua' could not be found.") error-message)))))

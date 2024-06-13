@@ -82,6 +82,8 @@ namespace dmRender
     , m_CacheCellHeight(0)
     , m_CacheCellPadding(0)
     , m_LayerMask(FACE)
+    , m_IsMonospaced(false)
+    , m_Padding(0)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
     {
 
@@ -111,6 +113,8 @@ namespace dmRender
         , m_CacheCellMaxAscent(0)
         , m_CacheCellPadding(0)
         , m_LayerMask(FACE)
+        , m_IsMonospaced(false)
+        , m_Padding(0)
         {
 
         }
@@ -162,6 +166,8 @@ namespace dmRender
         uint32_t                m_CacheCellMaxAscent;
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
+        uint8_t                 m_IsMonospaced:1;
+        uint8_t                 m_Padding:7;
     };
 
     static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space);
@@ -235,6 +241,8 @@ namespace dmRender
         uint32_t cell_count = font_map->m_CacheColumns * font_map->m_CacheRows;
 
         font_map->m_CellTempData = (uint8_t*)malloc(font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4);
+        font_map->m_IsMonospaced = params.m_IsMonospaced;
+        font_map->m_Padding = params.m_Padding;
 
         switch (params.m_GlyphChannels)
         {
@@ -325,6 +333,8 @@ namespace dmRender
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
         font_map->m_LayerMask = params.m_LayerMask;
+        font_map->m_IsMonospaced = params.m_IsMonospaced;
+        font_map->m_Padding = params.m_Padding;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -515,7 +525,7 @@ namespace dmRender
                 center_x += metrics.m_Width/2; // move halfway to the right since we're aligning left
             break;
             case TEXT_ALIGN_RIGHT:
-                center_x -= metrics.m_Height/2; // move halfway to the left from pivot since we're aligning right
+                center_x -= metrics.m_Width/2; // move halfway to the left from pivot since we're aligning right
             break;
             // nothing to do for TEXT_ALIGN_CENTER. Pivot is already at the center of the text X-wise
         }
@@ -739,6 +749,10 @@ namespace dmRender
         float layout_width;
         int line_count = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
         float x_offset = OffsetX(te.m_Align, te.m_Width);
+        if (font_map->m_IsMonospaced)
+        {
+            x_offset -= font_map->m_Padding * 0.5f;
+        }
         float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
 
         const Vector4 face_color    = dmGraphics::UnpackRGBA(te.m_FaceColor);
@@ -835,8 +849,8 @@ namespace dmRender
 
         for (int line = 0; line < line_count; ++line) {
             TextLine& l = lines[line];
-            int16_t x = (int16_t)(x_offset - OffsetX(te.m_Align, l.m_Width) + 0.5f);
-            int16_t y = (int16_t) (y_offset - line * leading + 0.5f);
+            float x = x_offset - OffsetX(te.m_Align, l.m_Width);
+            float y = y_offset - line * leading;
             const char* cursor = &text[l.m_Index];
             int n = l.m_Count;
             for (int j = 0; j < n; ++j)
@@ -1015,7 +1029,7 @@ namespace dmRender
                         vertexindex += vertices_per_quad;
                     }
                 }
-                x += (int16_t)(g->m_Advance + tracking);
+                x += g->m_Advance + tracking;
             }
         }
 
@@ -1201,15 +1215,20 @@ namespace dmRender
             }
 
             last = g;
-            // NOTE: We round advance here just as above in DrawText
-            width += (int16_t) (g->m_Advance + tracking);
+            width += g->m_Advance + tracking;
         }
         if (n > 0 && 0 != last)
         {
-            uint32_t last_width = (measure_trailing_space && last->m_Character == ' ') ? (int16_t)last->m_Advance : last->m_Width;
-            float last_end_point = last->m_LeftBearing + last_width;
-            float last_right_bearing = last->m_Advance - last_end_point;
-            width = width - last_right_bearing - tracking;
+            if (font_map->m_IsMonospaced) {
+                width += font_map->m_Padding;
+            }
+            else {
+                uint32_t last_width = (measure_trailing_space && last->m_Character == ' ') ? last->m_Advance : last->m_Width;
+                float last_end_point = last->m_LeftBearing + last_width;
+                float last_right_bearing = last->m_Advance - last_end_point;
+                width = width - last_right_bearing;
+            }
+            width -= tracking;
         }
 
         return width;

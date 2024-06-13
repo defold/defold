@@ -521,10 +521,10 @@ namespace dmGameSystem
     };
 
     // Helper to get collisionobject component and world.
-    static void GetCollisionObject(lua_State* L, int indx, dmGameObject::HCollection collection, void** comp, void** comp_world)
+    static void GetCollisionObject(lua_State* L, int indx, dmGameObject::HCollection collection, dmGameObject::HComponent* comp, dmGameObject::HComponentWorld* comp_world)
     {
         dmMessage::URL receiver;
-        dmGameObject::GetComponentUserDataFromLua(L, indx, collection, COLLISION_OBJECT_EXT, (uintptr_t*)comp, &receiver, comp_world);
+        dmGameObject::GetComponentFromLua(L, indx, collection, COLLISION_OBJECT_EXT, comp, &receiver, comp_world);
     }
 
     static int GetTableField(lua_State* L, int table_index, const char* table_field, int expected_type)
@@ -1482,7 +1482,7 @@ namespace dmGameSystem
 #define check_val(type_str, v) \
     if (v < 0.00005f) \
         luaL_error(L, "Shape '%s' has invalid size '%f' for '%s' ", dmHashReverseSafe64(shape_name_hash), v, type_str);
-            
+
             lua_getfield(L, -1, "type");
             shape_info.m_Type = (dmPhysicsDDF::CollisionShape::Type) luaL_checkinteger(L, -1);
             lua_pop(L, 1);
@@ -1812,7 +1812,7 @@ namespace dmGameSystem
         {
             result = false;
         }
-        dmResource::ResourceType co_resource_type;
+        HResourceType co_resource_type;
         if (result)
         {
             dmResource::Result fact_result = dmResource::GetTypeFromExtension(context.m_Factory, COLLISION_OBJECT_EXT, &co_resource_type);

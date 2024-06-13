@@ -49,6 +49,11 @@ namespace dmRender
     typedef struct ComputeProgram*          HComputeProgram;
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
+    typedef HOpaqueHandle                   HRenderCamera;
+
+    static const uint8_t RENDERLIST_INVALID_DISPATCH    = 0xff;
+    static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0ULL;
+    static const uint32_t INVALID_SAMPLER_UNIT          = 0xffffffff;
 
     /**
      * Display profiles handle
@@ -67,7 +72,8 @@ namespace dmRender
         RENDER_RESOURCE_TYPE_INVALID        = 0,
         RENDER_RESOURCE_TYPE_MATERIAL       = 1,
         RENDER_RESOURCE_TYPE_RENDER_TARGET  = 2,
-        RENDER_RESOURCE_TYPE_STORAGE_BUFFER = 3,
+        RENDER_RESOURCE_TYPE_COMPUTE        = 3,
+        RENDER_RESOURCE_TYPE_STORAGE_BUFFER = 4,
     };
 
     enum RenderBufferType
@@ -136,9 +142,17 @@ namespace dmRender
         uint32_t                        m_MaxDebugVertexCount;
     };
 
-    static const uint8_t RENDERLIST_INVALID_DISPATCH = 0xff;
-
-    static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0ULL;
+    struct RenderCameraData
+    {
+        dmVMath::Vector4 m_Viewport;
+        float            m_AspectRatio;
+        float            m_Fov;
+        float            m_NearZ;
+        float            m_FarZ;
+        float            m_OrthographicZoom;
+        uint8_t          m_AutoAspectRatio        : 1;
+        uint8_t          m_OrthographicProjection : 1;
+    };
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
@@ -263,6 +277,10 @@ namespace dmRender
     dmGraphics::HProgram            GetComputeProgram(HComputeProgram program);
     uint64_t                        GetProgramUserData(HComputeProgram program);
     void                            SetProgramUserData(HComputeProgram program, uint64_t user_data);
+    void                            SetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t count);
+    void                            SetComputeProgramConstantType(HComputeProgram compute_program, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
+    bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    uint32_t                        GetComputeProgramSamplerUnit(HComputeProgram compute_program, dmhash_t name_hash);
 
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.
@@ -289,6 +307,7 @@ namespace dmRender
     void                            SetMaterialUserData2(HMaterial material, uint64_t user_data);
 
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
+    void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBuffer buffer);
 
     void                            ClearMaterialTags(HMaterial material);
     void                            SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);
@@ -329,6 +348,60 @@ namespace dmRender
     void                            TrimBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     void                            RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
 
+    /** Render cameras
+     * A render camera is a wrapper around common camera properties such as fov, near and far planes, viewport and aspect ratio.
+     * Within the engine, the render cameras are "owned" by the renderer, but they can be manipulated elsewhere.
+     * The render script can set current camera used for rendering by using render.set_camera(...), which will automatically
+     * take precedence over the view and projection matrices set by render.set_view() and render.set_projection().
+     */
+    HRenderCamera                   NewRenderCamera(HRenderContext context);
+    void                            DeleteRenderCamera(HRenderContext context, HRenderCamera camera);
+    void                            SetRenderCameraURL(HRenderContext render_context, HRenderCamera camera, const dmMessage::URL* camera_url);
+    void                            GetRenderCameraView(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx);
+    void                            GetRenderCameraProjection(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx);
+    void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const RenderCameraData* data);
+    void                            GetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData* data);
+    void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
+
+    static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
+    {
+        switch(wrap_mode)
+        {
+            case dmRenderDDF::MaterialDesc::WRAP_MODE_REPEAT:          return dmGraphics::TEXTURE_WRAP_REPEAT;
+            case dmRenderDDF::MaterialDesc::WRAP_MODE_MIRRORED_REPEAT: return dmGraphics::TEXTURE_WRAP_MIRRORED_REPEAT;
+            case dmRenderDDF::MaterialDesc::WRAP_MODE_CLAMP_TO_EDGE:   return dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+            default:break;
+        }
+        return dmGraphics::TEXTURE_WRAP_REPEAT;
+    }
+
+    static inline dmGraphics::TextureFilter FilterMinFromDDF(dmRenderDDF::MaterialDesc::FilterModeMin min_filter)
+    {
+        switch(min_filter)
+        {
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST:                return dmGraphics::TEXTURE_FILTER_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR:                 return dmGraphics::TEXTURE_FILTER_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST_MIPMAP_NEAREST: return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST_MIPMAP_LINEAR:  return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_NEAREST:  return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR:   return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_DEFAULT:                return dmGraphics::TEXTURE_FILTER_DEFAULT;
+            default:break;
+        }
+        return dmGraphics::TEXTURE_FILTER_DEFAULT;
+    }
+
+    static inline dmGraphics::TextureFilter FilterMagFromDDF(dmRenderDDF::MaterialDesc::FilterModeMag mag_filter)
+    {
+        switch(mag_filter)
+        {
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_NEAREST: return dmGraphics::TEXTURE_FILTER_NEAREST;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_LINEAR:  return dmGraphics::TEXTURE_FILTER_LINEAR;
+            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_DEFAULT: return dmGraphics::TEXTURE_FILTER_DEFAULT;
+            default:break;
+        }
+        return dmGraphics::TEXTURE_FILTER_DEFAULT;
+    }
 }
 
 #endif /* DM_RENDER_H */

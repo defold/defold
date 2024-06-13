@@ -261,23 +261,19 @@ public class TextureSetGenerator {
     private static SpriteGeometry.Builder createSpriteGeometryFromRect(Rect rect) {
         SpriteGeometry.Builder builder = SpriteGeometry.newBuilder();
 
-        int imageWidth = rect.getWidth();
-        int imageHeight = rect.getHeight();
         boolean rotated = rect.getRotated();
         builder.setRotated(rotated);
 
-        if (rotated)
-        {
-            // for legacy reasons, we need to rotate it back
-            // The geometry wants the size in unrotated form
-            builder.setWidth(imageHeight);
-            builder.setHeight(imageWidth);
-        }
-        else
-        {
-            builder.setWidth(imageWidth);
-            builder.setHeight(imageHeight);
-        }
+        // may be rotated
+        int imageWidth = rect.getWidth();
+        int imageHeight = rect.getHeight();
+
+        int originalImageWidth = rotated ? imageHeight : imageWidth;
+        int originalImageHeight = rotated ? imageWidth : imageHeight;
+
+        // The geometry wants the size in unrotated form
+        builder.setWidth(originalImageWidth);
+        builder.setHeight(originalImageHeight);
 
         TextureSetLayout.Point center = rect.getCenter();
         builder.setCenterX(center.x);
@@ -291,8 +287,8 @@ public class TextureSetGenerator {
         // Also convert from image space (texels) to local UV space
         int index = 0;
         for (TextureSetLayout.Pointi vertex : rect.getVertices()) {
-            float localX = vertex.x / (float)imageWidth - 0.5f;
-            float localY = vertex.y / (float)imageHeight - 0.5f;
+            float localX = vertex.x / (float)originalImageWidth - 0.5f;
+            float localY = vertex.y / (float)originalImageHeight - 0.5f;
             builder.addVertices(localX);
             builder.addVertices(localY);
             index += 2;
@@ -302,23 +298,29 @@ public class TextureSetGenerator {
     }
 
     // From the vertices and layout, generate UV coordinates
+    // Note: The UV calculation is mostly legacy code, and only used by the editor for rendering (in collections, animation previews)
     private static SpriteGeometry.Builder createPolygonUVs(SpriteGeometry.Builder geometryBuilder, Rect rect, float width, float height) {
 
         boolean rotated = rect.getRotated();
         int originalRectWidth = (rotated ? rect.getHeight() : rect.getWidth());
         int originalRectHeight = (rotated ? rect.getWidth() : rect.getHeight());
 
-        float centerX = geometryBuilder.getCenterX();
-        float centerY = geometryBuilder.getCenterY();
 
-        geometryBuilder.setCenterX(centerX);
-        geometryBuilder.setCenterY(centerY);
+        TextureSetLayout.Point center = rect.getCenter();
+        geometryBuilder.setCenterX(center.x);
+        geometryBuilder.setCenterY(center.y);
+
+        float centerX = center.x;
+        float centerY = center.y;
+
         geometryBuilder.setRotated(rotated);
 
+        // boolean debug = rect.getId() == "boy_slash6";
         // if (debug) {
-        //     System.out.println(String.format("createPolygonUVs  - %s", rect.id));
-        //     System.out.println(String.format("  cx/cy: %f, %f  ow/oh: %d, %d  numPoints: %d", centerX, centerY, originalRectWidth, originalRectHeight, geometry.getVerticesCount() / 2));
-        //     System.out.println(String.format("  %d %d", rect.width, rect.height));
+        //     System.out.println(String.format("createPolygonUVs  - %s", rect.getId()));
+        //     System.out.println(String.format("  page w/h: %f %f", width, height));
+        //     System.out.println(String.format("  rect x/y/w/h: %d %d  %d %d", rect.getX(), rect.getY(), rect.getWidth(), rect.getHeight()));
+        //     System.out.println(String.format("  cx/cy: %f, %f  ow/oh: %d, %d  numPoints: %d", centerX, centerY, originalRectWidth, originalRectHeight, geometryBuilder.getVerticesCount() / 2));
         // }
         int numPoints = geometryBuilder.getVerticesCount() / 2;
 
@@ -326,9 +328,10 @@ public class TextureSetGenerator {
 
         for (int i = 0; i < numPoints; ++i) {
 
-            // the points are in object space, where origin is at the center of the sprite image
+            // the points are in sprite image space, not rotated,
             // in units [-0.5,0.5]
-            // The polygon has a CCW orientation
+            // where origin is at the center of the sprite image (i.e. at [0,0])
+            // The polygons (see indices) has a CCW orientation
             float localU = geometryBuilder.getVertices(i * 2 + 0);
             float localV = geometryBuilder.getVertices(i * 2 + 1);
             float localX = localU * originalRectWidth;
@@ -338,11 +341,10 @@ public class TextureSetGenerator {
 
             localY = -localY;
 
-            if (rotated) {
-                // rotate 90 degrees ccw
-                // where cos(pi/2)==0 and sin(pi/2)==1
-                // xp = x * cos(a) - y * sin(a) = -y
-                // yp = y * cos(a) + x * sin(a) = x
+            // A rotated image is stored with a 90 deg CW rotation in the final texture
+            // so we need to convert the vertices into the uv space of that texture
+            if (rotated) // rotate 90 degrees CW
+            {
                 float tmp = localX;
                 localX = -localY;
                 localY = tmp;

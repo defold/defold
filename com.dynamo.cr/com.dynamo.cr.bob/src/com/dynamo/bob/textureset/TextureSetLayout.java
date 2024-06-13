@@ -95,7 +95,7 @@ public class TextureSetLayout {
         private int index; // for easier keeping the original order
         private int page;
         private Rectanglei rect; // The final placement in the texture. May lay outside of the texture image.
-        private boolean rotated; // True if rotated 90 deg (CCW)
+        private boolean rotated; // True if rotated 90 deg (CW)
 
         // Texel coordinates within the original image.
         // Origin is top left corner of original image.
@@ -363,10 +363,10 @@ public class TextureSetLayout {
             int area = 0;
             for (Rect rect : rectangles) {
                 area += rect.getArea();
-                maxLengthScale = Math.max(maxLengthScale, rect.rect.width + margin);
-                maxLengthScale = Math.max(maxLengthScale, rect.rect.height + margin);
+                maxLengthScale = Math.max(maxLengthScale, rect.rect.width);
+                maxLengthScale = Math.max(maxLengthScale, rect.rect.height);
             }
-
+            maxLengthScale += margin * 2;
             // Ensure the longest length found in all of the images will fit within one page, irrespective of orientation.
             final int defaultMaxPageSize = 1 << getExponentNextOrMatchingPowerOfTwo(Math.max((int)Math.sqrt(area), maxLengthScale));
             MaxRectsLayoutStrategy.Settings settings = new MaxRectsLayoutStrategy.Settings();

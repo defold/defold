@@ -91,6 +91,48 @@
 #define DMGRAPHICS_SAMPLER_2D_ARRAY                         (0x8DC1)
 #endif
 
+// Texture images
+#ifdef GL_IMAGE_2D
+    #define DMGRAPHICS_IMAGE_2D                         (GL_IMAGE_2D)
+#else
+    #define DMGRAPHICS_IMAGE_2D                         (0x904D)
+#endif
+
+// Barrier bits
+#ifdef GL_SHADER_IMAGE_ACCESS_BARRIER_BIT
+    #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+#else
+    #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (0x00000020)
+#endif
+
+// GL_READ_WRITE
+#ifdef GL_READ_WRITE
+    #define DMGRAPHICS_READ_WRITE               (GL_READ_WRITE)
+#else
+    #define DMGRAPHICS_READ_WRITE               (0x88BA)
+#endif
+
+// GL_READ_ONLY
+#ifdef GL_READ_ONLY
+    #define DMGRAPHICS_READ_ONLY                (GL_READ_ONLY)
+#else
+    #define DMGRAPHICS_READ_ONLY                (0x88B8)
+#endif
+
+// GL_MAJOR_VERSION
+#ifdef GL_MAJOR_VERSION
+    #define DMGRAPHICS_MAJOR_VERSION           (GL_MAJOR_VERSION)
+#else
+    #define DMGRAPHICS_MAJOR_VERSION           (0x821B)
+#endif
+
+// GL_MINOR_VERSION
+#ifdef GL_MINOR_VERSION
+    #define DMGRAPHICS_MINOR_VERSION           (GL_MINOR_VERSION)
+#else
+    #define DMGRAPHICS_MINOR_VERSION           (0x821C)
+#endif
+
 #ifdef GL_DEPTH_STENCIL_OES
 #define DMGRAPHICS_FORMAT_DEPTH_STENCIL (GL_DEPTH_STENCIL_OES)
 #else

@@ -32,7 +32,7 @@ namespace dmGameSystem
 
         int n = vsnprintf(buf, sizeof(buf), format, lst);
 
-        if (n < (int) sizeof(buf))
+        if (message != 0 && (n < (int) sizeof(buf)))
         {
             const char* id_str = dmHashReverseSafe64(message->m_Id);
 
@@ -86,6 +86,10 @@ namespace dmGameSystem
         else if (strcmp(path_ext, ".bufferc") == 0)
         {
             return dmRender::RENDER_RESOURCE_TYPE_STORAGE_BUFFER;
+        }
+        else if (strcmp(path_ext, ".computec") == 0)
+        {
+            return dmRender::RENDER_RESOURCE_TYPE_COMPUTE;
         }
         return dmRender::RENDER_RESOURCE_TYPE_INVALID;
     }
@@ -440,6 +444,23 @@ namespace dmGameSystem
                 dynamic_attribute_infos[i].m_Infos = 0;
             }
         }
+    }
+
+    void FreeMaterialAttribute(DynamicAttributePool& pool, uint32_t dynamic_attribute_index)
+    {
+        if (dynamic_attribute_index == INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+        {
+            return;
+        }
+
+        DynamicAttributeInfo& dynamic_info = pool.Get(dynamic_attribute_index);
+        if (dynamic_info.m_Infos)
+        {
+            assert(dynamic_info.m_NumInfos > 0);
+            free(dynamic_info.m_Infos);
+        }
+
+        pool.Free(dynamic_attribute_index, true);
     }
 
     dmGameObject::PropertyResult ClearMaterialAttribute(

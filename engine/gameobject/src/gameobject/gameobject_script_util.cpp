@@ -34,10 +34,11 @@ namespace dmGameObject
             dmResource::Result r = dmResource::Get(factory, module_resource, (void**) (&module_script));
             if (r == dmResource::RESULT_OK)
             {
-                dmResource::SResourceDescriptor desc;
+                HResourceDescriptor desc;
                 r = dmResource::GetDescriptor(factory, module_resource, &desc);
                 assert(r == dmResource::RESULT_OK);
-                if (dmScript::ModuleLoaded(script_context, desc.m_NameHash))
+                dmhash_t name_hash = ResourceDescriptorGetNameHash(desc);
+                if (dmScript::ModuleLoaded(script_context, name_hash))
                 {
                     dmResource::Release(factory, module_script);
                     continue;
@@ -49,7 +50,7 @@ namespace dmGameObject
                     return false;
                 }
 
-                dmScript::Result sr = dmScript::AddModule(script_context, &module_script->m_LuaModule->m_Source, module_name, module_script, desc.m_NameHash);
+                dmScript::Result sr = dmScript::AddModule(script_context, &module_script->m_LuaModule->m_Source, module_name, module_script, name_hash);
                 if (sr != dmScript::RESULT_OK)
                 {
                     dmResource::Release(factory, module_script);

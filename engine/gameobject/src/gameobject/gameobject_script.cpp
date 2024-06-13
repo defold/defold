@@ -34,6 +34,8 @@
 #include "gameobject_private.h"
 #include "gameobject_props_lua.h"
 
+#include "gameobject/gameobject_ddf.h"
+
 // Not to pretty to include res_lua.h here but lua-modules
 // are released at system shutdown and not on a per parent-resource basis
 // as all other resource are. Due to the nature of lua-code and
@@ -422,41 +424,7 @@ namespace dmGameObject
         return instance;
     }
 
-    static Result GetComponentUserData(HInstance instance, dmhash_t component_id, uint32_t* component_type, uintptr_t* user_data)
-    {
-        // TODO: We should probably not store user-data sparse.
-        // A lot of loops just to find user-data such as the code below
-        assert(instance != 0x0);
-        const Prototype::Component* components = instance->m_Prototype->m_Components;
-        uint32_t n = instance->m_Prototype->m_ComponentCount;
-        uint32_t component_instance_data = 0;
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            const Prototype::Component* component = &components[i];
-            if (component->m_Id == component_id)
-            {
-                if (component->m_Type->m_InstanceHasUserData)
-                {
-                    *user_data = instance->m_ComponentInstanceUserData[component_instance_data];
-                }
-                else
-                {
-                    *user_data = 0;
-                }
-                *component_type = component->m_TypeIndex;
-                return RESULT_OK;
-            }
-
-            if (component->m_Type->m_InstanceHasUserData)
-            {
-                component_instance_data++;
-            }
-        }
-
-        return RESULT_COMPONENT_NOT_FOUND;
-    }
-
-    void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* user_data, dmMessage::URL* url, void** out_world)
+    void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_component, dmMessage::URL* url, dmGameObject::HComponentWorld* out_world)
     {
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender))
@@ -476,23 +444,24 @@ namespace dmGameObject
                 return; // Actually never reached
             }
 
+            dmGameObject::HComponentWorld world;
             uint32_t component_type_index;
-            dmGameObject::Result result = GetComponentUserData(instance, receiver.m_Fragment, &component_type_index, user_data);
-            if ((component_ext != 0x0 || user_data != 0x0) && result != dmGameObject::RESULT_OK)
+            dmGameObject::Result result = dmGameObject::GetComponent(instance, receiver.m_Fragment, &component_type_index, out_component, &world);
+            if ((component_ext != 0x0 || *out_component != 0x0) && result != dmGameObject::RESULT_OK)
             {
                 char buffer[128];
                 luaL_error(L, "The component could not be found: '%s'", dmScript::UrlToString(&receiver, buffer, sizeof(buffer)));
                 return; // Actually never reached
             }
 
-            void* world = GetWorld(instance->m_Collection->m_HCollection, component_type_index);
-            if (out_world != 0) {
+            if (out_world != 0)
+            {
                 *out_world = world;
             }
 
             if (component_ext != 0x0)
             {
-                dmResource::ResourceType resource_type;
+                HResourceType resource_type;
                 dmResource::Result resource_res = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(instance->m_Collection->m_HCollection), component_ext, &resource_type);
                 if (resource_res != dmResource::RESULT_OK)
                 {
@@ -505,12 +474,6 @@ namespace dmGameObject
                     luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
                     return; // Actually never reached
                 }
-
-                // If there is a GetComponent function, then use it to translate from user_data to the correct struct
-                if (type->m_GetFunction) {
-                    ComponentGetParams params = {world, user_data};
-                    *user_data = (uintptr_t)type->m_GetFunction(params);
-                }
             }
             if (url)
             {
@@ -522,13 +485,6 @@ namespace dmGameObject
             luaL_error(L, "function called is not available from this script-type.");
             return; // Actually never reached
         }
-    }
-
-    void GetComponentFromLua(lua_State* L, int index, const char* component_type, void** out_world, void** component, dmMessage::URL* url)
-    {
-        ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
-        GetComponentUserDataFromLua(L, index, instance->m_Collection->m_HCollection, component_type, (uintptr_t*)component, url, out_world);
     }
 
     HInstance GetInstanceFromLua(lua_State* L) {

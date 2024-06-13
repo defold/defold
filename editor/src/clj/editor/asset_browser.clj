@@ -21,6 +21,7 @@
             [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.notifications :as notifications]
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.prefs :as prefs]
@@ -343,8 +344,21 @@
   (run [selection workspace asset-browser]
        (let [tree-view (g/node-value asset-browser :tree-view)
              resource (first selection)
-             src-files (.getFiles (Clipboard/getSystemClipboard))]
-         (paste! workspace resource src-files (partial select-files! workspace tree-view)))))
+             src-files (.getFiles (Clipboard/getSystemClipboard))
+             dest-path (.toPath (io/file (resource/abs-path resource)))]
+         (if-let [conflicting-file (some #(let [src-path (.toPath ^File %)]
+                                            (when (and (.startsWith dest-path src-path)
+                                                       (not= dest-path src-path))
+                                              %))
+                                         src-files)]
+           (let [res-proj-path (resource/proj-path resource)
+                 dest-proj-path (resource/file->proj-path (workspace/project-path workspace) conflicting-file)]
+             (notifications/show!
+               (workspace/notifications workspace)
+               {:type :error
+                :id ::asset-circular-paste
+                :text (str "Cannot paste folder '" dest-proj-path "' into its subfolder '" res-proj-path "'")}))
+           (paste! workspace resource src-files (partial select-files! workspace tree-view))))))
 
 (defn- moved-files
   [^File src-file ^File dest-file files]
@@ -533,7 +547,7 @@
                              (when (workspace/has-template? workspace resource-type)
                                {:label (or (:label resource-type) (:ext resource-type))
                                 :icon (:icon resource-type)
-                                :style (resource/ext-style-classes (:ext resource-type))
+                                :style (resource/type-style-classes resource-type)
                                 :command :new-file
                                 :user-data {:resource-type resource-type}})))
                      (workspace/get-resource-type-map workspace))))))

@@ -1,0 +1,27 @@
+local M = {}
+
+function M.get_commands()
+    return {
+        {
+            label = "Set text",
+            locations = {"Assets"},
+            query = {selection = {type = "resource", cardinality = "one"}},
+            run = function (opts)
+                local path = editor.get(opts.selection, "path")
+                local old_text = editor.get(path, "text")
+                local file = assert(io.open(path:sub(2), "w"))
+                local written_text = "Another text!"
+                file:write(written_text)
+                file:close()
+                local new_text = editor.get(path, "text")
+                file = assert(io.open(path:sub(2), "w"))
+                file:write(old_text)
+                file:close()
+                local reverted_text = editor.get(path, "text")
+                print(('old = %s, new = %s, reverted = %s'):format(old_text, new_text, reverted_text))
+            end
+        }
+    }
+end
+
+return M

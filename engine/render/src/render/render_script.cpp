@@ -1893,21 +1893,20 @@ namespace dmRender
      * constants.tint = vmath.vector4(1, 1, 1, 1)
      * render.draw(self.my_pred, {constants = constants})
      * ```
-
+     *
      * Draw with predicate and frustum culling (without near+far planes):
      *
      * ```lua
      * local frustum = self.proj * self.view
      * render.draw(self.my_pred, {frustum = frustum})
      * ```
-
+     *
      * Draw with predicate and frustum culling (with near+far planes):
      *
      * ```lua
      * local frustum = self.proj * self.view
      * render.draw(self.my_pred, {frustum = frustum, frustum_planes = render.FRUSTUM_PLANES_ALL})
      * ```
-
      */
     int RenderScript_Draw(lua_State* L)
     {
@@ -2863,7 +2862,7 @@ namespace dmRender
      * local h = render.get_window_height()
      * ```
      */
-    int RenderScript_GetWindowHeight(lua_State* L)
+    static int RenderScript_GetWindowHeight(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         (void)i;
@@ -2892,7 +2891,7 @@ namespace dmRender
      * local p = render.predicate({hash("opaque"), hash("smoke")})
      * ```
      */
-    int RenderScript_Predicate(lua_State* L)
+    static int RenderScript_Predicate(lua_State* L)
     {
         int top = lua_gettop(L);
         (void) top;
@@ -2940,7 +2939,7 @@ namespace dmRender
      * render.disable_material()
      * ```
      */
-    int RenderScript_EnableMaterial(lua_State* L)
+    static int RenderScript_EnableMaterial(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
 
@@ -2992,19 +2991,19 @@ namespace dmRender
      * render.disable_material()
      * ```
      */
-    int RenderScript_DisableMaterial(lua_State* L)
+    static int RenderScript_DisableMaterial(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_MATERIAL)))
             return 0;
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
     static int RenderScript_SetStorageBuffer(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         dmhash_t sampler_hash   = 0;
         uint32_t unit           = 0;
@@ -3085,6 +3084,208 @@ namespace dmRender
         return DM_LUA_ERROR("Storage buffer handle '%s' is not valid.", AssetHandleToString(asset_handle, buf, sizeof(buf)));
     }
 
+    /*# sets the current render camera to be used for rendering
+     * Sets the current render camera to be used for rendering. If a render camera
+     * has been set by the render script, the renderer will be using its projection and view matrix
+     * during rendering. If a projection and/or view matrix has been set by the render script, 
+     * they will not be used until the current render camera has been reset by calling `render.set_camera()`.
+     * 
+     * If the 'use_frustum' flag in the options table has been set to true, the renderer will automatically use the
+     * camera frustum for frustum culling regardless of what frustum is being passed into the render.draw() function.
+     * Note that the frustum plane option in render.draw can still be used together with the camera.
+     *
+     * @name render.set_camera
+     * @param camera [type:url|handle|nil] camera id to use, or nil to reset
+     * @param [options] [type:table] optional table with properties:
+     *
+     * `use_frustum`
+     * : [type:boolean] If true, the renderer will use the cameras view-projection matrix for frustum culling (default: false)
+     *
+     *
+     * @examples
+     *
+     * Set the current camera to be used for rendering
+     *
+     * ```lua
+     * render.set_camera("main:/my_go#camera")
+     * render.draw(self.my_pred)
+     * render.set_camera(nil)
+     * ```
+     *
+     * Use the camera frustum for frustum culling together with a specific frustum plane option for the draw command
+     *
+     * ```lua
+     * -- The camera frustum will take precedence over the frustum plane option in render.draw
+     * render.set_camera("main:/my_go#camera", { use_frustum = true })
+     * -- However, we can still customize the frustum planes regardless of the camera option!
+     * render.draw(self.my_pred, { frustum_planes = render.FRUSTUM_PLANES_ALL })
+     * render.set_camera()
+     * ```
+     */
+    static int RenderScript_SetCamera(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+
+        HRenderCamera camera = 0;
+        bool use_frustum = false;
+
+        if (lua_gettop(L) > 0 && !lua_isnil(L, 1))
+        {
+            RenderCamera* c = CheckRenderCamera(L, 1, i->m_RenderContext);
+            camera = c->m_Handle;
+
+            // Parse options table
+            if (lua_istable(L, 2))
+            {
+                luaL_checktype(L, 2, LUA_TTABLE);
+                lua_pushvalue(L, 2);
+
+                lua_getfield(L, -1, "use_frustum");
+                use_frustum = lua_toboolean(L, -1);
+                lua_pop(L, 1);
+
+                lua_pop(L, 1);
+            }
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_CAMERA, (uint64_t) camera, use_frustum)))
+            return 0;
+        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+#define CHECK_COMPUTE_SUPPORT(render_script_instance) \
+    if (!dmGraphics::IsContextFeatureSupported(i->m_RenderContext->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER)) \
+        return DM_LUA_ERROR("Compute shaders are not supported on this device or platform.");
+
+    /*# set the current compute program
+     *
+     * The name of the compute program must be specified in the ".render" resource set
+     * in the "game.project" setting. If nil (or no arguments) are passed to this function,
+     * the current compute program will instead be disabled.
+     *
+     * @name render.set_compute
+     * @param compute [type:string|hash|nil] compute id to use, or nil to disable
+     * @examples
+     *
+     * Enable compute program named "fractals", then dispatch it.
+     *
+     * ```lua
+     * render.set_compute("fractals")
+     * render.enable_texture(0, self.backing_texture)
+     * render.dispatch_compute(128, 128, 1)
+     * render.set_compute()
+     * ```
+     */
+    static int RenderScript_SetCompute(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+        void* compute_program = 0x0;
+
+        CHECK_COMPUTE_SUPPORT(i);
+
+        if (lua_gettop(L) > 0 && !lua_isnil(L, 1))
+        {
+            dmhash_t program_id             = dmScript::CheckHashOrString(L, 1);
+            RenderResource* render_resource = i->m_RenderResources.Get(program_id);
+
+            if (render_resource == 0x0)
+            {
+                return DM_LUA_ERROR("Could not find compute program '%s'", dmHashReverseSafe64(program_id));
+            }
+            else if (render_resource->m_Type != RENDER_RESOURCE_TYPE_COMPUTE)
+            {
+                return DM_LUA_ERROR("Render resource is not a compute program.");
+            }
+
+            compute_program = (void*) render_resource->m_Resource;
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_SET_COMPUTE, (uint64_t) compute_program)))
+        {
+            return 0;
+        }
+        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+
+    /*# dispatches the currently enabled compute program
+     * Dispatches the currently enabled compute program. The dispatch call takes three arguments x,y,z which constitutes
+     * the 'global working group' of the compute dispatch. Together with the 'local working group' specified in the compute shader
+     * as a layout qualifier, these two sets of parameters forms the number of invocations the compute shader will execute.
+     * An optional constant buffer can be provided to override the default constants. If no constants buffer is provided, a default
+     * system constants buffer is used containing constants as defined in the compute program.
+     *
+     * @name render.dispatch_compute
+     * @param x [type:number] global work group size X
+     * @param y [type:number] global work group size Y
+     * @param z [type:number] global work group size Z
+     * @param [options] [type:table] optional table with properties:
+     *
+     * `constants`
+     * : [type:constant_buffer] optional constants to use while rendering
+     *
+     * @examples
+     *
+     * ```lua
+     * function init(self)
+     *     local color_params = { format = render.FORMAT_RGBA,
+     *                            width = render.get_window_width(),
+     *                            height = render.get_window_height()}
+     *     self.scene_rt = render.render_target({[render.BUFFER_COLOR_BIT] = color_params})
+     * end
+     *
+     * function update(self, dt)
+     *     render.set_compute("bloom")
+     *     render.enable_texture(0, self.backing_texture)
+     *     render.enable_texture(1, self.scene_rt)
+     *     render.dispatch_compute(128, 128, 1)
+     *     render.set_compute()
+     * end
+     * ```
+     *
+     * Dispatch a compute program with a constant buffer:
+     *
+     * ```lua
+     * local constants = render.constant_buffer()
+     * constants.tint = vmath.vector4(1, 1, 1, 1)
+     * render.dispatch_compute(32, 32, 32, {constants = constants})
+     * ```
+     */
+    static int RenderScript_Dispatch(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        RenderScriptInstance* i = RenderScriptInstance_Check(L);
+
+        CHECK_COMPUTE_SUPPORT(i);
+
+        int p_x = luaL_checkinteger(L, 1);
+        int p_y = luaL_checkinteger(L, 2);
+        int p_z = luaL_checkinteger(L, 3);
+
+        HNamedConstantBuffer constant_buffer = 0;
+
+        if (lua_istable(L, 4))
+        {
+            luaL_checktype(L, 4, LUA_TTABLE);
+            lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "constants");
+            constant_buffer = lua_isnil(L, -1) ? 0 : *RenderScriptConstantBuffer_Check(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
+
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, p_x, p_y, p_z, (uint64_t) constant_buffer)))
+        {
+            return 0;
+        }
+        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+    }
+#undef CHECK_COMPUTE_SUPPORT
+
     static const luaL_reg Render_methods[] =
     {
         {"enable_state",                    RenderScript_EnableState},
@@ -3124,6 +3325,9 @@ namespace dmRender
         {"enable_material",                 RenderScript_EnableMaterial},
         {"disable_material",                RenderScript_DisableMaterial},
         {"set_storage_buffer",              RenderScript_SetStorageBuffer},
+        {"set_compute",                     RenderScript_SetCompute},
+        {"dispatch_compute",                RenderScript_Dispatch},
+        {"set_camera",                      RenderScript_SetCamera},
         {0, 0}
     };
 

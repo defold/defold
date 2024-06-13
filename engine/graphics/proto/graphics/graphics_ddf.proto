@@ -84,16 +84,22 @@ enum DepthStencilFormat
     DEPTH_STENCIL_FORMAT_S8U      = 5;
 }
 
+// Engine only, values corresponds to TextureUsageHint in graphics.h
+enum TextureUsageFlag
+{
+    TEXTURE_USAGE_FLAG_SAMPLE     = 1;
+    TEXTURE_USAGE_FLAG_MEMORYLESS = 2;
+    TEXTURE_USAGE_FLAG_STORAGE    = 4;
+}
+
 message TextureImage
 {
     enum Type
     {
-        // Corresponds to GL_TEXTURE_2D
         TYPE_2D       = 1;
-        // Corresponds to GL_TEXTURE_CUBE_MAP
         TYPE_CUBEMAP  = 2;
-        // Corresponds to GL_TEXTURE_2D_ARRAY
         TYPE_2D_ARRAY = 3;
+        TYPE_2D_IMAGE = 4;
     }
 
     enum CompressionType
@@ -171,6 +177,7 @@ message TextureImage
     // When count > 1 count mipmaps are laid out contiguously in memory and
     // the mip_map_offset should reflect that, e.g. times 6 for cubemaps
     required uint32 count       = 3;
+    optional uint32 usage_flags = 4 [default = 1];
 }
 
 // We encapsulate the texture format in its own message due

@@ -34,6 +34,13 @@
 const static uint32_t WIDTH = 600;
 const static uint32_t HEIGHT = 400;
 
+#define EPSILON 0.0001f
+#define ASSERT_VEC4(exp, act)\
+    ASSERT_NEAR(exp.getX(), act.getX(), EPSILON);\
+    ASSERT_NEAR(exp.getY(), act.getY(), EPSILON);\
+    ASSERT_NEAR(exp.getZ(), act.getZ(), EPSILON);\
+    ASSERT_NEAR(exp.getW(), act.getW(), EPSILON);
+
 using namespace dmVMath;
 
 class dmRenderTest : public jc_test_base_class
@@ -165,6 +172,44 @@ TEST_F(dmRenderTest, TestRenderObjects)
     ASSERT_NE(dmRender::RESULT_OK, AddToRender(m_Context, &ro));
     ASSERT_EQ(dmRender::RESULT_OK, ClearRenderObjects(m_Context));
     ASSERT_EQ(dmRender::RESULT_OK, AddToRender(m_Context, &ro));
+}
+
+TEST_F(dmRenderTest, TestRenderCamera)
+{
+    dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
+
+    dmMessage::URL camera_url = {};
+    camera_url.m_Socket   = dmHashString64("socket");
+    camera_url.m_Path     = dmHashString64("my_go");
+    camera_url.m_Fragment = dmHashString64("camera");
+
+    dmRender::SetRenderCameraURL(m_Context, camera, &camera_url);
+
+    dmRender::RenderCameraData data = {};
+    data.m_Viewport               = dmVMath::Vector4(0.0f, 0.0f, WIDTH, HEIGHT);
+    data.m_AspectRatio            = WIDTH / HEIGHT;
+    data.m_Fov                    = M_PI / 4.0f;
+    data.m_NearZ                  = 0.1f;
+    data.m_FarZ                   = 1000.0f;
+    data.m_OrthographicZoom       = 1.0f;
+    data.m_AutoAspectRatio        = true;
+    data.m_OrthographicProjection = true;
+
+    dmRender::SetRenderCameraData(m_Context, camera, &data);
+
+    dmRender::RenderCameraData data_other = {};
+    dmRender::GetRenderCameraData(m_Context, camera, &data_other);
+
+    ASSERT_VEC4(data.m_Viewport, data_other.m_Viewport);
+    ASSERT_NEAR(data.m_AspectRatio, data_other.m_AspectRatio, EPSILON);
+    ASSERT_NEAR(data.m_Fov, data_other.m_Fov, EPSILON);
+    ASSERT_NEAR(data.m_NearZ, data_other.m_NearZ, EPSILON);
+    ASSERT_NEAR(data.m_FarZ, data_other.m_FarZ, EPSILON);
+    ASSERT_NEAR(data.m_OrthographicZoom, data_other.m_OrthographicZoom, EPSILON);
+    ASSERT_EQ(data.m_AutoAspectRatio, data_other.m_AutoAspectRatio);
+    ASSERT_EQ(data.m_OrthographicProjection, data_other.m_OrthographicProjection);
+
+    dmRender::DeleteRenderCamera(m_Context, camera);
 }
 
 TEST_F(dmRenderTest, TestSquare2d)
@@ -397,8 +442,8 @@ TEST_F(dmRenderTest, TestRenderListDrawState)
     dmRender::RenderListBegin(m_Context);
 
     dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader, 0, 0);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader, 0, 0);
     dmRender::HMaterial material = dmRender::NewMaterial(m_Context, vp, fp);
     dmhash_t tag = dmHashString64("tag");
     dmRender::SetMaterialTags(material, 1, &tag);
@@ -518,8 +563,8 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader("foo", 3);
     dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(shader_src, strlen(shader_src));
 
-    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_shader);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_shader);
+    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_shader, 0, 0);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_shader, 0, 0);
     dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, vp, fp);
 
     dmhash_t texture_sampler_1_hash = dmHashString64("texture_sampler_1");
@@ -672,8 +717,8 @@ TEST_F(dmRenderTest, TestEnableDisableContextTextures)
     dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader("foo", 3);
     dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader("foo", 3);
 
-    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_shader);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_shader);
+    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_shader, 0, 0);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_shader, 0, 0);
     dmRender::HMaterial material    = dmRender::NewMaterial(m_Context, vp, fp);
 
     dmhash_t tag = dmHashString64("tag");
@@ -787,8 +832,8 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
                              "uniform lowp sampler2D texture_sampler_3;\n";
 
     dmGraphics::ShaderDesc::Shader shader    = MakeDDFShader(shader_src, strlen(shader_src));
-    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
-    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
+    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader, 0, 0);
+    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader, 0, 0);
     dmRender::HMaterial material             = dmRender::NewMaterial(m_Context, vp, fp);
     dmRender::HMaterial material_no_samplers = dmRender::NewMaterial(m_Context, vp, fp);
 
@@ -1589,13 +1634,6 @@ static void IterateNameConstantsCallback(dmhash_t name_hash, void* _ctx)
 
 TEST(Constants, NamedConstantsArray)
 {
-    #define ASSERT_VEC4_EPS 0.0001f
-    #define ASSERT_VEC4(exp, act)\
-        ASSERT_NEAR(exp.getX(), act.getX(), ASSERT_VEC4_EPS);\
-        ASSERT_NEAR(exp.getY(), act.getY(), ASSERT_VEC4_EPS);\
-        ASSERT_NEAR(exp.getZ(), act.getZ(), ASSERT_VEC4_EPS);\
-        ASSERT_NEAR(exp.getW(), act.getW(), ASSERT_VEC4_EPS);
-
     dmHashEnableReverseHash(true);
     dmRender::HNamedConstantBuffer buffer = dmRender::NewNamedConstantBuffer();
     ASSERT_TRUE(buffer != 0);
@@ -1703,9 +1741,6 @@ TEST(Constants, NamedConstantsArray)
     ASSERT_EQ(3, iter_ctx.m_Count);
 
     dmRender::DeleteNamedConstantBuffer(buffer);
-
-    #undef ASSERT_VEC4_EPS
-    #undef ASSERT_VEC4
 }
 
 TEST(Constants, NamedConstants)
