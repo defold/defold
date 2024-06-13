@@ -546,7 +546,7 @@ namespace dmGui
     PropDesc* GetPropertyDesc(dmhash_t property_hash);
 
     bool GetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, dmGameObject::PropertyDesc& material_prop, const dmGameObject::PropertyOptions* material_prop_options);
-    bool SetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, const dmGameObject::PropertyVar& property_var);
+    bool SetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* material_prop_options);
 }
 
 #endif

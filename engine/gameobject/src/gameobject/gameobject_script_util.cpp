@@ -111,10 +111,13 @@ namespace dmGameObject
 
             if (property_options->m_Index < 0)
             {
-                return luaL_error(L, "Trying to get property value with a negative index (%d)", property_options->m_Index);
+                return luaL_error(L, "Negative numbers passed as index argument in options table (%d).", property_options->m_Index);
             }
 
-            *index_requested = true;
+            if (index_requested)
+            {
+                *index_requested = true;
+            }
         }
         lua_pop(L, 1);
 

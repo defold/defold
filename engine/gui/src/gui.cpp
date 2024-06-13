@@ -2964,22 +2964,22 @@ namespace dmGui
         n->m_Node.m_DirtyLocal = 1;
     }
 
-    bool GetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, dmGameObject::PropertyDesc& property_desc, const dmGameObject::PropertyOptions* options)
+    bool GetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, dmGameObject::PropertyDesc& property_desc, const dmGameObject::PropertyOptions* material_prop_options)
     {
         if (!scene->m_GetMaterialPropertyCallback)
         {
             return false;
         }
-        return scene->m_GetMaterialPropertyCallback(scene->m_GetMaterialPropertyCallbackContext, scene, node, property_hash, property_desc, options);
+        return scene->m_GetMaterialPropertyCallback(scene->m_GetMaterialPropertyCallbackContext, scene, node, property_hash, property_desc, material_prop_options);
     }
 
-    bool SetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, const dmGameObject::PropertyVar& property_var)
+    bool SetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* material_prop_options)
     {
         if (!scene->m_SetMaterialPropertyCallback)
         {
             return false;
         }
-        return scene->m_SetMaterialPropertyCallback(scene->m_SetMaterialPropertyCallbackContext, scene, node, property_hash, property_var);
+        return scene->m_SetMaterialPropertyCallback(scene->m_SetMaterialPropertyCallbackContext, scene, node, property_hash, property_var, material_prop_options);
     }
 
     const void* GetNodeRenderConstants(HScene scene, HNode node)

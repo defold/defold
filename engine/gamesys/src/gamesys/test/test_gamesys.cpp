@@ -1310,7 +1310,8 @@ TEST_P(CursorTest, Cursor)
 
 TEST_F(GuiTest, GetSetMaterialConstants)
 {
-
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/get_set_material_constants.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
 }
 
 // Tests the different types of textures (atlas, texture, dynamic)

@@ -31,6 +31,7 @@ def build(bld):
             'input/*',
             'label/*',
             'light/*',
+            'lua/*',
             'material/*',
             'mesh/*',
             'meshset/*',

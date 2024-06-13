@@ -257,12 +257,12 @@ namespace dmGameSystem
         // component->m_ReHash = 1;
     }
 
-    static bool SetMaterialPropertyCallback(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, const dmGameObject::PropertyVar& property_var)
+    static bool SetMaterialPropertyCallback(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* options)
     {
         GuiComponent* gui_component  = (GuiComponent*) ctx;
         GuiSceneResource* resource   = gui_component->m_Resource;
         dmRender::HMaterial material = GetMaterial(gui_component, resource, scene, node);
-        uint32_t value_index = 0; // TODO
+        uint32_t value_index         = options ? options->m_Index : 0;
 
         CompGuiRenderConstantUserData user_data = {};
         user_data.m_GuiComponent = gui_component;

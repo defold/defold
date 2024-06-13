@@ -808,55 +808,17 @@ namespace dmGameObject
             return luaL_error(L, "could not find any instance with id '%s'.", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path));
         }
 
-        dmGameObject::PropertyOptions property_options;
-        property_options.m_Index  = 0;
-        property_options.m_HasKey = 0;
-
-        bool property_val_is_table = lua_istable(L, 3);
-
-        // Options table
+        dmGameObject::PropertyOptions property_options = {};
         if (lua_gettop(L) > 3)
         {
-            luaL_checktype(L, 4, LUA_TTABLE);
-            lua_pushvalue(L, 4);
-
-            lua_getfield(L, -1, "key");
-            if (!lua_isnil(L, -1))
+            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_id, 0);
+            if (options_result != 0)
             {
-                property_options.m_Key = dmScript::CheckHashOrString(L, -1);
-                property_options.m_HasKey = 1;
+                return options_result;
             }
-            lua_pop(L, 1);
-
-            lua_getfield(L, -1, "index");
-            if (!lua_isnil(L, -1)) // make it optional
-            {
-                if (property_options.m_HasKey)
-                {
-                    return luaL_error(L, "Options table cannot contain both 'key' and 'index'.");
-                }
-                if (!lua_isnumber(L, -1))
-                {
-                    return luaL_error(L, "Invalid number passed as index argument in options table.");
-                }
-                else if (property_val_is_table)
-                {
-                    dmLogWarning("Options table has an index, but setting a property value with an array will ignore the index.");
-                }
-
-                property_options.m_Index = luaL_checkinteger(L, -1) - 1;
-
-                if (property_options.m_Index < 0)
-                {
-                    return luaL_error(L, "Trying to set property value for '%s' with an index < 0: %d", dmHashReverseSafe64Alloc(&hash_ctx, property_id), property_options.m_Index);
-                }
-            }
-            lua_pop(L, 1);
-
-            lua_pop(L, 1);
         }
 
-        if (property_val_is_table)
+        if (lua_istable(L, 3))
         {
             lua_pushvalue(L, 3);
             lua_pushnil(L);

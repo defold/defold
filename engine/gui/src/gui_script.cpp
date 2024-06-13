@@ -683,7 +683,14 @@ namespace dmGui
         dmGameObject::PropertyResult property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
              dmGameObject::PROPERTY_RESULT_OK : dmGameObject::PROPERTY_RESULT_NOT_FOUND;
 
-        if (property_res == dmGameObject::PROPERTY_RESULT_OK && !index_requested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && property_desc.m_ArrayLength > 1)
+        bool is_matrix_type = property_desc.m_Variant.m_Type == dmGameObject::PROPERTY_TYPE_MATRIX4;
+        uint32_t array_size = property_desc.m_ArrayLength;
+        if (is_matrix_type)
+        {
+            array_size = property_desc.m_ArrayLength / 4;
+        }
+
+        if (property_res == dmGameObject::PROPERTY_RESULT_OK && !index_requested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && array_size > 1)
         {
             lua_newtable(L);
 
@@ -697,7 +704,7 @@ namespace dmGui
 
             lua_rawseti(L, -2, 1);
 
-            for (int i = 1; i < property_desc.m_ArrayLength; ++i)
+            for (int i = 1; i < array_size; ++i)
             {
                 property_options.m_Index = i;
                 property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
@@ -711,10 +718,8 @@ namespace dmGui
 
                 lua_rawseti(L, -2, i + 1);
             }
-        }
-        else
-        {
-            dmGameObject::LuaPushVar(L, property_desc.m_Variant);
+
+            return 1;
         }
 
         return dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
@@ -839,8 +844,19 @@ namespace dmGui
         }
 
         dmGameObject::PropertyVar property_var;
+        dmGameObject::PropertyOptions property_options = {};
         dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
-        if (result == dmGameObject::PROPERTY_RESULT_OK && dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var))
+
+        if (lua_gettop(L) > 3)
+        {
+            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_hash, 0);
+            if (options_result != 0)
+            {
+                return options_result;
+            }
+        }
+
+        if (result == dmGameObject::PROPERTY_RESULT_OK && dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &property_options))
         {
             return 0;
         }

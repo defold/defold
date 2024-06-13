@@ -149,7 +149,7 @@ namespace dmGui
     /**
      * Callback to set material property
      */
-    typedef bool (*SetMaterialPropertyCallback)(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, const dmGameObject::PropertyVar& property_var);
+    typedef bool (*SetMaterialPropertyCallback)(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* options);
 
     /**
      * Scene creation
