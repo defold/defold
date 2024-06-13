@@ -367,6 +367,7 @@ namespace dmGui
         scene->m_GetMaterialPropertyCallbackContext = params->m_GetMaterialPropertyCallbackContext;
         scene->m_SetMaterialPropertyCallback = params->m_SetMaterialPropertyCallback;
         scene->m_SetMaterialPropertyCallbackContext = params->m_SetMaterialPropertyCallbackContext;
+        scene->m_DestroyRenderConstantsCallback = params->m_DestroyRenderConstantsCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
         scene->m_ScriptWorld = params->m_ScriptWorld;
 
@@ -2617,6 +2618,11 @@ namespace dmGui
         if (n->m_Node.m_CustomType != 0)
         {
             scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, node, n->m_Node.m_CustomType, n->m_Node.m_CustomData);
+        }
+
+        if (n->m_Node.m_RenderConstants)
+        {
+            scene->m_DestroyRenderConstantsCallback(n->m_Node.m_RenderConstants);
         }
 
         // Stop (or destroy) any living particle instances started on this node

@@ -605,7 +605,7 @@ namespace dmGui
      * Instead of using specific getters such as gui.get_position or gui.get_scale,
      * you can use gui.get instead and supply the property as a string or a hash.
      * While this function is similar to go.get, there are a few more restrictions
-     * when operating in the gui namespace. Most notably, only these propertie identifiers are supported:
+     * when operating in the gui namespace. Most notably, only these explicitly named properties are supported:
      *
      * - `"position"`
      * - `"rotation"`
@@ -621,10 +621,14 @@ namespace dmGui
      *
      * The value returned will either be a vmath.vector4 or a single number, i.e getting the "position"
      * property will return a vec4 while getting the "position.x" property will return a single value.
+     * You can also use this function to get material constants.
      *
      * @name gui.get
      * @param node [type:node] node to get the property for
      * @param property [type:string|hash|constant] the property to retrieve 
+     * @param [options] [type:table] optional options table (only applicable for material constants)
+     * - `index` [type:integer] index into array property (1 based)
+     *
      * @examples
      *
      * Get properties on existing nodes:
@@ -730,7 +734,7 @@ namespace dmGui
      * Instead of using specific setteres such as gui.set_position or gui.set_scale,
      * you can use gui.set instead and supply the property as a string or a hash.
      * While this function is similar to go.get and go.set, there are a few more restrictions
-     * when operating in the gui namespace. Most notably, only these propertie identifiers are supported:
+     * when operating in the gui namespace. Most notably, only these named properties identifiers are supported:
      *
      * - `"position"`
      * - `"rotation"`
@@ -752,10 +756,17 @@ namespace dmGui
      * the intention is to move new functionality closer to go namespace so that migrating between gui and go is easier. To set the rotation using degrees instead,
      * use the "euler" property instead. The rotation and euler properties are linked, changing one of them will change the backing data of the other.
      *
+     * Similar to go.set, you can also use gui.set for setting material constant values on a node. E.g if a material has specified a constant called `tint` in
+     * the .material file, you can use gui.set to set the value of that constant by calling `gui.set(node, "tint", vmath.vec4(1,0,0,1))`, or `gui.set(node, "matrix", vmath.matrix4())`
+     * if the constant is a matrix. Arrays are also supported by gui.set - to set an array constant, you need to pass in an options table with the 'index' key set.
+     * If the material has a constant array called 'tint_array' specified in the material, you can use `gui.set(node, "tint_array", vmath.vec4(1,0,0,1), { index = 4})` to set the fourth array element to a different value.
+     *
      * @name gui.set
      * @param node [type:node] node to set the property for
      * @param property [type:string|hash|constant] the property to set 
      * @param value [type:number|vector4|vector3|quat] the property to set
+     * @param [options] [type:table] optional options table (only applicable for material constants)
+     * - `index` [type:integer] index into array property (1 based)
      *
      * @examples
      *
@@ -778,6 +789,25 @@ namespace dmGui
      * gui.set(node, "euler", vmath.vector3(0,0,45))
      * -- or using the set_rotation
      * gui.set_rotation(node, vmath.vector3(0,0,45))
+     * ```
+     *
+     * Sets various material constants for a node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * gui.set(node, "tint", vmath.vector4(1,0,0,1))
+     * -- matrix4 is also supported
+     * gui.set(node, "light_matrix", vmath.matrix4())
+     * -- update a constant in an array at position 4. the array is specified in the shader as:
+     * -- uniform vec4 tint_array[4]; // lua is 1 based, shader is 0 based
+     * gui.set(node, "tint_array", vmath.vector4(1,0,0,1), { index = 4 })
+     * -- update a matrix constant in an array at position 4. the array is specified in the shader as:
+     * -- uniform mat4 light_matrix_array[4];
+     * gui.set(node, "light_matrix_array", vmath.matrix4(), { index = 4 })
+     * -- update a sub-element in a constant
+     * gui.set(node, "tint.x", 1)
+     * -- update a sub-element in an array constant at position 4
+     * gui.set(node, "tint_array.x", 1, {index = 4})
      * ```
      */
     static int LuaSet(lua_State* L)

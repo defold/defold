@@ -252,9 +252,15 @@ namespace dmGameSystem
         }
 
         dmGameSystem::SetRenderConstant(render_constants, material, name_hash, value_index, element_index, var);
+    }
 
-        // We need to hash the constants!
-        // component->m_ReHash = 1;
+    static void DestroyRenderConstantsCallback(void* node_render_constants)
+    {
+        HComponentRenderConstants render_constants = (HComponentRenderConstants) node_render_constants;
+        if (render_constants)
+        {
+            dmGameSystem::DestroyRenderConstants(render_constants);
+        }
     }
 
     static bool SetMaterialPropertyCallback(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* options)
@@ -927,6 +933,7 @@ namespace dmGameSystem
         scene_params.m_GetMaterialPropertyCallbackContext = gui_component;
         scene_params.m_SetMaterialPropertyCallback = SetMaterialPropertyCallback;
         scene_params.m_SetMaterialPropertyCallbackContext = gui_component;
+        scene_params.m_DestroyRenderConstantsCallback = DestroyRenderConstantsCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
         scene_params.m_ScriptWorld = gui_world->m_ScriptWorld;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);

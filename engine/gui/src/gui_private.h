@@ -316,6 +316,7 @@ namespace dmGui
         void*                       m_GetMaterialPropertyCallbackContext;
         SetMaterialPropertyCallback m_SetMaterialPropertyCallback;
         void*                       m_SetMaterialPropertyCallbackContext;
+        DestroyRenderConstantsCallback m_DestroyRenderConstantsCallback;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);

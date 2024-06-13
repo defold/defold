@@ -152,6 +152,11 @@ namespace dmGui
     typedef bool (*SetMaterialPropertyCallback)(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* options);
 
     /**
+     * Callback to set material property
+     */
+    typedef void (*DestroyRenderConstantsCallback)(void* render_constants);
+
+    /**
      * Scene creation
      */
     struct NewSceneParams;
@@ -181,6 +186,7 @@ namespace dmGui
         void*                       m_GetMaterialPropertyCallbackContext;
         SetMaterialPropertyCallback m_SetMaterialPropertyCallback;
         void*                       m_SetMaterialPropertyCallbackContext;
+        DestroyRenderConstantsCallback m_DestroyRenderConstantsCallback;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback      m_OnWindowResizeCallback;
         AdjustReference             m_AdjustReference;
