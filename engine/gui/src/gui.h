@@ -152,7 +152,7 @@ namespace dmGui
     typedef bool (*SetMaterialPropertyCallback)(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* options);
 
     /**
-     * Callback to set material property
+     * Callback to destroy render constants
      */
     typedef void (*DestroyRenderConstantsCallback)(void* render_constants);
 
