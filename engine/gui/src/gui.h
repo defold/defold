@@ -177,13 +177,10 @@ namespace dmGui
         void*                       m_CreateCustomNodeCallbackContext;
         GetResourceCallback         m_GetResourceCallback;
         void*                       m_GetResourceCallbackContext;
-
         GetMaterialPropertyCallback m_GetMaterialPropertyCallback;
         void*                       m_GetMaterialPropertyCallbackContext;
-
         SetMaterialPropertyCallback m_SetMaterialPropertyCallback;
         void*                       m_SetMaterialPropertyCallbackContext;
-
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback      m_OnWindowResizeCallback;
         AdjustReference             m_AdjustReference;
@@ -911,6 +908,8 @@ namespace dmGui
 
     const void* GetNodeRenderConstants(HScene scene, HNode node);
     void        SetNodeRenderConstants(HScene scene, HNode node, void* render_constants);
+    void        SetNodeRenderConstantsHash(HScene scene, HNode node, uint32_t render_constants_hash);
+    uint32_t    GetNodeRenderConstantsHash(HScene scene, HNode node);
 
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);

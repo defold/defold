@@ -166,6 +166,7 @@ namespace dmGui
         dmhash_t    m_MaterialNameHash;
         void*       m_Material;
         void*       m_RenderConstants;
+        uint32_t    m_RenderConstantsHash;
 
         uint64_t                m_ParticlefxHash;
         void*                   m_ParticlefxPrototype;

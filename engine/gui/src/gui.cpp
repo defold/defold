@@ -363,13 +363,10 @@ namespace dmGui
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
         scene->m_GetResourceCallback = params->m_GetResourceCallback;
         scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
-
         scene->m_GetMaterialPropertyCallback = params->m_GetMaterialPropertyCallback;
         scene->m_GetMaterialPropertyCallbackContext = params->m_GetMaterialPropertyCallbackContext;
-
         scene->m_SetMaterialPropertyCallback = params->m_SetMaterialPropertyCallback;
         scene->m_SetMaterialPropertyCallbackContext = params->m_SetMaterialPropertyCallbackContext;
-
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
         scene->m_ScriptWorld = params->m_ScriptWorld;
 
@@ -2992,6 +2989,17 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         n->m_Node.m_RenderConstants = render_constants;
+    }
+
+    void SetNodeRenderConstantsHash(HScene scene, HNode node, uint32_t render_constants_hash)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_RenderConstantsHash = render_constants_hash;
+    }
+    uint32_t GetNodeRenderConstantsHash(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_RenderConstantsHash;
     }
 
     void SetNodeResetPoint(HScene scene, HNode node)
