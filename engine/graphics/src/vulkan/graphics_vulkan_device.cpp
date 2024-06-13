@@ -456,16 +456,6 @@ namespace dmGraphics
             return VK_SUCCESS;
         }
 
-        // Create a one-time-execute command buffer that will only be used for the transition
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
-
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info = {};
-        vk_command_buffer_begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-
         VkImageMemoryBarrier vk_memory_barrier            = {};
         vk_memory_barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         vk_memory_barrier.oldLayout                       = vk_from_layout;
@@ -546,8 +536,19 @@ namespace dmGraphics
         }
         else
         {
-            assert(0);
+            // Transition not supported, so we early out.
+            return VK_SUCCESS;
         }
+
+        // Create a one-time-execute command buffer that will only be used for the transition
+        VkCommandBuffer vk_command_buffer;
+        CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
+
+        VkCommandBufferBeginInfo vk_command_buffer_begin_info = {};
+        vk_command_buffer_begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        vk_command_buffer_begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
 
         vkCmdPipelineBarrier(
             vk_command_buffer,

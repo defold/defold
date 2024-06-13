@@ -637,6 +637,8 @@ namespace dmGameSystem
 
         DeleteOverrides(factory, component);
 
+        FreeMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, component->m_DynamicVertexAttributeIndex);
+
         sprite_world->m_Components.Free(index, true);
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -2264,5 +2266,10 @@ namespace dmGameSystem
         SpriteWorld* world = (SpriteWorld*) sprite_world;
         *vx_buffer = world->m_VertexBuffer;
         *ix_buffer = world->m_IndexBuffer;
+    }
+
+    void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out)
+    {
+        *pool_out = &((SpriteWorld*) sprite_world)->m_DynamicVertexAttributePool;
     }
 }

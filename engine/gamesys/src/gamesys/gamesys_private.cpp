@@ -444,6 +444,23 @@ namespace dmGameSystem
         }
     }
 
+    void FreeMaterialAttribute(DynamicAttributePool& pool, uint32_t dynamic_attribute_index)
+    {
+        if (dynamic_attribute_index == INVALID_DYNAMIC_ATTRIBUTE_INDEX)
+        {
+            return;
+        }
+
+        DynamicAttributeInfo& dynamic_info = pool.Get(dynamic_attribute_index);
+        if (dynamic_info.m_Infos)
+        {
+            assert(dynamic_info.m_NumInfos > 0);
+            free(dynamic_info.m_Infos);
+        }
+
+        pool.Free(dynamic_attribute_index, true);
+    }
+
     dmGameObject::PropertyResult ClearMaterialAttribute(
         DynamicAttributePool& pool,
         uint32_t              dynamic_attribute_index,
