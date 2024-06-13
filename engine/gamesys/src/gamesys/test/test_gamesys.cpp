@@ -1308,12 +1308,16 @@ TEST_P(CursorTest, Cursor)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(GuiTest, GetSetMaterialConstants)
+{
+
+}
+
 // Tests the different types of textures (atlas, texture, dynamic)
 // This test makes sure that we can use the correct resource pointers.
 TEST_F(GuiTest, TextureResources)
 {
     dmhash_t go_id = dmHashString64("/go");
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
 
     dmGameSystem::TextureSetResource* valid_atlas = 0;
     dmGameSystem::TextureResource* valid_texture = 0;
@@ -5218,10 +5222,6 @@ TEST_F(ShaderTest, ComputeResource)
     dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program);
     ASSERT_EQ(7, dmGraphics::GetUniformCount(graphics_compute_program));
 
-    char buffer[128] = {};
-    dmGraphics::Type type;
-    int32_t size;
-
     dmRender::HConstant ca, cb, cc, cd;
     ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_a"), ca));
     ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_b"), cb));
@@ -5273,10 +5273,6 @@ TEST_F(ShaderTest, ComputeResource)
     dmResource::Release(m_Factory, (void*) compute_program_res);
 }
 
-TEST_F(ShaderTest, ComputeProgram)
-{
-    dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
-}
 #endif
 
 extern "C" void dmExportedSymbols();
