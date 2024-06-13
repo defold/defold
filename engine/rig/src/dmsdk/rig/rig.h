@@ -106,7 +106,7 @@ namespace dmRig
     {
         float pos[3];
         float normal[3];
-        float tangent[3];
+        float tangent[4];
         float color[4];
         float uv0[2];
         float uv1[2];

@@ -24,6 +24,7 @@
             [editor.gui :as gui]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]
@@ -32,7 +33,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/main.zip")
+(defonce ^:private extension-spine-url (settings-core/inject-jvm-properties "{{defold.extension.spine.url}}"))
 
 (def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
@@ -72,7 +73,7 @@
             (testing "Without the extension, resources with embedded Spine data report build errors due to invalid content."
               (letfn [(invalid-content-error? [error-resource-path error-value]
                         (is (g/error? error-value))
-                        (is (= :invalid-content (-> error-value :user-data :type)))
+                        (is (= :invalid-content (-> error-value :causes first :user-data :type)))
                         (let [error-tree (build-errors-view/build-resource-tree error-value)
                               error-item-of-parent-resource (first (:children error-tree))
                               error-item-of-faulty-node (first (:children error-item-of-parent-resource))]

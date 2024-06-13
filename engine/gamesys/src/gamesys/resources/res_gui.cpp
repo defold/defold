@@ -25,7 +25,7 @@
 #include "res_texture.h"
 #include "res_textureset.h"
 
-#include <dmsdk/resource/resource.hpp>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
@@ -120,7 +120,7 @@ namespace dmGameSystem
         resource->m_GuiTextureSets.SetSize(0);
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Textures.m_Count; ++i)
         {
-            TextureSetResource* texture_set_resource;
+            void* texture_set_resource;
             dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Textures[i].m_Texture, (void**) &texture_set_resource);
             if (r != dmResource::RESULT_OK)
             {
@@ -134,17 +134,10 @@ namespace dmGameSystem
                 return r;
             }
 
-            GuiSceneTextureSetResource tsr;
-            if(resource_type != resource_type_textureset)
-            {
-                tsr.m_TextureSet = 0;
-                tsr.m_Texture = (TextureResource*) texture_set_resource;
-            }
-            else
-            {
-                tsr.m_TextureSet = texture_set_resource;
-                tsr.m_Texture    = texture_set_resource->m_Texture;
-            }
+            GuiSceneTextureSetResource tsr = {};
+            tsr.m_Resource                 = texture_set_resource;
+            tsr.m_ResourceIsTextureSet     = resource_type == resource_type_textureset;
+
             resource->m_GuiTextureSets.Push(tsr);
         }
 
@@ -187,10 +180,7 @@ namespace dmGameSystem
         }
         for (uint32_t j = 0; j < resource->m_GuiTextureSets.Size(); ++j)
         {
-            if(resource->m_GuiTextureSets[j].m_TextureSet)
-                dmResource::Release(factory, resource->m_GuiTextureSets[j].m_TextureSet);
-            else
-                dmResource::Release(factory, resource->m_GuiTextureSets[j].m_Texture);
+            dmResource::Release(factory, resource->m_GuiTextureSets[j].m_Resource);
         }
 
         resource->m_Resources.Iterate(HTReleaseResource, factory);

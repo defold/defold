@@ -23,6 +23,7 @@
             [editor.outline :as outline]
             [editor.process :as process]
             [editor.protobuf :as protobuf]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.system :as system]
@@ -95,18 +96,12 @@
    :label "Sound"
    :icon sound-icon})
 
-(defn- set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
-
-(defn- clear-form-op [{:keys [node-id]} [property]]
-  (g/clear-property! node-id property))
-
 (g/defnk produce-form-data
   [_node-id sound looping group gain pan speed loopcount]
   {:navigation false
    :form-ops {:user-data {:node-id _node-id}
-              :set set-form-op
-              :clear clear-form-op}
+              :set protobuf-forms-util/set-form-op
+              :clear protobuf-forms-util/clear-form-op}
    :sections [{:title "Sound"
                :fields [{:path [:sound]
                          :label "Sound"
@@ -236,6 +231,7 @@
       :ddf-type Sound$SoundDesc
       :load-fn load-sound
       :icon sound-icon
+      :icon-class :property
       :view-types [:cljfx-form-view :text]
       :view-opts {}
       :tags #{:component}

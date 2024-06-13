@@ -1,5 +1,5 @@
 #welcome-dialog {
-  -fx-background-color: -df-background-light;
+  -fx-background-color: -df-background;
 
   HBox, VBox {
     -fx-spacing: 0; // Fight crazy non-zero default.
@@ -60,7 +60,7 @@
   }
 
   #left-pane {
-    -fx-background-color: -df-background;
+    -fx-background-color: -df-background-darker;
 
     .defold-logo {
       -fx-padding: 16px;
@@ -158,7 +158,7 @@
   }
 
   .form-pane {
-    -fx-background-color: -df-background-lighter;
+    -fx-background-color: -df-background-light;
     -fx-padding: 24px;
     -fx-spacing: 16px;
 
@@ -259,7 +259,7 @@
   }
 
   .template-entry {
-    -fx-background-color: -df-component-darker;
+    -fx-background-color: -df-component-dark;
     -fx-background-radius: 2px;
     -fx-border-width: 1px;
     -fx-border-color: transparent;
@@ -364,20 +364,20 @@
     Button {
       -fx-border-width: 0px;
       -fx-background-radius: 0px 2px 2px 0px;
-      -fx-background-color: -df-background-lighter;
+      -fx-background-color: -df-component-dark;
       -fx-min-width: 30px;
       -fx-padding: 0px;
       -fx-font-size: 90%;
 
       &:hover {
-        -fx-background-color: -df-component-light;
+        -fx-background-color: -df-component-lighter;
       }
     }
 
     .path-field {
       -fx-alignment: center-left;
       -fx-background-color: transparent;
-      -fx-border-color: -df-background-lighter;
+      -fx-border-color: -df-component-dark;
       -fx-border-width: 1px 0px 1px 1px;
       -fx-padding: 4px 8px;
     }

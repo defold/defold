@@ -49,7 +49,7 @@
 extern struct android_app* g_AndroidApp;
 extern int g_AppCommands[MAX_APP_COMMANDS];
 extern int g_NumAppCommands;
-extern struct InputEvent g_AppInputEvents[MAX_APP_INPUT_EVENTS];
+extern struct InputEvent* g_AppInputEvents;
 extern int g_NumAppInputEvents;
 extern uint32_t g_EventLock;
 extern const char* _glfwGetAndroidCmdName(int32_t cmd);

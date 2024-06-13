@@ -115,12 +115,12 @@ namespace dmGameSystem
             {
                 out_write_ptr->pos[c] = *positions++;
                 out_write_ptr->normal[c] = normals ? *normals++ : 0.0f;
-                out_write_ptr->tangent[c] = tangents ? *tangents++ : 0.0f;
             }
 
             for (int c = 0; c < 4; ++c)
             {
                 out_write_ptr->color[c] = colors ? *colors++ : 1.0f;
+                out_write_ptr->tangent[c] = tangents ? *tangents++ : 0.0f;
             }
 
             for (int c = 0; c < 2; ++c)

@@ -34,7 +34,6 @@
 					"ExtensionRegister": "Register",
 					"ExtensionUnregister": "Unregister"
 				}
-
 			},
 			"csharp": {
 				"namespace": "Extension",

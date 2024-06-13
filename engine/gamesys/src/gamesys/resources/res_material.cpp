@@ -32,45 +32,7 @@
 
 namespace dmGameSystem
 {
-    static dmGraphics::TextureWrap wrap_lut[] = {dmGraphics::TEXTURE_WRAP_REPEAT,
-                                                 dmGraphics::TEXTURE_WRAP_MIRRORED_REPEAT,
-                                                 dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE};
-
-    static dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
-    {
-        assert(wrap_mode <= dmRenderDDF::MaterialDesc::WRAP_MODE_CLAMP_TO_EDGE);
-        return wrap_lut[wrap_mode];
-    }
-
-    static dmGraphics::TextureFilter FilterMinFromDDF(dmRenderDDF::MaterialDesc::FilterModeMin min_filter)
-    {
-        switch(min_filter)
-        {
-            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST:                return dmGraphics::TEXTURE_FILTER_NEAREST;
-            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR:                 return dmGraphics::TEXTURE_FILTER_LINEAR;
-            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST_MIPMAP_NEAREST: return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
-            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_NEAREST_MIPMAP_LINEAR:  return dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR;
-            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_NEAREST:  return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
-            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_LINEAR_MIPMAP_LINEAR:   return dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
-            case dmRenderDDF::MaterialDesc::FILTER_MODE_MIN_DEFAULT:                return dmGraphics::TEXTURE_FILTER_DEFAULT;
-            default:break;
-        }
-        return dmGraphics::TEXTURE_FILTER_DEFAULT;
-    }
-
-    static dmGraphics::TextureFilter FilterMagFromDDF(dmRenderDDF::MaterialDesc::FilterModeMag mag_filter)
-    {
-        switch(mag_filter)
-        {
-            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_NEAREST: return dmGraphics::TEXTURE_FILTER_NEAREST;
-            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_LINEAR:  return dmGraphics::TEXTURE_FILTER_LINEAR;
-            case dmRenderDDF::MaterialDesc::FILTER_MODE_MAG_DEFAULT: return dmGraphics::TEXTURE_FILTER_DEFAULT;
-            default:break;
-        }
-        return dmGraphics::TEXTURE_FILTER_DEFAULT;
-    }
-
-    static bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
+    static inline bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
     {
         if (strlen(material_desc->m_Name) == 0)
             return false;
@@ -226,10 +188,10 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
         {
             dmhash_t base_name_hash             = dmHashString64(sampler[i].m_Name);
-            dmGraphics::TextureWrap uwrap       = WrapFromDDF(sampler[i].m_WrapU);
-            dmGraphics::TextureWrap vwrap       = WrapFromDDF(sampler[i].m_WrapV);
-            dmGraphics::TextureFilter minfilter = FilterMinFromDDF(sampler[i].m_FilterMin);
-            dmGraphics::TextureFilter magfilter = FilterMagFromDDF(sampler[i].m_FilterMag);
+            dmGraphics::TextureWrap uwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapU);
+            dmGraphics::TextureWrap vwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapV);
+            dmGraphics::TextureFilter minfilter = dmRender::FilterMinFromDDF(sampler[i].m_FilterMin);
+            dmGraphics::TextureFilter magfilter = dmRender::FilterMagFromDDF(sampler[i].m_FilterMag);
             float anisotropy                    = sampler[i].m_MaxAnisotropy;
 
             if (dmRender::SetMaterialSampler(material, base_name_hash, sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
@@ -250,8 +212,10 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             uint32_t unit = dmRender::GetMaterialSamplerUnit(material, resources->m_SamplerNames[i]);
-            if (unit == 0xFFFFFFFF)
+            if (unit == dmRender::INVALID_SAMPLER_UNIT)
+            {
                 continue;
+            }
             resource->m_Textures[unit] = resources->m_Textures[i];
             resource->m_SamplerNames[unit] = resources->m_SamplerNames[i];
             resource->m_NumTextures++;
@@ -313,6 +277,7 @@ namespace dmGameSystem
         dmResource::Release(params->m_Factory, (void*)dmRender::GetMaterialVertexProgram(material));
         dmRender::DeleteMaterial(render_context, material);
 
+        delete resource;
         return dmResource::RESULT_OK;
     }
 

@@ -20,6 +20,7 @@
             [editor.graph-util :as gu]
             [editor.model-scene :as model-scene]
             [editor.protobuf :as protobuf]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
@@ -129,18 +130,12 @@
                          :filter model-scene/animation-file-types
                          :default nil}}]}]})
 
-(defn- set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
-
-(defn- clear-form-op [{:keys [node-id]} [property]]
-  (g/clear-property! node-id property))
-
 (g/defnk produce-form-data [_node-id animation-resources]
   (let [values {[:animations] animation-resources}]
     (-> form-sections
         (assoc :form-ops {:user-data {:node-id _node-id}
-                          :set set-form-op
-                          :clear clear-form-op})
+                          :set protobuf-forms-util/set-form-op
+                          :clear protobuf-forms-util/clear-form-op})
         (assoc :values values))))
 
 (g/defnode AnimationSetNode
@@ -193,6 +188,7 @@
   (resource-node/register-ddf-resource-type workspace
     :ext "animationset"
     :icon animation-set-icon
+    :icon-class :property
     :label "Animation Set"
     :load-fn load-animation-set
     :sanitize-fn sanitize-animation-set

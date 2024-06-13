@@ -26,7 +26,10 @@
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
+#include <platform/platform_window_vulkan.h>
+
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
+DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
 namespace dmGraphics
 {
@@ -35,7 +38,7 @@ namespace dmGraphics
     static const int8_t    g_vulkan_adapter_priority = 0;
     static GraphicsAdapter g_vulkan_adapter(ADAPTER_FAMILY_VULKAN);
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, g_vulkan_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterVulkan, &g_vulkan_adapter, VulkanIsSupported, VulkanRegisterFunctionTable, VulkanGetContext, g_vulkan_adapter_priority);
 
     static const char* VkResultToStr(VkResult res);
     #define CHECK_VK_ERROR(result) \
@@ -140,6 +143,12 @@ namespace dmGraphics
             next_id = DM_RENDERTARGET_BACKBUFFER_ID + 1;
         }
         return next_id++;
+    }
+
+    static inline bool IsRenderTargetbound(VulkanContext* context, HRenderTarget rt)
+    {
+        RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, rt);
+        return current_rt ? current_rt->m_IsBound : 0;
     }
 
     static VkResult CreateMainFrameSyncObjects(VkDevice vk_device, uint8_t frame_resource_count, FrameResource* frame_resources_out)
@@ -453,14 +462,17 @@ namespace dmGraphics
             vk_usage_flags,
             vk_memory_type,
             vk_aspect_flags,
-            VK_IMAGE_LAYOUT_UNDEFINED,
             depth_stencil_texture_out);
         CHECK_VK_ERROR(res);
 
         if (res == VK_SUCCESS)
         {
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, depth_stencil_texture_out->m_Handle.m_Image, vk_aspect_flags,
-                VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+            res = TransitionImageLayout(vk_device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                depth_stencil_texture_out,
+                vk_aspect_flags,
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
             CHECK_VK_ERROR(res);
         }
 
@@ -686,7 +698,7 @@ namespace dmGraphics
         default_texture_params.m_Format                 = TEXTURE_FORMAT_RGBA;
         default_texture_creation_params.m_Depth         = 1;
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_IMAGE_2D;
-        default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_HINT_STORAGE;
+        default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_HINT_STORAGE | TEXTURE_USAGE_HINT_SAMPLE;
         context->m_DefaultStorageImage2D                = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultStorageImage2D, default_texture_params);
 
@@ -924,7 +936,7 @@ namespace dmGraphics
     bool InitializeVulkan(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        VkResult res = CreateWindowSurface(context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_HIGH_DPI));
+        VkResult res = CreateWindowSurface(context->m_Window, context->m_Instance, &context->m_WindowSurface, dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_HIGH_DPI));
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create window surface for Vulkan, reason: %s.", VkResultToStr(res));
@@ -1083,10 +1095,13 @@ namespace dmGraphics
 
         delete[] device_list;
 
+        // GLFW3 handles window size changes differently, so we need to cater for that.
+    #ifndef __MACH__
         if (created_width != context->m_Width || created_height != context->m_Height)
         {
             dmPlatform::SetWindowSize(context->m_Window, created_width, created_height);
         }
+    #endif
 
         context->m_PipelineCache.SetCapacity(32,64);
         context->m_TextureSamplers.SetCapacity(4);
@@ -1116,6 +1131,13 @@ bail:
             dmLogError("Could not load Vulkan functions.");
             return 0x0;
         }
+    #endif
+
+        // GLFW 3.4 doesn't support static linking with vulkan,
+        // instead we need to pass in the function that loads symbol for any
+        // platform that is using GLFW.
+    #if defined(__MACH__) && !defined(DM_PLATFORM_IOS)
+        dmPlatform::VulkanSetLoader();
     #endif
 
         uint16_t extensionNameCount = 0;
@@ -1291,8 +1313,6 @@ bail:
         tex_sc->m_OriginalHeight     = tex_sc->m_Height;
         tex_sc->m_Type               = TEXTURE_TYPE_2D;
         tex_sc->m_GraphicsFormat     = TEXTURE_FORMAT_BGRA8U;
-
-        BeginRenderPass(context, context->m_CurrentRenderTarget);
     }
 
     static void VulkanFlip(HContext _context)
@@ -1358,6 +1378,8 @@ bail:
         assert(context->m_CurrentRenderTarget);
 
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+
+        BeginRenderPass(context, context->m_CurrentRenderTarget);
 
         uint32_t attachment_count = 0;
         VkClearAttachment vk_clear_attachments[MAX_BUFFER_COLOR_ATTACHMENTS + 1];
@@ -1504,6 +1526,36 @@ bail:
         resource->m_Destroyed = 1;
     }
 
+    static Pipeline* GetOrCreateComputePipeline(VkDevice vk_device, PipelineCache& pipelineCache, Program* program)
+    {
+        HashState64 pipeline_hash_state;
+        dmHashInit64(&pipeline_hash_state, false);
+        dmHashUpdateBuffer64(&pipeline_hash_state, &program->m_Hash, sizeof(program->m_Hash));
+
+        uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
+        Pipeline* cached_pipeline = pipelineCache.Get(pipeline_hash);
+
+        if (!cached_pipeline)
+        {
+            Pipeline new_pipeline = {};
+
+            VkResult res = CreateComputePipeline(vk_device, program, &new_pipeline);
+            CHECK_VK_ERROR(res);
+
+            if (pipelineCache.Full())
+            {
+                pipelineCache.SetCapacity(32, pipelineCache.Capacity() + 4);
+            }
+
+            pipelineCache.Put(pipeline_hash, new_pipeline);
+            cached_pipeline = pipelineCache.Get(pipeline_hash);
+
+            dmLogDebug("Created new VK Compute Pipeline with hash %llu", (unsigned long long) pipeline_hash);
+        }
+
+        return cached_pipeline;
+    }
+
     static Pipeline* GetOrCreatePipeline(VkDevice vk_device, VkSampleCountFlagBits vk_sample_count,
         const PipelineState pipelineState, PipelineCache& pipelineCache,
         Program* program, RenderTarget* rt, VertexDeclaration** vertexDeclaration, uint32_t vertexDeclarationCount)
@@ -1535,7 +1587,7 @@ bail:
             vk_scissor.offset.x = 0;
             vk_scissor.offset.y = 0;
 
-            VkResult res = CreatePipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, vertexDeclarationCount, rt, &new_pipeline);
+            VkResult res = CreateGraphicsPipeline(vk_device, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, vertexDeclarationCount, rt, &new_pipeline);
             CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
@@ -1912,9 +1964,22 @@ bail:
             image_view      = VK_NULL_HANDLE;
         }
 
+        // If the image layout is in the wrong state, we need to transition it to the new layout,
+        // otherwise its memory might be getting wrriten to while we are reading from it.
+        if (texture->m_ImageLayout[0] != VK_IMAGE_LAYOUT_GENERAL && image_layout != texture->m_ImageLayout[0])
+        {
+            VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                texture,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                image_layout);
+            CHECK_VK_ERROR(res);
+        }
+
         vk_image_info.sampler     = image_sampler;
-        vk_image_info.imageLayout = image_layout;
         vk_image_info.imageView   = image_view;
+        vk_image_info.imageLayout = texture->m_ImageLayout[0];
 
         vk_write_desc_info.descriptorType = descriptor_type;
         vk_write_desc_info.pImageInfo     = &vk_image_info;
@@ -1930,8 +1995,8 @@ bail:
         vk_buffer_info.offset = offset;
         vk_buffer_info.range  = buffer_size;
 
-        vk_write_desc_info.descriptorType   = descriptor_type;
-        vk_write_desc_info.pBufferInfo      = &vk_buffer_info;
+        vk_write_desc_info.descriptorType = descriptor_type;
+        vk_write_desc_info.pBufferInfo    = &vk_buffer_info;
     }
 
     static void UpdateDescriptorSets(VulkanContext* context, VkDevice vk_device, VkDescriptorSet* vk_descriptor_sets, Program* program, ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, uint32_t dynamic_alignment)
@@ -2019,8 +2084,8 @@ bail:
     }
 
     static VkResult CommitUniforms(VulkanContext* context, VkCommandBuffer vk_command_buffer, VkDevice vk_device,
-        Program* program_ptr, ScratchBuffer* scratch_buffer,
-        uint32_t* dynamic_offsets, const uint32_t alignment)
+        Program* program_ptr, VkPipelineBindPoint bind_point,
+        ScratchBuffer* scratch_buffer, uint32_t* dynamic_offsets, const uint32_t alignment)
     {
         const uint32_t num_descriptors     = program_ptr->m_TotalResourcesCount;
         const uint32_t num_dynamic_offsets = program_ptr->m_UniformBufferCount;
@@ -2040,9 +2105,13 @@ bail:
         UpdateDescriptorSets(context, vk_device, vk_descriptor_set_list, program_ptr, scratch_buffer, dynamic_offsets, alignment);
 
         vkCmdBindDescriptorSets(vk_command_buffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS, program_ptr->m_Handle.m_PipelineLayout,
-            0, program_ptr->m_Handle.m_DescriptorSetLayoutsCount, vk_descriptor_set_list,
-            num_dynamic_offsets, dynamic_offsets);
+            bind_point,
+            program_ptr->m_Handle.m_PipelineLayout,
+            0,
+            program_ptr->m_Handle.m_DescriptorSetLayoutsCount,
+            vk_descriptor_set_list,
+            num_dynamic_offsets,
+            dynamic_offsets);
 
         return VK_SUCCESS;
     }
@@ -2059,24 +2128,9 @@ bail:
         return res;
     }
 
-    static void DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
+    static void PrepareScatchBuffer(VulkanContext* context, ScratchBuffer* scratchBuffer, Program* program_ptr)
     {
-        Program* program_ptr        = context->m_CurrentProgram;
-        VkDevice vk_device          = context->m_LogicalDevice.m_Device;
-
-        VkBuffer vk_buffers[MAX_VERTEX_BUFFERS]            = {};
-        VkDeviceSize vk_buffer_offsets[MAX_VERTEX_BUFFERS] = {};
-        uint32_t num_vx_buffers                            = 0;
-
-        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
-        {
-            if (context->m_CurrentVertexBuffer[i])
-            {
-                vk_buffers[num_vx_buffers++] = context->m_CurrentVertexBuffer[i]->m_Handle.m_Buffer;
-            }
-        }
-
-        // Ensure there is room in the descriptor allocator to support this draw call
+        // Ensure there is room in the descriptor allocator to support this dispatch call
         const uint32_t num_uniform_buffers = program_ptr->m_UniformBufferCount;
         const bool resize_scratch_buffer   = program_ptr->m_UniformDataSizeAligned > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
 
@@ -2088,7 +2142,7 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
-        // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this draw call
+        // Ensure we have enough room in the dynamic offset buffer to support the uniforms for this dispatch call
         if (context->m_DynamicOffsetBufferSize < num_uniform_buffers)
         {
             const size_t offset_buffer_size = sizeof(uint32_t) * num_uniform_buffers;
@@ -2106,13 +2160,51 @@ bail:
 
             context->m_DynamicOffsetBufferSize = num_uniform_buffers;
         }
+    }
+
+    static void DrawSetupCompute(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer)
+    {
+        VkDevice vk_device   = context->m_LogicalDevice.m_Device;
+        Program* program_ptr = context->m_CurrentProgram;
+        assert(program_ptr->m_ComputeModule);
+
+        PrepareScatchBuffer(context, scratchBuffer, program_ptr);
 
         // Write the uniform data to the descriptors
         uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
-        VkResult res = CommitUniforms(context, vk_command_buffer, vk_device, program_ptr, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
+        VkResult res               = CommitUniforms(context, vk_command_buffer, vk_device, program_ptr, VK_PIPELINE_BIND_POINT_COMPUTE, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
         CHECK_VK_ERROR(res);
 
+        Pipeline* pipeline = GetOrCreateComputePipeline(vk_device, context->m_PipelineCache, program_ptr);
+        vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
+    }
+
+    static void DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
+    {
         RenderTarget* current_rt = GetAssetFromContainer<RenderTarget>(context->m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        BeginRenderPass(context, context->m_CurrentRenderTarget);
+
+        Program* program_ptr = context->m_CurrentProgram;
+        VkDevice vk_device   = context->m_LogicalDevice.m_Device;
+
+        VkBuffer vk_buffers[MAX_VERTEX_BUFFERS]            = {};
+        VkDeviceSize vk_buffer_offsets[MAX_VERTEX_BUFFERS] = {};
+        uint32_t num_vx_buffers                            = 0;
+
+        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+        {
+            if (context->m_CurrentVertexBuffer[i])
+            {
+                vk_buffers[num_vx_buffers++] = context->m_CurrentVertexBuffer[i]->m_Handle.m_Buffer;
+            }
+        }
+
+        PrepareScatchBuffer(context, scratchBuffer, program_ptr);
+
+        // Write the uniform data to the descriptors
+        uint32_t dynamic_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minUniformBufferOffsetAlignment;
+        VkResult res = CommitUniforms(context, vk_command_buffer, vk_device, program_ptr, VK_PIPELINE_BIND_POINT_GRAPHICS, scratchBuffer, context->m_DynamicOffsetBuffer, dynamic_alignment);
+        CHECK_VK_ERROR(res);
 
         PipelineState pipeline_state_draw = context->m_PipelineState;
 
@@ -2120,21 +2212,18 @@ bail:
         // culling flag if we are rendering to the backbuffer.
         // This is needed because we are rendering with a negative viewport
         // which means that the face direction is inverted.
-        if (context->m_CullFaceChanged || context->m_ViewportChanged)
+        if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
         {
-            if (current_rt->m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+            if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
             {
-                if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
-                {
-                    pipeline_state_draw.m_CullFaceType = FACE_TYPE_FRONT;
-                }
-                else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
-                {
-                    pipeline_state_draw.m_CullFaceType = FACE_TYPE_BACK;
-                }
+                pipeline_state_draw.m_CullFaceType = FACE_TYPE_FRONT;
             }
-            context->m_CullFaceChanged = 0;
+            else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
+            {
+                pipeline_state_draw.m_CullFaceType = FACE_TYPE_BACK;
+            }
         }
+
         // Update the viewport
         if (context->m_ViewportChanged)
         {
@@ -2225,30 +2314,49 @@ bail:
         vkCmdDraw(vk_command_buffer, count, 1, first, 0);
     }
 
-    static bool ValidateShaderModule(VulkanContext* context, ShaderModule* shader)
+    static void VulkanDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
+        VulkanContext* context = (VulkanContext*) _context;
+
+        // We can't run compute if we have started a render pass
+        // Perhaps it would work if we could run it in a separate command buffer or a dedicated compute queue?
+        if (IsRenderTargetbound(context, context->m_CurrentRenderTarget))
+        {
+            EndRenderPass(context);
+        }
+
+        const uint8_t image_ix = context->m_SwapChain->m_ImageIndex;
+        VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
+        DrawSetupCompute(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix]);
+        vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
+    }
+
+    static bool ValidateShaderModule(VulkanContext* context, ShaderModule* shader, char* error_buffer, uint32_t error_buffer_size)
     {
         if (shader->m_ShaderMeta.m_UniformBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
         {
-            dmLogError("Maximum number of uniform buffers exceeded: vertex shader has %d buffers, but maximum is %d.",
+            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of uniform buffers exceeded: shader has %d buffers, but maximum is %d.",
                 shader->m_ShaderMeta.m_UniformBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
             return false;
         }
         else if (shader->m_ShaderMeta.m_StorageBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers)
         {
-            dmLogError("Maximum number of storage exceeded: vertex shader has %d buffer, but maximum is %d.",
+            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of storage exceeded: shader has %d buffer, but maximum is %d.",
                 shader->m_ShaderMeta.m_StorageBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers);
             return false;
         }
         else if (shader->m_ShaderMeta.m_Textures.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
         {
-            dmLogError("Maximum number of texture samplers exceeded: vertex shader has %d samplers, but maximum is %d.",
+            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of texture samplers exceeded: shader has %d samplers, but maximum is %d.",
                 shader->m_ShaderMeta.m_Textures.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
             return false;
         }
         return true;
     }
 
-    static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderModule* shader = new ShaderModule;
         memset(shader, 0, sizeof(*shader));
@@ -2259,7 +2367,7 @@ bail:
 
         CreateShaderMeta(ddf, &shader->m_ShaderMeta);
 
-        if (!ValidateShaderModule(context, shader))
+        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
         {
             DeleteVertexProgram((HVertexProgram) shader);
             return 0;
@@ -2268,7 +2376,7 @@ bail:
         return (HVertexProgram) shader;
     }
 
-    static HFragmentProgram VulkanNewFragmentProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static HFragmentProgram VulkanNewFragmentProgram(HContext _context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderModule* shader = new ShaderModule;
         memset(shader, 0, sizeof(*shader));
@@ -2279,7 +2387,7 @@ bail:
 
         CreateShaderMeta(ddf, &shader->m_ShaderMeta);
 
-        if (!ValidateShaderModule(context, shader))
+        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
         {
             DeleteFragmentProgram((HFragmentProgram) shader);
             return 0;
@@ -2796,10 +2904,6 @@ bail:
         uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        // TODO: Compute shaders does not have samplers, but does support texture storage
-        //       which is not the same thing.
-        assert(program_ptr->m_ComputeModule == 0x0);
-
         assert(program_ptr->m_ResourceBindings[set][binding].m_Res);
         program_ptr->m_ResourceBindings[set][binding].m_TextureUnit = unit;
     }
@@ -3194,15 +3298,15 @@ bail:
                     vk_usage_flags,
                     vk_memory_type,
                     VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_LAYOUT_UNDEFINED,
                     new_texture_color);
                 CHECK_VK_ERROR(res);
 
                 res = TransitionImageLayout(g_VulkanContext->m_LogicalDevice.m_Device,
                     g_VulkanContext->m_LogicalDevice.m_CommandPool,
                     g_VulkanContext->m_LogicalDevice.m_GraphicsQueue,
-                    new_texture_color->m_Handle.m_Image,
-                    VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    new_texture_color,
+                    VK_IMAGE_ASPECT_COLOR_BIT,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 CHECK_VK_ERROR(res);
 
                 VulkanSetTextureParamsInternal(new_texture_color, color_buffer_params.m_MinFilter, color_buffer_params.m_MagFilter, color_buffer_params.m_UWrap, color_buffer_params.m_VWrap, 1.0f);
@@ -3350,6 +3454,8 @@ bail:
                     vk_memory_type |= VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
                 }
 
+                texture_color->m_ImageLayout[0] = VK_IMAGE_LAYOUT_PREINITIALIZED;
+
                 DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], texture_color);
                 VkResult res = CreateTexture2D(
                     g_VulkanContext->m_PhysicalDevice.m_Device,
@@ -3360,7 +3466,6 @@ bail:
                     vk_usage_flags,
                     vk_memory_type,
                     VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_LAYOUT_PREINITIALIZED,
                     texture_color);
                 CHECK_VK_ERROR(res);
 
@@ -3428,12 +3533,18 @@ bail:
         }
     #endif
 
-        tex->m_Type        = params.m_Type;
-        tex->m_Width       = params.m_Width;
-        tex->m_Height      = params.m_Height;
-        tex->m_Depth       = params.m_Depth;
-        tex->m_MipMapCount = params.m_MipMapCount;
-        tex->m_UsageFlags  = GetVulkanUsageFromHints(params.m_UsageHintBits);
+        tex->m_Type           = params.m_Type;
+        tex->m_Width          = params.m_Width;
+        tex->m_Height         = params.m_Height;
+        tex->m_Depth          = params.m_Depth;
+        tex->m_MipMapCount    = params.m_MipMapCount;
+        tex->m_UsageFlags     = GetVulkanUsageFromHints(params.m_UsageHintBits);
+        tex->m_UsageHintFlags = params.m_UsageHintBits;
+
+        for (int i = 0; i < DM_ARRAY_SIZE(tex->m_ImageLayout); ++i)
+        {
+            tex->m_ImageLayout[i] = VK_IMAGE_LAYOUT_UNDEFINED;
+        }
 
         if (params.m_OriginalWidth == 0)
         {
@@ -3538,9 +3649,14 @@ bail:
             CHECK_VK_ERROR(res);
 
             // Transition image to transfer dst for the mipmap level we are uploading
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                params.m_MipMap, layer_count);
+            res = TransitionImageLayout(vk_device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                textureOut,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                params.m_MipMap,
+                layer_count);
             CHECK_VK_ERROR(res);
 
             // NOTE: We should check max layer count in the device properties!
@@ -3575,9 +3691,14 @@ bail:
 
             vkQueueWaitIdle(context->m_LogicalDevice.m_GraphicsQueue);
 
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue,
-                textureOut->m_Handle.m_Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                params.m_MipMap, layer_count);
+            res = TransitionImageLayout(vk_device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                textureOut,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                params.m_MipMap,
+                layer_count);
             CHECK_VK_ERROR(res);
 
             DestroyDeviceBuffer(vk_device, &stage_buffer.m_Handle);
@@ -3593,8 +3714,14 @@ bail:
             VkResult res = WriteToDeviceBuffer(vk_device, texDataSize, write_offset, texDataPtr, &textureOut->m_DeviceBuffer);
             CHECK_VK_ERROR(res);
 
-            res = TransitionImageLayout(vk_device, context->m_LogicalDevice.m_CommandPool, context->m_LogicalDevice.m_GraphicsQueue, textureOut->m_Handle.m_Image,
-                VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, params.m_MipMap, layer_count);
+            res = TransitionImageLayout(vk_device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                textureOut,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                params.m_MipMap,
+                layer_count);
             CHECK_VK_ERROR(res);
         }
     }
@@ -3704,7 +3831,6 @@ bail:
             VkImageTiling vk_image_tiling           = VK_IMAGE_TILING_OPTIMAL;
             VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
-            VkImageLayout vk_initial_layout         = VK_IMAGE_LAYOUT_UNDEFINED;
             VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
             if (!use_stage_buffer)
@@ -3721,24 +3847,25 @@ bail:
             }
 
             // Check this format for optimal layout support
-            if (VK_FORMAT_UNDEFINED == GetSupportedTilingFormat(vk_physical_device, &vk_format,
-                1, vk_image_tiling, vk_format_features))
+            if (GetSupportedTilingFormat(vk_physical_device, &vk_format, 1, vk_image_tiling, vk_format_features) == VK_FORMAT_UNDEFINED)
             {
                 // Linear doesn't support mipmapping (for MoltenVK only?)
                 vk_image_tiling        = VK_IMAGE_TILING_LINEAR;
                 texture->m_MipMapCount = 1;
             }
 
-            VkResult res = CreateTexture2D(
-                vk_physical_device, logical_device.m_Device,
-                texture->m_Width, texture->m_Height, tex_layer_count, texture->m_MipMapCount,
+            VkResult res = CreateTexture2D(vk_physical_device,
+                logical_device.m_Device,
+                texture->m_Width,
+                texture->m_Height,
+                tex_layer_count,
+                texture->m_MipMapCount,
                 VK_SAMPLE_COUNT_1_BIT,
                 vk_format,
                 vk_image_tiling,
                 vk_usage_flags,
                 vk_memory_type,
                 VK_IMAGE_ASPECT_COLOR_BIT,
-                vk_initial_layout,
                 texture);
             CHECK_VK_ERROR(res);
         }
@@ -3917,6 +4044,11 @@ bail:
         return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_Type;
     }
 
+    static uint32_t VulkanGetTextureUsageHintFlags(HTexture texture)
+    {
+        return GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_AssetHandleContainer, texture)->m_UsageHintFlags;
+    }
+
     static HandleResult VulkanGetTextureHandle(HTexture texture, void** out_handle)
     {
         assert(0 && "GetTextureHandle is not implemented on Vulkan.");
@@ -3950,10 +4082,78 @@ bail:
         return 0;
     }
 
-    static void VulkanReadPixels(HContext context, void* buffer, uint32_t buffer_size)
+    static void VulkanReadPixels(HContext _context, void* buffer, uint32_t buffer_size)
     {
-        // JG: If someone needs this feature we should implement this at some point
-        assert(0 && "Not implemented on vulkan!");
+        VulkanContext* context = (VulkanContext*) _context;
+
+        uint32_t w = context->m_WindowWidth;
+        uint32_t h = context->m_WindowHeight;
+        assert (buffer_size >= w * h * 4);
+            
+        HRenderTarget currentt_rt_h = context->m_CurrentRenderTarget;
+        bool in_render_pass = IsRenderTargetbound(context, currentt_rt_h);
+
+        // We can't copy an image if we are inside a render pass.
+        // This is considered an expensive operation, but unless we have user facing functionality to begin/end render passes,
+        // this is as good as it gets currently.
+        if (in_render_pass)
+        {
+            EndRenderPass(context);
+        }
+
+        // Create a temporary stage buffer that we can map to
+        DeviceBuffer stage_buffer(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+        VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device, buffer_size,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+        CHECK_VK_ERROR(res);
+
+        // input image must be in VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL or VK_IMAGE_LAYOUT_GENERAL, so we pick the optimal layout
+        // otherwise, the validation layers will complain that this is a performance issue and spam errors..
+
+        OneTimeCommandBuffer cmd_buffer(context);
+        res = cmd_buffer.Begin();
+        CHECK_VK_ERROR(res);
+
+        VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
+
+        res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
+                context->m_LogicalDevice.m_CommandPool,
+                context->m_LogicalDevice.m_GraphicsQueue,
+                tex_sc,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        CHECK_VK_ERROR(res);
+
+        VkBufferImageCopy vk_copy_region = {};
+        vk_copy_region.imageExtent.width           = w;
+        vk_copy_region.imageExtent.height          = h;
+        vk_copy_region.imageExtent.depth           = 1;
+        vk_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        vk_copy_region.imageSubresource.layerCount = 1;
+
+        vkCmdCopyImageToBuffer(
+            cmd_buffer.m_CmdBuffer,
+            context->m_SwapChain->Image(),
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            stage_buffer.m_Handle.m_Buffer,
+            1, &vk_copy_region);
+
+        res = cmd_buffer.End();
+        CHECK_VK_ERROR(res);
+
+        res = stage_buffer.MapMemory(context->m_LogicalDevice.m_Device);
+        CHECK_VK_ERROR(res);
+
+        memcpy(buffer, stage_buffer.m_MappedDataPtr, stage_buffer.m_MemorySize);
+
+        stage_buffer.UnmapMemory(context->m_LogicalDevice.m_Device);
+
+        DestroyResourceDeferred(context->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], &stage_buffer);
+
+        if (in_render_pass)
+        {
+            BeginRenderPass(context, currentt_rt_h);
+        }
     }
 
     static void VulkanRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
@@ -3995,7 +4195,7 @@ bail:
         return false;
     }
 
-    static HComputeProgram VulkanNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static HComputeProgram VulkanNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         VulkanContext* context = (VulkanContext*) _context;
         ShaderModule* shader   = new ShaderModule;
@@ -4005,7 +4205,7 @@ bail:
         CHECK_VK_ERROR(res);
         CreateShaderMeta(ddf, &shader->m_ShaderMeta);
 
-        if (!ValidateShaderModule(context, shader))
+        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
         {
             DeleteComputeProgram((HComputeProgram) shader);
             return 0;
@@ -4130,54 +4330,6 @@ bail:
         return g_VulkanContext;
     }
 
-    struct OneTimeCommandBuffer
-    {
-        OneTimeCommandBuffer(VulkanContext* context)
-        : m_Context(context) {}
-
-        VkCommandBuffer Begin()
-        {
-            assert(m_Context != 0);
-
-            VkCommandBuffer vk_command_buffer;
-            CreateCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-            memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-            vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            VkResult res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-            CHECK_VK_ERROR(res);
-
-            m_CmdBuffer = vk_command_buffer;
-
-            return vk_command_buffer;
-        }
-
-        void End()
-        {
-            vkEndCommandBuffer(m_CmdBuffer);
-
-            VkSubmitInfo vk_submit_info = {};
-            vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            vk_submit_info.commandBufferCount = 1;
-            vk_submit_info.pCommandBuffers    = &m_CmdBuffer;
-
-            VkResult res = vkQueueSubmit(m_Context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
-            CHECK_VK_ERROR(res);
-
-            vkQueueWaitIdle(m_Context->m_LogicalDevice.m_GraphicsQueue); // TODO: Proper syncronization
-
-            vkFreeCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &m_CmdBuffer);
-
-            m_Context   = 0;
-            m_CmdBuffer = VK_NULL_HANDLE;
-        }
-
-        VulkanContext*  m_Context;
-        VkCommandBuffer m_CmdBuffer;
-    };
-
     void VulkanCopyBufferToTexture(HContext _context, HVertexBuffer _buffer, HTexture _texture, uint32_t width, uint32_t height)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -4185,14 +4337,14 @@ bail:
         VulkanTexture* texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, _texture);
 
         OneTimeCommandBuffer cmd_buffer(context);
-        VkCommandBuffer vk_command_buffer = cmd_buffer.Begin();
+        VkResult res = cmd_buffer.Begin();
+        CHECK_VK_ERROR(res);
 
-        VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
+        res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
                 context->m_LogicalDevice.m_CommandPool,
                 context->m_LogicalDevice.m_GraphicsQueue,
-                texture->m_Handle.m_Image,
+                texture,
                 VK_IMAGE_ASPECT_COLOR_BIT,
-                VK_IMAGE_LAYOUT_UNDEFINED,
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         CHECK_VK_ERROR(res);
 
@@ -4218,18 +4370,18 @@ bail:
             vk_copy_region.imageSubresource.layerCount     = 1;
         }
 
-        vkCmdCopyBufferToImage(vk_command_buffer, buffer->m_Handle.m_Buffer,
+        vkCmdCopyBufferToImage(cmd_buffer.m_CmdBuffer, buffer->m_Handle.m_Buffer,
             texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             layer_count, vk_copy_regions);
 
-        cmd_buffer.End();
+        res = cmd_buffer.End();
+        CHECK_VK_ERROR(res);
 
         res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_CommandPool,
             context->m_LogicalDevice.m_GraphicsQueue,
-            texture->m_Handle.m_Image,
+            texture,
             VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             0, // mipmap,
             layer_count);
@@ -4601,14 +4753,14 @@ bail:
             context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_CommandPool,
             context->m_LogicalDevice.m_GraphicsQueue,
-            texture->m_Handle.m_Image,
+            texture,
             VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_UNDEFINED,
             VK_IMAGE_LAYOUT_GENERAL);
         CHECK_VK_ERROR(res);
 
         OneTimeCommandBuffer cmd_buffer(context);
-        VkCommandBuffer vk_command_buffer = cmd_buffer.Begin();
+        res  = cmd_buffer.Begin();
+        CHECK_VK_ERROR(res);
 
         VkImageSubresourceRange range = {};
         range.aspectMask              = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -4616,13 +4768,14 @@ bail:
         range.layerCount              = 1;
 
         vkCmdClearColorImage(
-            vk_command_buffer,
+            cmd_buffer.m_CmdBuffer,
             texture->m_Handle.m_Image,
             VK_IMAGE_LAYOUT_GENERAL,
             &clear_value,
             1, &range);
 
-        cmd_buffer.End();
+        res = cmd_buffer.End();
+        CHECK_VK_ERROR(res);
     }
 
     static inline VkPipelineStageFlags GetPipelineStageFlags(uint32_t bits)

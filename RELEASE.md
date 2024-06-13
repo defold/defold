@@ -28,10 +28,12 @@ The alpha channel is automatically released for every successful push to dev.
         $ git merge dev
         $ git push
 
-    Beta beta channel is automatically released for every successful push to beta.
+    Beta channel is automatically released for every successful push to beta.
 
-1. Collect release notes using `python scripts/releasenotes_git.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
+1. Collect release notes using `python scripts/releasenotes_github_projectv2.py` and post on [forum.defold.com](https://forum.defold.com/c/releasenotes)
 and add the "BETA" tag to the headline
+
+* Note: The release notes script requires a github access token to work correctly (https://github.com/settings/tokens). If the token is incorrect, you will likely get an error saying 'Unable to find GitHub project for version x.x.x'. Create a "classic" github token and add permissions to read projects. If the script still fails, you might need more permissions.
 
 ### Update private repos
 
