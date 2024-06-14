@@ -301,6 +301,7 @@ platforms:
         PATH:                   "{{env.ANDROID_SDK_BUILD_TOOLS_PATH_34}}:{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
         NDK_LD:                 "{{env.ANDROID_NDK25_BIN_PATH}}/ld.lld"
         NDK_CXX:                "{{env.ANDROID_NDK25_BIN_PATH}}/armv7a-linux-androideabi{{env.ANDROID_NDK25_API_VERSION}}-clang++"
+        NDK_AR:                 "{{env.ANDROID_NDK25_BIN_PATH}}/llvm-ar"
         ANDROID_SDK_VERSION:    "{{env.ANDROID_SDK_VERSION_34}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
@@ -327,7 +328,7 @@ platforms:
     allowedFlags: ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-fpermissive","-f\\w[\\w-=]+","-x","c"]
     compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
     linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
-    libCmd: 'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+    libCmd: '{{env.NDK_AR}} rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
     javacCmd: 'javac -source 1.8 -target 1.8 -J-Xms2048m -J-Xmx2048m -classpath {{env.LIBRARYJAR}}:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
     dxCmd: 'd8 --main-dex-list {{mainDexList}} --output {{classes_dex_dir}} --release --lib {{env.LIBRARYJAR}} {{#jars}}{{.}} {{/jars}}'
@@ -349,6 +350,7 @@ platforms:
         PATH:                   "{{env.ANDROID_SDK_BUILD_TOOLS_PATH_34}}:{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
         NDK_LD:                 "{{env.ANDROID_NDK25_BIN_PATH}}/ld.lld"
         NDK_CXX:                "{{env.ANDROID_NDK25_BIN_PATH}}/aarch64-linux-android{{env.ANDROID_64_NDK25_API_VERSION}}-clang++"
+        NDK_AR:                 "{{env.ANDROID_NDK25_BIN_PATH}}/llvm-ar"
         ANDROID_SDK_VERSION:    "{{env.ANDROID_SDK_VERSION_34}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
@@ -375,7 +377,7 @@ platforms:
     allowedFlags: ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,/@]+","-fno-rtti","-fpermissive","-f\\w[\\w-=]+","-x","c"]
     compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -march=armv8-a -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
     linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
-    libCmd: 'llvm-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
+    libCmd: '{{env.NDK_AR}} rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
     javacCmd: 'javac -source 1.8 -target 1.8 -J-Xms2048m -J-Xmx2048m -classpath {{env.LIBRARYJAR}}:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
     # mainDexList is automatically created by listing all classes inside the engine jars
