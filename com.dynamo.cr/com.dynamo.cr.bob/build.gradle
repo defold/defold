@@ -119,6 +119,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc]) {
             commandLine 'python', "${project.bobDir}/engine_version_generator.py"
         }
         copy {
+            includeEmptyDirs = false
             from fileTree("${project.dynamoHome}/share") {
                 include 'java/dlib.jar'
                 include 'java/modelimporter.jar'
@@ -133,38 +134,45 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc]) {
         }
         ['x86_64-macos', 'arm64-macos', 'x86_64-linux', 'x86_64-win32', 'x86-win32'].each { platform ->
             copy {
+                includeEmptyDirs = false
                 from fileTree("${project.dynamoHome}/ext/bin/$platform")
                 into "$project.bobDir/libexec/$platform"
                 include '*'
             }
         }
         copy {
+            includeEmptyDirs = false
             from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-linux.tar.gz")))
             into "$project.bobDir/libexec"
             include 'bin/x86_64-linux/**'
         }
         copy {
+            includeEmptyDirs = false
             from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-win32.tar.gz")))
             into "$project.bobDir/libexec"
             include 'bin/x86_64-win32/**'
         }
         copy {
+            includeEmptyDirs = false
             from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-macos.tar.gz")))
             into "$project.bobDir/libexec"
             include 'bin/x86_64-macos/**'
         }
         copy {
+            includeEmptyDirs = false
             from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-arm64-macos.tar.gz")))
             into "$project.bobDir/libexec"
             include 'bin/arm64-macos/**'
         }
         copy {
+            includeEmptyDirs = false
             from fileTree("$project.bobDir/src") {
                 exclude '**/*.java'
             }
             into project.classesDir
         }
         copy {
+            includeEmptyDirs = false
             from fileTree("${project.dynamoHome}/lib") {
                 include 'x86_64-macos/*texc_shared*'
                 include 'x86_64-macos/*modelc_shared*'
@@ -173,6 +181,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc]) {
             into "$project.bobDir/lib/x86_64-macos"
         }
         copy {
+            includeEmptyDirs = false
             from fileTree("${project.dynamoHome}/lib") {
                 include 'arm64-macos/*texc_shared*'
                 include 'arm64-macos/*modelc_shared*'
@@ -180,6 +189,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc]) {
             into "$project.bobDir/lib/arm64-macos"
         }
         copy {
+            includeEmptyDirs = false
             from fileTree("${project.dynamoHome}/lib") {
                 include 'x86_64-linux/*texc_shared*'
                 include 'x86_64-linux/*modelc_shared*'
@@ -188,6 +198,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc]) {
             into "$project.bobDir/lib/x86_64-linux"
         }
         copy {
+            includeEmptyDirs = false
             from fileTree("${project.dynamoHome}/lib") {
                 include 'win32/*texc_shared*'
                 include 'win32/*modelc_shared*'
@@ -196,6 +207,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc]) {
             into "$project.bobDir/lib/x86-win32"
         }
         copy {
+            includeEmptyDirs = false
             from fileTree("${project.dynamoHome}/lib") {
                 include 'x86_64-win32/*texc_shared*'
                 include 'x86_64-win32/*modelc_shared*'
@@ -204,6 +216,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc]) {
             into "$project.bobDir/lib/x86_64-win32"
         }
         jar {
+            includeEmptyDirs = false
             archiveFileName = 'luajit-share.zip'
             from "${project.dynamoHome}/ext/share/luajit"
         }
@@ -213,10 +226,12 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc]) {
 task compile(dependsOn: ['compileBobLight']) {
     doLast {
         jar {
+            includeEmptyDirs = false
             archiveFileName = 'android-res.zip'
             from "${project.dynamoHome}/ext/share/java/res"
         }
         copy {
+            includeEmptyDirs = false
             from fileTree("${project.dynamoHome}/ext/lib") {
                 include 'win32/OpenAL32.dll'
                 include 'win32/wrap_oal.dll'
@@ -224,6 +239,7 @@ task compile(dependsOn: ['compileBobLight']) {
             into "$project.bobDir/lib/x86-win32"
         }
         copy {
+            includeEmptyDirs = false
             from fileTree("${project.dynamoHome}/ext/lib") {
                 include 'x86_64-win32/OpenAL32.dll'
                 include 'x86_64-win32/wrap_oal.dll'
@@ -234,9 +250,9 @@ task compile(dependsOn: ['compileBobLight']) {
 }
 
 task createExternalLibsLightJar(type: Jar) {
+    includeEmptyDirs = false
     archiveFileName = 'external-libs-light.jar'
     destinationDirectory = file("$project.bobDir/tmp")
-    includeEmptyDirs = false
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     from {
@@ -262,10 +278,10 @@ task createExternalLibsLightJar(type: Jar) {
 }
 
 task createBobLightJar(type: Jar, dependsOn: createExternalLibsLightJar) {
+    includeEmptyDirs = false
     archiveFileName = 'bob-light.jar'
     destinationDirectory = file("$project.bobDir/dist")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    includeEmptyDirs = false
 
     from project.classesDir
     from fileTree("$project.bobDir") {
@@ -301,9 +317,9 @@ task distBobLight(dependsOn: ['compileBobLight', 'createBobLightJar']) {
 }
 
 task createExternalLibsBuiltinsJar(type: Jar) {
+    includeEmptyDirs = false
     archiveFileName = 'external-libs-builtins.jar'
     destinationDirectory = file("$project.bobDir/tmp")
-    includeEmptyDirs = false
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     from {
@@ -332,6 +348,7 @@ task createExternalLibsBuiltinsJar(type: Jar) {
 }
 
 task createBobJar(type: Jar, dependsOn: createExternalLibsBuiltinsJar) {
+    includeEmptyDirs = false
     archiveFileName = 'bob.jar'
     destinationDirectory = file("$project.bobDir/dist")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -354,19 +371,16 @@ task createBobJar(type: Jar, dependsOn: createExternalLibsBuiltinsJar) {
         include 'lib/time_report_template.html'
     }
 
-    // Include the contents of the built intermediate jar
     from {
         zipTree(file("$project.bobDir/tmp/external-libs-builtins.jar"))
     } {
         exclude '**/META-INF/**'
     }
 
-    // Include the builtins folder
     from {
         zipTree(file("$project.bobDir/lib/builtins.zip"))
     }
 
-    // Include specific files as needed
     from fileTree("$project.bobDir") {
         include 'lib/android.jar'
         include 'lib/classes.dex'
