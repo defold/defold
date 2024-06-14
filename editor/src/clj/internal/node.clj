@@ -36,13 +36,20 @@
   (if-let [tracer (:tracer evaluation-context)]
     (do
       (tracer :begin node-id label-type label)
-      (let [[result e] (try [(deferred-expr) nil] (catch Exception e [nil e]))]
-        (if e
-          (do (tracer :fail node-id label-type label)
-              (throw e))
-          (do (tracer :end node-id label-type label)
-              result))))
+      (let [result (try
+                     (deferred-expr)
+                     (catch Throwable error
+                       (tracer :fail node-id label-type label)
+                       (throw error)))]
+        (tracer :end node-id label-type label)
+        result))
     (deferred-expr)))
+
+(defn trace-expr-result [node-id label evaluation-context label-type expr-result]
+  (when-let [tracer (:tracer evaluation-context)]
+    (tracer :begin node-id label-type label)
+    (tracer :end node-id label-type label))
+  expr-result)
 
 (defn- with-tracer-calls-form [node-id-sym label-sym evaluation-context-sym label-type expr]
   `(trace-expr ~node-id-sym ~label-sym ~evaluation-context-sym ~label-type
@@ -1443,19 +1450,18 @@
   (if (nil? v) ::cached-nil v))
 
 (defn check-caches! [node-id label evaluation-context]
-  (let [local @(:local evaluation-context)
-        global (:cache evaluation-context)
-        cache-key (gt/endpoint node-id label)]
-    (cond
-      (contains? local cache-key)
-      (trace-expr node-id label evaluation-context :cache (fn [] (nil->cached-nil (get local cache-key))))
-
-      (contains? global cache-key)
-      (trace-expr node-id label evaluation-context :cache
-                   (fn []
-                     (when-some [cached-result (get global cache-key)]
-                       (swap! (:hits evaluation-context) conj cache-key)
-                       (nil->cached-nil cached-result)))))))
+  (let [cache-key (gt/endpoint node-id label)
+        local-cache @(:local evaluation-context)
+        local-cache-value (get local-cache cache-key ::not-found)]
+    (if (identical? ::not-found local-cache-value)
+      (let [global-cache (:cache evaluation-context)
+            global-cache-value (get global-cache cache-key ::not-found)]
+        (if (identical? ::not-found global-cache-value)
+          ::not-found
+          (do
+            (swap! (:hits evaluation-context) conj cache-key)
+            (trace-expr-result node-id label evaluation-context :cache global-cache-value))))
+      (trace-expr-result node-id label evaluation-context :cache local-cache-value))))
 
 (defn check-local-temp-cache [node-id label evaluation-context]
   (let [local-temp (some-> (:local-temp evaluation-context) deref)
@@ -1465,12 +1471,12 @@
 (defn- check-caches-form [description label node-id-sym label-sym evaluation-context-sym forms]
   (let [result-sym 'result]
     (if (get-in description [:output label :flags :cached])
-      `(if-some [~result-sym (check-caches! ~node-id-sym ~label-sym ~evaluation-context-sym)]
-         (cached-nil->nil ~result-sym)
-         ~forms)
+      `(let [~result-sym (check-caches! ~node-id-sym ~label-sym ~evaluation-context-sym)]
+         (if (identical? ::not-found ~result-sym)
+           ~forms
+           ~result-sym))
       `(if-some [~result-sym (check-local-temp-cache ~node-id-sym ~label-sym ~evaluation-context-sym)]
-         ~(with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :cache
-            `(cached-nil->nil ~result-sym))
+         (trace-expr-result ~node-id-sym ~label-sym ~evaluation-context-sym :cache (cached-nil->nil ~result-sym))
          ~forms))))
 
 (defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym forms]
