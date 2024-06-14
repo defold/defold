@@ -61,7 +61,7 @@ task createTestJar(type: Jar, dependsOn: compileTest) {
 task testJar(type: Test, dependsOn: createTestJar) {
     useJUnit()
 
-    // Check if running from IntelliJ IDEA - test bundle
+    // Check if running from IntelliJ IDEA - then test bundler only for the host platform
     doFirst {
         if (System.getProperty('idea.active') != null) {
             systemProperty 'DM_BOB_BUNDLERTEST_ONLY_HOST', '1'
