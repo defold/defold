@@ -693,7 +693,8 @@ Macros currently mean no foreseeable performance gain, however."
                                    value-fn (if repeated
                                               #(mapv field-builder %)
                                               field-builder)
-                                   value-fn (if decorate-protobuf-exceptions
+                                   value-fn (if-not decorate-protobuf-exceptions
+                                              value-fn
                                               (fn [clj-value]
                                                 (try
                                                   (value-fn clj-value)

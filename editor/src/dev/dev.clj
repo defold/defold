@@ -576,6 +576,9 @@
 
 (defn- simplify-expression-impl [expression alias-names-by-namespace-name simple-symbols-by-canonical-symbol]
   (cond
+    (record? expression)
+    expression
+
     (map? expression)
     (into (coll/empty-with-meta expression)
           (map (fn [[key value]]
