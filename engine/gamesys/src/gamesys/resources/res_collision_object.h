@@ -20,13 +20,10 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResCollisionObjectCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResCollisionObjectCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResCollisionObjectDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResCollisionObjectDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams& params);
-
-    dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams* params);
 }
-
 #endif

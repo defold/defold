@@ -20,11 +20,11 @@
 
 namespace dmGameSystem
 {
-    dmResource::Result ResConvexShapeCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResConvexShapeCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResConvexShapeDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResConvexShapeDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResConvexShapeRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResConvexShapeRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_CONVEX_SHAPE_H

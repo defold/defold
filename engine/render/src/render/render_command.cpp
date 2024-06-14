@@ -205,6 +205,18 @@ namespace dmRender
                     render_context->m_Material = 0;
                     break;
                 }
+                case COMMAND_TYPE_SET_COMPUTE:
+                {
+                    render_context->m_ComputeProgram = (HComputeProgram) c->m_Operands[0];
+                    break;
+                }
+                case COMMAND_TYPE_DISPATCH_COMPUTE:
+                {
+                    dmRender::DispatchCompute(render_context,
+                        c->m_Operands[0], c->m_Operands[1], c->m_Operands[2], // group x,y,z
+                        (dmRender::HNamedConstantBuffer) c->m_Operands[3]);
+                    break;
+                }
                 case COMMAND_TYPE_SET_RENDER_CAMERA:
                 {
                     render_context->m_CurrentRenderCamera           = (HRenderCamera) c->m_Operands[0];

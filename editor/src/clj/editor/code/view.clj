@@ -217,6 +217,7 @@
      ["keyword" (Color/valueOf "#FD6623")]
      ["storage" (Color/valueOf "#FD6623")]
      ["constant" (Color/valueOf "#FFBBFF")]
+     ["type" (Color/valueOf "#FFBBFF")]
      ["support.function" (Color/valueOf "#33CCCC")]
      ["support.variable" (Color/valueOf "#FFBBFF")]
      ["name.function" (Color/valueOf "#33CC33")]

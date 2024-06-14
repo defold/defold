@@ -17,6 +17,7 @@
 #include <dlib/log.h>
 
 #include <dmsdk/resource/resource.h>
+
 #include "gameobject_private.h"
 #include "gameobject_props.h"
 #include "gameobject_props_ddf.h"
@@ -90,7 +91,7 @@ namespace dmGameObject
             }
             else
             {
-                dmResource::ResourceType resource_type;
+                HResourceType resource_type;
                 fact_e = dmResource::GetType(factory, component, &resource_type);
                 assert(fact_e == dmResource::RESULT_OK);
                 uint32_t type_index;
@@ -99,19 +100,18 @@ namespace dmGameObject
                     dmLogError("Failed to find component type for '%s'/'%s'", component_desc.m_Id, component_desc.m_Component);
                 }
                 assert(type != 0x0);
-                dmResource::SResourceDescriptor descriptor;
+                HResourceDescriptor descriptor;
                 fact_e = dmResource::GetDescriptor(factory, component_resource, &descriptor);
                 assert(fact_e == dmResource::RESULT_OK);
 
                 Prototype::Component c(component,
-                                                                              resource_type,
-                                                                              id,
-                                                                              descriptor.m_NameHash,
-                                                                              type,
-                                                                              type_index,
-                                                                              component_desc.m_Position,
-                                                                              component_desc.m_Rotation,
-                                                                              component_desc.m_Scale);
+                                      id,
+                                      ResourceDescriptorGetNameHash(descriptor),
+                                      type,
+                                      type_index,
+                                      component_desc.m_Position,
+                                      component_desc.m_Rotation,
+                                      component_desc.m_Scale);
                 c.m_PropertySet.m_GetPropertyCallback = PropertyContainerGetPropertyCallback;
 
                 c.m_PropertySet.m_UserData = (uintptr_t)PropertyContainerCreateFromDDF(&component_desc.m_PropertyDecls);
@@ -125,10 +125,10 @@ namespace dmGameObject
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result ResGameObjectPreload(const dmResource::ResourcePreloadParams& params)
+    static dmResource::Result ResGameObjectPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmGameObjectDDF::PrototypeDesc* proto_desc;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmGameObjectDDF_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmGameObjectDDF_PrototypeDesc_DESCRIPTOR, (void**)(&proto_desc));
 
         if (e != dmDDF::RESULT_OK)
         {
@@ -138,37 +138,37 @@ namespace dmGameObject
         for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
         {
             dmGameObjectDDF::ComponentDesc& component_desc = proto_desc->m_Components[i];
-            dmResource::PreloadHint(params.m_HintInfo, component_desc.m_Component);
+            dmResource::PreloadHint(params->m_HintInfo, component_desc.m_Component);
         }
 
         dmGameObjectDDF::ComponentDesc* components = proto_desc->m_Components.m_Data;
         uint32_t n_components = proto_desc->m_Components.m_Count;
         for (uint32_t i = 0; i < n_components; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, components[i].m_Component);
+            dmResource::PreloadHint(params->m_HintInfo, components[i].m_Component);
         }
         const char** resources = proto_desc->m_PropertyResources.m_Data;
         uint32_t n_resources = proto_desc->m_PropertyResources.m_Count;
         for (uint32_t i = 0; i < n_resources; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, resources[i]);
+            dmResource::PreloadHint(params->m_HintInfo, resources[i]);
         }
 
-        *params.m_PreloadData = proto_desc;
+        *params->m_PreloadData = proto_desc;
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result ResGameObjectCreate(const dmResource::ResourceCreateParams& params)
+    static dmResource::Result ResGameObjectCreate(const dmResource::ResourceCreateParams* params)
     {
-        HRegister regist = (HRegister) params.m_Context;
-        dmGameObjectDDF::PrototypeDesc* proto_desc = (dmGameObjectDDF::PrototypeDesc*) params.m_PreloadData;
+        HRegister regist = (HRegister) params->m_Context;
+        dmGameObjectDDF::PrototypeDesc* proto_desc = (dmGameObjectDDF::PrototypeDesc*) params->m_PreloadData;
 
         Prototype* proto = new Prototype();
-        dmResource::Result r = AcquireResources(params.m_Factory, regist, proto_desc, proto, params.m_Filename);
+        dmResource::Result r = AcquireResources(params->m_Factory, regist, proto_desc, proto, params->m_Filename);
         if (r == dmResource::RESULT_OK) {
-            params.m_Resource->m_Resource = (void*) proto;
+            ResourceDescriptorSetResource(params->m_Resource, proto);
         } else {
-            ReleaseResources(params.m_Factory, proto);
+            ReleaseResources(params->m_Factory, proto);
             delete proto;
         }
 
@@ -176,55 +176,55 @@ namespace dmGameObject
         return r;
     }
 
-    static dmResource::Result ResGameObjectDestroy(const dmResource::ResourceDestroyParams& params)
+    static dmResource::Result ResGameObjectDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        Prototype* proto = (Prototype*) params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, proto);
+        Prototype* proto = (Prototype*) ResourceDescriptorGetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, proto);
         delete proto;
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result ResGameObjectRecreate(const dmResource::ResourceRecreateParams& params)
+    static dmResource::Result ResGameObjectRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        Register* regist = (Register*) params.m_Context;
+        Register* regist = (Register*) params->m_Context;
         dmGameObjectDDF::PrototypeDesc* proto_desc;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &proto_desc);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &proto_desc);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
         Prototype* temp = new Prototype();
-        dmResource::Result r = AcquireResources(params.m_Factory, regist, proto_desc, temp, params.m_Filename);
+        dmResource::Result r = AcquireResources(params->m_Factory, regist, proto_desc, temp, params->m_Filename);
         if (dmResource::RESULT_OK == r) {
-            Prototype* proto = (Prototype*) params.m_Resource->m_Resource;
+            Prototype* proto = (Prototype*) ResourceDescriptorGetResource(params->m_Resource);
             Prototype::Component* c = proto->m_Components;
             uint32_t i = proto->m_ComponentCount;
             proto->m_Components = temp->m_Components;
             proto->m_ComponentCount = temp->m_ComponentCount;
             temp->m_Components = c;
             temp->m_ComponentCount = i;
-            params.m_Resource->m_PrevResource = temp;
+            ResourceDescriptorSetPrevResource(params->m_Resource, temp);
         } else {
-            ReleaseResources(params.m_Factory, temp);
+            ReleaseResources(params->m_Factory, temp);
             delete temp;
         }
         dmDDF::FreeMessage(proto_desc);
         return r;
     }
 
-    static dmResource::Result RegisterResourceTypeGameObject(dmResource::ResourceTypeRegisterContext& ctx)
+    static ResourceResult RegisterResourceTypeGameObject(HResourceTypeContext ctx, HResourceType type)
     {
-        // The engine.cpp creates the contexts for our built in types.
-        void** context = ctx.m_Contexts->Get(ctx.m_NameHash);
+        // The engine.cpp creates the contexts for some of our our built in types (i.e. same context for some types)
+        void* context = ResourceTypeContextGetContextByHash(ctx, ResourceTypeGetNameHash(type));
         assert(context);
-        return dmResource::RegisterType(ctx.m_Factory,
-                                           ctx.m_Name,
-                                           *context,
-                                           ResGameObjectPreload,
-                                           ResGameObjectCreate,
-                                           0,
-                                           ResGameObjectDestroy,
-                                           ResGameObjectRecreate);
+        return (ResourceResult)dmResource::SetupType(ctx,
+                                                    type,
+                                                    context,
+                                                    ResGameObjectPreload,
+                                                    ResGameObjectCreate,
+                                                    0,
+                                                    ResGameObjectDestroy,
+                                                    ResGameObjectRecreate);
     }
 }
 

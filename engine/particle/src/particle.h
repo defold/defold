@@ -16,7 +16,6 @@
 #define DM_PARTICLE_H
 
 #include <dmsdk/dlib/vmath.h>
-#include <dlib/configfile.h>
 #include <dlib/hash.h>
 #include <ddf/ddf.h>
 #include <graphics/graphics.h>

@@ -22,6 +22,7 @@ public class Messages extends BobNLS {
     public static String BuilderUtil_EMPTY_RESOURCE;
     public static String BuilderUtil_MISSING_RESOURCE;
     public static String BuilderUtil_DUPLICATE_RESOURCE;
+    public static String BuilderUtil_WRONG_RESOURCE_TYPE;
 
     public static String GuiBuilder_MISSING_TEXTURE;
     public static String GuiBuilder_MISSING_MATERIAL;

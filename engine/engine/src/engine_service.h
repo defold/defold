@@ -17,10 +17,11 @@
 
 #include <stdint.h>
 
+struct ResourceFactory;
+
 namespace dmResource
 {
-	struct SResourceFactory;
-	typedef struct SResourceFactory* HFactory;
+	typedef ResourceFactory* HFactory;
 }
 
 namespace dmGameObject

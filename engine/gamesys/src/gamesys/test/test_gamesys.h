@@ -151,6 +151,8 @@ public:
         m_Scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
         m_Scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
         m_Scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+        dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
     }
     virtual ~ScriptBaseTest() {}
     dmGameSystem::ScriptLibContext m_Scriptlibcontext;

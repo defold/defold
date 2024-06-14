@@ -179,13 +179,14 @@ def process_file(filepath):
             f.truncate()
 
 
-for root, dirs, files in os.walk(".", topdown=True):
-    # exclude dirs to avoid traversing them at all
-    # with topdown set to True we can make in place modifications of dirs to
-    # have os.walk() skip directories
-    dirs[:] = [ d for d in dirs if not skip_path(os.path.join(root, d)) and not check_ignored(os.path.join(root, d)) ]
+if __name__ == "__main__":
+    for root, dirs, files in os.walk(".", topdown=True):
+        # exclude dirs to avoid traversing them at all
+        # with topdown set to True we can make in place modifications of dirs to
+        # have os.walk() skip directories
+        dirs[:] = [ d for d in dirs if not skip_path(os.path.join(root, d)) and not check_ignored(os.path.join(root, d)) ]
 
-    for file in files:
-        process_file(os.path.join(root, file))
+        for file in files:
+            process_file(os.path.join(root, file))
 
-print("NOTE! Manually update ddfc.py, editor/bundle-resources/Info.plist, editor/resources/splash.fxml and editor/resources/about.fxml!")
+    print("NOTE! Manually update ddfc.py, editor/bundle-resources/Info.plist, editor/resources/splash.fxml and editor/resources/about.fxml!")
