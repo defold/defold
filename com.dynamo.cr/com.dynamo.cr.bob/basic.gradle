@@ -34,7 +34,7 @@ ext {
             [dir: "../../engine/render/proto", file: "render/material_ddf.proto"],
             [dir: "../../engine/render/proto", file: "render/render_ddf.proto"],
             [dir: "../../engine/render/proto", file: "render/render_target_ddf.proto"],
-            [dir: "../../engine/render/proto", file: "render/compute_program_ddf.proto"],
+            [dir: "../../engine/render/proto", file: "render/compute_ddf.proto"],
             [dir: "../../engine/resource/proto", file: "resource/liveupdate_ddf.proto"],
             [dir: "../../engine/resource/proto", file: "resource/resource_ddf.proto"],
             [dir: "../../engine/script/src", file: "script/script_doc_ddf.proto"],

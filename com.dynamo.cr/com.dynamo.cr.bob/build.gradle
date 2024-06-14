@@ -27,6 +27,7 @@ task cleanDirs(type: Delete) {
     delete file("$project.bobDir/generated")
     delete file("$project.bobDir/dist")
     delete file("$project.bobDir/tmp")
+    delete file("$project.bobDir/target")
     delete file("$project.bobDir/lib/luajit-share.zip")
 }
 
@@ -264,6 +265,7 @@ task createBobLightJar(type: Jar, dependsOn: createExternalLibsLightJar) {
     archiveFileName = 'bob-light.jar'
     destinationDirectory = file("$project.bobDir/dist")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    includeEmptyDirs = false
 
     from project.classesDir
     from fileTree("$project.bobDir") {
