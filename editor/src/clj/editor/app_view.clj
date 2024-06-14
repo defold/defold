@@ -1593,7 +1593,7 @@ If you do not specifically require different script states, consider changing th
                {:label "Save All"
                 :id ::save-all
                 :command :save-all}
-               {:label "Upgrade File Formats"
+               {:label "Upgrade File Formats..."
                 :id ::save-and-upgrade-all
                 :command :save-and-upgrade-all}
                {:label :separator}
