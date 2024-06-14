@@ -19,14 +19,13 @@ configurations {
 dependencies {
     testClasspath files("$testDir/lib/junit-4.12.jar")
     testClasspath files("$testDir/lib/hamcrest-all-1.3.jar")
-    testClasspath files("$testDir/lib/ant-junit-1.10.7.jar")
     testClasspath files("$testDir/lib/aspectjtools-1.9.5.jar")
     testClasspath files("$testDir/lib/jetty-all-7.0.2.v20100331.jar")
     testClasspath files("$testDir/lib/servlet-api-2.5.jar")
     testClasspath files("$testDir/lib/protobuf-java-3.11.4.jar")
 }
 
-task compileTest(type: JavaCompile, dependsOn:distBob) {
+task compileTest(type: JavaCompile, dependsOn: distBob) {
     source = fileTree(dir: 'src', include: '**/com/dynamo/**')
     destinationDirectory = testClassesDir
     classpath = files("$project.bobDir/dist/bob.jar", configurations.testClasspath)
@@ -41,7 +40,7 @@ task compileTest(type: JavaCompile, dependsOn:distBob) {
     }
 }
 
-task createTestJar(type: Jar, dependsOn:compileTest) {
+task createTestJar(type: Jar, dependsOn: compileTest) {
     archiveFileName = 'bob-tests.jar'
     destinationDirectory = testTmpDir
     from(testClassesDir) {
@@ -62,16 +61,29 @@ task createTestJar(type: Jar, dependsOn:compileTest) {
 task testJar(type: Test, dependsOn: createTestJar) {
     useJUnit()
 
-    systemProperty 'DM_BOB_BUNDLERTEST_ONLY_HOST', DM_BOB_BUNDLERTEST_ONLY_HOST
+    // Check if running from IntelliJ IDEA - test bundle
+    doFirst {
+        if (System.getProperty('idea.active') != null) {
+            systemProperty 'DM_BOB_BUNDLERTEST_ONLY_HOST', '1'
+        } else {
+            systemProperty 'DM_BOB_BUNDLERTEST_ONLY_HOST', DM_BOB_BUNDLERTEST_ONLY_HOST
+        }
+    }
+
     testLogging {
-        events 'passed', 'skipped', 'failed'
+        events 'passed', 'skipped', 'failed', 'standardOut', 'standardError'
+        exceptionFormat 'short'
+        showExceptions true
+        showCauses true
+        showStackTraces true
     }
 
     classpath = files(configurations.testClasspath, "$project.bobDir/dist/bob.jar", "$testTmpDir/bob-tests.jar")
-    testClassesDirs = files("$project.testDir/src").asFileTree.matching {
-        include '**/*Test*.java'
-        exclude '**/Abstract*.java', '**/TestClassLoaderScanner.java', '**/TestLibrariesRule.java', '**/PropertiesTestUtil.java'
+    testClassesDirs = files(testClassesDir).asFileTree.matching {
+        include '**/*Test*.class'
+        exclude '**/Abstract*.class', '**/TestClassLoaderScanner.class', '**/TestLibrariesRule.class', '**/PropertiesTestUtil.class'
     }
 }
+
 
 defaultTasks 'clean', 'testJar'

@@ -118,7 +118,9 @@ task createLuaJitShareZip(type: Zip) {
     destinationDirectory = file("$project.bobDir/lib")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
-    from "${project.dynamoHome}/ext/share/luajit"
+    from("${project.dynamoHome}/ext/share/luajit") {
+        into 'luajit'
+    }
 
     dependsOn compileSrc, compileGenerated
 }
