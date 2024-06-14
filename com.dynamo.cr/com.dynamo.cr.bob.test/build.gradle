@@ -2,7 +2,6 @@ apply plugin: 'java'
 
 apply from: '../com.dynamo.cr.bob/build.gradle'
 
-//def testDir = project.testDir
 def testClassesDir = file("$testDir/build")
 def testTmpDir = file("$testDir/tmp")
 def DM_BOB_BUNDLERTEST_ONLY_HOST = project.hasProperty('DM_BOB_BUNDLERTEST_ONLY_HOST') ? project.property('DM_BOB_BUNDLERTEST_ONLY_HOST') : ''

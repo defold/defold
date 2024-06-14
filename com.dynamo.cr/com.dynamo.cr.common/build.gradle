@@ -71,9 +71,9 @@ def protoTasks = [
 
 task generateProtos(dependsOn: extGeneratedCopy) {
     doLast {
-        file('generated').mkdirs() // Ensure the generated directory exists
+        file('generated').mkdirs()
 
-        def executor = Executors.newFixedThreadPool(10) // Create a thread pool with 10 threads
+        def executor = Executors.newFixedThreadPool(10)
         def futures = []
 
         protoTasks.each { proto ->
@@ -98,11 +98,7 @@ task generateProtos(dependsOn: extGeneratedCopy) {
                 }
             }
         }
-
-        // Wait for all tasks to complete
         futures.each { it.get() }
-
-        // Shutdown the executor
         executor.shutdown()
     }
 }

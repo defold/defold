@@ -65,7 +65,7 @@ task execProtoTasks {
     }
 }
 
-task proto(type: Exec){//}, dependsOn: [getHostPlatform]) {
+task proto(type: Exec){
     group = 'build'
     def protoDir = project.findProperty('protoDir') ?: ''
     def protoFile = project.findProperty('protoFile') ?: ''
@@ -112,7 +112,18 @@ task compileSrc(type: JavaCompile, dependsOn: compileGenerated) {
     options.compilerArgs << '-g'
 }
 
-task compileBobLight(dependsOn: [getGitRevision, compileSrc]) {
+task createLuaJitShareZip(type: Zip) {
+    includeEmptyDirs = false
+    archiveFileName = 'luajit-share.zip'
+    destinationDirectory = file("$project.bobDir/lib")
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    from "${project.dynamoHome}/ext/share/luajit"
+
+    dependsOn compileSrc, compileGenerated
+}
+
+task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
     doLast {
         mkdir project.classesDir
         exec {
@@ -214,11 +225,6 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc]) {
                 exclude '**/*dSYM.zip'
             }
             into "$project.bobDir/lib/x86_64-win32"
-        }
-        jar {
-            includeEmptyDirs = false
-            archiveFileName = 'luajit-share.zip'
-            from "${project.dynamoHome}/ext/share/luajit"
         }
     }
 }
@@ -347,7 +353,7 @@ task createExternalLibsBuiltinsJar(type: Jar) {
     }
 }
 
-task createBobJar(type: Jar, dependsOn: createExternalLibsBuiltinsJar) {
+task createBobJar(type: Jar, dependsOn: [createExternalLibsBuiltinsJar, createLuaJitShareZip]) {
     includeEmptyDirs = false
     archiveFileName = 'bob.jar'
     destinationDirectory = file("$project.bobDir/dist")
@@ -361,7 +367,7 @@ task createBobJar(type: Jar, dependsOn: createExternalLibsBuiltinsJar) {
         include 'lib/*win32/OpenAL32.dll'
         include 'lib/*win32/wrap_oal.dll'
         exclude '**/*dSYM.zip'
-        exclude 'tmp/**'  // Exclude the tmp directory
+        exclude 'tmp/**'
     }
     from fileTree("$project.bobDir") {
         include 'libexec/**/*'
@@ -385,11 +391,13 @@ task createBobJar(type: Jar, dependsOn: createExternalLibsBuiltinsJar) {
         include 'lib/android.jar'
         include 'lib/classes.dex'
         include 'lib/*.zip'
-        exclude 'tmp/**'  // Exclude the tmp directory
+        exclude 'tmp/**'
     }
 
     manifest {
-        attributes 'Main-Class': 'com.dynamo.bob.Bob'
+        attributes 'Main-Class': 'com.dynamo.bob.Bob',
+                   'Gradle-Version': gradle.gradleVersion,
+                   'Created-By': "${System.getProperty('java.version')} (${System.getProperty('java.vendor')})"
     }
 }
 
