@@ -30,7 +30,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
             [util.text-util :as text-util]))
 
@@ -101,7 +101,7 @@
                   ;; the changes view here if the call to resource-sync! would
                   ;; not have already done so.
                   (when (resource-watch/empty-diff? diff)
-                    (changes-view/refresh! changes-view render-progress!))))
+                    (changes-view/refresh! changes-view))))
               (complete! true)
               (catch Throwable error
                 (fail! error)))))
@@ -259,9 +259,9 @@
                     reload-required
                     (complete! (blocking-reload! render-reload-progress! workspace [] changes-view))
 
-                    changes-view
+                    (and changes-view (coll/not-empty written-resources))
                     (do
-                      (changes-view/refresh! changes-view render-reload-progress!)
+                      (changes-view/refresh! changes-view)
                       (complete! true))
 
                     :else
