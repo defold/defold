@@ -46,6 +46,14 @@ namespace dmGraphics
         } \
     }
 
+    #define CHECK_VK_RETURN(RESULT, RETVAL) \
+    { \
+        if(g_VulkanContext->m_VerifyGraphicsCalls && RESULT != VK_SUCCESS) { \
+            dmLogError("Vulkan Error (%s:%d) %s", __FILE__, __LINE__, VkResultToStr(RESULT)); \
+            return RETVAL; \
+        } \
+    }
+
     VulkanContext* g_VulkanContext = 0;
 
     static VulkanTexture* VulkanNewTextureInternal(const TextureCreationParams& params);
@@ -813,6 +821,17 @@ namespace dmGraphics
         vkCmdSetViewport(vk_command_buffer, 0, 1, &vk_viewport);
     }
 
+    static void PrintExtensions(PhysicalDevice* device)
+    {
+#if !defined(__MACH__) // our MoltenVK always prints it out (in more detail anyways)
+        dmLogInfo("Vulkan Extensions: ");
+        for (uint32_t i=0; i < device->m_DeviceExtensionCount; ++i)
+        {
+            dmLogInfo("    %s", device->m_DeviceExtensions[i].extensionName);
+        }
+#endif
+    }
+
     static bool IsDeviceExtensionSupported(PhysicalDevice* device, const char* ext_name)
     {
         for (uint32_t j=0; j < device->m_DeviceExtensionCount; ++j)
@@ -973,6 +992,11 @@ namespace dmGraphics
             {
                 dmLogError("Device selection failed for device %s (%d/%d): Could not get a valid queue family.", device->m_Properties.deviceName, i, device_count);
                 DESTROY_AND_CONTINUE(device)
+            }
+
+            if (context->m_UseValidationLayers)
+            {
+                PrintExtensions(device);
             }
 
             // Make sure all device extensions are supported
@@ -2255,7 +2279,7 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
 
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, VK_SHADER_STAGE_VERTEX_BIT, shader);
-        CHECK_VK_ERROR(res);
+        CHECK_VK_RETURN(res, 0);
 
         CreateShaderMeta(ddf, &shader->m_ShaderMeta);
 
@@ -2275,7 +2299,7 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
 
         VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, VK_SHADER_STAGE_FRAGMENT_BIT, shader);
-        CHECK_VK_ERROR(res);
+        CHECK_VK_RETURN(res, 0);
 
         CreateShaderMeta(ddf, &shader->m_ShaderMeta);
 

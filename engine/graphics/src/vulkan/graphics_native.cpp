@@ -41,7 +41,8 @@ namespace dmGraphics
     };
 
     static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_KHRONOS_validation";
-    static const char* g_validation_layers[1];
+    static const char* DM_VULKAN_LUNAR_LAYER_VALIDATION   = "VK_LAYER_LUNARG_standard_validation";
+    static const char* g_validation_layers[2];
     static const char* g_validation_layer_ext[]     = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
 
     extern VulkanContext* g_VulkanContext;
@@ -58,6 +59,7 @@ namespace dmGraphics
         if (use_validation)
         {
             g_validation_layers[count++] = DM_VULKAN_LAYER_VALIDATION;
+            g_validation_layers[count++] = DM_VULKAN_LUNAR_LAYER_VALIDATION;
         }
         *num_layers = count;
         return g_validation_layers;

@@ -13,20 +13,25 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_fragment_program.h"
+#include <dlib/log.h>
 #include <graphics/graphics.h>
 
 namespace dmGameSystem
 {
-    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
+    static dmResource::Result AcquireResources(const char* path, dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
     {
+        dmLogError("MAWE: Loading fragment program %s", path);
+
         dmGraphics::ShaderDesc::Shader* shader = dmGraphics::GetShaderProgram(context, ddf);
         if (shader == 0x0)
         {
+            dmLogError("Missing fragment program %s", path);
             return dmResource::RESULT_FORMAT_ERROR;
         }
         dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(context, shader);
         if (prog == 0)
         {
+            dmLogError("Failed to create fragment program %s", path);
             return dmResource::RESULT_FORMAT_ERROR;
         }
         *program = prog;
@@ -50,7 +55,7 @@ namespace dmGameSystem
     {
         dmGraphics::ShaderDesc* ddf = (dmGraphics::ShaderDesc*)params.m_PreloadData;
         dmGraphics::HVertexProgram resource = 0x0;
-        dmResource::Result r = AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, ddf, &resource);
+        dmResource::Result r = AcquireResources(params.m_Filename, (dmGraphics::HContext) params.m_Context, params.m_Factory, ddf, &resource);
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) resource;
