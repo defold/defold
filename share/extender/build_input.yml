@@ -116,6 +116,9 @@ platforms:
     zigSourceRe:    '(?i).*(\.zig)'
     zigCompileCmd:  '{{env.ZIG_PATH}}/zig build-obj -target {{zig-target}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{#defines}}-D{{{.}}} {{/defines}} {{src}} -femit-bin={{tgt}} -O ReleaseFast'
 
+    # C#
+    csSourceRe:     '(?i).*(\.cs)'
+
   osx:
     env:
         PATH:                   "{{env.PLATFORMSDK_DIR}}/XcodeDefault{{env.XCODE_15_VERSION}}.xctoolchain/usr/bin:{{env.PATH}}"
