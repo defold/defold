@@ -14,14 +14,29 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.IOException;
 import java.util.ArrayList;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.pipeline.ShaderProgramBuilder;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
-public interface IShaderCompiler {
-    public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean soft_fail) throws IOException, CompileExceptionError;
+public class ShaderCompilePipeline {
+
+    ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
+
+    public void addOutputLanguage(ShaderDesc.Language shaderLanguage) {
+        shaderLanguages.add(shaderLanguage);
+    }
+
+    public void compile(ShaderDesc.ShaderType shaderType, String fullShaderSource) {
+
+        if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX ||
+            shaderType == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT) {
+
+            compileGraphicsShader();
+
+        } else if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
+
+        } else {
+            // Throw error
+        }
+    }
 }

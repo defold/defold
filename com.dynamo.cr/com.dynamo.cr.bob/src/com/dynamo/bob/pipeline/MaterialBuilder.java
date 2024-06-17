@@ -60,7 +60,7 @@ public class MaterialBuilder extends Builder<Void>  {
         public String                       buildPath;
         public String                       projectPath;
         public IResource                    resource;
-        public ES2ToES3Converter.ShaderType type;
+        public ShaderDesc.ShaderType type;
         public ShaderDesc                   desc;
 
         // Variant specific state
@@ -68,7 +68,7 @@ public class MaterialBuilder extends Builder<Void>  {
         public String[] arraySamplers = new String[0];
     }
 
-    private ShaderDesc getShaderDesc(IResource resource, ShaderProgramBuilder builder, ES2ToES3Converter.ShaderType shaderType) throws IOException, CompileExceptionError {
+    private ShaderDesc getShaderDesc(IResource resource, ShaderProgramBuilder builder, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
         builder.setProject(this.project);
         Task<ShaderPreprocessor> task = builder.create(resource);
         return builder.getCompiledShaderDesc(task, shaderType);
@@ -177,14 +177,14 @@ public class MaterialBuilder extends Builder<Void>  {
         String shaderFileInExt   = FilenameUtils.getExtension(shaderResourcePath);
         String shaderFileOutExt  = shaderFileInExt + "c";
 
-        ES2ToES3Converter.ShaderType shaderType;
+        ShaderDesc.ShaderType shaderType;
         ShaderProgramBuilder shaderBuilder;
 
         if (shaderFileInExt.equals("vp")) {
-            shaderType    = ES2ToES3Converter.ShaderType.VERTEX_SHADER;
+            shaderType    = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
             shaderBuilder = new VertexProgramBuilder();
         } else {
-            shaderType    = ES2ToES3Converter.ShaderType.FRAGMENT_SHADER;
+            shaderType    = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
             shaderBuilder = new FragmentProgramBuilder();
         }
 

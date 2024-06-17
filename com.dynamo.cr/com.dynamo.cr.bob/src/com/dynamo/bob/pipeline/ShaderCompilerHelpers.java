@@ -48,7 +48,7 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.ByteString;
 
 public class ShaderCompilerHelpers {
-	public static String compileGLSL(String shaderSource, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug) throws IOException, CompileExceptionError {
+	public static String compileGLSL(String shaderSource, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug) throws IOException, CompileExceptionError {
 
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         PrintWriter writer = new PrintWriter(os);
@@ -149,7 +149,7 @@ public class ShaderCompilerHelpers {
         return new ShaderProgramBuilder.ShaderBuildResult(builder);
     }
 
-	static public ShaderProgramBuilder.ShaderBuildResult buildGLSL(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug)  throws IOException, CompileExceptionError {
+	static public ShaderProgramBuilder.ShaderBuildResult buildGLSL(String source, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug)  throws IOException, CompileExceptionError {
         String glslSource = compileGLSL(source, shaderType, shaderLanguage, isDebug);
         return makeShaderBuilderFromGLSLSource(glslSource, shaderLanguage);
     }
@@ -177,13 +177,13 @@ public class ShaderCompilerHelpers {
         }
     }
 
-    static public SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ES2ToES3Converter.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
+    static public SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
         Result result;
         File file_out_spv;
 
-        if (shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
+        if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
 
             int version = 430;
 
@@ -243,7 +243,7 @@ public class ShaderCompilerHelpers {
             file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
             FileUtil.deleteOnExit(file_out_spv);
 
-            String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
+            String spirvShaderStage = (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX ? "vert" : "frag");
             result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
                     "-w",
                     "-fauto-bind-uniforms",
@@ -378,7 +378,7 @@ public class ShaderCompilerHelpers {
         return resourceBindingBuilder;
     }
 
-    static public ShaderProgramBuilder.ShaderBuildResult buildSpirvFromGLSL(String source, ES2ToES3Converter.ShaderType shaderType, String resourceOutputPath, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
+    static public ShaderProgramBuilder.ShaderBuildResult buildSpirvFromGLSL(String source, ShaderDesc.ShaderType shaderType, String resourceOutputPath, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         source = Common.stripComments(source);
         SPIRVCompileResult compile_res = compileGLSLToSPIRV(source, shaderType, resourceOutputPath, targetProfile, isDebug, soft_fail);
 

@@ -22,16 +22,17 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderPreprocessor;
+
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 import org.apache.commons.cli.CommandLine;
 
 @BuilderParams(name = "VertexProgram", inExts = ".vp", outExt = ".vpc")
 public class VertexProgramBuilder extends ShaderProgramBuilder {
 
-    private static final ES2ToES3Converter.ShaderType SHADER_TYPE = ES2ToES3Converter.ShaderType.VERTEX_SHADER;
+    private static final ShaderDesc.ShaderType SHADER_TYPE = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
     private boolean soft_fail = true;
 
     @Override

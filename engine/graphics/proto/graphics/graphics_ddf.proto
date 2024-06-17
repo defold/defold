@@ -253,10 +253,11 @@ message ShaderDesc
         LANGUAGE_GLSL_SM430 = 7; // OpenGL 4.3+ compatible
     }
 
-    enum ShaderClass
+    enum ShaderType
     {
-        SHADER_CLASS_GRAPHICS = 0;
-        SHADER_CLASS_COMPUTE  = 1;
+        SHADER_TYPE_VERTEX   = 0;
+        SHADER_TYPE_FRAGMENT = 1;
+        SHADER_TYPE_COMPUTE  = 2;
     }
 
     enum ShaderDataType
@@ -344,6 +345,6 @@ message ShaderDesc
         optional bool               variant_texture_array = 10 [default = false];
     }
 
-    repeated Shader shaders           = 1;
-    optional ShaderClass shader_class = 2;
+    repeated Shader shaders         = 1;
+    optional ShaderType shader_type = 2;
 }

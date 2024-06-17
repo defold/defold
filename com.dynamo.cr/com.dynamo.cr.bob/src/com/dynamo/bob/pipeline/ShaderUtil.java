@@ -465,12 +465,6 @@ public class ShaderUtil {
             public String output = "";
         }
 
-        public static enum ShaderType {
-            VERTEX_SHADER,
-            FRAGMENT_SHADER,
-            COMPUTE_SHADER,
-        };
-
         private static final String[] opaqueUniformTypesPrefix    = { "sampler", "image", "atomic_uint" };
         private static final Pattern regexPrecisionKeywordPattern = Pattern.compile("(?<keyword>precision)\\s+(?<precision>lowp|mediump|highp)\\s+(?<type>float|int)\\s*;");
         private static final Pattern regexFragDataArrayPattern    = Pattern.compile("gl_FragData\\[(?<index>\\d+)\\]");
@@ -490,7 +484,7 @@ public class ShaderUtil {
         private static final String glFragColorAttrLayoutPrefix = "layout(location = %d) ";
         private static final String floatPrecisionAttrRep       = "precision mediump float;\n";
 
-        public static Result transform(String input, ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
+        public static Result transform(String input, ShaderDesc.ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
             Result result = new Result();
 
             if(input.isEmpty()) {
@@ -502,7 +496,7 @@ public class ShaderUtil {
 
             // Shader sets are explicitly separated between fragment and vertex shaders as 1 and 0,
             // for compute shaders we always use 0. This makes sure that we stay true to that.
-            int layoutSet = shaderType == ShaderType.FRAGMENT_SHADER ? 1 : 0;
+            int layoutSet = shaderType == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT ? 1 : 0;
 
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;
@@ -526,7 +520,7 @@ public class ShaderUtil {
             result.shaderProfile = targetProfile;
 
             // Patch qualifiers (reserved keywords so word boundary replacement is safe)
-            String[][] keywordReps = (shaderType == ShaderType.VERTEX_SHADER) ? vsKeywordReps : fsKeywordReps;
+            String[][] keywordReps = (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) ? vsKeywordReps : fsKeywordReps;
             for ( String[] keywordRep : keywordReps) {
                 input = input.replaceAll("\\b" + keywordRep[0] + "\\b", keywordRep[1]);
             }
@@ -573,7 +567,7 @@ public class ShaderUtil {
             // Preallocate array of resulting slices. This makes patching in specific positions less complex
             ArrayList<String> output = new ArrayList<String>(input.length());
 
-            String ubBase = shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? glUBRepVs : glUBRepFs;
+            String ubBase = shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX ? glUBRepVs : glUBRepFs;
 
             // Multi-instance patching
             int ubIndex = 0;
@@ -644,7 +638,7 @@ public class ShaderUtil {
             }
 
             // Post patching
-            if (shaderType == ShaderType.FRAGMENT_SHADER) {
+            if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT) {
                 // if we have patched glFragColor
                 if(output_glFragColor || output_glFragData) {
                     // insert precision if not found, as it is mandatory for out attributes

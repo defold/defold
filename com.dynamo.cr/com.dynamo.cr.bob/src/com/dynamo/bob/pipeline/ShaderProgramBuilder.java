@@ -99,7 +99,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return fromProjectOptions || fromProjectProperties;
     }
 
-    static private ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults, ES2ToES3Converter.ShaderType shaderType) {
+    static private ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults, ShaderDesc.ShaderType shaderType) {
 
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
@@ -115,19 +115,14 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             }
         }
 
-        if (shaderType == ES2ToES3Converter.ShaderType.COMPUTE_SHADER) {
-            shaderDescBuilder.setShaderClass(ShaderDesc.ShaderClass.SHADER_CLASS_COMPUTE);
-        } else {
-            shaderDescBuilder.setShaderClass(ShaderDesc.ShaderClass.SHADER_CLASS_GRAPHICS);
-        }
-
+        shaderDescBuilder.setShaderType(shaderType);
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
 
         return shaderDescBuildResult;
     }
 
     // Generate a texture array variant builder, but only if necessary
-    static private ShaderBuildResult getGLSLVariantTextureArrayBuilder(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
+    static private ShaderBuildResult getGLSLVariantTextureArrayBuilder(String source, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
         Common.GLSLCompileResult variantCompileResult = buildGLSLVariantTextureArray(source, shaderType, shaderLanguage, isDebug, maxPageCount);
 
         // make a builder if the array transformation has picked up any array samplers
@@ -143,7 +138,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
     // Called from editor for producing a ShaderDesc with a list of finalized shaders,
     // fully transformed from source to context shaders based on a list of languages
-    static public ShaderDescBuildResult makeShaderDescWithVariants(String resourceOutputPath, String shaderSource, ES2ToES3Converter.ShaderType shaderType,
+    static public ShaderDescBuildResult makeShaderDescWithVariants(String resourceOutputPath, String shaderSource, ShaderDesc.ShaderType shaderType,
             ShaderDesc.Language[] shaderLanguages, int maxPageCount) throws IOException, CompileExceptionError {
 
         ArrayList<ShaderBuildResult> shaderBuildResults = ShaderCompilers.getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages, "", false, true);
@@ -158,7 +153,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     }
 
     // Called from bob
-    public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ES2ToES3Converter.ShaderType shaderType,
+    public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ShaderDesc.ShaderType shaderType,
             String platform, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
         Platform platformKey = Platform.get(platform);
         if(platformKey == null) {
@@ -181,7 +176,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     }
 
     // Called from editor and bob
-    static public Common.GLSLCompileResult buildGLSLVariantTextureArray(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
+    static public Common.GLSLCompileResult buildGLSLVariantTextureArray(String source, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
         Common.GLSLCompileResult variantCompileResult = VariantTextureArrayFallback.transform(source, maxPageCount);
 
         // If the variant transformation didn't do anything, we pass the original source but without array samplers
@@ -196,7 +191,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return variantCompileResult;
     }
 
-    public ShaderDesc getCompiledShaderDesc(Task<ShaderPreprocessor> task, ES2ToES3Converter.ShaderType shaderType)
+    public ShaderDesc getCompiledShaderDesc(Task<ShaderPreprocessor> task, ShaderDesc.ShaderType shaderType)
             throws IOException, CompileExceptionError {
         IResource in                          = task.input(0);
         ShaderPreprocessor shaderPreprocessor = task.getData();
@@ -227,7 +222,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return cmd;
     }
 
-    public void BuildShader(String[] args, ES2ToES3Converter.ShaderType shaderType, CommandLine cmd, IShaderCompiler shaderCompiler) throws IOException, CompileExceptionError {
+    public void BuildShader(String[] args, ShaderDesc.ShaderType shaderType, CommandLine cmd, IShaderCompiler shaderCompiler) throws IOException, CompileExceptionError {
         if (shaderCompiler == null) {
             System.err.println(String.format("Unable to build shader %s - no shader compiler found.", args[0]));
             return;
