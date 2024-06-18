@@ -42,7 +42,7 @@ namespace dmRender
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
-    typedef uint64_t                        HSampler;
+    typedef struct Sampler*                 HSampler;
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Predicate*               HPredicate;
@@ -253,6 +253,8 @@ namespace dmRender
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
+    bool                            GetSamplerInfo(HSampler sampler, dmhash_t* name_hash, uint32_t* location, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
+
     struct MaterialProgramAttributeInfo
     {
         dmhash_t                           m_AttributeNameHash;
@@ -296,6 +298,8 @@ namespace dmRender
 
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
     dmGraphics::HUniformLocation    GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
+    uint32_t                        GetMaterialConstantCount(HMaterial material);
+    bool                            GetMaterialConstantNameHash(HMaterial material, uint32_t index, dmhash_t* out_name_hash);
     bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);

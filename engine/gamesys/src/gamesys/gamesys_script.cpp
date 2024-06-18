@@ -15,6 +15,7 @@
 #include "gamesys.h"
 
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
 #include <physics/physics.h>
 
 #include <gamesys/gamesys_ddf.h>
@@ -38,6 +39,7 @@
 #include "scripts/script_sys_gamesys.h"
 #include "scripts/script_camera.h"
 #include "scripts/script_http.h"
+#include "scripts/script_material.h"
 
 #include "components/comp_gui.h"
 
@@ -117,6 +119,82 @@ namespace dmScript {
 
 namespace dmGameSystem
 {
+    int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash)
+    {
+        char msg[256];
+        const char* format = 0;
+        switch(result)
+        {
+            case dmResource::RESULT_RESOURCE_NOT_FOUND:
+                format = "The resource was not found (%d): %llu, %s";
+                break;
+            case dmResource::RESULT_NOT_SUPPORTED:
+                format = "The resource type does not support this operation (%d): %llu, %s";
+                break;
+            default:
+                format = "The resource was not updated (%d): %llu, %s";
+                break;
+        }
+        dmSnPrintf(msg, sizeof(msg), format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
+        return luaL_error(L, "%s", msg);
+    }
+
+    void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
+    {
+        HResourceDescriptor rd = dmResource::FindByHash(factory, path_hash);
+        if (!rd)
+        {
+            luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
+            return 0;
+        }
+
+        HResourceType expected_resource_type;
+        dmResource::Result r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
+        if( r != dmResource::RESULT_OK )
+        {
+            ReportPathError(L, r, path_hash);
+        }
+
+        HResourceType resource_type = dmResource::GetType(rd);
+        if (resource_type != expected_resource_type)
+        {
+            luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
+            return 0;
+        }
+
+        return dmResource::GetResource(rd);
+    }
+
+    void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
+    {
+        uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
+        uint32_t texture_height              = dmGraphics::GetTextureHeight(texture_handle);
+        uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
+        uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
+        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
+        uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(texture_handle);
+
+        lua_pushnumber(L, texture_handle);
+        lua_setfield(L, -2, "handle");
+
+        lua_pushinteger(L, texture_width);
+        lua_setfield(L, -2, "width");
+
+        lua_pushinteger(L, texture_height);
+        lua_setfield(L, -2, "height");
+
+        lua_pushinteger(L, texture_depth);
+        lua_setfield(L, -2, "depth");
+
+        lua_pushinteger(L, texture_mipmaps);
+        lua_setfield(L, -2, "mipmaps");
+
+        lua_pushinteger(L, texture_type);
+        lua_setfield(L, -2, "type");
+
+        lua_pushinteger(L, texture_flags);
+        lua_setfield(L, -2, "flags");
+    }
 
     ScriptLibContext::ScriptLibContext()
     {
@@ -149,6 +227,7 @@ namespace dmGameSystem
         ScriptImageRegister(context);
         ScriptSysGameSysRegister(context);
         ScriptHttpRegister(context);
+        ScriptMaterialRegister(context);
 
         assert(top == lua_gettop(L));
         return result;

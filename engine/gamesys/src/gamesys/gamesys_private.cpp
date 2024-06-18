@@ -386,7 +386,7 @@ namespace dmGameSystem
         }
     }
 
-    static void VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out)
+    void VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out)
     {
         dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);
         uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);

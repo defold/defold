@@ -116,6 +116,7 @@ namespace dmGameSystem
     typedef dmObjectPool<DynamicAttributeInfo> DynamicAttributePool;
     typedef bool (*CompGetMaterialAttributeCallback)(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute);
 
+    void    VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out);
     int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash);
     void    FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos);
     void    FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos);
@@ -129,6 +130,11 @@ namespace dmGameSystem
     dmGameObject::PropertyResult ClearMaterialAttribute(DynamicAttributePool& pool, uint32_t dynamic_attribute_index, dmhash_t name_hash);
     dmGameObject::PropertyResult SetMaterialAttribute(DynamicAttributePool& pool, uint32_t* dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompGetMaterialAttributeCallback callback, void* callback_user_data);
     dmGameObject::PropertyResult GetMaterialAttribute(DynamicAttributePool& pool, uint32_t dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, CompGetMaterialAttributeCallback callback, void* callback_user_data);
+
+    // Script resource helpers (Maybe these should be in a "gamesys_script.h" file?)
+    int   ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash);
+    void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
+    void  PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

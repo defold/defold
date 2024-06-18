@@ -98,11 +98,9 @@ namespace dmGameSystem
     void ScriptCameraRegister(const ScriptLibContext& context)
     {
         lua_State* L = context.m_LuaState;
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         luaL_register(L, LIB_NAME, ScriptCamera_methods);
         lua_pop(L, 1);
-
-        assert(top == lua_gettop(L));
     }
 }
