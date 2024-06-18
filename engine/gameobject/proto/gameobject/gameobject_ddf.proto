@@ -229,6 +229,7 @@ message SetParent
  *
  * [icon:alert] Components that currently supports this message are:
  *
+ * - Camera
  * - Collection Proxy
  * - Collision Object
  * - Gui
@@ -260,6 +261,7 @@ message Enable
  *
  * [icon:alert] Components that currently supports this message are:
  *
+ * - Camera
  * - Collection Proxy
  * - Collision Object
  * - Gui
