@@ -41,7 +41,8 @@ def l(s):
 ###########################################
 
 c_to_cstypes = {
-    'const char *': 'string',
+    'const char *': 'String',
+    'const char *const *': 'String*',
     'const void *': 'void*',
     'int32_t':      'int',
     'uint32_t':     'uint',
@@ -50,12 +51,13 @@ c_to_cstypes = {
     'int8_t':       'char',
     'uint8_t':      'byte',
     'dmhash_t':     'UInt64',
-    'uint64_t':     'UInt64',
+    'uint64_t':     'UInt64'
 }
 
 # in order to avoid reserved keywords
 c_to_csvars = {
     'string': 'str',
+    'ref': '_ref'
 }
 
 def rename_symbols(renames, line):
@@ -165,6 +167,8 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
     namespace = info.get('namespace', None)
     classname = info.get('class', None)
     dllimport = info.get('dllimport', None)
+    using       = info.get('using', [])
+    using_static= info.get('using_static', [])
 
     if not namespace:
         raise Exception("C# file has no 'namespace' defined!")
@@ -179,6 +183,13 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
 
     l(f'using System.Runtime.InteropServices;')
     l(f'using System.Reflection.Emit;')
+
+    l(f'')
+    for u in using:
+        l(f'using {u};')
+    for u in using_static:
+        l(f'using static {u};')
+
     l(f'')
     l(f'namespace dmSDK.{namespace} {{')
     l(f'{spaces}public unsafe partial class {classname}')

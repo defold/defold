@@ -274,8 +274,8 @@ def generate(gen_info, includes, basepath, outdir):
         ast = gen_ir.gen(path, includes)
         ast = cleanup_ast(ast, path)
 
-        # with open('debug.json', 'w') as f:
-        #     pprint.pprint(ast, f)
+        with open('debug.json', 'w') as f:
+            pprint.pprint(ast, f)
 
         state = State()
         parse(data, ast, state)
@@ -287,15 +287,17 @@ def generate(gen_info, includes, basepath, outdir):
 
             out_data = None
 
+            out_path = info.get('outpath', None)
+
             if lang_key == "cpp":
-                out = os.path.join(outdir, os.path.splitext(path)[0] + "_gen.hpp")
+                out = out_path or os.path.join(outdir, os.path.splitext(path)[0] + "_gen.hpp")
 
                 parsed_includes = prune_includes(parsed_includes)
 
                 out_data = gen_cpp.gen_cpp_header(basepath, relative_path, out, info, ast, state, parsed_includes)
 
             elif lang_key == "csharp":
-                out = os.path.join(basepath, 'cs', os.path.splitext(relative_path)[0] + "_gen.cs")
+                out = out_path or os.path.join(basepath, 'cs', os.path.splitext(relative_path)[0] + "_gen.cs")
                 out_data = gen_csharp.gen_csharp(os.path.join(basepath, 'cs'), relative_path, out, info, ast, state)
 
             else:

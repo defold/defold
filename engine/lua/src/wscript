@@ -9,6 +9,7 @@ def options(opt):
 
 def configure(conf):
     conf.env.append_value('INCLUDES', "../src")
+    conf.recurse('test')
 
 def build(bld):
     apidoc_extract_task(bld, ['lua_base.doc_h', 'lua_string.doc_h', 'lua_coroutine.doc_h',
@@ -17,3 +18,7 @@ def build(bld):
     bld.recurse('lua')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/cs/dmsdk', 'cs/dmsdk')
+
+    bld.add_group() # until the csharp rule correctly uses "use" for dependencies
+    bld.recurse('test')
