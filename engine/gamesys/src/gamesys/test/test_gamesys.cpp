@@ -5255,10 +5255,6 @@ TEST_F(ShaderTest, ComputeResource)
     dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program);
     ASSERT_EQ(7, dmGraphics::GetUniformCount(graphics_compute_program));
 
-    char buffer[128] = {};
-    dmGraphics::Type type;
-    int32_t size;
-
     dmRender::HConstant ca, cb, cc, cd;
     ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_a"), ca));
     ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_b"), cb));
@@ -5306,6 +5302,30 @@ TEST_F(ShaderTest, ComputeResource)
     ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, la);
     ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, lb);
     ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, lc);
+
+    // Note: texture_a is a storage texture, so we only have two actual samplers here:
+    ASSERT_EQ(2, compute_program_res->m_NumTextures);
+
+    dmRender::Sampler* sampler_tex_b = dmRender::GetComputeProgramSampler(compute_program, 0);
+    dmRender::Sampler* sampler_tex_c = dmRender::GetComputeProgramSampler(compute_program, 1);
+
+    ASSERT_NE((dmRender::Sampler*) 0, sampler_tex_b);
+    ASSERT_EQ(dmHashString64("texture_b"),        sampler_tex_b->m_NameHash);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,        sampler_tex_b->m_Type);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, sampler_tex_b->m_MinFilter);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, sampler_tex_b->m_MagFilter);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,    sampler_tex_b->m_UWrap);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,    sampler_tex_b->m_VWrap);
+    ASSERT_NEAR(0.0f, sampler_tex_b->m_MaxAnisotropy, EPSILON);
+
+    ASSERT_NE((dmRender::Sampler*) 0, sampler_tex_c);
+    ASSERT_EQ(dmHashString64("texture_c"),            sampler_tex_c->m_NameHash);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,            sampler_tex_c->m_Type);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,      sampler_tex_c->m_MinFilter);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,      sampler_tex_c->m_MagFilter);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, sampler_tex_c->m_UWrap);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, sampler_tex_c->m_VWrap);
+    ASSERT_NEAR(14.0f, sampler_tex_c->m_MaxAnisotropy, EPSILON);
 
     dmResource::Release(m_Factory, (void*) compute_program_res);
 }

@@ -139,14 +139,17 @@ namespace dmGameSystem
         ////////////////////////////////////////////////////////////
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
-            uint32_t unit = dmRender::GetComputeProgramSamplerUnit(resource->m_Program, resources->m_SamplerNames[i]);
-            if (unit == dmRender::INVALID_SAMPLER_UNIT)
+            if (resources->m_SamplerNames[i])
             {
-                continue;
+                uint32_t unit = dmRender::GetComputeProgramSamplerUnit(resource->m_Program, resources->m_SamplerNames[i]);
+                if (unit == dmRender::INVALID_SAMPLER_UNIT)
+                {
+                    continue;
+                }
+                resource->m_Textures[unit]     = resources->m_Textures[i];
+                resource->m_SamplerNames[unit] = resources->m_SamplerNames[i];
+                resource->m_NumTextures++;
             }
-            resource->m_Textures[unit]     = resources->m_Textures[i];
-            resource->m_SamplerNames[unit] = resources->m_SamplerNames[i];
-            resource->m_NumTextures++;
         }
     }
 
