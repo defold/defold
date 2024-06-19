@@ -48,7 +48,7 @@
 
 (defn prop-contains-url-characters? [id name]
   (when (re-find #"[#:]" id)
-    (format "%s cannot contain special URL symbols such as '#' or ':'" name)))
+    (format "%s should not contain special URL symbols such as '#' or ':'" name)))
 
 (defn prop-negative? [v name]
   (when (< v 0)
