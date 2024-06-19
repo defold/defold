@@ -135,6 +135,8 @@ namespace dmGameSystem
     int   ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash);
     void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
     void  PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle);
+    void  PushSampler(lua_State* L, dmRender::HSampler sampler, dmGraphics::HTexture texture);
+    void  PushRenderConstant(lua_State* L, dmRender::HConstant constant);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

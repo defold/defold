@@ -9,10 +9,6 @@ from waf_dynamo import platform_supports_feature
 sys.path.insert(0, "src")
 import waf_gamesys
 
-def configure(conf):
-    if platform_supports_feature(conf.env.PLATFORM, 'compute', None):
-        conf.env.append_unique('DEFINES', 'DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
-
 def build(bld):
     dirs = ['animationset/*',
             'atlas/*',

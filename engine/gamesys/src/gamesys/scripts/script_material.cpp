@@ -44,6 +44,12 @@ namespace dmGameSystem
         dmResource::HFactory m_Factory;
     } g_MaterialModule;
 
+    static inline MaterialResource* CheckMaterialResource(lua_State* L, int index)
+    {
+        dmhash_t path_hash = dmScript::CheckHashOrString(L, index);
+        return (MaterialResource*) CheckResource(L, g_MaterialModule.m_Factory, path_hash, "materialc");
+    }
+
     static void PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr)
     {
         float values[4] = {};
@@ -75,8 +81,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-        MaterialResource* material_res = (MaterialResource*) CheckResource(L, g_MaterialModule.m_Factory, path_hash, "materialc");
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
 
         const dmGraphics::VertexAttribute* attributes;
         uint32_t attribute_count;
@@ -121,8 +126,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-        MaterialResource* material_res = (MaterialResource*) CheckResource(L, g_MaterialModule.m_Factory, path_hash, "materialc");
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
 
         lua_newtable(L);
 
@@ -132,43 +136,10 @@ namespace dmGameSystem
 
             if (sampler)
             {
-                dmhash_t name_hash;
-                uint32_t location;
-                dmGraphics::TextureWrap u_wrap;
-                dmGraphics::TextureWrap v_wrap;
-                dmGraphics::TextureFilter min_filter;
-                dmGraphics::TextureFilter mag_filter;
-                float max_anisotropy;
-                dmRender::GetSamplerInfo(sampler, &name_hash, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
-
                 lua_pushinteger(L, (lua_Integer) (i+1));
                 lua_newtable(L);
 
-                dmScript::PushHash(L, name_hash);
-                lua_setfield(L, -2, "name");
-
-                lua_pushinteger(L, (lua_Integer) u_wrap);
-                lua_setfield(L, -2, "u_wrap");
-
-                lua_pushinteger(L, (lua_Integer) v_wrap);
-                lua_setfield(L, -2, "v_wrap");
-
-                lua_pushinteger(L, (lua_Integer) min_filter);
-                lua_setfield(L, -2, "min_filter");
-
-                lua_pushinteger(L, (lua_Integer) mag_filter);
-                lua_setfield(L, -2, "mag_filter");
-
-                lua_pushnumber(L, max_anisotropy);
-                lua_setfield(L, -2, "max_anisotropy");
-
-                // TODO: Should get from overridden if any
-                TextureResource* texture_res = material_res->m_Textures[i];
-                if (texture_res)
-                {
-                    lua_pushnumber(L, texture_res->m_Texture);
-                    lua_setfield(L, -2, "texture");
-                }
+                PushSampler(L, sampler, material_res->m_Textures[i] ? material_res->m_Textures[i]->m_Texture : 0);
 
                 lua_rawset(L, -3);
             }
@@ -181,8 +152,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
 
-        dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-        MaterialResource* material_res = (MaterialResource*) CheckResource(L, g_MaterialModule.m_Factory, path_hash, "materialc");
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
 
         lua_newtable(L);
 
@@ -193,46 +163,13 @@ namespace dmGameSystem
             dmRender::GetMaterialConstantNameHash(material_res->m_Material, i, &name_hash);
 
             dmRender::HConstant constant;
+
             if (dmRender::GetMaterialProgramConstant(material_res->m_Material, name_hash, constant))
             {
                 lua_pushinteger(L, (lua_Integer) (i+1));
                 lua_newtable(L);
 
-                dmScript::PushHash(L, name_hash);
-                lua_setfield(L, -2, "name");
-
-                dmRenderDDF::MaterialDesc::ConstantType type = dmRender::GetConstantType(constant);
-                lua_pushinteger(L, (lua_Integer) type);
-                lua_setfield(L, -2, "type");
-
-                bool readonly = true;
-
-                if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
-                {
-                    uint32_t num_values;
-                    dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
-                    dmScript::PushVector4(L, values[0]);
-                    lua_setfield(L, -2, "value");
-
-                    readonly = false;
-
-                    // TODO: array
-                }
-                else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
-                {
-                    uint32_t num_values;
-                    dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
-                    dmVMath::Matrix4* matrix = (dmVMath::Matrix4*) values;
-                    dmScript::PushMatrix4(L, matrix[0]);
-                    lua_setfield(L, -2, "value");
-
-                    readonly = false;
-
-                    // TODO: array
-                }
-
-                lua_pushboolean(L, readonly);
-                lua_setfield(L, -2, "readonly");
+                PushRenderConstant(L, constant);
 
                 lua_rawset(L, -3);
             }
@@ -244,8 +181,7 @@ namespace dmGameSystem
     static int Material_GetTextures(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-        MaterialResource* material_res = (MaterialResource*) CheckResource(L, g_MaterialModule.m_Factory, path_hash, "materialc");
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
 
         lua_newtable(L);
 
@@ -265,7 +201,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    static const luaL_reg ScriptCamera_methods[] =
+    static const luaL_reg ScriptCompute_methods[] =
     {
         {"get_vertex_attributes", Material_GetVertexAttributes},
         {"get_samplers",          Material_GetSamplers},
@@ -277,7 +213,7 @@ namespace dmGameSystem
     static void LuaInit(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        luaL_register(L, LIB_NAME, ScriptCamera_methods);
+        luaL_register(L, LIB_NAME, ScriptCompute_methods);
         lua_pop(L, 1);
     }
 

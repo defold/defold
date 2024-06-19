@@ -40,6 +40,7 @@
 #include "scripts/script_camera.h"
 #include "scripts/script_http.h"
 #include "scripts/script_material.h"
+#include "scripts/script_compute.h"
 
 #include "components/comp_gui.h"
 
@@ -196,6 +197,84 @@ namespace dmGameSystem
         lua_setfield(L, -2, "flags");
     }
 
+    void PushSampler(lua_State* L, dmRender::HSampler sampler, dmGraphics::HTexture texture)
+    {
+        dmhash_t name_hash;
+        uint32_t location;
+        dmGraphics::TextureWrap u_wrap;
+        dmGraphics::TextureWrap v_wrap;
+        dmGraphics::TextureFilter min_filter;
+        dmGraphics::TextureFilter mag_filter;
+        float max_anisotropy;
+        dmRender::GetSamplerInfo(sampler, &name_hash, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+
+        dmScript::PushHash(L, name_hash);
+        lua_setfield(L, -2, "name");
+
+        lua_pushinteger(L, (lua_Integer) u_wrap);
+        lua_setfield(L, -2, "u_wrap");
+
+        lua_pushinteger(L, (lua_Integer) v_wrap);
+        lua_setfield(L, -2, "v_wrap");
+
+        lua_pushinteger(L, (lua_Integer) min_filter);
+        lua_setfield(L, -2, "min_filter");
+
+        lua_pushinteger(L, (lua_Integer) mag_filter);
+        lua_setfield(L, -2, "mag_filter");
+
+        lua_pushnumber(L, max_anisotropy);
+        lua_setfield(L, -2, "max_anisotropy");
+
+        // TODO: Should get from overridden if any
+        if (texture)
+        {
+            lua_pushnumber(L, texture);
+            lua_setfield(L, -2, "texture");
+        }
+    }
+
+    void PushRenderConstant(lua_State* L, dmRender::HConstant constant)
+    {
+        dmhash_t name_hash = dmRender::GetConstantName(constant);
+
+        dmScript::PushHash(L, name_hash);
+        lua_setfield(L, -2, "name");
+
+        dmRenderDDF::MaterialDesc::ConstantType type = dmRender::GetConstantType(constant);
+        lua_pushinteger(L, (lua_Integer) type);
+        lua_setfield(L, -2, "type");
+
+        bool readonly = true;
+
+        if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
+        {
+            uint32_t num_values;
+            dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+            dmScript::PushVector4(L, values[0]);
+            lua_setfield(L, -2, "value");
+
+            readonly = false;
+
+            // TODO: array
+        }
+        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        {
+            uint32_t num_values;
+            dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+            dmVMath::Matrix4* matrix = (dmVMath::Matrix4*) values;
+            dmScript::PushMatrix4(L, matrix[0]);
+            lua_setfield(L, -2, "value");
+
+            readonly = false;
+
+            // TODO: array
+        }
+
+        lua_pushboolean(L, readonly);
+        lua_setfield(L, -2, "readonly");
+    }
+
     ScriptLibContext::ScriptLibContext()
     {
         memset(this, 0, sizeof(*this));
@@ -228,6 +307,7 @@ namespace dmGameSystem
         ScriptSysGameSysRegister(context);
         ScriptHttpRegister(context);
         ScriptMaterialRegister(context);
+        ScriptComputeRegister(context);
 
         assert(top == lua_gettop(L));
         return result;
