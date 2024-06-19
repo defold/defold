@@ -11,12 +11,6 @@ textures {
   name: "first_texture"
   texture: "/checked.atlas"
 }
-background_color {
-  x: 0.9
-  y: 0.9
-  z: 0.9
-  w: 0.9
-}
 nodes {
   type: TYPE_BOX
   texture: "first_texture/diamond"

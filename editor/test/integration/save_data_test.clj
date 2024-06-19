@@ -391,7 +391,8 @@
 
    'dmGuiDDF.SceneDesc
    {:default
-    {"spine_scenes" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
+    {"background_color" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "spine_scenes" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    ['dmInputDDF.GamepadMapEntry "[GAMEPAD_TYPE_AXIS]"]
    {:default
@@ -638,6 +639,9 @@
                (g/node-value extra-characters-font :characters)))))
 
     (testing "gui"
+      (let [background-color-gui (test-util/resource-node project "/silently_migrated/background_color.gui")]
+        (is (not (contains? (g/node-value background-color-gui :source-value) :background-color)))
+        (is (not (contains? (g/node-value background-color-gui :save-value) :background-color))))
       (let [redundant-sizes-gui (test-util/resource-node project "/silently_migrated/redundant_sizes.gui")]
         (is (= (g/node-value redundant-sizes-gui :source-value)
                (g/node-value redundant-sizes-gui :save-value))))

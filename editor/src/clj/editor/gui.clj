@@ -2400,12 +2400,11 @@
       clipping/setup-states
       sort-scene)))
 
-(g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
+(g/defnk produce-pb-msg [script-resource material-resource adjust-reference max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
   (protobuf/make-map-without-defaults Gui$SceneDesc
     :script (resource/resource->proj-path script-resource)
     :material (resource/resource->proj-path material-resource)
     :adjust-reference adjust-reference
-    :background-color background-color
     :max-nodes max-nodes
     :nodes node-msgs
     :layers layer-msgs
@@ -2647,8 +2646,6 @@
 
   (property adjust-reference g/Keyword (default (protobuf/default Gui$SceneDesc :adjust-reference))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
-  (property background-color types/Color (default (protobuf/default Gui$SceneDesc :background-color))
-            (dynamic visible (g/constantly false)))
   (property visible-layout g/Str (default "") ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
   (property max-nodes g/Int (default (protobuf/default Gui$SceneDesc :max-nodes))
@@ -2987,7 +2984,6 @@
         script (resolve-resource :script)
         material (resolve-resource (:material :or default-material-proj-path))
         adjust-reference :adjust-reference
-        background-color :background-color
         max-nodes :max-nodes)
       (g/connect project :settings self :project-settings)
       (g/connect project :default-tex-params self :default-tex-params)
@@ -3253,7 +3249,7 @@
         merged-resource-descs (into spine-scene-descs
                                     (:resources scene))]
     (-> scene
-        (dissoc :spine-scenes)
+        (dissoc :background-color :spine-scenes)
         (protobuf/sanitize-repeated :nodes sanitize-scene-node)
         (protobuf/sanitize-repeated :layouts sanitize-layout)
         (protobuf/assign-repeated :resources merged-resource-descs)
