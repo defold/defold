@@ -825,7 +825,7 @@ namespace dmRig
             Vector4 normal_out(0.0f, 0.0f, 0.0f, 0.0f);
 
             const Vector3 tangent_in = has_tangents ? Vector3(tangents_in[i*4+0], tangents_in[i*4+1], tangents_in[i*4+2]) : Vector3(0,0,0);
-            const float tangent_handedness = tangents_in[i*4+3];
+            const float tangent_handedness = has_tangents ? tangents_in[i*4+3] : 0.0f;
             Vector4 tangent_out(0.0f, 0.0f, 0.0f, 0.0f);
 
             const uint32_t bi_offset = i * 4;

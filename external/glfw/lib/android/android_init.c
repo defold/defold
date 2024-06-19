@@ -878,8 +878,11 @@ int32_t glfwAndroidHandleInput(struct android_app* app, AInputEvent* event)
         memset(g_AppInputEvents + g_NumAppInputEvents, 0, sizeof(struct InputEvent) * size_increase);
     }
 
-    // This will let the engine thread know (engine_main)
-    ret = addInputEvents(app, event, &g_AppInputEvents[g_NumAppInputEvents], &g_NumAppInputEvents, g_MaxAppInputEvents);
+    if (g_MaxAppInputEvents > 0)
+    {
+        // This will let the engine thread know (engine_main)
+        ret = addInputEvents(app, event, &g_AppInputEvents[g_NumAppInputEvents], &g_NumAppInputEvents, g_MaxAppInputEvents);
+    }
 
     spinlock_unlock(&g_EventLock);
 

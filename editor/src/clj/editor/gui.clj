@@ -2400,12 +2400,13 @@
       clipping/setup-states
       sort-scene)))
 
-(g/defnk produce-pb-msg [script-resource material-resource adjust-reference max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
+(g/defnk produce-pb-msg [script-resource material-resource adjust-reference max-nodes max-dynamic-textures node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
   (protobuf/make-map-without-defaults Gui$SceneDesc
     :script (resource/resource->proj-path script-resource)
     :material (resource/resource->proj-path material-resource)
     :adjust-reference adjust-reference
     :max-nodes max-nodes
+    :max-dynamic-textures max-dynamic-textures
     :nodes node-msgs
     :layers layer-msgs
     :fonts font-msgs
@@ -2592,11 +2593,15 @@
                                                                     (when (> c max-nodes)
                                                                       (format "the actual number of nodes (%d) exceeds 'Max Nodes' (%d)" c max-nodes)))) max-nodes)))
 
-(g/defnk produce-own-build-errors [_node-id material max-nodes node-ids script]
+(defn- validate-max-dynamic-textures [_node-id max-dynamic-textures]
+  (validation/prop-error :fatal _node-id :max-dynamic-textures (partial validation/prop-outside-range? [0 8192]) max-dynamic-textures "Max Dynamic Textures"))
+
+(g/defnk produce-own-build-errors [_node-id material max-dynamic-textures max-nodes node-ids script]
   (g/package-errors _node-id
                     (when script (prop-resource-error _node-id :script script "Script" "gui_script"))
                     (prop-resource-error _node-id :material material "Material")
-                    (validate-max-nodes _node-id max-nodes node-ids)))
+                    (validate-max-nodes _node-id max-nodes node-ids)
+                    (validate-max-dynamic-textures _node-id max-dynamic-textures)))
 
 (g/defnk produce-build-errors [_node-id build-errors own-build-errors ^:try template-build-targets]
   (g/package-errors _node-id
@@ -2651,6 +2656,9 @@
   (property max-nodes g/Int (default (protobuf/default Gui$SceneDesc :max-nodes))
             (dynamic error (g/fnk [_node-id max-nodes node-ids]
                              (validate-max-nodes _node-id max-nodes node-ids))))
+  (property max-dynamic-textures g/Int (default (protobuf/default Gui$SceneDesc :max-dynamic-textures))
+            (dynamic error (g/fnk [_node-id max-dynamic-textures]
+                             (validate-max-dynamic-textures _node-id max-dynamic-textures))))
 
   (input script-resource resource/Resource)
 
@@ -2984,7 +2992,8 @@
         script (resolve-resource :script)
         material (resolve-resource (:material :or default-material-proj-path))
         adjust-reference :adjust-reference
-        max-nodes :max-nodes)
+        max-nodes :max-nodes
+        max-dynamic-textures :max-dynamic-textures)
       (g/connect project :settings self :project-settings)
       (g/connect project :default-tex-params self :default-tex-params)
       (g/connect project :display-profiles self :display-profiles)

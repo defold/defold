@@ -41,6 +41,17 @@ namespace dmGameObject
 
     Result PostScriptMessage(const dmDDF::Descriptor* descriptor, const uint8_t* payload, uint32_t payload_size, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call);
 
+    /*# Sends an unref script message
+     * Sends a script message to unreference a script object
+     *
+     * @name dmScript::PostScriptUnrefMessage
+     * @param sender [type:dmMessage::Message*] The sender
+     * @param receiver [type:dmMessage::Message*] The receiver
+     * @param reference [type:int] The reference to remove
+     * @return success [type:Result] RESULT_OK if successful
+     */
+    Result PostScriptUnrefMessage(const dmMessage::URL* sender, const dmMessage::URL* receiver, int reference);
+
     /*# Sends a script message
      * Sends a script message. Wraps the message in a dmGameSystemDDF::ScriptMessage struct.
      * @name dmScript::PostDDF

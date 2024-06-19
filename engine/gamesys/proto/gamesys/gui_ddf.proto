@@ -215,20 +215,21 @@ message SceneDesc
         required string particlefx  = 2 [(resource)=true];
     }
 
-    required string          script           = 1 [(resource)=true];
-    repeated FontDesc        fonts            = 2;
-    repeated TextureDesc     textures         = 3;
-    optional dmMath.Vector4  background_color = 4; // Deprecated
-    repeated NodeDesc        nodes            = 6;
-    repeated LayerDesc       layers           = 7;
-    optional string          material         = 8 [(resource)=true, default="/builtins/materials/gui.material"];
-    repeated LayoutDesc      layouts          = 9;
-    optional AdjustReference adjust_reference = 10 [default = ADJUST_REFERENCE_LEGACY];
-    optional uint32          max_nodes        = 11 [default = 512];
-    repeated SpineSceneDesc  spine_scenes     = 12;
-    repeated ParticleFXDesc  particlefxs      = 13;
-    repeated ResourceDesc    resources        = 14;
-    repeated MaterialDesc    materials        = 15;
+    required string          script               = 1 [(resource)=true];
+    repeated FontDesc        fonts                = 2;
+    repeated TextureDesc     textures             = 3;
+    optional dmMath.Vector4  background_color     = 4; // Deprecated
+    repeated NodeDesc        nodes                = 6;
+    repeated LayerDesc       layers               = 7;
+    optional string          material             = 8 [(resource)=true, default="/builtins/materials/gui.material"];
+    repeated LayoutDesc      layouts              = 9;
+    optional AdjustReference adjust_reference     = 10 [default = ADJUST_REFERENCE_LEGACY];
+    optional uint32          max_nodes            = 11 [default = 512];
+    repeated SpineSceneDesc  spine_scenes         = 12;
+    repeated ParticleFXDesc  particlefxs          = 13;
+    repeated ResourceDesc    resources            = 14;
+    repeated MaterialDesc    materials            = 15;
+    optional uint32          max_dynamic_textures = 16 [default = 128];
 }
 
 /*# reports a layout change

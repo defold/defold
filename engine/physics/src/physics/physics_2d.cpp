@@ -474,12 +474,12 @@ namespace dmPhysics
             world->m_ContactListener.SetStepWorldContext(&step_context);
             world->m_World.Step(dt, 10, 10);
             float inv_scale = world->m_Context->m_InvScale;
-            // Update transforms of dynamic bodies
+            // Update transforms of non-static bodies
             if (world->m_SetWorldTransformCallback)
             {
                 for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
                 {
-                    if (body->GetType() == b2_dynamicBody && body->IsActive())
+                    if (body->GetType() != b2_staticBody && body->IsActive())
                     {
                         Point3 position;
                         FromB2(body->GetPosition(), position, inv_scale);

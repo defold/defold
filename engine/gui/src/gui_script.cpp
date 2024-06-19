@@ -1593,7 +1593,7 @@ namespace dmGui
      *
      * @name gui.set_line_break
      * @param node [type:node] node to set line-break for
-     * @param line_break [type:boolean] true or false
+     * @param line_break [type:boolean] `true` or `false`
      */
     static int LuaSetLineBreak(lua_State* L)
     {
@@ -2116,6 +2116,7 @@ namespace dmGui
      *
      * @name gui.get_material
      * @param node [type:node] node to get the material for
+     * @return materal [type:hash] material id
      * @examples
      *
      * Getting the material for a node, and assign it to another node:
@@ -2440,7 +2441,7 @@ namespace dmGui
      *
      * @name gui.get_clipping_visible
      * @param node [type:node] node from which to get the clipping visibility state
-     * @return visible [type:boolean] true or false
+     * @return visible [type:boolean] `true` or `false`
      */
     static int LuaGetClippingVisible(lua_State* L)
     {
@@ -2455,7 +2456,7 @@ namespace dmGui
      *
      * @name gui.set_clipping_visible
      * @param node [type:node] node to set clipping visibility for
-     * @param visible [type:boolean] true or false
+     * @param visible [type:boolean] `true` or `false`
      */
     static int LuaSetClippingVisible(lua_State* L)
     {
@@ -2471,7 +2472,7 @@ namespace dmGui
      *
      * @name gui.get_clipping_inverted
      * @param node [type:node] node from which to get the clipping inverted state
-     * @return inverted [type:boolean] true or false
+     * @return inverted [type:boolean] `true` or `false`
      */
     static int LuaGetClippingInverted(lua_State* L)
     {
@@ -2486,7 +2487,7 @@ namespace dmGui
      *
      * @name gui.set_clipping_inverted
      * @param node [type:node] node to set clipping inverted state for
-     * @param inverted [type:boolean] true or false
+     * @param inverted [type:boolean] `true` or `false`
      */
     static int LuaSetClippingInverted(lua_State* L)
     {
@@ -4607,6 +4608,7 @@ namespace dmGui
      *
      * @name gui.get_inherit_alpha
      * @param node [type:node] node from which to get the inherit alpha state
+     * @return inherit_alpha [type:boolean] `true` or `false`
      */
     static int LuaGetInheritAlpha(lua_State* L)
     {
@@ -4624,7 +4626,7 @@ namespace dmGui
      *
      * @name gui.set_inherit_alpha
      * @param node [type:node] node from which to set the inherit alpha state
-     * @param inherit_alpha [type:boolean] true or false
+     * @param inherit_alpha [type:boolean] `true` or `false`
      */
     static int LuaSetInheritAlpha(lua_State* L)
     {
@@ -4643,6 +4645,7 @@ namespace dmGui
      *
      * @name gui.get_alpha
      * @param node [type:node] node from which to get alpha
+     * @return alpha [type:number] alpha
      */
     static int LuaGetAlpha(lua_State* L)
     {
