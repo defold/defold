@@ -41,7 +41,7 @@ import java.io.OutputStream;
 @ProtoParams(srcClass = ComputeDesc.class, messageClass = ComputeDesc.class)
 @BuilderParams(name = "Compute", inExts = {".compute"}, outExt = ".computec")
 public class ComputeBuilder extends Builder<Void>  {
-	@Override
+    @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         TaskBuilder<Void> task = Task.<Void> newBuilder(this)
                 .setName(params.name())
@@ -105,7 +105,7 @@ public class ComputeBuilder extends Builder<Void>  {
             ComputeDesc.Builder computeBuilder = ComputeDesc.newBuilder();
             TextFormat.merge(reader, computeBuilder);
 
-        	computeBuilder.setComputeProgram(BuilderUtil.replaceExt(computeBuilder.getComputeProgram(), ".cp", ".cpc"));
+            computeBuilder.setComputeProgram(BuilderUtil.replaceExt(computeBuilder.getComputeProgram(), ".cp", ".cpc"));
 
             buildSamplers(computeBuilder);
 
