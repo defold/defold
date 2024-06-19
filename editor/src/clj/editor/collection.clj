@@ -67,7 +67,8 @@
   (inherits core/Scope)
   (property id g/Str ; Required pb field.
             (dynamic error (g/fnk [_node-id id id-counts]
-                             (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)))
+                             (or (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)
+                                 (validation/prop-error :warning _node-id :id validation/prop-contains-url-characters? id "Id"))))
             (dynamic read-only? (g/fnk [_node-id]
                                   (g/override? _node-id))))
   (property url g/Str
@@ -446,7 +447,10 @@
 (g/defnode CollectionNode
   (inherits resource-node/ResourceNode)
 
-  (property name g/Str)
+  (property name g/Str
+            (dynamic error (g/fnk [_node-id name]
+                                 (validation/prop-error :warning _node-id :id validation/prop-contains-url-characters? name "Name"))))
+
   ;; This property is legacy and purposefully hidden
   ;; The feature is only useful for uniform scaling, we use non-uniform now
   (property scale-along-z g/Bool (default (protobuf/int->boolean (protobuf/default GameObject$CollectionDesc :scale-along-z)))
