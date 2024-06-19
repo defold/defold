@@ -46,6 +46,10 @@
   (when (> (id-counts id) 1)
     (format "'%s' is in use by another instance" id)))
 
+(defn prop-contains-url-characters? [id name]
+  (when (re-find #"[#:]" id)
+    (format "%s should not contain special URL symbols such as '#' or ':'" name)))
+
 (defn prop-negative? [v name]
   (when (< v 0)
     (format "'%s' cannot be negative" name)))
