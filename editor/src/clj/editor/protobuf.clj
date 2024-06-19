@@ -645,22 +645,37 @@ Macros currently mean no foreseeable performance gain, however."
                      (str package "." outer-cls "$" inner-cls)))]
     (workspace/load-class! cls-name)))
 
+(defn val->pb-enum [^Class enum-class val]
+  (Enum/valueOf enum-class (keyword->enum-name val)))
+
+(defn- int-from-clj [value]
+  (int (if (instance? Boolean value)
+         (boolean->int value)
+         value)))
+
+(defn- boolean-from-clj [value]
+  ;; The reason we convert to Boolean object is for symmetry - the protobuf
+  ;; system does this when loading from protobuf files.
+  (Boolean/valueOf (boolean value)))
+
+(defn- enum-from-clj-fn-raw [^Class enum-cls]
+  (fn enum-from-clj [value]
+    (val->pb-enum enum-cls value)))
+
+(def ^:private enum-from-clj-fn (fn/memoize enum-from-clj-fn-raw))
+
 (defn- primitive-builder [^Descriptors$FieldDescriptor desc]
   (let [type (.getJavaType desc)]
     (cond
-      (= type Descriptors$FieldDescriptor$JavaType/INT) (fn [v]
-                                                          (int (if (instance? Boolean v)
-                                                                 (boolean->int v)
-                                                                 v)))
+      (= type Descriptors$FieldDescriptor$JavaType/INT) int-from-clj
       (= type Descriptors$FieldDescriptor$JavaType/LONG) long
       (= type Descriptors$FieldDescriptor$JavaType/FLOAT) float
       (= type Descriptors$FieldDescriptor$JavaType/DOUBLE) double
       (= type Descriptors$FieldDescriptor$JavaType/STRING) str
-      ;; The reason we convert to Boolean object is for symmetry - the protobuf system do this when loading from protobuf files
-      (= type Descriptors$FieldDescriptor$JavaType/BOOLEAN) (fn [v] (Boolean/valueOf (boolean v)))
+      (= type Descriptors$FieldDescriptor$JavaType/BOOLEAN) boolean-from-clj
       (= type Descriptors$FieldDescriptor$JavaType/BYTE_STRING) identity
       (= type Descriptors$FieldDescriptor$JavaType/ENUM) (let [enum-cls (desc->proto-cls (.getEnumType desc))]
-                                                           (fn [v] (Enum/valueOf enum-cls (keyword->enum-name v))))
+                                                           (enum-from-clj-fn enum-cls))
       :else nil)))
 
 (declare ^:private pb-builder ^:private vector-to-map-conversions)
@@ -695,7 +710,7 @@ Macros currently mean no foreseeable performance gain, however."
                                               field-builder)
                                    value-fn (if-not decorate-protobuf-exceptions
                                               value-fn
-                                              (fn [clj-value]
+                                              (fn decorated-value-fn [clj-value]
                                                 (try
                                                   (value-fn clj-value)
                                                   (catch Exception cause
@@ -710,11 +725,11 @@ Macros currently mean no foreseeable performance gain, however."
                                                          :clj-value clj-value}
                                                         cause))))))]
                                (pair field-key
-                                     (fn [^Message$Builder b v]
+                                     (fn setter! [^Message$Builder b v]
                                        (let [value (value-fn v)]
-                                         (.invoke field-set-method b (to-array [value]))))))))
+                                         (.invoke field-set-method b (object-array [value]))))))))
                       field-descs)
-        builder-fn (fn [m]
+        builder-fn (fn builder-fn [m]
                      (let [b (new-builder class)]
                        (doseq [[k v] m
                                :when (some? v)
@@ -752,9 +767,6 @@ Macros currently mean no foreseeable performance gain, however."
     (.writeTo pb out)
     (.close out)
     (.toByteArray out)))
-
-(defn val->pb-enum [^Class enum-class val]
-  (Enum/valueOf enum-class (keyword->enum-name val)))
 
 (def float-zero (Float/valueOf (float 0.0)))
 (def float-one (Float/valueOf (float 1.0)))

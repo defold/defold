@@ -449,7 +449,7 @@
   (property name g/Str)
   ;; This property is legacy and purposefully hidden
   ;; The feature is only useful for uniform scaling, we use non-uniform now
-  (property scale-along-z g/Bool (default (= 1 (protobuf/default GameObject$CollectionDesc :scale-along-z)))
+  (property scale-along-z g/Bool (default (protobuf/int->boolean (protobuf/default GameObject$CollectionDesc :scale-along-z)))
             (dynamic visible (g/constantly false)))
 
   (input ref-inst-ddf g/Any :array)

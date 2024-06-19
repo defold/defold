@@ -114,7 +114,6 @@
 
 (defn make-collection-dependencies-fn [game-object-resource-type-fn]
   {:pre [(ifn? game-object-resource-type-fn)]}
-  ;; TODO: This should probably also consider resource property overrides?
   (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
     (fn [source-value]
       (let [go-resource-type (game-object-resource-type-fn)

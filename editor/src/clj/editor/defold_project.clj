@@ -139,7 +139,7 @@
     (load-fn project embedded-resource-node-id embedded-resource source-value)))
 
 (defn- node-load-dependencies
-  "Returns the node-ids that are immediate dependencies of specified node-id.
+  "Returns the node-ids that are immediate dependencies of the supplied node-id.
 
   `resource-node-ids-by-proj-path` is a map from proj-path to:
     * new node-id if the resource is being reloaded.

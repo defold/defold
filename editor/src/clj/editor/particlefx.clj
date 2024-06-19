@@ -312,7 +312,7 @@
 (def ^:private mod-types {:modifier-type-acceleration {:label "Acceleration"
                                                        :template {:type :modifier-type-acceleration
                                                                   :properties [{:key :modifier-key-magnitude
-                                                                                :points [{:y -100.0}]}]}
+                                                                                :points [{:y (float -100.0)}]}]}
                                                        :geom-data-screen (fn [magnitude _]
                                                                            (if (< magnitude 0)
                                                                              acceleration-neg-geom-data
@@ -339,9 +339,9 @@
                           :modifier-type-vortex {:label "Vortex"
                                                  :template {:type :modifier-type-vortex
                                                             :properties [{:key :modifier-key-magnitude
-                                                                          :points [{:y 100.0}]}
+                                                                          :points [{:y (float 100.0)}]}
                                                                          {:key :modifier-key-max-distance
-                                                                          :points [{:y 1000.0}]}]}
+                                                                          :points [{:y (float 1000.0)}]}]}
                                                  :geom-data-screen (fn [magnitude _]
                                                                      (if (< magnitude 0)
                                                                        vortex-neg-geom-data

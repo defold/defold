@@ -48,6 +48,7 @@
 
 (defn strip-default-scale-from-component-desc [component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.
+  ;; TODO(save-value-cleanup): Can we get rid of this now?
   (if-let [scale (:scale component-desc)]
     (if (scene/significant-scale? scale)
       component-desc

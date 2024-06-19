@@ -413,7 +413,6 @@
    [:template-build-targets :template-build-targets]])
 
 (defn- attach-gui-node [node-tree parent gui-node type]
-  ;; TODO: Remove unused type argument (i.e. :type-box) & turn gen-gui-node-attach-fn into non-gen.
   (concat
     (g/connect gui-node :id node-tree :ids)
     (g/connect node-tree :id-counts gui-node :id-counts)
@@ -619,13 +618,15 @@
        (vec)))
 
 (def ^:private override-retained-pb-fields
-  [:type ; Not overridden or necessary, but improves readability.
-   :custom-type ; Not overridden or necessary, but improves readability.
-   :id ; Not overridden, but used to locate the original.
-   :parent ; No property exists for field.
-   :template-node-child ; No property exists for field.
-   :child-index ; No field exists for property.
-   :overridden-fields]) ; No property exists for field.
+  ;; These pb-fields will always be kept on override nodes. Other fields will be
+  ;; stripped out unless their values deviate from the original node.
+  [:type ; Not overridden or necessary, but improves readability in files.
+   :custom-type ; Not overridden or necessary, but improves readability in files.
+   :id ; Possibly overridden to reflect new position in scene hierarchy, but not listed among :overridden-fields. Used to locate the original node.
+   :parent ; Possibly overridden to reflect new position in scene hierarchy, but not listed among :overridden-fields. No property exists for field.
+   :template-node-child ; Signals that the node is overriding a node from a template scene. No property exists for field.
+   :child-index ; Extra key sneaked into the node-desc to control order. No field exists for property.
+   :overridden-fields]) ; Controls which pb-fields we apply override properties from when loading. No property exists for field.
 
 (defn- strip-unused-overridden-fields-from-node-desc [node-desc]
   {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
@@ -659,7 +660,7 @@
         :overridden-fields (overridden-pb-field-indices _this))
       (assoc
         :type type ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
-        :child-index child-index))) ; Used to sort layers in the SceneDesc.
+        :child-index child-index))) ; Used to order sibling nodes in the SceneDesc.
 
 (g/defnode GuiNode
   (inherits core/Scope)
@@ -667,7 +668,7 @@
   (inherits outline/OutlineNode)
 
   (property child-index g/Int (dynamic visible (g/constantly false)) (default 0)) ; No protobuf counterpart.
-  (property type g/Keyword (dynamic visible (g/constantly false))) ; Required protobuf field.
+  (property type g/Keyword (dynamic visible (g/constantly false))) ; Always assigned in load-fn.
   (property custom-type g/Int (dynamic visible (g/constantly false)) (default (protobuf/default Gui$NodeDesc :custom-type)))
 
   (input id-counts NameCounts)
@@ -1808,7 +1809,7 @@
                                                            :outline-error? (g/error-fatal? build-errors)}))
   (output pb-msg g/Any (g/fnk [name child-index]
                          (-> (protobuf/make-map-without-defaults Gui$SceneDesc$LayerDesc :name name)
-                             (assoc :child-index child-index)))) ; Used to sort layers in the SceneDesc.
+                             (assoc :child-index child-index)))) ; Used to order layers in the SceneDesc.
   (output build-errors g/Any (g/fnk [_node-id name name-counts]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")))))
@@ -3268,8 +3269,8 @@
         :build-ext (:build-ext def)
         :node-type GuiSceneNode
         :ddf-type (:pb-class def)
-        :sanitize-fn sanitize-scene
         :load-fn load-gui-scene
+        :sanitize-fn sanitize-scene
         :icon (:icon def)
         :icon-class (:icon-class def)
         :tags (:tags def)

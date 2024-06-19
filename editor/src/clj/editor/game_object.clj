@@ -100,8 +100,8 @@
 
 (defn- select-transform-properties
   "Used to strip unsupported transform properties when loading a component.
-  Unsupported properties will be initialized to the identity transform.
-  If the resource type is unknown to us, keep all transform properties."
+  Unsupported properties will be removed. If the resource type is unknown to us,
+  keep all transform properties."
   [component-resource-type component]
   (select-keys
     component
@@ -175,7 +175,7 @@
                                       (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id))))
             (dynamic read-only? (g/fnk [_node-id]
                                   (g/override? _node-id))))
-  (property url g/Str ; No protobuf counterpart.
+  (property url g/Str ; Just for presentation.
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
             (dynamic read-only? (g/constantly true)))
 

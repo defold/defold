@@ -52,8 +52,8 @@
               (mapcat (fn [build-target]
                         (let [build-resource (:resource build-target)
                               source-resource (:resource build-resource)]
-                          (when-not (and (satisfies? resource/Resource build-resource)
-                                         (satisfies? resource/Resource source-resource))
+                          (when-not (and (workspace/build-resource? build-resource)
+                                         (workspace/source-resource? source-resource))
                             (throw (ex-info "dep-build-targets contains an invalid build target."
                                             {:build-target build-target
                                              :build-resource build-resource
@@ -67,7 +67,7 @@
     (mapv (fn [[field-path field-value]]
             (when-not (or (nil? field-value)
                           (string? field-value)
-                          (satisfies? resource/Resource field-value))
+                          (resource/resource? field-value))
               (throw (ex-info "value for resource field in pb-map is not a Resource or proj-path."
                               {:field-value field-value
                                :field-path field-path

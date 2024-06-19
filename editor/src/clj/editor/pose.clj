@@ -107,8 +107,8 @@
   ;; Implementation based on:
   ;; http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
   ;; Rotation sequence: 231 (YZX)
-  (if (== 0.0 x-deg y-deg)
-    (if (== 0.0 z-deg)
+  (if (= 0.0 x-deg y-deg)
+    (if (= 0.0 z-deg)
       default-rotation
       (let [ha (* 0.5 (math/deg->rad z-deg))
             s (Math/sin ha)
@@ -144,9 +144,9 @@
     default-double-vec
     (let [[x y z] coll]
       (cond
-        (and (== (double x) ^double (default-double-vec 0))
-             (== (double y) ^double (default-double-vec 1))
-             (== (double z) ^double (default-double-vec 2)))
+        (and (= (double x) ^double (default-double-vec 0))
+             (= (double y) ^double (default-double-vec 1))
+             (= (double z) ^double (default-double-vec 2)))
         default-double-vec
 
         (and (vector? coll)
@@ -164,10 +164,10 @@
     default-double-vec
     (let [[x y z w] coll]
       (cond
-        (and (== (double x) ^double (default-double-vec 0))
-             (== (double y) ^double (default-double-vec 1))
-             (== (double z) ^double (default-double-vec 2))
-             (== (double w) ^double (default-double-vec 3)))
+        (and (= (double x) ^double (default-double-vec 0))
+             (= (double y) ^double (default-double-vec 1))
+             (= (double z) ^double (default-double-vec 2))
+             (= (double w) ^double (default-double-vec 3)))
         default-double-vec
 
         (and (vector? coll)
@@ -204,7 +204,7 @@
 
 (defn rotation-pose
   ^Pose [^double x ^double y ^double z ^double w]
-  (if (and (zero? x) (zero? y) (zero? z) (== 1.0 w))
+  (if (and (zero? x) (zero? y) (zero? z) (= 1.0 w))
     default
     (->Pose default-translation (vector-of :double x y z w) default-scale)))
 
@@ -216,7 +216,7 @@
 
 (defn scale-pose
   ^Pose [^double x ^double y ^double z]
-  (if (and (== 1.0 x) (== 1.0 y) (== 1.0 z))
+  (if (and (= 1.0 x) (= 1.0 y) (= 1.0 z))
     default
     (->Pose default-translation default-rotation (vector-of :double x y z))))
 
