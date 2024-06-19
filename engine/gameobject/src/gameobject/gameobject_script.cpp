@@ -524,6 +524,27 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
+    Result PostScriptUnrefMessage(const dmMessage::URL* sender, const dmMessage::URL* receiver, int reference)
+    {
+        dmGameObjectDDF::ScriptUnrefMessage msg = {};
+        msg.m_Reference = reference;
+
+        dmDDF::Descriptor* descriptor = dmGameObjectDDF::ScriptUnrefMessage::m_DDFDescriptor;
+        dmMessage::Result result = Post(sender, receiver, descriptor->m_NameHash, 0, 0, (uintptr_t)descriptor, &msg, sizeof(msg), 0);
+
+        if (dmMessage::RESULT_OK != result)
+        {
+            DM_HASH_REVERSE_MEM(hash_ctx, 512);
+            dmLogError("Failed to send message %s to %s:%s/%s",
+                dmHashReverseSafe64Alloc(&hash_ctx, descriptor->m_NameHash),
+                dmMessage::GetSocketName(receiver->m_Socket),
+                dmHashReverseSafe64Alloc(&hash_ctx, receiver->m_Path),
+                dmHashReverseSafe64Alloc(&hash_ctx, receiver->m_Fragment));
+            return RESULT_UNKNOWN_ERROR;
+        }
+        return RESULT_OK;
+    }
+
     static int CheckGoGetResult(lua_State* L, dmGameObject::PropertyResult result, const PropertyDesc& property_desc, dmhash_t property_id, dmGameObject::HInstance target_instance, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options, bool index_requested)
     {
         DM_HASH_REVERSE_MEM(hash_ctx, 512);
