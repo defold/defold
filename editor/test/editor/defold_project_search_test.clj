@@ -95,8 +95,9 @@
 
 (defn- match->value [match]
   (case (:match-type match)
-    :match-type-text (string/trim (:line match)) ; Trim lines to disregard indentation in tests below.
-    :match-type-protobuf (:value match)))
+    :match-type-text (string/trim (:text match)) ; Trim lines to disregard indentation in tests below.
+    :match-type-protobuf (:value match)
+    :match-type-setting (:value match)))
 
 (defn- matched-text-by-proj-path [consumed]
   (mapv (fn [{:keys [resource matches]}]

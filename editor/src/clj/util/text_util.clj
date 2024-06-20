@@ -18,7 +18,7 @@
             [util.coll :refer [pair]])
   (:import [clojure.lang IReduceInit]
            [java.io BufferedReader Reader StringReader]
-           [java.util.regex Pattern]))
+           [java.util.regex MatchResult Pattern]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -229,8 +229,21 @@
 (defn- readable->line-infos [readable]
   (line-info-coll #(io/reader readable)))
 
-(defn- string->line-infos [^String text]
+(defn- text->line-infos [^String text]
   (line-info-coll #(BufferedReader. (StringReader. text))))
+
+(defn- make-text-match
+  ([^String text ^MatchResult match-result]
+   (make-text-match text match-result 0 0))
+  ([^String text ^MatchResult match-result ^long row ^long row-start-caret-position]
+   (let [start-col (.start match-result)
+         end-col (.end match-result)]
+     {:match-type :match-type-text
+      :text text
+      :row row
+      :start-col start-col
+      :end-col end-col
+      :caret-position (+ row-start-caret-position start-col)})))
 
 (defn- line-infos->text-matches [line-infos ^Pattern re-pattern]
   (persistent!
@@ -242,10 +255,7 @@
             (if-not (.find matcher)
               matches
               (recur (conj! matches
-                            (assoc line-info
-                              :match-type :match-type-text
-                              :start-col (.start matcher)
-                              :end-col (.end matcher))))))))
+                            (make-text-match line matcher (:row line-info) (:caret-position line-info))))))))
       (transient [])
       line-infos)))
 
@@ -260,20 +270,20 @@
               (if-not (.find matcher)
                 (pair next-line-start-pos matches)
                 (recur (conj! matches
-                              {:match-type :match-type-text
-                               :line line
-                               :row row
-                               :start-col (.start matcher)
-                               :end-col (.end matcher)
-                               :caret-position line-start-pos}))))))
+                              (make-text-match line matcher row line-start-pos)))))))
         (pair 0 (transient []))
         lines))))
 
 (defn readable->text-matches [readable ^Pattern re-pattern]
   (line-infos->text-matches (readable->line-infos readable) re-pattern))
 
-(defn string->text-matches [^String text ^Pattern re-pattern]
-  (line-infos->text-matches (string->line-infos text) re-pattern))
+(defn text->text-matches [^String text ^Pattern re-pattern]
+  (line-infos->text-matches (text->line-infos text) re-pattern))
+
+(defn string->text-match [^String string ^Pattern re-pattern]
+  (let [matcher (re-matcher re-pattern string)]
+    (when (.find matcher)
+      (make-text-match string matcher))))
 
 (defn search-string-numeric?
   "Returns true if the supplied search string might match a numeric value."

@@ -249,20 +249,21 @@
   ([search-string]
    (protobuf/make-map-search-match-fn search-string))
   ([pb-map match-fn]
-   (mapv (fn [value]
-           {:match-type :match-type-protobuf
-            :value value})
-         (coll/search pb-map match-fn))))
+   (mapv (fn [[text-match path]]
+           (assoc text-match
+             :match-type :match-type-protobuf
+             :path path))
+         (coll/search-with-path pb-map [] match-fn))))
 
 (defn make-ddf-resource-search-fn [init-path path-fn]
   (defn search-fn
     ([search-string]
      (protobuf/make-map-search-match-fn search-string))
     ([pb-map match-fn]
-     (mapv (fn [[value path]]
-             {:match-type :match-type-protobuf
-              :value value
-              :path (path-fn pb-map path)})
+     (mapv (fn [[text-match path]]
+             (assoc text-match
+               :match-type :match-type-protobuf
+               :path (path-fn pb-map path)))
            (coll/search-with-path pb-map init-path match-fn)))))
 
 (defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn string-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]

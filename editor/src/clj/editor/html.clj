@@ -33,7 +33,7 @@
   ([search-string]
    (text-util/search-string->re-pattern search-string :case-insensitive))
   ([html re-pattern]
-   (text-util/string->text-matches html re-pattern)))
+   (text-util/text->text-matches html re-pattern)))
 
 (defn register-resource-types
   [workspace]

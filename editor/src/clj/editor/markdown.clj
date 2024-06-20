@@ -451,7 +451,7 @@
   ([search-string]
    (text-util/search-string->re-pattern search-string :case-insensitive))
   ([markdown re-pattern]
-   (text-util/string->text-matches markdown re-pattern)))
+   (text-util/text->text-matches markdown re-pattern)))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace

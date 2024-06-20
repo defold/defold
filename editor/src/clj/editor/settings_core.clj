@@ -394,10 +394,11 @@
    (text-util/search-string->re-pattern search-string :case-insensitive))
   ([raw-settings re-pattern]
    (into []
-         (keep (fn [raw-setting]
-                 (when-some [value (:value raw-setting)]
-                   (when (text-util/includes-re-pattern? value re-pattern)
-                     {:match-type :match-type-setting
-                      :value value
-                      :path (:path raw-setting)}))))
+         (keep (fn [{:keys [value] :as raw-setting}]
+                 (some-> value
+                         (text-util/string->text-match re-pattern)
+                         (assoc
+                           :match-type :match-type-setting
+                           :value value
+                           :path (:path raw-setting)))))
          raw-settings)))

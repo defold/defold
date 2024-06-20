@@ -39,6 +39,7 @@
             [editor.outline :as outline]
             [editor.prefs :as prefs]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.types :as types]
@@ -53,8 +54,8 @@
            [javafx.scene Parent Scene]
            [javafx.scene.control CheckBox Label ProgressIndicator SelectionMode TextField TreeItem TreeTableView TreeView]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
-           [javafx.scene.paint Color]
            [javafx.scene.layout AnchorPane HBox Priority]
+           [javafx.scene.paint Color]
            [javafx.stage StageStyle]))
 
 (set! *warn-on-reflection* true)
@@ -118,49 +119,106 @@
     (ui/timer-start! timer)
     timer))
 
-(defn- make-matched-item-icon
-  [{:keys [resource] :as _item}]
-  (-> resource
-      workspace/resource-icon
-      (icons/get-image-view 16)))
-
-(defn- make-matched-item-row-indicator
+(defn- make-matched-text-item-row-indicator
   ^Label [{:keys [^long row] :as _item}]
   (doto (Label. (str (inc row) ": "))
     (ui/add-style! "line-number")
     (.setMinWidth Label/USE_PREF_SIZE)))
 
-(defn- make-matched-item-before-text
-  ^Label [{:keys [^String line ^long start-col] :as _item}]
-  (when-some [before-text (not-empty (string/triml (subs line 0 start-col)))]
+(defn- make-matched-text-item-before-text
+  ^Label [{:keys [^String text ^long start-col] :as _item}]
+  (when-some [before-text (not-empty (string/triml (subs text 0 start-col)))]
     (doto (Label. before-text)
       (HBox/setHgrow Priority/ALWAYS)
       (.setPrefWidth Label/USE_COMPUTED_SIZE))))
 
-(defn- make-matched-item-match-text
-  ^Label [{:keys [^String line ^long start-col ^long end-col] :as _item}]
-  (let [match-text (subs line start-col end-col)]
+(defn- make-matched-text-item-match-text
+  ^Label [{:keys [^String text ^long start-col ^long end-col] :as _item}]
+  (let [match-text (subs text start-col end-col)]
     (doto (Label. match-text)
       (ui/add-style! "matched")
       (.setMinWidth Label/USE_PREF_SIZE))))
 
-(defn- make-matched-item-after-text
-  ^Label [{:keys [^String line ^long end-col] :as _item}]
-  (when-some [after-text (not-empty (string/trimr (subs line end-col)))]
+(defn- make-matched-text-item-after-text
+  ^Label [{:keys [^String text ^long end-col] :as _item}]
+  (when-some [after-text (not-empty (string/trimr (subs text end-col)))]
     (doto (Label. after-text)
       (HBox/setHgrow Priority/ALWAYS))))
 
-(defn- make-matched-item-graphic [item]
+(defn- make-matched-item-value-path
+  ^Label [path-tokens]
+  (doto (Label. (str (string/join " \u2192 " path-tokens) ": ")) ; "->" (RIGHTWARDS ARROW)
+    (ui/add-style! "value-path")
+    (.setMinWidth Label/USE_PREF_SIZE)))
+
+(defn- make-matched-protobuf-item-value-path
+  ^Label [{:keys [path] :as _item}]
+  (make-matched-item-value-path
+    (map (fn [token]
+           (cond-> token
+                   (keyword? token)
+                   (protobuf/keyword->field-name)))
+         path)))
+
+(defn- make-matched-setting-item-value-path
+  ^Label [{:keys [path] :as _item}]
+  (make-matched-item-value-path path))
+
+(defn- make-matched-item-graphic-impl
+  ^HBox [item child-node-fns]
   (let [children (ui/node-array
                    (keep #(% item)
-                         [make-matched-item-icon
-                          make-matched-item-row-indicator
-                          make-matched-item-before-text
-                          make-matched-item-match-text
-                          make-matched-item-after-text]))]
+                         child-node-fns))]
     (doto (HBox. children)
       (.setPrefWidth 0.0)
       (.setAlignment Pos/CENTER_LEFT))))
+
+(defmulti ^:private make-matched-item-graphic :match-type)
+
+(defmethod make-matched-item-graphic :match-type-text [item]
+  (make-matched-item-graphic-impl
+    item
+    [make-matched-text-item-row-indicator
+     make-matched-text-item-before-text
+     make-matched-text-item-match-text
+     make-matched-text-item-after-text]))
+
+(defmethod make-matched-item-graphic :match-type-protobuf [item]
+  (make-matched-item-graphic-impl
+    item
+    [make-matched-protobuf-item-value-path
+     make-matched-text-item-before-text
+     make-matched-text-item-match-text
+     make-matched-text-item-after-text]))
+
+(defmethod make-matched-item-graphic :match-type-setting [item]
+  (make-matched-item-graphic-impl
+    item
+    [make-matched-setting-item-value-path
+     make-matched-text-item-before-text
+     make-matched-text-item-match-text
+     make-matched-text-item-after-text]))
+
+(defmulti ^:private make-matched-item-open-opts :match-type)
+
+(defmethod make-matched-item-open-opts :match-type-text [item]
+  (let [row (:row item)
+        cursor-range (data/->CursorRange (data/->Cursor row (:start-col item))
+                                         (data/->Cursor row (:end-col item)))]
+    ;; NOTE:
+    ;; :caret-position is here to support Open as Text.
+    ;; We might want to remove it now that all text
+    ;; files are opened using the code editor.
+    {:caret-position (:caret-position item)
+     :cursor-range cursor-range}))
+
+(defmethod make-matched-item-open-opts :match-type-protobuf [item]
+  ;; TODO: Make the view select and focus on the matching property.
+  {:value-path (:path item)})
+
+(defmethod make-matched-item-open-opts :match-type-setting [item]
+  ;; TODO: Make the view select and focus on the matching property.
+  {:value-path (:path item)})
 
 (defn- init-search-in-files-tree-view! [^TreeView tree-view]
   (ui/customize-tree-view! tree-view {:double-click-expand? false})
@@ -197,15 +255,7 @@
                     [item {}])
                   (let [resource (:resource item)]
                     (when (resource/exists? resource)
-                      (let [row (:row item)
-                            cursor-range (data/->CursorRange (data/->Cursor row (:start-col item))
-                                                             (data/->Cursor row (:end-col item)))
-                            ;; NOTE:
-                            ;; :caret-position is here to support Open as Text.
-                            ;; We might want to remove it now that all text
-                            ;; files are opened using the code editor.
-                            opts {:caret-position (:caret-position item)
-                                  :cursor-range cursor-range}]
+                      (let [opts (make-matched-item-open-opts item)]
                         [resource opts]))))))
         selection))
 

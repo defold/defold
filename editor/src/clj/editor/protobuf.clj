@@ -114,6 +114,12 @@ Macros currently mean no foreseeable performance gain, however."
 
 (def ^:private keyword->enum-name (fn/memoize keyword->enum-name-raw))
 
+(defn- keyword->field-name-raw
+  ^String [keyword]
+  (.intern (string/replace (name keyword) "-" "_")))
+
+(def keyword->field-name (fn/memoize keyword->field-name-raw))
+
 (defn pb-enum->val
   [val-or-desc]
   (let [^Descriptors$EnumValueDescriptor desc (if (instance? ProtocolMessageEnum val-or-desc)
@@ -1306,28 +1312,26 @@ Macros currently mean no foreseeable performance gain, however."
        (assign-repeated pb-map field-kw (some->> items (into [] (keep sanitize-item-fn))))))))
 
 (defn make-map-search-match-fn
-  "Returns a function that takes a value and returns it if its protobuf-text
-  representation matches the provided search-string. This function is suitable
-  for use with coll/search and its ilk on a protobuf message in map format."
+  "Returns a function that takes a value and returns a text-match map augmented
+  with the matching :value if its protobuf-text representation matches the
+  provided search-string. This function is suitable for use with coll/search and
+  its ilk on a protobuf message in map format."
   [search-string]
-  (let [enum-search-string (enum-name->keyword-name search-string)
-        text-re-pattern (text-util/search-string->re-pattern search-string :case-insensitive)
-        enum-re-pattern (text-util/search-string->re-pattern enum-search-string :case-insensitive)
+  (let [re-pattern (text-util/search-string->re-pattern search-string :case-insensitive)
         search-string-is-numeric (text-util/search-string-numeric? search-string)]
     (fn match-fn [value]
-      (cond
-        (string? value)
-        (when (text-util/includes-re-pattern? value text-re-pattern)
-          value)
+      (some-> (cond
+                (string? value)
+                value
 
-        (keyword? value)
-        (when (text-util/includes-re-pattern? (name value) enum-re-pattern)
-          value)
+                (keyword? value)
+                (keyword->enum-name value)
 
-        (and search-string-is-numeric (number? value))
-        (when (text-util/includes-re-pattern? (str value) text-re-pattern)
-          value)
+                (and search-string-is-numeric (number? value))
+                (str value)
 
-        (boolean? value)
-        (when (text-util/includes-re-pattern? (if value "true" "false") text-re-pattern)
-          value)))))
+                (boolean? value)
+                (if value "true" "false"))
+
+              (text-util/string->text-match re-pattern)
+              (assoc :value value)))))
