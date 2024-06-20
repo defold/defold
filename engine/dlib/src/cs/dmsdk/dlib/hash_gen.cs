@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/dlib and cmd=../../scripts/dmsdk/gen_sdk.py -i ./sdk_gen.json
+// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/dlib and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/dlib/sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
@@ -17,6 +17,7 @@
 
 using System.Runtime.InteropServices;
 using System.Reflection.Emit;
+
 
 namespace dmSDK.Dlib {
     public unsafe partial class Hash
@@ -37,25 +38,25 @@ namespace dmSDK.Dlib {
         * Generated from [ref:dmHashString32]
         */
         [DllImport("dlib", EntryPoint="dmHashString32", CallingConvention = CallingConvention.Cdecl)]
-        public static extern uint HashString32(string str);
+        public static extern uint HashString32(String str);
 
         /*#
         * Generated from [ref:dmHashString64]
         */
         [DllImport("dlib", EntryPoint="dmHashString64", CallingConvention = CallingConvention.Cdecl)]
-        public static extern UInt64 HashString64(string str);
+        public static extern UInt64 HashString64(String str);
 
         /*#
         * Generated from [ref:dmHashReverseSafe64]
         */
         [DllImport("dlib", EntryPoint="dmHashReverseSafe64", CallingConvention = CallingConvention.Cdecl)]
-        public static extern string HashReverseSafe64(UInt64 hash);
+        public static extern String HashReverseSafe64(UInt64 hash);
 
         /*#
         * Generated from [ref:dmHashReverseSafe32]
         */
         [DllImport("dlib", EntryPoint="dmHashReverseSafe32", CallingConvention = CallingConvention.Cdecl)]
-        public static extern string HashReverseSafe32(uint hash);
+        public static extern String HashReverseSafe32(uint hash);
 
     } // Hash
 } // dmSDK.Dlib

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <memory.h>
+#include <dlib/log.h>
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -8,6 +9,7 @@ extern "C"
 {
 #include <lua/lua.h>
 #include <lua/lauxlib.h>
+#include <lua/lualib.h>
 }
 
 extern "C" int csRunTestsLua(lua_State* L);
@@ -49,9 +51,20 @@ static void PrintTable(lua_State* L, int indent)
     }
 }
 
+static bool RunString(lua_State* L, const char* script)
+{
+    if (luaL_dostring(L, script) != 0)
+    {
+        dmLogError("%s", lua_tolstring(L, -1, 0));
+        return false;
+    }
+    return true;
+}
+
 TEST(CSharp, Lua)
 {
     lua_State* L = luaL_newstate();
+    luaL_openlibs(L);
 
     int top = lua_gettop(L);
     ASSERT_EQ(0, top);
@@ -71,6 +84,9 @@ TEST(CSharp, Lua)
     PrintTable(L, 1);
     printf("<- C#\n");
 
+    // Test the C# module
+    RunString(L, "local r = csfuncs.add(1, 2); print('C# add(1, 2) ==', r); assert(r == 3)");
+
     lua_pop(L, 2); // two tables
     top = lua_gettop(L);
     ASSERT_EQ(0, top);
@@ -79,6 +95,8 @@ TEST(CSharp, Lua)
 
 int main(int argc, char **argv)
 {
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

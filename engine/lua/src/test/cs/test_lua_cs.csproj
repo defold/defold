@@ -16,6 +16,8 @@
   <ItemGroup>
     <ProjectReference Include="../../cs/lua_cs.csproj" />
     <DirectPInvoke Include="luajit-5.1" />
+    <DirectPInvoke Include="test_lua_csharp" />
+
   </ItemGroup>
 
 

@@ -21,20 +21,34 @@ namespace dmSDK
     {
         public unsafe partial class Extension
         {
-            public static bool TryGetFunctionPointer(Delegate d, out void* pointer)
+            public static bool TryGetFunctionPointer(Delegate d, out IntPtr pointer)
             {
                 ArgumentNullException.ThrowIfNull(d);
                 var method = d.Method;
 
                 if (d.Target is {} || !method.IsStatic || method is DynamicMethod)
                 {
-                    pointer = null;
+                    pointer = 0;
                     return false;
                 }
 
-                pointer = (void*)method.MethodHandle.GetFunctionPointer();
+                pointer = method.MethodHandle.GetFunctionPointer();
                 return true;
             }
+
+            public static IntPtr GetFunctionPointer(Delegate d)
+            {
+                ArgumentNullException.ThrowIfNull(d);
+                var method = d.Method;
+
+                if (d.Target is {} || !method.IsStatic || method is DynamicMethod)
+                {
+                    return (IntPtr)0;
+                }
+
+                return method.MethodHandle.GetFunctionPointer();
+            }
+
         } // class Extension
     } // namespace Extension
 } // namespace dmSDK

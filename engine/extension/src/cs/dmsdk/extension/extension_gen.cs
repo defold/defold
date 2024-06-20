@@ -18,6 +18,9 @@
 using System.Runtime.InteropServices;
 using System.Reflection.Emit;
 
+using dmSDK.Dlib;
+using dmSDK.Lua;
+
 namespace dmSDK.Extension {
     public unsafe partial class Extension
     {
@@ -27,7 +30,7 @@ namespace dmSDK.Extension {
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack=1)]
         public struct AppParams
         {
-            public dmSDK.Dlib.ConfigFile.Config* ConfigFile;
+            public ConfigFile.Config* ConfigFile;
         }
 
         /*#
@@ -36,7 +39,9 @@ namespace dmSDK.Extension {
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack=1)]
         public struct Params
         {
-            public dmSDK.Dlib.ConfigFile.Config* ConfigFile;
+            public ConfigFile.Config* ConfigFile;
+            public IntPtr ResourceFactory;
+            public Lua.Lua.State * L;
         }
 
         /*#
@@ -51,7 +56,7 @@ namespace dmSDK.Extension {
         * Generated from [ref:ExtensionRegister]
         */
         [DllImport("extension", EntryPoint="ExtensionRegister", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void Register(void * desc, uint desc_size, string name, IntPtr app_initialize, IntPtr app_finalize, IntPtr initialize, IntPtr finalize, IntPtr update, IntPtr on_event);
+        public static extern void Register(void * desc, uint desc_size, String name, IntPtr app_initialize, IntPtr app_finalize, IntPtr initialize, IntPtr finalize, IntPtr update, IntPtr on_event);
 
     } // Extension
 } // dmSDK.Extension

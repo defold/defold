@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../../dlib/src/cs/dlib_cs.csproj" />
+    <ProjectReference Include="../../../lua/src/cs/lua_cs.csproj" />
   </ItemGroup>
 
 </Project>

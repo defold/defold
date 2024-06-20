@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/dlib and cmd=../../scripts/dmsdk/gen_sdk.py -i ./sdk_gen.json
+// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/dlib and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/dlib/sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
@@ -18,6 +18,7 @@
 using System.Runtime.InteropServices;
 using System.Reflection.Emit;
 
+
 namespace dmSDK.Dlib {
     public unsafe partial class ConfigFile
     {
@@ -33,19 +34,19 @@ namespace dmSDK.Dlib {
         * Generated from [ref:ConfigFileGetString]
         */
         [DllImport("dlib", EntryPoint="ConfigFileGetString", CallingConvention = CallingConvention.Cdecl)]
-        public static extern string GetString(Config* config, string key, string default_value);
+        public static extern String GetString(Config* config, String key, String default_value);
 
         /*#
         * Generated from [ref:ConfigFileGetInt]
         */
         [DllImport("dlib", EntryPoint="ConfigFileGetInt", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int GetInt(Config* config, string key, int default_value);
+        public static extern int GetInt(Config* config, String key, int default_value);
 
         /*#
         * Generated from [ref:ConfigFileGetFloat]
         */
         [DllImport("dlib", EntryPoint="ConfigFileGetFloat", CallingConvention = CallingConvention.Cdecl)]
-        public static extern float GetFloat(Config* config, string key, float default_value);
+        public static extern float GetFloat(Config* config, String key, float default_value);
 
     } // ConfigFile
 } // dmSDK.Dlib
