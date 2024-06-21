@@ -19,6 +19,7 @@ from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
 from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+import run
 import sdk
 
 if not 'DYNAMO_HOME' in os.environ:
@@ -400,8 +401,7 @@ def default_flags(self):
                 self.env.append_value(f, ['-fno-rtti', '-stdlib=libc++', '-fno-exceptions', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
-        #self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
-        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon'])
+        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
         self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
@@ -1509,31 +1509,78 @@ def remove_flag(arr, flag, nargs):
         index = arr.index(flag)
         remove_flag_at_index(arr, index, nargs+1)
 
+def _get_dotnet_version():
+    result = run.shell_command('dotnet --info')
+    lines = result.split('\n')
+    i = lines.index('Host:')
+    version = lines[i+1].strip().split()[1]
+    return version
+
+def _get_dotnet_aot_base(nuget_path, dotnet_platform, dotnet_version):
+    return f"{nuget_path}/microsoft.netcore.app.runtime.nativeaot.{dotnet_platform}/{dotnet_version}/runtimes/{dotnet_platform}/native"
+
 def setup_csharp(conf):
-    platform = getattr(Options.options, 'platform', None)
+    conf.find_program('dotnet', var='DOTNET', mandatory = True)
+    conf.env.DOTNET_VERSION = _get_dotnet_version()
 
-    if platform in ('x86_64-macos','arm64-macos'):
-        nuget_path = os.path.expanduser('~/.nuget/packages') # %userprofile%/.nuget/packages
-        dotnet_os ='osx'
-        dotnet_arch ='arm64'
-        dotnet_version ='8.0.0'
-        if 'x86_64' in platform:
-            dotnet_arch = 'x64'
+    platform = getattr(Options.options, 'platform', sdk.get_host_platform())
 
-    aot_base = f"{nuget_path}/runtime.{dotnet_os}-{dotnet_arch}.microsoft.dotnet.ilcompiler/{dotnet_version}"
+    build_util = create_build_utility(conf.env)
 
-    if platform in ('x86_64-macos','arm64-macos'):
+    dotnet_arch ='arm64'
+    if 'x86_64' in platform:
+        dotnet_arch = 'x64'
+
+    platform_to_cs = {
+        'macos': 'osx',
+        'win32': 'win'
+    }
+
+    dotnet_os = platform_to_cs.get(build_util.get_target_os(), build_util.get_target_os())
+
+    nuget_path = os.environ.get("NUGET_PACKAGES", None)
+    if not nuget_path:
+        if build_util.get_target_os() in ('win32'):
+            nuget_path = os.path.expanduser('%%userprofile%%/.nuget/packages')
+        else:
+            nuget_path = os.path.expanduser('~/.nuget/packages')
+
+    conf.env.NUGET_PACKAGES = nuget_path
+    if not os.path.exists(conf.env.NUGET_PACKAGES):
+        conf.fatal("Couldn't find C# nuget packages: '%s'" % conf.env.NUGET_PACKAGES)
+
+    aot_base = _get_dotnet_aot_base(nuget_path, '%s-%s' % (dotnet_os, dotnet_arch), conf.env.DOTNET_VERSION)
+    # if not os.path.exists(aot_base):
+    #     conf.fatal("Couldn't find C# base path '%s'" % aot_base)
+
+    if build_util.get_target_os() in ('win32'):
+        pass
+    else:
         # Since there are dynamic libraries with the same name, ld will choose them by default.
         # only way to override that behavior is to explicitly specify the paths to the static libraries
-        conf.env['LINKFLAGS_CSHARP'] = [
-            f'{aot_base}/sdk/libbootstrapperdll.o',
-            f'{aot_base}/sdk/libRuntime.WorkstationGC.a',
-            f'{aot_base}/sdk/libeventpipe-enabled.a',
-            f'{aot_base}/framework/libSystem.Native.a',
-            f'{aot_base}/framework/libSystem.IO.Compression.Native.a',
-            f'{aot_base}/framework/libSystem.Globalization.Native.a']
+        if build_util.get_target_os() in ('macos'):
+            conf.env['LINKFLAGS_CSHARP'] = [
+                f'{aot_base}/libbootstrapperdll.o',
+                f'{aot_base}/libRuntime.WorkstationGC.a',
+                f'{aot_base}/libeventpipe-enabled.a',
+                f'{aot_base}/libSystem.Native.a',
+                f'{aot_base}/libSystem.IO.Compression.Native.a',
+                f'{aot_base}/libSystem.Globalization.Native.a']
 
-        conf.env['FRAMEWORK_CSHARP'] = ["AGL","OpenAL","OpenGL","QuartzCore"]
+        elif build_util.get_target_os() in ('ios'):
+            conf.env['LINKFLAGS_CSHARP'] = [
+                f'{aot_base}/libbootstrapperdll.o',
+                f'{aot_base}/libRuntime.WorkstationGC.a',
+                f'{aot_base}/libeventpipe-enabled.a',
+                f'{aot_base}/libSystem.Native.a',
+                f'{aot_base}/libSystem.IO.Compression.Native.a',
+                f'{aot_base}/libSystem.Globalization.Native.a',
+                f'{aot_base}/libicui18n.a',
+                f'{aot_base}/libicudata.a',
+                f'{aot_base}/libicuuc.a']
+
+        if build_util.get_target_os() in ('macos'):
+            conf.env['FRAMEWORK_CSHARP'] = ["AGL","OpenAL","OpenGL","QuartzCore"]
 
 # For properties, see https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-publish
 Task.task_factory('csproj_stlib', '${DOTNET} publish -c ${MODE} -o ${BUILD_DIR} -v q --artifacts-path ${ARTIFACTS_PATH} -r ${RUNTIME} -p:PublishAot=true -p:NativeLib=Static -p:PublishTrimmed=true -p:IlcDehydrate=false ${SRC[0].abspath()}',
@@ -1614,7 +1661,6 @@ def compile_csharp_lib(self):
 def detect(conf):
     conf.find_program('valgrind', var='VALGRIND', mandatory = False)
     conf.find_program('ccache', var='CCACHE', mandatory = False)
-    conf.find_program('dotnet', var='DOTNET', mandatory = True)
 
     if Options.options.with_iwyu:
         conf.find_program('include-what-you-use', var='IWYU', mandatory = False)
