@@ -97,18 +97,33 @@
     (ui/auto-commit! update-fn)
     (select-all-on-click!)))
 
+(defn set-text-field-icon!
+  [text-field image-url]
+  (let [style (str "-fx-background-image: url('" image-url "');"
+                   "-fx-background-repeat: no-repeat;"
+                   "-fx-background-position: right 6px center;")]
+    (.setStyle text-field style)))
+
+(defn script-property-type->prop-icon-png [script-property-type]
+  (case script-property-type
+    :script-property-type-number   "icons/16/Icons_34-Gamepad.png"
+    :script-property-type-hash     "icons/16/Icons_35-Inputbinding.png"
+    :script-property-type-url      "icons/16/Icons_36-Texture.png"))
+
 (defmulti create-property-control! (fn [edit-type _ property-fn]
                                      (edit-type->type edit-type)))
 
-(defmethod create-property-control! g/Str [_ _ property-fn]
+(defmethod create-property-control! g/Str [edit-type _ property-fn]
   (let [text         (TextField.)
         update-ui-fn (partial update-text-fn text str)
         update-fn    (fn [_]
                        (properties/set-values! (property-fn) (repeat (.getText text))))]
     (customize! text update-fn)
+    (when-let [type (:script-property-type edit-type)]
+      (set-text-field-icon! text (script-property-type->prop-icon-png type)))
     [text update-ui-fn]))
 
-(defmethod create-property-control! g/Int [_ _ property-fn]
+(defmethod create-property-control! g/Int [edit-type _ property-fn]
   (let [text         (TextField.)
         update-ui-fn (partial update-text-fn text field-expression/format-int)
         update-fn    (fn [_]
@@ -119,9 +134,11 @@
                                          (properties/validation-message property)
                                          (properties/read-only? property)))))]
     (customize! text update-fn)
+    (when-let [type (:script-property-type edit-type)]
+      (set-text-field-icon! text (script-property-type->prop-icon-png type)))
     [text update-ui-fn]))
 
-(defmethod create-property-control! g/Num [_ _ property-fn]
+(defmethod create-property-control! g/Num [edit-type _ property-fn]
   (let [text         (TextField.)
         update-ui-fn (partial update-text-fn text field-expression/format-number)
         update-fn    (fn [_] (if-let [v (field-expression/to-double (.getText text))]
@@ -130,6 +147,8 @@
                                              (properties/validation-message (property-fn))
                                              (properties/read-only? (property-fn)))))]
     (customize! text update-fn)
+    (when-let [type (:script-property-type edit-type)]
+      (set-text-field-icon! text (script-property-type->prop-icon-png type)))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]

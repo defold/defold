@@ -77,10 +77,14 @@
   (when-let [workspace->extensions (resource-kind->workspace->extensions resource-kind)]
     (workspace->extensions workspace)))
 
-(defn script-property-edit-type [workspace prop-type resource-kind]
-  (if (= resource/Resource prop-type)
-    {:type prop-type :ext (resource-kind-extensions workspace resource-kind)}
-    {:type prop-type}))
+(defn script-property-edit-type
+  ([workspace prop-type resource-kind & [script-property-type]]
+   (let [base-map (if (= resource/Resource prop-type)
+                    {:type prop-type :ext (resource-kind-extensions workspace resource-kind)}
+                    {:type prop-type})]
+     (if script-property-type
+       (assoc base-map :script-property-type script-property-type)
+       base-map))))
 
 (defn- resource-assignment-error [node-id prop-kw prop-name resource expected-ext]
   (when (some? resource)
