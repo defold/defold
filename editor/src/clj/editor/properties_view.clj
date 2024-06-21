@@ -106,9 +106,9 @@
 
 (defn script-property-type->prop-icon-png [script-property-type]
   (case script-property-type
-    :script-property-type-number   "icons/16/Icons_34-Gamepad.png"
-    :script-property-type-hash     "icons/16/Icons_35-Inputbinding.png"
-    :script-property-type-url      "icons/16/Icons_36-Texture.png"))
+    :script-property-type-number   "icons/16/Icons_55-123.png"
+    :script-property-type-hash     "icons/16/Icons_54-Hash.png"
+    :script-property-type-url      "icons/16/Icons_53-Url.png"))
 
 (defmulti create-property-control! (fn [edit-type _ property-fn]
                                      (edit-type->type edit-type)))
