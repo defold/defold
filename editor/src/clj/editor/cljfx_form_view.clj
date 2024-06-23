@@ -58,7 +58,7 @@
   (:import [java.io File]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control Cell ComboBox ListView$EditEvent TableColumn$CellEditEvent TableView ListView]
+           [javafx.scene.control Cell ComboBox ListView$EditEvent TableColumn$CellEditEvent TableView TableView$ResizeFeatures ListView]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.util StringConverter Callback]))
 
@@ -915,20 +915,17 @@
 
 (defn custom-table-resize-policy []
   (reify Callback
-    (call [this resize-features]
-      (let [resized-column (.getColumn resize-features)
-            delta (.getDelta resize-features)]
-        (when resized-column
-          (let [new-width (max (.getMinWidth resized-column) (+ (.getPrefWidth resized-column) delta))]
-            (.setPrefWidth resized-column new-width))))
-
-      (let [resized-column (.getColumn resize-features)
+    (call [_ resize-features]
+      (let [^TableView$ResizeFeatures resize-features resize-features
+            resized-column (.getColumn resize-features)
+            delta (.getDelta resize-features)
             table (.getTable resize-features)
             columns (.getColumns table)
             total-width (.getWidth table)
             last-column (last columns)]
-
-        ;; Adjust the last column to fill the remaining space
+        (when resized-column
+          (let [new-width (max (.getMinWidth resized-column) (+ (.getPrefWidth resized-column) delta))]
+            (.setPrefWidth resized-column new-width)))
         (when (and last-column (not= resized-column last-column))
           (let [used-width (reduce + (map #(.getWidth %) (butlast columns)))
                 remaining-width (- total-width used-width (* 2 (.size columns)))]
