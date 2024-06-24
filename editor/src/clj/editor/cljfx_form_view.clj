@@ -58,9 +58,9 @@
   (:import [java.io File]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control Cell ComboBox ListView$EditEvent TableColumn$CellEditEvent TableView ListView]
+           [javafx.scene.control Cell ComboBox ListView$EditEvent TableColumn$CellEditEvent TableView TableColumn TableView$ResizeFeatures ListView]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.util StringConverter]))
+           [javafx.util StringConverter Callback]))
 
 (set! *warn-on-reflection* true)
 
@@ -913,6 +913,25 @@
      :cell-value-factory (fn/partial table-cell-value-factory path)
      :cell-factory (fn/partial table-cell-factory column (dissoc edit :value))}))
 
+(def custom-table-resize-policy
+  (reify Callback
+    (call [_ resize-features]
+      (let [^TableView$ResizeFeatures resize-features resize-features
+            ^TableColumn resized-column (.getColumn resize-features)
+            delta (.getDelta resize-features)
+            ^TableView table (.getTable resize-features)
+            columns (.getColumns table)
+            total-width (.getWidth table)
+            ^TableColumn last-column (last columns)]
+        (when resized-column
+          (let [new-width (max (.getMinWidth resized-column) (+ (.getPrefWidth resized-column) delta))]
+            (.setPrefWidth resized-column new-width)))
+        (when (and last-column (not= resized-column last-column))
+          (let [used-width (reduce + (map #(.getWidth ^TableColumn %) (butlast columns)))
+                remaining-width (- total-width used-width (* 2 (.size columns)))]
+            (.setPrefWidth last-column (max (.getMinWidth last-column) remaining-width))))
+        true))))
+
 (defmethod form-input-view :table [{:keys [value
                                            on-value-changed
                                            columns
@@ -963,6 +982,7 @@
                                                         9   ;; bottom scrollbar
                                                         (* line-height
                                                            (max 1 (count value))))
+                                        :column-resize-policy custom-table-resize-policy
                                         :columns (mapv #(table-column % field)
                                                        columns)
                                         :items (into [] (map-indexed vector) value)
