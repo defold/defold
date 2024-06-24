@@ -1194,30 +1194,27 @@ class Configuration(object):
         self._log('Building bob light')
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
 
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
         else:
             self.copy_local_bob_artefacts()
 
-        ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
-        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
-        if self.verbose:
-            ant_args += ['-v']
-
         env = self._form_env()
-        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
-        s = run.command(" ".join([ant, 'clean', 'compile-bob-light'] + ant_args),
-                                    cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
+        gradle = join('./gradlew')
+        gradle_args = []
         if self.verbose:
-            print (s)
+            gradle_args += ['--info']
 
-        s = run.command(" ".join([ant, 'install-bob-light'] + ant_args), cwd = bob_dir, shell = True, env = env)
+        env['GRADLE_OPTS'] = '-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true'
+
+        # Clean and build the project
+        s = run.command(" ".join([gradle, 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
-            print (s)
+        	print (s)
 
     def build_engine(self):
         self.check_sdk()
@@ -1362,34 +1359,32 @@ class Configuration(object):
             print(json.dumps(missing, indent=2))
 
     def build_bob(self):
-        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+        test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
         else:
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
 
-        ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
-        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
+        gradle = join('./gradlew')
+        gradle_args = []
         if self.verbose:
-            ant_args += ['-v']
+            gradle_args += ['--info']
 
-        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+        env['GRADLE_OPTS'] = '-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true'
 
-        run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
+        # Clean and build the project
+        run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
 
-        run.command(" ".join([ant, 'install'] + ant_args), cwd = bob_dir, shell = True, env = env)
-
+        # Run tests if not skipped
         if not self.skip_tests:
-            cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-            args = [ant, 'test-clean', 'test'] + ant_args
-            run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+            run.command(" ".join([gradle, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+
 
     def build_sdk_headers(self):
         # Used to provide a small sized bundle with the headers for any C++ auto completion tools
