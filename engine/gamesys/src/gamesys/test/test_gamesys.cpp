@@ -38,6 +38,7 @@
 #include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
 #include <gameobject/lua_ddf.h>
+#include <gameobject/script.h>
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/sprite_ddf.h>
 #include "../components/comp_label.h"
@@ -828,6 +829,79 @@ TEST_F(BufferMetadataTest, MetadataLuaApi)
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
     ASSERT_NE((void*)0, go);
 
+    DeleteInstance(m_Collection, go);
+
+    // release lua api deps
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+struct ScriptComponentTestData
+{
+    dmGameObject::HCollection m_Collection;
+    const char*               m_ComponentType;
+};
+
+static int ScriptComponentTestCallback(lua_State* L)
+{
+    lua_getglobal(L, "test_data");
+    ScriptComponentTestData* data = (ScriptComponentTestData*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    dmGameObject::HComponent out_component = 0;
+    dmGameObject::GetComponentFromLua(L, 1, data->m_Collection, data->m_ComponentType, &out_component, 0, 0);
+
+    // We should have an actual pointer at this stage, and it is not likely it is less than a certain low number
+    lua_pushboolean(L, (uintptr_t)out_component > 100000);
+    lua_setglobal(L, "test_done");
+    return 0;
+}
+
+TEST_P(ScriptComponentTest, GetComponentFromLua)
+{
+    // import 'resource' lua api among others
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobThread       = m_JobThread;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    const ScriptComponentTestParams& p = GetParam();
+    printf("Testing '%s' with component type '%s', and component '%s'\n", p.m_GOPath, p.m_ComponentType, p.m_ComponentName);
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+
+    lua_pushcfunction(L, ScriptComponentTestCallback);
+    lua_setglobal(L, "test_callback");
+
+    ScriptComponentTestData data;
+    data.m_Collection = m_Collection;
+    data.m_ComponentType = p.m_ComponentType;
+    lua_pushlightuserdata(L, &data);
+    lua_setglobal(L, "test_data");
+
+    // TODO: Perhaps device a better way of passing the correct url
+    dmMessage::URL url;
+    dmMessage::ResetURL(&url);
+    dmMessage::SetSocket(&url, dmGameObject::GetMessageSocket(m_Collection));
+    dmMessage::SetPath(&url, dmHashString64("/go"));
+    dmMessage::SetFragment(&url, dmHashString64(p.m_ComponentName));
+
+    dmScript::PushURL(L, url);
+    lua_setglobal(L, "test_url");
+
+    // Create gameobject
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, p.m_GOPath, dmHashString64("/go"));
+    ASSERT_NE((void*)0, go);
+
+    EXPECT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "test_done"));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    // release GO
     DeleteInstance(m_Collection, go);
 
     // release lua api deps
@@ -3465,6 +3539,30 @@ DrawCountParams draw_count_params[] =
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
 
+
+// Spawn and run the script attached to these game objects
+
+ScriptComponentTestParams script_component_test_params[] =
+{
+    // file,                            comp type,          comp name
+    {"/camera/test_comp.goc",           "camerac",          "camera"},
+    {"/factory/test_comp.goc",          "factoryc",         "factory"},
+    {"/label/test_comp.goc",            "labelc",           "label"},
+    {"/light/test_comp.goc",            "lightc",           "light"},
+    {"/mesh/test_comp.goc",             "meshc",            "mesh"},
+    {"/model/test_comp.goc",            "modelc",           "model"},
+    {"/particlefx/test_comp.goc",       "particlefxc",      "particlefx"},
+    {"/sound/test_comp.goc",            "soundc",           "sound"},
+    {"/sprite/test_comp.goc",           "spritec",          "sprite"},
+    {"/tilegrid/test_comp.goc",         "tilemapc",         "tilemap"},
+    {"/collision_object/test_comp.goc", "collisionobjectc", "collisionobject"},
+    {"/collection_proxy/test_comp.goc", "collectionproxyc", "collectionproxy"},
+    {"/collection_factory/test_comp.goc", "collectionfactoryc", "collectionfactory"},
+};
+
+INSTANTIATE_TEST_CASE_P(ScriptComponent, ScriptComponentTest, jc_test_values_in(script_component_test_params));
+
+
 /* Validate gui box rendering for different GOs. */
 
 BoxRenderParams box_render_params[] =
@@ -5217,10 +5315,6 @@ TEST_F(ShaderTest, ComputeResource)
 
     dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program);
     ASSERT_EQ(7, dmGraphics::GetUniformCount(graphics_compute_program));
-
-    char buffer[128] = {};
-    dmGraphics::Type type;
-    int32_t size;
 
     dmRender::HConstant ca, cb, cc, cd;
     ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_a"), ca));
