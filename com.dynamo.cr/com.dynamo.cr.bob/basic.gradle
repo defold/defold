@@ -48,8 +48,8 @@ gradle.taskGraph.whenReady { taskGraph ->
     def command = [
             "python",
             "-c",
-            "import sys; sys.path.append('" + buildToolsDir + "'); import sdk; print(sdk.get_host_platform())"
-    ]
+            "import sys; sys.path.append('${buildToolsDir}'); import sdk; print(sdk.get_host_platform())"
+    ] as String[]
 
     try {
         def process = new ProcessBuilder(command)

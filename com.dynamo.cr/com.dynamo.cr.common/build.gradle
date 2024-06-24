@@ -88,7 +88,8 @@ task generateProtos(dependsOn: extGeneratedCopy) {
                         "-I../../engine/gameobject/proto",
                         "-I../../engine/graphics/proto",
                         "${proto.dir}/${proto.file}"
-                ]
+                ] as String[] // Explicitly type the command array as String[]
+
                 println "Executing: ${command.join(' ')}"
                 def process = command.execute()
                 process.waitFor()
