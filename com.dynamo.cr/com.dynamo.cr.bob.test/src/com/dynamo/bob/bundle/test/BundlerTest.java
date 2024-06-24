@@ -101,7 +101,8 @@ public class BundlerTest {
         String envSkipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
         String skipTest =  envSkipTest != null ? envSkipTest : System.getProperty("DM_BOB_BUNDLERTEST_ONLY_HOST");
         // By default property is `${DM_BOB_BUNDLERTEST_ONLY_HOST}`
-        if (skipTest != null && !skipTest.equals("0") && !skipTest.equals("${DM_BOB_BUNDLERTEST_ONLY_HOST}")) {
+        if (skipTest != null && !skipTest.isEmpty() && !skipTest.equals("0") && !skipTest.equals("${DM_BOB_BUNDLERTEST_ONLY_HOST}")) {
+            System.out.println("Bundle test only for host");
             data.add(new Platform[]{Platform.getHostPlatform()});
         }
         else {
