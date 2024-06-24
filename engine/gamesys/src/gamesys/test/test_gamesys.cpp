@@ -20,6 +20,7 @@
 #include "../../../../render/src/render/font_renderer_private.h"
 #include "../../../../render/src/render/render_private.h"
 #include "../../../../resource/src/resource_private.h"
+#include "../../../../gui/src/gui_private.h"
 
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_textureset.h"
@@ -1235,33 +1236,6 @@ TEST_F(CursorTest, GuiFlipbookCursor)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-// Tests the animation done message/callback
-TEST_F(GuiTest, GuiFlipbookAnim)
-{
-    dmhash_t go_id = dmHashString64("/go");
-    dmhash_t gui_comp_id = dmHashString64("gui");
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_anim.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0x0, go);
-
-    dmMessage::URL msg_url;
-    dmMessage::ResetURL(&msg_url);
-    msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
-    msg_url.m_Path = go_id;
-    msg_url.m_Fragment = gui_comp_id;
-
-    m_UpdateContext.m_DT = 1.0f;
-
-    bool tests_done = false;
-    WaitForTestsDone(100, true, &tests_done);
-
-    if (!tests_done)
-    {
-        dmLogError("The playback didn't finish");
-    }
-
-    ASSERT_TRUE(dmGameObject::Final(m_Collection));
-}
-
 TEST_P(CursorTest, Cursor)
 {
     const CursorTestParams& params = GetParam();
@@ -1301,6 +1275,33 @@ TEST_P(CursorTest, Cursor)
         ASSERT_EQ(params.m_Expected[i], GetFloatProperty(go, sprite_comp_id, cursor_prop_id));
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Tests the animation done message/callback
+TEST_F(GuiTest, GuiFlipbookAnim)
+{
+    dmhash_t go_id = dmHashString64("/go");
+    dmhash_t gui_comp_id = dmHashString64("gui");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_flipbook_anim.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmMessage::URL msg_url;
+    dmMessage::ResetURL(&msg_url);
+    msg_url.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    msg_url.m_Path = go_id;
+    msg_url.m_Fragment = gui_comp_id;
+
+    m_UpdateContext.m_DT = 1.0f;
+
+    bool tests_done = false;
+    WaitForTestsDone(100, true, &tests_done);
+
+    if (!tests_done)
+    {
+        dmLogError("The playback didn't finish");
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -1388,6 +1389,43 @@ TEST_F(GuiTest, TextureResources)
         dmGraphics::HTexture texture_h = (dmGraphics::HTexture) texture_source;
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, texture_h));
     }
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Tests creating and deleting dynamic textures
+TEST_F(GuiTest, MaxDynamictextures)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_max_dynamic_textures.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    uint32_t component_type_index        = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
+    dmGameSystem::GuiWorld* gui_world    = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(m_Collection, component_type_index);
+    dmGameSystem::GuiComponent* gui_comp = gui_world->m_Components[0];
+
+    dmGui::Scene* scene = gui_comp->m_Scene;
+
+    ASSERT_EQ(256, scene->m_DynamicTextures.Capacity());
+    ASSERT_EQ(0, scene->m_DynamicTextures.Size());
+
+    // Test 1: create textures
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_EQ(256, scene->m_DynamicTextures.Size());
+
+    // Test 2: delete textures
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    // Trigger a render to finalize deletion of the textures
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+
+    ASSERT_EQ(0, scene->m_DynamicTextures.Size());
+
+    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

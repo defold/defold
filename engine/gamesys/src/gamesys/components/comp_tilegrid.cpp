@@ -258,10 +258,11 @@ namespace dmGameSystem
     {
         HashState32 state;
         TileGridResource* resource = component->m_Resource;
+        dmRender::HMaterial material = GetMaterial(component);
 
         // NOTE: Use the same order as comp_sprite, since they both use the "tile" tag by default
         dmHashInit32(&state, false);
-        dmHashUpdateBuffer32(&state, GetMaterial(component), sizeof(dmRender::HMaterial));
+        dmHashUpdateBuffer32(&state, &material, sizeof(material));
         dmHashUpdateBuffer32(&state, GetTextureSet(component), sizeof(TextureSetResource));
         dmHashUpdateBuffer32(&state, &resource->m_TileGrid->m_BlendMode, sizeof(resource->m_TileGrid->m_BlendMode));
         if (component->m_RenderConstants) {
@@ -972,7 +973,9 @@ namespace dmGameSystem
         }
         if (params.m_PropertyId == PROP_TILE_SOURCE)
         {
-            return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&component->m_TextureSet);
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&component->m_TextureSet);
+            ReHash(component);
+            return res;
         }
         return SetMaterialConstant(GetMaterial(component), params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompTileGridSetConstantCallback, component);
     }
