@@ -301,17 +301,18 @@ task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, create
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     from project.classesDir
-    from fileTree("${project.bobDir}") {
-        include 'lib/**/*texc_shared*'
-        include 'lib/**/*modelc_shared*'
-        exclude '**/*dSYM.zip'
-        exclude 'tmp/**'
+    from fileTree(project.bobDir) {
+        include 'lib/**/*texc_shared*',
+                'lib/**/*modelc_shared*',
+                'lib/luajit-share.zip'
+        exclude '**/*dSYM.zip',
+                'tmp/**'
     }
-    from fileTree("${project.bobDir}") {
-        include 'libexec/**/glslc*'
-        include 'libexec/**/spirv-cross*'
-        include 'libexec/**/spirv-opt*'
-        include 'libexec/**/luajit*'
+    from fileTree(project.bobDir) {
+        include 'libexec/**/glslc*',
+                'libexec/**/spirv-cross*',
+                'libexec/**/spirv-opt*',
+                'libexec/**/luajit*'
     }
 
     from {
@@ -319,7 +320,6 @@ task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, create
     } {
         exclude '**/META-INF/**'
     }
-    from file("${project.bobDir}/lib/luajit-share.zip")
 
     inputs.dir(project.classesDir)
     inputs.dir(fileTree("${project.bobDir}"))
@@ -379,7 +379,7 @@ task createBobJar(type: Jar, dependsOn: [createExternalLibsBuiltinsJar, createLu
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     from project.classesDir
-    from fileTree("${project.bobDir}") {
+    from fileTree(project.bobDir) {
         include 'lib/**/*texc_shared*',
                 'lib/**/*modelc_shared*',
                 'lib/**/*libc++*',
@@ -406,7 +406,7 @@ task createBobJar(type: Jar, dependsOn: [createExternalLibsBuiltinsJar, createLu
     }
 
     inputs.dir(project.classesDir)
-    inputs.dir("${project.bobDir}")
+    inputs.dir(project.bobDir)
     outputs.file("${project.bobDir}/dist/bob.jar")
 
     manifest {
