@@ -97,18 +97,16 @@
     (ui/auto-commit! update-fn)
     (select-all-on-click!)))
 
-(defn set-text-field-icon!
-  [text-field image-url]
-  (let [style (str "-fx-background-image: url('" image-url "');"
-                   "-fx-background-repeat: no-repeat;"
-                   "-fx-background-position: right 6px center;")]
-    (.setStyle text-field style)))
+(defn add-style-class!
+  [^Node node style-class]
+  (.add (.getStyleClass node) style-class))
 
-(defn script-property-type->prop-icon-png [script-property-type]
+(defn script-property-type->style-class [script-property-type]
   (case script-property-type
-    :script-property-type-number   "icons/16/Icons_55-123.png"
-    :script-property-type-hash     "icons/16/Icons_54-Hash.png"
-    :script-property-type-url      "icons/16/Icons_53-Url.png"))
+    :script-property-type-number   "script-property-text-field-icon-number"
+    :script-property-type-hash     "script-property-text-field-icon-hash"
+    :script-property-type-url      "script-property-text-field-icon-url"
+    nil))
 
 (defmulti create-property-control! (fn [edit-type _ property-fn]
                                      (edit-type->type edit-type)))
@@ -119,8 +117,8 @@
         update-fn    (fn [_]
                        (properties/set-values! (property-fn) (repeat (.getText text))))]
     (customize! text update-fn)
-    (when-let [type (:script-property-type edit-type)]
-      (set-text-field-icon! text (script-property-type->prop-icon-png type)))
+    (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
+      (add-style-class! text style-class))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Int [edit-type _ property-fn]
@@ -134,8 +132,8 @@
                                          (properties/validation-message property)
                                          (properties/read-only? property)))))]
     (customize! text update-fn)
-    (when-let [type (:script-property-type edit-type)]
-      (set-text-field-icon! text (script-property-type->prop-icon-png type)))
+    (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
+      (add-style-class! text style-class))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Num [edit-type _ property-fn]
@@ -147,8 +145,8 @@
                                              (properties/validation-message (property-fn))
                                              (properties/read-only? (property-fn)))))]
     (customize! text update-fn)
-    (when-let [type (:script-property-type edit-type)]
-      (set-text-field-icon! text (script-property-type->prop-icon-png type)))
+    (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
+      (add-style-class! text style-class))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]
