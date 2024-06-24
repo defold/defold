@@ -1190,6 +1190,12 @@ class Configuration(object):
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
+    def get_gradle_wrapper():
+        if os.name == 'nt':  # Windows
+            return join('.', 'gradlew.bat')
+        else:  # Linux, macOS, or other Unix-like OS
+            return join('.', 'gradlew')
+
     def build_bob_light(self):
         self._log('Building bob light')
 
@@ -1204,7 +1210,7 @@ class Configuration(object):
 
         env = self._form_env()
 
-        gradle = join('./gradlew')
+        gradle = get_gradle_wrapper()
         gradle_args = []
         if self.verbose:
             gradle_args += ['--info']
@@ -1371,7 +1377,7 @@ class Configuration(object):
 
         env = self._form_env()
 
-        gradle = join('./gradlew')
+        gradle = get_gradle_wrapper()
         gradle_args = []
         if self.verbose:
             gradle_args += ['--info']
