@@ -129,6 +129,7 @@ task copyDependencies {
 }
 
 task compileGenerated(type: JavaCompile, dependsOn: execProtoTasks) {
+    mkdir project.classesDir
     source = fileTree('generated')
     destinationDirectory = project.classesDir
     include '**/*.java'
@@ -320,8 +321,8 @@ task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, create
         exclude '**/META-INF/**'
     }
 
-    inputs.dir(project.classesDir)
-    inputs.dir(fileTree("${project.bobDir}"))
+    inputs.dir(fileTree(project.classesDir))
+    inputs.dir(fileTree(project.bobDir))
     outputs.file("${project.bobDir}/dist/bob-light.jar")
 
     manifest {

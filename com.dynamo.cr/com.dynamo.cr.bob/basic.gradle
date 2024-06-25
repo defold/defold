@@ -45,7 +45,6 @@ ext {
 }
 
 gradle.taskGraph.whenReady { taskGraph ->
-    mkdir project.classesDir
     def command = [
             "python",
             "-c",
