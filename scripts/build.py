@@ -1210,7 +1210,7 @@ class Configuration(object):
 
         env = self._form_env()
 
-        gradle = get_gradle_wrapper()
+        gradle = self.get_gradle_wrapper()
         gradle_args = []
         if self.verbose:
             gradle_args += ['--info']
@@ -1377,7 +1377,7 @@ class Configuration(object):
 
         env = self._form_env()
 
-        gradle = get_gradle_wrapper()
+        gradle = self.get_gradle_wrapper()
         gradle_args = []
         if self.verbose:
             gradle_args += ['--info']
