@@ -128,8 +128,7 @@ task copyDependencies {
     }
 }
 
-task compileGenerated(type: JavaCompile) {
-    dependsOn execProtoTasks
+task compileGenerated(type: JavaCompile, dependsOn: execProtoTasks) {
     source = fileTree('generated')
     destinationDirectory = project.classesDir
     include '**/*.java'
@@ -149,7 +148,7 @@ task compileSrc(type: JavaCompile, dependsOn: [compileGenerated, copyDependencie
     outputs.dir(project.classesDir)
 }
 
-task createLuaJitShareZip(type: Zip) {
+task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) {
     archiveFileName = 'luajit-share.zip'
     destinationDirectory = file("${project.bobDir}/lib")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -158,7 +157,6 @@ task createLuaJitShareZip(type: Zip) {
         into 'luajit'
     }
 
-    dependsOn compileSrc, compileGenerated
     inputs.dir("${project.dynamoHome}/ext/share/luajit")
     outputs.file("${project.bobDir}/lib/luajit-share.zip")
 }
@@ -263,7 +261,7 @@ task compile(dependsOn: ['compileBobLight']) {
     }
 }
 
-task createExternalLibsLightJar(type: Jar) {
+task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
     archiveFileName = 'external-libs-light.jar'
     destinationDirectory = file("${project.bobDir}/tmp")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -278,8 +276,6 @@ task createExternalLibsLightJar(type: Jar) {
     from {
         fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').collect { zipTree(it) }
     }
-
-    dependsOn compileSrc
 
     inputs.files(fileTree(dir: "${project.commonDir}/ext", include: [
             'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
@@ -340,7 +336,7 @@ task distBobLight(dependsOn: ['compileBobLight', 'createBobLightJar']) {
     }
 }
 
-task createExternalLibsBuiltinsJar(type: Jar) {
+task createExternalLibsBuiltinsJar(type: Jar, dependsOn: [compileSrc, compileGenerated]) {
     archiveFileName = 'external-libs-builtins.jar'
     destinationDirectory = file("${project.bobDir}/tmp")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -359,9 +355,6 @@ task createExternalLibsBuiltinsJar(type: Jar) {
     from {
         jarFiles.collect { zipTree(it) }
     }
-
-    dependsOn compileSrc
-    dependsOn compileGenerated
 
     inputs.files(jarFiles)
     outputs.file("${project.bobDir}/tmp/external-libs-builtins.jar")
