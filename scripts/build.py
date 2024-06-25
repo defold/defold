@@ -1190,7 +1190,7 @@ class Configuration(object):
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
-    def get_gradle_wrapper():
+    def get_gradle_wrapper(self):
         if os.name == 'nt':  # Windows
             return join('.', 'gradlew.bat')
         else:  # Linux, macOS, or other Unix-like OS
