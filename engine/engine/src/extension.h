@@ -12,7 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dmsdk/engine/extension.h>
+#include <dmsdk/extension/extension.h>
+#include <dmsdk/dlib/configfile.h>
+#include <dlib/webserver.h>
+#include <gameobject/gameobject.h>
 
 namespace dmEngine
 {

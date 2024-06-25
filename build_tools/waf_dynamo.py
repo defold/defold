@@ -71,10 +71,10 @@ def is_platform_private(platform):
 def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
-    if feature == 'vulkan':
+    if feature == 'vulkan' or feature == 'compute':
         return platform not in ['js-web', 'wasm-web', 'x86_64-ios']
-    if feature == 'compute':
-        return platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'win32', 'x86_64-win32']
+    if feature == 'opengl_compute':
+        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -86,17 +86,15 @@ def platform_setup_vars(ctx, build_util):
 def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
 
+def platform_glfw_version(platform):
+    if platform in ['x86_64-macos', 'arm64-macos']:
+        return 3
+    return 2
+
 # Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
 # The goal is to put the sdk versions in sdk.py
 SDK_ROOT=sdk.SDK_ROOT
 
-ANDROID_ROOT=SDK_ROOT
-ANDROID_BUILD_TOOLS_VERSION = '33.0.1'
-ANDROID_NDK_API_VERSION='19' # Android 4.4
-ANDROID_NDK_ROOT=os.path.join(SDK_ROOT,'android-ndk-r%s' % sdk.ANDROID_NDK_VERSION)
-ANDROID_TARGET_API_LEVEL='33' # Android 13.0
-ANDROID_MIN_API_LEVEL='19'
-ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
 CLANG_VERSION='clang-13.0.0'
@@ -264,9 +262,9 @@ def getAndroidCompilerName(target_arch, api_version):
 
 def getAndroidNDKAPIVersion(target_arch):
     if target_arch == 'arm64':
-        return ANDROID_64_NDK_API_VERSION
+        return sdk.ANDROID_64_NDK_API_VERSION
     else:
-        return ANDROID_NDK_API_VERSION
+        return sdk.ANDROID_NDK_API_VERSION
 
 def getAndroidCompileFlags(target_arch):
     # NOTE compared to armv7-android:
@@ -389,17 +387,18 @@ def default_flags(self):
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fPIC', '-fvisibility=hidden'])
             self.env.append_value(f, ['-DDM_PLATFORM_MACOS'])
 
-            if f == 'CXXFLAGS':
-                self.env.append_value(f, ['-fno-rtti'])
-
-            self.env.append_value(f, ['-stdlib=libc++', '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
+            self.env.append_value(f, ['-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
             self.env.append_value(f, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN)
 
-            self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
+            self.env.append_value(f, ['-isysroot', sys_root])
             self.env.append_value(f, ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
+
+            if f == 'CXXFLAGS':
+                self.env.append_value(f, ['-fno-rtti', '-stdlib=libc++', '-fno-exceptions', '-nostdinc++'])
+                self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
         self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
@@ -427,10 +426,13 @@ def default_flags(self):
             swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, extra_ccflags + ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
+            self.env.append_value(f, extra_ccflags + ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fvisibility=hidden',
                                             '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN])
+            self.env.append_value(f, ['-isysroot', sys_root])
 
-            self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
+            if f == 'CXXFLAGS':
+                self.env.append_value(f, ['-fno-exceptions', '-fno-rtti', '-stdlib=libc++', '-nostdinc++'])
+                self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
             self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
             if 'x86_64' == build_util.get_target_architecture():
@@ -448,14 +450,14 @@ def default_flags(self):
             bp_arch = 'x86_64';
         if bp_os == 'macos':
             bp_os = 'darwin'
-        sysroot='%s/toolchains/llvm/prebuilt/%s-%s/sysroot' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
+        sysroot='%s/toolchains/llvm/prebuilt/%s-%s/sysroot' % (self.sdkinfo['ndk'], bp_os, bp_arch)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-fno-exceptions', '-funwind-tables',
-                                      '-I%s/sources/android/native_app_glue' % (ANDROID_NDK_ROOT),
-                                      '-I%s/sources/android/cpufeatures' % (ANDROID_NDK_ROOT),
+                                      '-I%s/sources/android/native_app_glue' % (self.sdkinfo['ndk']),
+                                      '-I%s/sources/android/cpufeatures' % (self.sdkinfo['ndk']),
                                       '-isysroot=%s' % sysroot,
                                       '-DANDROID', '-Wa,--noexecstack'] + getAndroidCompileFlags(target_arch))
             if f == 'CXXFLAGS':
@@ -566,7 +568,7 @@ def web_exported_functions(self):
 
     for name in ('CFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
         arr = self.env[name]
-        if use_crash and name is 'LINKFLAGS':
+        if use_crash and name in 'LINKFLAGS':
             for i, v in enumerate(arr):
                 if v.startswith('EXPORTED_FUNCTIONS'):
                     arr[i] = v + ",_JSWriteDump,_dmExportedSymbols"
@@ -897,11 +899,12 @@ def _strip_executable(bld, platform, target_arch, path):
     if platform not in ['x86_64-linux','x86_64-macos','arm64-macos','arm64-ios','armv7-android','arm64-android']:
         return 0 # return ok, path is still unstripped
 
+    sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
     strip = "strip"
     if 'android' in platform:
         HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
         ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
-        strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (ANDROID_NDK_ROOT, ANDROID_HOST)
+        strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (sdkinfo['ndk'], ANDROID_HOST)
 
     return bld.exec_command("%s %s" % (strip, path))
 
@@ -1017,7 +1020,6 @@ def android_package(task):
     except BuildUtilityException as ex:
         task.fatal(ex.msg)
 
-    d8 = '%s/android-sdk/build-tools/%s/d8' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
     dynamo_home = task.env['DYNAMO_HOME']
     android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
@@ -1048,7 +1050,7 @@ def android_package(task):
 
     if getattr(task, 'proguard', None):
         proguardtxt = task.proguard[0]
-        proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % ANDROID_ROOT
+        proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % sdkinfo['path']
         dex_input = ['%s/share/java/classes.jar' % dynamo_home]
 
         ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
@@ -1059,7 +1061,7 @@ def android_package(task):
         dex_input = dx_jars
 
     if dex_input:
-        ret = bld.exec_command('%s --output %s %s' % (d8, dex_dir, ' '.join(dex_input)))
+        ret = bld.exec_command('%s --output %s %s' % (task.env.D8[0], dex_dir, ' '.join(dex_input)))
         if ret != 0:
             error('Error running d8')
             return 1
@@ -1210,7 +1212,7 @@ unsigned char DM_ALIGNED(16) %s[] =
 
     return 0
 
-Task.task_factory('dex', '${DX} --dex --output ${TGT} ${SRC}',
+Task.task_factory('dex', '${D8} --dex --output ${TGT} ${SRC}',
                       color='YELLOW',
                       after='jar_files',
                       shell=True)
@@ -1631,12 +1633,12 @@ def detect(conf):
         elif bp_os == 'win32':
             bp_os = 'windows'
         target_arch = build_util.get_target_architecture()
-        api_version = getAndroidNDKAPIVersion(target_arch)
+        api_version = sdkinfo['api']
         clang_name  = getAndroidCompilerName(target_arch, api_version)
         # NDK doesn't support arm64 yet
         if bp_arch == 'arm64':
             bp_arch = 'x86_64';
-        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (ANDROID_NDK_ROOT, bp_os, bp_arch)
+        bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (sdkinfo['ndk'], bp_os, bp_arch)
         tool_name = "llvm"
 
         if not os.path.exists(bintools):
@@ -1649,7 +1651,8 @@ def detect(conf):
         conf.env['AR']       = '%s/%s-ar' % (bintools, tool_name)
         conf.env['RANLIB']   = '%s/%s-ranlib' % (bintools, tool_name)
         conf.env['LD']       = '%s/lld' % (bintools)
-        conf.env['DX']       = '%s/android-sdk/build-tools/%s/dx' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
+
+        conf.find_program('d8', var='D8', mandatory = True, path_list=[sdkinfo['build_tools']])
 
     elif 'linux' == build_util.get_target_os():
         bin_dir=os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'bin')
@@ -1838,10 +1841,14 @@ def detect(conf):
     conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
-    conf.env['STLIB_PLATFORM']      = ['platform']
-    conf.env['STLIB_PLATFORM_NULL'] = ['platform_null']
+    conf.env['STLIB_PLATFORM']        = ['platform']
+    conf.env['STLIB_PLATFORM_VULKAN'] = ['platform_vulkan']
+    conf.env['STLIB_PLATFORM_NULL']   = ['platform_null']
 
-    conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    if platform_glfw_version(platform) == 3:
+        conf.env['STLIB_DMGLFW'] = 'glfw3'
+    else:
+        conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
     if platform in ('x86_64-macos','arm64-macos'):
         conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
@@ -1896,6 +1903,9 @@ def detect(conf):
             conf.env['LIB_JNI'] = ['jni']
             conf.env['LIB_JNI_NOASAN'] = ['jni_noasan']
 
+    if Options.options.generate_compile_commands:
+        conf.load('clang_compilation_database')
+
 
 def configure(conf):
     detect(conf)
@@ -1916,6 +1926,7 @@ def options(opt):
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
+    opt.add_option('--generate-compile-commands', action="store_true", default=False, dest='generate_compile_commands', help='generate (appending mode) compile_commands.json')
     opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')

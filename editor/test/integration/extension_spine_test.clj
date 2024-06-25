@@ -24,6 +24,7 @@
             [editor.gui :as gui]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]
@@ -32,7 +33,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:private extension-spine-url "https://github.com/defold/extension-spine/archive/main.zip")
+(defonce ^:private extension-spine-url (settings-core/inject-jvm-properties "{{defold.extension.spine.url}}"))
 
 (def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 

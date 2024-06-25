@@ -12,31 +12,23 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef GAMEOBJECT_PROPS_H
-#define GAMEOBJECT_PROPS_H
+#ifndef DM_GAMEOBJECT_PROPS_H
+#define DM_GAMEOBJECT_PROPS_H
 
 #include <stdint.h>
 
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
-#include <ddf/ddf.h>
 #include <resource/resource.h>
 #include <script/script.h>
 
 #include "gameobject.h"
 
-#include "../proto/gameobject/gameobject_ddf.h"
-
-extern "C"
-{
-#include <lua/lua.h>
-#include <lua/lauxlib.h>
-}
+#include <dmsdk/gameobject/gameobject_props.h>
 
 namespace dmGameObject
 {
-
     enum PropertyLayer
     {
         PROPERTY_LAYER_INSTANCE = 0,
@@ -77,46 +69,15 @@ namespace dmGameObject
     // dmResource::Release supplied paths and de-allocates through SetCapacity(0)
     void UnloadPropertyResources(dmResource::HFactory factory, dmArray<void*>& resources);
 
-    typedef struct PropertyContainer* HPropertyContainer;
-    typedef struct PropertyContainerBuilder* HPropertyContainerBuilder;
-
-    struct PropertyContainerParameters
-    {
-        PropertyContainerParameters()
-            : m_NumberCount(0)
-            , m_HashCount(0)
-            , m_URLStringCount(0)
-            , m_URLStringSize(0)
-            , m_URLCount(0)
-            , m_Vector3Count(0)
-            , m_Vector4Count(0)
-            , m_QuatCount(0)
-            , m_BoolCount(0)
-        { }
-        uint32_t m_NumberCount;
-        uint32_t m_HashCount;
-        uint32_t m_URLStringCount;
-        uint32_t m_URLStringSize;
-        uint32_t m_URLCount;
-        uint32_t m_Vector3Count;
-        uint32_t m_Vector4Count;
-        uint32_t m_QuatCount;
-        uint32_t m_BoolCount;
-    };
-
-    HPropertyContainerBuilder CreatePropertyContainerBuilder(const PropertyContainerParameters& params);
-    void PushFloatType(HPropertyContainerBuilder builder, dmhash_t id, PropertyType type, const float values[]);
-    void PushBool(HPropertyContainerBuilder builder, dmhash_t id, bool value);
-    void PushHash(HPropertyContainerBuilder builder, dmhash_t id, dmhash_t value);
-    void PushURLString(HPropertyContainerBuilder builder, dmhash_t id, const char* value);
-    void PushURL(HPropertyContainerBuilder builder, dmhash_t id, const char value[sizeof(dmMessage::URL)]);
-    HPropertyContainer CreatePropertyContainer(HPropertyContainerBuilder builder);
-
-    HPropertyContainer MergePropertyContainers(HPropertyContainer container, HPropertyContainer overrides);
-
     PropertyResult PropertyContainerGetPropertyCallback(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);
-    void DestroyPropertyContainer(HPropertyContainer container);
-    void DestroyPropertyContainerCallback(uintptr_t user_data);
+    void PropertyContainerDestroyCallback(uintptr_t user_data);
+
+    HPropertyContainer PropertyContainerAllocateWithSize(uint32_t size);
+    uint32_t PropertyContainerGetMemorySize(HPropertyContainer container);
+    void PropertyContainerSerialize(HPropertyContainer container, uint8_t* buffer, uint32_t buffer_size);
+    void PropertyContainerDeserialize(const uint8_t* buffer, uint32_t buffer_size, HPropertyContainer out);
+
+    void PropertyContainerPrint(HPropertyContainer container);
 }
 
-#endif // GAMEOBJECT_PROPS_H
+#endif // DM_GAMEOBJECT_PROPS_H

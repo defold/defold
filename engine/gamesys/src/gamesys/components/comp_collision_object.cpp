@@ -343,6 +343,9 @@ namespace dmGameSystem
                     {
                         uint32_t cell_x = cell->m_X - tile_grid_resource->m_MinCellX;
                         uint32_t cell_y = cell->m_Y - tile_grid_resource->m_MinCellY;
+                        flags.m_FlipHorizontal = cell->m_HFlip;
+                        flags.m_FlipVertical = cell->m_VFlip;
+                        flags.m_Rotate90 = cell->m_Rotate90;
                         dmPhysics::SetGridShapeHull(component->m_Object2D, i, cell_y, cell_x, tile, flags);
                         uint32_t child = cell_x + tile_grid_resource->m_ColumnCount * cell_y;
                         uint16_t group = GetGroupBitIndex(world, texture_set_resource->m_HullCollisionGroups[tile], false);
@@ -474,6 +477,11 @@ namespace dmGameSystem
         }
         *params.m_UserData = (uintptr_t)component;
         return dmGameObject::CREATE_RESULT_OK;
+    }
+
+    void* CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        return (void*)params.m_UserData;
     }
 
     dmGameObject::CreateResult CompCollisionObjectFinal(const dmGameObject::ComponentFinalParams& params)
@@ -2140,7 +2148,7 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompCollisionIterPropertiesGetNext;
     }
 
-    b2World* CompCollisionObjectGetBox2DWorld(void* _world)
+    b2World* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world)
     {
         CollisionWorld* world = (CollisionWorld*)_world;
         if (world->m_3D)
@@ -2148,7 +2156,7 @@ namespace dmGameSystem
         return (b2World*)dmPhysics::GetWorldContext2D(world->m_World2D);
     }
 
-    b2Body* CompCollisionObjectGetBox2DBody(void* _component)
+    b2Body* CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component)
     {
         CollisionComponent* component = (CollisionComponent*)_component;
         if (component->m_3D)

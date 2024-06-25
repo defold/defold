@@ -114,13 +114,13 @@ namespace dmGameSystem
         return result;
     }
 
-    dmResource::Result ResConvexShapeCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResConvexShapeCreate(const dmResource::ResourceCreateParams* params)
     {
         ConvexShapeResource* convex_shape = new ConvexShapeResource();
-        convex_shape->m_3D = ((PhysicsContext*) params.m_Context)->m_3D;
-        if (AcquireResources(params.m_Factory, (PhysicsContext*) params.m_Context, params.m_Buffer, params.m_BufferSize, convex_shape, params.m_Filename))
+        convex_shape->m_3D = ((PhysicsContext*) params->m_Context)->m_3D;
+        if (AcquireResources(params->m_Factory, (PhysicsContext*) params->m_Context, params->m_Buffer, params->m_BufferSize, convex_shape, params->m_Filename))
         {
-            params.m_Resource->m_Resource = convex_shape;
+            dmResource::SetResource(params->m_Resource, convex_shape);
             return dmResource::RESULT_OK;
         }
         else
@@ -141,21 +141,21 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::Result ResConvexShapeDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResConvexShapeDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        ConvexShapeResource* convex_shape = (ConvexShapeResource*)params.m_Resource->m_Resource;
+        ConvexShapeResource* convex_shape = (ConvexShapeResource*)dmResource::GetResource(params->m_Resource);
         ReleaseResources(convex_shape);
         delete convex_shape;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResConvexShapeRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResConvexShapeRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        ConvexShapeResource* cs_resource = (ConvexShapeResource*)params.m_Resource->m_Resource;
+        ConvexShapeResource* cs_resource = (ConvexShapeResource*)dmResource::GetResource(params->m_Resource);
         ConvexShapeResource tmp_convex_shape;
-        PhysicsContext* physics_context = (PhysicsContext*) params.m_Context;
+        PhysicsContext* physics_context = (PhysicsContext*) params->m_Context;
         tmp_convex_shape.m_3D = physics_context->m_3D;
-        if (AcquireResources(params.m_Factory, (PhysicsContext*) params.m_Context, params.m_Buffer, params.m_BufferSize, &tmp_convex_shape, params.m_Filename))
+        if (AcquireResources(params->m_Factory, (PhysicsContext*) params->m_Context, params->m_Buffer, params->m_BufferSize, &tmp_convex_shape, params->m_Filename))
         {
             if (physics_context->m_3D)
                 dmPhysics::ReplaceShape3D(physics_context->m_Context3D, cs_resource->m_Shape3D, tmp_convex_shape.m_Shape3D);

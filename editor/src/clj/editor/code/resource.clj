@@ -203,7 +203,7 @@
   (output dirty? g/Bool (g/fnk [_node-id editable save-value source-value]
                           (and editable (some? save-value) (not= source-value (hash save-value))))))
 
-(defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn] :as args}]
+(defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn built-pb-class] :as args}]
   (let [debuggable? (contains? tags :debuggable)
         load-fn (partial load-fn additional-load-fn eager-loading? debuggable?)
         args (-> args
@@ -212,5 +212,6 @@
                         :read-fn read-fn
                         :write-fn write-fn
                         :textual? true
-                        :test-info {:type :code}))]
+                        :test-info (cond-> {:type :code}
+                                           built-pb-class (assoc :built-pb-class built-pb-class))))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

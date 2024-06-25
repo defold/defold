@@ -31,7 +31,6 @@
             [editor.handler :as handler]
             [editor.material :as material]
             [editor.particlefx :as particlefx]
-            [editor.pipeline :as pipeline]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.properties :as properties]
@@ -52,13 +51,16 @@
             [internal.util :as util]
             [service.log :as log]
             [support.test-support :as test-support]
+            [util.coll :refer [pair]]
             [util.fn :as fn]
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
-  (:import [java.awt.image BufferedImage]
+  (:import [com.google.protobuf ByteString]
+           [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream File FileInputStream FilenameFilter]
            [java.net URI URL]
+           [java.nio.file Files]
            [java.util UUID]
            [java.util.concurrent LinkedBlockingQueue]
            [java.util.zip ZipEntry ZipOutputStream]
@@ -153,6 +155,18 @@
 
 (defn set-code-editor-source! [script-id source]
   (g/transact (set-code-editor-source script-id source)))
+
+(defn lua-module-text
+  ^String [lua-module]
+  {:pre [(map? lua-module)]} ; Lua$LuaModule in map format.
+  (let [^ByteString lua-source-byte-string (-> lua-module :source :script)]
+    (.toStringUtf8 lua-source-byte-string)))
+
+(defn lua-module-lines [lua-module]
+  {:pre [(map? lua-module)]} ; Lua$LuaModule in map format.
+  (-> lua-module
+      lua-module-text
+      code.data/string->lines))
 
 (defn setup-workspace!
   ([graph]
@@ -970,25 +984,37 @@
           (is (= (dissoc (get-in scene-data (conj gpu-texture-path :params)) :default-tex-params)
                  (dissoc (material/sampler->tex-params (first (g/node-value material-node :samplers))) :default-tex-params))))))))
 
-(defn- build-node! [resource-node]
+(defn- build-node-result! [resource-node]
   (let [project (project/get-project resource-node)
         workspace (project/workspace project)
-        old-artifact-map (workspace/artifact-map workspace)
-        build-path (workspace/build-path workspace)
-        build-result (g/with-auto-evaluation-context evaluation-context
-                       (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!))]
-    [build-path build-result]))
+        old-artifact-map (workspace/artifact-map workspace)]
+    (g/with-auto-evaluation-context evaluation-context
+      (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!))))
+
+(defn build-node! [resource-node]
+  (let [build-result (build-node-result! resource-node)]
+    (when-some [error (:error build-result)]
+      (throw (ex-info "Build produced an ErrorValue."
+                      {:resource resource
+                       :node-type-kw (g/node-type-kw resource-node)
+                       :error error})))
+    build-result))
 
 (defn build!
   ^java.lang.AutoCloseable [resource-node]
-  (let [[build-path] (build-node! resource-node)]
-    (make-directory-deleter build-path)))
+  (let [resource (resource-node/resource resource-node)
+        workspace (resource/workspace resource)
+        build-directory (workspace/build-path workspace)]
+    (build-node! resource-node)
+    (make-directory-deleter build-directory)))
 
 (defn build-error! [resource-node]
-  (let [[build-path build-result] (build-node! resource-node)
-        error (:error build-result)]
-    (fs/delete-directory! (io/file build-path) {:fail :silently})
-    error))
+  (let [resource (resource-node/resource resource-node)
+        workspace (resource/workspace resource)
+        build-directory (workspace/build-path workspace)
+        build-result (build-node-result! resource-node)]
+    (fs/delete-directory! build-directory {:fail :silently})
+    (:error build-result)))
 
 (defn node-build-resource [node-id]
   (:resource (first (g/node-value node-id :build-targets))))
@@ -1042,6 +1068,60 @@
 (defmacro built-pb [node-id pb-class]
   (with-meta `(protobuf/bytes->pb ~pb-class (node-build-output ~node-id))
              {:tag pb-class}))
+
+(defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext ^String build-output-path]
+  (let [build-ext (FilenameUtils/getExtension build-output-path)
+        resource-type (some (fn [[_ resource-type]]
+                              (when (= build-ext (:build-ext resource-type))
+                                resource-type))
+                            (workspace/get-resource-type-map workspace))
+        test-info (:test-info resource-type)
+        pb-class (case (:type test-info)
+                   (:code :ddf) (:built-pb-class test-info)
+                   nil)
+        built-file (workspace/build-path workspace build-output-path)
+        built-bytes (Files/readAllBytes (.toPath built-file))
+        build-output-info {:path build-output-path
+                           :file built-file
+                           :resource-type resource-type
+                           :bytes built-bytes}]
+    (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
+    (if (nil? pb-class)
+      (sorted-map build-output-path build-output-info)
+      (let [dependencies-fn (resource-node/make-ddf-dependencies-fn pb-class)
+            pb (protobuf/bytes->pb pb-class built-bytes)
+            pb-map (protobuf/pb->map pb)
+            dep-build-resource-paths (into (sorted-set)
+                                           (dependencies-fn pb-map))]
+        (into (sorted-map
+                build-output-path
+                (assoc build-output-info
+                  :pb-class pb-class
+                  :pb pb
+                  :pb-map pb-map
+                  :dep-paths dep-build-resource-paths))
+              (mapcat #(make-build-output-infos-by-path-impl workspace resource-types-by-build-ext %))
+              dep-build-resource-paths)))))
+
+(defn make-build-output-infos-by-path
+  "After a project has been built (i.e. the build directory has been populated),
+  get info from the built binaries and the built binaries it depends on. Returns
+  a map of build output proj-paths to a build-output-info map regarding that
+  build output. The build-output-info map will always contain at least
+  information about the output file, its resource-type, and its bytes on disk.
+  For protobuf resources, the build-output-info map will also contain the
+  decoded protobuf data, the build-output-paths it depends on, and the resulting
+  map will include build-output-info entries for all the dependencies."
+  [workspace ^String build-output-path]
+  {:pre [(string? build-output-path)
+         (string/starts-with? build-output-path "/")]}
+  (let [resource-types-by-build-ext
+        (into {}
+              (map (fn [[_ {:keys [build-ext] :as resource-type}]]
+                     (assert (string? build-ext))
+                     (pair build-ext resource-type)))
+              (workspace/get-resource-type-map workspace))]
+    (make-build-output-infos-by-path-impl workspace resource-types-by-build-ext build-output-path)))
 
 (defn unpack-property-declarations [property-declarations]
   {:pre [(map? property-declarations)]}
@@ -1130,12 +1210,22 @@
               user-data (:user-data (:form-ops form-data))]
           (settings/set-tx-data user-data setting-path new-value))))))
 
+(defn clear-cached-save-data! [project]
+  ;; Ensure any cache entries introduced by loading the project aren't covering
+  ;; up an actual dirty-check issue.
+  (project/clear-cached-save-data! project))
+
 (defn save-project! [project]
   (let [save-data (project/dirty-save-data project)]
     (project/write-save-data-to-disk! save-data nil)
     (let [workspace (project/workspace project)
           post-save-actions (disk/make-post-save-actions save-data)]
       (disk/process-post-save-actions! workspace post-save-actions))))
+
+(defn dirty-proj-paths [project]
+  (into (sorted-set)
+        (map (comp resource/proj-path :resource))
+        (project/dirty-save-data project)))
 
 (defn type-preserving-add [a b]
   (condp instance? a
@@ -1186,6 +1276,9 @@
 
 (defmethod edit-resource-node "collisionobject" [resource-node-id]
   (g/update-property resource-node-id :linear-damping type-preserving-add 0.1))
+
+(defmethod edit-resource-node "compute" [resource-node-id]
+  (g/update-property resource-node-id :constants update-in [0 :name] str \_))
 
 (defmethod edit-resource-node "convexshape" [resource-node-id]
   (g/update-property resource-node-id :pb update-in [:data 0] type-preserving-add 1))
@@ -1275,3 +1368,7 @@
 (defn edit-resource-node! [resource-node-id]
   (g/transact
     (edit-resource-node resource-node-id)))
+
+(defn edit-proj-path! [project proj-path]
+  (let [resource-node (resource-node project proj-path)]
+    (edit-resource-node! resource-node)))

@@ -1,0 +1,10 @@
+default_animation: "valid_png_128"
+material: "/sprite/image/get_set_image_by_hash.material"
+textures {
+  sampler: "tex0"
+  texture: "/atlas/valid.atlas"
+}
+textures {
+  sampler: "tex1"
+  texture: "/atlas/valid.atlas"
+}

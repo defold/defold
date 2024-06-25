@@ -16,17 +16,17 @@
 #define DM_GAMESYS_RES_SPRITE_H
 
 #include <dmsdk/gamesys/resources/res_sprite.h>
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResSpritePreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResSpritePreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResSpriteCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResSpriteCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResSpriteDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResSpriteDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResSpriteRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResSpriteRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_RES_SPRITE_H

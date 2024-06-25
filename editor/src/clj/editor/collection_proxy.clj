@@ -23,6 +23,7 @@
    [editor.outline :as outline]
    [editor.properties :as properties]
    [editor.protobuf :as protobuf]
+   [editor.protobuf-forms-util :as protobuf-forms-util]
    [editor.resource :as resource]
    [editor.resource-node :as resource-node]
    [editor.types :as types]
@@ -35,17 +36,11 @@
 
 (def collection-proxy-icon "icons/32/Icons_52-Collection-proxy.png")
 
-(defn- set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
-
-(defn- clear-form-op [{:keys [node-id]} [property]]
-  (g/clear-property! node-id property))
-
 (g/defnk produce-form-data
   [_node-id collection-resource]
   {:form-ops {:user-data {:node-id _node-id}
-              :set set-form-op
-              :clear clear-form-op}
+              :set protobuf-forms-util/set-form-op
+              :clear protobuf-forms-util/clear-form-op}
    :navigation false
    :sections [{:title "Collection Proxy"
                :fields [{:path [:collection]

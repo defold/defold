@@ -366,8 +366,8 @@ def transform_sprite(task, msg):
         st.texture = transform_tilesource_name(st.texture)
     return msg
 
-def transform_compute_program(task, msg):
-    msg.program = msg.program.replace('.cp', '.cpc')
+def transform_compute(task, msg):
+    msg.compute_program = msg.compute_program.replace('.cp', '.cpc')
     return msg
 
 def transform_tilegrid(task, msg):
@@ -389,6 +389,12 @@ def transform_rig_scene(task, msg):
 
 def transform_label(task, msg):
     msg.font = msg.font.replace('.font', '.fontc')
+    msg.material = msg.material.replace('.material', '.materialc')
+    return msg
+
+def transform_mesh(task, msg):
+    msg.vertices = msg.vertices.replace('.buffer', '.bufferc')
+    msg.vertices = msg.vertices.replace('.prebuilt_bufferc', '.prebuilt_bufferc')
     msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
@@ -524,8 +530,9 @@ proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.sprite
 proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilemapc', transform_tilegrid)
 proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilemapc', transform_tilegrid)
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
+proto_compile_task('mesh', 'mesh_ddf_pb2', 'MeshDesc', '.mesh', '.meshc', transform_mesh)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
-proto_compile_task('compute_program', 'render.compute_program_ddf_pb2', 'compute_program_ddf_pb2.ComputeProgramDesc', '.compute_program', '.compute_programc', transform_compute_program)
+proto_compile_task('compute', 'render.compute_ddf_pb2', 'compute_ddf_pb2.ComputeDesc', '.compute', '.computec', transform_compute)
 
 new_copy_task('project', '.project', '.projectc')
 
@@ -653,13 +660,13 @@ def compile_mesh(task):
         print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
         return 1
 
-waflib.Task.task_factory('mesh',
+waflib.Task.task_factory('model_file',
                          func    = compile_mesh,
                          color   = 'PINK')
 
 @extension('.dae')
 def dae_file(self, node):
-    mesh = self.create_task('mesh')
+    mesh = self.create_task('model_file')
     mesh.set_inputs(node)
     ext_skeleton      = '.skeletonc'
     ext_mesh_set      = '.meshsetc'
@@ -671,7 +678,7 @@ def dae_file(self, node):
 
 @extension('.gltf')
 def gltf_file(self, node):
-    mesh = self.create_task('mesh')
+    mesh = self.create_task('model_file')
     mesh.set_inputs(node)
     ext_skeleton      = '.skeletonc'
     ext_mesh_set      = '.meshsetc'

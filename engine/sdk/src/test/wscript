@@ -75,7 +75,7 @@ def build(bld):
     sdk_dir = os.path.join(bld.env['DYNAMO_HOME'], 'sdk', 'include', 'dmsdk')
     exclude_dirs = ['vectormath', 'external', 'lua']
     exclude_files = ['sdk.h']
-    exclude_endings = ['_posix.h', '_win32.h', '_mach.h', '_android.h', '_pthread.h', '_vendor.h', '_nx64.h', '_ps4.h', '_ps5.h']
+    exclude_endings = ['_gen.hpp', '_posix.h', '_win32.h', '_mach.h', '_android.h', '_pthread.h', '_vendor.h', '_nx64.h', '_ps4.h', '_ps5.h']
 
     if not platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
         exclude_dirs.append('glfw')
@@ -102,20 +102,45 @@ def build(bld):
 
     # Create the test files and try to build them
     with open('src/test/test_include.cpp', 'rt', encoding='utf-8') as f:
-        template = f.read()
+        template_cpp = f.read()
+
+    with open('src/test/test_include.c', 'rt', encoding='utf-8') as f:
+        template_c = f.read()
+
+    # Make sure that our C api holds up using only C compiler
+    c_includes = ['extension.h',
+                  'configfile.h',
+                  'resource.h']
 
     for index, include in enumerate(includes):
-        basename = os.path.basename(include).replace('.', '_') + '_%d.cpp' % index
-        source = 'test_include_%s' % basename
+        suffix_cpp = '_%d.cpp' % index
+        suffix_c = '_%d.c' % index
+        basename = os.path.basename(include).replace('.', '_')
+        basename_cpp = basename + suffix_cpp
+        basename_c = basename + suffix_c
+        source_cpp = 'test_include_%s' % basename_cpp
+        source_c = 'test_include_%s' % basename_c
 
-        source_node = bld.path.find_or_declare(source)
+        source_node_cpp = bld.path.find_or_declare(source_cpp)
+        source_node_c = bld.path.find_or_declare(source_c)
 
-        with open(source_node.abspath(), 'wt') as f:
-            content = template.replace('{custom_include}', include)
+        with open(source_node_cpp.abspath(), 'wt') as f:
+            content = template_cpp.replace('{custom_include}', include)
             f.write(content)
 
         bld.stlib(features = 'cxx sdk_include_filter test',
               includes = ['.','../'] + [extra_node],
-              source   = source,
-              target   = 'test_sdk_include_%s_%d' % (basename, index),
+              source   = source_cpp,
+              target   = 'test_include_cpp_%s_%d' % (basename_cpp, index),
               always   = True)
+
+        if os.path.basename(include) in c_includes:
+            with open(source_node_c.abspath(), 'wt') as f:
+                content = template_c.replace('{custom_include}', include)
+                f.write(content)
+
+            bld.stlib(features = 'c sdk_include_filter',
+                  includes = ['.','../'] + [extra_node],
+                  source   = source_c,
+                  target   = 'test_include_c_%s_%d' % (basename_c, index),
+                  always   = True)

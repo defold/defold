@@ -99,11 +99,11 @@ namespace dmScript
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] index to argument (a url)
      * @param component_type [type:const char*] E.g. "factoryc". The call will fail if the found component does not have the specified extension
-     * @param world [type:void**] The world associated owning the component. May be 0
-     * @param component [type:void**] The component data associated with the url. May be 0
+     * @param world [type:dmGameObject::HComponentWorld*] The world associated owning the component. May be 0
+     * @param component [type:dmGameObject::HComponent*] The component data associated with the url. May be 0
      * @param url [type:dmMessage::URL*] The resolved url. May be 0
      */
-    void GetComponentFromLua(lua_State* L, int index, const char* component_type, void** out_world, void** component, dmMessage::URL* url);
+    void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url);
 
     /*# buffer ownership
      *

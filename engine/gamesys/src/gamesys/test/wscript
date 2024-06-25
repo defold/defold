@@ -18,15 +18,16 @@ def build(bld):
             'atlas/*',
             'buffer/*',
             'camera/*',
+            'collection_factory/*',
             'collection_proxy/*',
             'collision_object/*',
             'convex_shape/*',
+            'display_profiles/*',
             'emitter/*',
             'factory/*',
-            'collection_factory/*',
             'font/*',
             'fragment_program/*',
-            'gui/*',
+            'gui/**',
             'image/*',
             'input/*',
             'label/*',
@@ -40,16 +41,16 @@ def build(bld):
             'render/*',
             'render_script/*',
             'render_target/*',
-            'display_profiles/*',
             'resource/*',
             'script/*',
             'shader/*',
             'sound/*',
             'sprite/**',
             'sys/**',
-            'tile/*',
             'texture/*',
             'textureset/*',
+            'tile/*',
+            'tilegrid/*',
             'vertex_program/*',
             'window/*']
 
@@ -57,7 +58,7 @@ def build(bld):
 
     if not platform_supports_feature(bld.env.PLATFORM, 'compute', None):
         excl_pattern.append('**/*.cp')
-        excl_pattern.append('**/*.compute_program')
+        excl_pattern.append('**/*.compute')
 
     exported_symbols = ['ResourceTypeGameObject',
                         'ResourceTypeCollection',
@@ -69,6 +70,7 @@ def build(bld):
                         'ComponentTypeAnim',
                         'ResourceTypeAnimationSet',
                         'ComponentTypeGui',
+                        'ComponentTypeMesh',
                         'ResourceTypeGui','ResourceTypeGuiScript',
                         'GraphicsAdapterNull']
 

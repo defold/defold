@@ -126,12 +126,12 @@ protected:
 };
 
 
-dmResource::Result DummyCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result DummyCreate(const dmResource::ResourceCreateParams* params)
 {
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result DummyDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result DummyDestroy(const dmResource::ResourceDestroyParams* params)
 {
     return dmResource::RESULT_OK;
 }
@@ -157,7 +157,7 @@ TEST_F(ResourceTest, RegisterType)
     ASSERT_EQ(dmResource::RESULT_ALREADY_REGISTERED, e);
 
     // Test get type/extension from type/extension
-    dmResource::ResourceType type;
+    HResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
@@ -204,17 +204,17 @@ struct TestResourceContainer
     std::vector<TestResource::ResourceFoo*> m_Resources;
 };
 
-dmResource::Result ResourceContainerPreload(const dmResource::ResourcePreloadParams& params);
+dmResource::Result ResourceContainerPreload(const dmResource::ResourcePreloadParams* params);
 
-dmResource::Result ResourceContainerCreate(const dmResource::ResourceCreateParams& params);
+dmResource::Result ResourceContainerCreate(const dmResource::ResourceCreateParams* params);
 
-dmResource::Result ResourceContainerDestroy(const dmResource::ResourceDestroyParams& params);
+dmResource::Result ResourceContainerDestroy(const dmResource::ResourceDestroyParams* params);
 
-dmResource::Result FooResourceCreate(const dmResource::ResourceCreateParams& params);
+dmResource::Result FooResourceCreate(const dmResource::ResourceCreateParams* params);
 
-dmResource::Result FooResourcePostCreate(const dmResource::ResourcePostCreateParams& params);
+dmResource::Result FooResourcePostCreate(const dmResource::ResourcePostCreateParams* params);
 
-dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams& params);
+dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams* params);
 
 class GetResourceTest : public jc_test_params_class<const char*>
 {
@@ -299,10 +299,10 @@ public:
     const char*        m_ResourceName;
 };
 
-dmResource::Result ResourceContainerPreload(const dmResource::ResourcePreloadParams& params)
+dmResource::Result ResourceContainerPreload(const dmResource::ResourcePreloadParams* params)
 {
     TestResource::ResourceContainerDesc* resource_container_desc;
-    dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &TestResource_ResourceContainerDesc_DESCRIPTOR, (void**) &resource_container_desc);
+    dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &TestResource_ResourceContainerDesc_DESCRIPTOR, (void**) &resource_container_desc);
     if (e != dmDDF::RESULT_OK)
     {
         return dmResource::RESULT_FORMAT_ERROR;
@@ -310,30 +310,32 @@ dmResource::Result ResourceContainerPreload(const dmResource::ResourcePreloadPar
 
     for (uint32_t i = 0; i < resource_container_desc->m_Resources.m_Count; ++i)
     {
-        dmResource::PreloadHint(params.m_HintInfo, resource_container_desc->m_Resources[i]);
+        dmResource::PreloadHint(params->m_HintInfo, resource_container_desc->m_Resources[i]);
     }
 
-    *params.m_PreloadData = resource_container_desc;
+    *params->m_PreloadData = resource_container_desc;
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result ResourceContainerCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result ResourceContainerCreate(const dmResource::ResourceCreateParams* params)
 {
-    GetResourceTest* self = (GetResourceTest*) params.m_Context;
+    HResourceType type = params->m_Type;
+    GetResourceTest* self = (GetResourceTest*) ResourceTypeGetContext(type);
     self->m_ResourceContainerCreateCallCount++;
 
-    TestResource::ResourceContainerDesc* resource_container_desc = (TestResource::ResourceContainerDesc*) params.m_PreloadData;
+    TestResource::ResourceContainerDesc* resource_container_desc = (TestResource::ResourceContainerDesc*) params->m_PreloadData;
 
     TestResourceContainer* resource_cont = new TestResourceContainer();
     resource_cont->m_NameHash = dmHashBuffer64(resource_container_desc->m_Name, strlen(resource_container_desc->m_Name));
-    params.m_Resource->m_Resource = (void*) resource_cont;
+
+    ResourceDescriptorSetResource(params->m_Resource, (void*) resource_cont);
 
     bool error = false;
     dmResource::Result factory_e = dmResource::RESULT_OK;
     for (uint32_t i = 0; i < resource_container_desc->m_Resources.m_Count; ++i)
     {
         TestResource::ResourceFoo* sub_resource;
-        factory_e = dmResource::Get(params.m_Factory, resource_container_desc->m_Resources[i], (void**)&sub_resource);
+        factory_e = dmResource::Get(params->m_Factory, resource_container_desc->m_Resources[i], (void**)&sub_resource);
         if (factory_e != dmResource::RESULT_OK)
         {
             error = true;
@@ -347,10 +349,10 @@ dmResource::Result ResourceContainerCreate(const dmResource::ResourceCreateParam
     {
         for (uint32_t i = 0; i < resource_cont->m_Resources.size(); ++i)
         {
-            dmResource::Release(params.m_Factory, resource_cont->m_Resources[i]);
+            dmResource::Release(params->m_Factory, resource_cont->m_Resources[i]);
         }
         delete resource_cont;
-        params.m_Resource->m_Resource = 0;
+        ResourceDescriptorSetResource(params->m_Resource, 0);
         return factory_e;
     }
     else
@@ -359,33 +361,37 @@ dmResource::Result ResourceContainerCreate(const dmResource::ResourceCreateParam
     }
 }
 
-dmResource::Result ResourceContainerDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result ResourceContainerDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    GetResourceTest* self = (GetResourceTest*) params.m_Context;
+    HResourceType type = params->m_Type;
+    GetResourceTest* self = (GetResourceTest*) ResourceTypeGetContext(type);
     self->m_ResourceContainerDestroyCallCount++;
 
-    TestResourceContainer* resource_cont = (TestResourceContainer*) params.m_Resource->m_Resource;
+    TestResourceContainer* resource_cont = (TestResourceContainer*) ResourceDescriptorGetResource(params->m_Resource);
 
     std::vector<TestResource::ResourceFoo*>::iterator i;
     for (i = resource_cont->m_Resources.begin(); i != resource_cont->m_Resources.end(); ++i)
     {
-        dmResource::Release(params.m_Factory, *i);
+        dmResource::Release(params->m_Factory, *i);
     }
     delete resource_cont;
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result FooResourceCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result FooResourceCreate(const dmResource::ResourceCreateParams* params)
 {
-    GetResourceTest* self = (GetResourceTest*) params.m_Context;
+    HResourceType type = params->m_Type;
+    GetResourceTest* self = (GetResourceTest*) ResourceTypeGetContext(type);
     self->m_FooResourceCreateCallCount++;
 
     TestResource::ResourceFoo* resource_foo;
 
-    dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &TestResource_ResourceFoo_DESCRIPTOR, (void**) &resource_foo);
+    dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer,
+                                         params->m_BufferSize,
+                                         &TestResource_ResourceFoo_DESCRIPTOR, (void**) &resource_foo);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) resource_foo;
+        ResourceDescriptorSetResource(params->m_Resource, resource_foo);
         return dmResource::RESULT_OK;
     }
     else
@@ -394,19 +400,21 @@ dmResource::Result FooResourceCreate(const dmResource::ResourceCreateParams& par
     }
 }
 
-dmResource::Result FooResourcePostCreate(const dmResource::ResourcePostCreateParams& params)
+dmResource::Result FooResourcePostCreate(const dmResource::ResourcePostCreateParams* params)
 {
-    GetResourceTest* self = (GetResourceTest*) params.m_Context;
+    HResourceType type = params->m_Type;
+    GetResourceTest* self = (GetResourceTest*) ResourceTypeGetContext(type);
     self->m_FooResourcePostCreateCallCount++;
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    GetResourceTest* self = (GetResourceTest*) params.m_Context;
+    HResourceType type = params->m_Type;
+    GetResourceTest* self = (GetResourceTest*) ResourceTypeGetContext(type);
     self->m_FooResourceDestroyCallCount++;
 
-    dmDDF::FreeMessage(params.m_Resource->m_Resource);
+    dmDDF::FreeMessage(ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 
@@ -519,28 +527,28 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
     ASSERT_NE((void*) 0, resource);
     dmhash_t name_hash = dmHashString64(m_ResourceName);
 
-    dmResource::SResourceDescriptor descriptor;
+    HResourceDescriptor descriptor;
     // No exts means any ext
     e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, 0, 0, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+    ASSERT_EQ(name_hash, ResourceDescriptorGetNameHash(descriptor));
 
     // One ext
     e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, &CONT_EXT_HASH, 1, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+    ASSERT_EQ(name_hash, ResourceDescriptorGetNameHash(descriptor));
 
     // Two exts
     dmhash_t two_exts[] = {CONT_EXT_HASH, FOO_EXT_HASH};
     e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, two_exts, 2, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+    ASSERT_EQ(name_hash, ResourceDescriptorGetNameHash(descriptor));
 
     // Two exts, reversed order
     dmhash_t two_exts_rev[] = {FOO_EXT_HASH, CONT_EXT_HASH};
     e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, two_exts_rev, 2, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+    ASSERT_EQ(name_hash, ResourceDescriptorGetNameHash(descriptor));
 
     // No match
     e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, &FOO_EXT_HASH, 1, &descriptor);
@@ -570,7 +578,7 @@ TEST_P(GetResourceTest, GetReference1)
 {
     dmResource::Result e;
 
-    dmResource::SResourceDescriptor descriptor;
+    HResourceDescriptor descriptor;
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
     ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
 }
@@ -586,13 +594,13 @@ TEST_P(GetResourceTest, GetReference2)
     ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
     ASSERT_EQ((uint32_t) 0, m_ResourceContainerDestroyCallCount);
 
-    dmResource::SResourceDescriptor descriptor;
+    HResourceDescriptor descriptor;
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
     ASSERT_EQ((uint32_t) 1, m_ResourceContainerCreateCallCount);
     ASSERT_EQ((uint32_t) 0, m_ResourceContainerDestroyCallCount);
 
-    ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 1, descriptor->m_ReferenceCount);
     dmResource::Release(m_Factory, resource);
 }
 
@@ -612,10 +620,10 @@ TEST_P(GetResourceTest, ReferenceCountSimple)
     ASSERT_EQ(sub_resource_count, m_FooResourcePostCreateCallCount);
     ASSERT_EQ((uint32_t) 0, m_FooResourceDestroyCallCount);
 
-    dmResource::SResourceDescriptor descriptor1;
+    HResourceDescriptor descriptor1;
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor1);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 1, descriptor1.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 1, descriptor1->m_ReferenceCount);
 
     TestResourceContainer* resource2 = 0;
     e = dmResource::Get(m_Factory, m_ResourceName, (void**) &resource2);
@@ -628,10 +636,10 @@ TEST_P(GetResourceTest, ReferenceCountSimple)
     ASSERT_EQ(sub_resource_count, m_FooResourcePostCreateCallCount);
     ASSERT_EQ((uint32_t) 0, m_FooResourceDestroyCallCount);
 
-    dmResource::SResourceDescriptor descriptor2;
+    HResourceDescriptor descriptor2;
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor2);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 2, descriptor2.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 2, descriptor2->m_ReferenceCount);
 
     // Release
     dmResource::Release(m_Factory, resource1);
@@ -644,7 +652,7 @@ TEST_P(GetResourceTest, ReferenceCountSimple)
     // Check reference count equal to 1
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor1);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 1, descriptor1.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 1, descriptor1->m_ReferenceCount);
 
     // Release again
     dmResource::Release(m_Factory, resource2);
@@ -692,10 +700,10 @@ TEST_P(GetResourceTest, PreloadGet)
     ASSERT_EQ(pcc_result, 1);
 
     // Ensure preloader holds one reference now
-    dmResource::SResourceDescriptor descriptor;
+    HResourceDescriptor descriptor;
     dmResource::Result e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 1, descriptor->m_ReferenceCount);
 
     TestResourceContainer* resource = 0;
     e = dmResource::Get(m_Factory, m_ResourceName, (void**) &resource);
@@ -703,14 +711,14 @@ TEST_P(GetResourceTest, PreloadGet)
 
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 2, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 2, descriptor->m_ReferenceCount);
 
     dmResource::DeletePreloader(pr);
 
     // only one after release
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 1, descriptor->m_ReferenceCount);
 
     dmResource::Release(m_Factory, resource);
 }
@@ -740,45 +748,45 @@ TEST_P(GetResourceTest, PreloadGetList)
     ASSERT_EQ(pcc_result, 1);
 
     // Ensure preloader holds one reference now
-    dmResource::SResourceDescriptor descriptor;
+    HResourceDescriptor descriptor;
     dmResource::Result e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 1, descriptor->m_ReferenceCount);
     // Ensure preloader holds two references to subresources referenced by two parents
     e = dmResource::GetDescriptor(m_Factory, subresource_name, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 2, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 2, descriptor->m_ReferenceCount);
 
     TestResourceContainer* resource = 0;
     e = dmResource::Get(m_Factory, m_ResourceName, (void**) &resource);
     ASSERT_EQ(dmResource::RESULT_OK, e);
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 2, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 2, descriptor->m_ReferenceCount);
 
     TestResourceContainer* subresource = 0;
     e = dmResource::Get(m_Factory, subresource_name, (void**) &subresource);
     ASSERT_EQ(dmResource::RESULT_OK, e);
     e = dmResource::GetDescriptor(m_Factory, subresource_name, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 3, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 3, descriptor->m_ReferenceCount);
 
     dmResource::DeletePreloader(pr);
 
     // only two after preloader release
     e = dmResource::GetDescriptor(m_Factory, subresource_name, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 2, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 2, descriptor->m_ReferenceCount);
 
     // only one after preloader release
     e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 1, descriptor->m_ReferenceCount);
 
     // only two after parent resource release
     e = dmResource::GetDescriptor(m_Factory, subresource_name, &descriptor);
     ASSERT_EQ(dmResource::RESULT_OK, e);
-    ASSERT_EQ((uint32_t) 2, descriptor.m_ReferenceCount);
+    ASSERT_EQ((uint32_t) 2, descriptor->m_ReferenceCount);
 
     dmResource::Release(m_Factory, subresource);
     dmResource::Release(m_Factory, resource);
@@ -823,10 +831,10 @@ TEST_P(GetResourceTest, PreloadGetParallell)
         dmResource::Result e = dmResource::Get(m_Factory, m_ResourceName, (void**) &resource);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::SResourceDescriptor descriptor;
+        HResourceDescriptor descriptor;
         e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        ASSERT_EQ((uint32_t) (n+1), descriptor.m_ReferenceCount);
+        ASSERT_EQ((uint32_t) (n+1), descriptor->m_ReferenceCount);
 
         for (uint32_t j=0;j<n;j++)
         {
@@ -836,7 +844,7 @@ TEST_P(GetResourceTest, PreloadGetParallell)
         // only one after release
         e = dmResource::GetDescriptor(m_Factory, m_ResourceName, &descriptor);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        ASSERT_EQ((uint32_t) 1, descriptor.m_ReferenceCount);
+        ASSERT_EQ((uint32_t) 1, descriptor->m_ReferenceCount);
 
         dmResource::Release(m_Factory, resource);
     }
@@ -876,41 +884,44 @@ TEST_P(GetResourceTest, PreloadGetAbort)
 }
 
 
-dmResource::Result RecreateResourceCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result RecreateResourceCreate(const dmResource::ResourceCreateParams* params)
 {
     const int TMP_BUFFER_SIZE = 64;
     char tmp[TMP_BUFFER_SIZE];
-    if (params.m_BufferSize < TMP_BUFFER_SIZE) {
-        memcpy(tmp, params.m_Buffer, params.m_BufferSize);
-        tmp[params.m_BufferSize] = '\0';
+    uint32_t data_size = params->m_BufferSize;
+    if (data_size < TMP_BUFFER_SIZE) {
+        memcpy(tmp, params->m_Buffer, data_size);
+        tmp[data_size] = '\0';
         int* recreate_resource = new int(atoi(tmp));
-        params.m_Resource->m_Resource = (void*) recreate_resource;
+        ResourceDescriptorSetResource(params->m_Resource, recreate_resource);
         return dmResource::RESULT_OK;
     } else {
         return dmResource::RESULT_OUT_OF_MEMORY;
     }
 }
 
-dmResource::Result RecreateResourceDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result RecreateResourceDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    int* recreate_resource = (int*) params.m_Resource->m_Resource;
+    int* recreate_resource = (int*) ResourceDescriptorGetResource(params->m_Resource);
     delete recreate_resource;
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreateParams& params)
+dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreateParams* params)
 {
-    int* recreate_resource = (int*) params.m_Resource->m_Resource;
+    int* recreate_resource = (int*) ResourceDescriptorGetResource(params->m_Resource);
     assert(recreate_resource);
     int* old_resource = new int();
     *old_resource = *recreate_resource;
-    params.m_Resource->m_PrevResource = (void*)old_resource;
+
+    ResourceDescriptorSetPrevResource(params->m_Resource, old_resource);
 
     const int TMP_BUFFER_SIZE = 64;
     char tmp[TMP_BUFFER_SIZE];
-    if (params.m_BufferSize < TMP_BUFFER_SIZE) {
-        memcpy(tmp, params.m_Buffer, params.m_BufferSize);
-        tmp[params.m_BufferSize] = '\0';
+    uint32_t data_size = params->m_BufferSize;
+    if (data_size < TMP_BUFFER_SIZE) {
+        memcpy(tmp, params->m_Buffer, data_size);
+        tmp[data_size] = '\0';
         *recreate_resource = atoi(tmp);
         return dmResource::RESULT_OK;
     } else {
@@ -938,18 +949,20 @@ TEST(dmResource, InvalidUri)
 }
 #endif
 
-dmResource::Result AdResourceCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result AdResourceCreate(const dmResource::ResourceCreateParams* params)
 {
-    char* duplicate = (char*)malloc((params.m_BufferSize + 1) * sizeof(char));
-    memcpy(duplicate, params.m_Buffer, params.m_BufferSize);
-    duplicate[params.m_BufferSize] = '\0';
-    params.m_Resource->m_Resource = duplicate;
+    uint32_t data_size = params->m_BufferSize;
+    const void* data = params->m_Buffer;
+    char* duplicate = (char*)malloc((data_size + 1) * sizeof(char));
+    memcpy(duplicate, data, data_size);
+    duplicate[data_size] = '\0';
+    ResourceDescriptorSetResource(params->m_Resource, duplicate);
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result AdResourceDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result AdResourceDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    free(params.m_Resource->m_Resource);
+    free(ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 
@@ -999,10 +1012,10 @@ struct ReloadData {
     int m_New;
 };
 
-static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params) {
-    ReloadData* data = (ReloadData*)params.m_UserData;
-    data->m_Old = *((int*)params.m_Resource->m_PrevResource);
-    data->m_New = *((int*)params.m_Resource->m_Resource);
+static void ResourceReloadedCallback(const ResourceReloadedParams* params) {
+    ReloadData* data = (ReloadData*)params->m_UserData;
+    data->m_Old = *((int*)ResourceDescriptorGetPrevResource(params->m_Resource));
+    data->m_New = *((int*)ResourceDescriptorGetResource(params->m_Resource));
 }
 
 TEST(RecreateTest, RecreateTest)
@@ -1020,7 +1033,7 @@ TEST(RecreateTest, RecreateTest)
     e = dmResource::RegisterType(factory, "foo", 0, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
-    dmResource::ResourceType type;
+    dmResource::HResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
@@ -1097,11 +1110,10 @@ static void SendReloadThread(void* _ctx)
     free(reload_resources);
 }
 
-static void ResourceReloadedHttpCallback(const dmResource::ResourceReloadedParams& params)
+static void ResourceReloadedHttpCallback(const dmResource::ResourceReloadedParams* params)
 {
-    ReloadedContext* ctx = (ReloadedContext*) params.m_UserData;
-
-    if (dmResource::GetResource(params.m_Resource) == ctx->m_Resource)
+    ReloadedContext* ctx = (ReloadedContext*)params->m_UserData;
+    if (ResourceDescriptorGetResource(params->m_Resource) == ctx->m_Resource)
     {
         dmAtomicStore32(ctx->m_Reloaded, 1);
     }
@@ -1119,7 +1131,7 @@ TEST(RecreateTest, RecreateTestHttp)
     e = dmResource::RegisterType(factory, "foo", 0, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
-    dmResource::ResourceType type;
+    dmResource::HResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
@@ -1197,22 +1209,22 @@ TEST(RecreateTest, RecreateTestHttp)
 
 char filename_resource_filename[ 128 ];
 
-dmResource::Result FilenameResourceCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result FilenameResourceCreate(const dmResource::ResourceCreateParams* params)
 {
-    if (strcmp(filename_resource_filename, params.m_Filename) == 0)
+    if (strcmp(filename_resource_filename, params->m_Filename) == 0)
         return dmResource::RESULT_OK;
     else
         return dmResource::RESULT_FORMAT_ERROR;
 }
 
-dmResource::Result FilenameResourceDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result FilenameResourceDestroy(const dmResource::ResourceDestroyParams* params)
 {
     return dmResource::RESULT_OK;
 }
 
-dmResource::Result FilenameResourceRecreate(const dmResource::ResourceRecreateParams& params)
+dmResource::Result FilenameResourceRecreate(const dmResource::ResourceRecreateParams* params)
 {
-    if (strcmp(filename_resource_filename, params.m_Filename) == 0)
+    if (strcmp(filename_resource_filename, params->m_Filename) == 0)
         return dmResource::RESULT_OK;
     else
         return dmResource::RESULT_FORMAT_ERROR;
@@ -1230,7 +1242,7 @@ TEST(FilenameTest, FilenameTest)
     e = dmResource::RegisterType(factory, "foo", 0, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
-    dmResource::ResourceType type;
+    dmResource::HResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
@@ -1268,79 +1280,83 @@ TEST(FilenameTest, FilenameTest)
 
 
 
-static dmResource::Result RegisterResourceTypeCustom(dmResource::ResourceTypeRegisterContext& ctx)
+static ResourceResult RegisterResourceTypeCustom(HResourceTypeContext ctx, HResourceType type)
 {
     int* context = new int;
     *context = 1;
-    ctx.m_Contexts->Put(ctx.m_NameHash, context);
-    ctx.m_Contexts->Put(dmHashString64("register_called"), 0);
 
     // we're not actually invoking them, they just need to be non null
-    dmResource::FResourceCreate create_fn = (dmResource::FResourceCreate)1;
-    dmResource::FResourceDestroy destroy_fn = (dmResource::FResourceDestroy)1;
-    return dmResource::RegisterType(ctx.m_Factory,
-                                    ctx.m_Name,
-                                    context,
-                                    0,
-                                    create_fn,
-                                    0,
-                                    destroy_fn,
-                                    0);
+    ResourceTypeSetCreateFn(type, (FResourceCreate)1);
+    ResourceTypeSetDestroyFn(type, (FResourceDestroy)1);
+    ResourceTypeSetContext(type, context);
+
+
+    int* counter = (int*)ResourceTypeContextGetContextByHash(ctx, dmHashString64("counter"));
+    assert(counter != 0);
+    (*counter)++;
+
+    return RESOURCE_RESULT_OK;
 }
 
-static dmResource::Result DeregisterResourceTypeCustom(dmResource::ResourceTypeRegisterContext& ctx)
+static ResourceResult DeregisterResourceTypeCustom(HResourceTypeContext ctx, HResourceType type)
 {
-    int** context = (int**)ctx.m_Contexts->Get(ctx.m_NameHash);
-    delete *context;
-    ctx.m_Contexts->Erase(ctx.m_NameHash);
-    ctx.m_Contexts->Put(dmHashString64("deregister_called"), 0);
-    return dmResource::RESULT_OK;
+    int* context = (int*)ResourceTypeGetContext(type);
+    assert(context != 0);
+    assert((*context) == 1);
+    delete context;
+
+    int* counter = (int*)ResourceTypeContextGetContextByHash(ctx, dmHashString64("counter"));
+    assert(counter != 0);
+    (*counter)++;
+
+    return RESOURCE_RESULT_OK;
 }
 
 TEST(ResourceExtension, CustomType)
 {
     uint8_t DM_ALIGNED(16) desc[dmResource::s_ResourceTypeCreatorDescBufferSize];
 
-    dmResource::RegisterTypeCreatorDesc((struct dmResource::TypeCreatorDesc*)desc, sizeof(desc),
-                                        "custom", RegisterResourceTypeCustom, DeregisterResourceTypeCustom);
+    ResourceRegisterTypeCreatorDesc((void*)desc, sizeof(desc), "custom", RegisterResourceTypeCustom, DeregisterResourceTypeCustom);
 
     dmResource::Result e;
     dmResource::NewFactoryParams params;
     dmResource::HFactory factory = dmResource::NewFactory(&params, ".");
     ASSERT_NE((void*)0, factory);
 
-    dmResource::ResourceType type;
+    dmResource::HResourceType type;
     e = dmResource::GetTypeFromExtension(factory, "custom", &type);
     ASSERT_EQ(dmResource::RESULT_UNKNOWN_RESOURCE_TYPE, e);
 
     dmHashTable64<void*> contexts;
     contexts.SetCapacity(7, 14);
 
+    int counter = 0;
+    contexts.Put(dmHashString64("counter"), &counter);
+
     dmResource::RegisterTypes(factory, &contexts);
-    ASSERT_EQ(2u, contexts.Size());
+    ASSERT_EQ(1u, contexts.Size());
+    ASSERT_EQ(1u, counter);
 
     dmResource::DeregisterTypes(factory, &contexts);
-    ASSERT_EQ(2u, contexts.Size());
-
-
-    void** context = (void**)contexts.Get(dmHashString64("deregister_called"));
-    ASSERT_NE(0u, (uintptr_t)context);
+    ASSERT_EQ(1u, contexts.Size());
+    ASSERT_EQ(2u, counter);
 
     dmResource::DeleteFactory(factory);
 }
 
 struct CallbackUserData
 {
-    CallbackUserData() : m_Descriptor(0x0), m_Name(0x0) {}
-    dmResource::SResourceDescriptor* m_Descriptor;
-    const char* m_Name;
+    CallbackUserData() : m_Descriptor(0x0), m_Name(0) {}
+    ResourceDescriptor* m_Descriptor;
+    dmhash_t            m_Name;
 };
 
-void ReloadCallback(const dmResource::ResourceReloadedParams& params)
+void ReloadCallback(const dmResource::ResourceReloadedParams* params)
 {
-    CallbackUserData* data = (CallbackUserData*) params.m_UserData;
-    data->m_Descriptor = params.m_Resource;
-    data->m_Name = params.m_Name;
+    CallbackUserData* data = (CallbackUserData*)params->m_UserData;
+    HResourceDescriptor rd = params->m_Resource;
+    data->m_Descriptor = rd;
+    data->m_Name = ResourceDescriptorGetNameHash(rd);
 }
 
 TEST(RecreateTest, ReloadCallbackTest)
@@ -1377,7 +1393,7 @@ TEST(RecreateTest, ReloadCallbackTest)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
 
     ASSERT_NE((void*)0, user_data.m_Descriptor);
-    ASSERT_EQ(0, strcmp(resource_name, user_data.m_Name));
+    ASSERT_EQ(dmHashString64(resource_name), user_data.m_Name);
 
     user_data = CallbackUserData();
     dmResource::UnregisterResourceReloadedCallback(factory, ReloadCallback, &user_data);
@@ -1386,7 +1402,7 @@ TEST(RecreateTest, ReloadCallbackTest)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
 
     ASSERT_EQ((void*)0, user_data.m_Descriptor);
-    ASSERT_EQ((void*)0, user_data.m_Name);
+    ASSERT_EQ(0, user_data.m_Name);
 
     dmSys::Unlink(path);
 

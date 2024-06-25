@@ -21,6 +21,7 @@
           <entry key="dynamo.graph/with-auto-or-fake-evaluation-context" value="-1" />
           <entry key="dynamo.graph/with-system" value="-1" />
           <entry key="editor.analytics-test/with-config!" value="-1" />
+          <entry key="editor.code.resource/register-code-resource-type" value="-1" />
           <entry key="editor.defold-project/with-transpiler-txs-fn" value="-1" />
           <entry key="editor.editor-extensions.runtime/lua-fn" value="-1" />
           <entry key="editor.editor-extensions.runtime/suspendable-lua-fn" value="-1" />
@@ -44,6 +45,9 @@
           <entry key="editor.resource-node/register-ddf-resource-type" value="-1" />
           <entry key="editor.resource-node/register-settings-resource-type" value="-1" />
           <entry key="editor.settings/register-simple-settings-resource-type" value="-1" />
+          <entry key="editor.resource-node/register-ddf-resource-type" value="-1" />
+          <entry key="editor.resource-node/register-settings-resource-type" value="-1" />
+          <entry key="editor.settings/register-simple-settings-resource-type" value="-1" />
           <entry key="editor.ui.bindings/-if" value="-1" />
           <entry key="editor.ui.bindings/when" value="-1" />
           <entry key="editor.ui.bindings/when-not" value="-1" />
@@ -58,6 +62,8 @@
           <entry key="editor.workspace/register-resource-type" value="-1" />
           <entry key="editor.yaml/with-error-translation" value="-1" />
           <entry key="integration.build-test/with-build-results" value="-1" />
+          <entry key="integration.test-util/set-code-editor-lines" value="-1" />
+          <entry key="integration.test-util/set-code-editor-lines!" value="-1" />
           <entry key="integration.test-util/with-loaded-project" value="-1" />
           <entry key="integration.test-util/with-logged-calls" value="-1" />
           <entry key="integration.test-util/with-prop" value="-1" />

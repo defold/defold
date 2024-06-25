@@ -437,6 +437,7 @@
   (for [def script-defs
         :let [args (assoc def
                      :node-type ScriptNode
+                     :built-pb-class script-compilation/built-pb-class
                      :eager-loading? true
                      :additional-load-fn additional-load-fn)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))
