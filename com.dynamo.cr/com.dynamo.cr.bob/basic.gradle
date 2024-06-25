@@ -49,7 +49,7 @@ gradle.taskGraph.whenReady { taskGraph ->
     def command = [
             "python",
             "-c",
-            "import sys; sys.path.append('${buildToolsDir}'); import sdk; print(sdk.get_host_platform())"
+            "import sys; sys.path.append(r'${buildToolsDir}'); import sdk; print(sdk.get_host_platform())"
     ] as String[]
 
     try {
@@ -62,7 +62,8 @@ gradle.taskGraph.whenReady { taskGraph ->
         def outputString = output.toString().trim()
 
         if (process.exitValue() == 0) {
-            ext.hostPlatform = outputString
+            def sanitizedOutput = outputString.replaceAll(/[^\w-]/, '')
+            ext.hostPlatform = sanitizedOutput
             if (ext.hostPlatform) {
                 println "Host Platform: ${ext.hostPlatform}"
             } else {
