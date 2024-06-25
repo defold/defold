@@ -1356,6 +1356,12 @@ TEST_P(CursorTest, Cursor)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(GuiTest, GetSetMaterialConstants)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/get_set_material_constants.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+}
+
 // Tests the animation done message/callback
 TEST_F(GuiTest, GuiFlipbookAnim)
 {
@@ -5428,10 +5434,6 @@ TEST_F(ShaderTest, ComputeResource)
     dmResource::Release(m_Factory, (void*) compute_program_res);
 }
 
-TEST_F(ShaderTest, ComputeProgram)
-{
-    dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
-}
 #endif
 
 extern "C" void dmExportedSymbols();
