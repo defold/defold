@@ -220,7 +220,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
-                &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, 0,
+                &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, CompCollisionObjectGetComponent,
                 &CompCollisionObjectUpdate, CompCollisionObjectFixedUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0,
                 &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty,
                 0, CompCollisionIterProperties,
@@ -228,7 +228,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("camerac", 500, render_context,
                 &CompCameraNewWorld, &CompCameraDeleteWorld,
-                &CompCameraCreate, &CompCameraDestroy, 0, 0, &CompCameraAddToUpdate, 0,
+                &CompCameraCreate, &CompCameraDestroy, 0, 0, &CompCameraAddToUpdate, CompCameraGetComponent,
                 &CompCameraUpdate, 0, 0, 0, &CompCameraOnMessage, 0,
                 &CompCameraOnReload, CompCameraGetProperty, CompCameraSetProperty,
                 0, 0,
@@ -236,7 +236,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("soundc", 600, sound_context,
                 CompSoundNewWorld, CompSoundDeleteWorld,
-                CompSoundCreate, CompSoundDestroy, 0, 0, CompSoundAddToUpdate, 0,
+                CompSoundCreate, CompSoundDestroy, 0, 0, CompSoundAddToUpdate, CompSoundGetComponent,
                 CompSoundUpdate, 0, 0, 0, CompSoundOnMessage, 0,
                 0, CompSoundGetProperty, CompSoundSetProperty,
                 0, 0,
@@ -244,7 +244,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("modelc", 700, model_context,
                 CompModelNewWorld, CompModelDeleteWorld,
-                CompModelCreate, CompModelDestroy, 0, 0, CompModelAddToUpdate, 0,
+                CompModelCreate, CompModelDestroy, 0, 0, CompModelAddToUpdate, CompModelGetComponent,
                 CompModelUpdate, 0, CompModelRender, 0, CompModelOnMessage, 0,
                 0, CompModelGetProperty, CompModelSetProperty,
                 0, CompModelIterProperties,
@@ -254,7 +254,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("particlefxc", 800, particlefx_context,
                 &CompParticleFXNewWorld, &CompParticleFXDeleteWorld,
-                &CompParticleFXCreate, &CompParticleFXDestroy, 0, 0, &CompParticleFXAddToUpdate, 0,
+                &CompParticleFXCreate, &CompParticleFXDestroy, 0, 0, &CompParticleFXAddToUpdate, CompParticleFXGetComponent,
                 &CompParticleFXUpdate, 0, &CompParticleFXRender, 0, &CompParticleFXOnMessage, 0,
                 &CompParticleFXOnReload, 0, 0,
                 0, 0,
@@ -262,7 +262,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("factoryc", 900, factory_context,
                 CompFactoryNewWorld, CompFactoryDeleteWorld,
-                CompFactoryCreate, CompFactoryDestroy, 0, 0, CompFactoryAddToUpdate, 0,
+                CompFactoryCreate, CompFactoryDestroy, 0, 0, CompFactoryAddToUpdate, CompFactoryGetComponent,
                 CompFactoryUpdate, 0, 0, 0, CompFactoryOnMessage, 0,
                 0, CompFactoryGetProperty, 0,
                 0, 0,
@@ -278,7 +278,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("lightc", 1000, render_context,
                 CompLightNewWorld, CompLightDeleteWorld,
-                CompLightCreate, CompLightDestroy, 0, 0, CompLightAddToUpdate, 0,
+                CompLightCreate, CompLightDestroy, 0, 0, CompLightAddToUpdate, CompLightGetComponent,
                 CompLightUpdate, 0, 0, 0, CompLightOnMessage, 0,
                 0, 0, 0,
                 0, 0,
@@ -286,7 +286,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
                 CompSpriteNewWorld, CompSpriteDeleteWorld,
-                CompSpriteCreate, CompSpriteDestroy, 0, 0, CompSpriteAddToUpdate, 0,
+                CompSpriteCreate, CompSpriteDestroy, 0, 0, CompSpriteAddToUpdate, CompSpriteGetComponent,
                 CompSpriteUpdate, 0, CompSpriteRender, 0, CompSpriteOnMessage, 0,
                 CompSpriteOnReload, CompSpriteGetProperty, CompSpriteSetProperty,
                 0, CompSpriteIterProperties,
@@ -294,7 +294,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE(TILE_MAP_EXT, 1200, tilemap_context,
                 CompTileGridNewWorld, CompTileGridDeleteWorld,
-                CompTileGridCreate, CompTileGridDestroy, 0, 0, CompTileGridAddToUpdate, 0,
+                CompTileGridCreate, CompTileGridDestroy, 0, 0, CompTileGridAddToUpdate, CompTileGridGetComponent,
                 CompTileGridUpdate, 0, CompTileGridRender, 0, CompTileGridOnMessage, 0,
                 CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty,
                 0, CompTileGridIterProperties,

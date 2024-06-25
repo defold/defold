@@ -38,6 +38,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompTileGridOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
+    void*                      CompTileGridGetComponent(const dmGameObject::ComponentGetParams& params);
+
     void CompTileGridOnReload(const dmGameObject::ComponentOnReloadParams& params);
 
     dmGameObject::PropertyResult CompTileGridGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
