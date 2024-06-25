@@ -1511,7 +1511,7 @@ def remove_flag(arr, flag, nargs):
 
 def _get_dotnet_version():
     result = run.shell_command('dotnet --info')
-    lines = result.split('\n')
+    lines = result.splitlines()
     i = lines.index('Host:')
     version = lines[i+1].strip().split()[1]
     return version
