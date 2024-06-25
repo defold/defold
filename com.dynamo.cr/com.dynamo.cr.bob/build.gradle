@@ -321,8 +321,6 @@ task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, create
         exclude '**/META-INF/**'
     }
 
-    inputs.dir(fileTree(project.classesDir))
-    inputs.dir(fileTree(project.bobDir))
     outputs.file("${project.bobDir}/dist/bob-light.jar")
 
     manifest {
