@@ -35,6 +35,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompSpriteOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
+    void*                      CompSpriteGetComponent(const dmGameObject::ComponentGetParams& params);
+
     void CompSpriteOnReload(const dmGameObject::ComponentOnReloadParams& params);
 
     dmGameObject::PropertyResult CompSpriteGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
