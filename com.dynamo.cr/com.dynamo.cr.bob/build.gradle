@@ -108,6 +108,26 @@ sourceSets {
     }
 }
 
+task copyDependencies {
+    doLast {
+        exec {
+            commandLine 'python', "${project.bobDir}/engine_version_generator.py"
+        }
+        def includeJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar']
+        copy {
+            from fileTree("${project.dynamoHome}/share/java") {
+                include includeJars
+            }
+            into "${project.bobDir}/lib"
+        }
+        includeJars.each { jar ->
+            if (!file("${project.bobDir}/lib/$jar").exists()) {
+                throw new GradleException("$jar is missing")
+            }
+        }
+    }
+}
+
 task compileGenerated(type: JavaCompile) {
     dependsOn execProtoTasks
     source = fileTree('generated')
@@ -119,7 +139,7 @@ task compileGenerated(type: JavaCompile) {
     outputs.dir(project.classesDir)
 }
 
-task compileSrc(type: JavaCompile, dependsOn: compileGenerated) {
+task compileSrc(type: JavaCompile, dependsOn: [compileGenerated, copyDependencies]) {
     source = sourceSets.main.java
     destinationDirectory = project.classesDir
     include '**'
@@ -145,23 +165,6 @@ task createLuaJitShareZip(type: Zip) {
 
 task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
     doLast {
-        mkdir project.classesDir
-        exec {
-            commandLine 'python', "${project.bobDir}/engine_version_generator.py"
-        }
-        copy {
-            from fileTree("${project.dynamoHome}/share") {
-                include 'java/dlib.jar'
-                include 'java/modelimporter.jar'
-                include 'java/texturecompiler.jar'
-            }
-            into "${project.bobDir}/lib"
-        }
-        ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar'].each { jar ->
-            if (!file("${project.bobDir}/lib/$jar").exists()) {
-                throw new GradleException("$jar is missing")
-            }
-        }
         ['x86_64-macos', 'arm64-macos', 'x86_64-linux', 'x86_64-win32', 'x86-win32'].each { platform ->
             copy {
                 from fileTree("${project.dynamoHome}/ext/bin/$platform")
