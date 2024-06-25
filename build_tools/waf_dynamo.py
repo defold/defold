@@ -1547,11 +1547,12 @@ def setup_csharp(conf):
 
     conf.env.NUGET_PACKAGES = nuget_path
     if not os.path.exists(conf.env.NUGET_PACKAGES):
-        conf.fatal("Couldn't find C# nuget packages: '%s'" % conf.env.NUGET_PACKAGES)
+        print(f"'NUGET_PACKAGES' not found. Using NUGET_PACKAGES={nuget_path}")
+        os.makedirs(conf.env.NUGET_PACKAGES)
+        if not os.path.exists(conf.env.NUGET_PACKAGES):
+            conf.fatal("Couldn't find C# nuget packages: '%s'" % conf.env.NUGET_PACKAGES)
 
     aot_base = _get_dotnet_aot_base(nuget_path, '%s-%s' % (dotnet_os, dotnet_arch), conf.env.DOTNET_VERSION)
-    # if not os.path.exists(aot_base):
-    #     conf.fatal("Couldn't find C# base path '%s'" % aot_base)
 
     if build_util.get_target_os() in ('win32'):
         pass
