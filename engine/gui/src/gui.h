@@ -166,6 +166,7 @@ namespace dmGui
     {
         uint32_t m_MaxNodes;
         uint32_t m_MaxAnimations;
+        uint32_t m_MaxDynamicTextures;
         uint32_t m_MaxTextures;
         uint32_t m_MaxMaterials;
         uint32_t m_MaxFonts;

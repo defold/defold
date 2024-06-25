@@ -285,16 +285,17 @@ namespace dmGui
     {
         memset(params, 0, sizeof(*params));
         // The default max value for a scene is 512 (same as in gui_ddf.proto). Absolute max value is 2^INDEX_RANGE.
-        params->m_MaxNodes       = 512;
-        params->m_MaxAnimations  = 128;
-        params->m_MaxTextures    = 32;
-        params->m_MaxMaterials   = 8;
-        params->m_MaxFonts       = 4;
-        params->m_MaxParticlefxs = 128;
+        params->m_MaxNodes           = 512;
+        params->m_MaxAnimations      = 128;
+        params->m_MaxTextures        = 32;
+        params->m_MaxDynamicTextures = 32;
+        params->m_MaxMaterials       = 8;
+        params->m_MaxFonts           = 4;
+        params->m_MaxParticlefxs     = 128;
         // 256 is a hard cap for max layers, we use 8 bits in the render key (see LAYER_RANGE above)
-        params->m_MaxLayers       = 256;
-        params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
-        params->m_ScriptWorld     = 0x0;
+        params->m_MaxLayers          = 256;
+        params->m_AdjustReference    = dmGui::ADJUST_REFERENCE_LEGACY;
+        params->m_ScriptWorld        = 0x0;
     }
 
     static void ResetScene(HScene scene) {
@@ -339,7 +340,7 @@ namespace dmGui
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
-        scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
+        scene->m_DynamicTextures.SetCapacity(params->m_MaxDynamicTextures*2, params->m_MaxDynamicTextures);
         scene->m_MaterialResources.SetCapacity(params->m_MaxMaterials*2, params->m_MaxMaterials);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);

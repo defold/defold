@@ -949,9 +949,11 @@
     :build-engine        optional flag that indicates whether the engine should
                          be built in addition to the project
     :lint                optional flag that indicates whether to run LSP lints
-                         and present the diagnostics alongside the build errors
-    :prefs               required if :build-engine is true, preferences for
-                         engine building, e.g. the build server settings
+                         and present the diagnostics alongside the build errors,
+                         defaults to the value of \"general-lint-on-build\" pref
+                         (true if not set)
+    :prefs               required, preferences for linting and engine building,
+                         e.g. the build server settings
     :debug               optional flag that indicates whether to also build
                          debugging tools
     :run-build-hooks     optional flag that indicates whether to run pre- and
@@ -961,19 +963,20 @@
                          to speed up the build process"
   [project & {:keys [;; required
                      result-fn
-                     ;; required if :build-engine is true (which is a default)
                      prefs
                      ;; optional
                      debug build-engine run-build-hooks render-progress! old-artifact-map lint]
               :or {debug false
                    build-engine true
                    run-build-hooks true
-                   lint true
                    render-progress! progress/null-render-progress!
                    old-artifact-map {}}}]
   {:pre [(ifn? result-fn)
          (or (not build-engine) (some? prefs))]}
-  (let [;; After any pre-build hooks have completed successfully, we will start
+  (let [lint (if (nil? lint)
+               (prefs/get-prefs prefs "general-lint-on-build" true)
+               lint)
+        ;; After any pre-build hooks have completed successfully, we will start
         ;; the engine build on a separate background thread so the build servers
         ;; can work while we build the project. We will await the results of the
         ;; engine build in the final phase.
@@ -1259,6 +1262,7 @@ If you do not specifically require different script states, consider changing th
                 :lint false
                 :render-progress! (make-render-task-progress :build)
                 :old-artifact-map (workspace/artifact-map workspace)
+                :prefs prefs
                 :result-fn (fn [build-results]
                              (when (handle-build-results! workspace render-build-error! build-results)
                                (let [target (targets/selected-target prefs)]
@@ -1365,6 +1369,7 @@ If you do not specifically require different script states, consider changing th
                   :lint false
                   :render-progress! (make-render-task-progress :build)
                   :old-artifact-map (workspace/artifact-map workspace)
+                  :prefs prefs
                   :result-fn (fn [{:keys [error artifact-map etags]}]
                                (if (some? error)
                                  (render-build-error! error)

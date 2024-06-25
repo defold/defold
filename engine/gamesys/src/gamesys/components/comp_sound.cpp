@@ -133,6 +133,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    void* CompSoundGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        SoundWorld* world = (SoundWorld*)params.m_World;
+        return &world->m_Components.Get(params.m_UserData);
+    }
+
     dmGameObject::CreateResult CompSoundDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         SoundWorld* world = (SoundWorld*)params.m_World;
