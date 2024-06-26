@@ -16,20 +16,24 @@
 #define DM_GAMESYS_RES_RENDER_TARGET_H
 
 #include "res_texture.h"
-#include <resource/resource.h>
+#include <graphics/graphics.h>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
     struct RenderTargetResource
     {
-        TextureResource*          m_TextureResource;
+        TextureResource*          m_ColorAttachmentResources[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureResource*          m_DepthAttachmentResource;
+        dmhash_t                  m_ColorAttachmentPaths[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS];
+        dmhash_t                  m_DepthAttachmentPath;
         dmGraphics::HRenderTarget m_RenderTarget;
     };
 
-    dmResource::Result ResRenderTargetPreload(const dmResource::ResourcePreloadParams& params);
-    dmResource::Result ResRenderTargetCreate(const dmResource::ResourceCreateParams& params);
-    dmResource::Result ResRenderTargetDestroy(const dmResource::ResourceDestroyParams& params);
-    dmResource::Result ResRenderTargetRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResRenderTargetPreload(const dmResource::ResourcePreloadParams* params);
+    dmResource::Result ResRenderTargetCreate(const dmResource::ResourceCreateParams* params);
+    dmResource::Result ResRenderTargetDestroy(const dmResource::ResourceDestroyParams* params);
+    dmResource::Result ResRenderTargetRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_RES_RENDER_TARGET_H

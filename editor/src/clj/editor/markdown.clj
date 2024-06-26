@@ -36,7 +36,8 @@
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
-            [util.fn :as fn])
+            [util.fn :as fn]
+            [util.text-util :as text-util])
   (:import [java.net URI]
            [javafx.scene.control ScrollPane]
            [org.commonmark.ext.autolink AutolinkExtension]
@@ -443,11 +444,22 @@
                                     (markdown->html markdown)
                                     "</body></html>"))))
 
+(defn- search-value-fn [node-id _resource evaluation-context]
+  (g/node-value node-id :markdown evaluation-context))
+
+(defn search-fn
+  ([search-string]
+   (text-util/search-string->re-pattern search-string :case-insensitive))
+  ([markdown re-pattern]
+   (text-util/text->text-matches markdown re-pattern)))
+
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
     :ext "md"
     :label "Markdown"
     :textual? true
+    :search-fn search-fn
+    :search-value-fn search-value-fn
     :node-type MarkdownNode
     :view-types [:html :text]
     :view-opts nil))

@@ -22,6 +22,10 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(defonce constantly-false (constantly false))
+
+(defonce constantly-true (constantly true))
+
 (definline ^:private with-memoize-info [memoized-fn cache arity]
   `(with-meta ~memoized-fn
               {::memoize-original ~memoized-fn
@@ -63,17 +67,17 @@
                           cached-result)))]
     (with-memoize-info memoized-fn cache arity)))
 
-(defn- ifn-max-arity-raw
-  ^long [ifn]
+(defn- ifn-class-max-arity-raw
+  ^long [^Class ifn-class]
   (reduce (fn [^long max-arity ^Method method]
             (case (.getName method)
               "invoke" (max max-arity (.getParameterCount method))
               "getRequiredArity" (reduced -1) ; The function is variadic.
               max-arity))
           0
-          (java/get-declared-methods (class ifn))))
+          (java/get-declared-methods ifn-class)))
 
-(def ifn-max-arity (memoize-one ifn-max-arity-raw))
+(def ^:private ifn-class-max-arity (memoize-one ifn-class-max-arity-raw))
 
 (defn max-arity
   "Returns the maximum number of arguments the supplied function can accept, or
@@ -82,7 +86,7 @@
   (let [ifn (if (var? ifn-or-var)
               (var-get ifn-or-var)
               ifn-or-var)
-        ^long max-arity (ifn-max-arity ifn)]
+        ^long max-arity (ifn-class-max-arity (class ifn))]
     (if (and (pos? max-arity)
              (var? ifn-or-var)
              (-> ifn-or-var meta :macro))
@@ -101,6 +105,16 @@
         1 (memoize-one ifn)
         2 (memoize-two ifn)
         (memoize-any ifn arity)))))
+
+(defn clear-memoized!
+  "Clear all previously cached results from the cache of a memoized function
+  created by the functions in this module. Returns nil."
+  [memoized-fn]
+  (if-let [memoize-cache (::memoize-cache (meta memoized-fn))]
+    (do
+      (swap! memoize-cache coll/empty-with-meta)
+      nil)
+    (throw (IllegalArgumentException. "The function was not memoized by us."))))
 
 (defn evict-memoized!
   "Evict a previously cached result from the cache of a memoized function
@@ -124,7 +138,9 @@
         nil)
       (throw (IllegalArgumentException. "The function was not memoized by us.")))))
 
-(defn declared-symbol [declared-fn]
+(defn declared-symbol
+  "Given a declared function, returns the symbol that resolves to the function."
+  [declared-fn]
   (if-not (fn? declared-fn)
     (throw (IllegalArgumentException. "The argument must be a declared function."))
     (let [class-name (.getName (class declared-fn))]
@@ -140,6 +156,26 @@
                      namespaced-name
                      (.intern (subs namespaced-name (inc separator-index))))]
           (symbol namespace name))))))
+
+(defn make-case-fn
+  "Given a collection of key-value pairs, return a function that returns the
+  value for a key, or throws an IllegalArgumentException if the key does not
+  match any entry. The behavior of the returned function should be functionally
+  equivalent to a case expression."
+  [key-value-pairs]
+  ;; TODO: Reimplement as macro producing a case expression?
+  (let [lookup (if (map? key-value-pairs)
+                 key-value-pairs
+                 (into {} key-value-pairs))]
+    (fn key->value [key]
+      (let [value (lookup key ::not-found)]
+        (if (not= ::not-found value)
+          value
+          (throw (IllegalArgumentException.
+                   (str "No matching clause: " key)
+                   (ex-info "Key not found in lookup."
+                            {:key key
+                             :valid-keys (keys lookup)}))))))))
 
 (deftype PartialFn [pfn fn args]
   Fn

@@ -179,6 +179,11 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    void* CompCameraGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        return (void*)params.m_UserData;
+    }
+
     dmGameObject::CreateResult CompCameraDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         dmRender::RenderContext* render_context = (dmRender::RenderContext*) params.m_Context;

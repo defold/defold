@@ -280,8 +280,10 @@ namespace dmHID
 
     bool GetKey(KeyboardPacket* packet, Key key)
     {
+       int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
+
         if (packet != 0x0)
-            return packet->m_Keys[key / 32] & (1 << (key % 32));
+            return packet->m_Keys[key_index / 32] & (1 << (key_index % 32));
         else
             return false;
     }
@@ -290,10 +292,12 @@ namespace dmHID
     {
         if (keyboard != 0x0)
         {
+            int key_index = (int) key - dmPlatform::PLATFORM_KEY_START;
+
             if (value)
-                keyboard->m_Packet.m_Keys[key / 32] |= (1 << (key % 32));
+                keyboard->m_Packet.m_Keys[key_index / 32] |= (1 << (key_index % 32));
             else
-                keyboard->m_Packet.m_Keys[key / 32] &= ~(1 << (key % 32));
+                keyboard->m_Packet.m_Keys[key_index / 32] &= ~(1 << (key_index % 32));
         }
     }
 
@@ -417,6 +421,7 @@ namespace dmHID
         }
     }
 
+    // Test only
     void ClearTouches(HTouchDevice device)
     {
         if (device != 0x0 && device->m_Connected)
@@ -427,7 +432,9 @@ namespace dmHID
 
     int GetKeyValue(Key key)
     {
-        if (key >= HID_SPECIAL_START)
+        int key_index = (int) key + dmPlatform::PLATFORM_KEY_START;
+
+        if (key_index >= HID_SPECIAL_START)
         {
             static const int translation_table_special[] = {
                 dmPlatform::PLATFORM_KEY_ESC,
@@ -489,9 +496,14 @@ namespace dmHID
                 dmPlatform::PLATFORM_KEY_BACK,
             };
 
-            return translation_table_special[key - HID_SPECIAL_START];
+            key_index = key_index - HID_SPECIAL_START;
+            if (key_index >= DM_ARRAY_SIZE(translation_table_special))
+            {
+                return -1;
+            }
+            return translation_table_special[key_index];
         }
-        return (int) key;
+        return key_index;
     }
 
     int GetMouseButtonValue(MouseButton button)

@@ -21,18 +21,19 @@
             [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
-            [editor.gl.pass :as pass]
             [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.outline :as outline]
             [editor.protobuf :as protobuf]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Camera$CameraDesc]
            [com.jogamp.opengl GL GL2]
-           [javax.vecmath Matrix4d Vector3d Vector4d Quat4d]))
+           [javax.vecmath Matrix4d Quat4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -53,17 +54,11 @@
                                    camera-edge-list)]
     camera-mesh-lines-v4))
 
-(defn- set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
-
-(defn- clear-form-op [{:keys [node-id]} [property]]
-  (g/clear-property! node-id property))
-
 (g/defnk produce-form-data
   [_node-id aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom]
   {:form-ops {:user-data {:node-id _node-id}
-              :set set-form-op
-              :clear clear-form-op}
+              :set protobuf-forms-util/set-form-op
+              :clear protobuf-forms-util/clear-form-op}
    :navigation false
    :sections [{:title "Camera"
                :fields [{:path [:aspect-ratio]
@@ -95,15 +90,16 @@
             [:orthographic-projection] orthographic-projection
             [:orthographic-zoom] orthographic-zoom}})
 
-(g/defnk produce-pb-msg
+(g/defnk produce-save-value
   [aspect-ratio fov near-z far-z auto-aspect-ratio orthographic-projection orthographic-zoom]
-  {:aspect-ratio aspect-ratio
-   :fov fov
-   :near-z near-z
-   :far-z far-z
-   :auto-aspect-ratio (if (true? auto-aspect-ratio) 1 0)
-   :orthographic-projection (if (true? orthographic-projection) 1 0)
-   :orthographic-zoom orthographic-zoom})
+  (protobuf/make-map-without-defaults Camera$CameraDesc
+    :aspect-ratio aspect-ratio
+    :fov fov
+    :near-z near-z
+    :far-z far-z
+    :auto-aspect-ratio (protobuf/boolean->int auto-aspect-ratio)
+    :orthographic-projection (protobuf/boolean->int orthographic-projection)
+    :orthographic-zoom orthographic-zoom))
 
 (defn build-camera
   [resource dep-resources user-data]
@@ -111,12 +107,12 @@
    :content (protobuf/map->bytes Camera$CameraDesc (:pb-msg user-data))})
 
 (g/defnk produce-build-targets
-  [_node-id resource pb-msg]
+  [_node-id resource save-value]
   [(bt/with-content-hash
      {:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-camera
-      :user-data {:pb-msg pb-msg}})])
+      :user-data {:pb-msg save-value}})])
 
 (shader/defshader outline-vertex-shader
   (attribute vec4 position)
@@ -271,26 +267,27 @@
                                           :is-orthographic orthographic-projection}
                               :passes [pass/outline]}}]}))
 
-(defn load-camera [project self resource camera]
-  (g/set-property self
-    :aspect-ratio (:aspect-ratio camera)
-    :fov (:fov camera)
-    :near-z (:near-z camera)
-    :far-z (:far-z camera)
-    :auto-aspect-ratio (not= 0 (:auto-aspect-ratio camera))
-    :orthographic-projection (not= 0 (:orthographic-projection camera))
-    :orthographic-zoom (:orthographic-zoom camera)))
+(defn load-camera [_project self _resource camera-desc]
+  {:pre [(map? camera-desc)]} ; Camera$CameraDesc in map format.
+  (gu/set-properties-from-pb-map self Camera$CameraDesc camera-desc
+    aspect-ratio :aspect-ratio
+    fov :fov
+    near-z :near-z
+    far-z :far-z
+    auto-aspect-ratio (protobuf/int->boolean :auto-aspect-ratio)
+    orthographic-projection (protobuf/int->boolean :orthographic-projection)
+    orthographic-zoom :orthographic-zoom))
 
 (g/defnode CameraNode
   (inherits resource-node/ResourceNode)
 
-  (property aspect-ratio g/Num)
-  (property fov g/Num)
-  (property near-z g/Num)
-  (property far-z g/Num)
-  (property auto-aspect-ratio g/Bool)
-  (property orthographic-projection g/Bool)
-  (property orthographic-zoom g/Num)
+  (property aspect-ratio g/Num) ; Required protobuf field.
+  (property fov g/Num) ; Required protobuf field.
+  (property near-z g/Num) ; Required protobuf field.
+  (property far-z g/Num) ; Required protobuf field.
+  (property auto-aspect-ratio g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :auto-aspect-ratio))))
+  (property orthographic-projection g/Bool (default (protobuf/int->boolean (protobuf/default Camera$CameraDesc :orthographic-projection))))
+  (property orthographic-zoom g/Num (default (protobuf/default Camera$CameraDesc :orthographic-zoom)))
 
   (output form-data g/Any produce-form-data)
 
@@ -300,8 +297,7 @@
                                                       :label "Camera"
                                                       :icon camera-icon}))
 
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output scene g/Any :cached produce-camera-scene)
   (output build-targets g/Any :cached produce-build-targets))
 

@@ -295,17 +295,8 @@ public class MaterialBuilder extends Builder<Void>  {
 
     private static void buildSamplers(MaterialDesc.Builder materialBuilder) throws CompileExceptionError {
         for (int i=0; i < materialBuilder.getSamplersCount(); i++) {
-            MaterialDesc.Sampler materialSampler = materialBuilder.getSamplers(i);
-
-            MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder(materialSampler);
-            samplerBuilder.setNameHash(MurmurHash.hash64(samplerBuilder.getName()));
-
-            String texture = materialSampler.getTexture();
-            if (!texture.isEmpty()) {
-                samplerBuilder.setTexture(ProtoBuilders.replaceTextureName(texture));
-            }
-
-            materialBuilder.setSamplers(i, samplerBuilder.build());
+            MaterialDesc.Sampler sampler = materialBuilder.getSamplers(i);
+            materialBuilder.setSamplers(i, GraphicsUtil.buildSampler(sampler));
         }
     }
 

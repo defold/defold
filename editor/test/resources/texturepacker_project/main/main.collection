@@ -1,0 +1,22 @@
+name: "main"
+collection_instances {
+  id: "basic"
+  collection: "/examples/basic/basic.collection"
+}
+collection_instances {
+  id: "skins"
+  collection: "/examples/skins/skins.collection"
+  position {
+    x: 100.0
+    y: 100.0
+  }
+}
+collection_instances {
+  id: "anim_trim"
+  collection: "/examples/anim_trim/anim_trim.collection"
+  position {
+    x: 300.0
+    y: 100.0
+  }
+}
+scale_along_z: 0

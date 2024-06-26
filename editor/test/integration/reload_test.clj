@@ -32,7 +32,8 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [do-until-new-mtime spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system]])
+            [support.test-support :refer [do-until-new-mtime spit-until-new-mtime touch-until-new-mtime undo-stack with-clean-system]]
+            [util.fn :as fn])
   (:import [java.awt.image BufferedImage]
            [java.io File]
            [javax.imageio ImageIO]
@@ -265,7 +266,7 @@
               (g/transact
                 (g/set-property node :name "new_name"))
               (is (has-undo? project))
-              (disk/async-save! progress/null-render-progress! progress/null-render-progress! project nil
+              (disk/async-save! progress/null-render-progress! progress/null-render-progress! project/dirty-save-data project nil
                                 (fn [successful?]
                                   (when (is successful?)
                                     (sync! workspace)
@@ -752,7 +753,7 @@
 
 (defn- gui-node [scene id]
   (let [nodes (into {} (map (fn [o] [(:label o) (:node-id o)])
-                            (tree-seq (constantly true) :children (g/node-value scene :node-outline))))]
+                            (tree-seq fn/constantly-true :children (g/node-value scene :node-outline))))]
     (nodes id)))
 
 (deftest gui-templates
@@ -814,7 +815,7 @@
             paths (map resource/proj-path all-files)]
         (bulk-change workspace
                      (touch-files workspace paths))
-        (let [internal-paths (map resource/proj-path (filter (fn [r] (not (:stateless? (resource/resource-type r)))) all-files))
+        (let [internal-paths (map resource/proj-path (filter resource/stateful? all-files))
               saved-paths (set (map (fn [s] (resource/proj-path (:resource s))) (g/node-value project :save-data)))
               missing (filter #(not (contains? saved-paths %)) internal-paths)]
           ;; If some editable resource is missing from the save data, it means

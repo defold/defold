@@ -25,6 +25,7 @@
             [editor.fs :as fs]
             [editor.graph-util :as gu]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.java :as java]
@@ -56,14 +57,14 @@
 
 (defn- make-temporary-compile-directory! [transpiler all-source-save-datas]
   (let [dir (fs/create-temp-directory! (str "tr-" (.getSimpleName (class transpiler))))]
-    (run! (fn [{:keys [resource content dirty?]}]
+    (run! (fn [{:keys [resource dirty] :as save-data}]
             (let [file (io/file dir (resource/path resource))]
               (io/make-parents file)
-              (if content
-                (spit file content)
+              (if-some [modified-content (resource-node/save-data-content save-data)]
+                (spit file modified-content)
                 (with-open [is (io/input-stream resource)]
                   (io/copy is file)))
-              (when-not dirty?
+              (when-not dirty
                 (.setLastModified file (.lastModified (io/file resource))))))
           all-source-save-datas)
     dir))
@@ -74,8 +75,8 @@
           all-sources (conj source-code-save-datas build-file-save-data)
           workspace (resource/workspace (:resource build-file-save-data))
           proj-path->node-id (pair-map-by (comp resource/proj-path :resource) :node-id all-sources)
-          use-project-dir (every? (fn [{:keys [resource dirty?]}]
-                                    (and (not dirty?) (resource/file-resource? resource)))
+          use-project-dir (every? (fn [{:keys [resource dirty]}]
+                                    (and (not dirty) (resource/file-resource? resource)))
                                   all-sources)
           ;; We transpile to lua from the project dir only if all the source code files exist on disc. Since
           ;; some source file may come as dependencies in zip archives or modified in memory without saving
@@ -103,7 +104,7 @@
                           (let [resource (resource/make-file-resource workspace (str output-dir) file [] (constantly false))
                                 build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) lua-preprocessors [] [] proj-path->node-id)]
                             (pair (resource/proj-path resource) build-targets)))))
-                    (fs/file-walker output-dir))))
+                    (fs/file-walker output-dir false))))
         (catch Exception e
           (g/->error build-file-node-id :modified-lines :fatal (:resource build-file-save-data)
                      (str "Compilation failed: " (ex-message e))))

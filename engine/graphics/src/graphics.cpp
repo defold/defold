@@ -25,6 +25,7 @@
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics");
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, FrameReset, "# vertices", &rmtp_Graphics);
+DM_PROPERTY_U32(rmtp_DispatchCalls, 0, FrameReset, "# dispatches", &rmtp_Graphics);
 
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
@@ -35,11 +36,16 @@ namespace dmGraphics
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
-    void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, int8_t priority)
+    void RegisterGraphicsAdapter(GraphicsAdapter* adapter,
+        GraphicsAdapterIsSupportedCb              is_supported_cb,
+        GraphicsAdapterRegisterFunctionsCb        register_functions_cb,
+        GraphicsAdapterGetContextCb               get_context_cb,
+        int8_t                                    priority)
     {
         adapter->m_Next          = g_adapter_list;
         adapter->m_IsSupportedCb = is_supported_cb;
         adapter->m_RegisterCb    = register_functions_cb;
+        adapter->m_GetContextCb  = get_context_cb;
         adapter->m_Priority      = priority;
         g_adapter_list           = adapter;
     }
@@ -72,7 +78,8 @@ namespace dmGraphics
 
         while(next)
         {
-            if (next->m_Priority < selected->m_Priority && next->m_IsSupportedCb())
+            bool is_supported = next->m_IsSupportedCb();
+            if (next->m_Priority < selected->m_Priority && is_supported)
             {
                 selected = next;
             }
@@ -129,6 +136,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_2D_ARRAY);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_CUBE_MAP);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_TYPE_IMAGE_2D);
             default:break;
         }
         return "<unknown dmGraphics::TextureType>";
@@ -270,6 +278,11 @@ namespace dmGraphics
         return g_functions.m_NewContext(params);
     }
 
+    HContext GetInstalledContext()
+    {
+        assert(g_adapter && "No graphics adapter installed");
+        return g_adapter->m_GetContextCb();
+    }
 
     static inline BufferType GetAttachmentBufferType(RenderTargetAttachment attachment)
     {
@@ -337,6 +350,21 @@ namespace dmGraphics
             default: break;
         }
         return ~0u;
+    }
+
+    BufferType GetBufferTypeFromIndex(uint32_t index)
+    {
+        switch(index)
+        {
+            case 0: return BUFFER_TYPE_COLOR0_BIT;
+            case 1: return BUFFER_TYPE_COLOR1_BIT;
+            case 2: return BUFFER_TYPE_COLOR2_BIT;
+            case 3: return BUFFER_TYPE_COLOR3_BIT;
+            case 4: return BUFFER_TYPE_DEPTH_BIT;
+            case 5: return BUFFER_TYPE_STENCIL_BIT;
+            default: break;
+        }
+        return (BufferType) ~0u;
     }
 
     uint32_t GetTypeSize(dmGraphics::Type type)
@@ -442,7 +470,7 @@ namespace dmGraphics
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
                 {
                     uint32_t unit = num_texcoords++;
-                    if (unit >= num_textures)
+                    if (unit >= num_textures || !uvs[unit])
                         unit = 0;
                     memcpy(write_ptr, uvs[unit] + vertex_index * 2, info.m_ValueByteSize);
                 } break;
@@ -1306,13 +1334,17 @@ namespace dmGraphics
     {
         g_functions.m_Draw(context, prim_type, first, count);
     }
-    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
+    void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
     {
-        return g_functions.m_NewVertexProgram(context, ddf);
+        g_functions.m_DispatchCompute(context, group_count_x, group_count_y, group_count_z);
     }
-    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
+    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return g_functions.m_NewFragmentProgram(context, ddf);
+        return g_functions.m_NewVertexProgram(context, ddf, error_buffer, error_buffer_size);
+    }
+    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    {
+        return g_functions.m_NewFragmentProgram(context, ddf, error_buffer, error_buffer_size);
     }
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
@@ -1594,14 +1626,18 @@ namespace dmGraphics
     {
         return g_functions.m_GetNumTextureHandles(texture);
     }
+    uint32_t GetTextureUsageHintFlags(HTexture texture)
+    {
+        return g_functions.m_GetTextureUsageHintFlags(texture);
+    }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
-    HComputeProgram NewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    HComputeProgram NewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return g_functions.m_NewComputeProgram(context, ddf);
+        return g_functions.m_NewComputeProgram(context, ddf, error_buffer, error_buffer_size);
     }
     HProgram NewProgram(HContext context, HComputeProgram compute_program)
     {

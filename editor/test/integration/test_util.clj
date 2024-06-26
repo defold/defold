@@ -25,13 +25,14 @@
             [editor.defold-project :as project]
             [editor.disk :as disk]
             [editor.editor-extensions :as extensions]
+            [editor.field-expression :as field-expression]
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.material :as material]
+            [editor.math :as math]
             [editor.particlefx :as particlefx]
-            [editor.pipeline :as pipeline]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.properties :as properties]
@@ -41,6 +42,7 @@
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
+            [editor.scene-tools :as scene-tools]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
             [editor.shared-editor-settings :as shared-editor-settings]
@@ -50,21 +52,32 @@
             [editor.workspace :as workspace]
             [internal.system :as is]
             [internal.util :as util]
+            [lambdaisland.deep-diff2 :as deep-diff]
             [service.log :as log]
             [support.test-support :as test-support]
+            [util.coll :refer [pair]]
+            [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
-  (:import [java.awt.image BufferedImage]
+  (:import [clojure.core Vec]
+           [com.google.protobuf ByteString]
+           [editor.properties Curve CurveSpread]
+           [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream File FileInputStream FilenameFilter]
            [java.net URI URL]
+           [java.nio.file Files]
            [java.util UUID]
            [java.util.concurrent LinkedBlockingQueue]
            [java.util.zip ZipEntry ZipOutputStream]
-           [javafx.scene Scene]
+           [javafx.event ActionEvent]
+           [javafx.scene Parent Scene]
+           [javafx.scene.control Cell ColorPicker Control Label ScrollBar Slider TextField ToggleButton]
            [javafx.scene.layout VBox]
+           [javafx.scene.paint Color]
            [javax.imageio ImageIO]
+           [javax.vecmath Vector3d]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -72,6 +85,58 @@
 (def project-path "test/resources/test_project")
 
 (def ^:private ^:const system-cache-size 1000)
+
+(defn number-type-preserving? [a b]
+  (assert (or (number? a) (vector? a) (instance? Curve a) (instance? CurveSpread a)))
+  (assert (or (number? b) (vector? b) (instance? Curve b) (instance? CurveSpread b)))
+  (and (is (= (type a) (type b)))
+       (or (number? a)
+           (and (is (identical? (meta a) (meta b)))
+                (cond
+                  (vector? a)
+                  (and (or (not (instance? Vec a))
+                           (is (= (type (.am ^Vec a))
+                                  (type (.am ^Vec b)))))
+                       (testing "Vector elements"
+                         (every? true? (map number-type-preserving? a (cycle b)))
+                         (every? true? (map number-type-preserving? b (cycle a)))))
+
+                  (instance? Curve a)
+                  (testing "Curve points"
+                    (true? (number-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))
+
+                  (instance? CurveSpread a)
+                  (and (testing "CurveSpread spread"
+                         (true? (number-type-preserving? (:spread a) (:spread b))))
+                       (testing "CurveSpread points"
+                         (true? (number-type-preserving? (properties/curve-vals a) (properties/curve-vals b))))))))))
+
+(def ensure-number-type-preserving! number-type-preserving?)
+
+(defn editable-controls [^Parent parent]
+  (->> parent
+       (tree-seq #(instance? Parent %)
+                 #(.getChildrenUnmodifiable ^Parent %))
+       (filterv #(and (instance? Control %)
+                      (not (or (instance? Cell %)
+                               (instance? Label %)
+                               (instance? ScrollBar %)))))))
+
+(defmulti set-control-value! (fn [^Control control _num-value] (class control)))
+
+(defmethod set-control-value! ColorPicker [^ColorPicker color-picker num-value]
+  (.setValue color-picker (Color/gray num-value))
+  (.fireEvent color-picker (ActionEvent. color-picker color-picker)))
+
+(defmethod set-control-value! Slider [^Slider slider num-value]
+  (.setValue slider num-value))
+
+(defmethod set-control-value! TextField [^TextField text-field num-value]
+  (.setText text-field (field-expression/format-number num-value))
+  (.fireEvent text-field (ActionEvent. text-field text-field)))
+
+(defmethod set-control-value! ToggleButton [^ToggleButton toggle-button _num-value]
+  (.fire toggle-button))
 
 (defn make-dir! ^File [^File dir]
   (fs/create-directory! dir))
@@ -153,6 +218,28 @@
 
 (defn set-code-editor-source! [script-id source]
   (g/transact (set-code-editor-source script-id source)))
+
+(defn lua-module-text
+  ^String [lua-module]
+  {:pre [(map? lua-module)]} ; Lua$LuaModule in map format.
+  (let [^ByteString lua-source-byte-string (-> lua-module :source :script)]
+    (.toStringUtf8 lua-source-byte-string)))
+
+(defn lua-module-lines [lua-module]
+  {:pre [(map? lua-module)]} ; Lua$LuaModule in map format.
+  (-> lua-module
+      lua-module-text
+      code.data/string->lines))
+
+(defn set-non-editable-directories! [project-path non-editable-directory-proj-paths]
+  {:pre [(seqable? non-editable-directory-proj-paths)
+         (every? string? non-editable-directory-proj-paths)]}
+  (test-support/spit-until-new-mtime
+    (shared-editor-settings/shared-editor-settings-file project-path)
+    (shared-editor-settings/map->save-data-content
+      (cond-> {}
+              (seq non-editable-directory-proj-paths)
+              (assoc :non-editable-directories (vec non-editable-directory-proj-paths))))))
 
 (defn setup-workspace!
   ([graph]
@@ -353,8 +440,75 @@
 
 (def load-system-and-project (fn/memoize load-system-and-project-raw))
 
-(defn evict-cached-system-and-project! [path]
+(defn clear-cached-libraries! []
+  (fn/clear-memoized! (var-get #'editor.library/fetch-library!)))
+
+(defn clear-cached-projects! []
+  (fn/clear-memoized! load-system-and-project))
+
+(defn evict-cached-project! [path]
   (fn/evict-memoized! load-system-and-project path))
+
+(defn cached-endpoints
+  ([] (cached-endpoints (g/cache)))
+  ([cache]
+   (into (sorted-set)
+         (map key)
+         cache)))
+
+(defn cacheable-save-data-endpoints
+  ([node-id]
+   (cacheable-save-data-endpoints (g/now) node-id))
+  ([basis node-id]
+   (let [node-type (g/node-type* basis node-id)
+         output-cached? (g/cached-outputs node-type)]
+     (into (sorted-set)
+           (comp (filter output-cached?)
+                 (map #(g/endpoint node-id %)))
+           [:save-data :save-value]))))
+
+(defn cacheable-save-data-outputs
+  ([node-id]
+   (cacheable-save-data-outputs (g/now) node-id))
+  ([basis node-id]
+   (into (sorted-set)
+         (map g/endpoint-label)
+         (cacheable-save-data-endpoints basis node-id))))
+
+(defn cached-save-data-outputs
+  ([node-id]
+   (cached-save-data-outputs (g/cache) node-id))
+  ([cache node-id]
+   (into (sorted-set)
+         (filter (fn [output-label]
+                   (contains? cache (g/endpoint node-id output-label))))
+         [:save-data :save-value])))
+
+(defn uncached-save-data-outputs
+  ([node-id]
+   (uncached-save-data-outputs (g/now) (g/cache) node-id))
+  ([basis node-id]
+   (uncached-save-data-outputs basis (g/cache) node-id))
+  ([basis cache node-id]
+   (into (sorted-set)
+         (comp (remove #(contains? cache %))
+               (map g/endpoint-label))
+         (cacheable-save-data-endpoints basis node-id))))
+
+(defn uncached-save-data-outputs-by-proj-path
+  ([project]
+   (uncached-save-data-outputs-by-proj-path (g/now) (g/cache) project))
+  ([basis project]
+   (uncached-save-data-outputs-by-proj-path basis (g/cache) project))
+  ([basis cache project]
+   (into (sorted-map)
+         (keep (fn [[node-id]]
+                 (when-not (g/defective? basis node-id)
+                   (let [resource (resource-node/resource basis node-id)
+                         proj-path (resource/proj-path resource)]
+                     (when-some [uncached-save-data-outputs (not-empty (uncached-save-data-outputs basis cache node-id))]
+                       (pair proj-path uncached-save-data-outputs))))))
+         (g/sources-of basis project :save-data))))
 
 (defn- split-keyword-options [forms]
   (let [keyword-options (into {}
@@ -484,6 +638,24 @@
   (mouse-press! view x0 y0)
   (mouse-move! view x1 y1)
   (mouse-release! view x1 y1))
+
+(defn manip-move! [scene-node-id offset-xyz]
+  {:pre [(vector? offset-xyz)]}
+  (g/transact
+    (g/with-auto-evaluation-context evaluation-context
+      (scene-tools/manip-move evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath offset-xyz))))))
+
+(defn manip-rotate! [scene-node-id euler-xyz]
+  {:pre [(vector? euler-xyz)]}
+  (g/transact
+    (g/with-auto-evaluation-context evaluation-context
+      (scene-tools/manip-rotate evaluation-context scene-node-id (math/euler->quat euler-xyz)))))
+
+(defn manip-scale! [scene-node-id scale-xyz]
+  {:pre [(vector? scale-xyz)]}
+  (g/transact
+    (g/with-auto-evaluation-context evaluation-context
+      (scene-tools/manip-scale evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath scale-xyz))))))
 
 (defn dump-frame! [view path]
   (let [^BufferedImage image (g/node-value view :frame)]
@@ -704,7 +876,8 @@
    (validate-component-resource-node-id (g/now) node-id))
   ([basis node-id]
    (if (and (g/node-instance? basis resource-node/ResourceNode node-id)
-            (when-some [resource-type (resource/resource-type (resource-node/resource basis node-id))]
+            (let [resource (resource-node/resource basis node-id)
+                  resource-type (resource/resource-type resource)]
               (contains? (:tags resource-type) :component)))
      node-id
      (throw-invalid-component-resource-node-id-exception basis node-id))))
@@ -819,12 +992,10 @@
   [collection-or-instance-id collection-resource]
   (let [collection-id (to-collection-node-id collection-or-instance-id)
         id (resource/base-name collection-resource)
-        position [0.0 0.0 0.0]
-        rotation [0.0 0.0 0.0 1.0]
-        scale [1.0 1.0 1.0]
-        overrides []
+        transform-properties nil
+        overrides nil
         select-fn (make-call-logger)]
-    (collection/add-referenced-collection! collection-id collection-resource id position rotation scale overrides select-fn)
+    (collection/add-referenced-collection! collection-id collection-resource id transform-properties overrides select-fn)
     (created-node select-fn)))
 
 (defn- checked-source-node-ids
@@ -970,25 +1141,37 @@
           (is (= (dissoc (get-in scene-data (conj gpu-texture-path :params)) :default-tex-params)
                  (dissoc (material/sampler->tex-params (first (g/node-value material-node :samplers))) :default-tex-params))))))))
 
-(defn- build-node! [resource-node]
+(defn- build-node-result! [resource-node]
   (let [project (project/get-project resource-node)
         workspace (project/workspace project)
-        old-artifact-map (workspace/artifact-map workspace)
-        build-path (workspace/build-path workspace)
-        build-result (g/with-auto-evaluation-context evaluation-context
-                       (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!))]
-    [build-path build-result]))
+        old-artifact-map (workspace/artifact-map workspace)]
+    (g/with-auto-evaluation-context evaluation-context
+      (build/build-project! project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!))))
+
+(defn build-node! [resource-node]
+  (let [build-result (build-node-result! resource-node)]
+    (when-some [error (:error build-result)]
+      (throw (ex-info "Build produced an ErrorValue."
+                      {:resource resource
+                       :node-type-kw (g/node-type-kw resource-node)
+                       :error error})))
+    build-result))
 
 (defn build!
   ^java.lang.AutoCloseable [resource-node]
-  (let [[build-path] (build-node! resource-node)]
-    (make-directory-deleter build-path)))
+  (let [resource (resource-node/resource resource-node)
+        workspace (resource/workspace resource)
+        build-directory (workspace/build-path workspace)]
+    (build-node! resource-node)
+    (make-directory-deleter build-directory)))
 
 (defn build-error! [resource-node]
-  (let [[build-path build-result] (build-node! resource-node)
-        error (:error build-result)]
-    (fs/delete-directory! (io/file build-path) {:fail :silently})
-    error))
+  (let [resource (resource-node/resource resource-node)
+        workspace (resource/workspace resource)
+        build-directory (workspace/build-path workspace)
+        build-result (build-node-result! resource-node)]
+    (fs/delete-directory! build-directory {:fail :silently})
+    (:error build-result)))
 
 (defn node-build-resource [node-id]
   (:resource (first (g/node-value node-id :build-targets))))
@@ -1036,15 +1219,69 @@
         (build/resolve-node-dependencies node-id (project/get-project node-id))))
 
 (defmacro saved-pb [node-id pb-class]
-  (with-meta `(protobuf/str->pb ~pb-class (:content (g/node-value ~node-id :undecorated-save-data)))
+  (with-meta `(protobuf/str->pb ~pb-class (resource-node/save-data-content (g/node-value ~node-id :save-data)))
              {:tag pb-class}))
 
 (defmacro built-pb [node-id pb-class]
   (with-meta `(protobuf/bytes->pb ~pb-class (node-build-output ~node-id))
              {:tag pb-class}))
 
+(defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext ^String build-output-path]
+  (let [build-ext (FilenameUtils/getExtension build-output-path)
+        resource-type (some (fn [[_ resource-type]]
+                              (when (= build-ext (:build-ext resource-type))
+                                resource-type))
+                            (workspace/get-resource-type-map workspace))
+        test-info (:test-info resource-type)
+        pb-class (case (:type test-info)
+                   (:code :ddf) (:built-pb-class test-info)
+                   nil)
+        built-file (workspace/build-path workspace build-output-path)
+        built-bytes (Files/readAllBytes (.toPath built-file))
+        build-output-info {:path build-output-path
+                           :file built-file
+                           :resource-type resource-type
+                           :bytes built-bytes}]
+    (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
+    (if (nil? pb-class)
+      (sorted-map build-output-path build-output-info)
+      (let [dependencies-fn (resource-node/make-ddf-dependencies-fn pb-class)
+            pb (protobuf/bytes->pb pb-class built-bytes)
+            pb-map (protobuf/pb->map-without-defaults pb)
+            dep-build-resource-paths (into (sorted-set)
+                                           (dependencies-fn pb-map))]
+        (into (sorted-map
+                build-output-path
+                (assoc build-output-info
+                  :pb-class pb-class
+                  :pb pb
+                  :pb-map pb-map
+                  :dep-paths dep-build-resource-paths))
+              (mapcat #(make-build-output-infos-by-path-impl workspace resource-types-by-build-ext %))
+              dep-build-resource-paths)))))
+
+(defn make-build-output-infos-by-path
+  "After a project has been built (i.e. the build directory has been populated),
+  get info from the built binaries and the built binaries it depends on. Returns
+  a map of build output proj-paths to a build-output-info map regarding that
+  build output. The build-output-info map will always contain at least
+  information about the output file, its resource-type, and its bytes on disk.
+  For protobuf resources, the build-output-info map will also contain the
+  decoded protobuf data, the build-output-paths it depends on, and the resulting
+  map will include build-output-info entries for all the dependencies."
+  [workspace ^String build-output-path]
+  {:pre [(string? build-output-path)
+         (string/starts-with? build-output-path "/")]}
+  (let [resource-types-by-build-ext
+        (into {}
+              (map (fn [[_ {:keys [build-ext] :as resource-type}]]
+                     (assert (string? build-ext))
+                     (pair build-ext resource-type)))
+              (workspace/get-resource-type-map workspace))]
+    (make-build-output-infos-by-path-impl workspace resource-types-by-build-ext build-output-path)))
+
 (defn unpack-property-declarations [property-declarations]
-  {:pre [(map? property-declarations)]}
+  {:pre [(or (nil? property-declarations) (map? property-declarations))]}
   (into {}
         (mapcat (fn [[entries-key values-key]]
                   (let [entries (get property-declarations entries-key)
@@ -1130,12 +1367,26 @@
               user-data (:user-data (:form-ops form-data))]
           (settings/set-tx-data user-data setting-path new-value))))))
 
+(defn clear-cached-save-data! [project]
+  ;; Ensure any cache entries introduced by loading the project aren't covering
+  ;; up an actual dirty-check issue.
+  (project/clear-cached-save-data! project))
+
 (defn save-project! [project]
-  (let [save-data (project/dirty-save-data project)]
-    (project/write-save-data-to-disk! save-data nil)
-    (let [workspace (project/workspace project)
-          post-save-actions (disk/make-post-save-actions save-data)]
-      (disk/process-post-save-actions! workspace post-save-actions))))
+  (let [workspace (project/workspace project)
+        save-data (project/dirty-save-data project)
+        post-save-actions (disk/write-save-data-to-disk! save-data nil nil)]
+    (disk/process-post-save-actions! workspace post-save-actions)))
+
+(defn dirty-proj-paths [project]
+  (into (sorted-set)
+        (map (comp resource/proj-path :resource))
+        (project/dirty-save-data project)))
+
+(defn dirty-proj-paths [project]
+  (into (sorted-set)
+        (map (comp resource/proj-path :resource))
+        (project/dirty-save-data project)))
 
 (defn type-preserving-add [a b]
   (condp instance? a
@@ -1146,21 +1397,28 @@
     Short (short (+ a b))
     Byte (byte (+ a b))))
 
-(defmulti edit-resource-node
-  (fn [resource-node-id]
-    (let [resource (resource-node/resource resource-node-id)
-          resource-type (resource/resource-type resource)]
-      (if resource-type
-        (case (:type (:test-info resource-type))
-          :code :code
-          (let [ext (:ext resource-type)]
-            (case ext
-              ("tilegrid" "tilemap") "tilemap"
-              ("tileset" "tilesource") "tilesource"
-              ext)))
-        (if (text-util/binary? resource)
-          :binary
-          :code)))))
+(defn- edit-multimethod-dispatch-fn [resource-node-id]
+  (let [resource (resource-node/resource resource-node-id)
+        resource-type (resource/resource-type resource)]
+    (if (resource/placeholder-resource-type? resource-type)
+      (if (text-util/binary? resource)
+        :binary
+        :code)
+      (case (:type (:test-info resource-type))
+        :code :code
+        (let [ext (:ext resource-type)]
+          (case ext
+            ("tilegrid" "tilemap") "tilemap"
+            ("tileset" "tilesource") "tilesource"
+            ext))))))
+
+(defmulti can-edit-resource-node? edit-multimethod-dispatch-fn)
+
+(defmethod can-edit-resource-node? :default [_resource-node-id] true)
+
+(defmethod can-edit-resource-node? "tpinfo" [_resource-node-id] false)
+
+(defmulti edit-resource-node edit-multimethod-dispatch-fn)
 
 (defmethod edit-resource-node :code [resource-node-id]
   (update-code-editor-lines resource-node-id conj ""))
@@ -1186,6 +1444,9 @@
 
 (defmethod edit-resource-node "collisionobject" [resource-node-id]
   (g/update-property resource-node-id :linear-damping type-preserving-add 0.1))
+
+(defmethod edit-resource-node "compute" [resource-node-id]
+  (g/update-property resource-node-id :constants update-in [0 :name] str \_))
 
 (defmethod edit-resource-node "convexshape" [resource-node-id]
   (g/update-property resource-node-id :pb update-in [:data 0] type-preserving-add 1))
@@ -1244,6 +1505,15 @@
 (defmethod edit-resource-node "render_target" [resource-node-id]
   (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
 
+(defmethod edit-resource-node "rivemodel" [resource-node-id]
+  (g/update-property resource-node-id :create-go-bones not))
+
+(defmethod edit-resource-node "rivescene" [resource-node-id]
+  (g/set-property resource-node-id :rive-file nil))
+
+(defmethod edit-resource-node "simpledata" [resource-node-id]
+  (g/update-property resource-node-id :i64 type-preserving-add 1))
+
 (defmethod edit-resource-node "settings" [resource-node-id]
   (update-setting resource-node-id ["liveupdate" "zip-filepath"] str \_))
 
@@ -1272,6 +1542,95 @@
 (defmethod edit-resource-node "tilesource" [resource-node-id]
   (g/update-property resource-node-id :tile-spacing type-preserving-add 1))
 
+(defmethod edit-resource-node "tpatlas" [resource-node-id]
+  (g/update-property resource-node-id :rename-patterns  str \_))
+
 (defn edit-resource-node! [resource-node-id]
   (g/transact
     (edit-resource-node resource-node-id)))
+
+(defn edit-proj-path! [project proj-path]
+  (let [resource-node (resource-node project proj-path)]
+    (edit-resource-node! resource-node)))
+
+(defn protobuf-resource-exts-that-read-defaults [workspace]
+  (into (sorted-set)
+        (comp (mapcat #(vals (workspace/get-resource-type-map workspace %)))
+              (filter (fn [{:keys [test-info]}]
+                        (and (= :ddf (:type test-info))
+                             (:read-defaults test-info))))
+              (keep :ext))
+        [:editable :non-editable]))
+
+(defn- value-diff->string
+  ^String [diff]
+  (let [printer (deep-diff/printer {:print-color false
+                                    :print-fallback :print})]
+    (string/trim-newline
+      (with-out-str
+        (deep-diff/pretty-print diff printer)))))
+
+(defn value-diff-message
+  ^String [disk-value save-value]
+  (str "Summary of discrepancies between disk value and save value:\n"
+       (-> (deep-diff/diff disk-value save-value)
+           (deep-diff/minimize)
+           (value-diff->string))))
+
+(defn text-diff-message
+  ^String [disk-text save-text]
+  (str "Summary of discrepancies between disk text and save text:\n"
+       (or (some->> (diff/make-diff-output-lines disk-text save-text 3)
+                    (string/join "\n"))
+           "Contents are identical.")))
+
+(defn check-value-equivalence! [expected-value actual-value message]
+  (if (= expected-value actual-value)
+    true
+    (let [message-with-diff (str message \newline (value-diff-message expected-value actual-value))]
+      (is (= expected-value actual-value) message-with-diff))))
+
+(defn check-text-equivalence! [expected-text actual-text message]
+  (if (= expected-text actual-text)
+    true
+    (let [message-with-diff (str message \newline (text-diff-message expected-text actual-text))]
+      (is (= expected-text actual-text) message-with-diff))))
+
+(defn save-data-diff-message
+  ^String [save-data]
+  (let [resource (:resource save-data)
+        resource-type (resource/resource-type resource)
+        read-fn (:read-fn resource-type)]
+    (if read-fn
+      ;; Compare data.
+      (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
+            save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
+        (value-diff-message disk-value save-value))
+
+      ;; Compare text.
+      (let [disk-text (slurp resource)
+            save-text (resource-node/save-data-content save-data)]
+        (text-diff-message disk-text save-text)))))
+
+(defn check-save-data-disk-equivalence! [save-data]
+  (let [resource (:resource save-data)
+        resource-type (resource/resource-type resource)
+        read-fn (:read-fn resource-type)
+        message (format "When checking `editor/%s%s`."
+                        project-path
+                        (resource/proj-path resource))
+
+        are-values-equivalent
+        (if-not read-fn
+          false
+          (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
+                save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
+            ;; We have a read-fn, compare data.
+            (check-value-equivalence! disk-value save-value message)))]
+
+    (when-not are-values-equivalent
+      ;; We either don't have a read-fn, or the values differ.
+      (let [disk-text (slurp resource)
+            save-text (resource-node/save-data-content save-data)]
+        ;; Compare text.
+        (check-text-equivalence! disk-text save-text message)))))

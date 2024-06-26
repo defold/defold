@@ -52,7 +52,7 @@ def build(bld):
         opengl_defines = []
         opengl_platform_includes = []
 
-        if platform_supports_feature(bld.env.PLATFORM, 'compute', {}):
+        if platform_supports_feature(bld.env.PLATFORM, 'opengl_compute', {}):
             opengl_defines = ['DM_HAVE_PLATFORM_COMPUTE_SUPPORT']
 
         if bld.env.PLATFORM in ('x86_64-win32', 'win32'):

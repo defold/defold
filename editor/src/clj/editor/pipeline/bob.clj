@@ -13,32 +13,33 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.pipeline.bob
-  (:require
-    [clojure.java.io :as io]
-    [clojure.string :as string]
-    [dynamo.graph :as g]
-    [editor.code.util :as util]
-    [editor.defold-project :as project]
-    [editor.engine.build-errors :as engine-build-errors]
-    [editor.engine.native-extensions :as native-extensions]
-    [editor.error-reporting :as error-reporting]
-    [editor.progress :as progress]
-    [editor.resource :as resource]
-    [editor.system :as system]
-    [editor.ui :as ui]
-    [editor.prefs :as prefs]
-    [editor.workspace :as workspace]
-    [util.http-util :as http-util])
-  (:import
-    [com.dynamo.bob Bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
-    [com.dynamo.bob.logging LogHelper]
-    [com.dynamo.bob.fs DefaultFileSystem]
-    [com.dynamo.bob.util PathUtil]
-    [java.io File InputStream OutputStream PrintStream PrintWriter]
-    [java.net URI URL]
-    [java.nio.charset StandardCharsets]
-    [org.apache.commons.io FilenameUtils]
-    [org.apache.commons.io.output WriterOutputStream]))
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.code.util :as util]
+            [editor.defold-project :as project]
+            [editor.engine.build-errors :as engine-build-errors]
+            [editor.engine.native-extensions :as native-extensions]
+            [editor.error-reporting :as error-reporting]
+            [editor.prefs :as prefs]
+            [editor.progress :as progress]
+            [editor.resource :as resource]
+            [editor.system :as system]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace]
+            [service.log :as log]
+            [util.coll :refer [pair]]
+            [util.fn :as fn]
+            [util.http-util :as http-util])
+  (:import [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
+           [com.dynamo.bob.fs DefaultFileSystem]
+           [com.dynamo.bob.logging LogHelper]
+           [com.dynamo.bob.util PathUtil]
+           [java.io File InputStream OutputStream PrintStream PrintWriter]
+           [java.net URI URL]
+           [java.nio.charset StandardCharsets]
+           [org.apache.commons.io FilenameUtils]
+           [org.apache.commons.io.output WriterOutputStream]))
 
 (set! *warn-on-reflection* true)
 
@@ -90,7 +91,7 @@
 
 (defn ->progress
   ([render-progress!]
-   (->progress render-progress! (constantly false)))
+   (->progress render-progress! fn/constantly-false))
   ([render-progress! task-cancelled?]
    (->progress render-progress! task-cancelled? (atom [])))
   ([render-progress! task-cancelled? msg-stack-atom]
@@ -177,6 +178,34 @@
       (WriterOutputStream. StandardCharsets/UTF_8 1024 true)
       (PrintStream. true StandardCharsets/UTF_8)))
 
+(defn- quote-arg-if-needed
+  ^String [^String arg-value]
+  (if (string/includes? arg-value " ")
+    (str "\"" arg-value "\"")
+    arg-value))
+
+(defn- bob-command-line
+  ^String [bob-commands bob-args build-server-headers]
+  {:pre [(vector? bob-commands)
+         (every? string? bob-commands)
+         (every? (fn [[key val]] (and (string? key) (string? val))) bob-args)
+         (string? build-server-headers)]}
+  (->> (concat
+         ["java" "-jar" "bob.jar"]
+         (keep (fn [[key value]]
+                 (case value
+                   "" nil
+                   (format "--%s %s" key (quote-arg-if-needed value))))
+               (concat
+                 bob-args
+                 (eduction
+                   (filter not-empty)
+                   (map #(pair "build-server-header" %))
+                   (string/split-lines build-server-headers))))
+         bob-commands)
+       (filter not-empty)
+       (string/join " ")))
+
 (defn bob-build! [project evaluation-context bob-commands bob-args build-server-headers render-progress! log-output-stream task-cancelled?]
   {:pre [(vector? bob-commands)
          (every? string? bob-commands)
@@ -197,6 +226,7 @@
                 build-err (PrintStream-on
                             #(doseq [line (util/split-lines %)]
                                (.println log-stream-writer line)))]
+      (log/info :bob-command (bob-command-line bob-commands bob-args build-server-headers))
       (try
         (System/setOut build-out)
         (System/setErr build-err)

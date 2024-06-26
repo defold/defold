@@ -1,0 +1,114 @@
+diff --git a/include/GLFW/glfw3.h b/include/GLFW/glfw3.h
+index 9c55ac9..799edfa 100644
+--- a/include/GLFW/glfw3.h
++++ b/include/GLFW/glfw3.h
+@@ -6511,6 +6511,11 @@ GLFWAPI VkResult glfwCreateWindowSurface(VkInstance instance, GLFWwindow* window
+ 
+ #endif /*VK_VERSION_1_0*/
+ 
++// DEFOLD CHANGE BEGIN
++typedef void (* GLFWwindowmarkedtextfun)(GLFWwindow* window, char* str);
++GLFWAPI GLFWwindowmarkedtextfun glfwSetMarkedTextCallback(GLFWwindow* window, GLFWwindowmarkedtextfun callback);
++// DEFOLD CHANGE END
++
+ 
+ /*************************************************************************
+  * Global definition cleanup
+diff --git a/src/cocoa_init.m b/src/cocoa_init.m
+index e75a551..b05b18b 100644
+--- a/src/cocoa_init.m
++++ b/src/cocoa_init.m
+@@ -448,6 +448,17 @@ - (void)applicationDidHide:(NSNotification *)notification
+         _glfwRestoreVideoModeCocoa(_glfw.monitors[i]);
+ }
+ 
++// DEFOLD CHANGE BEGIN
++
++// macos 12+
++// https://sector7.computest.nl/post/2022-08-process-injection-breaking-all-macos-security-layers-with-a-single-vulnerability/
++- (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app
++{
++    return YES;
++}
++
++// DEFOLD CHANGE END
++
+ @end // GLFWApplicationDelegate
+ 
+ 
+diff --git a/src/cocoa_window.m b/src/cocoa_window.m
+index 0dcf0a3..0a9ed4d 100644
+--- a/src/cocoa_window.m
++++ b/src/cocoa_window.m
+@@ -676,11 +676,18 @@ - (void)setMarkedText:(id)string
+         markedText = [[NSMutableAttributedString alloc] initWithAttributedString:string];
+     else
+         markedText = [[NSMutableAttributedString alloc] initWithString:string];
++
++    // DEFOLD CHANGE BEGIN
++    _glfwSetMarkedText(window, (char*)[[markedText string] UTF8String]);
++    // DEFOLD CHANGE END
+ }
+ 
+ - (void)unmarkText
+ {
+     [[markedText mutableString] setString:@""];
++    // DEFOLD CHANGE BEGIN
++    _glfwSetMarkedText(window, "");
++    // DEFOLD CHANGE END
+ }
+ 
+ - (NSArray*)validAttributesForMarkedText
+diff --git a/src/internal.h b/src/internal.h
+index 8873359..7fd47bc 100644
+--- a/src/internal.h
++++ b/src/internal.h
+@@ -571,6 +571,10 @@ struct _GLFWwindow
+         GLFWcharfun               character;
+         GLFWcharmodsfun           charmods;
+         GLFWdropfun               drop;
++
++        // DEFOLD CHANGE BEGIN
++        GLFWwindowmarkedtextfun markedText;
++        // DEFOLD CHANGE END
+     } callbacks;
+ 
+     // This is defined in platform.h
+@@ -941,6 +945,10 @@ void _glfwInputError(int code, const char* format, ...)
+ void _glfwInputError(int code, const char* format, ...);
+ #endif
+ 
++// DEFOLD CHANGE BEGIN
++void _glfwSetMarkedText(_GLFWwindow* window, char* str);
++// DEFOLD CHANGE END
++
+ 
+ //////////////////////////////////////////////////////////////////////////
+ //////                       GLFW internal API                      //////
+diff --git a/src/window.c b/src/window.c
+index 1463d16..d0031e6 100644
+--- a/src/window.c
++++ b/src/window.c
+@@ -1170,3 +1170,22 @@ GLFWAPI void glfwPostEmptyEvent(void)
+     _glfw.platform.postEmptyEvent();
+ }
+ 
++// DEFOLD CHANGE BEGIN
++void _glfwSetMarkedText(_GLFWwindow* window, char* str)
++{
++    if (window->callbacks.markedText)
++        window->callbacks.markedText((GLFWwindow*) window, str);
++}
++
++GLFWAPI GLFWwindowmarkedtextfun glfwSetMarkedTextCallback(GLFWwindow* handle,
++                                                          GLFWwindowmarkedtextfun cbfun)
++{
++    _GLFWwindow* window = (_GLFWwindow*) handle;
++    assert(window != NULL);
++
++    _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
++    _GLFW_SWAP(GLFWwindowmarkedtextfun, window->callbacks.markedText, cbfun);
++    return cbfun;
++}
++
++// DEFOLD CHANGE END

@@ -16,6 +16,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as s]
+            [editor.system :as system]
             [editor.url :as url]
             [util.text-util :as text-util])
   (:import [java.io BufferedReader PushbackReader Reader StringReader]))
@@ -109,6 +110,18 @@
                           (empty-parse-state)
                           (read-setting-lines reader))))
 
+(defn inject-jvm-properties [^String raw-setting-value]
+  ;; Replace patterns such as {{defold.extension.spine.url}} with JVM property values.
+  (s/replace
+    raw-setting-value
+    #"\{\{(.+?)\}\}" ; Match the text inside the an {{...}} expression.
+    (fn [[_ jvm-property-key]]
+      (or (System/getProperty jvm-property-key)
+          (throw (ex-info (format "Required JVM property `%s` is not defined."
+                                  jvm-property-key)
+                          {:jvm-property-key jvm-property-key
+                           :raw-setting-value raw-setting-value}))))))
+
 (defmulti parse-setting-value (fn [meta-setting ^String raw] (:type meta-setting)))
 
 (defmethod parse-setting-value :string [_ raw]
@@ -133,8 +146,14 @@
 (defmethod parse-setting-value :directory [_ raw]
   raw)
 
-(defmethod parse-setting-value :url [_ raw]
-  (some-> raw url/try-parse))
+;; In dev builds, we replace patterns such as {{defold.extension.spine.url}}
+;; with JVM property values in dev builds. This ensures we can use a specific
+;; branch of an extension in the integration tests as we develop new features.
+(if (system/defold-dev?)
+  (defmethod parse-setting-value :url [_ raw]
+    (some-> raw inject-jvm-properties url/try-parse))
+  (defmethod parse-setting-value :url [_ raw]
+    (some-> raw url/try-parse)))
 
 (def ^:private default-list-element-meta-setting {:type :string})
 
@@ -369,3 +388,17 @@
 
 (defn settings-with-value [settings]
   (filter #(contains? % :value) settings))
+
+(defn raw-settings-search-fn
+  ([search-string]
+   (text-util/search-string->re-pattern search-string :case-insensitive))
+  ([raw-settings re-pattern]
+   (into []
+         (keep (fn [{:keys [value] :as raw-setting}]
+                 (some-> value
+                         (text-util/string->text-match re-pattern)
+                         (assoc
+                           :match-type :match-type-setting
+                           :value value
+                           :path (:path raw-setting)))))
+         raw-settings)))

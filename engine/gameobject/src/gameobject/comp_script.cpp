@@ -24,6 +24,8 @@
 #include "gameobject_private.h"
 #include "gameobject_props_lua.h"
 
+#include "gameobject/gameobject_ddf.h"
+
 extern "C"
 {
 #include <lua/lauxlib.h>
@@ -264,6 +266,25 @@ namespace dmGameObject
         return CompScriptUpdateInternal(params, SCRIPT_FUNCTION_FIXED_UPDATE, update_result);
     }
 
+    static UpdateResult HandleUnrefMessage(void* context, ScriptInstance* script_instance, int reference)
+    {
+        lua_State* L = GetLuaState(context);
+        DM_LUA_STACK_CHECK(L, 0);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dmScript::SetInstance(L);
+
+        dmScript::ResolveInInstance(L, reference);
+        dmScript::UnrefInInstance(L, reference);
+
+        lua_pop(L, 1);
+
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
+
+        return UPDATE_RESULT_OK;
+    }
+
     static UpdateResult HandleMessage(void* context, ScriptInstance* script_instance, dmMessage::Message* message, int function_ref, bool is_callback, bool deref_function_ref)
     {
         UpdateResult result = UPDATE_RESULT_OK;
@@ -275,7 +296,8 @@ namespace dmGameObject
         lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::SetInstance(L);
 
-        if (is_callback) {
+        if (is_callback)
+        {
             dmScript::ResolveInInstance(L, function_ref);
             if (!lua_isfunction(L, -1))
             {
@@ -410,6 +432,11 @@ namespace dmGameObject
                     deref_function_ref = false;
                     function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
                 }
+            }
+            else if (params.m_Message->m_Id == dmGameObjectDDF::ScriptUnrefMessage::m_DDFDescriptor->m_NameHash)
+            {
+                dmGameObjectDDF::ScriptUnrefMessage* unref_message = (dmGameObjectDDF::ScriptUnrefMessage*) params.m_Message->m_Data;
+                return HandleUnrefMessage(params.m_Context, script_instance, unref_message->m_Reference + LUA_NOREF);
             }
         }
 

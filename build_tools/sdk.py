@@ -38,11 +38,11 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="15.1" # we also use this to match version on Github Actions
+VERSION_XCODE="15.4" # we also use this to match version on Github Actions
 VERSION_XCODE_CLANG="15.0.0"
-VERSION_MACOSX="14.2"
-VERSION_IPHONEOS="17.2"
-VERSION_IPHONESIMULATOR="17.2"
+VERSION_MACOSX="14.5"
+VERSION_IPHONEOS="17.5"
+VERSION_IPHONESIMULATOR="17.5"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
@@ -60,6 +60,11 @@ PACKAGES_LINUX_TOOLCHAIN="clang+llvm-%s-x86_64-linux-gnu-ubuntu-16.04" % VERSION
 # Android
 
 ANDROID_NDK_VERSION='25b'
+ANDROID_TARGET_API_LEVEL = 34
+ANDROID_PACKAGE = "android-%s" % ANDROID_TARGET_API_LEVEL
+ANDROID_BUILD_TOOLS_VERSION = '34.0.0'
+ANDROID_NDK_API_VERSION='19' # Android 4.4
+ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 
 ## **********************************************************************************************
 # Win32
@@ -155,6 +160,42 @@ def get_local_darwin_sdk_version(platform):
 
 
 ## **********************************************************************************************
+## Android
+
+
+def get_android_local_sdk_path():
+    path = os.environ.get('ANDROID_HOME', None)
+
+    if path is None:
+        if sys.platform == 'darwin':
+            path = os.path.expanduser('~/Library/android/sdk')
+
+    if path and os.path.exists(path):
+        return path
+
+    return None
+
+def _get_latest_version_from_folders(path):
+    dirs = [ x for x in os.listdir(path)]
+    dirs.sort(key=lambda x: tuple(int(token) for token in x.split('.')))
+    return dirs[0]
+
+def get_android_local_ndk_path(platform):
+    sdk_root = get_android_local_sdk_path()
+    ndk_root = os.path.join(sdk_root, 'ndk')
+    version = _get_latest_version_from_folders(ndk_root)
+    return os.path.join(ndk_root, version)
+
+def get_android_local_build_tools_path(platform):
+    path = get_android_local_sdk_path()
+    build_tools_path = os.path.join(path, 'build-tools')
+    version = _get_latest_version_from_folders(build_tools_path)
+    return os.path.join(build_tools_path, version)
+
+def get_android_local_sdk_version(platform):
+    return os.path.basename(get_android_local_build_tools_path(platform))
+
+## **********************************************************************************************
 
 # ANDROID_HOME
 
@@ -218,6 +259,11 @@ def get_windows_local_sdk_info(platform):
 
     if windows_info is not None:
         return windows_info
+
+    if sys.platform != 'win32':
+        # we cannot currently use vswhere.exe on this platform
+        # todo: check using `wine`
+        return None
 
     vswhere_path = '%s/../../scripts/windows/vswhere2/vswhere2.exe' % os.environ.get('DYNAMO_HOME', '.')
     if not os.path.exists(vswhere_path):
@@ -337,23 +383,24 @@ def _setup_info_from_windowsinfo(windowsinfo, platform):
 def _get_defold_path(sdkfolder, platform):
     return os.path.join(sdkfolder, defold_info[platform]['pattern'])
 
-def check_defold_sdk(sdkfolder, platform):
+def check_defold_sdk(sdkfolder, platform, verbose=False):
     folders = []
-    print ("check_defold_sdk", sdkfolder, platform)
+    if verbose:
+        log.log("check_defold_sdk: %s %s" % (sdkfolder, platform))
 
     if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
         folders.append(_get_defold_path(sdkfolder, platform))
 
-    if platform in ('x86_64-win32', 'win32'):
+    elif platform in ('x86_64-win32', 'win32'):
         folders.append(os.path.join(sdkfolder, 'Win32','WindowsKits','10'))
         folders.append(os.path.join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
 
-    if platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android'):
         folders.append(os.path.join(sdkfolder, "android-ndk-r%s" % ANDROID_NDK_VERSION))
         folders.append(os.path.join(sdkfolder, "android-sdk"))
 
-    if platform in ('x86_64-linux',):
+    elif platform in ('x86_64-linux',):
         folders.append(os.path.join(sdkfolder, "linux"))
 
     if not folders:
@@ -363,19 +410,34 @@ def check_defold_sdk(sdkfolder, platform):
     count = 0
     for f in folders:
         if not os.path.exists(f):
-            log.log("Missing SDK in %s" % f)
+            if verbose:
+                log.log("  Missing SDK in %s" % f)
         else:
             count = count + 1
-    return count == len(folders)
+    result = count == len(folders)
 
-def check_local_sdk(platform):
+    if verbose:
+        if not result:
+            log.log("  No prepackaged sdk found.")
+        else:
+            log.log("  Found prepackaged sdk folders:")
+            for f in folders:
+                log.log("    %s" % f)
+
+    return result
+
+def check_local_sdk(platform, verbose=False):
     if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         xcode_version = get_local_darwin_toolchain_version()
         if not xcode_version:
             return False
-    if platform in ('win32', 'x86_64-win32'):
+    elif platform in ('win32', 'x86_64-win32'):
         info = get_windows_local_sdk_info(platform)
         return info is not None
+
+    elif platform in ('armv7-android', 'arm64-android'):
+        path = get_android_local_sdk_path()
+        return path is not None
 
     return True
 
@@ -398,9 +460,19 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info[platform]['version'] = defold_info[platform]['version']
         info[platform]['path'] = _get_defold_path(sdkfolder, platform)
 
-    if platform in ('win32', 'x86_64-win32'):
+    elif platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
+
+    elif platform in ('armv7-android', 'arm64-android'):
+        info['version'] = ANDROID_BUILD_TOOLS_VERSION
+        info['sdk'] = os.path.join(sdkfolder, "android-sdk")
+        info['ndk'] = os.path.join(sdkfolder, "android-ndk-r%s" % ANDROID_NDK_VERSION)
+        info['build_tools'] = os.path.join(info['sdk'], "build-tools" , ANDROID_BUILD_TOOLS_VERSION)
+        if platform == 'arm64-android':
+            info['api'] = ANDROID_64_NDK_API_VERSION
+        else:
+            info['api'] = ANDROID_NDK_API_VERSION
 
     return info
 
@@ -425,25 +497,35 @@ def _get_local_sdk_info(platform):
         info[platform]['version'] = get_local_compiler_version()
         info[platform]['path'] = get_local_compiler_path()
 
-    if platform in ('win32', 'x86_64-win32'):
+    elif platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_local_sdk_info(platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
+
+    elif platform in ('armv7-android', 'arm64-android'):
+        info['version'] = get_android_local_sdk_version(platform)
+        info['sdk'] = get_android_local_sdk_path()
+        info['ndk'] = get_android_local_ndk_path(platform)
+        info['build_tools'] = get_android_local_build_tools_path(platform)
+        if platform == 'arm64-android':
+            info['api'] = ANDROID_64_NDK_API_VERSION
+        else:
+            info['api'] = ANDROID_NDK_API_VERSION
 
     return info
 
 # It's only cached for the duration of one build
 cached_platforms = defaultdict(defaultdict)
 
-def get_sdk_info(sdkfolder, platform):
+def get_sdk_info(sdkfolder, platform, verbose=False):
     if platform in cached_platforms:
         return cached_platforms[platform]
 
-    if check_defold_sdk(sdkfolder, platform):
+    if check_defold_sdk(sdkfolder, platform, verbose):
         result = _get_defold_sdk_info(sdkfolder, platform)
         cached_platforms[platform] = result
         return result
 
-    if check_local_sdk(platform):
+    if check_local_sdk(platform, verbose):
         result = _get_local_sdk_info(platform)
         cached_platforms[platform] = result
         return result

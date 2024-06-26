@@ -42,9 +42,9 @@ namespace dmGameSystem
 
         uint16_t component_index = 0;
         dmGameObject::GetComponentIndex(receiver_instance, receiver.m_Fragment, &component_index);
-        uintptr_t user_data = 0;
+        dmGameObject::HComponent user_data = 0;
         dmGameSystem::HCollectionProxyWorld world = 0;
-        dmGameObject::GetComponentUserDataFromLua(L, index, collection, "collectionproxyc", &user_data, &receiver, (void**)&world);
+        dmGameObject::GetComponentFromLua(L, index, collection, "collectionproxyc", &user_data, &receiver, (dmGameObject::HComponentWorld*)&world);
 
         if (factory)
             *factory = dmGameObject::GetFactory(receiver_instance);

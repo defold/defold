@@ -22,7 +22,6 @@
             [editor.defold-project :as project]
             [editor.lua :as lua]
             [editor.resource :as resource]
-            [editor.workspace :as workspace]
             [editor.yaml :as yaml]))
 
 (set! *warn-on-reflection* true)
@@ -126,7 +125,7 @@
   (output build-errors g/Any produce-build-errors)
   (output completions si/ScriptCompletions produce-completions))
 
-(defn- load-script-api
+(defn- additional-load-fn
   [project self resource]
   (let [si (project/script-intelligence project)]
     (concat (g/connect self :completions si :lua-completions)
@@ -136,26 +135,18 @@
               ;; resource then it is being actively worked on. Otherwise, it
               ;; belongs to an external dependency and should not stop the build
               ;; on errors.
-              (concat
-                (g/connect self :build-errors si :build-errors)
-
-                ;; Don't connect to save-data when under a non-editable path.
-                (when (resource/editable? resource)
-                  (g/connect self :save-data project :save-data)))))))
+              (g/connect self :build-errors si :build-errors)))))
 
 (defn register-resource-types
   [workspace]
-  (workspace/register-resource-type workspace
+  (r/register-code-resource-type workspace
     :ext "script_api"
     :label "Script API"
     :icon "icons/32/Icons_29-AT-Unknown.png"
     :view-types [:code :default]
     :view-opts nil
     :node-type ScriptApiNode
-    :load-fn load-script-api
-    :read-fn r/read-fn
-    :write-fn r/write-fn
+    :additional-load-fn additional-load-fn
     :textual? true
-    :language "yaml"
-    :auto-connect-save-data? false
-    :test-info {:type :code}))
+    :lazy-loaded true
+    :language "yaml"))

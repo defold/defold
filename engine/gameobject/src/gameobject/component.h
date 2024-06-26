@@ -29,7 +29,7 @@ namespace dmGameObject
     {
         ComponentType();
 
-        dmResource::ResourceType m_ResourceType;
+        HResourceType           m_ResourceType;
         const char*             m_Name;
         dmhash_t                m_NameHash;
         void*                   m_Context;
@@ -75,7 +75,7 @@ namespace dmGameObject
      * @param out_component_index Optional component index out argument, 0x0 is accepted
      * @return the registered component type or 0x0 if not found
      */
-    ComponentType* FindComponentType(HRegister regist, dmResource::ResourceType resource_type, uint32_t* out_component_index);
+    ComponentType* FindComponentType(HRegister regist, HResourceType resource_type, uint32_t* out_component_index);
 
     /*#
      * Gets the number of registered component types
@@ -101,7 +101,7 @@ namespace dmGameObject
      * @param prio Priority
      * @return RESULT_OK on success
      */
-    Result SetUpdateOrderPrio(HRegister regist, dmResource::ResourceType resource_type, uint16_t prio);
+    Result SetUpdateOrderPrio(HRegister regist, HResourceType resource_type, uint16_t prio);
 
     /*#
      * Sort component types according to update order priority.

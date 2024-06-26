@@ -24,7 +24,7 @@
             [editor.workspace :as workspace]
             [schema.core :as s])
   (:import [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType]
-           [com.dynamo.graphics.proto Graphics$ShaderDesc$Language]))
+           [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -88,6 +88,13 @@
                    :icon-class :script
                    :view-types [:code :default]
                    :view-opts glsl-opts}
+                  {:ext "cp"
+                   :language "glsl"
+                   :label "Compute Program"
+                   :icon "icons/64/Icons_29-AT-Unknown.png"
+                   :icon-class :script
+                   :view-types [:code :default]
+                   :view-opts glsl-opts}
                   {:ext "glsl"
                    :label "Shader Include"
                    :icon "icons/64/Icons_29-AT-Unknown.png"
@@ -99,13 +106,15 @@
   ^ShaderUtil$ES2ToES3Converter$ShaderType [^String resource-ext]
   (case resource-ext
     "fp" ShaderUtil$ES2ToES3Converter$ShaderType/FRAGMENT_SHADER
-    "vp" ShaderUtil$ES2ToES3Converter$ShaderType/VERTEX_SHADER))
+    "vp" ShaderUtil$ES2ToES3Converter$ShaderType/VERTEX_SHADER
+    "cp" ShaderUtil$ES2ToES3Converter$ShaderType/COMPUTE_SHADER))
 
 (defn shader-language-to-java
   ^Graphics$ShaderDesc$Language [language]
   (case language
     :language-glsl-sm120 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM120
     :language-glsl-sm140 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM140
+    :language-glsl-sm430 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM430
     :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
     :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
     :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
@@ -116,12 +125,12 @@
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-without-spirv
   (into-array Graphics$ShaderDesc$Language
               (map shader-language-to-java
-                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100])))
+                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430])))
 
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-with-spirv
   (into-array Graphics$ShaderDesc$Language
               (map shader-language-to-java
-                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100 :language-spirv])))
+                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
 
 (defn- build-shader [build-resource _dep-resources user-data]
   (let [{:keys [compile-spirv ^long max-page-count ^String shader-source resource-ext]} user-data
@@ -226,5 +235,6 @@
   (for [def shader-defs
         :let [args (assoc def
                      :node-type ShaderNode
-                     :eager-loading? true)]]
+                     :built-pb-class Graphics$ShaderDesc
+                     :lazy-loaded false)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

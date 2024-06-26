@@ -208,7 +208,7 @@ namespace dmGameSystem
                 if (render_res_type == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET)
                 {
                     render_targets[i] = (RenderTargetResource*) texture_res;
-                    textures[i]       = render_targets[i]->m_TextureResource;
+                    textures[i]       = render_targets[i]->m_ColorAttachmentResources[0];
                 }
                 else
                 {
@@ -279,9 +279,9 @@ namespace dmGameSystem
         return result;
     }
 
-    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
     {
-        MeshResource* mesh_resource = (MeshResource*) params.m_UserData;
+        MeshResource* mesh_resource = (MeshResource*) params->m_UserData;
 
         if (mesh_resource->m_BufferVersion != mesh_resource->m_BufferResource->m_Version)
         {
@@ -320,72 +320,72 @@ namespace dmGameSystem
         }
     }
 
-    dmResource::Result ResMeshPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResMeshPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmMeshDDF::MeshDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Vertices);
+        dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
+        dmResource::PreloadHint(params->m_HintInfo, ddf->m_Vertices);
         for (uint32_t i = 0; i < ddf->m_Textures.m_Count && i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, ddf->m_Textures[i]);
+            dmResource::PreloadHint(params->m_HintInfo, ddf->m_Textures[i]);
         }
 
-        *params.m_PreloadData = ddf;
+        *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResMeshCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResMeshCreate(const dmResource::ResourceCreateParams* params)
     {
         // FIXME: Not very nice to keep a global reference to the graphics context...
         // Needed by the reload callback since we need to rebuild the vertex declaration and vertbuffer.
-        g_GraphicsContext = (dmGraphics::HContext) params.m_Context;
+        g_GraphicsContext = (dmGraphics::HContext) params->m_Context;
 
         MeshResource* mesh_resource = new MeshResource();
         memset(mesh_resource, 0, sizeof(MeshResource));
-        mesh_resource->m_MeshDDF = (dmMeshDDF::MeshDesc*) params.m_PreloadData;
-        dmResource::Result r = AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, mesh_resource, params.m_Filename);
+        mesh_resource->m_MeshDDF = (dmMeshDDF::MeshDesc*) params->m_PreloadData;
+        dmResource::Result r = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, mesh_resource, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*) mesh_resource;
+            dmResource::SetResource(params->m_Resource, mesh_resource);
         }
         else
         {
-            ReleaseResources(params.m_Factory, mesh_resource);
+            ReleaseResources(params->m_Factory, mesh_resource);
             delete mesh_resource;
         }
 
         mesh_resource->m_BufferVersion = mesh_resource->m_BufferResource->m_Version;
 
-        dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, mesh_resource);
+        dmResource::RegisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, mesh_resource);
         return r;
     }
 
-    dmResource::Result ResMeshDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResMeshDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        MeshResource* mesh_resource = (MeshResource*)params.m_Resource->m_Resource;
-        dmResource::UnregisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, mesh_resource);
-        ReleaseResources(params.m_Factory, mesh_resource);
+        MeshResource* mesh_resource = (MeshResource*)dmResource::GetResource(params->m_Resource);
+        dmResource::UnregisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, mesh_resource);
+        ReleaseResources(params->m_Factory, mesh_resource);
         delete mesh_resource;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResMeshRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResMeshRecreate(const dmResource::ResourceRecreateParams* params)
     {
         dmMeshDDF::MeshDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
         }
-        MeshResource* mesh_resource = (MeshResource*)params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, mesh_resource);
+        MeshResource* mesh_resource = (MeshResource*)dmResource::GetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, mesh_resource);
         mesh_resource->m_MeshDDF = ddf;
-        return AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, mesh_resource, params.m_Filename);
+        return AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, mesh_resource, params->m_Filename);
     }
 }

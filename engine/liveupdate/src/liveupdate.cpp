@@ -29,6 +29,7 @@
 #include <dlib/time.h>
 #include <dlib/sys.h>
 #include <dlib/job_thread.h>
+#include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/extension/extension.h>
 
@@ -910,7 +911,7 @@ namespace dmLiveUpdate
 
     static dmExtension::Result Initialize(dmExtension::Params* params)
     {
-        int32_t liveupdate_enabled = dmConfigFile::GetInt(params->m_ConfigFile, "liveupdate.enabled", 1);
+        int32_t liveupdate_enabled = ConfigFileGetInt(params->m_ConfigFile, "liveupdate.enabled", 1);
         if (!liveupdate_enabled)
         {
             dmLogError("Liveupdate disabled due to project setting %s=%d", "liveupdate.enabled", liveupdate_enabled);
@@ -918,11 +919,11 @@ namespace dmLiveUpdate
         }
         g_LiveUpdate.m_IsEnabled = true;
 
-        dmResource::HFactory factory = params->m_ResourceFactory;
+        dmResource::HFactory factory = (dmResource::HFactory)params->m_ResourceFactory;
 
         g_LiveUpdate.m_ResourceFactory = factory;
         g_LiveUpdate.m_ResourceMounts = dmResource::GetMountsContext(factory);
-        g_LiveUpdate.m_ResourceBaseArchive = GetBaseArchive(factory);
+        g_LiveUpdate.m_ResourceBaseArchive = dmResource::GetBaseArchive(factory);
 
         if (!g_LiveUpdate.m_ResourceBaseArchive)
         {

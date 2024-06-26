@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-#include <dlib/configfile.h>
+#include <dmsdk/dlib/configfile.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 
@@ -177,7 +177,7 @@ namespace dmEngine
     void Step(HEngine engine);
 
     void ReloadResources(HEngine engine, const char* extension);
-    bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config);
+    bool LoadBootstrapContent(HEngine engine, HConfigFile config);
     void UnloadBootstrapContent(HEngine engine);
 
 

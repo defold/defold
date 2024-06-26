@@ -25,6 +25,8 @@
 #include "res_texture.h"
 #include "res_textureset.h"
 
+#include <dmsdk/resource/resource.h>
+
 namespace dmGameSystem
 {
     dmResource::Result AcquireResources(dmResource::HFactory factory, dmGui::HContext context,
@@ -112,37 +114,30 @@ namespace dmGameSystem
         // Note: For backwards compability, we add proxy textureset resources containing texures for single texture file resources (deprecated)
         // Once this is not supported anymore, we can remove this behaviour and rely on resource being loaded to be a textureset resource.
         // This needs to be reflected in the ReleaseResources method.
-        dmResource::ResourceType resource_type_textureset;
+        HResourceType resource_type_textureset;
         dmResource::GetTypeFromExtension(factory, "texturesetc", &resource_type_textureset);
         resource->m_GuiTextureSets.SetCapacity(resource->m_SceneDesc->m_Textures.m_Count);
         resource->m_GuiTextureSets.SetSize(0);
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Textures.m_Count; ++i)
         {
-            TextureSetResource* texture_set_resource;
+            void* texture_set_resource;
             dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Textures[i].m_Texture, (void**) &texture_set_resource);
             if (r != dmResource::RESULT_OK)
             {
                 return r;
             }
 
-            dmResource::ResourceType resource_type;
+            HResourceType resource_type;
             r = dmResource::GetType(factory, texture_set_resource, &resource_type);
             if (r != dmResource::RESULT_OK)
             {
                 return r;
             }
 
-            GuiSceneTextureSetResource tsr;
-            if(resource_type != resource_type_textureset)
-            {
-                tsr.m_TextureSet = 0;
-                tsr.m_Texture = (TextureResource*) texture_set_resource;
-            }
-            else
-            {
-                tsr.m_TextureSet = texture_set_resource;
-                tsr.m_Texture    = texture_set_resource->m_Texture;
-            }
+            GuiSceneTextureSetResource tsr = {};
+            tsr.m_Resource                 = texture_set_resource;
+            tsr.m_ResourceIsTextureSet     = resource_type == resource_type_textureset;
+
             resource->m_GuiTextureSets.Push(tsr);
         }
 
@@ -185,10 +180,7 @@ namespace dmGameSystem
         }
         for (uint32_t j = 0; j < resource->m_GuiTextureSets.Size(); ++j)
         {
-            if(resource->m_GuiTextureSets[j].m_TextureSet)
-                dmResource::Release(factory, resource->m_GuiTextureSets[j].m_TextureSet);
-            else
-                dmResource::Release(factory, resource->m_GuiTextureSets[j].m_Texture);
+            dmResource::Release(factory, resource->m_GuiTextureSets[j].m_Resource);
         }
 
         resource->m_Resources.Iterate(HTReleaseResource, factory);
@@ -203,83 +195,122 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_Material);
     }
 
-    static dmResource::Result ResPreloadSceneDesc(const dmResource::ResourcePreloadParams& params)
+    static void EnsureAutoSizedNodesHaveNonZeroArea(dmGuiDDF::NodeDesc* node_descs, uint32_t count)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmGuiDDF::NodeDesc& node_desc = node_descs[i];
+            
+            if (node_desc.m_SizeMode == dmGuiDDF::NodeDesc::SizeMode::SIZE_MODE_AUTO)
+            {
+                dmVMath::Vector4& size = node_desc.m_Size;
+                
+                if (size.getX() == 0.0f)
+                    size.setX(1.0f);
+
+                if (size.getY() == 0.0f)
+                    size.setY(1.0f);
+            }
+        }
+    }
+
+    static void EnsureAutoSizedNodesInSceneHaveNonZeroArea(dmGuiDDF::SceneDesc* scene_desc)
+    {
+        // Scene nodes.
+        EnsureAutoSizedNodesHaveNonZeroArea(scene_desc->m_Nodes.m_Data, scene_desc->m_Nodes.m_Count);
+
+        // Layout nodes.
+        for (uint32_t i = 0, len = scene_desc->m_Layouts.m_Count; i < len; ++i)
+        {
+            dmGuiDDF::SceneDesc::LayoutDesc& layout_desc = scene_desc->m_Layouts[i];
+            EnsureAutoSizedNodesHaveNonZeroArea(layout_desc.m_Nodes.m_Data, layout_desc.m_Nodes.m_Count);
+        }
+    }
+
+    static dmResource::Result ResPreloadSceneDesc(const dmResource::ResourcePreloadParams* params)
     {
         dmGuiDDF::SceneDesc* scene_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(params.m_Buffer, params.m_BufferSize, &scene_desc);
+        dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(params->m_Buffer, params->m_BufferSize, &scene_desc);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Material);
+        // HACK: Gui nodes that have zero area are culled, but we can't know the
+        // size of nodes that have SIZE_MODE_AUTO at build time. Rather than
+        // having both Bob and the editor write bogus size values into the
+        // binaries, we patch it here. We can remove this hack once we address
+        // the culling issue properly.
+        EnsureAutoSizedNodesInSceneHaveNonZeroArea(scene_desc);
+
+        dmResource::PreloadHint(params->m_HintInfo, scene_desc->m_Material);
         if (*scene_desc->m_Script != 0)
-            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Script);
+            dmResource::PreloadHint(params->m_HintInfo, scene_desc->m_Script);
 
         for (uint32_t i = 0; i < scene_desc->m_Fonts.m_Count; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Fonts[i].m_Font);
+            dmResource::PreloadHint(params->m_HintInfo, scene_desc->m_Fonts[i].m_Font);
         }
 
         for (uint32_t i = 0; i < scene_desc->m_Textures.m_Count; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Textures[i].m_Texture);
+            dmResource::PreloadHint(params->m_HintInfo, scene_desc->m_Textures[i].m_Texture);
         }
 
         for (uint32_t i = 0; i < scene_desc->m_Particlefxs.m_Count; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Particlefxs[i].m_Particlefx);
+            dmResource::PreloadHint(params->m_HintInfo, scene_desc->m_Particlefxs[i].m_Particlefx);
         }
 
         for (uint32_t i = 0; i < scene_desc->m_Resources.m_Count; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, scene_desc->m_Resources[i].m_Path);
+            dmResource::PreloadHint(params->m_HintInfo, scene_desc->m_Resources[i].m_Path);
         }
 
-        *params.m_PreloadData = scene_desc;
+        *params->m_PreloadData = scene_desc;
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result ResCreateSceneDesc(const dmResource::ResourceCreateParams& params)
+    static dmResource::Result ResCreateSceneDesc(const dmResource::ResourceCreateParams* params)
     {
         GuiSceneResource* scene_resource = new GuiSceneResource();
         memset(scene_resource, 0, sizeof(GuiSceneResource));
-        dmResource::Result r = AcquireResources(params.m_Factory, (dmGui::HContext)params.m_Context, (dmGuiDDF::SceneDesc*) params.m_PreloadData, scene_resource, params.m_Filename);
+        dmResource::Result r = AcquireResources(params->m_Factory, (dmGui::HContext)params->m_Context, (dmGuiDDF::SceneDesc*) params->m_PreloadData, scene_resource, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*)scene_resource;
-            params.m_Resource->m_ResourceSize = GetResourceSize(scene_resource, params.m_BufferSize);
+            dmResource::SetResource(params->m_Resource, scene_resource);
+            dmResource::SetResourceSize(params->m_Resource, GetResourceSize(scene_resource, params->m_BufferSize));
         }
         else
         {
-            ReleaseResources(params.m_Factory, scene_resource);
+            ReleaseResources(params->m_Factory, scene_resource);
             delete scene_resource;
         }
         return r;
     }
 
-    static dmResource::Result ResDestroySceneDesc(const dmResource::ResourceDestroyParams& params)
+    static dmResource::Result ResDestroySceneDesc(const dmResource::ResourceDestroyParams* params)
     {
-        GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource->m_Resource;
+        GuiSceneResource* scene_resource = (GuiSceneResource*) dmResource::GetResource(params->m_Resource);
 
-        ReleaseResources(params.m_Factory, scene_resource);
+        ReleaseResources(params->m_Factory, scene_resource);
         delete scene_resource;
 
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result ResRecreateSceneDesc(const dmResource::ResourceRecreateParams& params)
+    static dmResource::Result ResRecreateSceneDesc(const dmResource::ResourceRecreateParams* params)
     {
         dmGuiDDF::SceneDesc* scene_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(params.m_Buffer, params.m_BufferSize, &scene_desc);
+        dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(params->m_Buffer, params->m_BufferSize, &scene_desc);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
         GuiSceneResource tmp_scene_resource;
         memset(&tmp_scene_resource, 0, sizeof(GuiSceneResource));
-        dmResource::Result r = AcquireResources(params.m_Factory, (dmGui::HContext)params.m_Context, scene_desc, &tmp_scene_resource, params.m_Filename);
+        dmResource::Result r = AcquireResources(params->m_Factory, (dmGui::HContext)params->m_Context, scene_desc, &tmp_scene_resource, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource->m_Resource;
-            ReleaseResources(params.m_Factory, scene_resource);
+            GuiSceneResource* scene_resource = (GuiSceneResource*) dmResource::GetResource(params->m_Resource);
+            ReleaseResources(params->m_Factory, scene_resource);
             scene_resource->m_SceneDesc = tmp_scene_resource.m_SceneDesc;
             scene_resource->m_Script = tmp_scene_resource.m_Script;
             scene_resource->m_FontMaps.Swap(tmp_scene_resource.m_FontMaps);
@@ -287,27 +318,23 @@ namespace dmGameSystem
             scene_resource->m_Path = tmp_scene_resource.m_Path;
             scene_resource->m_GuiContext = tmp_scene_resource.m_GuiContext;
             scene_resource->m_Material = tmp_scene_resource.m_Material;
-            params.m_Resource->m_ResourceSize = GetResourceSize(scene_resource, params.m_BufferSize);
+            dmResource::SetResourceSize(params->m_Resource, GetResourceSize(scene_resource, params->m_BufferSize));
         }
         else
         {
-            ReleaseResources(params.m_Factory, &tmp_scene_resource);
+            ReleaseResources(params->m_Factory, &tmp_scene_resource);
         }
         return r;
     }
 
-    static dmResource::Result ResourceTypeGui_Register(dmResource::ResourceTypeRegisterContext& ctx)
+    static ResourceResult ResourceTypeGui_Register(HResourceTypeContext ctx, HResourceType type)
     {
-        dmGui::HContext* gui_ctx = (dmGui::HContext*)ctx.m_Contexts->Get(dmHashString64("guic"));
-        if (gui_ctx == 0)
-        {
-            dmLogError("Missing resource context 'guic' when registering resource type 'guic'");
-            return dmResource::RESULT_INVAL;
-        }
-
-        return dmResource::RegisterType(ctx.m_Factory,
-                                           ctx.m_Name,
-                                           *gui_ctx, // context
+        // The engine.cpp creates the contexts for some of our our built in types (i.e. same context for some types)
+        void* context = ResourceTypeContextGetContextByHash(ctx, ResourceTypeGetNameHash(type));
+        assert(context);
+        return (ResourceResult)dmResource::SetupType(ctx,
+                                           type,
+                                           context,
                                            ResPreloadSceneDesc,
                                            ResCreateSceneDesc,
                                            0, // post create

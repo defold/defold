@@ -474,12 +474,12 @@ namespace dmPhysics
             world->m_ContactListener.SetStepWorldContext(&step_context);
             world->m_World.Step(dt, 10, 10);
             float inv_scale = world->m_Context->m_InvScale;
-            // Update transforms of dynamic bodies
+            // Update transforms of non-static bodies
             if (world->m_SetWorldTransformCallback)
             {
                 for (b2Body* body = world->m_World.GetBodyList(); body; body = body->GetNext())
                 {
-                    if (body->GetType() == b2_dynamicBody && body->IsActive())
+                    if (body->GetType() != b2_staticBody && body->IsActive())
                     {
                         Point3 position;
                         FromB2(body->GetPosition(), position, inv_scale);
@@ -1054,7 +1054,7 @@ namespace dmPhysics
     {
         b2Shape* shape = (b2Shape*) _shape;
         shape->m_radius = radius * world->m_Context->m_Scale;
-        shape->m_creationScale = radius;
+        shape->m_creationScale = shape->m_radius;
     }
 
     void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)

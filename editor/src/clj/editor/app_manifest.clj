@@ -345,6 +345,8 @@
 
 (def vulkan-toggles
   (concat
+    (exclude-libs-toggles [:x86_64-osx :arm64-osx] ["platform"])
+    (libs-toggles [:x86_64-osx :arm64-osx] ["platform_vulkan"])
     (libs-toggles [:x86_64-osx :arm64-osx :arm64-ios] ["graphics_vulkan" "MoltenVK"])
     (libs-toggles android ["graphics_vulkan"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
@@ -479,4 +481,5 @@
     :label "App Manifest"
     :icon "icons/32/Icons_05-Project-info.png"
     :node-type AppManifestNode
-    :view-types [:code :default]))
+    :view-types [:code :default]
+    :lazy-loaded true))

@@ -14,32 +14,18 @@
 
 (ns integration.extension-lua-preprocessor-test
   (:require [clojure.test :refer :all]
-            [editor.code.data :as code.data]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.settings-core :as settings-core]
             [integration.test-util :as tu]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
-  (:import [com.dynamo.lua.proto Lua$LuaModule]
-           [com.google.protobuf ByteString]))
+  (:import [com.dynamo.lua.proto Lua$LuaModule]))
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:private extension-lua-preprocessor-url "https://github.com/defold/extension-lua-preprocessor/archive/main.zip")
+(defonce ^:private extension-lua-preprocessor-url (settings-core/inject-jvm-properties "{{defold.extension.lua-preprocessor.url}}"))
 
-(defn- unpack-lua-source
-  ^String [lua-module]
-  {:pre [(map? lua-module)]} ; Lua$LuaModule in map format.
-  (let [^ByteString lua-source-byte-string (-> lua-module :source :script)]
-    (.toStringUtf8 lua-source-byte-string)))
-
-(defn- built-lua-lines [lua-module]
-  (-> lua-module
-      unpack-lua-source
-      code.data/string->lines))
-
-;; Temporarily disabled until we can get an updated extension-lua-preprocessor published.
-#_
 (deftest extension-lua-preprocessor-test
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
@@ -138,8 +124,8 @@
                          (texture-build-resource "/from-script-release-variant.atlas")}
                        (tu/node-built-build-resources script)))
             (with-open [_ (tu/build! script)]
-              (let [built-script (protobuf/bytes->map Lua$LuaModule (tu/node-build-output script))
-                    built-lines (built-lua-lines built-script)]
+              (let [built-script (protobuf/bytes->map-with-defaults Lua$LuaModule (tu/node-build-output script))
+                    built-lines (tu/lua-module-lines built-script)]
                 (is (= expected-built-lines-before-preprocessing built-lines))
                 (is (= {"atlas"         (build-resource-path-hash "/from-script.atlas")
                         "debug-atlas"   (build-resource-path-hash "/from-script-debug-variant.atlas")
@@ -166,8 +152,8 @@
                          (texture-build-resource "/from-script-debug-variant.atlas")}
                        (tu/node-built-build-resources script)))
             (with-open [_ (tu/build! script)]
-              (let [built-script (protobuf/bytes->map Lua$LuaModule (tu/node-build-output script))
-                    built-lines (built-lua-lines built-script)]
+              (let [built-script (protobuf/bytes->map-with-defaults Lua$LuaModule (tu/node-build-output script))
+                    built-lines (tu/lua-module-lines built-script)]
                 (is (= expected-built-lines-after-preprocessing built-lines))
                 (is (= {"atlas" (build-resource-path-hash "/from-script.atlas")
                         "debug-atlas" (build-resource-path-hash "/from-script-debug-variant.atlas")}

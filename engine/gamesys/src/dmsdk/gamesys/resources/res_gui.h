@@ -32,29 +32,27 @@ namespace dmParticle
 namespace dmGameSystem
 {
     struct MaterialResource;
-    struct TextureResource;
-    struct TextureSetResource;
 
     struct GuiSceneTextureSetResource
     {
-        TextureSetResource* m_TextureSet;
-        TextureResource*    m_Texture;
+        void*   m_Resource;
+        uint8_t m_ResourceIsTextureSet : 1;
     };
 
     struct GuiSceneResource
     {
-        dmGuiDDF::SceneDesc*            m_SceneDesc;
-        dmGui::HScript                  m_Script;
-        dmArray<dmRender::HFontMap>     m_FontMaps;
-        dmArray<dmhash_t>               m_FontMapPaths;
+        dmGuiDDF::SceneDesc*                m_SceneDesc;
+        dmGui::HScript                      m_Script;
+        dmArray<dmRender::HFontMap>         m_FontMaps;
+        dmArray<dmhash_t>                   m_FontMapPaths;
         dmArray<GuiSceneTextureSetResource> m_GuiTextureSets;
-        dmArray<dmParticle::HPrototype> m_ParticlePrototypes;
-        dmArray<MaterialResource*>      m_Materials;
-        const char*                     m_Path;
-        dmGui::HContext                 m_GuiContext;
-        MaterialResource*               m_Material;
-        dmHashTable64<void*>            m_Resources;
-        dmHashTable64<dmhash_t>         m_ResourceTypes;
+        dmArray<dmParticle::HPrototype>     m_ParticlePrototypes;
+        dmArray<MaterialResource*>          m_Materials;
+        const char*                         m_Path;
+        dmGui::HContext                     m_GuiContext;
+        MaterialResource*                   m_Material;
+        dmHashTable64<void*>                m_Resources;
+        dmHashTable64<dmhash_t>             m_ResourceTypes;
     };
 }
 

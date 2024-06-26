@@ -35,6 +35,10 @@
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [com.google.protobuf ByteString]))
 
+(set! *warn-on-reflection* true)
+
+(def ^Class built-pb-class Lua$LuaModule)
+
 (defn script-property-type->go-prop-type
   "Controls how script property values are represented in the file formats."
   [script-property-type]
@@ -64,12 +68,13 @@
 (def resource-kind->workspace->extensions
   "Declares which file extensions are valid for different kinds of resource
   properties. This affects the Property Editor, but is also used for validation."
-  {"atlas"       #(workspace/resource-kind-extensions % :atlas)
-   "font"        (constantly "font")
-   "material"    (constantly "material")
-   "buffer"      (constantly "buffer")
-   "texture"     (constantly (conj image/exts "cubemap" "render_target"))
-   "tile_source" (constantly "tilesource")})
+  {"atlas"        #(workspace/resource-kind-extensions % :atlas)
+   "font"          (constantly "font")
+   "material"      (constantly "material")
+   "buffer"        (constantly "buffer")
+   "texture"       (constantly (conj image/exts "cubemap" "render_target"))
+   "tile_source"   (constantly "tilesource")
+   "render_target" (constantly "render_target")})
 
 (def valid-resource-kind? (partial contains? resource-kind->workspace->extensions))
 

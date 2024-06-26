@@ -15,20 +15,14 @@
 (ns integration.particlefx-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.collection :as collection]
-            [editor.handler :as handler]
             [editor.defold-project :as project]
             [editor.graphics :as graphics]
             [editor.material :as material]
-            [editor.workspace :as workspace]
-            [editor.types :as types]
             [editor.particle-lib :as plib]
+            [editor.properties :as properties]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util])
-  (:import [editor.types Region]
-           [java.awt.image BufferedImage]
-           [java.io File]
-           [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]))
+  (:import [javax.vecmath Matrix4d]))
 
 (defn- dump-outline [outline]
   {:_self (type (:_self outline)) :children (map dump-outline (:children outline))})
@@ -59,9 +53,9 @@
           fetch-anim-fn (fn [index] (get emitter-sim-data index))
           transforms [(doto (Matrix4d.) (.setIdentity))]
           sim (plib/make-sim 16 256 prototype-msg transforms)
-          attribute-infos (into []
-                                (map graphics/attribute-key->default-attribute-info)
-                                [:position])
+          attribute-infos [(-> :position
+                               (graphics/attribute-key->default-attribute-info)
+                               (assoc :coordinate-space :coordinate-space-world))]
           vertex-description (graphics/make-vertex-description attribute-infos)
           attribute-bytes (graphics/attribute-bytes-by-attribute-key node-id attribute-infos {})]
       (testing "Sim sleeping"
@@ -116,3 +110,30 @@
                         (g/node-value material-node :shader)))
               (is (not= (get-in sim-data [:gpu-texture :params])
                         (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))))
+
+(deftest manip-scale-preserves-types
+  (test-util/with-loaded-project
+    (let [project-graph (g/node-id->graph-id project)
+          particlefx-path "/particlefx/fireworks_big.particlefx"
+          particlefx (project/get-resource-node project particlefx-path)
+          [[emitter] _ [modifier]] (g/sources-of particlefx :child-scenes)
+          check! (fn check! [node-id prop-kw]
+                   (doseq [original-curve-spread
+                           [(properties/->curve-spread [[(float 0.0) (float 1.0) (float 1.0) (float 0.0)]] (float 0.0))
+                            (properties/->curve-spread [[(double 0.0) (double 1.0) (double 1.0) (double 0.0)]] (double 0.0))
+                            (properties/->curve-spread [(vector-of :float 0.0 1.0 1.0 0.0)] (float 0.0))
+                            (properties/->curve-spread [(vector-of :double 0.0 1.0 1.0 0.0)] (double 0.0))]]
+                     (with-open [_ (test-util/make-graph-reverter project-graph)]
+                       (g/set-property! node-id prop-kw original-curve-spread)
+                       (test-util/manip-scale! node-id [2.0 2.0 2.0])
+                       (let [modified-curve-spread (g/node-value node-id prop-kw)]
+                         (is (not= original-curve-spread modified-curve-spread))
+                         (test-util/ensure-number-type-preserving! original-curve-spread modified-curve-spread)))))]
+
+      (testing "Emitter"
+        (check! emitter :emitter-key-size-x)
+        (check! emitter :emitter-key-size-y)
+        (check! emitter :emitter-key-size-z))
+
+      (testing "Modifier"
+        (check! modifier :magnitude)))))

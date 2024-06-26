@@ -13,6 +13,7 @@
         {{#has-icons?}}
         android:icon="@drawable/icon"
         {{/has-icons?}}
+        android:extractNativeLibs="{{android.extract_native_libs}}"
         android:label="{{project.title}}" android:hasCode="true"
         android:name="android.support.multidex.MultiDexApplication"
         android:enableOnBackInvokedCallback="true"

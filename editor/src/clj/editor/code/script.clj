@@ -112,37 +112,25 @@
           :script-property-type-resource))
 
 (def script-defs [{:ext "script"
-                   :language "lua"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
-                   :view-types [:code :default]
-                   :view-opts lua-code-opts
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
-                   :language "lua"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
-                   :view-types [:code :default]
-                   :view-opts lua-code-opts
                    :tags #{:debuggable}}
                   {:ext "gui_script"
-                   :language "lua"
                    :label "Gui Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :icon-class :script
-                   :view-types [:code :default]
-                   :view-opts lua-code-opts
                    :tags #{:debuggable}}
                   {:ext "lua"
-                   :language "lua"
                    :label "Lua Module"
                    :icon "icons/32/Icons_11-Script-general.png"
                    :icon-class :script
-                   :view-types [:code :default]
-                   :view-opts lua-code-opts
                    :tags #{:debuggable}}])
 
 (def ^:private status-errors
@@ -369,7 +357,10 @@
   (property modified-lines r/Lines
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (lsp/notify-lines-modified! (lsp/get-node-lsp (:basis evaluation-context) self) self new-value evaluation-context)
+                   (let [basis (:basis evaluation-context)
+                         lsp (lsp/get-node-lsp basis self)
+                         source-value (g/node-value self :source-value evaluation-context)]
+                     (lsp/notify-lines-modified! lsp self source-value new-value))
                    (let [resource (g/node-value self :resource evaluation-context)
                          workspace (resource/workspace resource)
                          lua-info (with-open [reader (data/lines-reader new-value)]
@@ -437,6 +428,10 @@
   (for [def script-defs
         :let [args (assoc def
                      :node-type ScriptNode
-                     :eager-loading? true
-                     :additional-load-fn additional-load-fn)]]
+                     :built-pb-class script-compilation/built-pb-class
+                     :language "lua"
+                     :lazy-loaded false
+                     :additional-load-fn additional-load-fn
+                     :view-types [:code :default]
+                     :view-opts lua-code-opts)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))
