@@ -446,6 +446,13 @@ namespace dmGameSystem
      * ```lua
      * -- get the tile under the player.
      * local tile_info = tilemap.get_tile_info("/level#tilemap", "foreground", self.player_x, self.player_y)
+     * pprint(tile_info)
+     * -- {
+     * --    index = 0,
+     * --    h_flip = false,
+     * --    v_flip = true,
+     * --    rotate_90 = false
+     * -- }
      * ```
      */
     static int TileMap_GetTileInfo(lua_State* L)
