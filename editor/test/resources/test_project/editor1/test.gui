@@ -449,3 +449,4 @@ layers {
 material: "/builtins/materials/gui.material"
 adjust_reference: ADJUST_REFERENCE_DISABLED
 max_nodes: 128
+max_dynamic_textures: 128

@@ -66,3 +66,4 @@ nodes {
 material: "/builtins/materials/gui.material"
 adjust_reference: ADJUST_REFERENCE_LEGACY
 max_nodes: 512
+max_dynamic_textures: 128
