@@ -949,9 +949,11 @@
     :build-engine        optional flag that indicates whether the engine should
                          be built in addition to the project
     :lint                optional flag that indicates whether to run LSP lints
-                         and present the diagnostics alongside the build errors
-    :prefs               required if :build-engine is true, preferences for
-                         engine building, e.g. the build server settings
+                         and present the diagnostics alongside the build errors,
+                         defaults to the value of \"general-lint-on-build\" pref
+                         (true if not set)
+    :prefs               required, preferences for linting and engine building,
+                         e.g. the build server settings
     :debug               optional flag that indicates whether to also build
                          debugging tools
     :run-build-hooks     optional flag that indicates whether to run pre- and
@@ -961,19 +963,20 @@
                          to speed up the build process"
   [project & {:keys [;; required
                      result-fn
-                     ;; required if :build-engine is true (which is a default)
                      prefs
                      ;; optional
                      debug build-engine run-build-hooks render-progress! old-artifact-map lint]
               :or {debug false
                    build-engine true
                    run-build-hooks true
-                   lint true
                    render-progress! progress/null-render-progress!
                    old-artifact-map {}}}]
   {:pre [(ifn? result-fn)
          (or (not build-engine) (some? prefs))]}
-  (let [;; After any pre-build hooks have completed successfully, we will start
+  (let [lint (if (nil? lint)
+               (prefs/get-prefs prefs "general-lint-on-build" true)
+               lint)
+        ;; After any pre-build hooks have completed successfully, we will start
         ;; the engine build on a separate background thread so the build servers
         ;; can work while we build the project. We will await the results of the
         ;; engine build in the final phase.
@@ -1259,6 +1262,7 @@ If you do not specifically require different script states, consider changing th
                 :lint false
                 :render-progress! (make-render-task-progress :build)
                 :old-artifact-map (workspace/artifact-map workspace)
+                :prefs prefs
                 :result-fn (fn [build-results]
                              (when (handle-build-results! workspace render-build-error! build-results)
                                (let [target (targets/selected-target prefs)]
@@ -1365,6 +1369,7 @@ If you do not specifically require different script states, consider changing th
                   :lint false
                   :render-progress! (make-render-task-progress :build)
                   :old-artifact-map (workspace/artifact-map workspace)
+                  :prefs prefs
                   :result-fn (fn [{:keys [error artifact-map etags]}]
                                (if (some? error)
                                  (render-build-error! error)
@@ -2501,10 +2506,7 @@ If you do not specifically require different script states, consider changing th
           platform (:platform-key last-bundle-options)]
       (bundle! main-stage tool-tab-pane changes-view build-errors-view project prefs platform last-bundle-options))))
 
-(def ^:private editor-extensions-allowed-commands-prefs-key
-  "editor-extensions/allowed-commands")
-
-(defn reload-extensions! [project kind workspace changes-view prefs]
+(defn reload-extensions! [app-view project kind workspace changes-view]
   (extensions/reload!
     project kind
     :reload-resources! (fn reload-resources! []
@@ -2518,40 +2520,25 @@ If you do not specifically require different script states, consider changing th
                                                    (future/complete! f nil)
                                                    (future/fail! f (RuntimeException. "Reload failed")))))
                            f))
-    :can-execute? (fn can-execute? [[cmd-name :as command]]
-                    (let [allowed-commands (prefs/get-prefs prefs editor-extensions-allowed-commands-prefs-key #{})]
-                      (if (allowed-commands cmd-name)
-                        (future/completed true)
-                        (let [f (future/make)]
-                          (ui/run-later
-                            (let [allow (dialogs/make-confirmation-dialog
-                                          {:title "Allow executing shell command?"
-                                           :icon {:fx/type fxui/icon
-                                                  :type :icon/triangle-error
-                                                  :fill "#fa6731"}
-                                           :header "Extension wants to execute a shell command"
-                                           :content {:fx/type fxui/label
-                                                     :style-class "dialog-content-padding"
-                                                     :text (string/join " " command)}
-                                           :buttons [{:text "Abort Command"
-                                                      :cancel-button true
-                                                      :default-button true
-                                                      :result false}
-                                                     {:text "Allow"
-                                                      :variant :danger
-                                                      :result true}]})]
-                              (when allow
-                                (prefs/set-prefs prefs editor-extensions-allowed-commands-prefs-key (conj allowed-commands cmd-name)))
-                              (future/complete! f allow)))
-                          f))))
     :display-output! (fn display-output! [type string]
                        (let [[console-type prefix] (case type
                                                      :err [:extension-error "ERROR:EXT: "]
                                                      :out [:extension-output ""])]
                          (doseq [line (string/split-lines string)]
-                           (console/append-console-entry! console-type (str prefix line)))))))
+                           (console/append-console-entry! console-type (str prefix line)))))
+    :save! (fn save! []
+             (let [f (future/make)
+                   render-reload-progress! (make-render-task-progress :resource-sync)
+                   render-save-progress! (make-render-task-progress :save-all)]
+               (disk/async-save! render-reload-progress! render-save-progress! project changes-view
+                                 (fn [successful?]
+                                   (if successful?
+                                     (do (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
+                                         (future/complete! f nil))
+                                     (future/fail! f (Exception. "Save failed")))))
+               f))))
 
-(defn- fetch-libraries [workspace project changes-view prefs]
+(defn- fetch-libraries [app-view workspace project changes-view]
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
@@ -2574,28 +2561,28 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
-                                          (reload-extensions! project :library workspace changes-view prefs)))))))))))))
+                                          (reload-extensions! app-view project :library workspace changes-view)))))))))))))
 
 (handler/defhandler :add-dependency :global
   (enabled? [] (disk-availability/available?))
-  (run [selection app-view prefs workspace project changes-view user-data]
+  (run [selection app-view workspace project changes-view user-data]
        (let [game-project (project/get-resource-node project "/game.project")
              dependencies (game-project/get-setting game-project ["project" "dependencies"])
              dependency-uri (.toURI (URL. (:dep-url user-data)))]
          (when (not-any? (partial = dependency-uri) dependencies)
            (game-project/set-setting! game-project ["project" "dependencies"]
                                       (conj (vec dependencies) dependency-uri))
-           (fetch-libraries workspace project changes-view prefs)))))
+           (fetch-libraries app-view workspace project changes-view)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))
-  (run [workspace project changes-view prefs]
-       (fetch-libraries workspace project changes-view prefs)))
+  (run [app-view workspace project changes-view]
+       (fetch-libraries app-view workspace project changes-view)))
 
 (handler/defhandler :reload-extensions :global
   (enabled? [] (disk-availability/available?))
-  (run [project workspace changes-view prefs]
-       (reload-extensions! project :all workspace changes-view prefs)))
+  (run [app-view project workspace changes-view]
+       (reload-extensions! app-view project :all workspace changes-view)))
 
 (defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs project]
   (let [workspace (project/workspace project)

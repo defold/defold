@@ -304,7 +304,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        if (top > 3) // table with args
+        if (top > 3 && !lua_isnil(L, 4)) // table with args
         {
             luaL_checktype(L, 4, LUA_TTABLE);
             lua_pushvalue(L, 4);

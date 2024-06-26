@@ -74,7 +74,6 @@ namespace dmRender
     * registered in the render context.
     *
     * @name camera.get_cameras
-    * @param camera [type:url|handle|nil] camera id
     * @return cameras [type:table] a table with all camera URLs
     *
     * @examples

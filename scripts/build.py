@@ -103,8 +103,10 @@ PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0c
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-2.7.1".split()
 PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.3.261.1 lipo-9ffdea2 glfw-2.7.1".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-34 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-34 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -116,10 +118,8 @@ DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ
 
 PACKAGES_TAPI_VERSION="tapi1.6"
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
-PACKAGES_ANDROID_NDK="android-ndk-r25b"
+PACKAGES_ANDROID_NDK="android-ndk-r{0}".format(sdk.ANDROID_NDK_VERSION)
 PACKAGES_ANDROID_SDK="android-sdk"
-ANDROID_TARGET_API_LEVEL=34
-ANDROID_BUILD_TOOLS_VERSION="34.0.0"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -328,9 +328,6 @@ class Configuration(object):
             os._exit(5)
 
     def get_python(self):
-        if 'macos' in self.host and 'arm64' == platform.machine():
-            if 'x86_64-macos' == self.target_platform:
-                return ['arch', '-x86_64', 'python']
         return ['python']
 
     def _create_common_dirs(self):
@@ -623,7 +620,7 @@ class Configuration(object):
             # Android NDK
             download_sdk(self, '%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk(self, '%s/%s-%s-android-%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host, ANDROID_TARGET_API_LEVEL, ANDROID_BUILD_TOOLS_VERSION), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, '%s/%s-%s-android-%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host, sdk.ANDROID_TARGET_API_LEVEL, sdk.ANDROID_BUILD_TOOLS_VERSION), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host:
             download_sdk(self, '%s/%s.tar.xz' % (self.package_path, sdk.PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG), format='J')
@@ -1031,8 +1028,7 @@ class Configuration(object):
 
         strip = "strip"
         if 'android' in self.target_platform:
-            ANDROID_NDK_VERSION = '25b'
-            ANDROID_NDK_ROOT = os.path.join(sdkfolder,'android-ndk-r%s' % ANDROID_NDK_VERSION)
+            ANDROID_NDK_ROOT = os.path.join(sdkfolder,'android-ndk-r%s' % sdk.ANDROID_NDK_VERSION)
 
             ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
             strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (ANDROID_NDK_ROOT, ANDROID_HOST)

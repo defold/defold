@@ -1136,7 +1136,7 @@ bail:
         // GLFW 3.4 doesn't support static linking with vulkan,
         // instead we need to pass in the function that loads symbol for any
         // platform that is using GLFW.
-    #if defined(__MACH__)
+    #if defined(__MACH__) && !defined(DM_PLATFORM_IOS)
         dmPlatform::VulkanSetLoader();
     #endif
 
@@ -2333,30 +2333,30 @@ bail:
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
     }
 
-    static bool ValidateShaderModule(VulkanContext* context, ShaderModule* shader)
+    static bool ValidateShaderModule(VulkanContext* context, ShaderModule* shader, char* error_buffer, uint32_t error_buffer_size)
     {
         if (shader->m_ShaderMeta.m_UniformBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers)
         {
-            dmLogError("Maximum number of uniform buffers exceeded: vertex shader has %d buffers, but maximum is %d.",
+            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of uniform buffers exceeded: shader has %d buffers, but maximum is %d.",
                 shader->m_ShaderMeta.m_UniformBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorUniformBuffers);
             return false;
         }
         else if (shader->m_ShaderMeta.m_StorageBuffers.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers)
         {
-            dmLogError("Maximum number of storage exceeded: vertex shader has %d buffer, but maximum is %d.",
+            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of storage exceeded: shader has %d buffer, but maximum is %d.",
                 shader->m_ShaderMeta.m_StorageBuffers.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorStorageBuffers);
             return false;
         }
         else if (shader->m_ShaderMeta.m_Textures.Size() > context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers)
         {
-            dmLogError("Maximum number of texture samplers exceeded: vertex shader has %d samplers, but maximum is %d.",
+            dmSnPrintf(error_buffer, error_buffer_size, "Maximum number of texture samplers exceeded: shader has %d samplers, but maximum is %d.",
                 shader->m_ShaderMeta.m_Textures.Size(), context->m_PhysicalDevice.m_Properties.limits.maxPerStageDescriptorSamplers);
             return false;
         }
         return true;
     }
 
-    static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderModule* shader = new ShaderModule;
         memset(shader, 0, sizeof(*shader));
@@ -2367,7 +2367,7 @@ bail:
 
         CreateShaderMeta(ddf, &shader->m_ShaderMeta);
 
-        if (!ValidateShaderModule(context, shader))
+        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
         {
             DeleteVertexProgram((HVertexProgram) shader);
             return 0;
@@ -2376,7 +2376,7 @@ bail:
         return (HVertexProgram) shader;
     }
 
-    static HFragmentProgram VulkanNewFragmentProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static HFragmentProgram VulkanNewFragmentProgram(HContext _context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderModule* shader = new ShaderModule;
         memset(shader, 0, sizeof(*shader));
@@ -2387,7 +2387,7 @@ bail:
 
         CreateShaderMeta(ddf, &shader->m_ShaderMeta);
 
-        if (!ValidateShaderModule(context, shader))
+        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
         {
             DeleteFragmentProgram((HFragmentProgram) shader);
             return 0;
@@ -4195,7 +4195,7 @@ bail:
         return false;
     }
 
-    static HComputeProgram VulkanNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static HComputeProgram VulkanNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         VulkanContext* context = (VulkanContext*) _context;
         ShaderModule* shader   = new ShaderModule;
@@ -4205,7 +4205,7 @@ bail:
         CHECK_VK_ERROR(res);
         CreateShaderMeta(ddf, &shader->m_ShaderMeta);
 
-        if (!ValidateShaderModule(context, shader))
+        if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
         {
             DeleteComputeProgram((HComputeProgram) shader);
             return 0;

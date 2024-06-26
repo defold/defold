@@ -513,9 +513,13 @@
       (validation/prop-error :fatal node-id prop-kw (partial validation/prop-id-duplicate? id-counts) prop-value)))
 
 ;; SDK api
-(defn prop-resource-error [node-id prop-kw prop-value prop-name]
-  (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
-      (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+(defn prop-resource-error
+  ([node-id prop-kw prop-value prop-name]
+   (or (validation/prop-error :fatal node-id prop-kw validation/prop-nil? prop-value prop-name)
+       (validation/prop-error :fatal node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
+  ([node-id prop-kw prop-value prop-name resource-ext]
+   (or (prop-resource-error node-id prop-kw prop-value prop-name)
+       (validation/prop-error :fatal node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))))
 
 ;; SDK api
 (defn references-gui-resource? [evaluation-context node-id prop-kw gui-resource-name]
@@ -2332,12 +2336,13 @@
       clipping/setup-states
       sort-scene)))
 
-(defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
+(defn- ->scene-pb-msg [script-resource material-resource adjust-reference background-color max-nodes max-dynamic-textures node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
   {:script (resource/resource->proj-path script-resource)
    :material (resource/resource->proj-path material-resource)
    :adjust-reference adjust-reference
    :background-color background-color
    :max-nodes max-nodes
+   :max-dynamic-textures max-dynamic-textures
    :nodes node-msgs
    :layers layer-msgs
    :fonts font-msgs
@@ -2347,8 +2352,8 @@
    :particlefxs particlefx-resource-msgs
    :resources resource-msgs})
 
-(g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
-  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs))
+(g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes max-dynamic-textures node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
+  (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes max-dynamic-textures node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [def (:def user-data)
@@ -2498,7 +2503,7 @@
 
 (g/defnk produce-own-build-errors [_node-id material max-nodes node-ids script]
   (g/package-errors _node-id
-                    (when script (prop-resource-error _node-id :script script "Script"))
+                    (when script (prop-resource-error _node-id :script script "Script" "gui_script"))
                     (prop-resource-error _node-id :material material "Material")
                     (validate-max-nodes _node-id max-nodes node-ids)))
 
@@ -2528,7 +2533,7 @@
                      [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id script]
                              (when script
-                               (prop-resource-error _node-id :script script "Script"))))
+                               (prop-resource-error _node-id :script script "Script" "gui_script"))))
             (dynamic edit-type (g/fnk [] {:type resource/Resource
                                           :ext "gui_script"})))
 
@@ -2557,6 +2562,7 @@
   (property max-nodes g/Int
             (dynamic error (g/fnk [_node-id max-nodes node-ids]
                              (validate-max-nodes _node-id max-nodes node-ids))))
+  (property max-dynamic-textures g/Int)
 
   (input script-resource resource/Resource)
 
@@ -2872,6 +2878,7 @@
       (g/set-property self :def def)
       (g/set-property self :background-color (:background-color scene))
       (g/set-property self :max-nodes (:max-nodes scene))
+      (g/set-property self :max-dynamic-textures (:max-dynamic-textures scene))
       (g/connect project :settings self :project-settings)
       (g/connect project :default-tex-params self :default-tex-params)
       (g/connect project :display-profiles self :display-profiles)

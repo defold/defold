@@ -345,17 +345,19 @@
        (let [tree-view (g/node-value asset-browser :tree-view)
              resource (first selection)
              src-files (.getFiles (Clipboard/getSystemClipboard))
-             dest-path (resource/abs-path resource)]
-         (if-let [conflicting-file (some #(when (string/starts-with? dest-path (.getPath %)) %) src-files)]
+             dest-path (.toPath (io/file (resource/abs-path resource)))]
+         (if-let [conflicting-file (some #(let [src-path (.toPath ^File %)]
+                                            (when (and (.startsWith dest-path src-path)
+                                                       (not= dest-path src-path))
+                                              %))
+                                         src-files)]
            (let [res-proj-path (resource/proj-path resource)
                  dest-proj-path (resource/file->proj-path (workspace/project-path workspace) conflicting-file)]
              (notifications/show!
                (workspace/notifications workspace)
                {:type :error
                 :id ::asset-circular-paste
-                :text (if (= res-proj-path dest-proj-path)
-                        (str "Cannot paste folder '" dest-proj-path "' into itself")
-                        (str "Cannot paste folder '" dest-proj-path "' into its subfolder '" res-proj-path "'"))}))
+                :text (str "Cannot paste folder '" dest-proj-path "' into its subfolder '" res-proj-path "'")}))
            (paste! workspace resource src-files (partial select-files! workspace tree-view))))))
 
 (defn- moved-files

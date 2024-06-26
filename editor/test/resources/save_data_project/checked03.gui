@@ -1118,3 +1118,4 @@ materials {
   name: "second_material"
   material: "/checked.material"
 }
+max_dynamic_textures: 16

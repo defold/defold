@@ -1338,13 +1338,13 @@ namespace dmGraphics
     {
         g_functions.m_DispatchCompute(context, group_count_x, group_count_y, group_count_z);
     }
-    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
+    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return g_functions.m_NewVertexProgram(context, ddf);
+        return g_functions.m_NewVertexProgram(context, ddf, error_buffer, error_buffer_size);
     }
-    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
+    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return g_functions.m_NewFragmentProgram(context, ddf);
+        return g_functions.m_NewFragmentProgram(context, ddf, error_buffer, error_buffer_size);
     }
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
@@ -1635,9 +1635,9 @@ namespace dmGraphics
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
-    HComputeProgram NewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    HComputeProgram NewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return g_functions.m_NewComputeProgram(context, ddf);
+        return g_functions.m_NewComputeProgram(context, ddf, error_buffer, error_buffer_size);
     }
     HProgram NewProgram(HContext context, HComputeProgram compute_program)
     {

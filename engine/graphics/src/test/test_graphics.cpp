@@ -433,8 +433,8 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, vertex_data, (uint32_t) strlen(vertex_data));
     dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, fragment_data, (uint32_t) strlen(fragment_data));
 
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, &vs_shader, 0, 0);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader, 0, 0);
 
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
     ASSERT_EQ(4u, dmGraphics::GetUniformCount(program));
@@ -517,7 +517,7 @@ TEST_F(dmGraphicsTest, TestComputeProgram)
         "}\n";
 
     dmGraphics::ShaderDesc::Shader compute_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, compute_data, (uint32_t) strlen(compute_data));
-    dmGraphics::HComputeProgram cp                = dmGraphics::NewComputeProgram(m_Context, &compute_shader);
+    dmGraphics::HComputeProgram cp                = dmGraphics::NewComputeProgram(m_Context, &compute_shader, 0, 0);
     dmGraphics::HProgram program                  = dmGraphics::NewProgram(m_Context, cp);
     ASSERT_EQ(1, dmGraphics::GetUniformCount(program));
     ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "my_uniform"));
@@ -560,8 +560,8 @@ TEST_F(dmGraphicsTest, TestVertexAttributesGL3)
     dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vertex_data, (uint32_t) strlen(vertex_data));
     dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, fragment_data, (uint32_t) strlen(fragment_data));
 
-    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_Context, &vs_shader);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader);
+    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_Context, &vs_shader, 0, 0);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_shader, 0, 0);
     dmGraphics::HProgram program    = dmGraphics::NewProgram(m_Context, vp, fp);
 
     uint32_t attribute_count = dmGraphics::GetAttributeCount(program);

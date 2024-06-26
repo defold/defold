@@ -62,7 +62,6 @@ import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
-import com.dynamo.render.proto.Compute.ComputeDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
@@ -290,6 +289,14 @@ public class ProtoBuilders {
         protected RenderPrototypeDesc.Builder transform(Task<Void> task, IResource resource, RenderPrototypeDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
 
+            String scriptPath = messageBuilder.getScript();
+            String suffix = BuilderUtil.getSuffix(scriptPath);
+            if (!suffix.isEmpty() && !suffix.equals("render_script"))
+            {
+                throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.BuilderUtil_WRONG_RESOURCE_TYPE,
+                        new String[] { scriptPath, suffix, "render_script" } ));
+            }
+
             BuilderUtil.checkResource(this.project, resource, "script", messageBuilder.getScript());
             messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".render_script", ".render_scriptc"));
 
@@ -441,18 +448,6 @@ public class ProtoBuilders {
                 messageBuilder.addAllAttributes(spriteAttributeOverrides);
             }
 
-            return messageBuilder;
-        }
-    }
-
-    @ProtoParams(srcClass = ComputeDesc.class, messageClass = ComputeDesc.class)
-    @BuilderParams(name="ComputeProgram", inExts=".compute", outExt=".computec")
-    public static class ComputeProgramBuilder extends ProtoBuilder<ComputeDesc.Builder> {
-        @Override
-        protected ComputeDesc.Builder transform(Task<Void> task, IResource resource, ComputeDesc.Builder messageBuilder)
-                throws IOException, CompileExceptionError {
-            BuilderUtil.checkResource(this.project, resource, "compute program", messageBuilder.getComputeProgram());
-            messageBuilder.setComputeProgram(BuilderUtil.replaceExt(messageBuilder.getComputeProgram(), ".cp", ".cpc"));
             return messageBuilder;
         }
     }

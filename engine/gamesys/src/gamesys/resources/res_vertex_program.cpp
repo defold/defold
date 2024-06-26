@@ -14,19 +14,24 @@
 
 #include "res_vertex_program.h"
 #include <graphics/graphics.h>
+#include <dlib/log.h>
+#include <dlib/dstrings.h>
 
 namespace dmGameSystem
 {
-    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
+    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, const char* filename, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
     {
         dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram(context, ddf);
         if (shader == 0x0)
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        dmGraphics::HVertexProgram prog = dmGraphics::NewVertexProgram(context, shader);
+
+        char error_buffer[1024] = {};
+        dmGraphics::HVertexProgram prog = dmGraphics::NewVertexProgram(context, shader, error_buffer, sizeof(error_buffer));
         if (prog == 0)
         {
+            dmLogError("Failed to create vertex program '%s': %s", filename, error_buffer);
             return dmResource::RESULT_FORMAT_ERROR;
         }
         *program = prog;
@@ -50,7 +55,7 @@ namespace dmGameSystem
     {
         dmGraphics::ShaderDesc* ddf = (dmGraphics::ShaderDesc*)params->m_PreloadData;
         dmGraphics::HVertexProgram resource = 0x0;
-        dmResource::Result r = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, ddf, &resource);
+        dmResource::Result r = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, params->m_Filename, ddf, &resource);
         dmDDF::FreeMessage(ddf);
         if (r == dmResource::RESULT_OK)
         {
