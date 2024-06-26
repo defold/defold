@@ -1812,7 +1812,7 @@ static int GetRenderTargetInfo(lua_State* L)
     lua_newtable(L);
 
     uint32_t attachment_count = 0;
-    for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 2; ++i)
+    for (int i = 0; i < DM_ARRAY_SIZE(color_buffer_flags); ++i)
     {
         dmGraphics::BufferType buffer_type = color_buffer_flags[i];
         dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, buffer_type);
@@ -1823,7 +1823,7 @@ static int GetRenderTargetInfo(lua_State* L)
 
             PushTextureInfo(L, t);
 
-            lua_pushinteger(L, color_buffer_flags[i]);
+            lua_pushinteger(L, buffer_type);
             lua_setfield(L, -2, "buffer_type");
 
             if (rt_res)

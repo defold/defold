@@ -294,9 +294,10 @@ namespace dmGameSystem
             dmResource::Release(params->m_Factory, rt_resource->m_DepthAttachmentResource);
         }
 
+        // Clear out any reference to existing resources and paths
         memset(rt_resource->m_ColorAttachmentResources, 0x0, sizeof(rt_resource->m_ColorAttachmentResources));
         memset(rt_resource->m_ColorAttachmentPaths, 0x0, sizeof(rt_resource->m_ColorAttachmentPaths));
-        memset(&rt_resource->m_ColorAttachmentPaths, 0x0, sizeof(rt_resource->m_ColorAttachmentPaths));
+        memset(&rt_resource->m_DepthAttachmentResource, 0x0, sizeof(rt_resource->m_DepthAttachmentResource));
         memset(&rt_resource->m_DepthAttachmentPath, 0x0, sizeof(rt_resource->m_DepthAttachmentPath));
 
         dmResource::Result res = CreateAttachmentResources(params->m_Factory, rt_resource, params->m_Filename, num_color_textures, rt_params.m_DepthTexture);
