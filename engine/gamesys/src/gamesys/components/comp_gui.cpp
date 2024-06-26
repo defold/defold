@@ -765,6 +765,7 @@ namespace dmGameSystem
         scene_params.m_MaxNodes = scene_desc->m_MaxNodes;
         scene_params.m_UserData = gui_component;
         scene_params.m_MaxFonts = 64;
+        scene_params.m_MaxDynamicTextures = scene_desc->m_MaxDynamicTextures;
         scene_params.m_MaxTextures = 128;
         scene_params.m_MaxMaterials = 16;
         scene_params.m_MaxAnimations = gui_world->m_MaxAnimationCount;
