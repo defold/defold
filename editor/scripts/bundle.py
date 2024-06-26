@@ -50,6 +50,7 @@ finally:
 # defold/build_tools
 import run
 import http_cache
+from sign import sign_file, sign_dmg
 
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
@@ -186,56 +187,6 @@ def remove_readonly_retry(function, path, excinfo):
 def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
-
-def mac_certificate(codesigning_identity):
-    if run.command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(codesigning_identity) >= 0:
-        return codesigning_identity
-    else:
-        return None
-
-def sign_file(platform, options, file):
-    if options.skip_codesign:
-        return
-    if 'win32' in platform:
-        run.command([
-            'gcloud',
-            'auth',
-            'activate-service-account',
-            '--key-file', options.gcloud_keyfile], silent = True)
-
-        storepass = run.command([
-            'gcloud',
-            'auth',
-            'print-access-token'], silent = True)
-
-        jsign = os.path.join(os.environ['DYNAMO_HOME'], 'ext','share','java','jsign-4.2.jar')
-        keystore = "projects/%s/locations/%s/keyRings/%s" % (options.gcloud_projectid, options.gcloud_location, options.gcloud_keyringname)
-        run.command([
-            'java', '-jar', jsign,
-            '--storetype', 'GOOGLECLOUD',
-            '--storepass', storepass,
-            '--keystore', keystore,
-            '--alias', options.gcloud_keyname,
-            '--certfile', options.gcloud_certfile,
-            '--tsmode', 'RFC3161',
-            '--tsaurl', 'http://timestamp.globalsign.com/tsa/r6advanced1',
-            file], silent = True)
-
-    if 'macos' in platform:
-        codesigning_identity = options.codesigning_identity
-        certificate = mac_certificate(codesigning_identity)
-        if certificate == None:
-            print("Codesigning certificate not found for signing identity %s" % (codesigning_identity))
-            sys.exit(1)
-
-        run.command([
-            'codesign',
-            '--deep',
-            '--force',
-            '--options', 'runtime',
-            '--entitlements', './scripts/entitlements.plist',
-            '-s', certificate,
-            file])
 
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:
@@ -538,13 +489,13 @@ def sign(options):
             jdk_dir = "jdk-%s" % (java_version)
             jdk_path = os.path.join(sign_dir, "Defold.app", "Contents", "Resources", "packages", jdk_dir)
             for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
-                sign_file('macos', options, exe)
+                sign_file(exe, 'macos', options)
             for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
-                sign_file('macos', options, lib)
-            sign_file('macos', options, os.path.join(jdk_path, "lib", "jspawnhelper"))
-            sign_file('macos', options, os.path.join(sign_dir, "Defold.app"))
+                sign_file(lib, 'macos', options)
+            sign_file(os.path.join(jdk_path, "lib", "jspawnhelper"), 'macos', options)
+            sign_file(os.path.join(sign_dir, "Defold.app"), 'macos', options)
         elif 'win32' in platform:
-            sign_file('win32', options, os.path.join(sign_dir, "Defold", "Defold.exe"))
+            sign_file(os.path.join(sign_dir, "Defold", "Defold.exe"), 'win32', options)
 
         # create editor bundle with signed files
         os.remove(bundle_file)
@@ -592,13 +543,7 @@ def create_dmg(options, platform):
     run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
 
     # sign the dmg
-    if not options.skip_codesign:
-        certificate = mac_certificate(options.codesigning_identity)
-        if certificate == None:
-            error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
-            sys.exit(1)
-
-        run.command(['codesign', '-s', certificate, dmg_file])
+    sign_dmg(dmg_file, options)
 
 
 def create_installer(options):

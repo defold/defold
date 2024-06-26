@@ -74,6 +74,34 @@ def b64decode_to_file(str, destfile):
     with open(destfile, "wb") as f:
         f.write(base64.decodebytes(str.encode()))
 
+def create_gcloud_code_signing_options(gcloud_keyfile = None, gcloud_certfile = None):
+    opts = []
+    
+    if not gcloud_keyfile or not gcloud_certfile:
+        return opts
+
+    # windows EV Code Signing with key in Google Cloud KMS
+    opts.append("--gcloud-location=europe-west3")
+    opts.append("--gcloud-keyname=ev-windows-key")
+    opts.append("--gcloud-keyringname=ev-key-ring")
+    opts.append("--gcloud-projectid=defold-editor")
+
+    gcloud_keyfile = os.path.abspath(gcloud_keyfile)
+    if not os.path.exists(gcloud_keyfile):
+        print("Google Cloud key file not found:", gcloud_keyfile)
+        sys.exit(1)
+    print("Using Google Cloud key file", gcloud_keyfile)
+    opts.append('--gcloud-keyfile=%s' % gcloud_keyfile)
+
+    gcloud_certfile = os.path.abspath(gcloud_certfile)
+    if not os.path.exists(gcloud_certfile):
+        print("Google Cloud certificate not found:", gcloud_certfile)
+        sys.exit(1)
+    print("Using Google Cloud certificate ", gcloud_certfile)
+    opts.append('--gcloud-certfile=%s' % gcloud_certfile)
+
+    return opts
+
 def setup_keychain(args):
     print("Setting up keychain")
     keychain_pass = "foobar"
@@ -295,27 +323,7 @@ def sign_editor2(platform, gcloud_keyfile = None, gcloud_certfile = None):
     opts = []
 
     opts.append('--platform=%s' % platform)
-
-    # windows EV Code Signing with key in Google Cloud KMS
-    if gcloud_keyfile and gcloud_certfile:
-        opts.append("--gcloud-location=europe-west3")
-        opts.append("--gcloud-keyname=ev-windows-key")
-        opts.append("--gcloud-keyringname=ev-key-ring")
-        opts.append("--gcloud-projectid=defold-editor")
-
-        gcloud_keyfile = os.path.abspath(gcloud_keyfile)
-        if not os.path.exists(gcloud_keyfile):
-            print("Google Cloud key file not found:", gcloud_keyfile)
-            sys.exit(1)
-        print("Using Google Cloud key file", gcloud_keyfile)
-        opts.append('--gcloud-keyfile=%s' % gcloud_keyfile)
-
-        gcloud_certfile = os.path.abspath(gcloud_certfile)
-        if not os.path.exists(gcloud_certfile):
-            print("Google Cloud certificate not found:", gcloud_certfile)
-            sys.exit(1)
-        print("Using Google Cloud certificate ", gcloud_certfile)
-        opts.append('--gcloud-certfile=%s' % gcloud_certfile)
+    opts.extend(create_gcloud_code_signing_options(gcloud_keyfile, gcloud_certfile))
 
     cmd = ' '.join(args + opts)
     call(cmd)
