@@ -42,7 +42,7 @@ namespace dmRender
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
-    typedef uint64_t                        HSampler;
+    typedef struct Sampler*                 HSampler;
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Predicate*               HPredicate;
@@ -271,6 +271,7 @@ namespace dmRender
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeProgram shader);
     void                            DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program);
+    HSampler                        GetComputeProgramSampler(HComputeProgram program, uint32_t unit);
     HRenderContext                  GetProgramRenderContext(HComputeProgram program);
     dmGraphics::HComputeProgram     GetComputeProgramShader(HComputeProgram program);
     dmGraphics::HProgram            GetComputeProgram(HComputeProgram program);

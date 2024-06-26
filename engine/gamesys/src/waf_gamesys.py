@@ -303,10 +303,15 @@ def transform_gui(task, msg):
     msg.script = msg.script.replace('.gui_script', '.gui_scriptc')
     font_names = set()
     texture_names = set()
+    material_names = set()
+
     msg.material = msg.material.replace(".material", ".materialc")
     for f in msg.fonts:
         font_names.add(f.name)
         f.font = f.font.replace('.font', '.fontc')
+    for f in msg.materials:
+        material_names.add(f.name)
+        f.material = f.material.replace('.material', '.materialc')
     for t in msg.textures:
         texture_names.add(t.name)
         t.texture = transform_tilesource_name(transform_texture_name(task, t.texture))
@@ -316,6 +321,9 @@ def transform_gui(task, msg):
                 atlas_part = n.texture[:n.texture.index("/")]
                 if not atlas_part in texture_names:
                     raise Exception('Texture "%s" not declared in gui-file' % (n.texture))
+        if n.material:
+            if not n.material in material_names:
+                raise Exception('Material "%s" not declared in gui-file' % (n.material))
         if n.font:
             if not n.font in font_names:
                 raise Exception('Font "%s" not declared in gui-file' % (n.font))
@@ -364,10 +372,6 @@ def transform_sprite(task, msg):
 
     for st in msg.textures:
         st.texture = transform_tilesource_name(st.texture)
-    return msg
-
-def transform_compute(task, msg):
-    msg.compute_program = msg.compute_program.replace('.cp', '.cpc')
     return msg
 
 def transform_tilegrid(task, msg):
@@ -532,7 +536,6 @@ proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilemapc
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 proto_compile_task('mesh', 'mesh_ddf_pb2', 'MeshDesc', '.mesh', '.meshc', transform_mesh)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
-proto_compile_task('compute', 'render.compute_ddf_pb2', 'compute_ddf_pb2.ComputeDesc', '.compute', '.computec', transform_compute)
 
 new_copy_task('project', '.project', '.projectc')
 
@@ -755,3 +758,19 @@ def material_file(self, node):
     obj_ext = '.materialc'
     out = node.change_ext(obj_ext)
     material.set_outputs(out)
+
+waflib.Task.task_factory('compute', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ComputeBuilder ${SRC} ${TGT}',
+                      color='PINK',
+                      after='proto_gen_py',
+                      before='c cxx',
+                      shell=False)
+
+@extension('.compute')
+def compute_file(self, node):
+    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar']
+    compute = self.create_task('compute')
+    compute.env['CLASSPATH'] = os.pathsep.join(classpath)
+    compute.set_inputs(node)
+    obj_ext = '.computec'
+    out = node.change_ext(obj_ext)
+    compute.set_outputs(out)
