@@ -223,6 +223,14 @@ namespace dmGameSystem
         return cell;
     }
 
+    uint8_t GetTileTransformMask(const TileGridComponent* component, uint32_t layer, int32_t cell_x, int32_t cell_y)
+    {
+        TileGridResource* resource = component->m_Resource;
+        uint32_t cell_index = CalculateCellIndex(layer, cell_x, cell_y, resource->m_ColumnCount, resource->m_RowCount);
+        TileGridComponent::Flags* flags = &component->m_CellFlags[cell_index];
+        return flags->m_TransformMask;
+    }
+
     void SetLayerVisible(TileGridComponent* component, uint32_t layer_index, bool visible)
     {
         TileGridLayer* layer = &component->m_Layers[layer_index];
