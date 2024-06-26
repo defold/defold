@@ -236,5 +236,5 @@
         :let [args (assoc def
                      :node-type ShaderNode
                      :built-pb-class Graphics$ShaderDesc
-                     :eager-loading? true)]]
+                     :lazy-loaded false)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))

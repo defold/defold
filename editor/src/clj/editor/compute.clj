@@ -41,7 +41,7 @@
       (render-program-utils/gen-form-data-constants "Constants" :constants)
       (render-program-utils/gen-form-data-samplers "Samplers" :samplers)]}]})
 
-(g/defnk produce-form-data [_node-id name compute-program constants samplers :as args]
+(g/defnk produce-form-data [_node-id compute-program constants samplers :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
@@ -50,11 +50,11 @@
                           :set protobuf-forms-util/set-form-op
                           :clear protobuf-forms-util/clear-form-op}))))
 
-;; Load/Save/PB
-(g/defnk produce-base-pb-msg [compute-program constants samplers :as base-pb-msg]
-  (-> base-pb-msg
-      (update :compute-program resource/resource->proj-path)
-      (update :constants render-program-utils/hack-upgrade-constants)))
+(g/defnk produce-save-value [compute-program constants samplers]
+  (protobuf/make-map-without-defaults Compute$ComputeDesc
+    :compute-program (resource/resource->proj-path compute-program)
+    :constants (render-program-utils/hack-upgrade-constants constants)
+    :samplers (render-program-utils/editable-samplers->samplers samplers)))
 
 (defn- build-compute [resource build-resource->fused-build-resource user-data]
   (let [build-resource->fused-build-resource-path (comp resource/proj-path build-resource->fused-build-resource)
@@ -72,15 +72,15 @@
 (defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
   (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))
 
-(g/defnk produce-build-targets [_node-id base-pb-msg resource shader-source-info compute-program]
+(g/defnk produce-build-targets [_node-id save-value resource shader-source-info compute-program]
   (or (g/flatten-errors
         (prop-resource-error _node-id :compute-program compute-program "Compute Program" "cp"))
       (let [compile-spirv true
             compute-shader-build-target (code.shader/make-shader-build-target shader-source-info compile-spirv 0)
             dep-build-targets [compute-shader-build-target]
-            compute-desc-with-build-resources (assoc base-pb-msg
+            compute-desc-with-build-resources (assoc save-value
                                                 :compute-program (:resource compute-shader-build-target)
-                                                :samplers (build-target-samplers (:samplers base-pb-msg)))]
+                                                :samplers (build-target-samplers (:samplers save-value)))]
         [(bt/with-content-hash
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
@@ -91,17 +91,16 @@
 (g/defnode ComputeNode
   (inherits resource-node/ResourceNode)
 
-  (property name g/Str (dynamic visible (g/constantly false)))
-
-  (property compute-program resource/Resource
+  (property compute-program resource/Resource ; Required protobuf field.
             (dynamic visible (g/constantly false))
             (value (gu/passthrough program-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :program-resource]
                                             [:shader-source-info :shader-source-info]))))
-  (property constants g/Any (dynamic visible (g/constantly false)))
-  (property samplers g/Any
+  (property constants g/Any ; Nil is valid default.
+            (dynamic visible (g/constantly false)))
+  (property samplers g/Any ; Nil is valid default.
             (dynamic visible (g/constantly false))
             (value (gu/passthrough samplers)))
 
@@ -109,16 +108,17 @@
   (input shader-source-info g/Any)
 
   (output form-data g/Any :cached produce-form-data)
-  (output base-pb-msg g/Any produce-base-pb-msg)
-  (output save-value g/Any (gu/passthrough base-pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output samplers [g/KeywordMap] (gu/passthrough samplers)))
 
-(defn load-compute [_project self resource pb]
-  (concat
-    (g/set-property self :compute-program (workspace/resolve-resource resource (:compute-program pb)))
-    (g/set-property self :constants (render-program-utils/hack-downgrade-constants (:constants pb)))
-    (g/set-property self :samplers (:samplers pb))))
+(defn load-compute [_project self resource compute-desc]
+  {:pre [(map? compute-desc)]} ; Compute$ComputeDesc in map format.
+  (let [resolve-resource #(workspace/resolve-resource resource %)]
+    (gu/set-properties-from-pb-map self Compute$ComputeDesc compute-desc
+      compute-program (resolve-resource :compute-program)
+      constants (render-program-utils/hack-downgrade-constants :constants)
+      samplers (render-program-utils/samplers->editable-samplers :samplers))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

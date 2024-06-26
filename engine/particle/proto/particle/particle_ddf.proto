@@ -31,10 +31,10 @@ enum EmissionSpace
 
 message SplinePoint
 {
-    required float x = 1;
-    required float y = 2;
-    required float t_x = 3;
-    required float t_y = 4;
+    optional float x = 1;
+    required float y = 2; // Required since it holds the value for non-curve property values.
+    optional float t_x = 3 [default = 1.0];
+    optional float t_y = 4;
 }
 
 enum EmitterKey
@@ -134,8 +134,8 @@ message Emitter
     optional float                  duration                = 3 [default = 0];
 
     required EmissionSpace          space                   = 4;
-    required dmMath.Point3          position                = 5;
-    required dmMath.Quat            rotation                = 6;
+    optional dmMath.Point3          position                = 5;
+    optional dmMath.Quat            rotation                = 6;
 
     required string                 tile_source             = 7 [(resource)=true];
     required string                 animation               = 8;

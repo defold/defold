@@ -1,0 +1,13 @@
+{
+  "object" : {
+    "key" : "value"
+  },
+  "array" : [
+    "item"
+  ],
+  "string" : "♪♫♬",
+  "number" : 1,
+  "true" : true,
+  "false" : false,
+  "null" : null
+}

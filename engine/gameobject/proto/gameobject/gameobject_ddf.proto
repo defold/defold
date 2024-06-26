@@ -38,7 +38,7 @@ message ComponentDesc
     optional dmMath.Quat    rotation    = 4;
     repeated PropertyDesc properties    = 5;
     optional dmPropertiesDDF.PropertyDeclarations property_decls = 6 [(runtime_only) = true];
-    optional dmMath.Vector3 scale       = 7;
+    optional dmMath.Vector3One scale    = 7;
 }
 
 message EmbeddedComponentDesc
@@ -48,7 +48,7 @@ message EmbeddedComponentDesc
     required string data = 3;
     optional dmMath.Point3  position    = 4;
     optional dmMath.Quat    rotation    = 5;
-    optional dmMath.Vector3 scale       = 6;
+    optional dmMath.Vector3One scale    = 6;
 }
 
 message PrototypeDesc
@@ -80,7 +80,7 @@ message InstanceDesc
     optional dmMath.Quat    rotation    = 5;
     repeated ComponentPropertyDesc component_properties = 6;
     optional float          scale       = 7 [default = 1.0];
-    optional dmMath.Vector3 scale3      = 8;
+    optional dmMath.Vector3One scale3   = 8;
 }
 
 message EmbeddedInstanceDesc
@@ -92,7 +92,7 @@ message EmbeddedInstanceDesc
     optional dmMath.Quat    rotation    = 5;
     repeated ComponentPropertyDesc component_properties = 6;
     optional float          scale       = 7 [default = 1.0];
-    optional dmMath.Vector3 scale3      = 8;
+    optional dmMath.Vector3One scale3   = 8;
 }
 
 message InstancePropertyDesc
@@ -108,7 +108,7 @@ message CollectionInstanceDesc
     optional dmMath.Point3  position    = 3;
     optional dmMath.Quat    rotation    = 4;
     optional float          scale       = 5 [default = 1.0];
-    optional dmMath.Vector3 scale3      = 7;
+    optional dmMath.Vector3One scale3   = 7;
     repeated InstancePropertyDesc instance_properties = 6;
 }
 

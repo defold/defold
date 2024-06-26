@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -27,15 +27,12 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.util :as util]
-            [lambdaisland.deep-diff2 :as deep-diff]
             [util.coll :as coll :refer [pair]]
-            [util.diff :as diff]
             [util.fn :as fn]
             [util.text-util :as text-util])
-  (:import [com.dynamo.proto DdfExtensions]
-           [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
-           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$GenericDescriptor Message]
-           [java.io StringReader]))
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$Builder Gui$NodeDesc$Type Gui$SceneDesc Gui$SceneDesc$LayoutDesc]
+           [com.dynamo.proto DdfExtensions]
+           [com.google.protobuf Descriptors$Descriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType Descriptors$GenericDescriptor Message]))
 
 ;; Note: We use symbol or string representations of protobuf types and values
 ;; instead of the imported classes and enum values when declaring exclusions and
@@ -49,7 +46,7 @@
 
 ;; Make it simple to re-run tests after adding content.
 ;; This project is not used by any other tests.
-(test-util/evict-cached-system-and-project! project-path)
+(test-util/evict-cached-project! project-path)
 
 (def ^:private valid-ignore-reason?
   "This is the set of valid reasons why a setting or field may be ignored when
@@ -270,7 +267,7 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "size" :unused
-     "size_mode" :non-editable
+     "size_mode" :unused
      "slice9" :unused
      "spine_node_child" :deprecated ; This was a legacy setting in our own Spine implementation. The Spine/Rive extensions now create GUI bones themselves.
      "template" :unused
@@ -299,7 +296,7 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "size" :unused
-     "size_mode" :non-editable
+     "size_mode" :unused
      "slice9" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
@@ -338,7 +335,7 @@
      "clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
-     "color" :non-editable ; Annoyingly, we need to write a white color to the file because Bob will read it and write it to the binaries when bundling.
+     "color" :unused
      "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -367,7 +364,10 @@
      "texture" :unused
      "visible" :unused
      "xanchor" :unused
-     "yanchor" :unused}}
+     "yanchor" :unused}
+
+    [["gui" "layouts" "nodes"]]
+    {"template" :unused}}
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEXT]"]
    {:default
@@ -391,7 +391,8 @@
 
    'dmGuiDDF.SceneDesc
    {:default
-    {"spine_scenes" :deprecated}} ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
+    {"background_color" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "spine_scenes" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    ['dmInputDDF.GamepadMapEntry "[GAMEPAD_TYPE_AXIS]"]
    {:default
@@ -411,26 +412,36 @@
    {:default
     {"d" :padding}}
 
+   'dmMath.Vector3One
+   {:default
+    {"d" :padding}}
+
    'dmMath.Vector4
    {[["label" "size"]
      ["sprite" "size"]]
     {"w" :padding}
 
-    [["gui" "nodes" "[*]" "color"]
-     ["gui" "nodes" "[*]" "outline"]
-     ["gui" "nodes" "[*]" "position"]
+    [["gui" "nodes" "[*]" "position"]
      ["gui" "nodes" "[*]" "rotation"]
-     ["gui" "nodes" "[*]" "scale"]
      ["gui" "nodes" "[*]" "size"]
-     ["gui" "nodes" "[*]" "shadow"]
-     ["gui" "layouts" "nodes" "[*]" "color"]
-     ["gui" "layouts" "nodes" "[*]" "outline"]
      ["gui" "layouts" "nodes" "[*]" "position"]
      ["gui" "layouts" "nodes" "[*]" "rotation"]
-     ["gui" "layouts" "nodes" "[*]" "scale"]
-     ["gui" "layouts" "nodes" "[*]" "size"]
+     ["gui" "layouts" "nodes" "[*]" "size"]]
+    {"w" :padding}}
+
+   'dmMath.Vector4One
+   {[["gui" "nodes" "[*]" "color"]
+     ["gui" "nodes" "[*]" "scale"]
+     ["gui" "layouts" "nodes" "[*]" "color"]
+     ["gui" "layouts" "nodes" "[*]" "scale"]]
+    {"w" :padding}}
+
+   'dmMath.Vector4WOne
+   {[["gui" "nodes" "[*]" "outline"]
+     ["gui" "nodes" "[*]" "shadow"]
+     ["gui" "layouts" "nodes" "[*]" "outline"]
      ["gui" "layouts" "nodes" "[*]" "shadow"]]
-    {"w" :non-editable}}
+    {"w" :padding}}
 
    'dmModelDDF.ModelDesc
    {:default
@@ -482,7 +493,11 @@
 
    'dmRenderDDF.RenderTargetDesc.DepthStencilAttachment
    {:default
-    {"format" :unimplemented}}}) ; Non-default depth/stencil format not supported yet.
+    {"format" :unimplemented}} ; Non-default depth/stencil format not supported yet.
+
+   'dmRigDDF.AnimationSetDesc
+   {:default
+    {"skeleton" :deprecated}}}) ; Non-default depth/stencil format not supported yet.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))
@@ -604,6 +619,8 @@
   ;; until the user changes something significant in the file. More involved
   ;; migrations might be covered by tests elsewhere.
   (test-util/with-loaded-project project-path
+    (test-util/clear-cached-save-data! project)
+
     (testing "collection"
       (let [uniform-scale-collection (project/get-resource-node project "/silently_migrated/uniform_scale.collection")
             referenced-collection (:node-id (test-util/outline uniform-scale-collection [0]))
@@ -620,6 +637,24 @@
       (let [extra-characters-font (project/get-resource-node project "/silently_migrated/extra_characters.font")]
         (is (= " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~åäö"
                (g/node-value extra-characters-font :characters)))))
+
+    (testing "gui"
+      (let [background-color-gui (test-util/resource-node project "/silently_migrated/background_color.gui")]
+        (is (not (contains? (g/node-value background-color-gui :source-value) :background-color)))
+        (is (not (contains? (g/node-value background-color-gui :save-value) :background-color))))
+      (let [redundant-sizes-gui (test-util/resource-node project "/silently_migrated/redundant_sizes.gui")]
+        (is (= (g/node-value redundant-sizes-gui :source-value)
+               (g/node-value redundant-sizes-gui :save-value))))
+      (let [redundant-layout-field-values-gui (test-util/resource-node project "/silently_migrated/redundant_layout_field_values.gui")]
+        (is (= (g/node-value redundant-layout-field-values-gui :source-value)
+               (g/node-value redundant-layout-field-values-gui :save-value))))
+      (let [redundant-template-field-values-gui (test-util/resource-node project "/silently_migrated/redundant_template_field_values.gui")]
+        (is (= (g/node-value redundant-template-field-values-gui :source-value)
+               (g/node-value redundant-template-field-values-gui :save-value))))
+      (let [legacy-spine-resources-gui (test-util/resource-node project "/silently_migrated/legacy_spine_resources.gui")]
+        (is (= [{:name "first_spinescene"
+                 :path "/checked.spinescene"}]
+               (g/node-value legacy-spine-resources-gui :resource-msgs)))))
 
     (testing "material"
       (let [legacy-textures-material (project/get-resource-node project "/silently_migrated/legacy_textures.material")]
@@ -641,7 +676,7 @@
       (let [legacy-render-prototype (project/get-resource-node project "/silently_migrated/legacy_render_prototype.render")]
         (is (= [{:name "test"
                  :path "/builtins/materials/sprite.material"}]
-               (:render-resources (g/node-value legacy-render-prototype :pb-msg))))))
+               (:render-resources (g/node-value legacy-render-prototype :save-value))))))
 
     (testing "model"
       (let [legacy-material-and-textures-model (project/get-resource-node project "/silently_migrated/legacy_material_and_textures.model")
@@ -690,9 +725,10 @@
   (and (resource/file-resource? resource)
        (resource/editable? resource)
        (resource/openable? resource)
-       (if-let [resource-type (resource/resource-type resource)]
-         (some? (:write-fn resource-type))
-         (not (text-util/binary? resource)))))
+       (let [resource-type (resource/resource-type resource)]
+         (if (resource/placeholder-resource-type? resource-type)
+           (not (text-util/binary? resource))
+           (some? (:write-fn resource-type))))))
 
 (defn- editable-resource-types-by-ext [workspace]
   (into (sorted-map)
@@ -922,10 +958,7 @@
                                   (pb-nested-field-frequencies (.getField pb field-desc) pb-path count-field-value?)))
 
                               (.isRepeated field-desc)
-                              (if (pb-field-has-single-valid-value? field-desc)
-                                (.getRepeatedFieldCount pb field-desc)
-                                (util/count-where #(count-field-value? % field-desc)
-                                                  (.getField pb field-desc)))
+                              (.getRepeatedFieldCount pb field-desc) ; Repeated fields cannot specify a default, so any values count.
 
                               (.hasField pb field-desc)
                               (if (or (pb-field-has-single-valid-value? field-desc)
@@ -950,7 +983,7 @@
 
 (defn- pb-read-resource
   ^Message [resource]
-  ;; We do not use the :read-fn here since we want the rawest possible file contents.
+  ;; We do not use the read-fn here since we want the rawest possible file contents.
   (let [resource-type (resource/resource-type resource)
         pb-class (-> resource-type :test-info :ddf-type)]
     (protobuf/read-pb pb-class resource)))
@@ -960,11 +993,12 @@
 
 (defmulti ^:private nested-field-frequencies
   (fn [resource]
-    (if-let [resource-type (resource/resource-type resource)]
-      (:type (:test-info resource-type))
-      (if (text-util/binary? resource)
-        :binary
-        :code))))
+    (let [resource-type (resource/resource-type resource)]
+      (if (resource/placeholder-resource-type? resource-type)
+        (if (text-util/binary? resource)
+          :binary
+          :code)
+        (:type (:test-info resource-type))))))
 
 (defmethod nested-field-frequencies :code [resource]
   (sorted-map "lines" (if (string/blank? (slurp resource)) 0 1)))
@@ -1004,7 +1038,7 @@
       (fn nested-map-rf
         ([nested-map] nested-map)
         ([nested-map [path value]]
-         (coll/sorted-assoc-in nested-map path value)))
+         (coll/assoc-in-ex nested-map path value coll/sorted-assoc-in-empty-fn)))
       (sorted-map)
       [meta-settings settings])))
 
@@ -1060,6 +1094,24 @@
   (and (= \/ (get node-id (count template-node-id)))
        (string/starts-with? node-id template-node-id)))
 
+(defn- apply-gui-overrides
+  ^Gui$NodeDesc [^Gui$NodeDesc original-node-pb ^Gui$NodeDesc override-node-pb]
+  (let [overridden-pb-field-index? (set (.getOverriddenFieldsList override-node-pb))
+
+        ^Gui$NodeDesc$Builder overridden-node-pb-builder
+        (reduce
+          (fn [^Gui$NodeDesc$Builder overridden-node-pb-builder ^Descriptors$FieldDescriptor field-desc]
+            (if (or (if (.isRepeated field-desc)
+                      (pos? (.getRepeatedFieldCount override-node-pb field-desc))
+                      (.hasField override-node-pb field-desc))
+                    (overridden-pb-field-index? (.getNumber field-desc)))
+              (.setField overridden-node-pb-builder field-desc (.getField override-node-pb field-desc))
+              overridden-node-pb-builder))
+          (.toBuilder original-node-pb)
+          (.getFields (.getDescriptorForType original-node-pb)))]
+
+    (.build overridden-node-pb-builder)))
+
 (defn- gui-template-node-override-infos [gui-node-pbs gui-proj-path->node-pbs]
   (let [[override-node-pbs template-node-pbs]
         (util/into-multiple
@@ -1106,7 +1158,9 @@
                         original-node-pb (original-node-id->pb original-node-id)]
                     (assert (some? original-node-pb))
                     {:original-node-pb original-node-pb
-                     :override-node-pb override-node-pb}))]
+                     :override-node-pb (if override-node-pb
+                                         (apply-gui-overrides original-node-pb override-node-pb)
+                                         original-node-pb)}))]
 
             (->> template-node-id
                  (template-node-id->override-node-pbs)
@@ -1148,10 +1202,8 @@
                           (.getField original-pb field-desc)
                           (.getField altered-pb field-desc)))
                   ;; Non-repeated field.
-                  (let [a-value (when (.hasField original-pb field-desc)
-                                  (.getField original-pb field-desc))
-                        b-value (when (.hasField altered-pb field-desc)
-                                  (.getField altered-pb field-desc))]
+                  (let [a-value (.getField original-pb field-desc)
+                        b-value (.getField altered-pb field-desc)]
                     (if (pb-message-field? field-desc)
                       ;; Non-repeated message field.
                       (let [pb-path (conj typed-pb-path (.getName field-desc))]
@@ -1215,7 +1267,7 @@
                                     :override-node-pb nil}]
                                   (map (fn [override-node-pb]
                                          {:original-node-pb original-node-pb
-                                          :override-node-pb override-node-pb})
+                                          :override-node-pb (apply-gui-overrides original-node-pb override-node-pb)})
                                        override-node-pbs)))))
                     (.getNodesList scene-pb))))
 
@@ -1257,95 +1309,11 @@
                     project-path)
             non-template-overridden-gui-node-field-paths)))))
 
-(defn- clear-cached-save-data! []
-  ;; Ensure any cache entries introduced by loading the project aren't covering
-  ;; up an actual dirty-check issue.
-  (g/clear-system-cache!))
-
-(defn- diff->string
-  ^String [diff]
-  (let [printer (deep-diff/printer {:print-color false
-                                    :print-fallback :print})]
-    (string/trim-newline
-      (with-out-str
-        (deep-diff/pretty-print diff printer)))))
-
-(defn- value-diff-message
-  ^String [disk-value save-value]
-  (str "Summary of discrepancies between disk value and save value:\n"
-       (-> (deep-diff/diff disk-value save-value)
-           (deep-diff/minimize)
-           (diff->string))))
-
-(defn- text-diff-message
-  ^String [disk-text save-text]
-  (str "Summary of discrepancies between disk text and save text:\n"
-       (or (some->> (diff/make-diff-output-lines disk-text save-text 3)
-                    (string/join "\n"))
-           "Contents are identical.")))
-
-(defn- when-checking-resource-message
-  ^String [resource]
-  (format "When checking `editor/%s%s`."
-          project-path
-          (resource/proj-path resource)))
-
-(defn- save-data-diff-message
-  ^String [save-data]
-  (let [^String save-text (:content save-data)
-        resource (:resource save-data)
-        resource-type (resource/resource-type resource)
-        read-fn (:read-fn resource-type)]
-    (if read-fn
-      ;; Compare data.
-      (let [disk-value (read-fn resource)
-            save-value (with-open [reader (StringReader. save-text)]
-                         (read-fn reader))]
-        (value-diff-message disk-value save-value))
-
-      ;; Compare text.
-      (let [disk-text (slurp resource)]
-        (text-diff-message disk-text save-text)))))
-
-(defn- check-value-equivalence! [expected-value actual-value message]
-  (if (= expected-value actual-value)
-    true
-    (let [message-with-diff (str message \newline (value-diff-message expected-value actual-value))]
-      (is (= expected-value actual-value) message-with-diff))))
-
-(defn- check-text-equivalence! [expected-text actual-text message]
-  (if (= expected-text actual-text)
-    true
-    (let [message-with-diff (str message \newline (text-diff-message expected-text actual-text))]
-      (is (= expected-text actual-text) message-with-diff))))
-
-(defn- check-save-data-disk-equivalence! [save-data]
-  (let [^String save-text (:content save-data)
-        resource (:resource save-data)
-        resource-type (resource/resource-type resource)
-        read-fn (:read-fn resource-type)
-        message (when-checking-resource-message resource)
-
-        are-values-equivalent
-        (if-not read-fn
-          false
-          (let [disk-value (read-fn resource)
-                save-value (with-open [reader (StringReader. save-text)]
-                             (read-fn reader))]
-            ;; We have a read-fn, compare data.
-            (check-value-equivalence! disk-value save-value message)))]
-
-    (when-not are-values-equivalent
-      ;; We either don't have a read-fn, or the values differ.
-      (let [disk-text (slurp resource)]
-        ;; Compare text.
-        (check-text-equivalence! disk-text save-text message)))))
-
 (defn- check-project-save-data-disk-equivalence! [project->save-datas]
   (test-util/with-loaded-project project-path
-    (clear-cached-save-data!)
+    (test-util/clear-cached-save-data! project)
     (doseq [save-data (project->save-datas project)]
-      (check-save-data-disk-equivalence! save-data))))
+      (test-util/check-save-data-disk-equivalence! save-data))))
 
 (deftest save-value-is-equivalent-to-source-value-test
   ;; This test is intended to verify that the saved data contains all the same
@@ -1378,7 +1346,7 @@
   ;; any other tests in this module are failing as well, you should address them
   ;; first.
   (test-util/with-scratch-project project-path
-    (clear-cached-save-data!)
+    (test-util/clear-cached-save-data! project)
     (let [checked-resources (checked-resources workspace)
           dirty-proj-paths (into (sorted-set)
                                  (map (comp resource/proj-path :resource))
@@ -1393,24 +1361,79 @@
                 node-id (project/get-resource-node project resource)]
             (when (testing (format "File `%s` should not have unsaved changes prior to editing." proj-path)
                     (let [save-data (g/valid-node-value node-id :save-data)]
-                      (if (not (:dirty? save-data))
+                      (if (not (:dirty save-data))
                         true
                         (let [message (str "Unsaved changes detected before editing. This is likely due to an interdependency between resources. You might need to adjust the order resources are edited.\n"
-                                           (save-data-diff-message save-data))]
-                          (is (not (:dirty? save-data)) message)))))
-              (test-util/edit-resource-node! node-id)
-              (testing (format "File `%s` should have unsaved changes after editing." proj-path)
-                (let [save-data (g/valid-node-value node-id :save-data)]
-                  (is (:dirty? save-data)
-                      "No unsaved changes detected after editing. Possibly, `test-util/edit-resource-node!` is not making a meaningful change to the file?"))))))
+                                           (test-util/save-data-diff-message save-data))]
+                          (is (not (:dirty save-data)) message)))))
+              (when (test-util/can-edit-resource-node? node-id)
+                (test-util/edit-resource-node! node-id)
+                (testing (format "File `%s` should have unsaved changes after editing." proj-path)
+                  (let [save-data (g/valid-node-value node-id :save-data)]
+                    (is (:dirty save-data)
+                        "No unsaved changes detected after editing. Possibly, `test-util/edit-resource-node!` is not making a meaningful change to the file?")))))))
         (test-util/save-project! project)
-        (clear-cached-save-data!)
+        (test-util/clear-cached-save-data! project)
         (doseq [resource checked-resources]
           (let [proj-path (resource/proj-path resource)]
             (testing (format "File `%s` should not have unsaved changes after saving." proj-path)
               (let [node-id (project/get-resource-node project resource)
                     save-data (g/valid-node-value node-id :save-data)]
-                (is (not (:dirty? save-data))
+                (is (not (:dirty save-data))
                     "Unsaved changes detected after saving.")
-                (when (:dirty? save-data)
-                  (check-save-data-disk-equivalence! save-data))))))))))
+                (when (:dirty save-data)
+                  (test-util/check-save-data-disk-equivalence! save-data))))))))))
+
+(deftest resource-save-data-retention-test
+  ;; This test is intended to verify that the system cache is populated with the
+  ;; save-related data for each editable resource after the project loads, but
+  ;; is evicted from the cache when the resource is edited.
+  (letfn [(check-resource-at-index [resource-index]
+            ;; We want to test each resource in isolation to avoid interference
+            ;; across resources. Otherwise, editing a referenced template GUI
+            ;; might evict cached entries for the referencing GUI, for example.
+            (test-util/with-loaded-project project-path
+              (let [checked-resources (checked-resources workspace)]
+                (assert (vector? checked-resources))
+                (when-some [resource (get checked-resources resource-index)]
+                  (let [proj-path (resource/proj-path resource)
+                        node-id (test-util/resource-node project resource)]
+
+                    (testing (format "File `%s` should have its save-related data in the cache before editing." proj-path)
+                      (is (= (test-util/cacheable-save-data-outputs node-id)
+                             (test-util/cached-save-data-outputs node-id))))
+
+                    (when (test-util/can-edit-resource-node? node-id)
+                      (test-util/edit-resource-node! node-id)
+
+                      (testing (format "File `%s` should not have its save-related data in the cache after editing." proj-path)
+                        (is (= #{} (test-util/cached-save-data-outputs node-id)))))
+
+                    true)))))]
+
+    (loop [resource-index 0]
+      (when (check-resource-at-index resource-index)
+        (recur (inc resource-index))))))
+
+(deftest overall-save-data-retention-test
+  ;; This test works in conjunction with the resource-save-data-retention-test,
+  ;; and is intended to verify that save-related data is retained in memory in
+  ;; situations that are impractical to cover on an individual resource basis.
+  (test-util/with-scratch-project project-path
+    (let [checked-resources (checked-resources workspace)]
+
+      (testing "Save-related data is in cache after loading the project."
+        (is (= {} (test-util/uncached-save-data-outputs-by-proj-path project))))
+
+      ;; Perform edits to all checked resources.
+      (g/transact
+        (for [resource checked-resources
+              :let [node-id (test-util/resource-node project resource)]]
+          (when (test-util/can-edit-resource-node? node-id)
+            (test-util/edit-resource-node node-id))))
+
+      ;; Save the changes.
+      (test-util/save-project! project)
+
+      (testing "Save-related data is in cache after saving the project."
+        (is (= {} (test-util/uncached-save-data-outputs-by-proj-path project)))))))

@@ -21,7 +21,9 @@
             [editor.fs :as fs]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
-            [util.digest :as digest])
+            [util.digest :as digest]
+            [util.fn :as fn]
+            [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
            [java.io File FilterInputStream IOException InputStream]
            [java.net URI]
@@ -52,13 +54,17 @@
 
 (def resource? (partial satisfies? Resource))
 
+(def placeholder-resource-type-ext "*")
+
 (defn type-ext [resource]
   (string/lower-case (ext resource)))
 
 (defn- get-resource-type [workspace resource]
-  (if (editable? resource)
-    (get (g/node-value workspace :resource-types) (type-ext resource))
-    (get (g/node-value workspace :resource-types-non-editable) (type-ext resource))))
+  (let [output-label (if (editable? resource) :resource-types :resource-types-non-editable)
+        resource-types (g/node-value workspace output-label)
+        ext (type-ext resource)]
+    (or (get resource-types ext)
+        (get resource-types placeholder-resource-type-ext))))
 
 (defn openable-resource? [value]
   ;; A resource is considered openable if its kind can be opened. Typically this
@@ -127,7 +133,7 @@
                                         (string/split-lines (slurp defignore-file)))]
                      (fn ignored-path? [path]
                        (boolean (some #(string/starts-with? path %) prefixes))))
-                   (constantly false))]
+                   fn/constantly-false)]
         (swap! defignore-cache assoc defignore-path {:mtime latest-mtime :pred pred})
         pred))))
 
@@ -374,7 +380,9 @@
          zip-uri (.toURI zip-file)]
      {:tree (->> (reduce (fn [acc node] (assoc-in acc (string/split (:path node) #"/") node)) {} entries)
                  (mapv (fn [x] (->zip-resources workspace zip-uri "" x))))
-      :crc (into {} (map (juxt (fn [e] (str "/" (:path e))) :crc) entries))})))
+      :crc (into {}
+                 (map (juxt #(str "/" (:path %)) :crc))
+                 entries)})))
 
 (g/defnode ResourceNode
   (property resource Resource :unjammable
@@ -383,17 +391,17 @@
 (defn base-name ^String [resource]
   (FilenameUtils/getBaseName (resource-name resource)))
 
-(defn- seq-children [resource]
-  (seq (children resource)))
+(defn- non-empty-children [resource]
+  (coll/not-empty (children resource)))
 
 (defn resource-seq [root]
-  (tree-seq seq-children seq-children root))
+  (tree-seq non-empty-children non-empty-children root))
 
-(defn resource-list-seq [resource-list]
-  (apply concat (map resource-seq resource-list)))
+(def xform-recursive-resources
+  (mapcat resource-seq))
 
 (defn resource-map [roots]
-  (into {} (map (juxt proj-path identity) roots)))
+  (coll/pair-map-by proj-path roots))
 
 (defn resource->proj-path [resource]
   (if resource
@@ -486,20 +494,48 @@
         matcher (.getPathMatcher file-system (str "glob:" query))]
     (filter (fn [r] (let [path (.getPath file-system (path r) (into-array String []))] (.matches matcher path))) resources)))
 
-(defn internal?
-  [resource]
+(defn internal? [resource]
   (string/starts-with? (resource->proj-path resource) "/_defold"))
 
-(defn textual-resource-type?
-  "Returns whether the resource type is marked as textual
+(defn placeholder-resource-type?
+  "Returns true if the specified resource-type is the placeholder resource type,
+  or false otherwise."
+  [resource-type]
+  (= placeholder-resource-type-ext (:ext resource-type)))
 
-  Resource type is a required argument. If a resource does not specify a
-  resource type, you can use [[util.text-util/binary?]] to estimate if
-  the content of the resource is textual or not"
+(defn- textual-resource-type?
+  "Returns whether the resource type is marked as textual. Note that the
+  placeholder resource type reports as textual, but might later call
+  [[util.text-util/binary?]] to estimate if the content is textual or not."
   [resource-type]
   {:pre [(some? resource-type)]
    :post [(boolean? %)]}
   (:textual? resource-type))
+
+(defn textual? [resource]
+  "Returns whether the resource is considered textual based on its type. If
+  we're unable to determine the type of the resource (i.e. it is a placeholder
+  resource), we scan through part of the file to determine if it looks textual.
+  The resource is expected to exist. If it does not, scanning the file will
+  throw an exception."
+  (let [resource-type (resource-type resource)]
+    (if (placeholder-resource-type? resource-type)
+      (not (text-util/binary? resource))
+      (textual-resource-type? resource-type))))
+
+(defn stateful-resource-type?
+  "Returns whether the resource type is marked as stateful."
+  [resource-type]
+  {:pre [(some? resource-type)]
+   :post [(boolean? %)]}
+  (not (:stateless? resource-type)))
+
+(defn stateful?
+  "Returns whether the resource is stateful textual based on its type.
+  Placeholder resources have a nil resource-type, but are assumed stateful since
+  they can be edited as plain text using the code editor."
+  [resource]
+  (stateful-resource-type? (resource-type resource)))
 
 (def ^:private known-ext->language
   ;; See known language identifiers:
@@ -522,3 +558,8 @@
   (or (:language (resource-type resource))
       (known-ext->language (ext resource))
       "plaintext"))
+
+(defn resource->text-matches [resource pattern]
+  (when (and (exists? resource)
+             (textual? resource))
+    (text-util/readable->text-matches resource pattern)))

@@ -23,7 +23,6 @@
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.validation :as validation]
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.murmur :as murmur])
@@ -41,9 +40,9 @@
 (defn- animation-instance-desc-pb-msg [resource]
   {:animation (resource/resource->proj-path resource)})
 
-(g/defnk produce-desc-pb-msg [animation-resources]
-  (let [pb {:animations (mapv animation-instance-desc-pb-msg animation-resources)}]
-    pb))
+(g/defnk produce-save-value [animation-resources]
+  (protobuf/make-map-without-defaults Rig$AnimationSetDesc
+    :animations (mapv animation-instance-desc-pb-msg animation-resources)))
 
 (defn- update-animation-info [resource animations-resource info]
   (let [parent-resource (:parent-resource info)
@@ -80,7 +79,7 @@
         data-resolver (ModelUtil/createFileDataResolver project-path)]
 
     (AnimationSetBuilder/buildAnimations is-animation-set paths streams data-resolver parent-ids animation-set-builder animation-ids)
-    (let [animation-set (protobuf/pb->map (.build animation-set-builder))]
+    (let [animation-set (protobuf/pb->map-with-defaults (.build animation-set-builder))]
       {:animation-set animation-set
        :animation-ids (vec animation-ids)})))
 
@@ -147,7 +146,7 @@
   (input animation-infos g/Any :array)
   (output animation-info g/Any :cached produce-animation-info)
 
-  (property animations resource/ResourceVec
+  (property animations resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough animation-resources))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
@@ -166,20 +165,18 @@
             (dynamic visible (g/constantly false)))
 
   (output form-data g/Any :cached produce-form-data)
-
-  (output desc-pb-msg g/Any :cached produce-desc-pb-msg)
-  (output save-value g/Any (gu/passthrough desc-pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output animation-set-info g/Any :cached produce-animation-set-info)
   (output animation-set g/Any produce-animation-set)
   (output animation-ids g/Any produce-animation-ids)
   (output animation-set-build-target g/Any :cached produce-animation-set-build-target))
 
-(defn- load-animation-set [_project self resource pb]
-  (let [proj-path->resource (partial workspace/resolve-resource resource)
-        animation-proj-paths (map :animation (:animations pb))
-        animation-resources (mapv proj-path->resource animation-proj-paths)]
-    (g/set-property self
-                    :animations animation-resources)))
+(defn- load-animation-set [_project self resource animation-set-desc]
+  {:pre [(map? animation-set-desc)]} ; Rig$AnimationSetDesc in map format
+  (let [resolve-resource #(workspace/resolve-resource resource %)
+        animation-instance-descs->animation-resources #(mapv (comp resolve-resource :animation) %)]
+    (gu/set-properties-from-pb-map self Rig$AnimationSetDesc animation-set-desc
+      animations (animation-instance-descs->animation-resources :animations))))
 
 (defn- sanitize-animation-set [animation-set-desc]
   (dissoc animation-set-desc :skeleton)) ; Deprecated field.

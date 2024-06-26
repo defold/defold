@@ -37,10 +37,18 @@
           <entry key="editor.gl/gl-push-matrix" value="-1" />
           <entry key="editor.gl/with-drawable-as-current" value="1" />
           <entry key="editor.gl/with-gl-bindings" value="-1" />
+          <entry key="editor.graph-util/set-properties-from-pb-map" value="-1" />
           <entry key="editor.handler/defhandler" value="-1" />
           <entry key="editor.handler/register-dynamic!" value="-1" />
           <entry key="editor.handler/register-menu!" value="-1" />
           <entry key="editor.lsp.async/with-auto-evaluation-context" value="-1" />
+          <entry key="editor.protobuf/assign" value="1" />
+          <entry key="editor.protobuf/assign-repeated" value="1" />
+          <entry key="editor.protobuf/clear-defaults" value="1" />
+          <entry key="editor.protobuf/inject-defaults" value="1" />
+          <entry key="editor.protobuf/make-map" value="1" />
+          <entry key="editor.protobuf/make-map-with-defaults" value="1" />
+          <entry key="editor.protobuf/make-map-without-defaults" value="1" />
           <entry key="editor.resource-io/with-error-translation" value="-1" />
           <entry key="editor.resource-node/register-ddf-resource-type" value="-1" />
           <entry key="editor.resource-node/register-settings-resource-type" value="-1" />
@@ -71,6 +79,7 @@
           <entry key="integration.test-util/with-temp-dir!" value="-1" />
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />
+          <entry key="util.coll/assoc-in-ex" value="-1" />
           <entry key="util.debug-util/measuring" value="-1" />
           <entry key="util.debug-util/metrics-time" value="-1" />
           <entry key="util.profiler/profile" value="-1" />

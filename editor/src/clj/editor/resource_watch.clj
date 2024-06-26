@@ -15,12 +15,14 @@
 (ns editor.resource-watch
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [editor.settings-core :as settings-core]
+            [dynamo.graph :as g]
             [editor.library :as library]
             [editor.resource :as resource]
+            [editor.settings-core :as settings-core]
             [editor.system :as system]
             [internal.cache :as c]
-            [dynamo.graph :as g])
+            [util.coll :as coll :refer [pair]]
+            [util.fn :as fn])
   (:import [java.io File]
            [java.net URI]))
 
@@ -44,57 +46,70 @@
 (defn- load-library-zip [workspace file]
   (let [base-path (library/library-base-path file)
         zip-resources (resource/load-zip-resources workspace file base-path)
-        game-project-resource (first (filter (fn [resource] (= "game.project" (resource/resource-name resource))) (:tree zip-resources)))]
+        game-project-resource (some (fn [resource]
+                                      (when (= "game.project" (resource/resource-name resource))
+                                        resource))
+                                    (:tree zip-resources))]
     (when game-project-resource
       (let [include-dirs (set (extract-game-project-include-dirs game-project-resource))]
-        (update zip-resources :tree (fn [tree] (filter #(include-dirs (resource-root-dir %)) tree)))))))
+        (update zip-resources :tree (fn [resources]
+                                      (filterv #(include-dirs (resource-root-dir %))
+                                               resources)))))))
 
 (defn- make-library-snapshot [workspace lib-state]
   (let [file ^File (:file lib-state)
         tag (:tag lib-state)
         uri-string (.toString ^URI (:uri lib-state))
         zip-file-version (if-not (str/blank? tag) tag (str (.lastModified file)))
-        {resources :tree crc :crc} (load-library-zip workspace file)
-        flat-resources (resource/resource-list-seq resources)]
+        {resources :tree crc :crc} (load-library-zip workspace file)]
     {:resources resources
      :status-map (into {}
-                       (map (fn [resource]
-                              (let [path (resource/proj-path resource)
-                                    version (str zip-file-version ":" (crc path))]
-                                [path {:version version :source :library :library uri-string}])))
-                       flat-resources)}))
+                       (comp resource/xform-recursive-resources
+                             (map (fn [resource]
+                                    (let [proj-path (resource/proj-path resource)
+                                          version (str zip-file-version ":" (crc proj-path))]
+                                      (pair proj-path
+                                            {:version version
+                                             :source :library
+                                             :library uri-string})))))
+                       resources)}))
 
 (defn- update-library-snapshot-cache
   [library-snapshot-cache workspace lib-states]
-  (reduce (fn [ret {:keys [^File file] :as lib-state}]
-            (if file
-              (let [lib-file-path (.getPath file)
-                    cached-snapshot (get library-snapshot-cache lib-file-path)
-                    mtime (.lastModified file)
-                    snapshot (if (and cached-snapshot (= mtime (-> cached-snapshot meta :mtime)))
-                               cached-snapshot
-                               (with-meta (make-library-snapshot workspace lib-state)
-                                 {:mtime mtime}))]
-                (assoc ret lib-file-path snapshot))
-              ret))
-          {}
-          lib-states))
-
-(defn- make-library-snapshots [library-snapshot-cache lib-states]
-  (into [] (comp
-             (map :file)
-             (filter some?)
-             (map #(.getPath ^File %))
-             (map library-snapshot-cache))
+  (into library-snapshot-cache
+        (keep (fn [lib-state]
+                (when-some [^File file (:file lib-state)]
+                  (let [lib-file-path (.getPath file)
+                        mtime (.lastModified file)
+                        cached-snapshot (get library-snapshot-cache lib-file-path)]
+                    (when (or (nil? cached-snapshot)
+                              (not= mtime (:mtime (meta cached-snapshot))))
+                      (pair lib-file-path
+                            (with-meta (make-library-snapshot workspace lib-state)
+                                       {:mtime mtime})))))))
         lib-states))
 
-(defn- make-builtins-snapshot [workspace]
+(defn- make-library-snapshots [library-snapshot-cache lib-states]
+  (into []
+        (comp (keep :file)
+              (map #(.getPath ^File %))
+              (map library-snapshot-cache))
+        lib-states))
+
+(defn- make-builtins-snapshot-raw [workspace]
   (let [unpack-path (system/defold-unpack-path)
         builtins-zip-file (io/file unpack-path "builtins" "builtins.zip")
-        resources (:tree (resource/load-zip-resources workspace builtins-zip-file))
-        flat-resources (resource/resource-list-seq resources)]
+        resources (:tree (resource/load-zip-resources workspace builtins-zip-file))]
     {:resources resources
-     :status-map (into {} (map (juxt resource/proj-path (constantly {:version :constant :source :builtins}))) flat-resources)}))
+     :status-map (into {}
+                       (comp resource/xform-recursive-resources
+                             (map (fn [resource]
+                                    (pair (resource/proj-path resource)
+                                          {:version :constant
+                                           :source :builtins}))))
+                       resources)}))
+
+(def make-builtins-snapshot (fn/memoize make-builtins-snapshot-raw))
 
 (def reserved-proj-paths #{"/builtins" "/build" "/.internal" "/.git"})
 
@@ -120,13 +135,14 @@
                         (.listFiles file))]
      (resource/make-file-resource workspace (.getPath root) file children editable-proj-path?))))
 
-(defn- file-resource-status [r]
-  (assert (resource/file-resource? r))
-  {:version (str (.lastModified ^File (io/file r))) :source :directory})
+(defn- file-resource-status [resource]
+  (assert (resource/file-resource? resource))
+  {:version (str (.lastModified ^File (io/file resource)))
+   :source :directory})
 
-(defn file-resource-status-map-entry [r]
-  [(resource/proj-path r)
-   (file-resource-status r)])
+(defn file-resource-status-map-entry [resource]
+  (pair (resource/proj-path resource)
+        (file-resource-status resource)))
 
 (defn file-resource-status-map-entry? [[proj-path {:keys [version source]}]]
   (and (string? proj-path)
@@ -140,18 +156,17 @@
 
 (defn- make-directory-snapshot [workspace ^File root]
   (assert (and root (.isDirectory root)))
-  (let [resources (resource/children (make-file-tree workspace root))
-        flat-resources (resource/resource-list-seq resources)]
+  (let [resources (resource/children (make-file-tree workspace root))]
     {:resources resources
-     :status-map (into {} (map file-resource-status-map-entry) flat-resources)}))
+     :status-map (into {}
+                       (comp resource/xform-recursive-resources
+                             (map file-resource-status-map-entry))
+                       resources)}))
 
-(defn- resource-paths [snapshot]
-  (set (keys (:status-map snapshot))))
-
-(defn empty-snapshot []
-  {:resources nil
-   :status-map nil
-   :errors nil})
+(def empty-snapshot
+  {:resources []
+   :status-map {}
+   :errors []})
 
 (defn map-intersection
   "Given 2 maps, return a vector of keys present in both maps"
@@ -167,14 +182,14 @@
 
 (defn- combine-snapshots [snapshots]
   (reduce
-   (fn [result snapshot]
-     (if-let [collisions (not-empty (map-intersection (:status-map result) (:status-map snapshot)))]
-       (update result :errors conj {:type :collision :collisions (select-keys (:status-map snapshot) collisions)})
-       (-> result
-           (update :resources concat (:resources snapshot))
-           (update :status-map merge (:status-map snapshot)))))
-   (empty-snapshot)
-   snapshots))
+    (fn [result snapshot]
+      (if-let [collisions (not-empty (map-intersection (:status-map result) (:status-map snapshot)))]
+        (update result :errors conj {:type :collision :collisions (select-keys (:status-map snapshot) collisions)})
+        (-> result
+            (update :resources into (:resources snapshot))
+            (update :status-map merge (:status-map snapshot)))))
+    empty-snapshot
+    snapshots))
 
 (defn- make-debugger-snapshot
   [workspace]
@@ -185,10 +200,12 @@
                     (system/defold-unpack-path))
         root (io/file base-path "_defold/debugger")
         mount-root (io/file base-path)
-        resources (resource/children (make-file-tree workspace mount-root root (constantly false)))
-        flat-resources (resource/resource-list-seq resources)]
+        resources (resource/children (make-file-tree workspace mount-root root fn/constantly-false))]
     {:resources resources
-     :status-map (into {} (map file-resource-status-map-entry) flat-resources)}))
+     :status-map (into {}
+                       (comp resource/xform-recursive-resources
+                             (map file-resource-status-map-entry))
+                       resources)}))
 
 (defn update-snapshot-status [snapshot file-resource-status-map-entries]
   (assert (every? file-resource-status-map-entry? file-resource-status-map-entries))
@@ -205,7 +222,10 @@
        :snapshot-cache new-library-snapshot-cache})))
 
 (defn make-resource-map [snapshot]
-  (into {} (map (juxt resource/proj-path identity)) (resource/resource-list-seq (:resources snapshot))))
+  (into {}
+        (comp resource/xform-recursive-resources
+              (coll/pair-map-by resource/proj-path))
+        (:resources snapshot)))
 
 (defn- resource-status [snapshot path]
   (get-in snapshot [:status-map path]))

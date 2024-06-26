@@ -27,7 +27,7 @@
             [editor.ui :as ui]
             [editor.ui.fuzzy-combo-box :as fuzzy-combo-box]
             [editor.workspace :as workspace]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.id-vec :as iv]
             [util.profiler :as profiler])
   (:import [editor.properties Curve CurveSpread]
@@ -97,6 +97,27 @@
     (ui/auto-commit! update-fn)
     (select-all-on-click!)))
 
+(defn- old-num->parse-num-fn [old-num]
+  {:pre [(or (number? old-num) (nil? old-num))]}
+  (if (math/float32? old-num)
+    field-expression/to-float
+    field-expression/to-double))
+
+(defn- coalesced-property->any-value [{:keys [values] :as coalesced-property}]
+  {:pre [(vector? values)]}
+  (or (first values)
+      (first (:original-values coalesced-property))))
+
+(defn- coalesced-property->old-num [coalesced-property]
+  (let [old-value (coalesced-property->any-value coalesced-property)]
+    (if (number? old-value)
+      old-value
+      (old-value 0))))
+
+(defn- parse-num [^String text old-num]
+  (let [parse-num-fn (old-num->parse-num-fn old-num)]
+    (parse-num-fn text)))
+
 (defmulti create-property-control! (fn [edit-type _ property-fn]
                                      (edit-type->type edit-type)))
 
@@ -122,15 +143,18 @@
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Num [_ _ property-fn]
-  (let [text         (TextField.)
-        update-ui-fn (partial update-text-fn text field-expression/format-number)
-        update-fn    (fn [_] (if-let [v (field-expression/to-double (.getText text))]
-                               (properties/set-values! (property-fn) (repeat v))
-                               (update-ui-fn (properties/values (property-fn))
-                                             (properties/validation-message (property-fn))
-                                             (properties/read-only? (property-fn)))))]
-    (customize! text update-fn)
-    [text update-ui-fn]))
+  (let [text-field (TextField.)
+        update-ui-fn (partial update-text-fn text-field field-expression/format-number)
+        update-fn (fn update-fn [_]
+                    (let [property (property-fn)
+                          old-num (coalesced-property->old-num property)]
+                      (if-let [num (parse-num (.getText text-field) old-num)]
+                        (properties/set-values! property (repeat num))
+                        (update-ui-fn (properties/values property)
+                                      (properties/validation-message property)
+                                      (properties/read-only? property)))))]
+    (customize! text-field update-fn)
+    [text-field update-ui-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]
   (let [check (CheckBox.)
@@ -155,127 +179,174 @@
                         ctrls))
     box))
 
-(defn- create-multi-textfield! [labels property-fn]
-  (let [text-fields  (mapv (fn [_] (TextField.)) labels)
-        box          (doto (GridPane.)
-                       (.setHgap grid-hgap))
-        get-fns (map-indexed (fn [i _] #(nth % i)) text-fields)
+(defn- create-multi-text-field! [labels property-fn]
+  (let [text-fields (mapv (fn [_] (TextField.)) labels)
+        box (doto (GridPane.)
+              (.setHgap grid-hgap))
+        get-fns (mapv (fn [index]
+                        #(nth % index))
+                      (range (count text-fields)))
         update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-number get-fns)]
-    (doseq [[t f] (map-indexed (fn [i t]
-                                 [t (fn [_]
-                                      (let [v            (field-expression/to-double (.getText ^TextField t))
-                                            current-vals (properties/values (property-fn))]
-                                        (if v
-                                          (properties/set-values! (property-fn) (mapv #(assoc (vec %) i v) current-vals))
-                                          (update-ui-fn current-vals (properties/validation-message (property-fn))
-                                                        (properties/read-only? (property-fn))))))])
-                               text-fields)]
-      (customize! t f))
-    (doall (map-indexed (fn [idx [^TextField t label]]
-                          (let [children (cond-> []
-                                           (seq label) (conj (doto (Label. label)
-                                                               (.setMinWidth Region/USE_PREF_SIZE)))
-                                           true (conj t))
-                                comp (doto (create-grid-pane children)
-                                       (GridPane/setConstraints idx 0)
-                                       (GridPane/setHgrow Priority/ALWAYS))]
-                            (ui/add-child! box comp)))
-             (map vector text-fields labels)))
+    (dorun
+      (map
+        (fn [index ^TextField text-field ^String label-text]
+          (let [children (if (seq label-text)
+                           [(doto (Label. label-text)
+                              (.setMinWidth Region/USE_PREF_SIZE))
+                            text-field]
+                           [text-field])
+                comp (doto (create-grid-pane children)
+                       (GridPane/setConstraints index 0)
+                       (GridPane/setHgrow Priority/ALWAYS))
+                update-fn (fn update-fn [_]
+                            (let [property (property-fn)
+                                  current-vals (properties/values property)
+                                  old-num (ffirst current-vals)
+                                  num (parse-num (.getText text-field) old-num)]
+                              (if num
+                                (properties/set-values! property (mapv #(assoc % index num) current-vals))
+                                (update-ui-fn current-vals
+                                              (properties/validation-message property)
+                                              (properties/read-only? property)))))]
+            (customize! text-field update-fn)
+            (ui/add-child! box comp)))
+        (range)
+        text-fields
+        labels))
     [box update-ui-fn]))
 
 (defmethod create-property-control! types/Vec2 [edit-type _ property-fn]
   (let [{:keys [labels]
          :or {labels ["X" "Y"]}} edit-type]
-    (create-multi-textfield! labels property-fn)))
+    (create-multi-text-field! labels property-fn)))
 
 (defmethod create-property-control! types/Vec3 [edit-type _ property-fn]
   (let [{:keys [labels]
          :or {labels ["X" "Y" "Z"]}} edit-type]
-    (create-multi-textfield! labels property-fn)))
+    (create-multi-text-field! labels property-fn)))
 
 (defmethod create-property-control! types/Vec4 [edit-type _ property-fn]
   (let [{:keys [labels]
          :or {labels ["X" "Y" "Z" "W"]}} edit-type]
-    (create-multi-textfield! labels property-fn)))
+    (create-multi-text-field! labels property-fn)))
 
-(defn- create-multi-keyed-textfield! [fields property-fn]
-  (let [text-fields  (mapv (fn [_] (TextField.)) fields)
-        box          (doto (GridPane.)
-                       (.setPrefWidth Double/MAX_VALUE))
-        get-fns (map (fn [f] (or (:get-fn f) #(get-in % (:path f)))) fields)
+(defn- create-multi-keyed-text-field! [fields property-fn]
+  (let [text-fields (mapv (fn [_] (TextField.)) fields)
+        box (doto (GridPane.)
+              (.setPrefWidth Double/MAX_VALUE))
+        get-fns (mapv (fn [f] (or (:get-fn f) #(get-in % (:path f)))) fields)
         update-ui-fn (partial update-multi-text-fn text-fields field-expression/format-number get-fns)]
-    (doseq [[t f] (map (fn [f t]
-                         (let [set-fn (or (:set-fn f)
-                                          (fn [e v] (assoc-in e (:path f) v)))]
-                           [t (fn [_]
-                                (let [v            (field-expression/to-double (.getText ^TextField t))
-                                      current-vals (properties/values (property-fn))]
-                                  (if v
-                                    (properties/set-values! (property-fn) (mapv #(set-fn % v) current-vals))
-                                    (update-ui-fn current-vals (properties/validation-message (property-fn))
-                                                  (properties/read-only? (property-fn))))))]))
-                       fields text-fields)]
-      (customize! t f))
-    (doall (map-indexed (fn [idx [^TextField t f]]
-                          (let [children (cond-> []
-                                           (:label f)   (conj (doto (Label. (:label f))
-                                                                (.setMinWidth Region/USE_PREF_SIZE)))
-                                           (:control f) (conj (doto ^Control (:control f)
-                                                                (.setMinWidth Region/USE_PREF_SIZE)))
-                                           true         (conj t))
-                                ^GridPane comp (doto (create-grid-pane children)
-                                                 (GridPane/setConstraints idx 0)
-                                                 (GridPane/setHgrow Priority/ALWAYS))]
-                            (ui/add-child! box comp)))
-             (map vector text-fields fields)))
+    (dorun
+      (map
+        (fn [index ^TextField text-field field get-fn]
+          (let [^String label-text (:label field)
+                ^Control control (:control field)
+                children (cond-> []
+
+                                 label-text
+                                 (conj (doto (Label. label-text)
+                                         (.setMinWidth Region/USE_PREF_SIZE)))
+
+                                 control
+                                 (conj (doto control
+                                         (.setMinWidth Region/USE_PREF_SIZE)))
+
+                                 :always
+                                 (conj text-field))
+                comp (doto (create-grid-pane children)
+                       (GridPane/setConstraints index 0)
+                       (GridPane/setHgrow Priority/ALWAYS))
+                set-fn (or (:set-fn field)
+                           (let [path (:path field)]
+                             (fn [e v]
+                               (assoc-in e path v))))
+                update-fn (fn update-fn [_]
+                            (let [property (property-fn)
+                                  current-vals (properties/values property)
+                                  old-num (get-fn (first current-vals))
+                                  num (parse-num (.getText text-field) old-num)]
+                              (if num
+                                (properties/set-values! property (mapv #(set-fn % num) current-vals))
+                                (update-ui-fn current-vals (properties/validation-message property)
+                                              (properties/read-only? property)))))]
+            (customize! text-field update-fn)
+            (ui/add-child! box comp)))
+        (range)
+        text-fields
+        fields
+        get-fns))
     [box update-ui-fn]))
 
 (def ^:private ^:dynamic *programmatic-setting* nil)
 
-(defn- make-curve-toggler ^ToggleButton [property-fn]
+(defn- make-curve-toggler
+  ^ToggleButton [property-fn]
   (let [^ToggleButton toggle-button (doto (ToggleButton. nil (jfx/get-image-view "icons/32/Icons_X_03_Bezier.png" 12.0))
                                       (ui/add-styles! ["embedded-properties-button"]))]
     (doto toggle-button
       (ui/on-action! (fn [_]
-                       (let [selected (.isSelected toggle-button)
+                       (let [property (property-fn)
+                             selected (.isSelected toggle-button)
                              vals (mapv (fn [curve] (let [v (-> curve
-                                                              properties/curve-vals
-                                                              first)]
+                                                                properties/curve-vals
+                                                                first)]
                                                       (assoc curve :points (iv/iv-vec (cond-> [v]
-                                                                                        selected
-                                                                                        (conj (assoc v 0 1.0)))))))
-                                        (properties/values (property-fn)))]
-                         (properties/set-values! (property-fn) vals)))))))
+                                                                                              selected
+                                                                                              (conj (update v 0 #(if (math/float32? %) (float 1.0) 1.0))))))))
+                                        (properties/values property))]
+                         (properties/set-values! property vals)))))))
+
+(defn- make-control-points [curve num]
+  (let [old-points (properties/curve-vals curve)
+        old-point (first old-points)
+        old-num (second old-point)
+        is-float (math/float32? old-num)
+        zero (if is-float (float 0.0) 0.0)
+        one (if is-float (float 1.0) 1.0)]
+    (conj (empty old-points)
+          (-> (empty old-point)
+              (conj zero)
+              (conj (cond-> num is-float float))
+              (conj one)
+              (conj zero)))))
+
+(defn- curve-get-fn [curve]
+  (second (first (properties/curve-vals curve))))
+
+(defn- curve-set-fn [curve num]
+  (properties/->curve (make-control-points curve num)))
+
+(defn- curve-spread-set-fn [curve-spread num]
+  (properties/->curve-spread (make-control-points curve-spread num)
+                             (:spread curve-spread)))
+
+(defn- make-curve-update-ui-fn [^ToggleButton editor-toggle-button ^TextField value-text-field update-ui-fn]
+  (fn curve-update-ui-fn [values message is-read-only]
+    (update-ui-fn values message is-read-only)
+    (let [is-curved (< 1 (properties/curve-point-count (first values)))]
+      (.setSelected editor-toggle-button is-curved)
+      (ui/editable! editor-toggle-button (some? (first values)))
+      (ui/disable! value-text-field is-curved))))
 
 (defmethod create-property-control! CurveSpread [_ _ property-fn]
-  (let [^ToggleButton toggle-button (make-curve-toggler property-fn)
-        fields [{:get-fn (fn [c] (second (first (properties/curve-vals c))))
-                 :set-fn (fn [c v] (properties/->curve-spread [[0.0 v 1.0 0.0]] (:spread c)))
-                 :control toggle-button}
+  (let [^ToggleButton editor-toggle-button (make-curve-toggler property-fn)
+        fields [{:get-fn curve-get-fn
+                 :set-fn curve-spread-set-fn
+                 :control editor-toggle-button}
                 {:label "+/-" :path [:spread]}]
-        [^HBox box update-ui-fn] (create-multi-keyed-textfield! fields property-fn)
-        ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
-        update-ui-fn (fn [values message read-only?]
-                       (update-ui-fn values message read-only?)
-                       (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
-                         (.setSelected toggle-button curved?)
-                         (ui/editable! toggle-button (some? (first values)))
-                         (ui/disable! text-field curved?)))]
+        [^HBox box update-ui-fn] (create-multi-keyed-text-field! fields property-fn)
+        ^TextField value-text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
+        update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
     [box update-ui-fn]))
 
 (defmethod create-property-control! Curve [_ _ property-fn]
-  (let [^ToggleButton toggle-button (make-curve-toggler property-fn)
-        fields [{:get-fn (fn [c] (second (first (properties/curve-vals c))))
-                 :set-fn (fn [c v] (properties/->curve [[0.0 v 1.0 0.0]]))
-                 :control toggle-button}]
-        [^HBox box update-ui-fn] (create-multi-keyed-textfield! fields property-fn)
-          ^TextField text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
-          update-ui-fn (fn [values message read-only?]
-                         (update-ui-fn values message read-only?)
-                         (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
-                           (.setSelected toggle-button curved?)
-                           (ui/editable! toggle-button (some? (first values)))
-                           (ui/disable! text-field curved?)))]
+  (let [^ToggleButton editor-toggle-button (make-curve-toggler property-fn)
+        fields [{:get-fn curve-get-fn
+                 :set-fn curve-set-fn
+                 :control editor-toggle-button}]
+        [^HBox box update-ui-fn] (create-multi-keyed-text-field! fields property-fn)
+        ^TextField value-text-field (some #(and (instance? TextField %) %) (.getChildren ^HBox (first (.getChildren box))))
+        update-ui-fn (make-curve-update-ui-fn editor-toggle-button value-text-field update-ui-fn)]
     [box update-ui-fn]))
 
 (defmethod create-property-control! types/Color [edit-type _ property-fn]
@@ -290,17 +361,26 @@
                         (update-field-message [color-picker] message)
                         (ui/editable! color-picker (not read-only?)))]
 
-    (ui/on-action! color-picker (fn [_] (let [^Color c (.getValue color-picker)
-                                              v        [(math/round-with-precision (.getRed c) 0.001)
-                                                        (math/round-with-precision (.getGreen c) 0.001)
-                                                        (math/round-with-precision (.getBlue c) 0.001)
-                                                        (math/round-with-precision (.getOpacity c) 0.001)]
-                                              values (if (:ignore-alpha? edit-type)
-                                                       (mapv #(assoc %1 3 %2)
-                                                             (repeat v)
-                                                             (map last (properties/values (property-fn))))
-                                                       (repeat v))]
-                                          (properties/set-values! (property-fn) values))))
+    (ui/on-action!
+      color-picker
+      (fn [_]
+        (let [property (property-fn)
+              old-value (coalesced-property->any-value property)
+              num-fn (if (math/float32? (first old-value))
+                       properties/round-scalar-coarse-float
+                       properties/round-scalar-coarse)
+              ^Color c (.getValue color-picker)
+              new-value (-> (coll/empty-with-meta old-value)
+                            (conj (num-fn (.getRed c)))
+                            (conj (num-fn (.getGreen c)))
+                            (conj (num-fn (.getBlue c)))
+                            (conj (num-fn (.getOpacity c))))
+              values (if (:ignore-alpha? edit-type)
+                       (let [old-values (properties/values property)
+                             old-alphas (map #(nth % 3) old-values)]
+                         (mapv #(assoc new-value 3 %) old-alphas))
+                       (repeat new-value))]
+          (properties/set-values! property values))))
     [color-picker update-ui-fn]))
 
 (defmethod create-property-control! :choicebox [{:keys [options]} _ property-fn]
@@ -369,7 +449,7 @@
 (defmethod create-property-control! :slider [edit-type context property-fn]
   (let [box (doto (GridPane.)
               (.setHgap grid-hgap))
-        [^TextField textfield tf-update-ui-fn] (create-property-control! {:type g/Num} context property-fn)
+        [^TextField text-field tf-update-ui-fn] (create-property-control! {:type g/Num} context property-fn)
         min (:min edit-type 0.0)
         max (:max edit-type 1.0)
         val (:value edit-type max)
@@ -385,16 +465,23 @@
                            (.setDisable slider true))
                          (update-field-message [slider] message)
                          (ui/editable! slider (not read-only?))))]
-    (.setPrefColumnCount textfield (if precision (count (str precision)) 5))
+    (.setPrefColumnCount text-field (if precision (count (str precision)) 5))
     (.addEventFilter slider MouseEvent/MOUSE_PRESSED (ui/event-handler event (ui/user-data! slider ::op-seq (gensym))))
-    (ui/observe (.valueProperty slider) (fn [observable old-val new-val]
-                                          (when-not *programmatic-setting*
-                                            (let [val (if precision
-                                                        (math/round-with-precision new-val precision)
-                                                        new-val)]
-                                              (properties/set-values! (property-fn) (repeat val) (ui/user-data slider ::op-seq))))))
-    (ui/children! box [textfield slider])
-    (GridPane/setConstraints textfield 0 0)
+    (ui/observe
+      (.valueProperty slider)
+      (fn [_observable _old-val new-val]
+        (when-not *programmatic-setting*
+          (let [property (property-fn)
+                val (if precision
+                      (math/round-with-precision new-val precision)
+                      new-val)
+                old-num (coalesced-property->old-num property)
+                num (if (math/float32? old-num)
+                      (float val)
+                      val)]
+            (properties/set-values! property (repeat num) (ui/user-data slider ::op-seq))))))
+    (ui/children! box [text-field slider])
+    (GridPane/setConstraints text-field 0 0)
     (GridPane/setConstraints slider 1 0)
     (.. box getColumnConstraints (add (doto (ColumnConstraints.)
                                         (.setPercentWidth 20))))
