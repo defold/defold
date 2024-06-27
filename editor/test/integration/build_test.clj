@@ -70,7 +70,7 @@
       (throw (ex-info (str "No target-pb-classes entry for extension \"" ext "\", path \"" path "\".")
                       {:ext ext
                        :path path})))
-    (protobuf/bytes->map pb-class (get targets path))))
+    (protobuf/bytes->map-with-defaults pb-class (get targets path))))
 
 (defn- approx? [as bs]
   (every? #(< % 0.00001)
@@ -129,7 +129,7 @@
                 :test-fn (fn [pb targets]
                            (is (= {:color [1.0 1.0 1.0 1.0],
                                    :line-break false,
-                                   :scale [0.0 0.0 0.0 0.0], ; Default from legacy field added by editor.protobuf/field-desc-default. Not in actual Label$LabelDesc.
+                                   :scale [1.0 1.0 1.0 1.0], ; Default from legacy field added by editor.protobuf/field-desc-default. Not in actual Label$LabelDesc.
                                    :blend-mode :blend-mode-alpha,
                                    :leading 1.0,
                                    :font "/builtins/fonts/default.fontc",
@@ -207,7 +207,7 @@
 (defn- run-pb-case [case content-by-source content-by-target]
   (testing (str "Testing " (:label case))
            (let [pb         (some->> (get content-by-source (:path case))
-                              (protobuf/bytes->map (:pb-class case)))
+                                     (protobuf/bytes->map-with-defaults (:pb-class case)))
                  test-fn    (:test-fn case)
                  res-fields [:sound]]
              (when test-fn
@@ -330,8 +330,8 @@
                                                 (when (or (= "t.texturesetc" (resource/ext resource)) (= "a.texturesetc" (resource/ext resource)))
                                                   [(resource/proj-path resource)
                                                    (:texture
-                                                     (protobuf/bytes->map TextureSetProto$TextureSet
-                                                                          (content-bytes artifact)))])))
+                                                     (protobuf/bytes->map-with-defaults TextureSetProto$TextureSet
+                                                                                        (content-bytes artifact)))])))
                                         build-artifacts)]
 
       (is (= 16 (count textures-by-texture-set)))
@@ -398,11 +398,11 @@
   (testing "Verify raw sound components (.wav or .ogg) are converted to embedded sounds (.sound)"
     (with-build-results "/main/raw_sound.go"
       (let [content    (get content-by-source path)
-            desc       (protobuf/bytes->map GameObject$PrototypeDesc content)
+            desc       (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc content)
             sound-path (get-in desc [:components 0 :component])
             ext        (FilenameUtils/getExtension sound-path)]
         (is (= ext "soundc"))
-        (let [sound-desc (protobuf/bytes->map Sound$SoundDesc (content-by-target sound-path))]
+        (let [sound-desc (protobuf/bytes->map-with-defaults Sound$SoundDesc (content-by-target sound-path))]
           (is (contains? content-by-target (:sound sound-desc))))))))
 
 (defn- first-source [node label]
@@ -480,19 +480,19 @@
   (testing "Building TTF font"
     (with-build-results "/fonts/score.font"
       (let [content (get content-by-source "/fonts/score.font")
-            desc (protobuf/bytes->map Font$FontMap content)
+            desc (protobuf/bytes->map-with-defaults Font$FontMap content)
             glyph-bank-build-path (workspace/build-path workspace (:glyph-bank desc))
             glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
-            glyph-bank (protobuf/bytes->map Font$GlyphBank glyph-bank-bytes)]
+            glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
         (is (= 1024 (:cache-width glyph-bank)))
         (is (= 256 (:cache-height glyph-bank))))))
   (testing "Building BMFont"
     (with-build-results "/fonts/gradient.font"
       (let [content (get content-by-source "/fonts/gradient.font")
-            desc (protobuf/bytes->map Font$FontMap content)
+            desc (protobuf/bytes->map-with-defaults Font$FontMap content)
             glyph-bank-build-path (workspace/build-path workspace (:glyph-bank desc))
             glyph-bank-bytes (content-bytes {:resource glyph-bank-build-path})
-            glyph-bank (protobuf/bytes->map Font$GlyphBank glyph-bank-bytes)]
+            glyph-bank (protobuf/bytes->map-with-defaults Font$GlyphBank glyph-bank-bytes)]
         (is (= 1024 (:cache-width glyph-bank)))
         (is (= 512 (:cache-height glyph-bank)))))))
 
@@ -515,7 +515,7 @@
                                      ["/script/props.go" GameObject$PrototypeDesc [:components 0 :property-decls]]
                                      ["/script/props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
-            desc (protobuf/bytes->map pb content)
+            desc (protobuf/bytes->map-with-defaults pb content)
             decl (get-in desc decl-path)]
         (is (not-empty (:number-entries decl)))
         (is (not-empty (:hash-entries decl)))
@@ -528,11 +528,11 @@
         (is (not-empty (:hash-values decl)))
         (is (not-empty (:string-values decl)))))
     (let [collection-content (get content-by-source "/script/props.collection")
-          collection-desc (protobuf/bytes->map GameObject$CollectionDesc collection-content)
+          collection-desc (protobuf/bytes->map-with-defaults GameObject$CollectionDesc collection-content)
           instance-map (into {} (map (juxt :id identity) (:instances collection-desc)))
           embedded-props-target (:prototype (instance-map "/embedded_props"))
           embedded-content (content-by-target embedded-props-target)
-          embedded-desc (protobuf/bytes->map GameObject$PrototypeDesc embedded-content)
+          embedded-desc (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc embedded-content)
           decl (get-in embedded-desc [:components 0 :property-decls])]
       (is (not-empty (:number-entries decl)))
       (is (not-empty (:hash-entries decl)))
@@ -547,7 +547,7 @@
   (with-build-results "/script/sub_props.collection"
     (doseq [[res-path pb decl-path] [["/script/sub_props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
-            desc (protobuf/bytes->map pb content)
+            desc (protobuf/bytes->map-with-defaults pb content)
             decl (get-in desc decl-path)]
         (is (not-empty (:number-entries decl)))
         (is (not-empty (:hash-entries decl)))
@@ -564,7 +564,7 @@
   (with-build-results "/script/sub_sub_props.collection"
     (doseq [[res-path pb decl-path] [["/script/sub_sub_props.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls]]]]
       (let [content (get content-by-source res-path)
-            desc (protobuf/bytes->map pb content)
+            desc (protobuf/bytes->map-with-defaults pb content)
             decl (get-in desc decl-path)]
         (is (not-empty (:number-entries decl)))
         (is (not-empty (:hash-entries decl)))
@@ -582,7 +582,7 @@
 (deftest build-script-properties-override-values
   (with-build-results "/script/override.collection"
     (are [path pb-class val-path expected] (let [content (get content-by-source path)
-                                                 desc (protobuf/bytes->map pb-class content)
+                                                 desc (protobuf/bytes->map-with-defaults pb-class content)
                                                  float-values (get-in desc val-path)]
                                              (= [expected] float-values))
       "/script/override.script"      Lua$LuaModule             [:properties :float-values] 1.0
@@ -590,7 +590,7 @@
       "/script/override.collection"  GameObject$CollectionDesc [:instances 0 :component-properties 0 :property-decls :float-values] 3.0))
   (with-build-results "/script/override_parent.collection"
     (are [path pb-class val-path expected] (let [content (get content-by-source path)
-                                                 desc (protobuf/bytes->map pb-class content)
+                                                 desc (protobuf/bytes->map-with-defaults pb-class content)
                                                  float-values (get-in desc val-path)]
                                              (= [expected] float-values))
       "/script/override_parent.collection" GameObject$CollectionDesc [:instances 1 :component-properties 0 :property-decls :float-values] 4.0)))
@@ -604,13 +604,13 @@
           content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (content-bytes %)]) build-artifacts))
           content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)]) build-artifacts))
           content           (get content-by-source path)
-          desc              (protobuf/pb->map (Gui$SceneDesc/parseFrom content))]
+          desc              (protobuf/pb->map-with-defaults (Gui$SceneDesc/parseFrom content))]
       (is (= ["box" "pie" "sub_scene/sub_box" "box1" "text"] (mapv :id (:nodes desc))))
       (let [sub (get-in desc [:nodes 2])]
         (is (= "layer" (:layer sub)))
         (is (= 0.5 (:alpha sub)))
         (is (= [1.0 1.0 1.0 1.0] (:scale sub)))
-        (is (= [0.0 0.0 0.0 1.0] (:rotation sub)))
+        (is (= [0.0 0.0 0.0 0.0] (:rotation sub)))
         (is (= [1100.0 640.0 0.0 1.0] (:position sub))))
       (is (contains? content-by-source "/graphics/atlas.atlas"))
       (is (contains? content-by-source "/fonts/big_score.font"))

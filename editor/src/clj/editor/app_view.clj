@@ -44,6 +44,7 @@
             [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.game-project :as game-project]
+            [editor.git :as git]
             [editor.github :as github]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
@@ -54,9 +55,7 @@
             [editor.live-update-settings :as live-update-settings]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
-            [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
-            [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.process :as process]
@@ -231,7 +230,7 @@
         (.removeAll (.getTabs tab-pane) closed-tabs)))))
 
 (defn- tab-title
-  ^String [resource is-dirty]
+  ^String [resource dirty]
   ;; Lone underscores are treated as mnemonic letter signifiers in the overflow
   ;; dropdown menu, and we cannot disable mnemonic parsing for it since the
   ;; control is internal. We also cannot replace them with double underscores to
@@ -242,7 +241,7 @@
   ;; underscores with the a unicode character that looks somewhat similar.
   (let [resource-name (resource/resource-name resource)
         escaped-resource-name (string/replace resource-name "_" "\u02CD")]
-    (if is-dirty
+    (if dirty
       (str "*" escaped-resource-name)
       escaped-resource-name)))
 
@@ -389,8 +388,8 @@
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (ui/user-data tab ::view)
                                                             resource (:resource (get open-views view))
-                                                            is-dirty (contains? open-dirty-views view)
-                                                            title (tab-title resource is-dirty)]]
+                                                            dirty (contains? open-dirty-views view)
+                                                            title (tab-title resource dirty)]]
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk [keymap-config]
                                  (keymap/make-keymap keymap-config {:valid-command? (set (handler/available-commands))})))
@@ -949,9 +948,11 @@
     :build-engine        optional flag that indicates whether the engine should
                          be built in addition to the project
     :lint                optional flag that indicates whether to run LSP lints
-                         and present the diagnostics alongside the build errors
-    :prefs               required if :build-engine is true, preferences for
-                         engine building, e.g. the build server settings
+                         and present the diagnostics alongside the build errors,
+                         defaults to the value of \"general-lint-on-build\" pref
+                         (true if not set)
+    :prefs               required, preferences for linting and engine building,
+                         e.g. the build server settings
     :debug               optional flag that indicates whether to also build
                          debugging tools
     :run-build-hooks     optional flag that indicates whether to run pre- and
@@ -961,19 +962,20 @@
                          to speed up the build process"
   [project & {:keys [;; required
                      result-fn
-                     ;; required if :build-engine is true (which is a default)
                      prefs
                      ;; optional
                      debug build-engine run-build-hooks render-progress! old-artifact-map lint]
               :or {debug false
                    build-engine true
                    run-build-hooks true
-                   lint true
                    render-progress! progress/null-render-progress!
                    old-artifact-map {}}}]
   {:pre [(ifn? result-fn)
          (or (not build-engine) (some? prefs))]}
-  (let [;; After any pre-build hooks have completed successfully, we will start
+  (let [lint (if (nil? lint)
+               (prefs/get-prefs prefs "general-lint-on-build" true)
+               lint)
+        ;; After any pre-build hooks have completed successfully, we will start
         ;; the engine build on a separate background thread so the build servers
         ;; can work while we build the project. We will await the results of the
         ;; engine build in the final phase.
@@ -1136,6 +1138,7 @@
                   (build-project! project evaluation-context extra-build-targets old-artifact-map render-progress!)))
               (fn process-project-build-results-on-ui-thread! [project-build-results]
                 (project/update-system-cache-build-targets! evaluation-context)
+                (project/log-cache-info! (g/cache) "Cached compiled build targets in system cache.")
                 (cond
                   run-build-hooks (phase-4-run-post-build-hook! project-build-results)
                   (nil? (:error project-build-results)) (phase-5-await-engine-build! project-build-results)
@@ -1259,6 +1262,7 @@ If you do not specifically require different script states, consider changing th
                 :lint false
                 :render-progress! (make-render-task-progress :build)
                 :old-artifact-map (workspace/artifact-map workspace)
+                :prefs prefs
                 :result-fn (fn [build-results]
                              (when (handle-build-results! workspace render-build-error! build-results)
                                (let [target (targets/selected-target prefs)]
@@ -1365,6 +1369,7 @@ If you do not specifically require different script states, consider changing th
                   :lint false
                   :render-progress! (make-render-task-progress :build)
                   :old-artifact-map (workspace/artifact-map workspace)
+                  :prefs prefs
                   :result-fn (fn [{:keys [error artifact-map etags]}]
                                (if (some? error)
                                  (render-build-error! error)
@@ -1593,6 +1598,9 @@ If you do not specifically require different script states, consider changing th
                {:label "Save All"
                 :id ::save-all
                 :command :save-all}
+               {:label "Upgrade File Formats..."
+                :id ::save-and-upgrade-all
+                :command :save-and-upgrade-all}
                {:label :separator}
                {:label "Open Assets..."
                 :command :open-asset}
@@ -1955,7 +1963,7 @@ If you do not specifically require different script states, consider changing th
       (concat
         (view/connect-resource-node view resource-node)
         (g/connect view :view-data app-view :open-views)
-        (g/connect view :view-dirty? app-view :open-dirty-views)))
+        (g/connect view :view-dirty app-view :open-dirty-views)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)
     (.setGraphic tab (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))
@@ -1995,11 +2003,9 @@ If you do not specifically require different script states, consider changing th
                                             {})))
          text-view-type (workspace/get-view-type workspace :text)
          view-type      (or (:selected-view-type opts)
-                            (if (nil? resource-type)
-                              (placeholder-resource/view-type workspace)
-                              (first (:view-types resource-type)))
+                            (first (:view-types resource-type))
                             text-view-type)]
-     (if (resource-node/defective? resource-node)
+     (if (g/defective? resource-node)
        (do (dialogs/make-info-dialog
              {:title "Unable to Open Resource"
               :icon :icon/triangle-error
@@ -2025,7 +2031,7 @@ If you do not specifically require different script states, consider changing th
                  tab-panes (.getItems editor-tabs-split)
                  open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
                  view-type (if (and (= :code (:id view-type))
-                                    (not (g/node-value resource-node :editable)))
+                                    (not (g/connected? (g/now) resource-node :save-data project :save-data)))
                              text-view-type
                              view-type)
                  make-view-fn (:make-view-fn view-type)
@@ -2131,57 +2137,159 @@ If you do not specifically require different script states, consider changing th
       (let [[resource view-type] (recent-files/last-closed prefs workspace app-view evaluation-context)]
         (open-resource app-view prefs workspace project resource {:selected-view-type view-type})))))
 
+(defn- async-save!
+  ([app-view changes-view project save-data-fn]
+   (async-save! app-view changes-view project save-data-fn nil))
+  ([app-view changes-view project save-data-fn callback!]
+   {:pre [(g/node-id? app-view)
+          (g/node-id? changes-view)
+          (g/node-id? project)
+          (ifn? save-data-fn)
+          (or (nil? callback!) (ifn? callback!))]}
+   (let [render-reload-progress! (make-render-task-progress :resource-sync)
+         render-save-progress! (make-render-task-progress :save-all)]
+     (disk/async-save! render-reload-progress! render-save-progress! save-data-fn project changes-view
+                       (fn [successful?]
+                         (when successful?
+                           (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true))
+                         (when callback!
+                           (callback! successful? render-reload-progress! render-save-progress!)))))))
+
+(defn- make-version-control-info-dialog-content
+  ([] (make-version-control-info-dialog-content nil))
+  ([^String preamble]
+   {:fx/type fx.text-flow/lifecycle
+    :style-class "dialog-content-padding"
+    :children [{:fx/type fx.text/lifecycle
+                :text (cond->> (str "A project under Version Control "
+                                    "keeps a history of changes and "
+                                    "enables you to collaborate with "
+                                    "others by pushing changes to a "
+                                    "server.\n\nYou can read about "
+                                    "how to configure Version Control "
+                                    "in the ")
+                               (not (string/blank? preamble))
+                               (str preamble "\n\n"))}
+               {:fx/type fx.hyperlink/lifecycle
+                :text "Defold Manual"
+                :on-action (fn [_]
+                             (ui/open-url "https://www.defold.com/manuals/version-control/"))}
+               {:fx/type fx.text/lifecycle
+                :text "."}]}))
+
 (handler/defhandler :synchronize :global
   (enabled? [] (disk-availability/available?))
   (run [changes-view project workspace app-view]
-       (let [render-reload-progress! (make-render-task-progress :resource-sync)
-             render-save-progress! (make-render-task-progress :save-all)]
-         (if (changes-view/project-is-git-repo? changes-view)
+       (if (changes-view/project-is-git-repo? changes-view)
 
-           ;; The project is a Git repo.
-           ;; Check if there are locked files below the project folder before proceeding.
-           ;; If so, we abort the sync and notify the user, since this could cause problems.
-           (when (changes-view/ensure-no-locked-files! changes-view)
-             (disk/async-save! render-reload-progress! render-save-progress! project changes-view
-                               (fn [successful?]
-                                 (when successful?
-                                   (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
-                                   (when (changes-view/regular-sync! changes-view)
-                                     (disk/async-reload! render-reload-progress! workspace [] changes-view))))))
+         ;; The project is a Git repo.
+         ;; Check if there are locked files below the project folder before proceeding.
+         ;; If so, we abort the sync and notify the user, since this could cause problems.
+         (when (changes-view/ensure-no-locked-files! changes-view)
+           (async-save! app-view changes-view project project/dirty-save-data
+                        (fn [successful? render-reload-progress! _render-save-progress!]
+                          (when (and successful?
+                                     (changes-view/regular-sync! changes-view))
+                            (disk/async-reload! render-reload-progress! workspace [] changes-view)))))
 
-           ;; The project is not a Git repo.
-           ;; Show a dialog with info about how to set this up.
-           (dialogs/make-info-dialog
-             {:title "Version Control"
-              :size :default
-              :icon :icon/git
-              :header "This project does not use Version Control"
-              :content {:fx/type fx.text-flow/lifecycle
-                        :style-class "dialog-content-padding"
-                        :children [{:fx/type fx.text/lifecycle
-                                    :text (str "A project under Version Control "
-                                               "keeps a history of changes and "
-                                               "enables you to collaborate with "
-                                               "others by pushing changes to a "
-                                               "server.\n\nYou can read about "
-                                               "how to configure Version Control "
-                                               "in the ")}
-                                   {:fx/type fx.hyperlink/lifecycle
-                                    :text "Defold Manual"
-                                    :on-action (fn [_]
-                                                 (ui/open-url "https://www.defold.com/manuals/version-control/"))}
-                                   {:fx/type fx.text/lifecycle
-                                    :text "."}]}})))))
+         ;; The project is not a Git repo.
+         ;; Show a dialog with info about how to set this up.
+         (dialogs/make-info-dialog
+           {:title "Version Control"
+            :size :default
+            :icon :icon/git
+            :header "This project does not use Version Control"
+            :content (make-version-control-info-dialog-content)}))))
 
 (handler/defhandler :save-all :global
   (enabled? [] (not (bob/build-in-progress?)))
   (run [app-view changes-view project]
-       (let [render-reload-progress! (make-render-task-progress :resource-sync)
-             render-save-progress! (make-render-task-progress :save-all)]
-         (disk/async-save! render-reload-progress! render-save-progress! project changes-view
-                           (fn [successful?]
-                             (when successful?
-                               (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))))
+       (async-save! app-view changes-view project project/dirty-save-data)))
+
+(handler/defhandler :save-and-upgrade-all :global
+  (enabled? [] (not (bob/build-in-progress?)))
+  (run [app-view changes-view project workspace]
+       (let [git (g/node-value changes-view :git)]
+         (when (and
+
+                 ;; Check if the project is under version control. If not,
+                 ;; advise against performing the file format upgrade, and show
+                 ;; a dialog on how to set up version control for the project.
+                 ;; The user can opt to proceed with the upgrade anyway.
+                 (or (some? git)
+                     (dialogs/make-confirmation-dialog
+                       {:title "Not Safe to Upgrade File Formats"
+                        :size :default
+                        :icon :icon/triangle-error
+                        :header "Version Control Recommended"
+                        :content (make-version-control-info-dialog-content "Due to potential data-loss concerns, file format upgrades should only be performed on projects under Version Control.")
+                        :buttons [{:text "Abort"
+                                   :cancel-button true
+                                   :default-button true
+                                   :result false}
+                                  {:text "Proceed Anyway"
+                                   :variant :danger
+                                   :result true}]}))
+
+                 ;; Check if there are uncommitted changes. If so, show a dialog
+                 ;; advising against performing the file format upgrade, and
+                 ;; instead ask the user to commit their changes before
+                 ;; retrying. The user can opt to proceed with the upgrade
+                 ;; anyway.
+                 (or (nil? git)
+                     (not (git/has-local-changes? git))
+                     (dialogs/make-confirmation-dialog
+                       {:title "Not Safe to Upgrade File Formats"
+                        :size :default
+                        :icon :icon/triangle-error
+                        :header "Uncommitted changes detected"
+                        :content {:fx/type fxui/label
+                                  :style-class "dialog-content-padding"
+                                  :text "Due to potential data-loss concerns, file format upgrades should start from a clean working directory.\n\nWe recommend you commit your local changes before retrying the operation."}
+                        :buttons [{:text "Abort"
+                                   :cancel-button true
+                                   :default-button true
+                                   :result false}
+                                  {:text "Proceed Anyway"
+                                   :variant :danger
+                                   :result true}]})))
+
+           ;; We've deemed it safe to proceed with the file format upgrade, or
+           ;; the user has chosen to ignore our warnings. Show one last
+           ;; confirmation dialog before proceeding.
+           (let [workspace-has-non-editable-directories (workspace/has-non-editable-directories? workspace)
+                 buttons (cond-> [{:text "Cancel"
+                                   :cancel-button true
+                                   :default-button true
+                                   :result nil}
+                                  {:text (if workspace-has-non-editable-directories
+                                           "Upgrade Editable Files"
+                                           "Upgrade Project Files")
+                                   :variant :danger
+                                   :result :upgrade-editable-files}]
+
+                                 workspace-has-non-editable-directories
+                                 (conj {:text "Upgrade All Files"
+                                        :variant :danger
+                                        :result :upgrade-all-files}))
+                 result (dialogs/make-confirmation-dialog
+                          {:title "Save and Upgrade File Formats?"
+                           :size :large
+                           :icon :icon/circle-question
+                           :header "Re-save all files in the latest file format?"
+                           :content {:fx/type fxui/label
+                                     :style-class "dialog-content-padding"
+                                     :text "Files in the project will be re-saved in the latest file format. This operation cannot be undone.\n\nDue to the potentially large number of affected files, you should coordinate with your project lead before doing this."}
+                           :buttons buttons})
+                 save-data-fn (case result
+                                :upgrade-editable-files (partial project/upgraded-file-formats-save-data false)
+                                :upgrade-all-files (partial project/upgraded-file-formats-save-data true)
+                                nil)]
+
+             (when save-data-fn
+               ;; The user has opted to proceed with the file format upgrade.
+               (project/clear-cached-save-data! project)
+               (async-save! app-view changes-view project save-data-fn)))))))
 
 (handler/defhandler :async-reload :global
   (active? [prefs] (not (async-reload-on-app-focus? prefs)))

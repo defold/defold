@@ -75,7 +75,7 @@
          (vector? reloaded-proj-paths)]}
   (let [stateful-resources
         (into #{}
-              (remove #(:stateless? (resource/resource-type %)))
+              (filter resource/stateful?)
               touched-resources)
 
         ;; We expect the outputs on all stateless resource nodes to be
@@ -157,7 +157,7 @@
             (into []
                   (map (fn [save-data]
                          (let [resource (:resource save-data)
-                               content (:content save-data)]
+                               content (resource-node/save-data-content save-data)]
                            (assert (resource/file-resource? resource))
                            (assert (string? content))
                            [resource content])))

@@ -1100,6 +1100,8 @@ TEST_F(dmGuiScriptTest, TestVisibilityApi)
 
 TEST_F(dmGuiScriptTest, TestGuiGetSet)
 {
+    dmHashEnableReverseHash(true);
+
     dmGui::HScript script = NewScript(m_Context);
 
     dmGui::NewSceneParams params;
@@ -1182,7 +1184,6 @@ TEST_F(dmGuiScriptTest, TestGuiGetSet)
             "   assert_near_vector4(vmath.vector4(0,0,0,1), gui.get_rotation(node))\n"
             "   gui.set(node, 'euler.x', 180)\n"
             "   assert_near(1, gui.get(node, 'rotation.x'))\n"
-            //"   assert_near(1, gui.get_rotation(node).x)\n"
             // Incorrect input for get
             "   assert_error(function() gui.get('invalid', 'position') end)\n"
             "   assert_error(function() gui.get(hash('invalid'), 'position') end)\n"

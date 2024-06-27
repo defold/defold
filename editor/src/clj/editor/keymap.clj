@@ -14,7 +14,8 @@
 
 (ns editor.keymap
   (:require [editor.ui :as ui]
-            [editor.util :as util])
+            [editor.util :as util]
+            [util.fn :as fn])
   (:import [javafx.scene Scene]
            [javafx.scene.input KeyCharacterCombination KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent]))
 
@@ -590,11 +591,11 @@
                          throw-on-error?
                          allowed-duplicate-shortcuts
                          allowed-typable-shortcuts]
-                  :or   {valid-command?              (constantly true)
-                         platform                    (util/os)
-                         throw-on-error?             false
+                  :or   {valid-command? fn/constantly-true
+                         platform (util/os)
+                         throw-on-error? false
                          allowed-duplicate-shortcuts default-allowed-duplicate-shortcuts
-                         allowed-typable-shortcuts   default-allowed-typable-shortcuts}}]
+                         allowed-typable-shortcuts default-allowed-typable-shortcuts}}]
    (let [{:keys [errors keymap]} (make-keymap* key-bindings platform valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)]
      (if (and (seq errors) throw-on-error?)
        (throw (ex-info "Keymap has errors"

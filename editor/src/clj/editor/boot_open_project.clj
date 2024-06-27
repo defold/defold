@@ -29,6 +29,7 @@
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
             [editor.editor-extensions :as extensions]
+            [editor.engine-profiler :as engine-profiler]
             [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
@@ -52,7 +53,6 @@
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
             [editor.util :as util]
-            [editor.engine-profiler :as engine-profiler]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
             [service.log :as log]
@@ -61,7 +61,7 @@
   (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.scene.control MenuBar SplitPane Tab TabPane TreeView]
-           [javafx.scene.input DragEvent InputEvent KeyEvent MouseEvent KeyCombination]
+           [javafx.scene.input DragEvent InputEvent KeyCombination KeyEvent MouseEvent]
            [javafx.scene.layout VBox]
            [javafx.stage Stage]))
 
@@ -106,10 +106,10 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [app-scene tab-panes open-views changes-view render-progress!]
+(defn- handle-resource-changes! [app-scene tab-panes open-views changes-view]
   (ui/user-data! app-scene ::ui/refresh-requested? true)
   (app-view/remove-invalid-tabs! tab-panes open-views)
-  (changes-view/refresh! changes-view render-progress!))
+  (changes-view/refresh! changes-view))
 
 (defn- init-pending-update-indicator! [^Stage stage link project changes-view updater]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
@@ -120,13 +120,14 @@
                                (disk/async-save!
                                  render-reload-progress!
                                  render-save-progress!
+                                 project/dirty-save-data
                                  project
                                  nil ; Use nil for changes-view to skip refresh.
                                  (fn [successful?]
                                    (if successful?
                                      (ui.updater/install-and-restart! stage updater)
                                      (do (ui/enable-ui!)
-                                         (changes-view/refresh! changes-view render-reload-progress!))))))]
+                                         (changes-view/refresh! changes-view))))))]
     (ui.updater/init! stage link updater install-and-restart! render-download-progress!)))
 
 (defn- show-tracked-internal-files-warning! []
@@ -224,10 +225,10 @@
 
       (workspace/add-resource-listener! workspace 0
                                         (reify resource/ResourceListener
-                                          (handle-changes [_ _ render-progress!]
+                                          (handle-changes [_ _ _]
                                             (let [open-views (g/node-value app-view :open-views)
                                                   panes (.getItems ^SplitPane editor-tabs-split)]
-                                              (handle-resource-changes! scene panes open-views changes-view render-progress!)))))
+                                              (handle-resource-changes! scene panes open-views changes-view)))))
 
       (.addEventFilter scene
                        InputEvent/ANY
@@ -363,7 +364,7 @@
             (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
                   internal-files-are-tracked? (git/internal-files-are-tracked? git)]
               (if gitignore-was-modified?
-                (do (changes-view/refresh! changes-view app-view/render-main-task-progress!)
+                (do (changes-view/refresh! changes-view)
                     (ui/run-later
                       (dialogs/make-info-dialog
                         {:title "Updated .gitignore File"

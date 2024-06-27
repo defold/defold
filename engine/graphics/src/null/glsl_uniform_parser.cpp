@@ -176,6 +176,8 @@ namespace dmGraphics
         const char* word_end   = 0;
         const char* buffer_end = buffer + strlen(buffer);
 
+        char word_buffer[256] = {};
+
         uint32_t size = 0;
         while (line_end < buffer_end)
         {
@@ -219,15 +221,21 @@ namespace dmGraphics
                         // Check name
                         NextWord(&word_start, &word_end, &size);
 
+                        // Copy just the substring to a temporary buffer so we can change the content
+                        assert(size < (sizeof(word_buffer)-1));
+                        memcpy(word_buffer, word_start, size);
+                        word_buffer[size] = '\0';
+
+
                         // Check if it's an array
                         uint32_t uniform_size = 1;
-                        if (CheckUniformSize(word_start, &uniform_size))
+                        if (CheckUniformSize(word_buffer, &uniform_size))
                         {
-                            const char* array_begin = FindChar(word_start, '[');
-                            size = array_begin - word_start + 1;
+                            const char* array_begin = FindChar(word_buffer, '[');
+                            size = array_begin - word_buffer + 1;
                         }
 
-                        cb(binding_type, word_start, size-1, type, uniform_size, userdata);
+                        cb(binding_type, word_buffer, size-1, type, uniform_size, userdata);
                         break;
                     }
                     else

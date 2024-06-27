@@ -12,7 +12,6 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_LSTICK_RIGHT
@@ -21,7 +20,6 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_LSTICK_DOWN
@@ -30,7 +28,6 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_LSTICK_UP
@@ -42,13 +39,11 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_LSTICK_CLICK
     type: GAMEPAD_TYPE_BUTTON
     index: 10
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_RSTICK_LEFT
@@ -57,7 +52,6 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_RSTICK_RIGHT
@@ -69,7 +63,6 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_RSTICK_DOWN
@@ -81,7 +74,6 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_RSTICK_UP
@@ -90,37 +82,31 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_RSTICK_CLICK
     type: GAMEPAD_TYPE_BUTTON
     index: 11
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_RPAD_LEFT
     type: GAMEPAD_TYPE_BUTTON
     index: 0
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_RPAD_RIGHT
     type: GAMEPAD_TYPE_BUTTON
     index: 2
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_RPAD_DOWN
     type: GAMEPAD_TYPE_BUTTON
     index: 1
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_RPAD_UP
     type: GAMEPAD_TYPE_BUTTON
     index: 3
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_LTRIGGER
@@ -129,13 +115,11 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_LSHOULDER
     type: GAMEPAD_TYPE_BUTTON
     index: 4
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_RTRIGGER
@@ -144,31 +128,26 @@ driver {
     mod {
       mod: GAMEPAD_MODIFIER_CLAMP
     }
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_RSHOULDER
     type: GAMEPAD_TYPE_BUTTON
     index: 5
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_START
     type: GAMEPAD_TYPE_BUTTON
     index: 9
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_BACK
     type: GAMEPAD_TYPE_BUTTON
     index: 8
-    hat_mask: 0
   }
   map {
     input: GAMEPAD_GUIDE
     type: GAMEPAD_TYPE_BUTTON
     index: 12
-    hat_mask: 0
   }
 }
 driver {

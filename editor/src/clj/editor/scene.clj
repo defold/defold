@@ -29,6 +29,7 @@
             [editor.math :as math]
             [editor.pose :as pose]
             [editor.properties :as properties]
+            [editor.protobuf :as protobuf]
             [editor.render :as render]
             [editor.resource :as resource]
             [editor.rulers :as rulers]
@@ -45,6 +46,7 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [service.log :as log]
+            [util.coll :as coll]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
@@ -65,6 +67,32 @@
            [sun.awt.image IntegerComponentRaster]))
 
 (set! *warn-on-reflection* true)
+
+(def default-position protobuf/vector3-zero)
+
+(def default-rotation protobuf/quat-identity)
+
+(def default-scale protobuf/vector3-one)
+
+(def identity-transform-properties
+  {:position default-position
+   :rotation default-rotation
+   :scale default-scale})
+
+(defn significant-scale? [value]
+  (cond
+    (nil? value)
+    false
+
+    (vector? value)
+    (not= default-scale value)
+
+    (number? value)
+    (not= 1.0 value)
+
+    :else
+    (throw (ex-info "Unsupported scale value."
+                    {:value value}))))
 
 (defn overlay-text [^GL2 gl ^String text x y]
   (scene-text/overlay gl text x y))
@@ -1530,22 +1558,43 @@
 (def produce-unscalable-transform-properties (g/constantly #{:position :rotation}))
 
 ;; Arbitrarily small value to avoid 0-determinants
-(def ^:private ^:const scale-min 0.000001)
+(def ^:private ^:const ^float scale-min-float (float 0.000001))
 
-(defn- non-zeroify-scale [^double v]
-  (if (< (Math/abs v) scale-min) (Math/copySign scale-min v) v))
+(def ^:private ^:const ^double scale-min-double 0.000001)
+
+(defn- non-zeroify-component [num]
+  (cond
+    (instance? Float num)
+    (let [num-float (float num)]
+      (if (< (Math/abs num-float) scale-min-float)
+        (Math/copySign scale-min-float num-float)
+        num-float))
+
+    (double? num)
+    (let [num-double (double num)]
+      (if (< (Math/abs num-double) scale-min-double)
+        (Math/copySign scale-min-double num-double)
+        num-double))
+
+    :else
+    num))
+
+(defn- non-zeroify-scale [scale]
+  (into (coll/empty-with-meta scale)
+        (map non-zeroify-component)
+        scale))
 
 (g/defnode SceneNode
-  (property position types/Vec3 (default [0.0 0.0 0.0])
+  (property position types/Vec3 (default default-position)
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :position))))
-  (property rotation types/Vec4 (default [0.0 0.0 0.0 1.0])
+  (property rotation types/Vec4 (default default-rotation)
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :rotation)))
-            (dynamic edit-type (g/constantly (properties/quat->euler))))
-  (property scale types/Vec3 (default [1.0 1.0 1.0])
+            (dynamic edit-type (g/constantly properties/quat-rotation-edit-type)))
+  (property scale types/Vec3 (default default-scale)
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
             (set (fn [_evaluation-context self _old-value new-value]
                    (when (some? new-value)
-                     (g/set-property self :scale (mapv non-zeroify-scale new-value))))))
+                     (g/set-property self :scale (non-zeroify-scale new-value))))))
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
@@ -1562,26 +1611,40 @@
   (contains? (g/node-value node-id :transform-properties) :scale))
 
 (defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
-  (let [orig-p ^Vector3d (doto (Vector3d.) (math/clj->vecmath (g/node-value node-id :position evaluation-context)))
-        p (math/add-vector orig-p delta)]
-    (g/set-property node-id :position (properties/round-vec (math/vecmath->clj p)))))
+  (let [old-clj-position (g/node-value node-id :position evaluation-context)
+        old-vecmath-position (doto (Vector3d.) (math/clj->vecmath old-clj-position))
+        new-vecmath-position (math/add-vector old-vecmath-position delta)
+        num-fn (if (math/float32? (first old-clj-position))
+                 properties/round-scalar-float
+                 properties/round-scalar)
+        new-clj-position (into (coll/empty-with-meta old-clj-position)
+                               (map num-fn)
+                               (math/vecmath->clj new-vecmath-position))]
+    (g/set-property node-id :position new-clj-position)))
 
 (defmethod scene-tools/manip-rotate ::SceneNode [evaluation-context node-id delta]
-  (let [new-rotation (math/vecmath->clj
-                       (doto (Quat4d.)
-                         (math/clj->vecmath (g/node-value node-id :rotation evaluation-context))
-                         (.mul delta)))]
-    ;; Note! The rotation is not rounded here like manip-move and manip-scale.
-    ;; As the user-facing property is the euler angles, they are rounded in properties/quat->euler.
-    (g/set-property node-id :rotation new-rotation)))
+  (let [old-clj-rotation (g/node-value node-id :rotation evaluation-context)
+        new-vecmath-rotation (doto (Quat4d.) (math/clj->vecmath old-clj-rotation) (.mul delta))
+
+        ;; Note! The rotation is not rounded here like we do for manip-move and
+        ;; manip-scale. As the user-facing property is the euler angles, they
+        ;; will be rounded in properties/quat->euler.
+        new-clj-rotation
+        (if (math/float32? (first old-clj-rotation))
+          (into (coll/empty-with-meta old-clj-rotation)
+                (map float)
+                (math/vecmath->clj new-vecmath-rotation))
+          (math/vecmath-into-clj new-vecmath-rotation
+                                 (coll/empty-with-meta old-clj-rotation)))]
+    (g/set-property node-id :rotation new-clj-rotation)))
+
+(defn manip-scale-scene-node [evaluation-context node-id delta]
+  (let [old-scale (g/node-value node-id :scale evaluation-context)
+        new-scale (properties/scale-and-round-vec old-scale delta)]
+    (g/set-property node-id :scale new-scale)))
 
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
-  (let [s (Vector3d. (double-array (g/node-value node-id :scale evaluation-context)))
-        ^Vector3d d delta]
-    (.setX s (* (.x s) (.x d)))
-    (.setY s (* (.y s) (.y d)))
-    (.setZ s (* (.z s) (.z d)))
-    (g/set-property node-id :scale (properties/round-vec [(.x s) (.y s) (.z s)]))))
+  (manip-scale-scene-node evaluation-context node-id delta))
 
 (defn selection->movable [selection]
   (handler/selection->node-ids selection scene-tools/manip-movable?))

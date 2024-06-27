@@ -602,6 +602,7 @@ namespace dmGraphics
     void          GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void          SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     uint32_t      GetBufferTypeIndex(BufferType buffer_type);
+    BufferType    GetBufferTypeFromIndex(uint32_t index);
     const char*   GetBufferTypeLiteral(BufferType buffer_type);
     PipelineState GetPipelineState(HContext context);
     bool          IsContextFeatureSupported(HContext context, ContextFeature feature);

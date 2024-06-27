@@ -14,7 +14,7 @@
 
 (ns dynamo.graph
   "Main api for graph and node"
-  (:refer-clojure :exclude [deftype constantly])
+  (:refer-clojure :exclude [constantly deftype])
   (:require [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
             [internal.cache :as c]
@@ -26,7 +26,9 @@
             [internal.transaction :as it]
             [internal.util :as util]
             [potemkin.namespaces :as namespaces]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.coll :as coll]
+            [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
@@ -37,9 +39,11 @@
 
 (namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error-value? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than package-if-error])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order])
 
 (namespaces/import-vars [internal.graph arc explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse])
+
+(namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters])
 
 (let [graph-id ^java.util.concurrent.atomic.AtomicInteger (java.util.concurrent.atomic.AtomicInteger. 0)]
   (defn next-graph-id [] (.getAndIncrement graph-id)))
@@ -102,6 +106,34 @@
 
 (defn node-override? [node]
   (some? (gt/original node)))
+
+(defn invalidate-counters
+  "The current state of the invalidate counters in the system."
+  []
+  (is/invalidate-counters @*the-system*))
+
+(defn flag-nodes-as-migrated! [evaluation-context migrated-node-ids]
+  (let [tx-data-context (:tx-data-context evaluation-context)]
+    (swap! tx-data-context update :migrated-node-ids coll/into-set migrated-node-ids)
+    nil))
+
+(defn endpoint-invalidated-pred
+  "Return a predicate function that takes an Endpoint and returns a boolean
+  signalling if it has been invalidated since the supplied
+  snapshot-invalidate-counters based on the system-invalidate-counters. If
+  snapshot-invalidate-counters is nil, returns fn/constantly-false. If
+  system-invalidate-counters is not supplied, use the invalidate-counters
+  from the current system."
+  ([snapshot-invalidate-counters]
+   (endpoint-invalidated-pred snapshot-invalidate-counters (invalidate-counters)))
+  ([snapshot-invalidate-counters system-invalidate-counters]
+   {:pre [(or (nil? snapshot-invalidate-counters) (map? snapshot-invalidate-counters))
+          (map? system-invalidate-counters)]}
+   (if (or (nil? snapshot-invalidate-counters)
+           (identical? snapshot-invalidate-counters system-invalidate-counters))
+     fn/constantly-false
+     (fn endpoint-invalidated? [endpoint]
+       (endpoint-invalidated-since? endpoint snapshot-invalidate-counters system-invalidate-counters)))))
 
 (defn cache "The system cache of node values"
   []
@@ -191,28 +223,33 @@
 ;; ---------------------------------------------------------------------------
 (defn tx-nodes-added
  "Returns a list of the node-ids added given a result from a transaction, (tx-result)."
-  [transaction]
-  (:nodes-added transaction))
+  [tx-result]
+  (:nodes-added tx-result))
 
 (defn is-added?
   "Returns a boolean if a node was added as a result of a transaction given a tx-result and node."
-  [transaction node-id]
-  (contains? (:nodes-added transaction) node-id))
+  [tx-result node-id]
+  (contains? (:nodes-added tx-result) node-id))
 
 (defn is-deleted?
   "Returns a boolean if a node was delete as a result of a transaction given a tx-result and node."
-  [transaction node-id]
-  (contains? (:nodes-deleted transaction) node-id))
+  [tx-result node-id]
+  (contains? (:nodes-deleted tx-result) node-id))
 
 (defn transaction-basis
   "Returns the final basis from the result of a transaction given a tx-result"
-  [transaction]
-  (:basis transaction))
+  [tx-result]
+  (:basis tx-result))
 
 (defn pre-transaction-basis
   "Returns the original, starting basis from the result of a transaction given a tx-result"
-  [transaction]
-  (:original-basis transaction))
+  [tx-result]
+  (:original-basis tx-result))
+
+(defn migrated-node-ids
+  "Returns the set of node-ids that were flagged as migrated from the result of a transaction given a tx-result."
+  [tx-result]
+  (-> tx-result :tx-data-context-map (:migrated-node-ids #{})))
 
 ;; ---------------------------------------------------------------------------
 ;; Intrinsics
@@ -523,6 +560,12 @@
   [f & args]
   (it/callback f args))
 
+(defn callback-ec
+  "Same as callback, but injects the in-transaction evaluation-context
+  as the first argument to the update-fn."
+  [f & args]
+  (it/callback-ec f args))
+
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
    Takes effect when a transaction is applied.
@@ -580,6 +623,8 @@
    (assert target-id)
    (it/disconnect-sources basis target-id target-label)))
 
+(defn- set-value-from-first-arg [_ b] b)
+
 (defn set-property
   "Creates the transaction step to assign a value to a node's property (or properties) value(s).  It will take effect when the transaction
   is applies in a transact.
@@ -591,7 +636,7 @@
   (assert node-id)
   (mapcat
    (fn [[p v]]
-     (it/update-property node-id p (clojure.core/constantly v) []))
+     (it/update-property node-id p set-value-from-first-arg [v]))
    (partition-all 2 kvs)))
 
 (defn set-property!
@@ -679,6 +724,10 @@
 (defn user-data-swap! [node-id key f & args]
   (-> (swap! *the-system* (fn [sys] (apply is/update-user-data sys node-id key f args)))
       (is/user-data node-id key)))
+
+(defn user-data-merge! [values-by-key-by-node-id]
+  (swap! *the-system* is/merge-user-data values-by-key-by-node-id)
+  nil)
 
 (defn invalidate
  "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaction is
@@ -969,18 +1018,27 @@
 
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
-  affected by them. Outputs are specified as pairs of [node-id label]
+  affected by them. Outputs are specified as a seq of Endpoints
   for both the argument and return value."
   ([outputs]
-   (swap! *the-system* is/invalidate-outputs outputs)
-   nil))
+   (when-not (coll/empty? outputs)
+     (swap! *the-system* is/invalidate-outputs outputs)
+     nil)))
+
+(defn cache-output-values!
+  "Write the supplied key-value pairs to the cache. Downstream endpoints will be
+  invalidated if the value differs from the previously cached entry."
+  [endpoint+value-pairs]
+  (when-not (coll/empty? endpoint+value-pairs)
+    (swap! *the-system* is/cache-output-values endpoint+value-pairs)
+    nil))
 
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
    supertypes."
   [type node]
   (if-let [nt (and type (gt/node-type node))]
-    (isa? (:key @nt) (:key @type))
+    (in/inherits? nt type)
     false))
 
 (defn node-instance?
@@ -1200,7 +1258,7 @@
   ([root-ids opts]
    (copy (now) root-ids opts))
   ([basis root-ids {:keys [traverse? serializer external-refs external-labels]
-                    :or {traverse? (clojure.core/constantly false)
+                    :or {traverse? fn/constantly-false
                          serializer default-node-serializer}
                     :as opts}]
    (s/validate opts-schema opts)

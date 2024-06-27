@@ -333,27 +333,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    /*# get a tile from a tile map
-     * Get the tile set at the specified position in the tilemap.
-     * The position is identified by the tile index starting at origin
-     * with index 1, 1. (see [ref:tilemap.set_tile()])
-     * Which tile map and layer to query is identified by the URL and the
-     * layer name parameters.
-     *
-     * @name tilemap.get_tile
-     * @param url [type:string|hash|url] the tile map
-     * @param layer [type:string|hash] name of the layer for the tile
-     * @param x [type:number] x-coordinate of the tile
-     * @param y [type:number] y-coordinate of the tile
-     * @return tile [type:number] index of the tile
-     * @examples
-     *
-     * ```lua
-     * -- get the tile under the player.
-     * local tileno = tilemap.get_tile("/level#tilemap", "foreground", self.player_x, self.player_y)
-     * ```
-     */
-    static int TileMap_GetTile(lua_State* L)
+    static int TileMap_Get(lua_State* L, bool is_full_info)
     {
         int top = lua_gettop(L);
 
@@ -392,9 +372,92 @@ namespace dmGameSystem
 
         uint16_t cell = GetTileGridTile(component, layer_index, cell_x, cell_y);
 
-        lua_pushinteger(L,  cell);
+        if (is_full_info)
+        {
+            lua_newtable(L);
+
+            lua_pushliteral(L, "index");
+            lua_pushinteger(L, cell);
+            lua_rawset(L, -3);
+
+            uint8_t transform_flags = GetTileTransformMask(component, layer_index, cell_x, cell_y);
+
+            lua_pushliteral(L, "h_flip");
+            lua_pushboolean(L, transform_flags & FLIP_HORIZONTAL);
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "v_flip");
+            lua_pushboolean(L, transform_flags & FLIP_VERTICAL);
+            lua_rawset(L, -3);
+
+            lua_pushliteral(L, "rotate_90");
+            lua_pushboolean(L, transform_flags & ROTATE_90);
+            lua_rawset(L, -3);
+        }
+        else
+        {
+            lua_pushinteger(L,  cell);
+        }
+
         assert(top + 1 == lua_gettop(L));
         return 1;
+    }
+
+    /*# get a tile from a tile map
+     * Get the tile set at the specified position in the tilemap.
+     * The position is identified by the tile index starting at origin
+     * with index 1, 1. (see [ref:tilemap.set_tile()])
+     * Which tile map and layer to query is identified by the URL and the
+     * layer name parameters.
+     *
+     * @name tilemap.get_tile
+     * @param url [type:string|hash|url] the tile map
+     * @param layer [type:string|hash] name of the layer for the tile
+     * @param x [type:number] x-coordinate of the tile
+     * @param y [type:number] y-coordinate of the tile
+     * @return tile [type:number] index of the tile
+     * @examples
+     *
+     * ```lua
+     * -- get the tile under the player.
+     * local tileno = tilemap.get_tile("/level#tilemap", "foreground", self.player_x, self.player_y)
+     * ```
+     */
+    static int TileMap_GetTile(lua_State* L)
+    {
+        return TileMap_Get(L, false);
+    }
+
+    /*# get full information for a tile from a tile map
+     * Get the tile information at the specified position in the tilemap.
+     * The position is identified by the tile index starting at origin
+     * with index 1, 1. (see [ref:tilemap.set_tile()])
+     * Which tile map and layer to query is identified by the URL and the
+     * layer name parameters.
+     *
+     * @name tilemap.get_tile_info
+     * @param url [type:string|hash|url] the tile map
+     * @param layer [type:string|hash] name of the layer for the tile
+     * @param x [type:number] x-coordinate of the tile
+     * @param y [type:number] y-coordinate of the tile
+     * @return tile_info [type:table] index of the tile
+     * @examples
+     *
+     * ```lua
+     * -- get the tile under the player.
+     * local tile_info = tilemap.get_tile_info("/level#tilemap", "foreground", self.player_x, self.player_y)
+     * pprint(tile_info)
+     * -- {
+     * --    index = 0,
+     * --    h_flip = false,
+     * --    v_flip = true,
+     * --    rotate_90 = false
+     * -- }
+     * ```
+     */
+    static int TileMap_GetTileInfo(lua_State* L)
+    {
+        return TileMap_Get(L, true);
     }
 
     /*# get the bounds of a tile map
@@ -507,6 +570,7 @@ namespace dmGameSystem
         {"reset_constant",  TileMap_ResetConstant},
         {"set_tile",        TileMap_SetTile},
         {"get_tile",        TileMap_GetTile},
+        {"get_tile_info",   TileMap_GetTileInfo},
         {"get_bounds",      TileMap_GetBounds},
         {"set_visible",     TileMap_SetVisible},
         {0, 0}

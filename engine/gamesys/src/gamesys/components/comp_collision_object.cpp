@@ -479,6 +479,11 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    void* CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        return (void*)params.m_UserData;
+    }
+
     dmGameObject::CreateResult CompCollisionObjectFinal(const dmGameObject::ComponentFinalParams& params)
     {
         CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
@@ -1279,7 +1284,7 @@ namespace dmGameSystem
                 dmLogError("SetGridShapeHull: unable to set hull %d for shape %d", hull, ddf->m_Shape);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
-            uint16_t child = column + tile_grid_resource->m_ColumnCount * row;
+            uint32_t child = column + tile_grid_resource->m_ColumnCount * row;
             uint16_t group = 0;
             uint16_t mask = 0;
             // Hull-index of 0xffffffff is empty cell

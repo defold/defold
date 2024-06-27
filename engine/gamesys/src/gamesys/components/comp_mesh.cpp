@@ -396,6 +396,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    void* CompMeshGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        MeshWorld* world = (MeshWorld*)params.m_World;
+        return (void*)world->m_Components.Get(params.m_UserData);
+    }
+
     dmGameObject::CreateResult CompMeshDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         MeshWorld* world = (MeshWorld*)params.m_World;
@@ -1165,6 +1171,7 @@ namespace dmGameSystem
         ComponentTypeSetOnMessageFn(type, CompMeshOnMessage);
         ComponentTypeSetGetPropertyFn(type, CompMeshGetProperty);
         ComponentTypeSetSetPropertyFn(type, CompMeshSetProperty);
+        ComponentTypeSetGetFn(type, CompMeshGetComponent);
 
         ComponentTypeSetPropertyIteratorFn(type, CompMeshIterProperties);
 

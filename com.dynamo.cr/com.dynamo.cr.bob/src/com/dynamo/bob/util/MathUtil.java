@@ -27,6 +27,7 @@ import javax.vecmath.Vector4d;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Vector3One;
 import com.dynamo.proto.DdfMath.Matrix4;
 import com.dynamo.proto.DdfMath.Transform;
 
@@ -37,6 +38,10 @@ public class MathUtil {
 
     public static Vector3d ddfToVecmath(Vector3 p) {
         return new Vector3d(p.getX(), p.getY(), p.getZ());
+    }
+
+    public static Vector3d ddfToVecmath(Vector3One v) {
+        return new Vector3d(v.getX(), v.getY(), v.getZ());
     }
 
     public static Quat4d ddfToVecmath(Quat q) {
@@ -55,6 +60,11 @@ public class MathUtil {
 
     public static Vector3 vecmathToDDF(Vector3d p) {
         Vector3.Builder b = Vector3.newBuilder();
+        return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).build();
+    }
+
+    public static Vector3One vecmathToDDFOne(Vector3d p) {
+        Vector3One.Builder b = Vector3One.newBuilder();
         return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).build();
     }
 
