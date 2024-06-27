@@ -197,8 +197,7 @@
                           old-num (coalesced-property->old-num property)]
                       (if-let [num (parse-num (.getText text-field) old-num)]
                         (properties/set-values! property (repeat num))
-                        (cancel-fn nil)
-                        )))]
+                        (cancel-fn nil))))]
     (customize! text-field update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text-field style-class))
