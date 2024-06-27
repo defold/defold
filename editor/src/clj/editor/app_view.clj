@@ -2633,7 +2633,7 @@ If you do not specifically require different script states, consider changing th
              (let [f (future/make)
                    render-reload-progress! (make-render-task-progress :resource-sync)
                    render-save-progress! (make-render-task-progress :save-all)]
-               (disk/async-save! render-reload-progress! render-save-progress! project changes-view
+               (disk/async-save! render-reload-progress! render-save-progress! project/dirty-save-data project changes-view
                                  (fn [successful?]
                                    (if successful?
                                      (do (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
