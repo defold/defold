@@ -30,7 +30,7 @@
   VM simultaneously."
   (:refer-clojure :exclude [read])
   (:require [clojure.java.io :as io])
-  (:import [clojure.lang Named]
+  (:import [clojure.lang IReduceInit Named]
            [java.nio.charset StandardCharsets]
            [java.util List Map]
            [java.util.concurrent.locks ReentrantLock]
@@ -229,3 +229,68 @@
   LuaTable (->clj [table vm]
              ;; only hold the lock for the mutable lua table access
              (with-lock vm (lua-table->clj-map-or-vector table vm))))
+
+(defn lua-table-reducer [vm ^LuaTable lua-table]
+  (reify IReduceInit
+    (reduce [_ f init]
+      (with-lock vm
+        (loop [prev-k LuaValue/NIL
+               acc init]
+          (let [varargs (.next lua-table prev-k)
+                lua-k (.arg1 varargs)]
+            (if (.isnil lua-k)
+              acc
+              (let [acc (f acc varargs)]
+                (if (reduced? acc)
+                  @acc
+                  (recur lua-k acc))))))))))
+
+(defn lua-value->string [vm lua-value]
+  (condp instance? lua-value
+    LuaString (pr-str (str lua-value))
+    LuaTable (let [r (lua-table-reducer vm lua-value)
+                   ;; max index is either:
+                   ;; - highest pos int iff all keys are pos ints
+                   ;; - zero
+                   max-index (long
+                               (transduce
+                                 (comp
+                                   (map (fn [^Varargs varargs]
+                                          (let [k (.arg1 varargs)]
+                                            (if (.isinttype k)
+                                              (.tolong k)
+                                              0))))
+                                   (halt-when (complement pos-int?)))
+                                 max
+                                 0
+                                 r))
+                   sb (StringBuilder. "{")
+                   sb-rf (completing #(.append ^StringBuilder %1 %2))]
+               (if (pos? max-index)
+                 (do (transduce
+                       (comp
+                         (map (fn [i]
+                                (lua-value->string vm (.rawget ^LuaTable lua-value (unchecked-inc-int (int i))))))
+                         (interpose ", "))
+                       sb-rf
+                       sb
+                       (range max-index)))
+                 (do (transduce
+                       (comp
+                         (map (fn [^Varargs varargs]
+                                (let [k (.arg1 varargs)
+                                      v (.arg varargs 2)]
+                                  (str (or (and (.isstring k)
+                                                (let [s (str k)]
+                                                  (when (re-matches #"^[a-zA-Z_][[a-zA-Z_0-9]]*$" s)
+                                                    s)))
+                                           (str "[" (lua-value->string vm k) "]"))
+                                       " = "
+                                       (lua-value->string vm v)))))
+                         (interpose ", "))
+                       sb-rf
+                       sb
+                       r)))
+               (.append sb "}")
+               (str sb))
+    (str lua-value)))

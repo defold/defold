@@ -16,6 +16,7 @@
   (:require [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions.actions :as actions]
+            [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.runtime :as rt]
             [editor.future :as future]
@@ -41,7 +42,7 @@
                                 (:type q)))
 
 (defn- ensure-selection-cardinality [selection q]
-  (if (= "one" (:cardinality q))
+  (if (= :one (:cardinality q))
     (when (= 1 (count selection))
       (first selection))
     selection))
@@ -49,7 +50,7 @@
 (defn- node-ids->lua-selection [selection q]
   (ensure-selection-cardinality (mapv rt/wrap-userdata selection) q))
 
-(defmethod gen-selection-query "resource" [q acc project]
+(defmethod gen-selection-query :resource [q acc project]
   (gen-query acc [env cont]
              (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))
                    selection (:selection env)]
@@ -69,7 +70,7 @@
                    (g/update-cache-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
 
-(defmethod gen-selection-query "outline" [q acc _]
+(defmethod gen-selection-query :outline [q acc _]
   (gen-query acc [env cont]
              (when-let [res (some-> (:selection env)
                                     (handler/adapt-every outline/OutlineNode)
@@ -114,7 +115,7 @@
                                :display-output! display-output!
                                :label (str label "'s \"active\" in " path)
                                :catch false
-                               (rt/->clj rt (rt/invoke-immediate (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
+                               (rt/->clj rt coerce/to-boolean (rt/invoke-immediate (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
 
                   (and (not active) query)
                   (assoc :active? (lua-fn->env-fn (constantly true)))
@@ -127,7 +128,7 @@
                                (-> (rt/invoke-suspending rt run (rt/->lua opts))
                                    (future/then
                                      (fn [lua-result]
-                                       (when-let [actions (rt/->clj rt lua-result)]
+                                       (when-not (rt/valid? rt coerce/null lua-result)
                                          (lsp.async/with-auto-evaluation-context evaluation-context
-                                           (actions/perform! actions project state evaluation-context)))))
+                                           (actions/perform! lua-result project state evaluation-context)))))
                                    (future/catch #(error-handling/display-script-error! display-output! error-label %))))))))}))
