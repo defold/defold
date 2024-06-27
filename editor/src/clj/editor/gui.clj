@@ -62,7 +62,7 @@
            [editor.pose Pose]
            [internal.graph.types Arc]
            [java.awt.image BufferedImage]
-           [javax.vecmath Quat4d Vector3d]))
+           [javax.vecmath Quat4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -573,9 +573,6 @@
   (and (g/property-value-origin? (:basis evaluation-context) node-id prop-kw)
        (= gui-resource-name (g/node-value node-id prop-kw evaluation-context))))
 
-(defn- scene-node-ids [evaluation-context scene]
-  (g/node-value scene :node-ids evaluation-context))
-
 (defmulti update-gui-resource-reference (fn [gui-resource-type evaluation-context node-id _old-name _new-name]
                                           [(g/node-type-kw (:basis evaluation-context) node-id) gui-resource-type]))
 (defmethod update-gui-resource-reference :default [_ _evaluation-context _node-id _old-name _new-name] nil)
@@ -589,11 +586,14 @@
   (when (and (not (empty? old-name))
              (not (empty? new-name)))
     (when-some [scene (core/scope-of-type (:basis evaluation-context) gui-resource-node-id GuiSceneNode)]
-      (into []
-            (comp (map val)
-                  (keep (fn [node-id]
-                          (update-gui-resource-reference gui-resource-type evaluation-context node-id old-name new-name))))
-            (scene-node-ids evaluation-context scene)))))
+      (let [node-ids-by-id (g/node-value scene :node-ids evaluation-context)]
+        (when (and (not (g/error-value? node-ids-by-id))
+                   (coll/not-empty node-ids-by-id))
+          (into []
+                (comp (map val)
+                      (keep (fn [node-id]
+                              (update-gui-resource-reference gui-resource-type evaluation-context node-id old-name new-name))))
+                node-ids-by-id))))))
 
 ;; Base nodes
 
@@ -1389,21 +1389,30 @@
                          project (project/get-project basis self)
                          current-scene (g/node-feeding-into basis self :template-resource)]
                      (concat
-                       (if current-scene
-                         (g/delete-node current-scene)
-                         [])
-                       (if (and new-value (:resource new-value))
+                       (when current-scene
+                         (g/delete-node current-scene))
+                       (when (and new-value (:resource new-value))
                          (when-some [{connect-tx-data :tx-data
                                       scene-node :node-id
                                       created-in-tx :created-in-tx} (project/connect-resource-node evaluation-context project (:resource new-value) self [])]
+                           ;; Note: If the node was created in this transaction,
+                           ;; it means it was a missing resource node. Such a
+                           ;; node is marked defective, and we will not try to
+                           ;; override its properties.
                            (concat
                              connect-tx-data
-                             (let [properties-by-node-id (comp (or (:overrides new-value) {})
-                                                               (into {}
-                                                                     (map (fn [[k v]] [v k]))
-                                                                     (if created-in-tx
-                                                                       {}
-                                                                       (g/node-value scene-node :node-ids evaluation-context))))]
+                             (let [properties-by-node-id
+                                   (or (when-not created-in-tx
+                                         (when-let [properties-by-id (coll/not-empty (:overrides new-value))]
+                                           (let [node-ids-by-id (g/node-value scene-node :node-ids evaluation-context)]
+                                             (when (and (not (g/error-value? node-ids-by-id))
+                                                        (coll/not-empty node-ids-by-id))
+                                               (comp properties-by-id
+                                                     (into {}
+                                                           (map (fn [[id node-id]]
+                                                                  (pair node-id id)))
+                                                           node-ids-by-id))))))
+                                       {})]
                                ;; TODO: Check if we can filter based on connection label instead of source-node-id to be able to share :traverse-fn with other overrides.
                                (g/override scene-node {:traverse-fn (g/make-override-traverse-fn
                                                                       (fn [basis ^Arc arc]
@@ -1446,8 +1455,7 @@
                                                                   [:resource-names :aux-resource-names]
                                                                   [:template-prefix :id-prefix]
                                                                   [:current-layout :current-layout]]]
-                                                   (g/connect self from or-scene to)))))))))
-                         []))))))
+                                                   (g/connect self from or-scene to)))))))))))))))
 
   (display-order (into base-display-order [:enabled :template]))
 
@@ -1931,7 +1939,9 @@
                      (g/override node-tree {:traverse-fn layout-node-traverse-fn}
                                  (fn [evaluation-context id-mapping]
                                    (let [or-node-tree (get id-mapping node-tree)
-                                         node-mapping (comp id-mapping (g/node-value node-tree :node-ids evaluation-context))]
+                                         node-ids-by-id (g/node-value node-tree :node-ids evaluation-context)
+                                         node-mapping (when-not (g/error-value? node-ids-by-id)
+                                                        (comp id-mapping node-ids-by-id))]
                                      (concat
                                        (for [[from to] [[:node-overrides :layout-overrides]
                                                         [:node-msgs :node-msgs]
@@ -1940,11 +1950,12 @@
                                          (g/connect or-node-tree from self to))
                                        (for [[from to] [[:id-prefix :id-prefix]]]
                                          (g/connect self from or-node-tree to))
-                                       (for [[id data] or-data
-                                             :let [node-id (node-mapping id)]
-                                             :when node-id
-                                             [label value] data]
-                                         (g/set-property node-id label value))))))))))
+                                       (when node-mapping
+                                         (for [[id data] or-data
+                                               :let [node-id (node-mapping id)]
+                                               :when node-id
+                                               [label value] data]
+                                           (g/set-property node-id label value)))))))))))
   (input name-counts NameCounts)
   (input layout-overrides g/Any :cascade-delete)
   (input node-msgs g/Any)
@@ -2596,11 +2607,12 @@
 (defn- validate-max-dynamic-textures [_node-id max-dynamic-textures]
   (validation/prop-error :fatal _node-id :max-dynamic-textures (partial validation/prop-outside-range? [0 8192]) max-dynamic-textures "Max Dynamic Textures"))
 
-(g/defnk produce-own-build-errors [_node-id material max-dynamic-textures max-nodes node-ids script]
+(g/defnk produce-own-build-errors [_node-id material max-dynamic-textures max-nodes ^:try node-ids script]
   (g/package-errors _node-id
                     (when script (prop-resource-error _node-id :script script "Script" "gui_script"))
                     (prop-resource-error _node-id :material material "Material")
-                    (validate-max-nodes _node-id max-nodes node-ids)
+                    (when-not (g/error-value? node-ids)
+                      (validate-max-nodes _node-id max-nodes node-ids))
                     (validate-max-dynamic-textures _node-id max-dynamic-textures)))
 
 (g/defnk produce-build-errors [_node-id build-errors own-build-errors ^:try template-build-targets]
@@ -2654,8 +2666,9 @@
   (property visible-layout g/Str (default "") ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
   (property max-nodes g/Int (default (protobuf/default Gui$SceneDesc :max-nodes))
-            (dynamic error (g/fnk [_node-id max-nodes node-ids]
-                             (validate-max-nodes _node-id max-nodes node-ids))))
+            (dynamic error (g/fnk [_node-id max-nodes ^:try node-ids]
+                             (when-not (g/error-value? node-ids)
+                               (validate-max-nodes _node-id max-nodes node-ids)))))
   (property max-dynamic-textures g/Int (default (protobuf/default Gui$SceneDesc :max-dynamic-textures))
             (dynamic error (g/fnk [_node-id max-dynamic-textures]
                              (validate-max-dynamic-textures _node-id max-dynamic-textures))))
