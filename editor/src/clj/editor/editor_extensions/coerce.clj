@@ -98,14 +98,15 @@
   (let [coercers (vec coercers)]
     (fn coerce-tuple [vm ^LuaValue x]
       (if (.istable x)
-        (let [acc (transduce
-                    (comp
-                      (map-indexed
-                        (fn [i coercer]
-                          (coercer vm (vm/with-lock vm (.rawget x (unchecked-inc-int i))))))
-                      (halt-when failure?))
-                    conj!
-                    coercers)]
+        (let [acc (vm/with-lock vm
+                    (transduce
+                      (comp
+                        (map-indexed
+                          (fn [i coercer]
+                            (coercer vm (.rawget x (unchecked-inc-int i)))))
+                        (halt-when failure?))
+                      conj!
+                      coercers))]
           (if (failure? acc)
             acc
             (persistent! acc)))
@@ -212,57 +213,62 @@
     (fn coerce-record [vm ^LuaValue x]
       (if (.istable x)
         (let [acc (transient {})
-              acc (reduce
-                    (fn acc-req [acc [^LuaValue lua-key clj-key coerce-val]]
-                      (let [^LuaValue lua-val (vm/with-lock vm (.rawget x lua-key))]
-                        (if (.isnil lua-val)
-                          (reduced (failure x (str "needs " (vm/lua-value->string vm lua-key) " key")))
-                          (let [coerced-val (coerce-val vm lua-val)]
-                            (if (failure? coerced-val)
-                              (reduced coerced-val)
-                              (assoc! acc clj-key coerced-val))))))
-                    acc
-                    reqs)]
+              acc (vm/with-lock vm
+                    (reduce
+                      (fn acc-req [acc [^LuaValue lua-key clj-key coerce-val]]
+                        (let [lua-val (.rawget x lua-key)]
+                          (if (.isnil lua-val)
+                            (reduced (failure x (str "needs " (vm/lua-value->string vm lua-key) " key")))
+                            (let [coerced-val (coerce-val vm lua-val)]
+                              (if (failure? coerced-val)
+                                (reduced coerced-val)
+                                (assoc! acc clj-key coerced-val))))))
+                      acc
+                      reqs))]
           (if (failure? acc)
             acc
-            (let [acc (reduce
-                        (fn acc-opt [acc [^LuaValue lua-key clj-key coerce-val]]
-                          (let [^LuaValue lua-val (vm/with-lock vm (.rawget x lua-key))]
-                            (if (.isnil lua-val)
-                              acc
-                              (let [coerced-val (coerce-val vm lua-val)]
-                                (if (failure? coerced-val)
-                                  (reduced coerced-val)
-                                  (assoc! acc clj-key coerced-val))))))
-                        acc
-                        opts)]
+            (let [acc (vm/with-lock vm
+                        (reduce
+                          (fn acc-opt [acc [^LuaValue lua-key clj-key coerce-val]]
+                            (let [lua-val (.rawget x lua-key)]
+                              (if (.isnil lua-val)
+                                acc
+                                (let [coerced-val (coerce-val vm lua-val)]
+                                  (if (failure? coerced-val)
+                                    (reduced coerced-val)
+                                    (assoc! acc clj-key coerced-val))))))
+                          acc
+                          opts))]
               (if (failure? acc)
                 acc
                 (persistent! acc)))))
         (failure x "is not a table")))))
 
 (defn one-of
-  "Tries several coercers in the provided order, and return first success result"
+  "Tries several coercers in the provided order, returns first success result"
   [& coercers]
   {:pre [(not (empty? coercers))]}
   (let [v (vec coercers)]
     (fn coerce-one-of [vm x]
-      (let [ret (transduce
-                  (comp
-                    (map #(% vm x))
-                    (halt-when (complement failure?)))
-                  conj!
+      (let [ret (reduce
+                  (fn [_ coercer]
+                    (let [v (coercer vm x)]
+                      (if (failure? v)
+                        v
+                        (reduced v))))
+                  nil
                   v)]
-        (if (instance? ITransientCollection ret)
-          (let [failures (persistent! ret)]
-            (failure x (str "does not satisfy any of its requirements:\n"
-                            (->> failures
-                                 (map (fn [failure]
+        (if (failure? ret)
+          (failure x (str "does not satisfy any of its requirements:\n"
+                          (->> coercers
+                               (map (fn [coercer]
+                                      (let [failure (coercer vm x)]
+                                        (assert (failure? failure))
                                         (string/join "\n"
                                                      (map str
                                                           (cons "- " (repeat "  "))
-                                                          (string/split-lines (failure-message vm failure))))))
-                                 (string/join "\n")))))
+                                                          (string/split-lines (failure-message vm failure)))))))
+                               (string/join "\n"))))
           ret)))))
 
 (defn by-key
