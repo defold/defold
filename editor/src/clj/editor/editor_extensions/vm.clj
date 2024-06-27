@@ -267,30 +267,30 @@
                    sb (StringBuilder. "{")
                    sb-rf (completing #(.append ^StringBuilder %1 %2))]
                (if (pos? max-index)
-                 (do (transduce
-                       (comp
-                         (map (fn [i]
-                                (lua-value->string vm (.rawget ^LuaTable lua-value (unchecked-inc-int (int i))))))
-                         (interpose ", "))
-                       sb-rf
-                       sb
-                       (range max-index)))
-                 (do (transduce
-                       (comp
-                         (map (fn [^Varargs varargs]
-                                (let [k (.arg1 varargs)
-                                      v (.arg varargs 2)]
-                                  (str (or (and (.isstring k)
-                                                (let [s (str k)]
-                                                  (when (re-matches #"^[a-zA-Z_][[a-zA-Z_0-9]]*$" s)
-                                                    s)))
-                                           (str "[" (lua-value->string vm k) "]"))
-                                       " = "
-                                       (lua-value->string vm v)))))
-                         (interpose ", "))
-                       sb-rf
-                       sb
-                       r)))
+                 (transduce
+                   (comp
+                     (map (fn [i]
+                            (lua-value->string vm (.rawget ^LuaTable lua-value (unchecked-inc-int (int i))))))
+                     (interpose ", "))
+                   sb-rf
+                   sb
+                   (range max-index))
+                 (transduce
+                   (comp
+                     (map (fn [^Varargs varargs]
+                            (let [k (.arg1 varargs)
+                                  v (.arg varargs 2)]
+                              (str (or (and (.isstring k)
+                                            (let [s (str k)]
+                                              (when (re-matches #"^[a-zA-Z_][[a-zA-Z_0-9]]*$" s)
+                                                s)))
+                                       (str "[" (lua-value->string vm k) "]"))
+                                   " = "
+                                   (lua-value->string vm v)))))
+                     (interpose ", "))
+                   sb-rf
+                   sb
+                   r))
                (.append sb "}")
                (str sb))
     (str lua-value)))

@@ -113,7 +113,7 @@
   ([^EditorExtensionsRuntime runtime coercer lua-value]
    (coerce/coerce (.-lua-vm runtime) coercer lua-value)))
 
-(defn valid?
+(defn coerces-to?
   "Check if a LuaValue satisfies the coercer"
   [^EditorExtensionsRuntime rt coercer lua-value]
   (not (coerce/failure? (coercer (.-lua-vm rt) lua-value))))

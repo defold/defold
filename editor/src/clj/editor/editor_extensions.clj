@@ -86,7 +86,7 @@
                                    :label (str label " in " path)
                                    :catch nil
                                    (rt/invoke-immediate rt lua-fn lua-opts evaluation-context))]
-                (when-not (rt/valid? rt coerce/null lua-ret)
+                (when-not (rt/coerces-to? rt coerce/null lua-ret)
                   [path lua-ret]))))
       (get all fn-keyword))))
 
@@ -194,9 +194,9 @@
 (def execute-last-arg-coercer
   (coerce/one-of
     coerce/string
-    (coerce/record :opt {:reload_resources coerce/boolean
-                         :out (coerce/enum :capture :discard :pipe)
-                         :err (coerce/enum :stdout :discard :pipe)})))
+    (coerce/hash-map :opt {:reload_resources coerce/boolean
+                           :out (coerce/enum :capture :discard :pipe)
+                           :err (coerce/enum :stdout :discard :pipe)})))
 
 (defn- make-ext-execute-fn [^Path project-path display-output! reload-resources!]
   (rt/suspendable-lua-fn ext-execute [{:keys [rt]} & lua-args]
@@ -258,7 +258,7 @@
       (future/then (reload-resources!) rt/and-refresh-context))))
 
 (def transaction-steps-coercer
-  (coerce/coll-of
+  (coerce/vector-of
     (coerce/wrap-with-pred coerce/userdata #(= :transaction-step (:type (meta %))) "is not a transaction step")
     :min-count 1))
 
@@ -306,11 +306,11 @@
                             (str "--configpath=" lua-lsp-root "/config.json")]}}}))
 
 (def language-servers-coercer
-  (coerce/coll-of
-    (coerce/record
-      :req {:languages (coerce/coll-of coerce/string :distinct true :min-count 1)
-            :command (coerce/coll-of coerce/string :min-count 1)}
-      :opt {:watched_files (coerce/coll-of (coerce/record :req {:pattern coerce/string}) :min-count 1)})))
+  (coerce/vector-of
+    (coerce/hash-map
+      :req {:languages (coerce/vector-of coerce/string :distinct true :min-count 1)
+            :command (coerce/vector-of coerce/string :min-count 1)}
+      :opt {:watched_files (coerce/vector-of (coerce/hash-map :req {:pattern coerce/string}) :min-count 1)})))
 
 (defn- reload-language-servers! [project state evaluation-context]
   (let [{:keys [display-output! rt]} state
@@ -340,15 +340,15 @@
 ;; region reload
 
 (def commands-coercer
-  (coerce/coll-of
-    (coerce/record
+  (coerce/vector-of
+    (coerce/hash-map
       :req {:label coerce/string
-            :locations (coerce/coll-of
+            :locations (coerce/vector-of
                          (coerce/enum "Edit" "View" "Assets" "Outline")
                          :distinct true
                          :min-count 1)}
-      :opt {:query (coerce/record
-                     :opt {:selection (coerce/record
+      :opt {:query (coerce/hash-map
+                     :opt {:selection (coerce/hash-map
                                         :req {:type (coerce/enum :resource :outline)
                                               :cardinality (coerce/enum :one :many)})})
             :active coerce/function
@@ -384,14 +384,14 @@
 (def hooks-file-path "/hooks.editor_script")
 
 (def module-coercer
-  (coerce/record :opt {:get_commands coerce/function
-                       :get_language_servers coerce/function
-                       :on_build_started coerce/function
-                       :on_build_finished coerce/function
-                       :on_bundle_started coerce/function
-                       :on_bundle_finished coerce/function
-                       :on_target_launched coerce/function
-                       :on_target_terminated coerce/function}))
+  (coerce/hash-map :opt {:get_commands coerce/function
+                         :get_language_servers coerce/function
+                         :on_build_started coerce/function
+                         :on_build_finished coerce/function
+                         :on_bundle_started coerce/function
+                         :on_bundle_finished coerce/function
+                         :on_target_launched coerce/function
+                         :on_target_terminated coerce/function}))
 
 (defn- re-create-ext-state [initial-state evaluation-context]
   (let [{:keys [rt display-output!]} initial-state]
@@ -555,7 +555,7 @@
         (-> (rt/invoke-suspending rt lua-fn (rt/->lua opts))
             (future/then
               (fn [lua-result]
-                (when-not (rt/valid? rt coerce/null lua-result)
+                (when-not (rt/coerces-to? rt coerce/null lua-result)
                   (lsp.async/with-auto-evaluation-context evaluation-context
                     (actions/perform! lua-result project state evaluation-context)))))
             (future/catch

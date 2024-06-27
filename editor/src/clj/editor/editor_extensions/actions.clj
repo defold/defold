@@ -109,13 +109,13 @@
   [shell! (:command action)])
 
 (def actions-coercer
-  (coerce/coll-of
+  (coerce/vector-of
     (coerce/by-key
       :action
-      {:set (coerce/record :req {:node_id graph/node-id-or-path-coercer
-                                 :property coerce/string
-                                 :value coerce/untouched})
-       :shell (coerce/record :req {:command (coerce/coll-of coerce/string :min-count 1)})})))
+      {:set (coerce/hash-map :req {:node_id graph/node-id-or-path-coercer
+                                   :property coerce/string
+                                   :value coerce/untouched})
+       :shell (coerce/hash-map :req {:command (coerce/vector-of coerce/string :min-count 1)})})))
 
 (defn perform!
   "Perform a list of editor script actions

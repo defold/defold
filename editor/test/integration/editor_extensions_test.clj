@@ -401,10 +401,11 @@
         coerce #(coerce/coerce vm %1 (vm/->lua %2))]
 
     (testing "enum"
-      (let [enum (coerce/enum 1 4 false "foo" :bar)]
+      (let [foo-str "foo"
+            enum (coerce/enum 1 4 false foo-str :bar)]
         (is (= 1 (coerce enum 1)))
         (is (= false (coerce enum false)))
-        (is (= "foo" (coerce enum "foo")))
+        (is (identical? foo-str (coerce enum "foo")))
         (is (= :bar (coerce enum "bar")))
         (is (thrown? LuaError (coerce enum "something else")))))
 
@@ -433,7 +434,7 @@
 
     (testing "untouched"
       (let [v (vm/->lua {:a 1})]
-        (is (= v (coerce coerce/untouched v)))))
+        (is (identical? v (coerce coerce/untouched v)))))
 
     (testing "null"
       (is (nil? (coerce coerce/null nil)))
@@ -459,13 +460,15 @@
       (is (= false (coerce coerce/any false))))
 
     (testing "userdata"
+      (let [obj (Object.)]
+        (is (identical? obj (coerce coerce/userdata obj))))
       (is (= :key (coerce coerce/userdata (vm/wrap-userdata :key))))
       (is (thrown? LuaError (coerce coerce/userdata "key")))
       (is (= inc (coerce coerce/userdata inc))))
 
     (testing "function"
       (let [f (vm/invoke-1 vm (vm/bind (vm/read "return function() end" "test.lua") vm))]
-        (is (= f (coerce coerce/function f)))
+        (is (identical? f (coerce coerce/function f)))
         ;; Clojure's functions are wrapped in userdata
         (is (thrown? LuaError (coerce coerce/function inc)))))
 
@@ -475,40 +478,42 @@
         (is (thrown? LuaError (coerce with-pred 1)))
         (is (thrown? LuaError (coerce with-pred "not an int")))))
 
-    (testing "coll-of"
-      (is (= [] (coerce (coerce/coll-of coerce/string) {:a 1}))) ;; non-integer keys are ignored
-      (is (= [] (coerce (coerce/coll-of coerce/string) {})))
-      (is (= ["a"] (coerce (coerce/coll-of coerce/string) {1 "a" :key "val"})))
-      (is (= ["a"] (coerce (coerce/coll-of coerce/string) {1 "a" -1 "b" 0 "c"}))) ;; non-positive keys are ignored
-      (is (= [1 2 3] (coerce (coerce/coll-of coerce/integer) [1 2 3])))
-      (is (= [1 2 3 nil 5] (coerce (coerce/coll-of coerce/any) [1 2 3 nil 5])))
-      (is (= [1 2 3 nil 5] (coerce (coerce/coll-of (coerce/one-of coerce/integer coerce/null)) [1 2 3 nil 5])))
-      (is (thrown? LuaError (coerce (coerce/coll-of coerce/integer) [1 2 3 nil 5])))
-      (is (= [nil nil nil nil 5] (coerce (coerce/coll-of (coerce/one-of coerce/integer coerce/null)) {5 5})))
-      (is (thrown? LuaError (coerce (coerce/coll-of coerce/integer) {5 5})))
+    (testing "vector-of"
+      (is (= [] (coerce (coerce/vector-of coerce/string) {:a 1}))) ;; non-integer keys are ignored
+      (is (= [] (coerce (coerce/vector-of coerce/string) {})))
+      (is (= ["a"] (coerce (coerce/vector-of coerce/string) {1 "a" :key "val"})))
+      (is (= ["a"] (coerce (coerce/vector-of coerce/string) {1 "a" -1 "b" 0 "c"}))) ;; non-positive keys are ignored
+      (is (= [1 2 3] (coerce (coerce/vector-of coerce/integer) [1 2 3])))
+      ;; nil usually ends the array part...
+      (is (= [1 2 3] (coerce (coerce/vector-of coerce/any) [1 2 3 nil 5])))
+      ;; ...but not always:
+      (is (= [1 2 3 4 5 6 7 8 9 10 nil 5] (coerce (coerce/vector-of (coerce/one-of coerce/integer coerce/null))
+                                                  [1 2 3 4 5 6 7 8 9 10 nil 5])))
+      (is (= [] (coerce (coerce/vector-of (coerce/one-of coerce/integer coerce/null)) {5 5})))
+      (is (thrown? LuaError (coerce (coerce/vector-of coerce/integer) [1 2 3 4 5 6 7 8 9 10 nil 5])))
       (testing "min-count"
-        (is (= [1 2] (coerce (coerce/coll-of coerce/any :min-count 2) [1 2])))
-        (is (= [1 2 3] (coerce (coerce/coll-of coerce/any :min-count 2) [1 2 3])))
-        (is (thrown? LuaError (coerce (coerce/coll-of coerce/any :min-count 2) [1]))))
+        (is (= [1 2] (coerce (coerce/vector-of coerce/any :min-count 2) [1 2])))
+        (is (= [1 2 3] (coerce (coerce/vector-of coerce/any :min-count 2) [1 2 3])))
+        (is (thrown? LuaError (coerce (coerce/vector-of coerce/any :min-count 2) [1]))))
       (testing "distinct"
-        (is (= [1 2 3] (coerce (coerce/coll-of coerce/any :distinct true) [1 2 3])))
-        (is (thrown? LuaError (coerce (coerce/coll-of coerce/any :distinct true) [1 2 1])))))
+        (is (= [1 2 3] (coerce (coerce/vector-of coerce/any :distinct true) [1 2 3])))
+        (is (thrown? LuaError (coerce (coerce/vector-of coerce/any :distinct true) [1 2 1])))))
 
     (testing "record"
-      (is (= {:a 1} (coerce (coerce/record :req {:a coerce/integer}) {:a 1})))
-      (is (= {"a" 1} (coerce (coerce/record :req {"a" coerce/integer}) {:a 1})))
-      (is (thrown? LuaError (coerce (coerce/record :req {:a coerce/integer}) {})))
-      (is (thrown? LuaError (coerce (coerce/record :req {:a coerce/integer}) {:a "not-an-int"})))
-      (is (thrown? LuaError (coerce (coerce/record :req {:a coerce/integer}) "not a table")))
-      (is (= {} (coerce (coerce/record :opt {:a coerce/integer}) {})))
-      (is (= {} (coerce (coerce/record :opt {:a coerce/integer}) {:x 1 :y 2})))
-      (is (thrown? LuaError (coerce (coerce/record :opt {:a coerce/integer}) {:x 1 :y 2 :a "not-an-int"})))
-      (is (= {:a 1} (coerce (coerce/record :opt {:a coerce/integer}) {:x 1 :y 2 :a 1})))
-      (is (= {:a 1} (coerce (coerce/record
+      (is (= {:a 1} (coerce (coerce/hash-map :req {:a coerce/integer}) {:a 1})))
+      (is (= {"a" 1} (coerce (coerce/hash-map :req {"a" coerce/integer}) {:a 1})))
+      (is (thrown? LuaError (coerce (coerce/hash-map :req {:a coerce/integer}) {})))
+      (is (thrown? LuaError (coerce (coerce/hash-map :req {:a coerce/integer}) {:a "not-an-int"})))
+      (is (thrown? LuaError (coerce (coerce/hash-map :req {:a coerce/integer}) "not a table")))
+      (is (= {} (coerce (coerce/hash-map :opt {:a coerce/integer}) {})))
+      (is (= {} (coerce (coerce/hash-map :opt {:a coerce/integer}) {:x 1 :y 2})))
+      (is (thrown? LuaError (coerce (coerce/hash-map :opt {:a coerce/integer}) {:x 1 :y 2 :a "not-an-int"})))
+      (is (= {:a 1} (coerce (coerce/hash-map :opt {:a coerce/integer}) {:x 1 :y 2 :a 1})))
+      (is (= {:a 1} (coerce (coerce/hash-map
                               :req {:a coerce/integer}
                               :opt {:b coerce/integer})
                             {:a 1})))
-      (is (= {:a 1 :b 2} (coerce (coerce/record
+      (is (= {:a 1 :b 2} (coerce (coerce/hash-map
                                    :req {:a coerce/integer}
                                    :opt {:b coerce/integer})
                                  {:a 1 :b 2}))))
@@ -520,9 +525,9 @@
 
     (testing "by-key"
       (let [by-key (coerce/by-key :type
-                                  {:rect (coerce/record :req {:width coerce/number
-                                                              :height coerce/number})
-                                   :circle (coerce/record :req {:radius coerce/number})})]
+                                  {:rect (coerce/hash-map :req {:width coerce/number
+                                                                :height coerce/number})
+                                   :circle (coerce/hash-map :req {:radius coerce/number})})]
         (is (= {:type :rect :width 15 :height 20}
                (coerce by-key {"type" "rect" "width" 15.0 "height" 20.0})))
         (is (= {:type :circle :radius 42.5}

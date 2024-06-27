@@ -128,7 +128,7 @@
                                (-> (rt/invoke-suspending rt run (rt/->lua opts))
                                    (future/then
                                      (fn [lua-result]
-                                       (when-not (rt/valid? rt coerce/null lua-result)
+                                       (when-not (rt/coerces-to? rt coerce/null lua-result)
                                          (lsp.async/with-auto-evaluation-context evaluation-context
                                            (actions/perform! lua-result project state evaluation-context)))))
                                    (future/catch #(error-handling/display-script-error! display-output! error-label %))))))))}))

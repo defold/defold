@@ -14,7 +14,7 @@
 
 (ns editor.editor-extensions.coerce
   "Define efficient LuaValue -> Clojure data structure conversions."
-  (:refer-clojure :exclude [boolean integer])
+  (:refer-clojure :exclude [boolean integer hash-map vector-of])
   (:require [clojure.string :as string]
             [editor.editor-extensions.vm :as vm]
             [editor.util :as util]
@@ -164,7 +164,7 @@
         (not (pred ret)) (failure x error-message)
         :else ret))))
 
-(defn coll-of
+(defn vector-of
   "Collection coercer, converts LuaTable to a vector
 
   Optional kv-args:
@@ -173,46 +173,18 @@
   [item-coercer & {:keys [min-count distinct]}]
   (let [f (fn coerce-coll-of [vm ^LuaValue x]
             (if (.istable x)
-              (let [acc
-                    (reduce
-                      (fn [acc ^Varargs varargs]
-                        (let [lua-k (.arg1 varargs)]
-                          (if (.isinttype lua-k)
-                            (let [i (dec (.tolong lua-k))]  ;; 1-indexed to 0-indexed
-                              (if (neg? i)
-                                acc                         ;; non-array index, skip
-                                (let [value-or-failure (item-coercer vm (.arg varargs 2))]
-                                  (if (failure? value-or-failure)
-                                    (reduced value-or-failure)
-                                    (let [acc (loop [acc acc]
-                                                (if (< (count acc) i)
-                                                  (recur (conj! acc ::not-found))
-                                                  acc))]
-                                      (assoc! acc i value-or-failure))))))
-                            acc)))
-                      (transient [])
-                      (vm/lua-table-reducer vm x))]
+              (let [acc (vm/with-lock vm
+                          (let [len (.rawlen x)]
+                            (transduce
+                              (comp
+                                (map (fn [i]
+                                       (item-coercer vm (.rawget x (unchecked-inc-int i)))))
+                                (halt-when failure?))
+                              conj!
+                              (range len))))]
                 (if (failure? acc)
                   acc
-                  ;; check holes
-                  (let [n (count acc)
-                        first-hole-index (loop [i 0]
-                                           (cond
-                                             (= i n) nil
-                                             (identical? ::not-found (acc i)) i
-                                             :else (recur (inc i))))]
-                    (if first-hole-index
-                      (let [first-hole-index (long first-hole-index)
-                            coerced-nil (item-coercer vm LuaValue/NIL)]
-                        (if (failure? coerced-nil)
-                          coerced-nil
-                          (loop [acc (assoc! acc first-hole-index coerced-nil)
-                                 i (inc first-hole-index)]
-                            (cond
-                              (= i n) (persistent! acc)
-                              (identical? ::not-found (acc i)) (recur (assoc! acc i coerced-nil) (inc i))
-                              :else (recur acc (inc i))))))
-                      (persistent! acc)))))
+                  (persistent! acc)))
               (failure x "is not an array")))]
     (cond-> f
 
@@ -224,7 +196,7 @@
             distinct
             (wrap-with-pred #(apply distinct? %) "should not have repeated elements"))))
 
-(defn record
+(defn hash-map
   "Coerces Lua table to a Clojure map with required and optional keys
 
   Optional kv-args:
