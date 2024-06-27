@@ -474,7 +474,7 @@ namespace dmGameSystem
      * ```lua
      *  local mx, my, max_x, max_y = tilemap.get_bounds("#tilemap")
      *  local tbl = tilemap.get_tiles("#1", "layer")
-     *  for y = my + max_y - 1, my, -1  do //starting top left corner
+     *  for y = my + max_y - 1, my, -1  do --starting top left corner
      *    local str = y.." \t"
      *    for x = mx, mx + max_x - 1 do
      *       str = str .. "\t".. tostring(tbl[y][x])
