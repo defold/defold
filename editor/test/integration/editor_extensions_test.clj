@@ -499,7 +499,7 @@
         (is (= [1 2 3] (coerce (coerce/vector-of coerce/any :distinct true) [1 2 3])))
         (is (thrown? LuaError (coerce (coerce/vector-of coerce/any :distinct true) [1 2 1])))))
 
-    (testing "record"
+    (testing "hash-map"
       (is (= {:a 1} (coerce (coerce/hash-map :req {:a coerce/integer}) {:a 1})))
       (is (= {"a" 1} (coerce (coerce/hash-map :req {"a" coerce/integer}) {:a 1})))
       (is (thrown? LuaError (coerce (coerce/hash-map :req {:a coerce/integer}) {})))
