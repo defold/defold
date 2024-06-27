@@ -82,16 +82,25 @@
                                                      (ui/run-later (.selectAll t))))
                                                  (ui/user-data! t ::selection-at-focus nil)))))
 
-(defmulti customize! (fn [control update-fn] (class control)))
+(defmulti customize! (fn [control _ _] (class control)))
 
-(defmethod customize! TextField [^TextField t update-fn]
+(defmethod customize! TextField [^TextField t update-fn cancel-fn]
   (doto t
     (GridPane/setHgrow Priority/ALWAYS)
     (ui/on-action! update-fn)
     (ui/auto-commit! update-fn)
-    (select-all-on-click!)))
+    (select-all-on-click!)
+    (ui/bind-key! "Esc" (fn []
+                          (cancel-fn t)
+                          (when-let [parent (.getParent t)]
+                            (.requestFocus parent))))
+    (ui/bind-key! "Enter" (fn []
+                            (update-fn t)
+                            (if (zero? (.getLength (.getSelection t)))
+                              (.selectAll t)
+                              (.deselect t))))))
 
-(defmethod customize! TextArea [^TextArea t update-fn]
+(defmethod customize! TextArea [^TextArea t update-fn _]
   (doto t
     (GridPane/setHgrow Priority/ALWAYS)
     (ui/auto-commit! update-fn)
@@ -129,30 +138,39 @@
     :script-property-type-url "script-property-text-field-icon-url"
     nil))
 
-(defmulti create-property-control! (fn [edit-type _ property-fn]
+(defmulti create-property-control! (fn [edit-type _ _]
                                      (edit-type->type edit-type)))
 
 (defmethod create-property-control! g/Str [edit-type _ property-fn]
-  (let [text         (TextField.)
+  (let [text (TextField.)
         update-ui-fn (partial update-text-fn text str)
-        update-fn    (fn [_]
-                       (properties/set-values! (property-fn) (repeat (.getText text))))]
-    (customize! text update-fn)
+        cancel-fn (fn [_]
+                    (let [property (property-fn)]
+                      (update-ui-fn (properties/values property)
+                                    (properties/validation-message property)
+                                    (properties/read-only? property))))
+        update-fn (fn [_]
+                    (properties/set-values! (property-fn) (repeat (.getText text))))]
+    (customize! text update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text style-class))
     [text update-ui-fn]))
 
 (defmethod create-property-control! g/Int [edit-type _ property-fn]
-  (let [text         (TextField.)
+  (let [text (TextField.)
         update-ui-fn (partial update-text-fn text field-expression/format-int)
-        update-fn    (fn [_]
-                       (if-let [v (field-expression/to-int (.getText text))]
-                         (let [property (property-fn)]
-                           (properties/set-values! property (repeat v))
-                           (update-ui-fn (properties/values property)
-                                         (properties/validation-message property)
-                                         (properties/read-only? property)))))]
-    (customize! text update-fn)
+        update-prop-fn (fn [_]
+                      (let [property (property-fn)]
+                        (update-ui-fn (properties/values property)
+                                      (properties/validation-message property)
+                                      (properties/read-only? property))))
+        cancel-fn update-prop-fn
+        update-fn (fn [_]
+                    (if-let [v (field-expression/to-int (.getText text))]
+                      (let [property (property-fn)]
+                        (properties/set-values! property (repeat v))
+                        (update-prop-fn nil))))]
+    (customize! text update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text style-class))
     [text update-ui-fn]))
@@ -160,15 +178,19 @@
 (defmethod create-property-control! g/Num [edit-type _ property-fn]
   (let [text-field (TextField.)
         update-ui-fn (partial update-text-fn text-field field-expression/format-number)
+        cancel-fn (fn [_]
+                    (let [property (property-fn)]
+                      (update-ui-fn (properties/values property)
+                                    (properties/validation-message property)
+                                    (properties/read-only? property))))
         update-fn (fn update-fn [_]
                     (let [property (property-fn)
                           old-num (coalesced-property->old-num property)]
                       (if-let [num (parse-num (.getText text-field) old-num)]
                         (properties/set-values! property (repeat num))
-                        (update-ui-fn (properties/values property)
-                                      (properties/validation-message property)
-                                      (properties/read-only? property)))))]
-    (customize! text-field update-fn)
+                        (cancel-fn nil)
+                        )))]
+    (customize! text-field update-fn cancel-fn)
     (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
       (add-style-class! text-field style-class))
     [text-field update-ui-fn]))
@@ -215,6 +237,12 @@
                 comp (doto (create-grid-pane children)
                        (GridPane/setConstraints index 0)
                        (GridPane/setHgrow Priority/ALWAYS))
+                cancel-fn (fn [_]
+                            (let [property (property-fn)
+                                  current-vals (properties/values property)]
+                              (update-ui-fn current-vals
+                                            (properties/validation-message property)
+                                            (properties/read-only? property))))
                 update-fn (fn update-fn [_]
                             (let [property (property-fn)
                                   current-vals (properties/values property)
@@ -222,10 +250,8 @@
                                   num (parse-num (.getText text-field) old-num)]
                               (if num
                                 (properties/set-values! property (mapv #(assoc % index num) current-vals))
-                                (update-ui-fn current-vals
-                                              (properties/validation-message property)
-                                              (properties/read-only? property)))))]
-            (customize! text-field update-fn)
+                                (cancel-fn nil))))]
+            (customize! text-field update-fn cancel-fn)
             (ui/add-child! box comp)))
         (range)
         text-fields
@@ -277,6 +303,12 @@
                            (let [path (:path field)]
                              (fn [e v]
                                (assoc-in e path v))))
+                cancel-fn (fn [_]
+                            (let [property (property-fn)
+                                  current-vals (properties/values property)]
+                              (update-ui-fn current-vals (properties/validation-message property)
+                                            (properties/read-only? property))
+                              ))
                 update-fn (fn update-fn [_]
                             (let [property (property-fn)
                                   current-vals (properties/values property)
@@ -284,9 +316,8 @@
                                   num (parse-num (.getText text-field) old-num)]
                               (if num
                                 (properties/set-values! property (mapv #(set-fn % num) current-vals))
-                                (update-ui-fn current-vals (properties/validation-message property)
-                                              (properties/read-only? property)))))]
-            (customize! text-field update-fn)
+                                (cancel-fn nil))))]
+            (customize! text-field update-fn cancel-fn)
             (ui/add-child! box comp)))
         (range)
         text-fields
@@ -429,10 +460,16 @@
                         (let [val (properties/unify-values values)]
                           (ui/editable! browse-button (not read-only?))
                           (ui/editable! open-button (and (resource/openable-resource? val) (resource/exists? val)))))
-        commit-fn     (fn [_]
-                        (let [path     (ui/text text)
-                              resource (workspace/resolve-workspace-resource workspace path)]
-                          (properties/set-values! (property-fn) (repeat resource))))]
+        cancel-fn (fn [_]
+                    (let [property (property-fn)
+                          current-vals (properties/values property)]
+                      (update-ui-fn current-vals
+                                    (properties/validation-message property)
+                                    (properties/read-only? property))))
+        commit-fn (fn [_]
+                    (let [path (ui/text text)
+                          resource (workspace/resolve-workspace-resource workspace path)]
+                      (properties/set-values! (property-fn) (repeat resource))))]
     (ui/add-style! box "composite-property-control-container")
     (ui/on-action! browse-button (fn [_] (when-let [resource (first (resource-dialog/make workspace project dialog-opts))]
                                            (properties/set-values! (property-fn) (repeat resource)))))
@@ -440,7 +477,7 @@
                                                               properties/values
                                                               properties/unify-values)]
                                           (ui/run-command open-button :open {:resources [resource]}))))
-    (customize! text commit-fn)
+    (customize! text commit-fn cancel-fn)
     (ui/children! box [text browse-button open-button])
     (GridPane/setConstraints text 0 0)
     (GridPane/setConstraints open-button 1 0)
@@ -507,13 +544,18 @@
     [box update-ui-fn]))
 
 (defmethod create-property-control! :multi-line-text [_ _ property-fn]
-  (let [text         (doto (TextArea.)
-                       (ui/add-style! "property")
-                       (.setMinHeight 68))
+  (let [text (doto (TextArea.)
+               (ui/add-style! "property")
+               (.setMinHeight 68))
         update-ui-fn (partial update-text-fn text str)
-        update-fn    #(properties/set-values! (property-fn) (repeat (.getText text)))]
+        cancel-fn (fn [_]
+                    (let [property (property-fn)]
+                      (update-ui-fn (properties/values property)
+                                    (properties/validation-message property)
+                                    (properties/read-only? property))))
+        update-fn #(properties/set-values! (property-fn) (repeat (.getText text)))]
     (ui/bind-key! text "Shortcut+Enter" update-fn)
-    (customize! text (fn [_] (update-fn)))
+    (customize! text (fn [_] (update-fn)) cancel-fn)
     [text update-ui-fn]))
 
 (defmethod create-property-control! :default [_ _ _]
@@ -563,7 +605,7 @@
   (ui/user-data! ctrl ::field-message msg)
   (ui/on-mouse! ctrl
     (when msg
-      (fn [verb e]
+      (fn [verb _]
         (condp = verb
           :enter (show-message-tooltip ctrl)
           :exit (hide-message-tooltip ctrl)
