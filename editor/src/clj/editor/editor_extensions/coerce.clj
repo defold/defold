@@ -102,7 +102,7 @@
                     (comp
                       (map-indexed
                         (fn [i coercer]
-                          (coercer vm (.rawget x (unchecked-inc-int i)))))
+                          (coercer vm (vm/with-lock vm (.rawget x (unchecked-inc-int i))))))
                       (halt-when failure?))
                     conj!
                     coercers)]
@@ -214,7 +214,7 @@
         (let [acc (transient {})
               acc (reduce
                     (fn acc-req [acc [^LuaValue lua-key clj-key coerce-val]]
-                      (let [lua-val (.rawget x lua-key)]
+                      (let [^LuaValue lua-val (vm/with-lock vm (.rawget x lua-key))]
                         (if (.isnil lua-val)
                           (reduced (failure x (str "needs " (vm/lua-value->string vm lua-key) " key")))
                           (let [coerced-val (coerce-val vm lua-val)]
@@ -227,7 +227,7 @@
             acc
             (let [acc (reduce
                         (fn acc-opt [acc [^LuaValue lua-key clj-key coerce-val]]
-                          (let [lua-val (.rawget x lua-key)]
+                          (let [^LuaValue lua-val (vm/with-lock vm (.rawget x lua-key))]
                             (if (.isnil lua-val)
                               acc
                               (let [coerced-val (coerce-val vm lua-val)]
@@ -281,7 +281,7 @@
         coerce-val (apply enum (keys val->coerce))]
     (fn coerce-by-key [vm ^LuaValue x]
       (if (.istable x)
-        (let [lua-val (.rawget x ^LuaValue lua-key)]
+        (let [^LuaValue lua-val (vm/with-lock vm (.rawget x ^LuaValue lua-key))]
           (if (.isnil lua-val)
             (failure x (str "needs " (vm/lua-value->string vm lua-key) " key"))
             (let [v (coerce-val vm lua-val)]
