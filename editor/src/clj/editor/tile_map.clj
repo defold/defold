@@ -1394,7 +1394,8 @@
 (defn- make-new-layer
   [id]
   (protobuf/make-map-without-defaults Tile$TileLayer
-    :id id))
+    :id id
+    :z protobuf/float-zero))
 
 (defn- add-layer-handler
   [tile-map-node]
