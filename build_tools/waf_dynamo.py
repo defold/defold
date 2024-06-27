@@ -1564,6 +1564,8 @@ def setup_csharp(conf):
                 f'{aot_base}/libbootstrapperdll.o',
                 f'{aot_base}/libRuntime.WorkstationGC.a',
                 f'{aot_base}/libeventpipe-enabled.a',
+                f'{aot_base}/libstandalonegc-enabled.a',
+                f'{aot_base}/libstdc++compat.a',
                 f'{aot_base}/libSystem.Native.a',
                 f'{aot_base}/libSystem.IO.Compression.Native.a',
                 f'{aot_base}/libSystem.Globalization.Native.a']
@@ -1572,13 +1574,15 @@ def setup_csharp(conf):
             conf.env['LINKFLAGS_CSHARP'] = [
                 f'{aot_base}/libbootstrapperdll.o',
                 f'{aot_base}/libRuntime.WorkstationGC.a',
-                f'{aot_base}/libeventpipe-enabled.a',
+                f'{aot_base}/libeventpipe-disabled.a',
+                f'{aot_base}/libstandalonegc-disabled.a',
+                f'{aot_base}/libstdc++compat.a',
                 f'{aot_base}/libSystem.Native.a',
-                f'{aot_base}/libSystem.IO.Compression.Native.a',
                 f'{aot_base}/libSystem.Globalization.Native.a',
-                f'{aot_base}/libicui18n.a',
-                f'{aot_base}/libicudata.a',
-                f'{aot_base}/libicuuc.a']
+                f'{aot_base}/libSystem.IO.Compression.Native.a',
+                f'{aot_base}/libSystem.Net.Security.Native.a',
+                f'{aot_base}/libSystem.Security.Cryptography.Native.Apple.a',
+                f'{aot_base}/licucore.a']
 
         if build_util.get_target_os() in ('macos'):
             conf.env['FRAMEWORK_CSHARP'] = ["AGL","OpenAL","OpenGL","QuartzCore"]
