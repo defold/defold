@@ -100,11 +100,15 @@
                               (.selectAll t)
                               (.deselect t))))))
 
-(defmethod customize! TextArea [^TextArea t update-fn _]
+(defmethod customize! TextArea [^TextArea t update-fn cancel-fn]
   (doto t
     (GridPane/setHgrow Priority/ALWAYS)
     (ui/auto-commit! update-fn)
-    (select-all-on-click!)))
+    (select-all-on-click!)
+    (ui/bind-key! "Esc" (fn []
+                          (cancel-fn t)
+                          (when-let [parent (.getParent t)]
+                            (.requestFocus parent))))))
 
 (defn- old-num->parse-num-fn [old-num]
   {:pre [(or (number? old-num) (nil? old-num))]}
