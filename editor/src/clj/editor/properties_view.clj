@@ -118,18 +118,31 @@
   (let [parse-num-fn (old-num->parse-num-fn old-num)]
     (parse-num-fn text)))
 
+(defn add-style-class!
+  [^Node node style-class]
+  (.add (.getStyleClass node) style-class))
+
+(defn script-property-type->style-class [script-property-type]
+  (case script-property-type
+    :script-property-type-number "script-property-text-field-icon-number"
+    :script-property-type-hash "script-property-text-field-icon-hash"
+    :script-property-type-url "script-property-text-field-icon-url"
+    nil))
+
 (defmulti create-property-control! (fn [edit-type _ property-fn]
                                      (edit-type->type edit-type)))
 
-(defmethod create-property-control! g/Str [_ _ property-fn]
+(defmethod create-property-control! g/Str [edit-type _ property-fn]
   (let [text         (TextField.)
         update-ui-fn (partial update-text-fn text str)
         update-fn    (fn [_]
                        (properties/set-values! (property-fn) (repeat (.getText text))))]
     (customize! text update-fn)
+    (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
+      (add-style-class! text style-class))
     [text update-ui-fn]))
 
-(defmethod create-property-control! g/Int [_ _ property-fn]
+(defmethod create-property-control! g/Int [edit-type _ property-fn]
   (let [text         (TextField.)
         update-ui-fn (partial update-text-fn text field-expression/format-int)
         update-fn    (fn [_]
@@ -140,9 +153,11 @@
                                          (properties/validation-message property)
                                          (properties/read-only? property)))))]
     (customize! text update-fn)
+    (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
+      (add-style-class! text style-class))
     [text update-ui-fn]))
 
-(defmethod create-property-control! g/Num [_ _ property-fn]
+(defmethod create-property-control! g/Num [edit-type _ property-fn]
   (let [text-field (TextField.)
         update-ui-fn (partial update-text-fn text-field field-expression/format-number)
         update-fn (fn update-fn [_]
@@ -154,6 +169,8 @@
                                       (properties/validation-message property)
                                       (properties/read-only? property)))))]
     (customize! text-field update-fn)
+    (when-let [style-class (script-property-type->style-class (:script-property-type edit-type))]
+      (add-style-class! text-field style-class))
     [text-field update-ui-fn]))
 
 (defmethod create-property-control! g/Bool [_ _ property-fn]

@@ -147,7 +147,7 @@
           workspace (project/workspace project)
           prop-kw (properties/user-name->key name)
           prop-type (script-compilation/script-property-type->property-type type)
-          edit-type (script-compilation/script-property-edit-type workspace prop-type resource-kind)
+          edit-type (script-compilation/script-property-edit-type workspace prop-type resource-kind type)
           error (script-compilation/validate-value-against-edit-type _node-id :value name value edit-type)
           go-prop-type (script-compilation/script-property-type->go-prop-type type)
           overridden? (g/node-property-overridden? _this :value)
