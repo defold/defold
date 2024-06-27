@@ -105,6 +105,11 @@
     (GridPane/setHgrow Priority/ALWAYS)
     (ui/auto-commit! update-fn)
     (select-all-on-click!)
+    (ui/bind-key! "Shortcut+Enter" (fn []
+                                     (update-fn t)
+                                     (if (zero? (.getLength (.getSelection t)))
+                                       (.selectAll t)
+                                       (.deselect t))))
     (ui/bind-key! "Esc" (fn []
                           (cancel-fn t)
                           (when-let [parent (.getParent t)]
@@ -558,7 +563,6 @@
                                     (properties/validation-message property)
                                     (properties/read-only? property))))
         update-fn #(properties/set-values! (property-fn) (repeat (.getText text)))]
-    (ui/bind-key! text "Shortcut+Enter" update-fn)
     (customize! text (fn [_] (update-fn)) cancel-fn)
     [text update-ui-fn]))
 
