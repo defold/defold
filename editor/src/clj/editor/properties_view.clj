@@ -179,8 +179,9 @@
                                     (properties/read-only? property))))
         update-fn (fn update-fn [_]
                     (let [property (property-fn)
-                          old-num (coalesced-property->old-num property)]
-                      (if-let [num (parse-num (.getText text-field) old-num)]
+                          old-num (coalesced-property->old-num property)
+                          num (parse-num (.getText text-field) old-num)]
+                      (if (and num (not= num old-num))
                         (properties/set-values! property (repeat num))
                         (cancel-fn nil))))]
     (customize! text-field update-fn cancel-fn)
@@ -241,7 +242,7 @@
                                   current-vals (properties/values property)
                                   old-num (ffirst current-vals)
                                   num (parse-num (.getText text-field) old-num)]
-                              (if num
+                              (if (and num (not= num old-num))
                                 (properties/set-values! property (mapv #(assoc % index num) current-vals))
                                 (cancel-fn nil))))]
             (customize! text-field update-fn cancel-fn)
