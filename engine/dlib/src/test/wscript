@@ -209,10 +209,9 @@ def build(bld):
     create_test(bld, 'test_crypt')
     create_test(bld, 'test_job_thread')
 
-
-    # C#
-    bld.stlib(features= 'cs_stlib',
-              project = 'cs/test_dlib_cs.csproj')
-    bld.add_group() # Until the cs_stlib can work with the 'use' mechanism properly
-    t = create_test(bld, 'test_csharp', extra_libs = ['CSHARP'])
-    t.env.append_value('LINKFLAGS', [t.env.LIB_ST % 'test_dlib_cs'])
+    if bld.env.DOTNET:
+        bld.stlib(features= 'cs_stlib',
+                  project = 'cs/test_dlib_cs.csproj')
+        bld.add_group() # Until the cs_stlib can work with the 'use' mechanism properly
+        t = create_test(bld, 'test_csharp', extra_libs = ['CSHARP'])
+        t.env.append_value('LINKFLAGS', [t.env.LIB_ST % 'test_dlib_cs'])

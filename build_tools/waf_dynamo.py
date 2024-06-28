@@ -1569,6 +1569,7 @@ def setup_csharp(conf):
                 f'{aot_base}/libeventpipe-enabled.a',
                 f'{aot_base}/libstandalonegc-enabled.a',
                 f'{aot_base}/libstdc++compat.a',
+                f'{aot_base}/libRuntime.VxsortDisabled.a',
                 f'{aot_base}/libSystem.Native.a',
                 f'{aot_base}/libSystem.IO.Compression.Native.a',
                 f'{aot_base}/libSystem.Globalization.Native.a']
@@ -1598,6 +1599,10 @@ Task.task_factory('csproj_stlib', '${DOTNET} publish -c ${MODE} -o ${BUILD_DIR} 
 @feature('cs_stlib')
 @before('process_source')
 def compile_csharp_lib(self):
+    if not self.env['DOTNET']:
+        print("Skipping %s, as C# is not supported on this platform", self.name)
+        return
+
     project = self.path.find_resource(self.project)
     if not project:
         self.bld.fatal("Couldn't find project '%s'" % self.project)
@@ -2081,7 +2086,7 @@ def options(opt):
     opt.load('compiler_c')
     opt.load('compiler_cxx')
 
-    opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-ios')
+    opt.add_option('--platform', default=sdk.get_host_platform(), dest='platform', help='target platform, eg arm64-ios')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')

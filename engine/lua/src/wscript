@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import os
 
+from waflib import Options
 from waf_dynamo import apidoc_extract_task
 from waf_dynamo import dmsdk_add_files
 
@@ -20,5 +21,6 @@ def build(bld):
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
     dmsdk_add_files(bld, '${PREFIX}/sdk/cs/dmsdk', 'cs/dmsdk')
 
-    bld.add_group() # until the csharp rule correctly uses "use" for dependencies
-    bld.recurse('test')
+    if not Options.options.skip_build_tests:
+        bld.add_group() # until the csharp rule correctly uses "use" for dependencies
+        bld.recurse('test')
