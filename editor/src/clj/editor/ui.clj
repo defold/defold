@@ -584,6 +584,15 @@
 (defn suppress-auto-commit! [^Node node]
   (user-data! node ::suppress-auto-commit true))
 
+(defn- clear-auto-commit! [^Node node]
+  ;; Clear the auto-commit flag. You should call this whenever data has been
+  ;; synced with the graph while the field still has focus. This ensures the
+  ;; unedited value will not be committed to the graph unnecessarily after the
+  ;; user moves focus to another control. Further edits will re-apply the
+  ;; auto-commit flag, but if they leave without editing, we won't commit.
+  (when (user-data node ::auto-commit)
+    (user-data! node ::auto-commit false)))
+
 (defn increase-on-edit-event-suppress-count! [editable]
   (when-some [suppress-count (user-data editable ::on-edit-event-suppress-count)]
     (user-data! editable ::on-edit-event-suppress-count (inc (long suppress-count)))))
@@ -759,17 +768,16 @@
   HasAction
   (on-action! [node update-fn]
     (.setOnAction node (event-handler e
-                         ;; Clear the auto-commit flag. Further edits will re-apply it.
-                         (when (user-data node ::auto-commit)
-                           (user-data! node ::auto-commit false))
+                         (clear-auto-commit! node)
+                         (update-fn e)
                          (if (zero? (.getLength (.getSelection node)))
                            (.selectAll node)
-                           (.deselect node))
-                         (update-fn e))))
+                           (.deselect node)))))
   Cancellable
   (on-cancel! [node cancel-fn]
     (bind-key! node "Esc" (fn []
                             (cancel-fn node)
+                            (clear-auto-commit! node)
                             (when-let [parent (.getParent node)]
                               (.requestFocus parent))))))
 
@@ -777,9 +785,7 @@
   HasAction
   (on-action! [node update-fn]
     (bind-key! node "Shortcut+Enter" (fn []
-                                         ;; Clear the auto-commit flag. Further edits will re-apply it.
-                                         (when (user-data node ::auto-commit)
-                                           (user-data! node ::auto-commit false))
+                                         (clear-auto-commit! node)
                                          (update-fn node)
                                          (if (zero? (.getLength (.getSelection node)))
                                            (.selectAll node)
@@ -788,6 +794,7 @@
   (on-cancel! [node cancel-fn]
     (bind-key! node "Esc" (fn []
                             (cancel-fn node)
+                            (clear-auto-commit! node)
                             (when-let [parent (.getParent node)]
                               (.requestFocus parent))))))
 
