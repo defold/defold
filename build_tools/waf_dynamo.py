@@ -1512,12 +1512,34 @@ def remove_flag(arr, flag, nargs):
 def _get_dotnet_version():
     result = run.shell_command('dotnet --info')
     lines = result.splitlines()
+    lines = [x.strip() for x in lines]
+
     i = lines.index('Host:')
     version = lines[i+1].strip().split()[1]
-    return version
+
+    for l in lines:
+        if l.startswith('Base Path:'):
+            sdk_dir = l.split('Base Path:')[1].strip()
+            while sdk_dir.endswith('/'):
+                sdk_dir = sdk_dir[:-1]
+            sdk_dir = os.path.dirname(sdk_dir)
+            break
+    return version, sdk_dir
 
 def _get_dotnet_aot_base(nuget_path, dotnet_platform, dotnet_version):
     return f"{nuget_path}/microsoft.netcore.app.runtime.nativeaot.{dotnet_platform}/{dotnet_version}/runtimes/{dotnet_platform}/native"
+
+def _get_dotnet_nuget_path():
+    result = run.shell_command("dotnet nuget locals global-packages -l")
+    if result is not None and 'global-packages:' in result:
+        nuget_path = result.split('global-packages:')[1].strip()
+
+    if not nuget_path:
+        if build_util.get_target_os() in ('win32'):
+            nuget_path = os.path.expanduser('%%userprofile%%/.nuget/packages')
+        else:
+            nuget_path = os.path.expanduser('~/.nuget/packages')
+    return nuget_path
 
 def setup_csharp(conf):
     platform = getattr(Options.options, 'platform', sdk.get_host_platform())
@@ -1528,7 +1550,7 @@ def setup_csharp(conf):
         return # not currently supported
 
     conf.find_program('dotnet', var='DOTNET', mandatory = True)
-    conf.env.DOTNET_VERSION = _get_dotnet_version()
+    conf.env.DOTNET_VERSION, conf.env.DOTNET_SDK = _get_dotnet_version()
 
     build_util = create_build_utility(conf.env)
 
@@ -1543,13 +1565,7 @@ def setup_csharp(conf):
 
     dotnet_os = platform_to_cs.get(build_util.get_target_os(), build_util.get_target_os())
 
-    nuget_path = os.environ.get("NUGET_PACKAGES", None)
-    if not nuget_path:
-        if build_util.get_target_os() in ('win32'):
-            nuget_path = os.path.expanduser('%%userprofile%%/.nuget/packages')
-        else:
-            nuget_path = os.path.expanduser('~/.nuget/packages')
-
+    nuget_path = _get_dotnet_nuget_path()
     conf.env.NUGET_PACKAGES = nuget_path
     if not os.path.exists(conf.env.NUGET_PACKAGES):
         print(f"'NUGET_PACKAGES' not found. Using NUGET_PACKAGES={nuget_path}")
@@ -1594,6 +1610,29 @@ def setup_csharp(conf):
 
         if build_util.get_target_os() in ('macos'):
             conf.env['FRAMEWORK_CSHARP'] = ["AGL","OpenAL","OpenGL","QuartzCore"]
+
+    # HACKS
+    # While we're waiting for official fixes to arrive
+    if conf.env.DOTNET_VERSION == '9.0.0-preview.5.24306.7':
+        defold_home = os.path.normpath(os.path.join(conf.env.DYNAMO_HOME, '..', '..'))
+        if not defold_home or not os.path.exists(defold_home):
+            conf.fatal("Couldn't find defold home directory: '%s'" % defold_home)
+
+
+        def copy_file(source_dir, target_dir, name):
+            src = os.path.join(source_dir, name)
+            tgt = os.path.join(target_dir, name)
+            shutil.copy2(src, tgt)
+            Logs.info("Patching DotNet %s sdk with '%s'" % (conf.env.DOTNET_VERSION, tgt))
+
+        source_dir = os.path.join(defold_home, "scripts", "dotnet")
+
+        target_dir = os.path.join(conf.env.NUGET_PACKAGES, "microsoft.dotnet.ilcompiler/9.0.0-preview.5.24306.7/build")
+        copy_file(source_dir, target_dir, "Microsoft.NETCore.Native.Windows.targets")
+
+        # # needs write access
+        # target_dir = os.path.join(os.path.dirname(conf.env.DOTNET_SDK), "sdk-manifests/9.0.100-preview.5/microsoft.net.workload.mono.toolchain.current/9.0.0-preview.5.24306.7")
+        # copy_file(source_dir, target_dir, "WorkloadManifest.targets")
 
 # For properties, see https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-publish
 Task.task_factory('csproj_stlib', '${DOTNET} publish -c ${MODE} -o ${BUILD_DIR} -v q --artifacts-path ${ARTIFACTS_PATH} -r ${RUNTIME} -p:PublishAot=true -p:NativeLib=Static -p:PublishTrimmed=true -p:IlcDehydrate=false ${SRC[0].abspath()}',

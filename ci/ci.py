@@ -587,8 +587,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    print("ci.py: MAWE DEBUG")
-    call('echo $PATH')
-    call('which python && which python3')
-    os.environ['PATH'] = os.environ['PATH'] + os.pathsep + os.path.dirname(sys.executable)
     main(sys.argv[1:])
