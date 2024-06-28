@@ -464,7 +464,7 @@ namespace dmGameSystem
      * Retrieves all the tiles for the specified layer in the tilemap.
      * It returns a table of rows where the keys are the
      * tile positions (see [ref:tilemap.get_bounds()]).
-     * You can iterate it using `tiles[y][x]`.
+     * You can iterate it using `tiles[row_index][column_index]`.
      *
      * @name tilemap.get_tiles
      * @param url [type:string|hash|url] the tilemap
@@ -473,12 +473,12 @@ namespace dmGameSystem
      * @examples
      *
      * ```lua
-     * local mx, my, max_x, max_y = tilemap.get_bounds("#tilemap")
-     * local tbl = tilemap.get_tiles("#tilemap", "layer")
-     * local value, count = 0, 0
-     * for y = my, my + max_y - 1 do
-     *     for x = mx, mx + max_x - 1 do
-     *         value = tbl[y][x]
+     * local left, bottom, columns_count, rows_count = tilemap.get_bounds("#tilemap")
+     * local tiles = tilemap.get_tiles("#tilemap", "layer")
+     * local tile, count = 0, 0
+     * for row_index = bottom, bottom + rows_count - 1 do
+     *     for column_index = left, left + columns_count - 1 do
+     *         tile = tiles[row_index][column_index]
      *         count = count + 1
      *     end
      * end
