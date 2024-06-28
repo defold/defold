@@ -462,9 +462,10 @@ namespace dmGameSystem
 
     /*# get all the tiles from a layer in a tilemap
      * Retrieves all the tiles for the specified layer in the tilemap.
-     * It returns a table of tables where the keys are the
+     * It returns a table of columns where the keys are the
      * tile positions (see [ref:tilemap.get_bounds()]).
-     *
+     * You can iterate it using `tiles[x][y]`.
+     * 
      * @name tilemap.get_tiles
      * @param url [type:string|hash|url] the tilemap
      * @param layer [type:string|hash] the name of the layer for the tiles
@@ -472,15 +473,15 @@ namespace dmGameSystem
      * @examples
      *
      * ```lua
-     *  local mx, my, max_x, max_y = tilemap.get_bounds("#tilemap")
-     *  local tbl = tilemap.get_tiles("#1", "layer")
-     *  for y = my + max_y - 1, my, -1  do --starting top left corner
-     *    local str = y.." \t"
-     *    for x = mx, mx + max_x - 1 do
-     *       str = str .. "\t".. tostring(tbl[y][x])
+     * local mx, my, max_x, max_y = tilemap.get_bounds("#tilemap")
+     * local tbl = tilemap.get_tiles("#tilemap", "layer1")
+     * local value, count = 0, 0
+     * for x = mx, mx + max_x - 1 do
+     *    for y = my, my + max_y - 1 do
+     *        value = tbl[x][y]
+     *       count = count + 1
      *    end
-     *    print(str)
-     *   end
+     * end
      * ```
      */
     static int TileMap_GetTiles(lua_State* L)
@@ -510,14 +511,14 @@ namespace dmGameSystem
         GetTileGridCellCoord(component, min_x, min_y, cell_x, cell_y);
 
         lua_newtable(L);
-        for (int iy = 0; iy < grid_h; iy++)
+        for (int ix = 0; ix < grid_w; ix++)
         {
-            lua_pushinteger(L, min_y + iy + 1);
+            lua_pushinteger(L, min_x + ix + 1);
             lua_newtable(L);
-            for (int ix = 0; ix < grid_w; ix++)
+            for (int iy = 0; iy < grid_h; iy++)
             {
                 uint16_t cell = GetTileGridTile(component, layer_index, cell_x + ix, cell_y + iy);
-                lua_pushinteger(L, min_x + ix + 1);
+                lua_pushinteger(L, min_y + iy + 1);
                 lua_pushinteger(L, cell);
                 lua_settable(L, -3);
             }

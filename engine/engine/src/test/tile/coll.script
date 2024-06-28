@@ -52,10 +52,10 @@ function init(self)
 
     -- get_tiles
     local tiles = tilemap.get_tiles("#tilemap", "layer")
-    assert(tiles[0][-1] == 1)
+    assert(tiles[0][0] == 0)
     assert(tiles[0][1] == 0)
     assert(tiles[1][1] == 1)
-    assert(tiles[1][-1] == 0)
+    assert(tiles[-1][0] == 1)
 
     -- out of range
     tile = tilemap.get_tile("#tilemap", "layer", 2, 1)
