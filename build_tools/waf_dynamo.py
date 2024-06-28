@@ -1636,6 +1636,17 @@ def setup_csharp(conf):
             finally:
                 pass
 
+            print("MAWE listing dir", conf.env.DOTNET_SDK)
+            for root, dirs, files in os.walk(conf.env.DOTNET_SDK):
+                for f in files:
+                    if not (f.endswith('.targets')):
+                        continue
+                    path = os.path.join(root, f)
+                    print("MAWE", path)
+
+            if not os.path.exists(target_dir):
+                conf.fatal("Path still does not exist:", target_dir)
+
         copy_file(source_dir, target_dir, "Microsoft.NETCore.Native.Windows.targets")
 
         # # needs write access
