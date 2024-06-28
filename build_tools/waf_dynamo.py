@@ -1632,7 +1632,7 @@ def setup_csharp(conf):
         if not os.path.exists(target_dir):
             # Trick to make it download the sdk's so that we can then overwrite the file
             try:
-                run.shell_command(f"mkdir dotnetsync && cd dotnetsync && dotnet new console && echo \"namespace CS {{}}\" > Program.cs && dotnet publish -c Release -r {dotnet_platform} -p:PublishAot=true -p:NativeLib=Static -p:OutputType=Library")
+                run.shell_command(f"mkdir dotnetsync && cd dotnetsync && dotnet new console && echo \"namespace CS {{\npublic class Test {{\n}}\n}}\n\" > Program.cs && dotnet publish -c Release -r {dotnet_platform} -p:PublishAot=true -p:NativeLib=Static -p:OutputType=Library")
             finally:
                 pass
 
