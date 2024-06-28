@@ -469,7 +469,7 @@ namespace dmGameSystem
      * @name tilemap.get_tiles
      * @param url [type:string|hash|url] the tilemap
      * @param layer [type:string|hash] the name of the layer for the tiles
-     * @return tiles [type:table] a table of tables representing the layer
+     * @return tiles [type:table] a table of rows representing the layer
      * @examples
      *
      * ```lua
