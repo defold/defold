@@ -1615,6 +1615,7 @@ def setup_csharp(conf):
     # HACKS
     # While we're waiting for official fixes to arrive
     if conf.env.DOTNET_VERSION == '9.0.0-preview.5.24306.7':
+        dotnet_version = conf.env.DOTNET_VERSION
         defold_home = os.path.normpath(os.path.join(conf.env.DYNAMO_HOME, '..', '..'))
         if not defold_home or not os.path.exists(defold_home):
             conf.fatal("Couldn't find defold home directory: '%s'" % defold_home)
@@ -1627,17 +1628,17 @@ def setup_csharp(conf):
             Logs.info("Patching DotNet %s sdk with '%s'" % (conf.env.DOTNET_VERSION, tgt))
 
         source_dir = os.path.join(defold_home, "scripts", "dotnet")
-        target_dir = os.path.join(conf.env.NUGET_PACKAGES, "microsoft.dotnet.ilcompiler/9.0.0-preview.5.24306.7/build")
+        target_dir = os.path.join(conf.env.NUGET_PACKAGES, f"microsoft.dotnet.ilcompiler/{dotnet_version}/build")
 
         if not os.path.exists(target_dir):
             # Trick to make it download the sdk's so that we can then overwrite the file
             try:
-                run.shell_command(f"mkdir dotnetsync && cd dotnetsync && dotnet new console && echo \"namespace CS {{\npublic class Test {{\n}}\n}}\n\" > Program.cs && dotnet publish -c Release -r {dotnet_platform} -p:PublishAot=true -p:NativeLib=Static -p:OutputType=Library")
+                run.shell_command(f"mkdir dotnetsync && cd dotnetsync && dotnet new console && echo \"namespace CS {{\npublic class Test {{\n}}\n}}\n\" > Program.cs && dotnet add package Microsoft.DotNet.ILCompiler --version {dotnet_version}")
             finally:
                 pass
 
-            print("MAWE listing dir", conf.env.DOTNET_SDK)
-            for root, dirs, files in os.walk(conf.env.DOTNET_SDK):
+            print("MAWE listing dir", conf.env.NUGET_PACKAGES)
+            for root, dirs, files in os.walk(conf.env.NUGET_PACKAGES):
                 for f in files:
                     if not (f.endswith('.targets')):
                         continue
@@ -1645,6 +1646,7 @@ def setup_csharp(conf):
                     print("MAWE", path)
 
             if not os.path.exists(target_dir):
+                print("Path still does not exist:", target_dir)
                 conf.fatal("Path still does not exist:", target_dir)
 
         copy_file(source_dir, target_dir, "Microsoft.NETCore.Native.Windows.targets")
