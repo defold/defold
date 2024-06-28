@@ -1520,10 +1520,13 @@ def _get_dotnet_aot_base(nuget_path, dotnet_platform, dotnet_version):
     return f"{nuget_path}/microsoft.netcore.app.runtime.nativeaot.{dotnet_platform}/{dotnet_version}/runtimes/{dotnet_platform}/native"
 
 def setup_csharp(conf):
+    platform = getattr(Options.options, 'platform', sdk.get_host_platform())
+
+    if platform in ['wasm-web', 'js-web']:
+        return # not currently supported
+
     conf.find_program('dotnet', var='DOTNET', mandatory = True)
     conf.env.DOTNET_VERSION = _get_dotnet_version()
-
-    platform = getattr(Options.options, 'platform', sdk.get_host_platform())
 
     build_util = create_build_utility(conf.env)
 
