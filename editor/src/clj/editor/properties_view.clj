@@ -160,7 +160,7 @@
                                       (properties/read-only? property))))
         cancel-fn update-prop-fn
         update-fn (fn [_]
-                    (if-let [v (field-expression/to-int (.getText text))]
+                    (when-let [v (field-expression/to-int (.getText text))]
                       (let [property (property-fn)]
                         (properties/set-values! property (repeat v))
                         (update-prop-fn nil))))]
@@ -300,9 +300,9 @@
                 cancel-fn (fn [_]
                             (let [property (property-fn)
                                   current-vals (properties/values property)]
-                              (update-ui-fn current-vals (properties/validation-message property)
-                                            (properties/read-only? property))
-                              ))
+                              (update-ui-fn current-vals
+                                            (properties/validation-message property)
+                                            (properties/read-only? property))))
                 update-fn (fn update-fn [_]
                             (let [property (property-fn)
                                   current-vals (properties/values property)
@@ -548,7 +548,7 @@
                                     (properties/validation-message property)
                                     (properties/read-only? property))))
         update-fn (fn [_]
-                      (properties/set-values! (property-fn) (repeat (.getText text))))]
+                    (properties/set-values! (property-fn) (repeat (.getText text))))]
     (customize! text update-fn cancel-fn)
     [text update-ui-fn]))
 
