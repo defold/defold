@@ -1629,11 +1629,15 @@ def setup_csharp(conf):
 
         source_dir = os.path.join(defold_home, "scripts", "dotnet")
         target_dir = os.path.join(conf.env.NUGET_PACKAGES, f"microsoft.dotnet.ilcompiler/{dotnet_version}/build")
+        source_dir = os.path.normpath(source_dir)
+        target_dir = os.path.normpath(target_dir)
+        print("MAWE source_dir", source_dir, os.path.exists(source_dir))
+        print("MAWE target_dir", target_dir, os.path.exists(target_dir))
 
         if not os.path.exists(target_dir):
             # Trick to make it download the sdk's so that we can then overwrite the file
             try:
-                run.shell_command(f"mkdir dotnetsync && cd dotnetsync && dotnet new console && echo \"namespace CS {{\npublic class Test {{\n}}\n}}\n\" > Program.cs && dotnet add package Microsoft.DotNet.ILCompiler --version {dotnet_version}")
+                run.shell_command(f"mkdir dotnetsync && cd dotnetsync && dotnet new console && echo \"namespace CS {{\npublic class Test {{\n}}\n}}\n\" > Program.cs && dotnet add package Microsoft.DotNet.ILCompiler --version {dotnet_version} && dotnet publish -c Release -r {dotnet_platform} -p:PublishAot=true -p:NativeLib=Static -p:OutputType=Library")
             finally:
                 pass
 
