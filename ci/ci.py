@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 # Copyright 2020-2024 The Defold Foundation
 # Copyright 2014-2020 King
@@ -587,4 +587,8 @@ def main(argv):
 
 
 if __name__ == "__main__":
+    print("ci.py: MAWE DEBUG")
+    call('echo $PATH')
+    call('which python && which python3')
+    os.environ['PATH'] = os.environ['PATH'] + os.pathsep + os.path.dirname(sys.executable)
     main(sys.argv[1:])
