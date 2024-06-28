@@ -31,10 +31,12 @@ jobs:
   bld-eng-windows:
     strategy:
       matrix:
-        - platform: win32
-          msvcarch: x86
-        - platform: x86_64-win32
-          msvcarch: x64
+        platform: [win32, x86_64-win32]
+        include:
+          - platform: win32
+            msvcarch: x86
+          - platform: x86_64-win32
+            msvcarch: x64
 
     runs-on: windows-latest
     steps: [
