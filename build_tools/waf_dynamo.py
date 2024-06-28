@@ -1521,6 +1521,8 @@ def _get_dotnet_aot_base(nuget_path, dotnet_platform, dotnet_version):
 
 def setup_csharp(conf):
     platform = getattr(Options.options, 'platform', sdk.get_host_platform())
+    if platform == '':
+        platform = sdk.get_host_platform()
 
     if platform in ['wasm-web', 'js-web']:
         return # not currently supported
@@ -2086,7 +2088,7 @@ def options(opt):
     opt.load('compiler_c')
     opt.load('compiler_cxx')
 
-    opt.add_option('--platform', default=sdk.get_host_platform(), dest='platform', help='target platform, eg arm64-ios')
+    opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-ios')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
