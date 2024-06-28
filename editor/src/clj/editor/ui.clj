@@ -48,7 +48,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
            [javafx.scene Group Node Parent Scene]
-           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TableView TabPane TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TableView TabPane TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane HBox Pane]
@@ -107,6 +107,9 @@
 
 (defprotocol HasAction
   (on-action! [this fn]))
+
+(defprotocol Cancellable
+  (on-cancel! [this cancel-fn]))
 
 (defprotocol HasValue
   (value [this])
@@ -750,14 +753,43 @@
   (value [this] (.getValue this))
   (value! [this val] (with-on-edit-event-suppressed! this (.setValue this val))))
 
+(declare bind-key!)
+
 (extend-type TextField
   HasAction
-  (on-action! [node fn]
+  (on-action! [node update-fn]
     (.setOnAction node (event-handler e
                          ;; Clear the auto-commit flag. Further edits will re-apply it.
                          (when (user-data node ::auto-commit)
                            (user-data! node ::auto-commit false))
-                         (fn e)))))
+                         (if (zero? (.getLength (.getSelection node)))
+                           (.selectAll node)
+                           (.deselect node))
+                         (update-fn e))))
+  Cancellable
+  (on-cancel! [node cancel-fn]
+    (bind-key! node "Esc" (fn []
+                            (cancel-fn node)
+                            (when-let [parent (.getParent node)]
+                              (.requestFocus parent))))))
+
+(extend-type TextArea
+  HasAction
+  (on-action! [node update-fn]
+    (bind-key! node "Shortcut+Enter" (fn []
+                                         ;; Clear the auto-commit flag. Further edits will re-apply it.
+                                         (when (user-data node ::auto-commit)
+                                           (user-data! node ::auto-commit false))
+                                         (update-fn node)
+                                         (if (zero? (.getLength (.getSelection node)))
+                                           (.selectAll node)
+                                           (.deselect node)))))
+  Cancellable
+  (on-cancel! [node cancel-fn]
+    (bind-key! node "Esc" (fn []
+                            (cancel-fn node)
+                            (when-let [parent (.getParent node)]
+                              (.requestFocus parent))))))
 
 (extend-type Labeled
   Text
