@@ -2030,7 +2030,7 @@ If you do not specifically require different script states, consider changing th
                       (custom-code-editor-executable-path-preference prefs))))]
          (let [cursor-range (:cursor-range opts)
                arg-tmpl (string/trim (if cursor-range (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
-               arg-sub (cond-> {:file (resource/abs-path resource)}
+               arg-sub (cond-> {:file (resource/externally-available-absolute-path resource)}
                                cursor-range (assoc :line (CursorRange->line-number cursor-range)))
                args (->> (string/split arg-tmpl #" ")
                          (map #(substitute-args % arg-sub)))]

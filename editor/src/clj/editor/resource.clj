@@ -563,3 +563,19 @@
   (when (and (exists? resource)
              (textual? resource))
     (text-util/readable->text-matches resource pattern)))
+
+(defonce ^:private externally-available-extract-directory-delay
+  (delay (fs/create-temp-directory! "extract-")))
+
+(defn externally-available-absolute-path
+  ^String [resource]
+  (or (abs-path resource)
+      (when-some [relative-path (path resource)]
+        (let [temp-directory @externally-available-extract-directory-delay
+              temp-file (io/file temp-directory relative-path)]
+          (when-not (fs/existing-file? temp-file)
+            (fs/create-parent-directories! temp-file)
+            (with-open [input-stream (io/input-stream resource)]
+              (io/copy input-stream temp-file))
+            (fs/set-writable! temp-file false))
+          (.getAbsolutePath temp-file)))))
