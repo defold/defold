@@ -2012,6 +2012,8 @@ If you do not specifically require different script states, consider changing th
               :header (format "Unable to open '%s', since it contains unrecognizable data. Could the project be missing a required extension?" (resource/proj-path resource))})
            false)
        (if-let [custom-editor (and (#{:code :text} (:id view-type))
+                                   (or (:selected-view-type opts)
+                                       (get-in resource-type [:view-opts (:id view-type) :use-custom-editor] true))
                                    (let [ed-pref (some->
                                                    (prefs/get-prefs prefs "code-custom-editor" "")
                                                    string/trim)]
