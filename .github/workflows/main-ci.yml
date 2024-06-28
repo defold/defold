@@ -42,8 +42,18 @@ jobs:
     steps: [
       {name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: {ref: '${{env.BUILD_BRANCH}}'}},
       {name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: {python-version: 3.12.3}},
+      {
+        name: 'Test Python',
+        shell: bash,
+        run: 'which python && which python3 && python --version'
+      },
       {name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: {java-version: '17.0.5+8', distribution: 'temurin'}},
       {name: 'Install MSVC', uses: ilammy/msvc-dev-cmd@v1, with: {arch: '${{ matrix.msvcarch }}'}},
+      {
+        name: 'Test Python after msvc',
+        shell: bash,
+        run: 'which python && which python3 && python --version'
+      },
       {name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},
       {name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}'},
       {
