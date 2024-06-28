@@ -1571,10 +1571,12 @@ def setup_csharp(conf):
                 f'{aot_base}/libeventpipe-enabled.a',
                 f'{aot_base}/libstandalonegc-enabled.a',
                 f'{aot_base}/libstdc++compat.a',
-                f'{aot_base}/libRuntime.VxsortDisabled.a',
                 f'{aot_base}/libSystem.Native.a',
                 f'{aot_base}/libSystem.IO.Compression.Native.a',
                 f'{aot_base}/libSystem.Globalization.Native.a']
+
+            if platform == 'x86_64-macos':
+                conf.env.append_unique('LINKFLAGS_CSHARP', f'{aot_base}/libRuntime.VxsortDisabled.a')
 
         elif build_util.get_target_os() in ('ios'):
             conf.env['LINKFLAGS_CSHARP'] = [
