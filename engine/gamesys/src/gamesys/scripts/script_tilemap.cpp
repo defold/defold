@@ -462,10 +462,10 @@ namespace dmGameSystem
 
     /*# get all the tiles from a layer in a tilemap
      * Retrieves all the tiles for the specified layer in the tilemap.
-     * It returns a table of columns where the keys are the
+     * It returns a table of rows where the keys are the
      * tile positions (see [ref:tilemap.get_bounds()]).
-     * You can iterate it using `tiles[x][y]`.
-     * 
+     * You can iterate it using `tiles[y][x]`.
+     *
      * @name tilemap.get_tiles
      * @param url [type:string|hash|url] the tilemap
      * @param layer [type:string|hash] the name of the layer for the tiles
@@ -474,13 +474,13 @@ namespace dmGameSystem
      *
      * ```lua
      * local mx, my, max_x, max_y = tilemap.get_bounds("#tilemap")
-     * local tbl = tilemap.get_tiles("#tilemap", "layer1")
+     * local tbl = tilemap.get_tiles("#tilemap", "layer")
      * local value, count = 0, 0
-     * for x = mx, mx + max_x - 1 do
-     *    for y = my, my + max_y - 1 do
-     *        value = tbl[x][y]
-     *       count = count + 1
-     *    end
+     * for y = my, my + max_y - 1 do
+     *     for x = mx, mx + max_x - 1 do
+     *         value = tbl[y][x]
+     *         count = count + 1
+     *     end
      * end
      * ```
      */
@@ -511,14 +511,14 @@ namespace dmGameSystem
         GetTileGridCellCoord(component, min_x, min_y, cell_x, cell_y);
 
         lua_newtable(L);
-        for (int ix = 0; ix < grid_w; ix++)
+        for (int iy = 0; iy < grid_h; iy++)
         {
-            lua_pushinteger(L, min_x + ix + 1);
+            lua_pushinteger(L, min_y + iy + 1);
             lua_newtable(L);
-            for (int iy = 0; iy < grid_h; iy++)
+            for (int ix = 0; ix < grid_w; ix++)
             {
                 uint16_t cell = GetTileGridTile(component, layer_index, cell_x + ix, cell_y + iy);
-                lua_pushinteger(L, min_y + iy + 1);
+                lua_pushinteger(L, min_x + ix + 1);
                 lua_pushinteger(L, cell);
                 lua_settable(L, -3);
             }
