@@ -1564,6 +1564,7 @@ def setup_csharp(conf):
     }
 
     dotnet_os = platform_to_cs.get(build_util.get_target_os(), build_util.get_target_os())
+    dotnet_platform = '%s-%s' % (dotnet_os, dotnet_arch)
 
     nuget_path = _get_dotnet_nuget_path()
     conf.env.NUGET_PACKAGES = nuget_path
@@ -1573,7 +1574,7 @@ def setup_csharp(conf):
         if not os.path.exists(conf.env.NUGET_PACKAGES):
             conf.fatal("Couldn't find C# nuget packages: '%s'" % conf.env.NUGET_PACKAGES)
 
-    aot_base = _get_dotnet_aot_base(nuget_path, '%s-%s' % (dotnet_os, dotnet_arch), conf.env.DOTNET_VERSION)
+    aot_base = _get_dotnet_aot_base(nuget_path, dotnet_platform, conf.env.DOTNET_VERSION)
 
     if build_util.get_target_os() in ('win32'):
         pass
@@ -1626,8 +1627,15 @@ def setup_csharp(conf):
             Logs.info("Patching DotNet %s sdk with '%s'" % (conf.env.DOTNET_VERSION, tgt))
 
         source_dir = os.path.join(defold_home, "scripts", "dotnet")
-
         target_dir = os.path.join(conf.env.NUGET_PACKAGES, "microsoft.dotnet.ilcompiler/9.0.0-preview.5.24306.7/build")
+
+        if not os.path.exists(target_dir):
+            # Trick to make it download the sdk's so that we can then overwrite the file
+            try:
+                run.shell_command(f"mkdir dotnetsync && cd dotnetsync && dotnet new console && echo \"namespace CS {{}}\" > Program.cs && dotnet publish -c Release -r {dotnet_platform} -p:PublishAot=true -p:NativeLib=Static -p:OutputType=Library")
+            finally:
+                pass
+
         copy_file(source_dir, target_dir, "Microsoft.NETCore.Native.Windows.targets")
 
         # # needs write access
