@@ -364,11 +364,16 @@ public class BundlerTest {
         Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal"));
 
         project.findSources(contentRoot, skipDirs);
-        List<TaskResult> result = project.build(new NullProgress(), "clean", "build", "bundle");
-        for (TaskResult taskResult : result) {
-            assertTrue(taskResult.toString(), taskResult.isOk());
+        try {
+            List<TaskResult> result = project.build(new NullProgress(), "clean", "build", "bundle");
+            for (TaskResult taskResult : result) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
+        } catch (RuntimeException e) {
+            System.err.println("Runtime exception occurred during build: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
         }
-
         verifyEngineBinaries();
     }
 
