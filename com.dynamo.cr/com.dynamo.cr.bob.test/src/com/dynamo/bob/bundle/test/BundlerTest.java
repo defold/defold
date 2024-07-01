@@ -527,12 +527,24 @@ public class BundlerTest {
         createFile(sub2.getAbsolutePath(), "s2-2.txt", "dummy");
 
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom,m.txt\n[display]\nwidth=640\nheight=480\n");
-        build();
+        try {
+            build();
+        } catch (Exception e) {
+            System.err.println("Exception during build with custom resources: custom,m.txt");
+            e.printStackTrace(System.err);
+            throw e;
+        }
         Set<byte[]> entries = readDarcEntries(contentRoot);
         assertEquals(5, entries.size() - numBuiltins);
 
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=custom/sub2\n[display]\nwidth=640\nheight=480\n");
-        build();
+        try {
+            build();
+        } catch (Exception e) {
+            System.err.println("Exception during build with custom resources: custom/sub2");
+            e.printStackTrace(System.err);
+            throw e;
+        }
         entries = readDarcEntries(contentRoot);
         assertEquals(2, entries.size() - numBuiltins);
     }
