@@ -241,11 +241,6 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
 
 task compile(dependsOn: ['compileBobLight']) {
     doLast {
-        jar {
-            includeEmptyDirs = false
-            archiveFileName = 'android-res.zip'
-            from "${project.dynamoHome}/ext/share/java/res"
-        }
         copy {
             from fileTree("${project.dynamoHome}/ext/lib") {
                 include 'win32/OpenAL32.dll'
